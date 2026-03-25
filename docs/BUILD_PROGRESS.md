@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 12 next
 > **Total steps:** 124
-> **Completed:** 119 / 124 (96%)
+> **Completed:** 120 / 124 (97%)
 
 ---
 
@@ -209,7 +209,7 @@
 ## Phase 20: Launch Preparation
 **Goal:** Set up subscriptions, analytics, privacy policy, CI/CD pipeline, and submit to App Store.
 
-- [ ] 20.1: Subscription Setup (StoreKit 2)
+- [x] 20.1: Subscription Setup (StoreKit 2) ✅ 2026-03-25
 - [ ] 20.2: Analytics Implementation
 - [ ] 20.3: Privacy Policy + App Store Listing
 - [ ] 20.4: CI/CD Pipeline + TestFlight

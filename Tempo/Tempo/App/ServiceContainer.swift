@@ -18,6 +18,7 @@ final class ServiceContainer {
     let backgroundSync: BackgroundSyncService
     let networkMonitor: NetworkMonitor
     let pushRegistration: PushRegistrationService
+    let subscriptions: any SubscriptionServiceProtocol
     let appState: AppState
 
     init(
@@ -34,7 +35,8 @@ final class ServiceContainer {
         syncCoordinator: any SyncCoordinatorProtocol,
         backgroundSync: BackgroundSyncService,
         networkMonitor: NetworkMonitor,
-        pushRegistration: PushRegistrationService
+        pushRegistration: PushRegistrationService,
+        subscriptions: any SubscriptionServiceProtocol
     ) {
         self.authService = authService
         self.healthKit = healthKit
@@ -50,6 +52,7 @@ final class ServiceContainer {
         self.backgroundSync = backgroundSync
         self.networkMonitor = networkMonitor
         self.pushRegistration = pushRegistration
+        self.subscriptions = subscriptions
         self.appState = AppState(authService: authService)
     }
 
@@ -69,7 +72,8 @@ final class ServiceContainer {
             syncCoordinator: MockSyncCoordinator(),
             backgroundSync: BackgroundSyncService(),
             networkMonitor: NetworkMonitor(),
-            pushRegistration: PushRegistrationService(apiClient: APIClient())
+            pushRegistration: PushRegistrationService(apiClient: APIClient()),
+            subscriptions: MockSubscriptionService()
         )
     }
 
@@ -89,7 +93,8 @@ final class ServiceContainer {
             syncCoordinator: MockSyncCoordinator(),
             backgroundSync: BackgroundSyncService(),
             networkMonitor: NetworkMonitor(),
-            pushRegistration: PushRegistrationService(apiClient: apiClient)
+            pushRegistration: PushRegistrationService(apiClient: apiClient),
+            subscriptions: SubscriptionService()
         )
     }
 }
