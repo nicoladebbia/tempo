@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 12 next
 > **Total steps:** 124
-> **Completed:** 101 / 124 (81%)
+> **Completed:** 102 / 124 (82%)
 
 ---
 
@@ -159,7 +159,7 @@
 - [x] 12.2: Local Notification Scheduling Engine (2026-03-25)
 - [x] 12.3: Accountability Escalation Tiers (2026-03-25)
 - [x] 12.4: Morning Briefing + Other Notifications (2026-03-25)
-- [ ] 12.5: Notification Settings UI
+- [x] 12.5: Notification Settings UI (2026-03-25)
 
 ## Phase 13: Calendar Integration
 **Goal:** Implement real Calendar/EventKit service and connect football/exam detection to Training and Accountability.
