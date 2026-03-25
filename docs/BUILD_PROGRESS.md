@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 2 in progress
 > **Total steps:** 124
-> **Completed:** 22 / 124 (18%)
+> **Completed:** 23 / 124 (19%)
 
 ---
 
@@ -40,7 +40,7 @@
 
 - [x] 2.1: Network Client (APIClient) (2026-03-25)
 - [x] 2.2: Auth Service + Keychain (2026-03-25)
-- [ ] 2.3: HealthKit Service (Protocol + Stub)
+- [x] 2.3: HealthKit Service (Protocol + Stub) (2026-03-25)
 - [ ] 2.4: Whoop Service (Protocol + Stub)
 - [ ] 2.5: NutriTrack Service (Protocol + Stub)
 - [ ] 2.6: Calendar Service (Protocol + Stub)
