@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 7 next
 > **Total steps:** 124
-> **Completed:** 90 / 124 (73%)
+> **Completed:** 91 / 124 (73%)
 
 ---
 
@@ -140,7 +140,7 @@
 - [x] 10.2: Accountability ViewModel (2026-03-25)
 - [x] 10.3: LockdownView (Non-Negotiable Cards) (2026-03-25)
 - [x] 10.4: Focus Timer (Pomodoro) (2026-03-25)
-- [ ] 10.5: NonNegotiable Setup/Edit Flow
+- [x] 10.5: NonNegotiable Setup/Edit Flow (2026-03-25)
 - [ ] 10.6: Streak Calendar + Streak Engine
 - [ ] 10.7: Scoring Engine (Real Implementation)
 - [ ] 10.8: Accountability Tab Container + Dashboard Connection
