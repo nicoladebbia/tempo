@@ -103,6 +103,7 @@ func configure(_ app: Application) async throws {
     app.migrations.add(CreateWhoopSleep())
     app.migrations.add(CreateWhoopWorkouts())
     app.migrations.add(CreateWhoopCycles())
+    app.migrations.add(CreateNutriTrackIntegrations())
 
     // Auto-migrate in development
     if app.environment == .development {

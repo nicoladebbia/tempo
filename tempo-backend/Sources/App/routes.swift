@@ -40,6 +40,17 @@ func routes(_ app: Application) throws {
         .grouped(RateLimitMiddleware(limit: 100, window: .minutes(1), scope: .user))
         .register(collection: WhoopDataController())
 
+    // NutriTrack integration management — per INTEGRATION_SPECS.md Section 3
+    try protected.grouped("integrations", "nutritrack")
+        .grouped(RateLimitMiddleware(limit: 10, window: .minutes(1), scope: .user))
+        .register(collection: NutriTrackIntegrationController())
+
+    // NutriTrack data proxy — per INTEGRATION_SPECS.md Section 3.3
+    // GET /v1/nutritrack/today, /macro-balance, /weekly-report
+    try protected.grouped("nutritrack")
+        .grouped(RateLimitMiddleware(limit: 100, window: .minutes(1), scope: .user))
+        .register(collection: NutriTrackDataController())
+
     // ─────────────────────────────────────────────────
     // Webhooks (no JWT — verified via HMAC)
     // ─────────────────────────────────────────────────
