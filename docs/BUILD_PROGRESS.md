@@ -1,9 +1,9 @@
 # Tempo Build Progress
 
-> **Last updated:** 2026-03-24
-> **Current phase:** Phase 0 complete, starting Phase 1
+> **Last updated:** 2026-03-25
+> **Current phase:** Phase 1 in progress
 > **Total steps:** 124
-> **Completed:** 10 / 124 (8%)
+> **Completed:** 11 / 124 (9%)
 
 ---
 
@@ -24,7 +24,7 @@
 ## Phase 1: Data Models (iOS)
 **Goal:** Create all SwiftData models, schema configuration, migration plan, and exercise seed data.
 
-- [ ] 1.1: User Models (UserProfile, UserSettings)
+- [x] 1.1: User Models (UserProfile, UserSettings) (2026-03-25)
 - [ ] 1.2: Dashboard Models (DailySnapshot)
 - [ ] 1.3: Training Models
 - [ ] 1.4: Accountability Models
