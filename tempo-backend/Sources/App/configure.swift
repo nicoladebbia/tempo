@@ -99,6 +99,10 @@ func configure(_ app: Application) async throws {
     app.migrations.add(CreateUsers())
     app.migrations.add(CreateRefreshTokens())
     app.migrations.add(CreateWhoopIntegrations())
+    app.migrations.add(CreateWhoopRecovery())
+    app.migrations.add(CreateWhoopSleep())
+    app.migrations.add(CreateWhoopWorkouts())
+    app.migrations.add(CreateWhoopCycles())
 
     // Auto-migrate in development
     if app.environment == .development {
@@ -106,7 +110,12 @@ func configure(_ app: Application) async throws {
     }
 
     // ─────────────────────────────────────────────────
-    // 8. Routes
+    // 8. Background jobs
+    // ─────────────────────────────────────────────────
+    app.queues.add(WhoopWebhookJob())
+
+    // ─────────────────────────────────────────────────
+    // 9. Routes
     // ─────────────────────────────────────────────────
     try routes(app)
 }

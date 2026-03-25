@@ -39,4 +39,14 @@ func routes(_ app: Application) throws {
     try protected.grouped("whoop")
         .grouped(RateLimitMiddleware(limit: 100, window: .minutes(1), scope: .user))
         .register(collection: WhoopDataController())
+
+    // ─────────────────────────────────────────────────
+    // Webhooks (no JWT — verified via HMAC)
+    // ─────────────────────────────────────────────────
+
+    // Whoop webhooks — per INTEGRATION_SPECS.md Section 1.4
+    // POST /v1/webhooks/whoop — HMAC-SHA256 verified
+    try v1.grouped("webhooks", "whoop")
+        .grouped(WhoopWebhookMiddleware())
+        .register(collection: WhoopWebhookController())
 }
