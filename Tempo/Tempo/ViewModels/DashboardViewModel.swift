@@ -349,6 +349,7 @@ final class DashboardViewModel {
     private let healthKit: any HealthKitServiceProtocol
     private let whoop: any WhoopServiceProtocol
     private let nutriTrack: any NutriTrackServiceProtocol
+    private let calendar: any CalendarServiceProtocol
     private var userName: String?
 
     // MARK: - Init
@@ -357,6 +358,7 @@ final class DashboardViewModel {
         self.healthKit = services.healthKit
         self.whoop = services.whoop
         self.nutriTrack = services.nutriTrack
+        self.calendar = services.calendar
         self.userName = nil // Populated from UserProfile in later phases
     }
 
@@ -457,15 +459,22 @@ final class DashboardViewModel {
                 lastSync: now
             )
 
-            // Build Mind quadrant (local data — stub values until Accountability module)
+            // Build Mind quadrant — exams from calendar, study data local
+            // Per BUILD_PLAN step 13.2 — exam countdown from real calendar data.
+            let threeWeeks = DateInterval(
+                start: Calendar.current.startOfDay(for: Date()),
+                end: Calendar.current.date(byAdding: .weekOfYear, value: 3, to: Date()) ?? Date()
+            )
+            let calendarExams = calendar.detectExamDates(in: threeWeeks)
+            let examItems = calendarExams.map { exam in
+                ExamData(name: exam.subject, date: exam.date)
+            }
+
             self.mind = MindQuadrantData(
-                studyMinutesToday: 95,
-                studyTargetMinutes: 120,
-                currentStreakDays: 12,
-                exams: [
-                    ExamData(name: "Calculus II", date: Date().addingTimeInterval(86400 * 6)),
-                    ExamData(name: "Physics Lab", date: Date().addingTimeInterval(86400 * 14)),
-                ]
+                studyMinutesToday: mind.studyMinutesToday,
+                studyTargetMinutes: mind.studyTargetMinutes,
+                currentStreakDays: mind.currentStreakDays,
+                exams: examItems.isEmpty ? mind.exams : examItems
             )
 
             // Build Move quadrant from real HealthKit data

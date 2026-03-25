@@ -361,6 +361,34 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         return plans
     }
 
+    // MARK: - Calendar-Aware Week Plan
+    // Per BUILD_PLAN step 13.2 — Merge calendar-detected football days with static settings.
+    // Football on calendar → training plan avoids heavy legs the day before.
+
+    func generateWeekPlan(
+        startDate: Date,
+        recoveryScore: Double?,
+        footballDays: ActiveDays,
+        calendarFootballDates: [Date],
+        split: TrainingSplit
+    ) -> [WorkoutPlan] {
+        // Merge static footballDays bitmask with calendar-detected dates
+        let cal = Calendar.current
+        var mergedFootballDays = footballDays
+
+        for footballDate in calendarFootballDates {
+            let weekday = cal.component(.weekday, from: footballDate)
+            mergedFootballDays = ActiveDays(rawValue: mergedFootballDays.rawValue | (1 << weekday))
+        }
+
+        return generateWeekPlan(
+            startDate: startDate,
+            recoveryScore: recoveryScore,
+            footballDays: mergedFootballDays,
+            split: split
+        )
+    }
+
     // MARK: - Private Helpers
 
     // Recovery zone classification

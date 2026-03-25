@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 12 next
 > **Total steps:** 124
-> **Completed:** 103 / 124 (83%)
+> **Completed:** 104 / 124 (84%)
 
 ---
 
@@ -165,7 +165,7 @@
 **Goal:** Implement real Calendar/EventKit service and connect football/exam detection to Training and Accountability.
 
 - [x] 13.1: Calendar Service (Real Implementation) (2026-03-25)
-- [ ] 13.2: Connect Calendar to Training + Accountability + Dashboard
+- [x] 13.2: Connect Calendar to Training + Accountability + Dashboard (2026-03-25)
 
 ## Phase 14: Arena Module
 **Goal:** Build Arena backend (models, controllers), iOS views (leaderboard, friends, challenges, achievements).

@@ -403,14 +403,29 @@ final class AccountabilityEngine: @unchecked Sendable {
 
     // MARK: - Target Adjustments
 
-    /// Adjust target for weekend mode.
+    // MARK: - Exam-Aware Study Target
+    // Per BUILD_PLAN step 13.2 — Exam within 7 days → study target increased by 50%.
+
+    /// The number of days until the next exam. Set by DashboardViewModel from calendar data.
+    /// When an exam is within 7 days, study targets increase by 50%.
+    var daysToNextExam: Int?
+
+    /// Adjust target for weekend mode and exam proximity.
     /// Per MODULE_ACCOUNTABILITY.md Section 8 — weekend targets configurable per non-negotiable.
+    /// Per BUILD_PLAN step 13.2 — exam within 7 days → study target +50%.
     private func adjustedTarget(for nn: NonNegotiable, date: Date) -> Double {
+        var target = nn.targetValue
+
         if isWeekend(date: date) && nn.type == .study {
-            // Weekend study target halved by default
-            return nn.targetValue / 2
+            target = target / 2
         }
-        return nn.targetValue
+
+        // Exam proximity boost: +50% study when exam within 7 days
+        if nn.type == .study, let days = daysToNextExam, days <= 7 {
+            target = target * 1.5
+        }
+
+        return target
     }
 
     // MARK: - Helpers
