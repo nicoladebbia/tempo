@@ -127,6 +127,14 @@ func configure(_ app: Application) async throws {
     app.migrations.add(CreateNutriTrackIntegrations())
     app.migrations.add(CreateDeviceTokens())
 
+    // Arena module — per BUILD_PLAN step 14.1
+    app.migrations.add(CreateXPEvents())
+    app.migrations.add(CreateFriendships())
+    app.migrations.add(CreateChallenges())
+    app.migrations.add(CreateAchievements())
+    app.migrations.add(CreateWeeklyLeaderboard())
+    app.migrations.add(SeedAchievements())
+
     // Auto-migrate in development
     if app.environment == .development {
         try await app.autoMigrate()
