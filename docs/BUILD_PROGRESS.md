@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 12 next
 > **Total steps:** 124
-> **Completed:** 108 / 124 (87%)
+> **Completed:** 109 / 124 (88%)
 
 ---
 
@@ -178,7 +178,7 @@
 **Goal:** Build Claude API backend service and weekly report generation with drill-sergeant copy.
 
 - [x] 15.1: Claude API Backend Service ✅ 2026-03-25
-- [ ] 15.2: Weekly Report + Drill Sergeant Copy
+- [x] 15.2: Weekly Report + Drill Sergeant Copy ✅ 2026-03-25
 
 ## Phase 16: Onboarding
 **Goal:** Build the full onboarding flow container with all step views and state persistence.

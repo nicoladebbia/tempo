@@ -150,6 +150,13 @@ func configure(_ app: Application) async throws {
     app.queues.schedule(MorningBriefingJob())
         .every(minutes: 15)
 
+    // Per BUILD_PLAN step 15.2 — Weekly summary job.
+    // Per AI_INTELLIGENCE_ENGINE.md Section 6.3 — Sunday 20:00 cache warming.
+    app.queues.schedule(WeeklySummaryJob())
+        .weekly()
+        .on(.sunday)
+        .at(.init(integerLiteral: 20), .init(integerLiteral: 0))
+
     // Per BUILD_PLAN step 14.2 — Leaderboard refresh job.
     // Per BACKEND_API.md Section 26.1 — Refreshes materialized view every 5 min.
     app.queues.schedule(LeaderboardRefreshJob())
