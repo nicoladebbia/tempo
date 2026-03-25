@@ -69,12 +69,12 @@ final class ServiceContainer {
         )
     }
 
-    static func live() -> ServiceContainer {
+    static func live(apiClient: APIClient) -> ServiceContainer {
         let auth = AuthService()
         return ServiceContainer(
             authService: auth,
             healthKit: HealthKitService(),
-            whoop: MockWhoopService(),
+            whoop: WhoopService(apiClient: apiClient),
             nutriTrack: MockNutriTrackService(),
             calendar: MockCalendarService(),
             notifications: MockNotificationService(),

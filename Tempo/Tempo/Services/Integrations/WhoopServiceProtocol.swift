@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Connection State
 
-enum WhoopConnectionState: Sendable {
+enum WhoopConnectionState: Sendable, Equatable {
     case disconnected
     case connecting
     case connected

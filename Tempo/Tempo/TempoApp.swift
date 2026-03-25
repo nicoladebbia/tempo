@@ -14,7 +14,8 @@ struct TempoApp: App {
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }
-        _services = State(initialValue: ServiceContainer.live())
+        let apiClient = APIClient()
+        _services = State(initialValue: ServiceContainer.live(apiClient: apiClient))
     }
 
     var body: some Scene {
