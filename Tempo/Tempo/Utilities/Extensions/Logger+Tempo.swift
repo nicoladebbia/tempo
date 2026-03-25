@@ -36,4 +36,7 @@ extension Logger {
 
     /// Authentication, keychain, Sign in with Apple.
     static let auth = Logger(subsystem: subsystem, category: "auth")
+
+    /// PostHog analytics, event tracking, feature flags.
+    static let analytics = Logger(subsystem: subsystem, category: "analytics")
 }
