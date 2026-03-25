@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 3 in progress
 > **Total steps:** 124
-> **Completed:** 35 / 124 (28%)
+> **Completed:** 36 / 124 (29%)
 
 ---
 
@@ -57,7 +57,7 @@
 - [x] 3.1: Color Tokens (Light + Dark Mode) (2026-03-25)
 - [x] 3.2: Typography Scale (2026-03-25)
 - [x] 3.3: Spacing + Layout Constants (2026-03-25)
-- [ ] 3.4: Shared Components: Buttons
+- [x] 3.4: Shared Components: Buttons (2026-03-25)
 - [ ] 3.5: Shared Components: Cards
 - [ ] 3.6: Shared Components: Progress Indicators
 - [ ] 3.7: Shared Components: Charts
