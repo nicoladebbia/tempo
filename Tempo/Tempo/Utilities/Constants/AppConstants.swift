@@ -2,11 +2,12 @@ import Foundation
 
 enum AppConstants {
     static let apiBaseURL: URL = {
-        guard let urlString = Bundle.main.infoDictionary?["TEMPO_API_BASE_URL"] as? String,
-              let url = URL(string: urlString) else {
-            fatalError("TEMPO_API_BASE_URL not set in xcconfig")
+        if let urlString = Bundle.main.infoDictionary?["TEMPO_API_BASE_URL"] as? String,
+           let url = URL(string: urlString) {
+            return url
         }
-        return url
+        // Fallback for unit tests or missing xcconfig
+        return URL(string: "http://localhost:8080")!
     }()
 
     static let environment: String = {

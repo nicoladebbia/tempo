@@ -157,16 +157,20 @@ targets:
       - path: TempoWidget
         excludes:
           - "**/*.entitlements"
+          - Info.plist
     dependencies: []
+    info:
+      path: TempoWidget/Info.plist
+      properties:
+        CFBundleDisplayName: Tempo Widget
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.tempo.Tempo.widget
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"
-        GENERATE_INFOPLIST_FILE: true
         CODE_SIGN_ENTITLEMENTS: TempoWidget/TempoWidgetExtension.entitlements
-        INFOPLIST_KEY_CFBundleDisplayName: Tempo Widget
-        INFOPLIST_KEY_NSExtension_NSExtensionPointIdentifier: com.apple.widgetkit-extension
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"
       configs:
         Debug:

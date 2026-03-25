@@ -37,7 +37,9 @@ struct TempoApp: App {
     init() {
         do {
             container = try TempoModelContainer.create()
-            try ExerciseLibraryLoader.loadIfNeeded(context: container.mainContext)
+            if !ProcessInfo.processInfo.environment.keys.contains("XCTestBundlePath") {
+                try ExerciseLibraryLoader.loadIfNeeded(context: container.mainContext)
+            }
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }
