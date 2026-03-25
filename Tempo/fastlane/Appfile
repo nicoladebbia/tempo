@@ -1,0 +1,15 @@
+# Per XCODE_PROJECT_STRUCTURE.md Section 9 — Code Signing Configuration
+# Per CI_CD_PIPELINE.md — Fastlane lanes for beta and release
+
+app_identifier("app.tempo.ios")
+apple_id(ENV["APPLE_ID"] || "nicola@tempo.app")
+team_id(ENV["TEAM_ID"] || "XXXXXXXXXX")
+
+for_platform :ios do
+  for_lane :beta do
+    app_identifier("app.tempo.ios")
+  end
+  for_lane :release do
+    app_identifier("app.tempo.ios")
+  end
+end

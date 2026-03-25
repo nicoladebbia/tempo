@@ -1,0 +1,96 @@
+# Per BUILD_PLAN Step 20.5 — Fastlane lanes for TestFlight and App Store.
+# Per CI_CD_PIPELINE.md — Build, test, archive, upload.
+
+default_platform(:ios)
+
+platform :ios do
+
+  before_all do
+    setup_ci if ENV["CI"]
+  end
+
+  # MARK: - Beta (TestFlight)
+
+  desc "Build and upload to TestFlight"
+  lane :beta do |options|
+    version = options[:version] || get_version_number(xcodeproj: "Tempo.xcodeproj", target: "Tempo")
+    build_number = options[:build_number] || Time.now.strftime("%Y%m%d%H%M")
+
+    api_key = app_store_connect_api_key(
+      key_id: ENV["ASC_KEY_ID"],
+      issuer_id: ENV["ASC_ISSUER_ID"],
+      key_content: ENV["ASC_API_KEY_P8"],
+      is_key_content_base64: false
+    )
+
+    increment_version_number(
+      version_number: version,
+      xcodeproj: "Tempo.xcodeproj"
+    )
+
+    increment_build_number(
+      build_number: build_number,
+      xcodeproj: "Tempo.xcodeproj"
+    )
+
+    build_app(
+      project: "Tempo.xcodeproj",
+      scheme: "Tempo",
+      configuration: "Release",
+      export_method: "app-store",
+      output_directory: "build",
+      output_name: "Tempo.ipa",
+      include_bitcode: false,
+      clean: true
+    )
+
+    upload_to_testflight(
+      api_key: api_key,
+      skip_waiting_for_build_processing: false,
+      distribute_external: false,
+      changelog: "Tempo v#{version} (#{build_number})"
+    )
+
+    # Upload dSYMs to Crashlytics
+    if File.exist?("build/Tempo.app.dSYM.zip")
+      upload_symbols_to_crashlytics(
+        gsp_path: "Tempo/GoogleService-Info.plist",
+        dsym_path: "build/Tempo.app.dSYM.zip"
+      )
+    end
+  end
+
+  # MARK: - Release (App Store)
+
+  desc "Submit to App Store for review"
+  lane :release do
+    api_key = app_store_connect_api_key(
+      key_id: ENV["ASC_KEY_ID"],
+      issuer_id: ENV["ASC_ISSUER_ID"],
+      key_content: ENV["ASC_API_KEY_P8"],
+      is_key_content_base64: false
+    )
+
+    deliver(
+      api_key: api_key,
+      submit_for_review: true,
+      automatic_release: false,  # Manual Release per RELEASE_CHECKLIST.md
+      force: true,
+      skip_screenshots: true,
+      skip_metadata: true,
+      precheck_include_in_app_purchases: false
+    )
+  end
+
+  # MARK: - Match (Code Signing)
+
+  desc "Sync development certificates"
+  lane :sync_dev do
+    match(type: "development", readonly: true)
+  end
+
+  desc "Sync App Store certificates"
+  lane :sync_appstore do
+    match(type: "appstore", readonly: true)
+  end
+end

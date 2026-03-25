@@ -1,0 +1,9 @@
+# Per XCODE_PROJECT_STRUCTURE.md Section 9.3 — Fastlane Match for code signing.
+# Use when team grows beyond 1-2 developers.
+
+git_url(ENV["MATCH_GIT_URL"] || "git@github.com:nicola/tempo-certificates.git")
+storage_mode("git")
+type("appstore")
+app_identifier(["app.tempo.ios", "app.tempo.ios.widget", "app.tempo.ios.watchkitapp"])
+username(ENV["APPLE_ID"] || "nicola@tempo.app")
+team_id(ENV["TEAM_ID"] || "XXXXXXXXXX")
