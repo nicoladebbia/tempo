@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 2 in progress
 > **Total steps:** 124
-> **Completed:** 23 / 124 (19%)
+> **Completed:** 27 / 124 (22%)
 
 ---
 
@@ -41,10 +41,10 @@
 - [x] 2.1: Network Client (APIClient) (2026-03-25)
 - [x] 2.2: Auth Service + Keychain (2026-03-25)
 - [x] 2.3: HealthKit Service (Protocol + Stub) (2026-03-25)
-- [ ] 2.4: Whoop Service (Protocol + Stub)
-- [ ] 2.5: NutriTrack Service (Protocol + Stub)
-- [ ] 2.6: Calendar Service (Protocol + Stub)
-- [ ] 2.7: Notification Service (Protocol + Stub)
+- [x] 2.4: Whoop Service (Protocol + Stub) (2026-03-25)
+- [x] 2.5: NutriTrack Service (Protocol + Stub) (2026-03-25)
+- [x] 2.6: Calendar Service (Protocol + Stub) (2026-03-25)
+- [x] 2.7: Notification Service (Protocol + Stub) (2026-03-25)
 - [ ] 2.8: Training Engine (Protocol + Stub)
 - [ ] 2.9: Recovery Engine (Protocol + Stub)
 - [ ] 2.10: Scoring Engine + XP Engine (Protocol + Stub)
