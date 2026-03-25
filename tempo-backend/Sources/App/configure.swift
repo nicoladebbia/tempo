@@ -73,6 +73,12 @@ func configure(_ app: Application) async throws {
     // ─────────────────────────────────────────────────
     app.middleware = .init() // clear defaults
 
+    // Request ID — outermost, ensures every response has X-Request-Id
+    app.middleware.use(RequestIdMiddleware())
+
+    // Security headers — HSTS, X-Content-Type-Options, etc.
+    app.middleware.use(SecurityHeadersMiddleware())
+
     // CORS — allow Tempo iOS bundle
     let corsConfig = CORSMiddleware.Configuration(
         allowedOrigin: .all,
@@ -83,7 +89,7 @@ func configure(_ app: Application) async throws {
     )
     app.middleware.use(CORSMiddleware(configuration: corsConfig))
 
-    // Request logging
+    // File serving and error handling
     app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
     app.middleware.use(ErrorMiddleware.default(environment: app.environment))
 
