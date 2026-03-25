@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 7 next
 > **Total steps:** 124
-> **Completed:** 85 / 124 (69%)
+> **Completed:** 86 / 124 (69%)
 
 ---
 
@@ -131,7 +131,7 @@
 - [x] 9.5: WorkoutSummaryView (2026-03-25)
 - [x] 9.6: WeekPlanView (2026-03-25)
 - [x] 9.7: Exercise Library + Detail Views (2026-03-25)
-- [ ] 9.8: Training Tab Container + Dashboard Connection
+- [x] 9.8: Training Tab Container + Dashboard Connection (2026-03-25)
 
 ## Phase 10: Accountability Module
 **Goal:** Build accountability engine, non-negotiable tracking, focus timer, streaks, scoring, and connect to Dashboard.

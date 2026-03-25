@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import SwiftUI
 
 // MARK: - Dashboard State
@@ -511,6 +512,63 @@ final class DashboardViewModel {
         } catch {
             loadState = .error(error.localizedDescription)
         }
+    }
+
+    // MARK: - Training Status Connection
+    // Per BUILD_PLAN step 9.8 — Connect training data to Dashboard Move quadrant.
+    // Shows workout type and completion from SwiftData WorkoutPlan.
+
+    func refreshTrainingStatus(modelContext: ModelContext) {
+        let today = Calendar.current.startOfDay(for: Date())
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today)!
+
+        let descriptor = FetchDescriptor<WorkoutPlan>(
+            predicate: #Predicate { plan in
+                plan.date >= today && plan.date < tomorrow
+            }
+        )
+
+        guard let todayPlan = try? modelContext.fetch(descriptor).first else {
+            // No plan found — keep existing HealthKit-based move data
+            return
+        }
+
+        // Enrich move quadrant with training plan status
+        let status: DashboardWorkoutStatus
+        let name: String?
+
+        switch todayPlan.status {
+        case .completed:
+            status = .completed
+            name = todayPlan.type.displayName
+        case .inProgress:
+            status = .planned
+            name = todayPlan.type.displayName
+        case .planned:
+            if todayPlan.type == .rest {
+                status = .restDay
+                name = nil
+            } else {
+                status = .planned
+                name = todayPlan.type.displayName
+            }
+        case .skipped:
+            status = .none
+            name = nil
+        }
+
+        // Update move quadrant, preserving HealthKit steps/calories/HR data
+        self.move = MoveQuadrantData(
+            workoutStatus: status,
+            workoutName: name ?? move.workoutName,
+            workoutDurationMinutes: todayPlan.actualDurationMinutes ?? move.workoutDurationMinutes,
+            steps: move.steps,
+            stepsTarget: move.stepsTarget,
+            activeCalories: move.activeCalories,
+            heartRateCurrent: move.heartRateCurrent,
+            isConnected: move.isConnected,
+            lastSync: move.lastSync
+        )
     }
 
     // MARK: - Non-Negotiable Progress

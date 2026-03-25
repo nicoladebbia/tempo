@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 // MARK: - Dashboard View
@@ -8,6 +9,7 @@ import SwiftUI
 struct DashboardView: View {
 
     @Environment(ServiceContainer.self) private var services
+    @Environment(\.modelContext) private var modelContext
     @State private var viewModel: DashboardViewModel?
     @State private var hasAppeared = false
 
@@ -29,7 +31,10 @@ struct DashboardView: View {
                             title: "Sync failed.",
                             message: message,
                             retryAction: {
-                                Task { await viewModel.refresh() }
+                                Task {
+                                    await viewModel.refresh()
+                                    viewModel.refreshTrainingStatus(modelContext: modelContext)
+                                }
                             }
                         )
 
@@ -48,6 +53,7 @@ struct DashboardView: View {
                 let vm = DashboardViewModel(services: services)
                 self.viewModel = vm
                 await vm.refresh()
+                vm.refreshTrainingStatus(modelContext: modelContext)
                 hasAppeared = true
             }
         }
@@ -86,6 +92,7 @@ struct DashboardView: View {
         }
         .refreshable {
             await vm.refresh()
+            vm.refreshTrainingStatus(modelContext: modelContext)
         }
     }
 

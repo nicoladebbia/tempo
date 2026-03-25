@@ -8,6 +8,8 @@ import SwiftData
 struct TodayWorkoutView: View {
 
     @Bindable var viewModel: TrainingViewModel
+    @Binding var showActiveWorkout: Bool
+    @Binding var showSummary: Bool
     @Environment(\.modelContext) private var modelContext
 
     var body: some View {
@@ -208,6 +210,7 @@ struct TodayWorkoutView: View {
 
             Button {
                 viewModel.startWorkout()
+                showActiveWorkout = true
             } label: {
                 HStack(spacing: TempoSpacing.sm) {
                     Image(systemName: "play.fill")
