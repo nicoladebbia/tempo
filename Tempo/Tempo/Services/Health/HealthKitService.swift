@@ -125,18 +125,81 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
         }
     }
 
-    // MARK: - Fetch Methods (Stubs — Implemented in Steps 5.2-5.5)
+    // MARK: - Fetch Steps + Active Energy
+    // Per INTEGRATION_SPECS.md Section 2.2.1 — HKStatisticsQuery with .cumulativeSum.
+    // Automatically deduplicates across sources (iPhone + Apple Watch).
 
     func fetchSteps(for date: Date) async throws -> Int {
-        // Step 5.2: Real implementation
-        Logger.healthkit.debug("fetchSteps called — stub returning 0")
-        return 0
+        let start = Date()
+        let stepType = HKQuantityType(.stepCount)
+        let (startOfDay, endOfDay) = dayBounds(for: date)
+        let predicate = HKQuery.predicateForSamples(
+            withStart: startOfDay,
+            end: endOfDay,
+            options: .strictStartDate
+        )
+
+        let statistics = try await fetchCumulativeStatistics(
+            type: stepType,
+            predicate: predicate
+        )
+
+        let steps = Int(statistics?.sumQuantity()?.doubleValue(for: .count()) ?? 0)
+        let elapsed = Date().timeIntervalSince(start) * 1000
+        Logger.healthkit.debug("fetchSteps: \(steps) steps in \(String(format: "%.0f", elapsed))ms")
+        return steps
     }
 
     func fetchActiveEnergy(for date: Date) async throws -> Double {
-        // Step 5.2: Real implementation
-        Logger.healthkit.debug("fetchActiveEnergy called — stub returning 0")
-        return 0
+        let start = Date()
+        let energyType = HKQuantityType(.activeEnergyBurned)
+        let (startOfDay, endOfDay) = dayBounds(for: date)
+        let predicate = HKQuery.predicateForSamples(
+            withStart: startOfDay,
+            end: endOfDay,
+            options: .strictStartDate
+        )
+
+        let statistics = try await fetchCumulativeStatistics(
+            type: energyType,
+            predicate: predicate
+        )
+
+        let calories = statistics?.sumQuantity()?.doubleValue(for: .kilocalorie()) ?? 0
+        let elapsed = Date().timeIntervalSince(start) * 1000
+        Logger.healthkit.debug("fetchActiveEnergy: \(String(format: "%.0f", calories)) kcal in \(String(format: "%.0f", elapsed))ms")
+        return calories
+    }
+
+    // MARK: - Statistics Query Helper
+
+    private func fetchCumulativeStatistics(
+        type: HKQuantityType,
+        predicate: NSPredicate
+    ) async throws -> HKStatistics? {
+        try await withCheckedThrowingContinuation { continuation in
+            let query = HKStatisticsQuery(
+                quantityType: type,
+                quantitySamplePredicate: predicate,
+                options: .cumulativeSum
+            ) { _, statistics, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: statistics)
+                }
+            }
+            healthStore.execute(query)
+        }
+    }
+
+    // MARK: - Day Bounds Helper
+
+    private func dayBounds(for date: Date) -> (start: Date, end: Date) {
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: date)
+        let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
+        return (startOfDay, endOfDay)
     }
 
     func fetchHeartRate(for date: Date) async throws -> [HeartRateSample] {
