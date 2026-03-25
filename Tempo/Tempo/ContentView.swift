@@ -1,19 +1,90 @@
 import SwiftUI
 
+// MARK: - Content View
+// Per BUILD_PLAN step 3.10 — 5-tab TabView wired to AppState.activeTab.
+// Conditionally shows onboarding if !isOnboardingComplete.
+
 struct ContentView: View {
+
+    @Environment(ServiceContainer.self) private var services
+
     var body: some View {
-        VStack {
-            Image(systemName: "flame.fill")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Tempo")
-                .font(.largeTitle)
-                .fontWeight(.bold)
+        if services.appState.isOnboardingComplete {
+            mainTabView
+        } else {
+            OnboardingPlaceholderView {
+                services.appState.isOnboardingComplete = true
+            }
         }
-        .padding()
+    }
+
+    private var mainTabView: some View {
+        @Bindable var appState = services.appState
+        return TabView(selection: $appState.activeTab) {
+            DashboardView()
+                .tabItem {
+                    Label(Tab.dashboard.title, systemImage: Tab.dashboard.icon)
+                }
+                .tag(Tab.dashboard)
+
+            TrainingTabView()
+                .tabItem {
+                    Label(Tab.training.title, systemImage: Tab.training.icon)
+                }
+                .tag(Tab.training)
+
+            LockdownTabView()
+                .tabItem {
+                    Label(Tab.lockdown.title, systemImage: Tab.lockdown.icon)
+                }
+                .tag(Tab.lockdown)
+
+            RecoveryTabView()
+                .tabItem {
+                    Label(Tab.recovery.title, systemImage: Tab.recovery.icon)
+                }
+                .tag(Tab.recovery)
+
+            ArenaTabView()
+                .tabItem {
+                    Label(Tab.arena.title, systemImage: Tab.arena.icon)
+                }
+                .tag(Tab.arena)
+        }
+        .tint(Color.tempoSignal)
+        .onChange(of: appState.activeTab) { _, _ in
+            HapticManager.selection()
+        }
     }
 }
 
-#Preview {
-    ContentView()
+// MARK: - Onboarding Placeholder
+
+private struct OnboardingPlaceholderView: View {
+
+    let onComplete: () -> Void
+
+    var body: some View {
+        VStack(spacing: TempoSpacing.xxl) {
+            Image(systemName: "flame.fill")
+                .font(.system(size: 64))
+                .foregroundStyle(Color.tempoSignal)
+
+            Text("Tempo")
+                .font(.tempoLargeTitle)
+                .foregroundStyle(Color.tempoTextPrimary)
+
+            Text("Onboarding will be built in Phase 16")
+                .font(.tempoBody)
+                .foregroundStyle(Color.tempoTextSecondary)
+
+            Button("Skip to App") {
+                onComplete()
+            }
+            .buttonStyle(.tempoPrimary)
+            .padding(.horizontal, TempoSpacing.screenEdge)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.tempoBgPrimary)
+    }
 }

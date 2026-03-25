@@ -1,5 +1,6 @@
 import Foundation
 
+@Observable
 @MainActor
 final class ServiceContainer {
 

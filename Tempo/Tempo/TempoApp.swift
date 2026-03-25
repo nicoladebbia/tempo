@@ -4,6 +4,7 @@ import SwiftData
 @main
 struct TempoApp: App {
     let container: ModelContainer
+    @State private var services: ServiceContainer
 
     init() {
         do {
@@ -12,11 +13,13 @@ struct TempoApp: App {
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }
+        _services = State(initialValue: ServiceContainer.live())
     }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environment(services)
         }
         .modelContainer(container)
     }
