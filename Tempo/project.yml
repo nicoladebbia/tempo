@@ -86,6 +86,36 @@ targets:
               - tempo
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+    preBuildScripts:
+      - name: SwiftLint
+        shell: /bin/zsh
+        script: |
+          if command -v swiftlint >/dev/null 2>&1; then
+              swiftlint lint --config "${SRCROOT}/.swiftlint.yml" --quiet
+          else
+              echo "warning: SwiftLint not installed. Run 'brew install swiftlint' to enable linting."
+          fi
+        basedOnDependencyAnalysis: true
+      - name: SwiftFormat
+        shell: /bin/zsh
+        script: |
+          if command -v swiftformat >/dev/null 2>&1; then
+              swiftformat "${SRCROOT}/Tempo" --config "${SRCROOT}/.swiftformat" --lint --quiet
+          else
+              echo "warning: SwiftFormat not installed. Run 'brew install swiftformat' to enable formatting."
+          fi
+        basedOnDependencyAnalysis: true
+    postCompileScripts:
+      - name: Increment Build Number
+        shell: /bin/zsh
+        script: |
+          if [ "${CONFIGURATION}" = "Release" ] || [ "${CONFIGURATION}" = "Staging" ]; then
+              buildNumber=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "${INFOPLIST_FILE}")
+              buildNumber=$(($buildNumber + 1))
+              /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $buildNumber" "${INFOPLIST_FILE}"
+              echo "Build number incremented to $buildNumber"
+          fi
+        basedOnDependencyAnalysis: false
     scheme:
       testTargets:
         - TempoTests

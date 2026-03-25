@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-24
 > **Current phase:** Not started
 > **Total steps:** 124
-> **Completed:** 6 / 124 (5%)
+> **Completed:** 7 / 124 (6%)
 
 ---
 
@@ -16,7 +16,7 @@
 - [x] 0.4: Configure Entitlements (2026-03-25)
 - [x] 0.5: Set Up Build Configurations (Debug/Staging/Release) (2026-03-25)
 - [x] 0.6: Add SPM Dependencies (iOS) (2026-03-25)
-- [ ] 0.7: Set Up SwiftLint + SwiftFormat
+- [x] 0.7: Set Up SwiftLint + SwiftFormat (2026-03-25)
 - [ ] 0.8: Create Vapor Backend Project
 - [ ] 0.9: Set Up Docker Compose (PostgreSQL + Redis)
 - [ ] 0.10: Create Shared Enums and Constants (iOS)

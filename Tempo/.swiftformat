@@ -1,0 +1,52 @@
+# .swiftformat — Tempo iOS
+
+# File options
+--swiftversion 6.0
+--exclude DerivedData,.build,Preview Content
+
+# Format options
+--allman false
+--binarygrouping 4,8
+--closingparen balanced
+--commas always
+--decimalgrouping 3,6
+--elseposition same-line
+--guardelse next-line
+--header "//\n// {file}\n// Tempo\n//\n// Created by Tempo on {created}.\n//\n"
+--ifdef indent
+--importgrouping alpha
+--indent 4
+--indentcase false
+--linebreaks lf
+--maxwidth 140
+--octalgrouping 4,8
+--operatorfunc spaced
+--patternlet hoist
+--ranges spaced
+--self remove
+--semicolons inline
+--stripunusedargs closure-only
+--tabwidth 4
+--trimwhitespace always
+--typeattributes prev-line
+--varattributes prev-line
+--wraparguments before-first
+--wrapparameters before-first
+--wrapcollections before-first
+--wrapconditions preserve
+--wrapreturntype preserve
+
+# Rules
+--enable isEmpty
+--enable blankLineAfterImports
+--enable blockComments
+--enable docComments
+--enable markTypes
+--enable organizeDeclarations
+--enable sortImports
+--enable wrapConditionalBodies
+--enable wrapEnumCases
+--enable wrapSwitchCases
+
+--disable acronyms
+--disable sortedSwitchCases

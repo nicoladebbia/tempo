@@ -650,7 +650,10 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 4FE7A9862C48352D13895373 /* Build configuration list for PBXNativeTarget "Tempo" */;
 			buildPhases = (
+				371C6A217D51BEC336A54F86 /* SwiftLint */,
+				CAB5CC7D3C0398C73D25BB8A /* SwiftFormat */,
 				F8BECD3B83F1BDE402E1832A /* Sources */,
+				FF41245B5DC48B2AC0EB209E /* Increment Build Number */,
 				99E67F85FA1E5FB50DAA3ABA /* Resources */,
 				01D67FA7CD498405BE72BD2D /* Frameworks */,
 			);
@@ -750,6 +753,64 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		371C6A217D51BEC336A54F86 /* SwiftLint */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = SwiftLint;
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/zsh;
+			shellScript = "if command -v swiftlint >/dev/null 2>&1; then\n    swiftlint lint --config \"${SRCROOT}/.swiftlint.yml\" --quiet\nelse\n    echo \"warning: SwiftLint not installed. Run 'brew install swiftlint' to enable linting.\"\nfi\n";
+		};
+		CAB5CC7D3C0398C73D25BB8A /* SwiftFormat */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = SwiftFormat;
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/zsh;
+			shellScript = "if command -v swiftformat >/dev/null 2>&1; then\n    swiftformat \"${SRCROOT}/Tempo\" --config \"${SRCROOT}/.swiftformat\" --lint --quiet\nelse\n    echo \"warning: SwiftFormat not installed. Run 'brew install swiftformat' to enable formatting.\"\nfi\n";
+		};
+		FF41245B5DC48B2AC0EB209E /* Increment Build Number */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Increment Build Number";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/zsh;
+			shellScript = "if [ \"${CONFIGURATION}\" = \"Release\" ] || [ \"${CONFIGURATION}\" = \"Staging\" ]; then\n    buildNumber=$(/usr/libexec/PlistBuddy -c \"Print CFBundleVersion\" \"${INFOPLIST_FILE}\")\n    buildNumber=$(($buildNumber + 1))\n    /usr/libexec/PlistBuddy -c \"Set :CFBundleVersion $buildNumber\" \"${INFOPLIST_FILE}\"\n    echo \"Build number incremented to $buildNumber\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		2FA10C5E5FAA1BCAD0D7DAE4 /* Sources */ = {
