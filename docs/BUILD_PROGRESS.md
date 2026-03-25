@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 6 next
 > **Total steps:** 124
-> **Completed:** 59 / 124 (48%)
+> **Completed:** 60 / 124 (48%)
 
 ---
 
@@ -93,7 +93,7 @@
 ## Phase 6: Backend Foundation
 **Goal:** Configure Vapor, create user/auth models, implement JWT auth, Sign in with Apple, rate limiting, and error handling.
 
-- [ ] 6.1: Vapor Configuration (configure.swift + routes.swift)
+- [x] 6.1: Vapor Configuration (configure.swift + routes.swift) (2026-03-25)
 - [ ] 6.2: PostgreSQL Models + Migrations (User, RefreshToken)
 - [ ] 6.3: JWT Middleware (Issue + Verify + Refresh)
 - [ ] 6.4: Sign in with Apple Endpoint
