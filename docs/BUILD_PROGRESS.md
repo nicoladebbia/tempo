@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 1 in progress
 > **Total steps:** 124
-> **Completed:** 14 / 124 (11%)
+> **Completed:** 16 / 124 (13%)
 
 ---
 
@@ -28,8 +28,8 @@
 - [x] 1.2: Dashboard Models (DailySnapshot) (2026-03-25)
 - [x] 1.3: Training Models (2026-03-25)
 - [x] 1.4: Accountability Models (2026-03-25)
-- [ ] 1.5: Recovery Models
-- [ ] 1.6: Arena Models
+- [x] 1.5: Recovery Models (2026-03-25)
+- [x] 1.6: Arena Models (2026-03-25)
 - [ ] 1.7: Sync Models
 - [ ] 1.8: Integration State Models
 - [ ] 1.9: ModelContainer Configuration + Migration Setup
