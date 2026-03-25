@@ -7,11 +7,23 @@ options:
   generateEmptyDirectories: true
   groupSortPosition: top
 
+configs:
+  Debug: debug
+  Staging: debug
+  Release: release
+
 settings:
   base:
     SWIFT_VERSION: "6.0"
     SWIFT_STRICT_CONCURRENCY: complete
     DEVELOPMENT_TEAM: ""
+  configs:
+    Debug:
+      xcconfig: Tempo/Configuration/Development.xcconfig
+    Staging:
+      xcconfig: Tempo/Configuration/Staging.xcconfig
+    Release:
+      xcconfig: Tempo/Configuration/Production.xcconfig
 
 targets:
   Tempo:
@@ -19,15 +31,42 @@ targets:
     platform: iOS
     sources:
       - path: Tempo
+        excludes:
+          - "Configuration/*.xcconfig"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.tempo.Tempo
-        INFOPLIST_GENERATION_MODE: GeneratedFile
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"
         GENERATE_INFOPLIST_FILE: true
         SWIFT_EMIT_LOC_STRINGS: true
         CODE_SIGN_ENTITLEMENTS: Tempo/Tempo.entitlements
+        INFOPLIST_KEY_NSHealthShareUsageDescription: "Tempo reads your health data (steps, heart rate, HRV, sleep, workouts) to calculate your daily score, adapt your training plan to your recovery, and track your progress automatically."
+        INFOPLIST_KEY_NSHealthUpdateUsageDescription: "Tempo writes your completed workouts and nutrition data to HealthKit so your health record stays complete across all your apps."
+        INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription: "Tempo reads your calendar to avoid scheduling workouts during classes and football practice, and to identify study blocks for your accountability targets."
+      configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: app.tempo.Tempo.dev
+        Staging:
+          PRODUCT_BUNDLE_IDENTIFIER: app.tempo.Tempo.staging
+        Release:
+          PRODUCT_BUNDLE_IDENTIFIER: app.tempo.Tempo
+    info:
+      path: Tempo/Info.plist
+      properties:
+        TEMPO_API_BASE_URL: $(TEMPO_API_BASE_URL)
+        TEMPO_ENVIRONMENT: $(TEMPO_ENVIRONMENT)
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.tempo.healthkit-sync
+          - com.tempo.data-sync
+          - com.tempo.daily-reset
+        CFBundleURLTypes:
+          - CFBundleTypeRole: Viewer
+            CFBundleURLName: app.tempo.oauth
+            CFBundleURLSchemes:
+              - tempo
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
     scheme:
       testTargets:
         - TempoTests
