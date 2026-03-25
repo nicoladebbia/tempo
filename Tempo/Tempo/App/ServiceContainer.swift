@@ -78,7 +78,7 @@ final class ServiceContainer {
             nutriTrack: MockNutriTrackService(),
             calendar: MockCalendarService(),
             notifications: MockNotificationService(),
-            trainingEngine: MockTrainingEngine(),
+            trainingEngine: TrainingEngine(),
             recoveryEngine: RecoveryEngine(),
             scoringEngine: MockScoringEngine(),
             xpEngine: MockXPEngine(),
