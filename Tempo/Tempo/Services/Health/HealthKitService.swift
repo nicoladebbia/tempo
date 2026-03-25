@@ -437,10 +437,77 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
         }
     }
 
+    // MARK: - Fetch Workouts
+    // Per INTEGRATION_SPECS.md Section 2.2.4 — Fetch workouts from all sources.
+    // Maps HKWorkoutActivityType to Tempo display format.
+
     func fetchWorkouts(for date: Date) async throws -> [WorkoutSample] {
-        // Step 5.5: Real implementation
-        Logger.healthkit.debug("fetchWorkouts called — stub returning empty")
-        return []
+        let workoutType = HKWorkoutType.workoutType()
+        let (startOfDay, endOfDay) = dayBounds(for: date)
+        let predicate = HKQuery.predicateForSamples(
+            withStart: startOfDay,
+            end: endOfDay,
+            options: .strictStartDate
+        )
+
+        let workouts: [HKWorkout] = try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: workoutType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)]
+            ) { _, samples, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: (samples as? [HKWorkout]) ?? [])
+                }
+            }
+            healthStore.execute(query)
+        }
+
+        let results = workouts.map { workout in
+            WorkoutSample(
+                startDate: workout.startDate,
+                endDate: workout.endDate,
+                workoutType: Self.mapActivityType(workout.workoutActivityType),
+                durationMinutes: workout.duration / 60,
+                activeCalories: workout.totalEnergyBurned?.doubleValue(for: .kilocalorie()) ?? 0,
+                averageHeartRate: nil, // HR during workout fetched separately if needed
+                maxHeartRate: nil,
+                distanceMeters: workout.totalDistance?.doubleValue(for: .meter())
+            )
+        }
+
+        Logger.healthkit.debug("fetchWorkouts: \(results.count) workouts for \(date)")
+        return results
+    }
+
+    // MARK: - Activity Type Mapping
+    // Per INTEGRATION_SPECS.md Section 2.2.4 — Map HKWorkoutActivityType to Tempo display format.
+
+    private static func mapActivityType(_ activityType: HKWorkoutActivityType) -> String {
+        switch activityType {
+        case .traditionalStrengthTraining, .functionalStrengthTraining:
+            return "strength"
+        case .running:
+            return "run"
+        case .soccer:
+            return "football"
+        case .cycling, .swimming, .rowing, .elliptical, .stairClimbing:
+            return "cardio"
+        case .highIntensityIntervalTraining, .crossTraining:
+            return "hiit"
+        case .yoga, .flexibility, .pilates, .mindAndBody:
+            return "mobility"
+        case .walking, .hiking:
+            return "walk"
+        case .basketball, .tennis, .tableTennis, .badminton, .rugby,
+             .volleyball, .handball, .martialArts, .boxing:
+            return "sport"
+        default:
+            return "other"
+        }
     }
 
     // MARK: - Write Methods (Stubs — Implemented in Step 5.7)
