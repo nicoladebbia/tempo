@@ -27,6 +27,7 @@ targets:
         CURRENT_PROJECT_VERSION: "1"
         GENERATE_INFOPLIST_FILE: true
         SWIFT_EMIT_LOC_STRINGS: true
+        CODE_SIGN_ENTITLEMENTS: Tempo/Tempo.entitlements
     scheme:
       testTargets:
         - TempoTests
