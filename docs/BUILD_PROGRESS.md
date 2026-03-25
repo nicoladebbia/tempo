@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 12 next
 > **Total steps:** 124
-> **Completed:** 111 / 124 (90%)
+> **Completed:** 112 / 124 (90%)
 
 ---
 
@@ -189,7 +189,7 @@
 **Goal:** Create widget extension target and build small, medium, large, and lock screen widgets.
 
 - [x] 17.1: Widget Extension Target Setup ✅ 2026-03-25
-- [ ] 17.2: Small + Medium + Large Widgets
+- [x] 17.2: Small + Medium + Large Widgets ✅ 2026-03-25
 
 ## Phase 18: Apple Watch
 **Goal:** Create Watch app target and build workout logging, timers, and complications.

@@ -12,38 +12,103 @@ struct WidgetData {
     let dailyScore: Int
     let recoveryZone: String
     let recoveryScore: Int
-    let nextTaskName: String
-    let nnProgress: String
-    let streakCount: Int
-    let caloriesBurned: Int
+    let sleepHours: Double
+    let hrv: Double
+    let rhr: Int
+    let caloriesConsumed: Int
+    let caloriesTarget: Int
+    let protein: Int
+    let carbs: Int
+    let fat: Int
+    let mealsLogged: Int
+    let mealsTarget: Int
     let studyMinutes: Int
+    let studyTargetMinutes: Int
+    let streakCount: Int
+    let nextExam: String
+    let workoutDone: Bool
     let stepCount: Int
+    let activeCalories: Int
+    let nnCompleted: Int
+    let nnTotal: Int
 
     static let placeholder = WidgetData(
-        dailyScore: 72,
+        dailyScore: 78,
         recoveryZone: "green",
-        recoveryScore: 85,
-        nextTaskName: "Chest Day",
-        nnProgress: "3/5",
-        streakCount: 14,
-        caloriesBurned: 420,
-        studyMinutes: 90,
-        stepCount: 8200
+        recoveryScore: 72,
+        sleepHours: 7.2,
+        hrv: 68.3,
+        rhr: 52,
+        caloriesConsumed: 1842,
+        caloriesTarget: 2400,
+        protein: 142,
+        carbs: 205,
+        fat: 52,
+        mealsLogged: 2,
+        mealsTarget: 4,
+        studyMinutes: 135,
+        studyTargetMinutes: 180,
+        streakCount: 12,
+        nextExam: "Calc II: 6 days",
+        workoutDone: true,
+        stepCount: 8432,
+        activeCalories: 342,
+        nnCompleted: 3,
+        nnTotal: 5
     )
 
     static func fromDefaults() -> WidgetData {
-        let defaults = UserDefaults(suiteName: "group.app.tempo")
+        let d = UserDefaults(suiteName: "group.app.tempo")
         return WidgetData(
-            dailyScore: defaults?.integer(forKey: "widget.dailyScore") ?? 0,
-            recoveryZone: defaults?.string(forKey: "widget.recoveryZone") ?? "green",
-            recoveryScore: defaults?.integer(forKey: "widget.recoveryScore") ?? 0,
-            nextTaskName: defaults?.string(forKey: "widget.nextTaskName") ?? "No task",
-            nnProgress: defaults?.string(forKey: "widget.nnProgress") ?? "0/0",
-            streakCount: defaults?.integer(forKey: "widget.streakCount") ?? 0,
-            caloriesBurned: defaults?.integer(forKey: "widget.caloriesBurned") ?? 0,
-            studyMinutes: defaults?.integer(forKey: "widget.studyMinutes") ?? 0,
-            stepCount: defaults?.integer(forKey: "widget.stepCount") ?? 0
+            dailyScore: d?.integer(forKey: "widget.dailyScore") ?? 0,
+            recoveryZone: d?.string(forKey: "widget.recoveryZone") ?? "green",
+            recoveryScore: d?.integer(forKey: "widget.recoveryScore") ?? 0,
+            sleepHours: d?.double(forKey: "widget.sleepHours") ?? 0,
+            hrv: d?.double(forKey: "widget.hrv") ?? 0,
+            rhr: d?.integer(forKey: "widget.rhr") ?? 0,
+            caloriesConsumed: d?.integer(forKey: "widget.caloriesConsumed") ?? 0,
+            caloriesTarget: d?.integer(forKey: "widget.caloriesTarget") ?? 0,
+            protein: d?.integer(forKey: "widget.protein") ?? 0,
+            carbs: d?.integer(forKey: "widget.carbs") ?? 0,
+            fat: d?.integer(forKey: "widget.fat") ?? 0,
+            mealsLogged: d?.integer(forKey: "widget.mealsLogged") ?? 0,
+            mealsTarget: d?.integer(forKey: "widget.mealsTarget") ?? 0,
+            studyMinutes: d?.integer(forKey: "widget.studyMinutes") ?? 0,
+            studyTargetMinutes: d?.integer(forKey: "widget.studyTargetMinutes") ?? 0,
+            streakCount: d?.integer(forKey: "widget.streakCount") ?? 0,
+            nextExam: d?.string(forKey: "widget.nextExam") ?? "",
+            workoutDone: d?.bool(forKey: "widget.workoutDone") ?? false,
+            stepCount: d?.integer(forKey: "widget.stepCount") ?? 0,
+            activeCalories: d?.integer(forKey: "widget.activeCalories") ?? 0,
+            nnCompleted: d?.integer(forKey: "widget.nnCompleted") ?? 0,
+            nnTotal: d?.integer(forKey: "widget.nnTotal") ?? 0
         )
+    }
+
+    var zoneColor: Color {
+        switch recoveryZone {
+        case "green": return .green
+        case "yellow": return .yellow
+        case "red": return .red
+        default: return .green
+        }
+    }
+
+    var scoreColor: Color {
+        if dailyScore >= 80 { return .green }
+        if dailyScore >= 50 { return .orange }
+        return .red
+    }
+
+    var studyTimeFormatted: String {
+        let h = studyMinutes / 60
+        let m = studyMinutes % 60
+        return h > 0 ? "\(h)h\(m > 0 ? "\(m)m" : "")" : "\(m)m"
+    }
+
+    var studyTargetFormatted: String {
+        let h = studyTargetMinutes / 60
+        return "\(h)h"
     }
 }
 
@@ -106,6 +171,6 @@ struct TempoLockScreenWidget: Widget {
         }
         .configurationDisplayName("Tempo Score")
         .description("Daily score on your lock screen.")
-        .supportedFamilies([.accessoryCircular, .accessoryInline])
+        .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline])
     }
 }
