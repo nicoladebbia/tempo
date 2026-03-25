@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 7 next
 > **Total steps:** 124
-> **Completed:** 83 / 124 (67%)
+> **Completed:** 84 / 124 (68%)
 
 ---
 
@@ -129,7 +129,7 @@
 - [x] 9.3: TodayWorkoutView (2026-03-25)
 - [x] 9.4: ActiveWorkoutView (Set Logging) (2026-03-25)
 - [x] 9.5: WorkoutSummaryView (2026-03-25)
-- [ ] 9.6: WeekPlanView
+- [x] 9.6: WeekPlanView (2026-03-25)
 - [ ] 9.7: Exercise Library + Detail Views
 - [ ] 9.8: Training Tab Container + Dashboard Connection
 
