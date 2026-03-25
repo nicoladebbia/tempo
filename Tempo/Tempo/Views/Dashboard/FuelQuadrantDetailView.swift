@@ -8,6 +8,10 @@ import Charts
 struct FuelQuadrantDetailView: View {
 
     let data: FuelQuadrantData
+    var nutriTrackService: (any NutriTrackServiceProtocol)?
+    var onRefreshNeeded: (() -> Void)?
+
+    @State private var showNutriTrackConnect = false
 
     // Stub meal data for detail view
     private let meals: [MealDisplayItem] = [
@@ -48,8 +52,16 @@ struct FuelQuadrantDetailView: View {
                         title: "No NutriTrack Connected",
                         message: "Connect NutriTrack to see calories, macros, and meal data.",
                         actionTitle: "Connect NutriTrack",
-                        action: {}
+                        action: { showNutriTrackConnect = true }
                     )
+                    .sheet(isPresented: $showNutriTrackConnect) {
+                        if let service = nutriTrackService {
+                            NutriTrackConnectView(
+                                nutriTrackService: service,
+                                onConnected: onRefreshNeeded
+                            )
+                        }
+                    }
                 }
             }
             .padding(.horizontal, TempoSpacing.screenEdge)

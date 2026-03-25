@@ -129,6 +129,7 @@
 		B72AF4ACCCEE1BB0AB8B8B33 /* MockScoringEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C99BB0D626905E95A30B510 /* MockScoringEngine.swift */; };
 		B7538C58C97145FFEDC98F6F /* Exercises.json in Resources */ = {isa = PBXBuildFile; fileRef = 0296CB64B525F8E5AC6C8A55 /* Exercises.json */; };
 		B7C17482392D54F9CA3D7F02 /* LockdownTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACF191DA19FC6A7DB89BDD14 /* LockdownTabView.swift */; };
+		BA32236538C0D45944B5D9AF /* NutriTrackConnectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DA5BAFAE035C7142A212D81 /* NutriTrackConnectView.swift */; };
 		BCBF242F7492F1E8B25CD2CD /* WeightConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAAD8D5690BA86C227809771 /* WeightConverter.swift */; };
 		BD32786A1DCA19DF961E20D0 /* NonNegotiableProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12878438D450999520481EFE /* NonNegotiableProgress.swift */; };
 		BE6E5BBDF282E873FE5E2040 /* View+Tempo.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCAE1F3897627A075FB6109E /* View+Tempo.swift */; };
@@ -318,6 +319,7 @@
 		9CA4005283DF7B9B262A9840 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		9D48DD7160B7A6B14420A77F /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		9DA208BC33B6C4D4AA38FD49 /* AccountabilityEnums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountabilityEnums.swift; sourceTree = "<group>"; };
+		9DA5BAFAE035C7142A212D81 /* NutriTrackConnectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutriTrackConnectView.swift; sourceTree = "<group>"; };
 		A01D4969AC90CDBF27C63BEC /* ScoringEngineProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoringEngineProtocol.swift; sourceTree = "<group>"; };
 		A0DD44E8C8C278C965F3F559 /* NonNegotiableSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NonNegotiableSetupView.swift; sourceTree = "<group>"; };
 		A16EC0F22D503CB01821342D /* MockCalendarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockCalendarService.swift; sourceTree = "<group>"; };
@@ -1008,6 +1010,7 @@
 			isa = PBXGroup;
 			children = (
 				9BA725894165E147EB72A7CE /* .gitkeep */,
+				9DA5BAFAE035C7142A212D81 /* NutriTrackConnectView.swift */,
 				3C45C46FA2A2369C89483AF2 /* SignInWithAppleView.swift */,
 			);
 			path = Onboarding;
@@ -1365,6 +1368,7 @@
 				EE35F37B13C2A29B026CC87D /* NonNegotiableSetupView.swift in Sources */,
 				4E928626A30DE4A9E17E1E51 /* NotificationServiceProtocol.swift in Sources */,
 				0AE3279D7BDC4A612125390F /* NumberStepperView.swift in Sources */,
+				BA32236538C0D45944B5D9AF /* NutriTrackConnectView.swift in Sources */,
 				51A9957FD467FD254F79A730 /* NutriTrackConnection.swift in Sources */,
 				0F81D4B01E7DE07C229FF22C /* NutriTrackService.swift in Sources */,
 				C973682415E1744CB86D059D /* NutriTrackServiceProtocol.swift in Sources */,

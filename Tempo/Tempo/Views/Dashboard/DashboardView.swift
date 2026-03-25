@@ -12,6 +12,7 @@ struct DashboardView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var viewModel: DashboardViewModel?
     @State private var hasAppeared = false
+    @State private var showNutriTrackConnect = false
 
     var body: some View {
         NavigationStack {
@@ -57,6 +58,16 @@ struct DashboardView: View {
                 vm.refreshTrainingStatus(modelContext: modelContext)
                 hasAppeared = true
             }
+        }
+        .sheet(isPresented: $showNutriTrackConnect) {
+            NutriTrackConnectView(
+                nutriTrackService: services.nutriTrack,
+                onConnected: {
+                    Task {
+                        await viewModel?.refresh()
+                    }
+                }
+            )
         }
     }
 
@@ -311,11 +322,16 @@ struct DashboardView: View {
                         )
                 }
             } else {
-                disconnectedState(
-                    icon: "fork.knife",
-                    title: "Connect NutriTrack",
-                    subtitle: "to track nutrition"
-                )
+                Button {
+                    showNutriTrackConnect = true
+                } label: {
+                    disconnectedState(
+                        icon: "fork.knife",
+                        title: "Connect NutriTrack",
+                        subtitle: "to track nutrition"
+                    )
+                }
+                .buttonStyle(.plain)
             }
         }
     }

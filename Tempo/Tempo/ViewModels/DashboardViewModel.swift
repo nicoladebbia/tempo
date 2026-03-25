@@ -606,6 +606,24 @@ final class DashboardViewModel {
             exams: mind.exams  // Preserve existing exam data
         )
 
+        // Per BUILD_PLAN step 11.3 — Auto-track meal non-negotiable from NutriTrack data.
+        // When NutriTrack reports meals logged, update the meals non-negotiable progress.
+        if let mealsLogged = fuel.mealsLogged, mealsLogged > 0 {
+            if let mealProgress = accountability.nonNegotiableProgress?.first(where: {
+                $0.nonNegotiable?.type == .meals
+            }) {
+                let target = mealProgress.targetValue
+                if Double(mealsLogged) > mealProgress.currentValue {
+                    mealProgress.currentValue = Double(mealsLogged)
+                    if Double(mealsLogged) >= target && !mealProgress.isCompleted {
+                        mealProgress.isCompleted = true
+                        mealProgress.completedAt = Date()
+                    }
+                    try? modelContext.save()
+                }
+            }
+        }
+
         // Update non-negotiables from real data
         let progress = accountability.nonNegotiableProgress ?? []
         self.nonNegotiables = progress.compactMap { p in
