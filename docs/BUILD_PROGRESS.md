@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 7 next
 > **Total steps:** 124
-> **Completed:** 87 / 124 (70%)
+> **Completed:** 88 / 124 (71%)
 
 ---
 
@@ -137,7 +137,7 @@
 **Goal:** Build accountability engine, non-negotiable tracking, focus timer, streaks, scoring, and connect to Dashboard.
 
 - [x] 10.1: Accountability Engine (2026-03-25)
-- [ ] 10.2: Accountability ViewModel
+- [x] 10.2: Accountability ViewModel (2026-03-25)
 - [ ] 10.3: LockdownView (Non-Negotiable Cards)
 - [ ] 10.4: Focus Timer (Pomodoro)
 - [ ] 10.5: NonNegotiable Setup/Edit Flow
