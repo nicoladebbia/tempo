@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 12 next
 > **Total steps:** 124
-> **Completed:** 121 / 124 (98%)
+> **Completed:** 122 / 124 (98%)
 
 ---
 
@@ -211,7 +211,7 @@
 
 - [x] 20.1: Subscription Setup (StoreKit 2) ✅ 2026-03-25
 - [x] 20.2: Analytics Implementation ✅ 2026-03-25
-- [ ] 20.3: Privacy Policy + App Store Listing
+- [x] 20.3: Privacy Policy + App Store Listing ✅ 2026-03-25
 - [ ] 20.4: CI/CD Pipeline + TestFlight
 - [ ] 20.5: App Store Submission
 
