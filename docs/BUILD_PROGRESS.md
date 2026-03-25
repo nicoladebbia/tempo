@@ -3,15 +3,15 @@
 > **Last updated:** 2026-03-24
 > **Current phase:** Not started
 > **Total steps:** 124
-> **Completed:** 0 / 124 (0%)
+> **Completed:** 2 / 124 (2%)
 
 ---
 
 ## Phase 0: Project Scaffolding
 **Goal:** Set up Git, Xcode project, Vapor backend, folder structures, dependencies, and shared enums/constants.
 
-- 🔨 0.1: Initialize Git Repository and Branch Strategy
-- [ ] 0.2: Create Xcode Project with Correct Settings
+- [x] 0.1: Initialize Git Repository and Branch Strategy (2026-03-25)
+- [x] 0.2: Create Xcode Project with Correct Settings (2026-03-25)
 - [ ] 0.3: Create Folder Structure (iOS)
 - [ ] 0.4: Configure Entitlements
 - [ ] 0.5: Set Up Build Configurations (Debug/Staging/Release)
@@ -221,4 +221,4 @@
 (none)
 
 ## Notes
-(none)
+- **0.1**: BUILD_PLAN.md says to create a `develop` branch, but CI_CD_PIPELINE.md Section 1 explicitly specifies trunk-based development (no develop branch, short-lived feature branches off main). Followed CI/CD doc as the authoritative reference.
