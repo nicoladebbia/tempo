@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 12 next
 > **Total steps:** 124
-> **Completed:** 115 / 124 (93%)
+> **Completed:** 116 / 124 (94%)
 
 ---
 
@@ -201,7 +201,7 @@
 **Goal:** Audit dark mode and Dynamic Type, polish animations/haptics/sounds, write unit and UI tests, profile performance.
 
 - [x] 19.1: Dark Mode + Dynamic Type Audit ✅ 2026-03-25
-- [ ] 19.2: Animation + Haptics + Sound Polish
+- [x] 19.2: Animation + Haptics + Sound Polish ✅ 2026-03-25
 - [ ] 19.3: Unit Tests
 - [ ] 19.4: UI Tests + Snapshot Tests
 - [ ] 19.5: Performance Profiling
