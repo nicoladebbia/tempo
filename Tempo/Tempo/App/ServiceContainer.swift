@@ -70,7 +70,21 @@ final class ServiceContainer {
     }
 
     static func live() -> ServiceContainer {
-        // Uses mocks for now — real implementations wired in later phases
-        mock()
+        let auth = AuthService()
+        return ServiceContainer(
+            authService: auth,
+            healthKit: HealthKitService(),
+            whoop: MockWhoopService(),
+            nutriTrack: MockNutriTrackService(),
+            calendar: MockCalendarService(),
+            notifications: MockNotificationService(),
+            trainingEngine: MockTrainingEngine(),
+            recoveryEngine: MockRecoveryEngine(),
+            scoringEngine: MockScoringEngine(),
+            xpEngine: MockXPEngine(),
+            syncCoordinator: MockSyncCoordinator(),
+            backgroundSync: BackgroundSyncService(),
+            networkMonitor: NetworkMonitor()
+        )
     }
 }

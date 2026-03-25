@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 5 next
 > **Total steps:** 124
-> **Completed:** 51 / 124 (41%)
+> **Completed:** 52 / 124 (42%)
 
 ---
 
@@ -81,7 +81,7 @@
 ## Phase 5: HealthKit Integration (Real Implementation)
 **Goal:** Implement real HealthKit reads/writes, background delivery, and connect to the Dashboard.
 
-- [ ] 5.1: HealthKit Authorization Flow
+- [x] 5.1: HealthKit Authorization Flow (2026-03-25)
 - [ ] 5.2: Read Steps + Active Energy
 - [ ] 5.3: Read Heart Rate + HRV + RHR
 - [ ] 5.4: Read Sleep Analysis
