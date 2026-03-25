@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 1 in progress
 > **Total steps:** 124
-> **Completed:** 11 / 124 (9%)
+> **Completed:** 12 / 124 (10%)
 
 ---
 
@@ -25,7 +25,7 @@
 **Goal:** Create all SwiftData models, schema configuration, migration plan, and exercise seed data.
 
 - [x] 1.1: User Models (UserProfile, UserSettings) (2026-03-25)
-- [ ] 1.2: Dashboard Models (DailySnapshot)
+- [x] 1.2: Dashboard Models (DailySnapshot) (2026-03-25)
 - [ ] 1.3: Training Models
 - [ ] 1.4: Accountability Models
 - [ ] 1.5: Recovery Models
