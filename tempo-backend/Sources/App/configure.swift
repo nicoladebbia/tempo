@@ -98,6 +98,7 @@ func configure(_ app: Application) async throws {
     // ─────────────────────────────────────────────────
     app.migrations.add(CreateUsers())
     app.migrations.add(CreateRefreshTokens())
+    app.migrations.add(CreateWhoopIntegrations())
 
     // Auto-migrate in development
     if app.environment == .development {

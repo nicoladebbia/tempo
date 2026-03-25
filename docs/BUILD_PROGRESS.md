@@ -1,9 +1,9 @@
 # Tempo Build Progress
 
 > **Last updated:** 2026-03-25
-> **Current phase:** Phase 6 next
+> **Current phase:** Phase 7 next
 > **Total steps:** 124
-> **Completed:** 66 / 124 (53%)
+> **Completed:** 67 / 124 (54%)
 
 ---
 
@@ -104,7 +104,7 @@
 ## Phase 7: Whoop Integration
 **Goal:** Build Whoop OAuth flow, data proxy, webhook receiver, iOS service, and connect to Dashboard.
 
-- [ ] 7.1: Whoop OAuth Backend Endpoints
+- [x] 7.1: Whoop OAuth Backend Endpoints (2026-03-25)
 - [ ] 7.2: Whoop Data Proxy Endpoints
 - [ ] 7.3: Whoop Webhook Receiver
 - [ ] 7.4: iOS Whoop Service (Real Implementation)

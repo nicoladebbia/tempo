@@ -24,6 +24,13 @@ func routes(_ app: Application) throws {
         .grouped(RateLimitMiddleware(limit: 10, window: .minutes(1), scope: .ip))
     try auth.register(collection: AuthController())
 
-    // Protected endpoints — added as controllers are built
-    // let protected = v1.grouped(JWTAuthMiddleware())
+    // ─────────────────────────────────────────────────
+    // Protected endpoints (JWT required)
+    // ─────────────────────────────────────────────────
+    let protected = v1.grouped(JWTAuthMiddleware())
+
+    // Whoop integration management — per INTEGRATION_SPECS.md Section 1
+    try protected.grouped("integrations", "whoop")
+        .grouped(RateLimitMiddleware(limit: 10, window: .minutes(1), scope: .user))
+        .register(collection: WhoopIntegrationController())
 }
