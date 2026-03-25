@@ -9,11 +9,14 @@ struct ContentView: View {
     @Environment(ServiceContainer.self) private var services
 
     var body: some View {
-        if services.appState.isOnboardingComplete {
-            mainTabView
-        } else {
-            OnboardingContainerView()
+        Group {
+            if services.appState.isOnboardingComplete {
+                mainTabView
+            } else {
+                OnboardingContainerView()
+            }
         }
+        .preferredColorScheme(.dark)
     }
 
     private var mainTabView: some View {
