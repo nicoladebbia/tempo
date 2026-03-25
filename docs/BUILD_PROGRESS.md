@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 7 next
 > **Total steps:** 124
-> **Completed:** 79 / 124 (64%)
+> **Completed:** 80 / 124 (65%)
 
 ---
 
@@ -125,7 +125,7 @@
 **Goal:** Build the Training Engine, workout logging, exercise library, and connect to Dashboard.
 
 - [x] 9.1: Training Engine (Real Implementation) (2026-03-25)
-- [ ] 9.2: Training ViewModel
+- [x] 9.2: Training ViewModel (2026-03-25)
 - [ ] 9.3: TodayWorkoutView
 - [ ] 9.4: ActiveWorkoutView (Set Logging)
 - [ ] 9.5: WorkoutSummaryView

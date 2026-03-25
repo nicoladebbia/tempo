@@ -16,6 +16,12 @@ final class UserSettings {
 
     var notificationIntensity: Int
 
+    // MARK: - Training
+
+    var trainingSplitRaw: String
+
+    var footballDaysRaw: Int
+
     // MARK: - Schedule
 
     var leisureTimeMinutes: Int
@@ -45,6 +51,18 @@ final class UserSettings {
     var updatedAt: Date
 
     // MARK: - Computed
+
+    @Transient
+    var trainingSplit: TrainingSplit {
+        get { TrainingSplit(rawValue: trainingSplitRaw) ?? .pushPullLegs }
+        set { trainingSplitRaw = newValue.rawValue }
+    }
+
+    @Transient
+    var footballDays: ActiveDays {
+        get { ActiveDays(rawValue: footballDaysRaw) }
+        set { footballDaysRaw = newValue.rawValue }
+    }
 
     @Transient
     var leisureTime: DateComponents {
@@ -77,6 +95,8 @@ final class UserSettings {
     init(
         id: UUID = UUID(),
         notificationIntensity: Int = 3,
+        trainingSplit: TrainingSplit = .pushPullLegs,
+        footballDays: ActiveDays = ActiveDays(rawValue: 0),
         leisureTimeMinutes: Int = 1170,
         wakeTimeMinutes: Int = 420,
         bedtimeTargetMinutes: Int = 1380,
@@ -89,6 +109,8 @@ final class UserSettings {
     ) {
         self.id = id
         self.notificationIntensity = notificationIntensity
+        self.trainingSplitRaw = trainingSplit.rawValue
+        self.footballDaysRaw = footballDays.rawValue
         self.leisureTimeMinutes = leisureTimeMinutes
         self.wakeTimeMinutes = wakeTimeMinutes
         self.bedtimeTargetMinutes = bedtimeTargetMinutes
@@ -108,6 +130,8 @@ extension UserSettings {
 
     struct DTO: Codable, Sendable {
         let notification_intensity: Int
+        let training_split: String
+        let football_days: Int
         let leisure_time_minutes: Int
         let wake_time_minutes: Int
         let bedtime_target_minutes: Int
@@ -122,6 +146,8 @@ extension UserSettings {
     func toDTO() -> DTO {
         DTO(
             notification_intensity: notificationIntensity,
+            training_split: trainingSplitRaw,
+            football_days: footballDaysRaw,
             leisure_time_minutes: leisureTimeMinutes,
             wake_time_minutes: wakeTimeMinutes,
             bedtime_target_minutes: bedtimeTargetMinutes,
