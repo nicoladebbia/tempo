@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 12 next
 > **Total steps:** 124
-> **Completed:** 107 / 124 (86%)
+> **Completed:** 108 / 124 (87%)
 
 ---
 
@@ -177,7 +177,7 @@
 ## Phase 15: AI Intelligence Engine
 **Goal:** Build Claude API backend service and weekly report generation with drill-sergeant copy.
 
-- [ ] 15.1: Claude API Backend Service
+- [x] 15.1: Claude API Backend Service ✅ 2026-03-25
 - [ ] 15.2: Weekly Report + Drill Sergeant Copy
 
 ## Phase 16: Onboarding

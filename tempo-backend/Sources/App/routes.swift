@@ -87,6 +87,16 @@ func routes(_ app: Application) throws {
         .register(collection: AchievementController())
 
     // ─────────────────────────────────────────────────
+    // AI Insights — per BUILD_PLAN step 15.1
+    // Per AI_INTELLIGENCE_ENGINE.md — 10 AI requests per user per day (enforced in controller)
+    // ─────────────────────────────────────────────────
+
+    // Insights — GET /v1/insights/weekly-report, /patterns, /drill-sergeant
+    try protected.grouped("insights")
+        .grouped(RateLimitMiddleware(limit: 20, window: .minutes(1), scope: .user))
+        .register(collection: InsightController())
+
+    // ─────────────────────────────────────────────────
     // Webhooks (no JWT — verified via HMAC)
     // ─────────────────────────────────────────────────
 
