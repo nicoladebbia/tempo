@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 12 next
 > **Total steps:** 124
-> **Completed:** 109 / 124 (88%)
+> **Completed:** 110 / 124 (89%)
 
 ---
 
@@ -183,7 +183,7 @@
 ## Phase 16: Onboarding
 **Goal:** Build the full onboarding flow container with all step views and state persistence.
 
-- [ ] 16.1: Onboarding Flow Container
+- [x] 16.1: Onboarding Flow Container ✅ 2026-03-25
 
 ## Phase 17: Widgets
 **Goal:** Create widget extension target and build small, medium, large, and lock screen widgets.

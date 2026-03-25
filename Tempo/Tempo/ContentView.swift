@@ -12,9 +12,7 @@ struct ContentView: View {
         if services.appState.isOnboardingComplete {
             mainTabView
         } else {
-            OnboardingPlaceholderView {
-                services.appState.isOnboardingComplete = true
-            }
+            OnboardingContainerView()
         }
     }
 
@@ -58,33 +56,3 @@ struct ContentView: View {
     }
 }
 
-// MARK: - Onboarding Placeholder
-
-private struct OnboardingPlaceholderView: View {
-
-    let onComplete: () -> Void
-
-    var body: some View {
-        VStack(spacing: TempoSpacing.xxl) {
-            Image(systemName: "flame.fill")
-                .font(.system(size: 64))
-                .foregroundStyle(Color.tempoSignal)
-
-            Text("Tempo")
-                .font(.tempoLargeTitle)
-                .foregroundStyle(Color.tempoTextPrimary)
-
-            Text("Onboarding will be built in Phase 16")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-
-            Button("Skip to App") {
-                onComplete()
-            }
-            .buttonStyle(.tempoPrimary)
-            .padding(.horizontal, TempoSpacing.screenEdge)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.tempoBgPrimary)
-    }
-}
