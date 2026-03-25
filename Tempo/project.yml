@@ -122,6 +122,7 @@ targets:
       testTargets:
         - TempoTests
         - TempoUITests
+        - TempoSnapshotTests
 
   TempoTests:
     type: bundle.unit-test

@@ -10,6 +10,7 @@
 		019BE99FF92CB75F2C4B6163 /* GoalSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4E3490179FC169FBA2AABD6 /* GoalSetupView.swift */; };
 		025B4A05B7D036D62ED539FB /* StrainDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64072CBEEB875DF32BA08372 /* StrainDetailView.swift */; };
 		02B882A7716DE0127237CD96 /* TempoComplicationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F5617B8CC7FC99BB27B9CDC /* TempoComplicationProvider.swift */; };
+		031A1DE2FC51EEA2354288B1 /* ComponentSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F24339E7F4E89021158D0722 /* ComponentSnapshotTests.swift */; };
 		04B5E3958385FBCB938EB359 /* RecoveryTrendsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43FD012AD4E113E97EBFFD07 /* RecoveryTrendsView.swift */; };
 		04D027E5CDD12706EF271FC5 /* AuthInterceptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECD7848589231E4C0912FF88 /* AuthInterceptor.swift */; };
 		06286645E143397C57EE6187 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 783CC3794DB2C2A30C21002F /* DashboardView.swift */; };
@@ -31,6 +32,7 @@
 		1B0F731B517744F7A43CB598 /* PersonalRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 193D846D23A581EEC1EF738C /* PersonalRecord.swift */; };
 		1B22AB034036B4108EA6D7E3 /* Exercise.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2B54A1A7480F07957A6AA35 /* Exercise.swift */; };
 		1F11E5940ED036979CF059D8 /* TempoWidgetEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE7BDA5C36C3762695DDD533 /* TempoWidgetEntryView.swift */; };
+		201AC4CA90A1F9CFC2614137 /* TestLaunchArguments.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50AA273FA209E0A089905284 /* TestLaunchArguments.swift */; };
 		21A4EF8AA82197AF42E15D36 /* Font+Tempo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C58824F2381AEBCF49116A2 /* Font+Tempo.swift */; };
 		22307C63DC7074A53D186F72 /* NotificationSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD97FCDDA933BD424B4D829D /* NotificationSetupView.swift */; };
 		277CA8019188AE32BC376911 /* DailyRecovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80D835BCF7D39B334F2254FD /* DailyRecovery.swift */; };
@@ -40,6 +42,7 @@
 		2EB6A739EEB35D06134926D2 /* XPEngineProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A300B1153B724961360B8C /* XPEngineProtocol.swift */; };
 		313C3E974D6C484A252DE914 /* StreakCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E12F8C9AD532F04BF678536 /* StreakCalendarView.swift */; };
 		32A243A55DB5F5B329135CA8 /* SyncState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61A364A3A9D6DD964A981AA0 /* SyncState.swift */; };
+		36D46BF586019E4AE013A861 /* OnboardingFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18F1A61E3E6137EC69CAA180 /* OnboardingFlowTests.swift */; };
 		3A49CBB5AFDC2D2988CF3A39 /* AccountabilityEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4688A47205DFFEB4EAE9EA0 /* AccountabilityEngineTests.swift */; };
 		3AA463AC1BD8892785DF01B8 /* ExerciseLibraryLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FF4587F47E810681EFB5A10 /* ExerciseLibraryLoader.swift */; };
 		3AD083FD4C0363FFBA83171D /* RecoveryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECE95B9726C51F6F2B096E82 /* RecoveryViewModel.swift */; };
@@ -65,6 +68,7 @@
 		50F77068D556F5168D6C6AF1 /* CalendarService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 214BEF6F7BDB24D37AAB7F8A /* CalendarService.swift */; };
 		51A9957FD467FD254F79A730 /* NutriTrackConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25FB0613731C029167B5BBD4 /* NutriTrackConnection.swift */; };
 		520F1D1BC2D5D449DFDEA0CE /* RecoveryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13C0C3D400A03FC5177BECC8 /* RecoveryView.swift */; };
+		52BCFF9BEE7A293C5010B966 /* XCUIApplication+Tempo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F23FEAF81689F4ECAC8D940 /* XCUIApplication+Tempo.swift */; };
 		540456695C0117EA540838F7 /* TempoWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20150327692ED9710E1335EC /* TempoWatchApp.swift */; };
 		54108E7A330B6CC4DCDB5616 /* ActiveDays.swift in Sources */ = {isa = PBXBuildFile; fileRef = D802A031AF15B9CC7D9C33BA /* ActiveDays.swift */; };
 		542638AC8ED28FC0BE2C173E /* MicroInteractionModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95A7E97DBBCB3EA70439EFB4 /* MicroInteractionModifiers.swift */; };
@@ -117,6 +121,7 @@
 		76D38B3FBE7CD0D57733A76D /* TempoToast.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AA111EDE8D7F9FA86E85D0B /* TempoToast.swift */; };
 		772BD3105B7AB5A996B536FB /* TempoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7995A9B6697165811DE09D5 /* TempoTests.swift */; };
 		77B0D3AA92FF20EE1F350DAC /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B942A08219ED48198388A40 /* AppState.swift */; };
+		7822242B19A6BB7E050ED921 /* OnboardingPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E7E036F124A1068F1A60FB /* OnboardingPage.swift */; };
 		78D431FC734932DC2397F4AB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 19BD6B0F4B6E8C72E51A9764 /* Assets.xcassets */; };
 		7A448B0FBAEBBBC4316642F7 /* XPEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49ACE819EC67B27E98797001 /* XPEvent.swift */; };
 		7DE57B7828A5E39CEBC09558 /* RecoveryEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7073F332EC51ED92B9C4021 /* RecoveryEnums.swift */; };
@@ -126,16 +131,19 @@
 		8263A459906BE962F1CE6F66 /* TempoBarChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5535978CE10DE36CA66E218 /* TempoBarChart.swift */; };
 		830E071F6A87532F270D679E /* ArenaViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54949B90A73092BDE0933B7F /* ArenaViewModel.swift */; };
 		83F7247364B8C165EFACD9EA /* WhoopService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9DA903B98B64A76F00531DD /* WhoopService.swift */; };
+		8616070C8305B7FEC7EAC080 /* BasePage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83510616D1E0812BDD2B5166 /* BasePage.swift */; };
 		8746D607726D826AFA57751F /* DashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBF3D155993E4A01D42C6249 /* DashboardViewModel.swift */; };
 		8DBBF0C0A227134A529E232D /* Logger+Tempo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63036777C50F6966F1074820 /* Logger+Tempo.swift */; };
 		8F3B1F6EE03712FC6AB8A367 /* TempoFAB.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEEC3BBC4CB4A0EFA2D9A673 /* TempoFAB.swift */; };
 		92D211B47535A258CBC8302F /* TrainingTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B0915816BC3049DA77D7AED /* TrainingTabView.swift */; };
+		93F83E102AC59F44813704A7 /* DashboardFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CD41DB168043F4F644E867F /* DashboardFlowTests.swift */; };
 		9573B28ABEDA1B18CE629AC4 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43DB6BEFC11B05818008A600 /* ContentView.swift */; };
 		958FCA1A0FC60F4BD20EDF93 /* TempoButtonStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCE1EB7DEE588195D13E85C1 /* TempoButtonStyle.swift */; };
 		96751995B5027A1C69DE7FD8 /* MockSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 395473472C40337A7A1B8A18 /* MockSyncCoordinator.swift */; };
 		969D3F89799CF356E74EA65C /* ArenaMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1062C42FBFAAB371E7C9D0E5 /* ArenaMainView.swift */; };
 		97A0C0032AC93965AA1D0D63 /* MockTrainingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64E0173E007D20A9D49D38BC /* MockTrainingEngine.swift */; };
 		97A7593FCCAF7FC72BBF4E62 /* TempoUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 501F8E8E3FD5CC7F4C68EAAF /* TempoUITests.swift */; };
+		982984177703DEFFE46DD641 /* DashboardPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8D058F8D445B3D73611C63C /* DashboardPage.swift */; };
 		994A685D910BC62D50A56430 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2948C055F4EB9AA21A8BFBD2 /* KeychainService.swift */; };
 		9B94E4DCDAB5824BD5A8ABB1 /* HealthKitBackgroundDelivery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2077CF333F485F9F86A996E1 /* HealthKitBackgroundDelivery.swift */; };
 		9FE802599C3695339C1ED4C4 /* Achievement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FAE3523520739AC6679517A /* Achievement.swift */; };
@@ -302,6 +310,7 @@
 		15E65DDB86BE2EE496CAFD6E /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		1634F2EAF7C9C13430E8F8F7 /* FocusTimerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTimerView.swift; sourceTree = "<group>"; };
 		169E236B746BCAC63407C09D /* ChallengeLocal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengeLocal.swift; sourceTree = "<group>"; };
+		18F1A61E3E6137EC69CAA180 /* OnboardingFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingFlowTests.swift; sourceTree = "<group>"; };
 		193D846D23A581EEC1EF738C /* PersonalRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalRecord.swift; sourceTree = "<group>"; };
 		197BFE06C76FB8264329C485 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		19BD6B0F4B6E8C72E51A9764 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -309,6 +318,7 @@
 		1B3C392B77F5DB78F4E43ADA /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		1C0667B0502956239D73A789 /* BodyQuadrantDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BodyQuadrantDetailView.swift; sourceTree = "<group>"; };
 		1C6AF2C5780FC47F5D791B88 /* TempoIconButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoIconButton.swift; sourceTree = "<group>"; };
+		1CD41DB168043F4F644E867F /* DashboardFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardFlowTests.swift; sourceTree = "<group>"; };
 		1E140F593B22BE3B1AC57871 /* PendingSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingSync.swift; sourceTree = "<group>"; };
 		1F5617B8CC7FC99BB27B9CDC /* TempoComplicationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoComplicationProvider.swift; sourceTree = "<group>"; };
 		20150327692ED9710E1335EC /* TempoWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoWatchApp.swift; sourceTree = "<group>"; };
@@ -333,6 +343,7 @@
 		2EAFD46CD590E4AC787B1793 /* ArenaTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArenaTabView.swift; sourceTree = "<group>"; };
 		2EB8E7B2302CA87C19465CAA /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		2ED0527B188D9FBA91B55BD7 /* TodayWorkoutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayWorkoutView.swift; sourceTree = "<group>"; };
+		2F23FEAF81689F4ECAC8D940 /* XCUIApplication+Tempo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "XCUIApplication+Tempo.swift"; sourceTree = "<group>"; };
 		37772590FDF7609BE7A5D5A0 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		38E8DFFF4236E16FF0099BF8 /* WatchHapticService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchHapticService.swift; sourceTree = "<group>"; };
 		394DC42C91B8B3C74CD5AB11 /* RecoveryInsight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryInsight.swift; sourceTree = "<group>"; };
@@ -353,6 +364,7 @@
 		4FF4587F47E810681EFB5A10 /* ExerciseLibraryLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExerciseLibraryLoader.swift; sourceTree = "<group>"; };
 		501F8E8E3FD5CC7F4C68EAAF /* TempoUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoUITests.swift; sourceTree = "<group>"; };
 		504F36623C169DBC0D2B6007 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		50AA273FA209E0A089905284 /* TestLaunchArguments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestLaunchArguments.swift; sourceTree = "<group>"; };
 		5277163BE577CEBD3272EF24 /* WhoopServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhoopServiceProtocol.swift; sourceTree = "<group>"; };
 		54949B90A73092BDE0933B7F /* ArenaViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArenaViewModel.swift; sourceTree = "<group>"; };
 		55EB01321CEE061E3C677AC7 /* TempoModelContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoModelContainer.swift; sourceTree = "<group>"; };
@@ -395,6 +407,7 @@
 		7E1559B7E21E10BCE19326D2 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		8094D8380452850D0E377C20 /* ExerciseLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExerciseLibraryView.swift; sourceTree = "<group>"; };
 		80D835BCF7D39B334F2254FD /* DailyRecovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyRecovery.swift; sourceTree = "<group>"; };
+		83510616D1E0812BDD2B5166 /* BasePage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BasePage.swift; sourceTree = "<group>"; };
 		8457A0C1E5AD157EF2DDE996 /* OnboardingContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingContainerView.swift; sourceTree = "<group>"; };
 		849F1BE4C49918B7FC7F322D /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		8526AED40421CE129D69C792 /* StreakDotsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreakDotsView.swift; sourceTree = "<group>"; };
@@ -525,14 +538,17 @@
 		EDE277CDEFE92824736D57A9 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		EE6AD43928676FF103558F6A /* TempoCardModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoCardModifier.swift; sourceTree = "<group>"; };
 		EFC3245FEE0EA4FF71654A46 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		F24339E7F4E89021158D0722 /* ComponentSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComponentSnapshotTests.swift; sourceTree = "<group>"; };
 		F2CB8C49552BF12ADD83590E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		F2DCF3CD46C5AFFDA584B7E3 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		F32F128E1D77765991B47C81 /* Tempo.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Tempo.entitlements; sourceTree = "<group>"; };
+		F3E7E036F124A1068F1A60FB /* OnboardingPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingPage.swift; sourceTree = "<group>"; };
 		F4D7898A158FC78970C573EB /* ChallengesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengesView.swift; sourceTree = "<group>"; };
 		F5535978CE10DE36CA66E218 /* TempoBarChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoBarChart.swift; sourceTree = "<group>"; };
 		F59BAE0104B3A7E11A8FC878 /* ScoringEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoringEngineTests.swift; sourceTree = "<group>"; };
 		F5BA60DF711F599B56E83E85 /* WatchSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSnapshot.swift; sourceTree = "<group>"; };
 		F7073F332EC51ED92B9C4021 /* RecoveryEnums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryEnums.swift; sourceTree = "<group>"; };
+		F8D058F8D445B3D73611C63C /* DashboardPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardPage.swift; sourceTree = "<group>"; };
 		F929FBE6C861B744690D364F /* AppConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConstants.swift; sourceTree = "<group>"; };
 		FAAD8D5690BA86C227809771 /* WeightConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeightConverter.swift; sourceTree = "<group>"; };
 		FB29ECC2821CD9A2BA01F9E4 /* FriendSystemView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendSystemView.swift; sourceTree = "<group>"; };
@@ -611,6 +627,15 @@
 				61A364A3A9D6DD964A981AA0 /* SyncState.swift */,
 			);
 			path = Sync;
+			sourceTree = "<group>";
+		};
+		0D769005288129237C843E99 /* Flows */ = {
+			isa = PBXGroup;
+			children = (
+				1CD41DB168043F4F644E867F /* DashboardFlowTests.swift */,
+				18F1A61E3E6137EC69CAA180 /* OnboardingFlowTests.swift */,
+			);
+			path = Flows;
 			sourceTree = "<group>";
 		};
 		10CE30BEF3A0BD94ABCB8E42 /* Resources */ = {
@@ -978,6 +1003,15 @@
 			path = "Preview Content";
 			sourceTree = "<group>";
 		};
+		9EF065906081C350E1383DBE /* Helpers */ = {
+			isa = PBXGroup;
+			children = (
+				50AA273FA209E0A089905284 /* TestLaunchArguments.swift */,
+				2F23FEAF81689F4ECAC8D940 /* XCUIApplication+Tempo.swift */,
+			);
+			path = Helpers;
+			sourceTree = "<group>";
+		};
 		A33F5E951CA3D924989151AD /* Helpers */ = {
 			isa = PBXGroup;
 			children = (
@@ -1202,6 +1236,7 @@
 			isa = PBXGroup;
 			children = (
 				9CA4005283DF7B9B262A9840 /* .gitkeep */,
+				F24339E7F4E89021158D0722 /* ComponentSnapshotTests.swift */,
 				C1E65C1ADEA63F79B03903FC /* TempoSnapshotTests.swift */,
 			);
 			path = TempoSnapshotTests;
@@ -1216,6 +1251,16 @@
 				EC1E51023C5E4D5C35509B68 /* NotificationSettingsView.swift */,
 			);
 			path = Shared;
+			sourceTree = "<group>";
+		};
+		D7B68F9BE2229C57F6ED4BF6 /* Pages */ = {
+			isa = PBXGroup;
+			children = (
+				83510616D1E0812BDD2B5166 /* BasePage.swift */,
+				F8D058F8D445B3D73611C63C /* DashboardPage.swift */,
+				F3E7E036F124A1068F1A60FB /* OnboardingPage.swift */,
+			);
+			path = Pages;
 			sourceTree = "<group>";
 		};
 		DBAD0BDBDA5FA9B5AA68E493 /* Views */ = {
@@ -1235,6 +1280,9 @@
 		E3628503959B5D948C0F29B7 /* TempoUITests */ = {
 			isa = PBXGroup;
 			children = (
+				0D769005288129237C843E99 /* Flows */,
+				9EF065906081C350E1383DBE /* Helpers */,
+				D7B68F9BE2229C57F6ED4BF6 /* Pages */,
 				501F8E8E3FD5CC7F4C68EAAF /* TempoUITests.swift */,
 			);
 			path = TempoUITests;
@@ -1634,6 +1682,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				031A1DE2FC51EEA2354288B1 /* ComponentSnapshotTests.swift in Sources */,
 				6BDB8B61726187715C639A4C /* TempoSnapshotTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1642,7 +1691,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8616070C8305B7FEC7EAC080 /* BasePage.swift in Sources */,
+				93F83E102AC59F44813704A7 /* DashboardFlowTests.swift in Sources */,
+				982984177703DEFFE46DD641 /* DashboardPage.swift in Sources */,
+				36D46BF586019E4AE013A861 /* OnboardingFlowTests.swift in Sources */,
+				7822242B19A6BB7E050ED921 /* OnboardingPage.swift in Sources */,
 				97A7593FCCAF7FC72BBF4E62 /* TempoUITests.swift in Sources */,
+				201AC4CA90A1F9CFC2614137 /* TestLaunchArguments.swift in Sources */,
+				52BCFF9BEE7A293C5010B966 /* XCUIApplication+Tempo.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

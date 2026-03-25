@@ -41,6 +41,16 @@ final class AppState {
 
     init(authService: AuthService) {
         self.authService = authService
-        self.isOnboardingComplete = UserDefaults.standard.bool(forKey: "tempo.onboarding.complete")
+
+        // UI test launch arguments
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("--uitesting-reset") {
+            UserDefaults.standard.removeObject(forKey: "tempo.onboarding.complete")
+        }
+        if args.contains("--uitesting-skip-onboarding") {
+            self.isOnboardingComplete = true
+        } else {
+            self.isOnboardingComplete = UserDefaults.standard.bool(forKey: "tempo.onboarding.complete")
+        }
     }
 }
