@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 12 next
 > **Total steps:** 124
-> **Completed:** 112 / 124 (90%)
+> **Completed:** 113 / 124 (91%)
 
 ---
 
@@ -194,7 +194,7 @@
 ## Phase 18: Apple Watch
 **Goal:** Create Watch app target and build workout logging, timers, and complications.
 
-- [ ] 18.1: Watch App Target Setup
+- [x] 18.1: Watch App Target Setup ✅ 2026-03-25
 - [ ] 18.2: Watch Workout Logging + Timer
 
 ## Phase 19: Polish and Testing
