@@ -1,0 +1,6763 @@
+openapi: 3.1.0
+info:
+  title: Tempo API
+  version: 2.1.0
+  description: |
+    Tempo — Life Operating System API.
+    Unifies fitness, nutrition, recovery, academics, and accountability into one system.
+    Native iOS app backend built with Vapor 4 (Swift) + PostgreSQL 16 + Redis 7.
+  contact:
+    name: Nicola Debbia
+    email: nicola@tempo.app
+  license:
+    name: Proprietary
+    url: https://tempo.app/terms
+
+servers:
+  - url: https://api.tempo.app
+    description: Production
+  - url: https://api-staging.tempo.app
+    description: Staging
+  - url: http://localhost:8080
+    description: Development
+
+tags:
+  - name: Auth
+    description: Authentication — Sign in with Apple, token management
+  - name: Users
+    description: User management — profiles, avatars, search, deletion
+  - name: Preferences
+    description: User preferences and settings
+  - name: Whoop
+    description: Whoop integration — OAuth, data sync, recovery/sleep/workout data
+  - name: NutriTrack
+    description: NutriTrack proxy — nutrition data from self-hosted Flask server
+  - name: Training
+    description: Training and workouts — exercises, plans, manual logging
+  - name: Study
+    description: Study sessions — logging and analytics
+  - name: Snapshots
+    description: Daily snapshots and historical data
+  - name: Arena
+    description: XP, leaderboards, friendships, challenges, achievements
+  - name: Accountability
+    description: Non-negotiables and accountability system
+  - name: Sync
+    description: Sync and batch operations
+  - name: Devices
+    description: Push notification device management
+  - name: Webhooks
+    description: Outbound webhook management
+  - name: Insights
+    description: AI-powered insights and pattern analysis
+  - name: Reports
+    description: Reports and data export
+  - name: Search
+    description: Search across exercises, users, and challenges
+  - name: Admin
+    description: Administrative endpoints (requires admin scope)
+  - name: Config
+    description: App configuration and feature flags
+  - name: Realtime
+    description: WebSocket real-time updates
+  - name: Health
+    description: Health checks and readiness probes
+
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: ES256 JWT access token. 15-minute TTL. Obtain via POST /v1/auth/apple.
+
+  headers:
+    X-Request-Id:
+      description: Unique request identifier for tracing
+      schema:
+        type: string
+        example: req_abc123def456
+    X-RateLimit-Limit:
+      description: Maximum requests allowed in the current window
+      schema:
+        type: integer
+        example: 100
+    X-RateLimit-Remaining:
+      description: Requests remaining in the current window
+      schema:
+        type: integer
+        example: 97
+    X-RateLimit-Reset:
+      description: Unix timestamp when the rate limit window resets
+      schema:
+        type: integer
+        example: 1774588800
+    ETag:
+      description: Entity tag for conditional requests
+      schema:
+        type: string
+        example: '"a1b2c3d4e5f6"'
+
+  parameters:
+    CursorParam:
+      name: cursor
+      in: query
+      description: Opaque cursor from previous response for pagination
+      schema:
+        type: string
+        example: eyJpZCI6MTAwfQ==
+    LimitParam:
+      name: limit
+      in: query
+      description: Number of items per page
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25
+        example: 25
+    DirectionParam:
+      name: direction
+      in: query
+      description: Sort direction
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: desc
+        example: desc
+    StartDateParam:
+      name: start_date
+      in: query
+      description: Start date (YYYY-MM-DD)
+      schema:
+        type: string
+        format: date
+        example: "2026-03-01"
+    EndDateParam:
+      name: end_date
+      in: query
+      description: End date (YYYY-MM-DD)
+      schema:
+        type: string
+        format: date
+        example: "2026-03-24"
+    DateParam:
+      name: date
+      in: query
+      description: Single date (YYYY-MM-DD)
+      schema:
+        type: string
+        format: date
+        example: "2026-03-24"
+    UserIdPath:
+      name: id
+      in: path
+      required: true
+      description: User ID
+      schema:
+        type: string
+        example: usr_def456ghi789
+    IfNoneMatch:
+      name: If-None-Match
+      in: header
+      description: ETag value for conditional requests
+      schema:
+        type: string
+        example: '"a1b2c3d4e5f6"'
+    XClientVersion:
+      name: X-Client-Version
+      in: header
+      description: iOS app build version
+      schema:
+        type: string
+        example: "1.0.0"
+    XDeviceId:
+      name: X-Device-Id
+      in: header
+      description: Stable device UUID from Keychain
+      schema:
+        type: string
+        format: uuid
+        example: 550e8400-e29b-41d4-a716-446655440000
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      description: Client-generated key for idempotent mutations (cached 24h)
+      schema:
+        type: string
+        example: idem_unique-key
+
+  schemas:
+    # ─── Envelope Schemas ───
+    Meta:
+      type: object
+      required: [request_id, timestamp]
+      properties:
+        request_id:
+          type: string
+          example: req_abc123def456
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-03-24T10:30:00Z"
+
+    Pagination:
+      type: object
+      required: [cursor, has_more, count]
+      properties:
+        cursor:
+          type: string
+          nullable: true
+          example: eyJpZCI6MTAwfQ==
+        has_more:
+          type: boolean
+          example: true
+        count:
+          type: integer
+          example: 25
+
+    ErrorDetail:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: integer
+          description: Application-specific error code
+          example: 1001
+        message:
+          type: string
+          example: Access token has expired.
+        detail:
+          type: string
+          nullable: true
+          example: The JWT access token provided in the Authorization header is expired.
+        field:
+          type: string
+          nullable: true
+          example: null
+        fields:
+          type: object
+          nullable: true
+          additionalProperties:
+            type: string
+          example:
+            username: Must be 3-30 characters, alphanumeric and underscores only.
+        retry_after_seconds:
+          type: integer
+          nullable: true
+          example: 30
+
+    ErrorResponse:
+      type: object
+      required: [ok, error, meta]
+      properties:
+        ok:
+          type: boolean
+          const: false
+          example: false
+        error:
+          $ref: '#/components/schemas/ErrorDetail'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    # ─── User Schemas ───
+    UserIntegrations:
+      type: object
+      properties:
+        whoop:
+          type: object
+          properties:
+            connected:
+              type: boolean
+              example: true
+            last_sync_at:
+              type: string
+              format: date-time
+              nullable: true
+              example: "2026-03-24T08:00:00Z"
+        nutritrack:
+          type: object
+          properties:
+            connected:
+              type: boolean
+              example: true
+            last_sync_at:
+              type: string
+              format: date-time
+              nullable: true
+              example: "2026-03-24T09:30:00Z"
+
+    User:
+      type: object
+      required: [id, username, display_name, xp_total, level, streak_days, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          example: usr_abc123def456
+        apple_user_id:
+          type: string
+          example: "001234.abcdef1234567890"
+        username:
+          type: string
+          example: nicola_d
+        display_name:
+          type: string
+          example: Nicola Debbia
+        avatar_url:
+          type: string
+          format: uri
+          nullable: true
+          example: https://cdn.tempo.app/avatars/usr_abc123def456.webp
+        bio:
+          type: string
+          nullable: true
+          example: "Builder. Student. Optimizer."
+        timezone:
+          type: string
+          example: Europe/Rome
+        xp_total:
+          type: integer
+          example: 12450
+        level:
+          type: integer
+          example: 8
+        streak_days:
+          type: integer
+          example: 14
+        integrations:
+          $ref: '#/components/schemas/UserIntegrations'
+        is_new_user:
+          type: boolean
+          example: false
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-01-15T12:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-03-24T10:00:00Z"
+
+    PublicUser:
+      type: object
+      required: [id, username, display_name, xp_total, level, streak_days, created_at]
+      properties:
+        id:
+          type: string
+          example: usr_def456ghi789
+        username:
+          type: string
+          example: marco_r
+        display_name:
+          type: string
+          example: Marco R.
+        avatar_url:
+          type: string
+          format: uri
+          nullable: true
+          example: https://cdn.tempo.app/avatars/usr_def456ghi789.webp
+        bio:
+          type: string
+          nullable: true
+          example: "Fitness nerd."
+        xp_total:
+          type: integer
+          example: 8200
+        level:
+          type: integer
+          example: 6
+        streak_days:
+          type: integer
+          example: 7
+        is_friend:
+          type: boolean
+          example: true
+        friendship_id:
+          type: string
+          nullable: true
+          example: fr_abc123
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-02-01T08:00:00Z"
+
+    UserSearchResult:
+      type: object
+      properties:
+        id:
+          type: string
+          example: usr_def456ghi789
+        username:
+          type: string
+          example: marco_r
+        display_name:
+          type: string
+          example: Marco R.
+        avatar_url:
+          type: string
+          format: uri
+          nullable: true
+          example: https://cdn.tempo.app/avatars/usr_def456ghi789.webp
+        xp_total:
+          type: integer
+          example: 8200
+        level:
+          type: integer
+          example: 6
+        is_friend:
+          type: boolean
+          example: false
+        has_pending_request:
+          type: boolean
+          example: true
+
+    # ─── Auth Schemas ───
+    AuthTokens:
+      type: object
+      required: [access_token, refresh_token, token_type, expires_in]
+      properties:
+        access_token:
+          type: string
+          example: eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9...
+        refresh_token:
+          type: string
+          example: rt_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4
+        token_type:
+          type: string
+          const: Bearer
+          example: Bearer
+        expires_in:
+          type: integer
+          description: Token TTL in seconds
+          example: 900
+
+    AppleAuthRequest:
+      type: object
+      required: [identity_token, authorization_code, nonce]
+      properties:
+        identity_token:
+          type: string
+          description: JWT from ASAuthorizationAppleIDCredential
+          example: eyJraWQiOiJXNldjT09...
+        authorization_code:
+          type: string
+          description: Single-use authorization code from Apple
+          example: c18cb0b2c3d4e5f6...
+        first_name:
+          type: string
+          maxLength: 50
+          nullable: true
+          description: Only provided on first sign-in
+          example: Nicola
+        last_name:
+          type: string
+          maxLength: 50
+          nullable: true
+          description: Only provided on first sign-in
+          example: Debbia
+        nonce:
+          type: string
+          description: Must match nonce embedded in identity_token
+          example: f47ac10b-58cc-4372-a567-0e02b2c3d479
+
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+          description: Refresh token starting with rt_
+          example: rt_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4
+
+    LogoutRequest:
+      type: object
+      properties:
+        refresh_token:
+          type: string
+          example: rt_a1b2c3d4...
+        all_devices:
+          type: boolean
+          default: false
+          example: false
+
+    RotateRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          enum: [suspicious_activity, device_lost, manual]
+          example: suspicious_activity
+
+    RecoverRequest:
+      type: object
+      required: [identity_token, authorization_code, nonce]
+      properties:
+        identity_token:
+          type: string
+          example: eyJraWQiOiI...
+        authorization_code:
+          type: string
+          example: c1234567890abcdef...
+        nonce:
+          type: string
+          example: random-nonce
+
+    JWKSResponse:
+      type: object
+      required: [keys]
+      properties:
+        keys:
+          type: array
+          items:
+            type: object
+            properties:
+              kty:
+                type: string
+                example: EC
+              crv:
+                type: string
+                example: P-256
+              kid:
+                type: string
+                example: key-2026-03
+              use:
+                type: string
+                example: sig
+              alg:
+                type: string
+                example: ES256
+              x:
+                type: string
+                example: f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU
+              "y":
+                type: string
+                example: x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0
+
+    # ─── Preferences Schemas ───
+    NotificationPreferences:
+      type: object
+      properties:
+        recovery_morning:
+          type: boolean
+          example: true
+        accountability_nudges:
+          type: boolean
+          example: true
+        accountability_max_tier:
+          type: integer
+          minimum: 0
+          maximum: 4
+          example: 3
+        leaderboard_changes:
+          type: boolean
+          example: true
+        challenge_updates:
+          type: boolean
+          example: true
+        achievement_unlocks:
+          type: boolean
+          example: true
+        weekly_summary:
+          type: boolean
+          example: true
+        quiet_hours_start:
+          type: string
+          example: "23:00"
+        quiet_hours_end:
+          type: string
+          example: "07:00"
+
+    PrivacyPreferences:
+      type: object
+      properties:
+        profile_visibility:
+          type: string
+          enum: [public, friends_only, private]
+          example: friends_only
+        show_on_leaderboard:
+          type: boolean
+          example: true
+        show_streak:
+          type: boolean
+          example: true
+        show_level:
+          type: boolean
+          example: true
+
+    AccountabilityPreferences:
+      type: object
+      properties:
+        wake_time:
+          type: string
+          example: "07:00"
+        sleep_target_time:
+          type: string
+          example: "23:30"
+        escalation_enabled:
+          type: boolean
+          example: true
+        ps5_earned_not_default:
+          type: boolean
+          example: true
+
+    UnitPreferences:
+      type: object
+      properties:
+        weight:
+          type: string
+          enum: [kg, lbs]
+          example: kg
+        distance:
+          type: string
+          enum: [km, mi]
+          example: km
+        temperature:
+          type: string
+          enum: [celsius, fahrenheit]
+          example: celsius
+
+    UserPreferences:
+      type: object
+      properties:
+        notifications:
+          $ref: '#/components/schemas/NotificationPreferences'
+        privacy:
+          $ref: '#/components/schemas/PrivacyPreferences'
+        accountability:
+          $ref: '#/components/schemas/AccountabilityPreferences'
+        units:
+          $ref: '#/components/schemas/UnitPreferences'
+        theme:
+          type: string
+          enum: [system, light, dark]
+          example: system
+        haptics_enabled:
+          type: boolean
+          example: true
+
+    # ─── Whoop Schemas ───
+    WhoopStatus:
+      type: object
+      properties:
+        connected:
+          type: boolean
+          example: true
+        whoop_user_id:
+          type: integer
+          example: 12345
+        connected_at:
+          type: string
+          format: date-time
+          example: "2026-03-10T08:00:00Z"
+        last_sync_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-03-24T08:00:00Z"
+        last_sync_status:
+          type: string
+          enum: [success, failed, in_progress]
+          example: success
+        scopes:
+          type: array
+          items:
+            type: string
+          example: ["read:recovery", "read:sleep", "read:workout", "read:cycles", "read:profile", "read:body_measurement"]
+        token_expires_at:
+          type: string
+          format: date-time
+          example: "2026-03-24T12:00:00Z"
+        webhook_active:
+          type: boolean
+          example: true
+
+    WhoopRecovery:
+      type: object
+      properties:
+        id:
+          type: string
+          example: rec_abc123
+        whoop_cycle_id:
+          type: integer
+          format: int64
+          example: 123456789
+        date:
+          type: string
+          format: date
+          example: "2026-03-24"
+        recovery_score:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 100
+          example: 78
+        resting_heart_rate:
+          type: integer
+          nullable: true
+          example: 52
+        hrv_rmssd_milli:
+          type: number
+          format: float
+          nullable: true
+          example: 65.4
+        spo2_percentage:
+          type: number
+          format: float
+          nullable: true
+          example: 97.2
+        skin_temp_celsius:
+          type: number
+          format: float
+          nullable: true
+          example: 36.8
+        user_calibrating:
+          type: boolean
+          example: false
+        synced_at:
+          type: string
+          format: date-time
+          example: "2026-03-24T08:00:00Z"
+
+    SleepStageSummary:
+      type: object
+      properties:
+        total_in_bed_time_milli:
+          type: integer
+          format: int64
+          example: 27000000
+        total_awake_time_milli:
+          type: integer
+          format: int64
+          example: 2700000
+        total_light_sleep_time_milli:
+          type: integer
+          format: int64
+          example: 10800000
+        total_slow_wave_sleep_time_milli:
+          type: integer
+          format: int64
+          example: 7200000
+        total_rem_sleep_time_milli:
+          type: integer
+          format: int64
+          example: 5400000
+        sleep_cycle_count:
+          type: integer
+          example: 4
+        disturbance_count:
+          type: integer
+          example: 3
+
+    SleepNeed:
+      type: object
+      properties:
+        baseline_milli:
+          type: integer
+          format: int64
+          example: 28800000
+        need_from_sleep_debt_milli:
+          type: integer
+          format: int64
+          example: 3600000
+        need_from_recent_strain_milli:
+          type: integer
+          format: int64
+          example: 1800000
+        need_from_recent_nap_milli:
+          type: integer
+          format: int64
+          example: -1800000
+
+    SleepScore:
+      type: object
+      properties:
+        stage_summary:
+          $ref: '#/components/schemas/SleepStageSummary'
+        sleep_needed:
+          $ref: '#/components/schemas/SleepNeed'
+        respiratory_rate:
+          type: number
+          format: float
+          example: 14.5
+        sleep_performance_percentage:
+          type: number
+          format: float
+          example: 88.0
+        sleep_consistency_percentage:
+          type: number
+          format: float
+          example: 92.0
+        sleep_efficiency_percentage:
+          type: number
+          format: float
+          example: 90.0
+
+    WhoopSleep:
+      type: object
+      properties:
+        id:
+          type: string
+          example: slp_abc123
+        whoop_sleep_id:
+          type: integer
+          format: int64
+          example: 987654321
+        date:
+          type: string
+          format: date
+          example: "2026-03-24"
+        start_time:
+          type: string
+          format: date-time
+          example: "2026-03-23T23:15:00Z"
+        end_time:
+          type: string
+          format: date-time
+          example: "2026-03-24T06:45:00Z"
+        score:
+          $ref: '#/components/schemas/SleepScore'
+        nap:
+          type: boolean
+          example: false
+        synced_at:
+          type: string
+          format: date-time
+          example: "2026-03-24T08:00:00Z"
+
+    ZoneDuration:
+      type: object
+      properties:
+        zone_zero_milli:
+          type: integer
+          format: int64
+          example: 0
+        zone_one_milli:
+          type: integer
+          format: int64
+          example: 300000
+        zone_two_milli:
+          type: integer
+          format: int64
+          example: 600000
+        zone_three_milli:
+          type: integer
+          format: int64
+          example: 1200000
+        zone_four_milli:
+          type: integer
+          format: int64
+          example: 600000
+        zone_five_milli:
+          type: integer
+          format: int64
+          example: 0
+
+    WhoopWorkoutScore:
+      type: object
+      properties:
+        strain:
+          type: number
+          format: float
+          example: 12.5
+        average_heart_rate:
+          type: integer
+          example: 155
+        max_heart_rate:
+          type: integer
+          example: 182
+        kilojoule:
+          type: number
+          format: float
+          example: 1850.0
+        distance_meter:
+          type: number
+          format: float
+          nullable: true
+          example: 8500.0
+        zone_duration:
+          $ref: '#/components/schemas/ZoneDuration'
+
+    WhoopWorkout:
+      type: object
+      properties:
+        id:
+          type: string
+          example: wkt_abc123
+        whoop_workout_id:
+          type: integer
+          format: int64
+          example: 111222333
+        date:
+          type: string
+          format: date
+          example: "2026-03-24"
+        sport_id:
+          type: integer
+          example: 1
+        sport_name:
+          type: string
+          example: Running
+        start_time:
+          type: string
+          format: date-time
+          example: "2026-03-24T07:00:00Z"
+        end_time:
+          type: string
+          format: date-time
+          example: "2026-03-24T07:45:00Z"
+        score:
+          $ref: '#/components/schemas/WhoopWorkoutScore'
+        synced_at:
+          type: string
+          format: date-time
+          example: "2026-03-24T08:00:00Z"
+
+    WhoopCycle:
+      type: object
+      properties:
+        id:
+          type: string
+          example: cyc_abc123
+        whoop_cycle_id:
+          type: integer
+          format: int64
+          example: 999888777
+        date:
+          type: string
+          format: date
+          example: "2026-03-24"
+        start_time:
+          type: string
+          format: date-time
+          example: "2026-03-24T00:00:00Z"
+        end_time:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-03-24T23:59:59Z"
+        strain:
+          type: number
+          format: float
+          nullable: true
+          example: 8.2
+        kilojoule:
+          type: number
+          format: float
+          nullable: true
+          example: 7500.0
+        average_heart_rate:
+          type: integer
+          nullable: true
+          example: 72
+        max_heart_rate:
+          type: integer
+          nullable: true
+          example: 182
+        synced_at:
+          type: string
+          format: date-time
+          example: "2026-03-24T08:00:00Z"
+
+    WhoopProfile:
+      type: object
+      properties:
+        whoop_user_id:
+          type: integer
+          example: 12345
+        email:
+          type: string
+          nullable: true
+          example: user@example.com
+        first_name:
+          type: string
+          nullable: true
+          example: Nicola
+        last_name:
+          type: string
+          nullable: true
+          example: Debbia
+        synced_at:
+          type: string
+          format: date-time
+          example: "2026-03-24T08:00:00Z"
+
+    WhoopBody:
+      type: object
+      properties:
+        height_meter:
+          type: number
+          format: float
+          nullable: true
+          example: 1.80
+        weight_kilogram:
+          type: number
+          format: float
+          nullable: true
+          example: 78.5
+        max_heart_rate:
+          type: integer
+          nullable: true
+          example: 195
+        synced_at:
+          type: string
+          format: date-time
+          example: "2026-03-24T08:00:00Z"
+
+    # ─── NutriTrack Schemas ───
+    MealItem:
+      type: object
+      properties:
+        name:
+          type: string
+          example: Oatmeal with banana
+        calories:
+          type: integer
+          example: 350
+        protein_g:
+          type: number
+          format: float
+          example: 12.0
+        carbs_g:
+          type: number
+          format: float
+          example: 58.0
+        fat_g:
+          type: number
+          format: float
+          example: 8.0
+        fiber_g:
+          type: number
+          format: float
+          example: 6.0
+
+    MacroTotals:
+      type: object
+      properties:
+        calories:
+          type: integer
+          example: 1850
+        protein_g:
+          type: number
+          format: float
+          example: 145.0
+        carbs_g:
+          type: number
+          format: float
+          example: 220.0
+        fat_g:
+          type: number
+          format: float
+          example: 62.0
+        fiber_g:
+          type: number
+          format: float
+          example: 28.0
+
+    Meal:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: Breakfast
+        time:
+          type: string
+          example: "08:00"
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MealItem'
+        totals:
+          $ref: '#/components/schemas/MacroTotals'
+
+    NutritionToday:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+          example: "2026-03-24"
+        meals:
+          type: array
+          items:
+            $ref: '#/components/schemas/Meal'
+        daily_totals:
+          $ref: '#/components/schemas/MacroTotals'
+        targets:
+          $ref: '#/components/schemas/MacroTotals'
+        cached:
+          type: boolean
+          example: true
+        cached_at:
+          type: string
+          format: date-time
+          example: "2026-03-24T12:13:00Z"
+
+    MacroBalance:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+          example: "2026-03-24"
+        consumed:
+          $ref: '#/components/schemas/MacroTotals'
+        target:
+          $ref: '#/components/schemas/MacroTotals'
+        remaining:
+          $ref: '#/components/schemas/MacroTotals'
+        percentage:
+          type: object
+          properties:
+            calories:
+              type: number
+              format: float
+              example: 77.1
+            protein_g:
+              type: number
+              format: float
+              example: 80.6
+            carbs_g:
+              type: number
+              format: float
+              example: 78.6
+            fat_g:
+              type: number
+              format: float
+              example: 82.7
+        cached:
+          type: boolean
+          example: true
+        cached_at:
+          type: string
+          format: date-time
+          example: "2026-03-24T12:23:00Z"
+
+    # ─── Exercise & Workout Schemas ───
+    Exercise:
+      type: object
+      required: [id, name, muscle_group, is_custom]
+      properties:
+        id:
+          type: string
+          example: ex_bench_press
+        name:
+          type: string
+          example: Barbell Bench Press
+        muscle_group:
+          type: string
+          enum: [chest, back, shoulders, arms, legs, core, cardio, full_body]
+          example: chest
+        secondary_muscles:
+          type: array
+          items:
+            type: string
+          example: [triceps, shoulders]
+        equipment:
+          type: string
+          enum: [barbell, dumbbell, machine, bodyweight, cable, kettlebell, band]
+          nullable: true
+          example: barbell
+        instructions:
+          type: string
+          nullable: true
+          example: "Lie flat on a bench. Grip barbell slightly wider than shoulder width..."
+        is_custom:
+          type: boolean
+          example: false
+        created_by:
+          type: string
+          nullable: true
+          example: null
+
+    ExerciseCreateRequest:
+      type: object
+      required: [name, muscle_group]
+      properties:
+        name:
+          type: string
+          example: Incline Cable Fly
+        muscle_group:
+          type: string
+          enum: [chest, back, shoulders, arms, legs, core, cardio, full_body]
+          example: chest
+        secondary_muscles:
+          type: array
+          items:
+            type: string
+          example: [shoulders]
+        equipment:
+          type: string
+          enum: [barbell, dumbbell, machine, bodyweight, cable, kettlebell, band]
+          example: cable
+        instructions:
+          type: string
+          example: "Set cables to lowest position..."
+
+    WorkoutSet:
+      type: object
+      properties:
+        weight_kg:
+          type: number
+          format: float
+          example: 80.0
+        reps:
+          type: integer
+          example: 8
+
+    WorkoutExercise:
+      type: object
+      properties:
+        exercise_id:
+          type: string
+          example: ex_bench_press
+        sets:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkoutSet'
+
+    ManualWorkoutInput:
+      type: object
+      required: [client_id, type, started_at, ended_at, duration_minutes]
+      properties:
+        client_id:
+          type: string
+          example: local_wkt_abc123
+        type:
+          type: string
+          enum: [strength_training, cardio, flexibility, sport, other]
+          example: strength_training
+        name:
+          type: string
+          nullable: true
+          example: Upper Body Push
+        started_at:
+          type: string
+          format: date-time
+          example: "2026-03-24T16:00:00Z"
+        ended_at:
+          type: string
+          format: date-time
+          example: "2026-03-24T17:15:00Z"
+        duration_minutes:
+          type: integer
+          minimum: 1
+          maximum: 600
+          example: 75
+        notes:
+          type: string
+          nullable: true
+          example: "Felt strong. Increased bench press by 2.5kg."
+        exercises:
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/WorkoutExercise'
+
+    ManualWorkoutResult:
+      type: object
+      properties:
+        id:
+          type: string
+          example: mwkt_abc123
+        client_id:
+          type: string
+          example: local_wkt_abc123
+        type:
+          type: string
+          example: strength_training
+        duration_minutes:
+          type: integer
+          example: 75
+
+    ExerciseProgressionPoint:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+          example: "2026-03-24"
+        max_weight_kg:
+          type: number
+          format: float
+          example: 82.5
+        max_reps_at_max_weight:
+          type: integer
+          example: 6
+        total_volume_kg:
+          type: number
+          format: float
+          example: 1950
+
+    ExerciseProgression:
+      type: object
+      properties:
+        exercise_id:
+          type: string
+          example: ex_bench_press
+        exercise_name:
+          type: string
+          example: Barbell Bench Press
+        data_points:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExerciseProgressionPoint'
+        estimated_1rm_kg:
+          type: number
+          format: float
+          example: 95.2
+        progression_rate_kg_per_week:
+          type: number
+          format: float
+          example: 0.65
+
+    PlanExercise:
+      type: object
+      properties:
+        exercise_id:
+          type: string
+          example: ex_bench_press
+        exercise_name:
+          type: string
+          example: Barbell Bench Press
+        sets:
+          type: integer
+          example: 4
+        reps_min:
+          type: integer
+          example: 6
+        reps_max:
+          type: integer
+          example: 8
+
+    PlanDay:
+      type: object
+      properties:
+        name:
+          type: string
+          example: Push Day
+        day_of_week:
+          type: integer
+          minimum: 0
+          maximum: 6
+          example: 1
+        exercises:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanExercise'
+
+    WorkoutPlan:
+      type: object
+      properties:
+        id:
+          type: string
+          example: plan_abc123
+        name:
+          type: string
+          example: Push/Pull/Legs
+        description:
+          type: string
+          nullable: true
+          example: "3-day split focused on compound movements"
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanDay'
+        active:
+          type: boolean
+          example: true
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-03-24T14:15:00Z"
+
+    # ─── Study Schemas ───
+    StudySessionInput:
+      type: object
+      required: [client_id, started_at, ended_at, duration_minutes]
+      properties:
+        client_id:
+          type: string
+          example: local_study_abc123
+        subject:
+          type: string
+          nullable: true
+          example: Distributed Systems
+        started_at:
+          type: string
+          format: date-time
+          example: "2026-03-24T10:00:00Z"
+        ended_at:
+          type: string
+          format: date-time
+          example: "2026-03-24T11:30:00Z"
+        duration_minutes:
+          type: integer
+          minimum: 1
+          maximum: 480
+          example: 90
+        technique:
+          type: string
+          enum: [pomodoro, deep_work, review, other]
+          nullable: true
+          example: pomodoro
+        focus_rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          nullable: true
+          example: 4
+        notes:
+          type: string
+          nullable: true
+          example: "Covered consensus algorithms."
+
+    StudySessionResult:
+      type: object
+      properties:
+        id:
+          type: string
+          example: study_abc123
+        client_id:
+          type: string
+          example: local_study_abc123
+        subject:
+          type: string
+          example: Distributed Systems
+        duration_minutes:
+          type: integer
+          example: 90
+
+    SubjectAnalytics:
+      type: object
+      properties:
+        subject:
+          type: string
+          example: Distributed Systems
+        minutes:
+          type: integer
+          example: 1200
+        sessions:
+          type: integer
+          example: 16
+
+    TechniqueAnalytics:
+      type: object
+      properties:
+        technique:
+          type: string
+          example: pomodoro
+        minutes:
+          type: integer
+          example: 1500
+        sessions:
+          type: integer
+          example: 20
+
+    StudyAnalytics:
+      type: object
+      properties:
+        period:
+          type: string
+          example: "30d"
+        total_minutes:
+          type: integer
+          example: 2700
+        total_sessions:
+          type: integer
+          example: 36
+        avg_duration_minutes:
+          type: integer
+          example: 75
+        avg_focus_rating:
+          type: number
+          format: float
+          example: 3.8
+        by_subject:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubjectAnalytics'
+        by_technique:
+          type: array
+          items:
+            $ref: '#/components/schemas/TechniqueAnalytics'
+        daily_avg_minutes:
+          type: integer
+          example: 90
+        best_day_of_week:
+          type: string
+          example: Monday
+        best_time_of_day:
+          type: string
+          example: "10:00-12:00"
+
+    # ─── Snapshot Schemas ───
+    SnapshotRecovery:
+      type: object
+      properties:
+        score:
+          type: integer
+          example: 78
+        hrv_rmssd_milli:
+          type: number
+          format: float
+          example: 65.4
+        resting_heart_rate:
+          type: integer
+          example: 52
+        spo2_percentage:
+          type: number
+          format: float
+          example: 97.2
+        skin_temp_celsius:
+          type: number
+          format: float
+          example: 36.8
+
+    SnapshotSleep:
+      type: object
+      properties:
+        total_duration_milli:
+          type: integer
+          format: int64
+          example: 27000000
+        sleep_performance_percentage:
+          type: number
+          format: float
+          example: 88.0
+        sleep_efficiency_percentage:
+          type: number
+          format: float
+          example: 90.0
+        rem_duration_milli:
+          type: integer
+          format: int64
+          example: 5400000
+        deep_duration_milli:
+          type: integer
+          format: int64
+          example: 7200000
+        respiratory_rate:
+          type: number
+          format: float
+          example: 14.5
+        disturbance_count:
+          type: integer
+          example: 3
+
+    SnapshotStrain:
+      type: object
+      properties:
+        day_strain:
+          type: number
+          format: float
+          example: 8.2
+        kilojoule:
+          type: number
+          format: float
+          example: 7500.0
+        average_heart_rate:
+          type: integer
+          example: 72
+        max_heart_rate:
+          type: integer
+          example: 182
+        workout_count:
+          type: integer
+          example: 1
+
+    SnapshotNutrition:
+      type: object
+      properties:
+        calories:
+          type: integer
+          example: 1850
+        protein_g:
+          type: number
+          format: float
+          example: 145.0
+        carbs_g:
+          type: number
+          format: float
+          example: 220.0
+        fat_g:
+          type: number
+          format: float
+          example: 62.0
+        target_calories:
+          type: integer
+          example: 2400
+        target_protein_g:
+          type: number
+          format: float
+          example: 180.0
+        adherence_percentage:
+          type: number
+          format: float
+          example: 77.1
+        meals_logged:
+          type: integer
+          example: 3
+
+    SnapshotStudy:
+      type: object
+      properties:
+        total_minutes:
+          type: integer
+          example: 90
+        sessions:
+          type: integer
+          example: 2
+
+    SnapshotAccountability:
+      type: object
+      properties:
+        recovery_viewed:
+          type: boolean
+          example: true
+        workout_completed:
+          type: boolean
+          example: true
+        meals_logged_count:
+          type: integer
+          example: 3
+        study_completed:
+          type: boolean
+          example: true
+        escalation_tier:
+          type: integer
+          example: 0
+
+    DeviceInfo:
+      type: object
+      properties:
+        model:
+          type: string
+          example: iPhone 15 Pro
+        os_version:
+          type: string
+          example: "19.4"
+        app_version:
+          type: string
+          example: "1.0.0"
+
+    DailySnapshotInput:
+      type: object
+      required: [date, timezone]
+      properties:
+        date:
+          type: string
+          format: date
+          example: "2026-03-24"
+        timezone:
+          type: string
+          example: Europe/Rome
+        recovery:
+          $ref: '#/components/schemas/SnapshotRecovery'
+        sleep:
+          $ref: '#/components/schemas/SnapshotSleep'
+        strain:
+          $ref: '#/components/schemas/SnapshotStrain'
+        nutrition:
+          $ref: '#/components/schemas/SnapshotNutrition'
+        study:
+          $ref: '#/components/schemas/SnapshotStudy'
+        accountability:
+          $ref: '#/components/schemas/SnapshotAccountability'
+        xp_earned:
+          type: integer
+          example: 145
+        streak_day:
+          type: integer
+          example: 14
+        device_info:
+          $ref: '#/components/schemas/DeviceInfo'
+
+    AggregateBucket:
+      type: object
+      properties:
+        period_start:
+          type: string
+          format: date
+          example: "2026-03-18"
+        period_end:
+          type: string
+          format: date
+          example: "2026-03-24"
+        avg_recovery:
+          type: number
+          format: float
+          example: 74.2
+        avg_sleep_performance:
+          type: number
+          format: float
+          example: 85.1
+        total_workouts:
+          type: integer
+          example: 4
+        avg_strain:
+          type: number
+          format: float
+          example: 10.8
+        avg_calories:
+          type: integer
+          example: 2180
+        avg_protein_adherence:
+          type: number
+          format: float
+          example: 82.5
+        total_study_minutes:
+          type: integer
+          example: 450
+        total_xp:
+          type: integer
+          example: 680
+        streak_maintained:
+          type: boolean
+          example: true
+
+    # ─── XP & Arena Schemas ───
+    XPEventInput:
+      type: object
+      required: [type, points, source, occurred_at]
+      properties:
+        type:
+          type: string
+          enum:
+            - workout_logged
+            - sleep_target_met
+            - recovery_checked
+            - meal_logged
+            - nutrition_target_met
+            - study_session
+            - streak_maintained
+            - streak_milestone
+            - challenge_joined
+            - challenge_won
+            - friend_added
+            - insight_viewed
+            - achievement_unlocked
+          example: workout_logged
+        points:
+          type: integer
+          minimum: 1
+          maximum: 500
+          example: 50
+        source:
+          type: string
+          example: whoop
+        reference_id:
+          type: string
+          nullable: true
+          example: wkt_abc123
+        occurred_at:
+          type: string
+          format: date-time
+          example: "2026-03-24T07:45:00Z"
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+          example:
+            sport: Running
+            strain: 12.5
+
+    XPEventResult:
+      type: object
+      properties:
+        events_recorded:
+          type: integer
+          example: 1
+        events_skipped:
+          type: integer
+          example: 0
+        xp_earned:
+          type: integer
+          example: 50
+        xp_total:
+          type: integer
+          example: 12500
+        level:
+          type: integer
+          example: 8
+        level_changed:
+          type: boolean
+          example: false
+        next_level_xp:
+          type: integer
+          example: 15000
+        achievements_triggered:
+          type: array
+          items:
+            type: string
+          example: []
+
+    LevelDefinition:
+      type: object
+      properties:
+        level:
+          type: integer
+          example: 8
+        title:
+          type: string
+          example: Optimizer
+        xp_required:
+          type: integer
+          example: 10000
+
+    LevelInfo:
+      type: object
+      properties:
+        level:
+          type: integer
+          example: 8
+        title:
+          type: string
+          example: Optimizer
+        xp_total:
+          type: integer
+          example: 12500
+        xp_for_current_level:
+          type: integer
+          example: 10000
+        xp_for_next_level:
+          type: integer
+          example: 15000
+        xp_progress:
+          type: integer
+          example: 2500
+        xp_needed:
+          type: integer
+          example: 2500
+        progress_percentage:
+          type: number
+          format: float
+          example: 50.0
+        levels:
+          type: array
+          items:
+            $ref: '#/components/schemas/LevelDefinition'
+
+    LeaderboardUser:
+      type: object
+      properties:
+        id:
+          type: string
+          example: usr_def456ghi789
+        username:
+          type: string
+          example: marco_r
+        display_name:
+          type: string
+          example: Marco R.
+        avatar_url:
+          type: string
+          format: uri
+          nullable: true
+          example: https://cdn.tempo.app/avatars/usr_def456ghi789.webp
+        level:
+          type: integer
+          example: 6
+
+    LeaderboardEntry:
+      type: object
+      properties:
+        rank:
+          type: integer
+          example: 1
+        user:
+          $ref: '#/components/schemas/LeaderboardUser'
+        xp:
+          type: integer
+          example: 720
+        is_me:
+          type: boolean
+          example: false
+
+    Leaderboard:
+      type: object
+      properties:
+        period:
+          type: string
+          enum: [weekly, monthly, alltime]
+          example: weekly
+        week_start:
+          type: string
+          format: date
+          nullable: true
+          example: "2026-03-18"
+        week_end:
+          type: string
+          format: date
+          nullable: true
+          example: "2026-03-24"
+        refreshed_at:
+          type: string
+          format: date-time
+          example: "2026-03-24T13:00:00Z"
+        my_rank:
+          type: integer
+          example: 2
+        my_xp:
+          type: integer
+          example: 680
+        rankings:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeaderboardEntry'
+
+    # ─── Friendship Schemas ───
+    FriendRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          example: freq_abc123
+        from_user:
+          $ref: '#/components/schemas/LeaderboardUser'
+        to_user:
+          $ref: '#/components/schemas/LeaderboardUser'
+        status:
+          type: string
+          enum: [pending, accepted, declined]
+          example: pending
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-03-24T10:00:00Z"
+
+    Friendship:
+      type: object
+      properties:
+        id:
+          type: string
+          example: fr_abc123
+        user:
+          $ref: '#/components/schemas/LeaderboardUser'
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-03-01T08:00:00Z"
+
+    FriendStats:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/LeaderboardUser'
+        xp_this_week:
+          type: integer
+          example: 720
+        streak_days:
+          type: integer
+          example: 7
+        workouts_this_week:
+          type: integer
+          example: 4
+        level:
+          type: integer
+          example: 6
+
+    # ─── Challenge Schemas ───
+    ChallengeCreateRequest:
+      type: object
+      required: [title, type, duration_days, starts_at]
+      properties:
+        title:
+          type: string
+          example: March Madness Fitness
+        description:
+          type: string
+          nullable: true
+          example: "Who can earn the most XP this week?"
+        type:
+          type: string
+          enum: [xp_total, workout_count, workout_strain, sleep_score, study_minutes, streak_maintain, nutrition_adherence]
+          example: xp_total
+        duration_days:
+          type: integer
+          minimum: 1
+          example: 7
+        starts_at:
+          type: string
+          format: date-time
+          example: "2026-03-25T00:00:00Z"
+        max_participants:
+          type: integer
+          default: 10
+          example: 10
+        invite_user_ids:
+          type: array
+          items:
+            type: string
+          example: [usr_def456ghi789]
+        visibility:
+          type: string
+          enum: [public, friends_only, private]
+          default: friends_only
+          example: friends_only
+
+    Challenge:
+      type: object
+      properties:
+        id:
+          type: string
+          example: ch_abc123
+        title:
+          type: string
+          example: March Madness Fitness
+        description:
+          type: string
+          nullable: true
+          example: "Who can earn the most XP this week?"
+        type:
+          type: string
+          example: xp_total
+        status:
+          type: string
+          enum: [upcoming, active, completed]
+          example: active
+        created_by:
+          type: string
+          example: usr_abc123def456
+        starts_at:
+          type: string
+          format: date-time
+          example: "2026-03-25T00:00:00Z"
+        ends_at:
+          type: string
+          format: date-time
+          example: "2026-04-01T00:00:00Z"
+        max_participants:
+          type: integer
+          example: 10
+        visibility:
+          type: string
+          example: friends_only
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-03-24T12:00:00Z"
+
+    # ─── Achievement Schemas ───
+    AchievementDefinition:
+      type: object
+      properties:
+        id:
+          type: string
+          example: ach_first_workout
+        name:
+          type: string
+          example: First Sweat
+        description:
+          type: string
+          example: Complete your first workout
+        icon:
+          type: string
+          example: flame.fill
+        tier:
+          type: string
+          enum: [bronze, silver, gold, diamond]
+          example: bronze
+        xp_reward:
+          type: integer
+          example: 50
+        category:
+          type: string
+          enum: [fitness, sleep, nutrition, study, social, streak, milestone]
+          example: fitness
+
+    UserAchievement:
+      type: object
+      properties:
+        id:
+          type: string
+          example: uach_abc123
+        achievement:
+          $ref: '#/components/schemas/AchievementDefinition'
+        xp_awarded:
+          type: integer
+          example: 50
+        earned_at:
+          type: string
+          format: date-time
+          example: "2026-03-24T07:45:00Z"
+
+    # ─── Accountability Schemas ───
+    NonNegotiableItem:
+      type: object
+      properties:
+        id:
+          type: string
+          example: nn_recovery
+        name:
+          type: string
+          example: Check recovery
+        required:
+          type: boolean
+          example: true
+        xp_reward:
+          type: integer
+          example: 10
+        min_count:
+          type: integer
+          nullable: true
+          example: null
+        min_minutes:
+          type: integer
+          nullable: true
+          example: null
+
+    EscalationTier:
+      type: object
+      properties:
+        tier:
+          type: integer
+          example: 1
+        delay_hours_after_wake:
+          type: number
+          nullable: true
+          example: 2
+        hours_before_midnight:
+          type: number
+          nullable: true
+          example: null
+        at:
+          type: string
+          nullable: true
+          example: null
+        message:
+          type: string
+          example: Gentle nudge
+
+    AccountabilityConfig:
+      type: object
+      properties:
+        non_negotiables:
+          type: array
+          items:
+            $ref: '#/components/schemas/NonNegotiableItem'
+        escalation:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              example: true
+            tiers:
+              type: array
+              items:
+                $ref: '#/components/schemas/EscalationTier'
+        ps5_rule:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              example: true
+            required_completions:
+              type: array
+              items:
+                type: string
+              example: [nn_recovery, nn_workout, nn_meals]
+            message:
+              type: string
+              example: "PS5 is earned, not default."
+
+    AccountabilityItem:
+      type: object
+      properties:
+        id:
+          type: string
+          example: nn_recovery
+        name:
+          type: string
+          example: Check recovery
+        completed:
+          type: boolean
+          example: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-03-24T07:00:00Z"
+        progress:
+          type: integer
+          nullable: true
+          example: null
+        target:
+          type: integer
+          nullable: true
+          example: null
+
+    AccountabilityToday:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+          example: "2026-03-24"
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountabilityItem'
+        all_required_complete:
+          type: boolean
+          example: false
+        ps5_earned:
+          type: boolean
+          example: false
+        current_escalation_tier:
+          type: integer
+          example: 0
+        streak_days:
+          type: integer
+          example: 14
+        streak_at_risk:
+          type: boolean
+          example: true
+
+    # ─── Sync Schemas ───
+    BatchSyncRequest:
+      type: object
+      properties:
+        snapshot:
+          $ref: '#/components/schemas/DailySnapshotInput'
+        workouts:
+          type: array
+          items:
+            $ref: '#/components/schemas/ManualWorkoutInput'
+        study_sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/StudySessionInput'
+        xp_events:
+          type: array
+          items:
+            $ref: '#/components/schemas/XPEventInput'
+
+    SyncStatus:
+      type: object
+      properties:
+        whoop_last_sync:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-03-24T08:00:00Z"
+        nutritrack_last_sync:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-03-24T09:30:00Z"
+        snapshot_last_upload:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-03-24T15:00:00Z"
+        pending_sync_jobs:
+          type: integer
+          example: 0
+        server_time:
+          type: string
+          format: date-time
+          example: "2026-03-24T17:35:00Z"
+
+    # ─── Device Schemas ───
+    DeviceRegistration:
+      type: object
+      required: [token, platform, device_id, app_version]
+      properties:
+        token:
+          type: string
+          description: APNs device token
+          example: a1b2c3d4e5f6...
+        platform:
+          type: string
+          enum: [ios]
+          example: ios
+        device_id:
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+        app_version:
+          type: string
+          example: "1.0.0"
+        os_version:
+          type: string
+          nullable: true
+          example: "19.4"
+        environment:
+          type: string
+          enum: [production, sandbox]
+          default: production
+          example: production
+
+    # ─── Webhook Schemas ───
+    OutboundWebhookCreate:
+      type: object
+      required: [url, events, secret]
+      properties:
+        url:
+          type: string
+          format: uri
+          example: https://my-server.com/tempo-webhook
+        events:
+          type: array
+          items:
+            type: string
+          example: [challenge.completed, leaderboard.updated, achievement.earned]
+        secret:
+          type: string
+          example: whsec_my_secret_key_here
+
+    OutboundWebhook:
+      type: object
+      properties:
+        id:
+          type: string
+          example: whk_abc123
+        url:
+          type: string
+          format: uri
+          example: https://my-server.com/tempo-webhook
+        events:
+          type: array
+          items:
+            type: string
+          example: [challenge.completed, leaderboard.updated, achievement.earned]
+        active:
+          type: boolean
+          example: true
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-03-24T16:00:00Z"
+
+    # ─── Insight Schemas ───
+    InsightSection:
+      type: object
+      properties:
+        title:
+          type: string
+          example: "Recovery & Sleep"
+        icon:
+          type: string
+          example: bed.double.fill
+        body:
+          type: string
+          example: "Average recovery dropped 9 points (72% vs 81%). HRV declined from 68ms to 61ms."
+        sentiment:
+          type: string
+          enum: [positive, neutral, warning, negative]
+          example: warning
+
+    WeekComparison:
+      type: object
+      properties:
+        recovery_avg_change:
+          type: number
+          format: float
+          example: -9
+        sleep_avg_change:
+          type: number
+          format: float
+          example: -43
+        workout_count_change:
+          type: integer
+          example: 0
+        xp_change:
+          type: integer
+          example: 45
+        protein_adherence_change:
+          type: number
+          format: float
+          example: 14
+
+    WeeklyInsight:
+      type: object
+      properties:
+        id:
+          type: string
+          example: ins_abc123
+        type:
+          type: string
+          example: weekly
+        week_start:
+          type: string
+          format: date
+          example: "2026-03-18"
+        week_end:
+          type: string
+          format: date
+          example: "2026-03-24"
+        title:
+          type: string
+          example: "Strong consistency, sleep needs attention"
+        summary:
+          type: string
+          example: "You maintained your 14-day streak and hit protein targets 6/7 days."
+        sections:
+          type: array
+          items:
+            $ref: '#/components/schemas/InsightSection'
+        action_items:
+          type: array
+          items:
+            type: string
+          example:
+            - "Set 23:30 bedtime alarm on weeknights."
+            - "Shift study earlier on Tuesday/Thursday."
+        compared_to_last_week:
+          $ref: '#/components/schemas/WeekComparison'
+        generated_at:
+          type: string
+          format: date-time
+          example: "2026-03-24T20:00:00Z"
+        model:
+          type: string
+          example: claude-sonnet-4-20250514
+
+    # ─── Report Schemas ───
+    ReportRequest:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [monthly_summary, training_log, nutrition_log, full_export]
+          example: monthly_summary
+        month:
+          type: string
+          description: "YYYY-MM for monthly reports"
+          example: "2026-03"
+        start_date:
+          type: string
+          format: date
+          nullable: true
+        end_date:
+          type: string
+          format: date
+          nullable: true
+        format:
+          type: string
+          enum: [json, csv]
+          default: json
+          example: json
+
+    Report:
+      type: object
+      properties:
+        report_id:
+          type: string
+          example: rpt_abc123
+        status:
+          type: string
+          enum: [generating, ready, failed]
+          example: ready
+        download_url:
+          type: string
+          format: uri
+          nullable: true
+          example: https://cdn.tempo.app/reports/rpt_abc123.json?token=signed_url
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-03-25T18:00:00Z"
+        size_bytes:
+          type: integer
+          nullable: true
+          example: 45200
+        estimated_seconds:
+          type: integer
+          nullable: true
+          example: 30
+        poll_url:
+          type: string
+          nullable: true
+          example: /v1/reports/rpt_abc123
+
+    GDPRExport:
+      type: object
+      properties:
+        export_id:
+          type: string
+          example: exp_abc123
+        status:
+          type: string
+          enum: [generating, ready, failed]
+          example: generating
+        estimated_minutes:
+          type: integer
+          example: 5
+        includes:
+          type: array
+          items:
+            type: string
+          example: [profile, preferences, whoop_data, nutrition_data, workouts, study_sessions, snapshots, xp_events, achievements, friendships, challenges, insights]
+        notification:
+          type: string
+          example: "You will receive a push notification when your export is ready."
+
+    # ─── Admin Schemas ───
+    AdminUser:
+      type: object
+      properties:
+        id:
+          type: string
+          example: usr_abc123def456
+        username:
+          type: string
+          example: nicola_d
+        display_name:
+          type: string
+          example: Nicola Debbia
+        xp_total:
+          type: integer
+          example: 12450
+        level:
+          type: integer
+          example: 8
+        streak_days:
+          type: integer
+          example: 14
+        integrations:
+          type: object
+          properties:
+            whoop:
+              type: boolean
+              example: true
+            nutritrack:
+              type: boolean
+              example: true
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-01-15T12:00:00Z"
+        last_active_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-03-24T15:00:00Z"
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+
+    SystemStats:
+      type: object
+      properties:
+        users:
+          type: object
+          properties:
+            total:
+              type: integer
+              example: 142
+            active_today:
+              type: integer
+              example: 87
+            active_this_week:
+              type: integer
+              example: 128
+            new_this_week:
+              type: integer
+              example: 12
+        integrations:
+          type: object
+          properties:
+            whoop_connected:
+              type: integer
+              example: 95
+            nutritrack_connected:
+              type: integer
+              example: 48
+        xp:
+          type: object
+          properties:
+            total_awarded_this_week:
+              type: integer
+              example: 48500
+            avg_per_user_this_week:
+              type: integer
+              example: 379
+        challenges:
+          type: object
+          properties:
+            active:
+              type: integer
+              example: 23
+            completed_this_week:
+              type: integer
+              example: 8
+        ai:
+          type: object
+          properties:
+            insights_generated_today:
+              type: integer
+              example: 15
+            monthly_cost_cents:
+              type: integer
+              example: 1240
+            monthly_budget_cents:
+              type: integer
+              example: 5000
+        infrastructure:
+          type: object
+          properties:
+            db_connections_active:
+              type: integer
+              example: 12
+            db_connections_max:
+              type: integer
+              example: 50
+            redis_memory_mb:
+              type: integer
+              example: 45
+            redis_keys:
+              type: integer
+              example: 12400
+            background_jobs_queued:
+              type: integer
+              example: 3
+            background_jobs_running:
+              type: integer
+              example: 1
+
+    # ─── Config Schema ───
+    Announcement:
+      type: object
+      properties:
+        id:
+          type: string
+          example: ann_001
+        title:
+          type: string
+          example: "New: AI Insights"
+        body:
+          type: string
+          example: "Get weekly AI-powered performance analysis."
+        type:
+          type: string
+          enum: [info, warning, promo]
+          example: info
+        dismissible:
+          type: boolean
+          example: true
+
+    AppConfig:
+      type: object
+      properties:
+        minimum_version:
+          type: string
+          example: "1.0.0"
+        latest_version:
+          type: string
+          example: "1.2.0"
+        force_update:
+          type: boolean
+          example: false
+        maintenance_mode:
+          type: boolean
+          example: false
+        maintenance_message:
+          type: string
+          nullable: true
+          example: null
+        feature_flags:
+          type: object
+          properties:
+            arena_enabled:
+              type: boolean
+              example: true
+            ai_insights_enabled:
+              type: boolean
+              example: true
+            workout_plans_enabled:
+              type: boolean
+              example: false
+            dark_mode_enabled:
+              type: boolean
+              example: true
+            whoop_webhooks_enabled:
+              type: boolean
+              example: true
+        api_status:
+          type: string
+          example: operational
+        announcement:
+          $ref: '#/components/schemas/Announcement'
+
+    # ─── Health Schemas ───
+    HealthCheck:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          example: healthy
+        latency_ms:
+          type: integer
+          example: 2
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          example: healthy
+        version:
+          type: string
+          example: "1.0.0"
+        uptime_seconds:
+          type: integer
+          example: 86400
+        checks:
+          type: object
+          properties:
+            database:
+              type: object
+              properties:
+                status:
+                  type: string
+                  example: healthy
+                latency_ms:
+                  type: integer
+                  example: 2
+                pool_active:
+                  type: integer
+                  example: 12
+                pool_max:
+                  type: integer
+                  example: 50
+            redis:
+              type: object
+              properties:
+                status:
+                  type: string
+                  example: healthy
+                latency_ms:
+                  type: integer
+                  example: 1
+                memory_mb:
+                  type: integer
+                  example: 45
+                keys:
+                  type: integer
+                  example: 12400
+            whoop_api:
+              type: object
+              properties:
+                status:
+                  type: string
+                  example: healthy
+                latency_ms:
+                  type: integer
+                  example: 120
+            claude_api:
+              type: object
+              properties:
+                status:
+                  type: string
+                  example: healthy
+                latency_ms:
+                  type: integer
+                  example: 200
+
+  responses:
+    Unauthorized:
+      description: Authentication required or token invalid/expired
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/X-Request-Id'
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/X-RateLimit-Limit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/X-RateLimit-Remaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/X-RateLimit-Reset'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            ok: false
+            error:
+              code: 1001
+              message: Access token has expired.
+              detail: The JWT access token provided in the Authorization header is expired.
+            meta:
+              request_id: req_abc123def456
+              timestamp: "2026-03-24T10:30:00Z"
+
+    NotFound:
+      description: Resource not found
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/X-Request-Id'
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/X-RateLimit-Limit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/X-RateLimit-Remaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/X-RateLimit-Reset'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    ValidationError:
+      description: Validation failed
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/X-Request-Id'
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/X-RateLimit-Limit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/X-RateLimit-Remaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/X-RateLimit-Reset'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            ok: false
+            error:
+              code: 2001
+              message: Validation failed.
+              detail: One or more fields failed validation.
+              fields:
+                username: Must be 3-30 characters, alphanumeric and underscores only.
+            meta:
+              request_id: req_abc123def456
+              timestamp: "2026-03-24T10:30:00Z"
+
+    RateLimited:
+      description: Rate limit exceeded
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            example: 30
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/X-RateLimit-Limit'
+        X-RateLimit-Remaining:
+          schema:
+            type: integer
+            example: 0
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/X-RateLimit-Reset'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            ok: false
+            error:
+              code: 5001
+              message: Rate limit exceeded.
+              detail: You have exceeded the rate limit for this endpoint.
+              retry_after_seconds: 30
+            meta:
+              request_id: req_abc123def456
+              timestamp: "2026-03-24T10:30:00Z"
+
+    ServerError:
+      description: Internal server error
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/X-Request-Id'
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/X-RateLimit-Limit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/X-RateLimit-Remaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/X-RateLimit-Reset'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            ok: false
+            error:
+              code: 5000
+              message: Internal server error
+            meta:
+              request_id: req_abc123def456
+              timestamp: "2026-03-24T10:30:00Z"
+
+# ════════════════════════════════════════════════════════════════
+# PATHS
+# ════════════════════════════════════════════════════════════════
+paths:
+  # ──────────────── Auth ────────────────
+  /v1/auth/apple:
+    post:
+      operationId: authApple
+      summary: Sign in with Apple
+      description: Authenticate via Sign in with Apple. Handles both registration and returning login.
+      tags: [Auth]
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XClientVersion'
+        - $ref: '#/components/parameters/XDeviceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppleAuthRequest'
+      responses:
+        "200":
+          description: Successfully authenticated
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, data, meta]
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    allOf:
+                      - $ref: '#/components/schemas/AuthTokens'
+                      - type: object
+                        properties:
+                          user:
+                            $ref: '#/components/schemas/User'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "400":
+          $ref: '#/components/responses/ValidationError'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "409":
+          description: Account in recovery window
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "429":
+          $ref: '#/components/responses/RateLimited'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v1/auth/refresh:
+    post:
+      operationId: authRefresh
+      summary: Refresh access token
+      description: Exchange a valid refresh token for a new access + refresh token pair (rotation).
+      tags: [Auth]
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XDeviceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        "200":
+          description: New token pair issued
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/AuthTokens'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "400":
+          $ref: '#/components/responses/ValidationError'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "429":
+          $ref: '#/components/responses/RateLimited'
+
+  /v1/auth/logout:
+    post:
+      operationId: authLogout
+      summary: Logout and revoke tokens
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        "200":
+          description: Tokens revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      revoked_count:
+                        type: integer
+                        example: 1
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "429":
+          $ref: '#/components/responses/RateLimited'
+
+  /v1/auth/rotate:
+    post:
+      operationId: authRotate
+      summary: Force-rotate all tokens
+      description: Revoke all sessions when compromise is suspected. Returns new token pair.
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RotateRequest'
+      responses:
+        "200":
+          description: All sessions invalidated, new tokens issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    allOf:
+                      - $ref: '#/components/schemas/AuthTokens'
+                      - type: object
+                        properties:
+                          sessions_revoked:
+                            type: integer
+                            example: 3
+                          message:
+                            type: string
+                            example: All previous sessions invalidated.
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "429":
+          $ref: '#/components/responses/RateLimited'
+
+  /v1/auth/recover:
+    post:
+      operationId: authRecover
+      summary: Recover deleted account
+      description: Re-login within 30 days of deletion with same Apple ID restores account.
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecoverRequest'
+      responses:
+        "200":
+          description: Account recovered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    allOf:
+                      - $ref: '#/components/schemas/AuthTokens'
+                      - type: object
+                        properties:
+                          user:
+                            type: object
+                            properties:
+                              id:
+                                type: string
+                                example: usr_abc123def456
+                              username:
+                                type: string
+                                example: nicola_d
+                              display_name:
+                                type: string
+                                example: Nicola Debbia
+                              recovered_at:
+                                type: string
+                                format: date-time
+                                example: "2026-03-25T08:00:00Z"
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "404":
+          description: No deleted account for this Apple ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "410":
+          description: Recovery window expired (>30 days)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "429":
+          $ref: '#/components/responses/RateLimited'
+
+  /v1/.well-known/jwks.json:
+    get:
+      operationId: getJWKS
+      summary: JWKS public keys
+      description: JSON Web Key Set for JWT signature verification.
+      tags: [Auth]
+      security: []
+      responses:
+        "200":
+          description: Public key set
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: "public, max-age=86400"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JWKSResponse'
+
+  # ──────────────── Users ────────────────
+  /v1/users/me:
+    get:
+      operationId: getCurrentUser
+      summary: Get current user profile
+      tags: [Users]
+      parameters:
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        "200":
+          description: User profile
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/User'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "304":
+          description: Not Modified (ETag match)
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+    patch:
+      operationId: updateCurrentUser
+      summary: Update current user profile
+      tags: [Users]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  pattern: '^[a-zA-Z0-9_]{3,30}$'
+                  example: nicola
+                display_name:
+                  type: string
+                  minLength: 1
+                  maxLength: 50
+                  example: Nicola D.
+                bio:
+                  type: string
+                  maxLength: 160
+                  example: Builder.
+                timezone:
+                  type: string
+                  example: Europe/Rome
+      responses:
+        "200":
+          description: Updated user profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/User'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "400":
+          $ref: '#/components/responses/ValidationError'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "409":
+          description: Username already taken
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      operationId: deleteCurrentUser
+      summary: Delete account
+      description: GDPR-compliant soft-delete. Data permanently removed after 30 days.
+      tags: [Users]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirmation]
+              properties:
+                confirmation:
+                  type: string
+                  const: DELETE
+                  example: DELETE
+      responses:
+        "200":
+          description: Account scheduled for deletion
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: Account scheduled for deletion. Data permanently removed after 30 days.
+                      recovery_deadline:
+                        type: string
+                        format: date-time
+                        example: "2026-04-23T10:40:00Z"
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "429":
+          $ref: '#/components/responses/RateLimited'
+
+  /v1/users/me/avatar/presign:
+    post:
+      operationId: presignAvatar
+      summary: Get presigned URL for avatar upload
+      tags: [Users]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content_type, file_size_bytes]
+              properties:
+                content_type:
+                  type: string
+                  enum: [image/jpeg, image/png, image/webp]
+                  example: image/jpeg
+                file_size_bytes:
+                  type: integer
+                  minimum: 1
+                  maximum: 5242880
+                  example: 245000
+      responses:
+        "200":
+          description: Presigned upload URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      upload_url:
+                        type: string
+                        format: uri
+                        example: https://tempo-avatars.s3.eu-west-1.amazonaws.com/uploads/...
+                      upload_method:
+                        type: string
+                        example: PUT
+                      upload_headers:
+                        type: object
+                        additionalProperties:
+                          type: string
+                      expires_in:
+                        type: integer
+                        example: 300
+                      confirm_url:
+                        type: string
+                        example: /v1/users/me/avatar/confirm
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/users/me/avatar/confirm:
+    post:
+      operationId: confirmAvatar
+      summary: Confirm avatar upload
+      description: After uploading to S3, confirm. Server validates, resizes to 256x256, converts to WebP.
+      tags: [Users]
+      responses:
+        "200":
+          description: Avatar confirmed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      avatar_url:
+                        type: string
+                        format: uri
+                        example: https://cdn.tempo.app/avatars/usr_abc123def456_v3.webp
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "400":
+          $ref: '#/components/responses/ValidationError'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /v1/users/me/avatar:
+    post:
+      operationId: uploadAvatarDirect
+      summary: Upload avatar (direct multipart)
+      tags: [Users]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [avatar]
+              properties:
+                avatar:
+                  type: string
+                  format: binary
+                  description: JPEG/PNG/WebP, max 5MB, min 128x128px
+      responses:
+        "200":
+          description: Avatar uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      avatar_url:
+                        type: string
+                        format: uri
+                        example: https://cdn.tempo.app/avatars/usr_abc123def456_v3.webp
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "400":
+          $ref: '#/components/responses/ValidationError'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/users/{id}:
+    get:
+      operationId: getUserById
+      summary: Get user by ID
+      tags: [Users]
+      parameters:
+        - $ref: '#/components/parameters/UserIdPath'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        "200":
+          description: Public user profile
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/PublicUser'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "304":
+          description: Not Modified
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /v1/users/search:
+    get:
+      operationId: searchUsers
+      summary: Search users
+      tags: [Users]
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 50
+            example: marco
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 10
+            example: 5
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserSearchResult'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  # ──────────────── Preferences ────────────────
+  /v1/users/me/preferences:
+    get:
+      operationId: getPreferences
+      summary: Get user preferences
+      tags: [Preferences]
+      responses:
+        "200":
+          description: User preferences
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/UserPreferences'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+    put:
+      operationId: replacePreferences
+      summary: Replace all preferences
+      description: Full replacement. GET first, modify, then PUT.
+      tags: [Preferences]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserPreferences'
+      responses:
+        "200":
+          description: Updated preferences
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/UserPreferences'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "400":
+          $ref: '#/components/responses/ValidationError'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+    patch:
+      operationId: patchPreferences
+      summary: Partial update preferences
+      description: Merge semantics - only provided keys are updated.
+      tags: [Preferences]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserPreferences'
+      responses:
+        "200":
+          description: Merged preferences
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/UserPreferences'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "400":
+          $ref: '#/components/responses/ValidationError'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  # ──────────────── Whoop Integration ────────────────
+  /v1/integrations/whoop/authorize:
+    get:
+      operationId: whoopAuthorize
+      summary: Initiate Whoop OAuth
+      tags: [Whoop]
+      parameters:
+        - name: redirect_scheme
+          in: query
+          schema:
+            type: string
+            default: tempo
+            example: tempo
+      responses:
+        "200":
+          description: Authorization URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      authorization_url:
+                        type: string
+                        format: uri
+                        example: https://api.prod.whoop.com/oauth/oauth2/auth?client_id=tempo_app&...
+                      state:
+                        type: string
+                        example: a1b2c3d4e5f6
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "409":
+          description: Whoop already connected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/integrations/whoop/callback:
+    get:
+      operationId: whoopCallback
+      summary: Whoop OAuth callback
+      description: Handles redirect from Whoop. Exchanges code for tokens.
+      tags: [Whoop]
+      security: []
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect to app deep link
+          headers:
+            Location:
+              schema:
+                type: string
+                example: tempo://integrations/whoop/success
+
+  /v1/integrations/whoop/status:
+    get:
+      operationId: whoopStatus
+      summary: Whoop connection status
+      tags: [Whoop]
+      responses:
+        "200":
+          description: Connection status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/WhoopStatus'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/integrations/whoop:
+    delete:
+      operationId: whoopDisconnect
+      summary: Disconnect Whoop
+      tags: [Whoop]
+      responses:
+        "200":
+          description: Disconnected
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      disconnected:
+                        type: boolean
+                        example: true
+                      data_retained:
+                        type: boolean
+                        example: true
+                      message:
+                        type: string
+                        example: Whoop disconnected. Previously synced data is retained.
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/integrations/whoop/sync:
+    post:
+      operationId: whoopSync
+      summary: Trigger full Whoop sync
+      tags: [Whoop]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                days_back:
+                  type: integer
+                  minimum: 1
+                  maximum: 365
+                  default: 30
+                  example: 30
+      responses:
+        "202":
+          description: Sync queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      sync_id:
+                        type: string
+                        example: sync_abc123
+                      status:
+                        type: string
+                        example: queued
+                      days_back:
+                        type: integer
+                        example: 30
+                      estimated_seconds:
+                        type: integer
+                        example: 15
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "404":
+          description: Whoop not connected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "409":
+          description: Sync already in progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "429":
+          $ref: '#/components/responses/RateLimited'
+
+  /v1/whoop/recovery:
+    get:
+      operationId: getWhoopRecovery
+      summary: Get recovery data
+      tags: [Whoop]
+      parameters:
+        - $ref: '#/components/parameters/DateParam'
+        - $ref: '#/components/parameters/StartDateParam'
+        - $ref: '#/components/parameters/EndDateParam'
+        - $ref: '#/components/parameters/CursorParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        "200":
+          description: Recovery data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    oneOf:
+                      - $ref: '#/components/schemas/WhoopRecovery'
+                      - type: array
+                        items:
+                          $ref: '#/components/schemas/WhoopRecovery'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/whoop/sleep:
+    get:
+      operationId: getWhoopSleep
+      summary: Get sleep data
+      tags: [Whoop]
+      parameters:
+        - $ref: '#/components/parameters/DateParam'
+        - $ref: '#/components/parameters/StartDateParam'
+        - $ref: '#/components/parameters/EndDateParam'
+        - $ref: '#/components/parameters/CursorParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        "200":
+          description: Sleep data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    oneOf:
+                      - $ref: '#/components/schemas/WhoopSleep'
+                      - type: array
+                        items:
+                          $ref: '#/components/schemas/WhoopSleep'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/whoop/workouts:
+    get:
+      operationId: getWhoopWorkouts
+      summary: Get Whoop workout data
+      tags: [Whoop]
+      parameters:
+        - $ref: '#/components/parameters/DateParam'
+        - $ref: '#/components/parameters/StartDateParam'
+        - $ref: '#/components/parameters/EndDateParam'
+        - $ref: '#/components/parameters/CursorParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        "200":
+          description: Workout data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WhoopWorkout'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/whoop/cycles:
+    get:
+      operationId: getWhoopCycles
+      summary: Get cycle/strain data
+      tags: [Whoop]
+      parameters:
+        - $ref: '#/components/parameters/DateParam'
+        - $ref: '#/components/parameters/StartDateParam'
+        - $ref: '#/components/parameters/EndDateParam'
+        - $ref: '#/components/parameters/CursorParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        "200":
+          description: Cycle data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WhoopCycle'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/whoop/profile:
+    get:
+      operationId: getWhoopProfile
+      summary: Get Whoop profile
+      tags: [Whoop]
+      responses:
+        "200":
+          description: Whoop profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/WhoopProfile'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/whoop/body:
+    get:
+      operationId: getWhoopBody
+      summary: Get body measurements
+      tags: [Whoop]
+      responses:
+        "200":
+          description: Body measurements
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/WhoopBody'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/webhooks/whoop:
+    post:
+      operationId: whoopWebhook
+      summary: Whoop webhook handler
+      description: Receives Whoop events. Authenticated via HMAC-SHA256 signature.
+      tags: [Whoop]
+      security: []
+      parameters:
+        - name: X-Whoop-Signature
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: X-Whoop-Timestamp
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                  example: recovery.updated
+                user_id:
+                  type: integer
+                  example: 12345
+                data:
+                  type: object
+                  additionalProperties: true
+      responses:
+        "200":
+          description: Acknowledged
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+        "401":
+          description: Invalid webhook signature
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ──────────────── NutriTrack ────────────────
+  /v1/integrations/nutritrack/connect:
+    post:
+      operationId: nutritrackConnect
+      summary: Connect NutriTrack
+      tags: [NutriTrack]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [base_url, pin]
+              properties:
+                base_url:
+                  type: string
+                  format: uri
+                  example: https://nutritrack.nicoladebbia.com
+                pin:
+                  type: string
+                  example: "123456"
+      responses:
+        "200":
+          description: Connected
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      connected:
+                        type: boolean
+                        example: true
+                      base_url:
+                        type: string
+                        example: https://nutritrack.nicoladebbia.com
+                      tested_at:
+                        type: string
+                        format: date-time
+                        example: "2026-03-24T12:00:00Z"
+                      server_version:
+                        type: string
+                        example: "1.2.0"
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/integrations/nutritrack/status:
+    get:
+      operationId: nutritrackStatus
+      summary: NutriTrack connection status
+      tags: [NutriTrack]
+      responses:
+        "200":
+          description: Status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      connected:
+                        type: boolean
+                        example: true
+                      base_url:
+                        type: string
+                        example: https://nutritrack.nicoladebbia.com
+                      last_success_at:
+                        type: string
+                        format: date-time
+                        nullable: true
+                        example: "2026-03-24T12:00:00Z"
+                      failure_count:
+                        type: integer
+                        example: 0
+                      degraded:
+                        type: boolean
+                        example: false
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/integrations/nutritrack:
+    delete:
+      operationId: nutritrackDisconnect
+      summary: Disconnect NutriTrack
+      tags: [NutriTrack]
+      responses:
+        "200":
+          description: Disconnected
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      disconnected:
+                        type: boolean
+                        example: true
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/integrations/nutritrack/credentials:
+    patch:
+      operationId: nutritrackUpdateCredentials
+      summary: Update NutriTrack credentials
+      description: Update NutriTrack connection credentials (base URL and/or PIN) without disconnecting. Server re-tests connectivity after update.
+      tags: [NutriTrack]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                base_url:
+                  type: string
+                  format: uri
+                  description: NutriTrack server URL. Private IPs blocked.
+                  example: https://nutritrack.nicoladebbia.com
+                pin:
+                  type: string
+                  description: 4-8 digit access PIN
+                  example: "654321"
+      responses:
+        "200":
+          description: Credentials updated and connectivity verified
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      connected:
+                        type: boolean
+                        example: true
+                      tested_at:
+                        type: string
+                        format: date-time
+                        example: "2026-03-24T12:00:00Z"
+                      base_url:
+                        type: string
+                        example: https://nutritrack.nicoladebbia.com
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "400":
+          $ref: '#/components/responses/ValidationError'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "404":
+          description: NutriTrack not connected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "502":
+          description: NutriTrack unreachable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/nutritrack/today:
+    get:
+      operationId: getNutritionToday
+      summary: Get today's nutrition
+      tags: [NutriTrack]
+      responses:
+        "200":
+          description: Today's nutrition data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/NutritionToday'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/nutritrack/plan/{date}:
+    get:
+      operationId: getMealPlan
+      summary: Get meal plan for date
+      tags: [NutriTrack]
+      parameters:
+        - name: date
+          in: path
+          required: true
+          schema:
+            type: string
+            format: date
+            example: "2026-03-24"
+      responses:
+        "200":
+          description: Meal plan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    additionalProperties: true
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/nutritrack/macros:
+    get:
+      operationId: getMacroBalance
+      summary: Get macro balance
+      tags: [NutriTrack]
+      responses:
+        "200":
+          description: Macro balance
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/MacroBalance'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/nutritrack/week/{date}:
+    get:
+      operationId: getWeeklyNutrition
+      summary: Get weekly nutrition
+      tags: [NutriTrack]
+      parameters:
+        - name: date
+          in: path
+          required: true
+          schema:
+            type: string
+            format: date
+            example: "2026-03-24"
+      responses:
+        "200":
+          description: Weekly nutrition data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    additionalProperties: true
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  # ──────────────── Training ────────────────
+  /v1/exercises:
+    get:
+      operationId: listExercises
+      summary: Get exercise library
+      tags: [Training]
+      parameters:
+        - name: muscle_group
+          in: query
+          schema:
+            type: string
+            enum: [chest, back, shoulders, arms, legs, core, cardio, full_body]
+        - name: equipment
+          in: query
+          schema:
+            type: string
+            enum: [barbell, dumbbell, machine, bodyweight, cable, kettlebell, band]
+        - name: q
+          in: query
+          schema:
+            type: string
+        - $ref: '#/components/parameters/CursorParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        "200":
+          description: Exercise list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Exercise'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createExercise
+      summary: Create custom exercise
+      tags: [Training]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExerciseCreateRequest'
+      responses:
+        "201":
+          description: Exercise created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/Exercise'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "400":
+          $ref: '#/components/responses/ValidationError'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/workouts:
+    post:
+      operationId: uploadWorkouts
+      summary: Upload manual workouts
+      tags: [Training]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [workouts]
+              properties:
+                workouts:
+                  type: array
+                  minItems: 1
+                  maxItems: 10
+                  items:
+                    $ref: '#/components/schemas/ManualWorkoutInput'
+      responses:
+        "201":
+          description: Workouts created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      created:
+                        type: integer
+                        example: 1
+                      skipped:
+                        type: integer
+                        example: 0
+                      workouts:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ManualWorkoutResult'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "400":
+          $ref: '#/components/responses/ValidationError'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+    get:
+      operationId: getWorkoutHistory
+      summary: Get workout history
+      description: Combined Whoop + manual workouts.
+      tags: [Training]
+      parameters:
+        - $ref: '#/components/parameters/StartDateParam'
+        - $ref: '#/components/parameters/EndDateParam'
+        - $ref: '#/components/parameters/CursorParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        "200":
+          description: Workout history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/exercises/{id}/progression:
+    get:
+      operationId: getExerciseProgression
+      summary: Get exercise progression
+      tags: [Training]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: ex_bench_press
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [30d, 90d, 180d, 365d, all]
+            default: 90d
+            example: 90d
+      responses:
+        "200":
+          description: Progression data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/ExerciseProgression'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/workout-plans:
+    get:
+      operationId: listWorkoutPlans
+      summary: Get workout plans
+      tags: [Training]
+      responses:
+        "200":
+          description: Workout plans
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WorkoutPlan'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createWorkoutPlan
+      summary: Create workout plan
+      tags: [Training]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, days]
+              properties:
+                name:
+                  type: string
+                  example: Push/Pull/Legs
+                description:
+                  type: string
+                  nullable: true
+                  example: "3-day split focused on compound movements"
+                days:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/PlanDay'
+      responses:
+        "201":
+          description: Plan created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/WorkoutPlan'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "400":
+          $ref: '#/components/responses/ValidationError'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  # ──────────────── Study Sessions ────────────────
+  /v1/study-sessions:
+    post:
+      operationId: uploadStudySessions
+      summary: Upload study sessions
+      tags: [Study]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sessions]
+              properties:
+                sessions:
+                  type: array
+                  minItems: 1
+                  maxItems: 10
+                  items:
+                    $ref: '#/components/schemas/StudySessionInput'
+      responses:
+        "201":
+          description: Sessions created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      created:
+                        type: integer
+                        example: 1
+                      skipped:
+                        type: integer
+                        example: 0
+                      sessions:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/StudySessionResult'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "400":
+          $ref: '#/components/responses/ValidationError'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+    get:
+      operationId: listStudySessions
+      summary: List study sessions
+      tags: [Study]
+      parameters:
+        - $ref: '#/components/parameters/StartDateParam'
+        - $ref: '#/components/parameters/EndDateParam'
+        - $ref: '#/components/parameters/CursorParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        "200":
+          description: Study sessions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/StudySessionResult'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/study-sessions/analytics:
+    get:
+      operationId: getStudyAnalytics
+      summary: Study analytics
+      tags: [Study]
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [7d, 30d, 90d, 180d, 365d]
+            default: 30d
+            example: 30d
+      responses:
+        "200":
+          description: Analytics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/StudyAnalytics'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  # ──────────────── Snapshots ────────────────
+  /v1/snapshots:
+    post:
+      operationId: uploadSnapshot
+      summary: Upload daily snapshot
+      tags: [Snapshots]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DailySnapshotInput'
+      responses:
+        "200":
+          description: Snapshot upserted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      snapshot_id:
+                        type: string
+                        example: snap_abc123
+                      date:
+                        type: string
+                        format: date
+                        example: "2026-03-24"
+                      created:
+                        type: boolean
+                        example: false
+                      updated:
+                        type: boolean
+                        example: true
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "400":
+          $ref: '#/components/responses/ValidationError'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+    get:
+      operationId: getSnapshots
+      summary: Get snapshots
+      tags: [Snapshots]
+      parameters:
+        - $ref: '#/components/parameters/StartDateParam'
+        - $ref: '#/components/parameters/EndDateParam'
+        - name: fields
+          in: query
+          description: Comma-separated field filter
+          schema:
+            type: string
+            example: recovery,sleep,strain
+        - $ref: '#/components/parameters/CursorParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        "200":
+          description: Snapshots
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/snapshots/aggregate:
+    get:
+      operationId: getSnapshotAggregation
+      summary: Get snapshot aggregation
+      tags: [Snapshots]
+      parameters:
+        - $ref: '#/components/parameters/StartDateParam'
+        - $ref: '#/components/parameters/EndDateParam'
+        - name: granularity
+          in: query
+          schema:
+            type: string
+            enum: [daily, weekly, monthly]
+            default: daily
+            example: weekly
+      responses:
+        "200":
+          description: Aggregated data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      granularity:
+                        type: string
+                        example: weekly
+                      buckets:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/AggregateBucket'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  # ──────────────── Arena / XP ────────────────
+  /v1/xp/events:
+    post:
+      operationId: recordXPEvents
+      summary: Record XP events
+      tags: [Arena]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [events]
+              properties:
+                events:
+                  type: array
+                  minItems: 1
+                  maxItems: 50
+                  items:
+                    $ref: '#/components/schemas/XPEventInput'
+      responses:
+        "200":
+          description: Events recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/XPEventResult'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "400":
+          $ref: '#/components/responses/ValidationError'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/xp/today:
+    get:
+      operationId: getXPToday
+      summary: Get today's XP
+      tags: [Arena]
+      responses:
+        "200":
+          description: Today's XP summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      date:
+                        type: string
+                        format: date
+                        example: "2026-03-24"
+                      xp_today:
+                        type: integer
+                        example: 145
+                      events:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/XPEventInput'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/xp/history:
+    get:
+      operationId: getXPHistory
+      summary: Get XP history
+      tags: [Arena]
+      parameters:
+        - $ref: '#/components/parameters/StartDateParam'
+        - $ref: '#/components/parameters/EndDateParam'
+        - $ref: '#/components/parameters/CursorParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        "200":
+          description: XP history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/XPEventInput'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/xp/level:
+    get:
+      operationId: getLevelInfo
+      summary: Get level info
+      tags: [Arena]
+      parameters:
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        "200":
+          description: Level details with full level table
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/LevelInfo'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "304":
+          description: Not Modified
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/leaderboards/{period}:
+    get:
+      operationId: getLeaderboard
+      summary: Get leaderboard
+      tags: [Arena]
+      parameters:
+        - name: period
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [weekly, monthly, alltime]
+            example: weekly
+      responses:
+        "200":
+          description: Leaderboard
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/Leaderboard'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  # ──────────────── Friendships ────────────────
+  /v1/friends/requests:
+    post:
+      operationId: sendFriendRequest
+      summary: Send friend request
+      tags: [Arena]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id]
+              properties:
+                user_id:
+                  type: string
+                  example: usr_def456ghi789
+      responses:
+        "201":
+          description: Request sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/FriendRequest'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "400":
+          $ref: '#/components/responses/ValidationError'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "409":
+          description: Already friends or request pending
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      operationId: listFriendRequests
+      summary: List pending friend requests
+      tags: [Arena]
+      responses:
+        "200":
+          description: Friend requests
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FriendRequest'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/friends/requests/{id}/accept:
+    post:
+      operationId: acceptFriendRequest
+      summary: Accept friend request
+      tags: [Arena]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: freq_abc123
+      responses:
+        "200":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/Friendship'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /v1/friends/requests/{id}/decline:
+    post:
+      operationId: declineFriendRequest
+      summary: Decline friend request
+      tags: [Arena]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: freq_abc123
+      responses:
+        "200":
+          description: Declined
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      declined:
+                        type: boolean
+                        example: true
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /v1/friends:
+    get:
+      operationId: listFriends
+      summary: List friends
+      tags: [Arena]
+      parameters:
+        - $ref: '#/components/parameters/CursorParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        "200":
+          description: Friends list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Friendship'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/friends/{id}:
+    delete:
+      operationId: removeFriend
+      summary: Remove friend
+      tags: [Arena]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: fr_abc123
+      responses:
+        "200":
+          description: Removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      removed:
+                        type: boolean
+                        example: true
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /v1/friends/{id}/stats:
+    get:
+      operationId: getFriendStats
+      summary: Get friend stats
+      tags: [Arena]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: fr_abc123
+      responses:
+        "200":
+          description: Friend stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/FriendStats'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  # ──────────────── Challenges ────────────────
+  /v1/challenges:
+    post:
+      operationId: createChallenge
+      summary: Create challenge
+      tags: [Arena]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChallengeCreateRequest'
+      responses:
+        "201":
+          description: Challenge created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/Challenge'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "400":
+          $ref: '#/components/responses/ValidationError'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+    get:
+      operationId: listChallenges
+      summary: List challenges
+      tags: [Arena]
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [upcoming, active, completed]
+        - $ref: '#/components/parameters/CursorParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        "200":
+          description: Challenges
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Challenge'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/challenges/{id}:
+    get:
+      operationId: getChallenge
+      summary: Get challenge detail with standings
+      tags: [Arena]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: ch_abc123
+      responses:
+        "200":
+          description: Challenge detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/Challenge'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /v1/challenges/{id}/join:
+    post:
+      operationId: joinChallenge
+      summary: Join challenge
+      tags: [Arena]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: ch_abc123
+      responses:
+        "200":
+          description: Joined
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      joined:
+                        type: boolean
+                        example: true
+                      challenge_id:
+                        type: string
+                        example: ch_abc123
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          description: Already participating or challenge full/ended
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/challenges/{id}/leave:
+    post:
+      operationId: leaveChallenge
+      summary: Leave challenge
+      tags: [Arena]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: ch_abc123
+      responses:
+        "200":
+          description: Left
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      left:
+                        type: boolean
+                        example: true
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /v1/challenges/history:
+    get:
+      operationId: getChallengeHistory
+      summary: Completed challenge history
+      tags: [Arena]
+      parameters:
+        - $ref: '#/components/parameters/CursorParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        "200":
+          description: Challenge history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Challenge'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  # ──────────────── Achievements ────────────────
+  /v1/achievements/check:
+    post:
+      operationId: checkAchievements
+      summary: Trigger achievement evaluation
+      tags: [Arena]
+      responses:
+        "200":
+          description: Achievements checked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      new_achievements:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/UserAchievement'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/achievements:
+    get:
+      operationId: listEarnedAchievements
+      summary: List earned achievements
+      tags: [Arena]
+      parameters:
+        - $ref: '#/components/parameters/CursorParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        "200":
+          description: Earned achievements
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserAchievement'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/achievements/available:
+    get:
+      operationId: listAvailableAchievements
+      summary: Full achievement catalog with progress
+      tags: [Arena]
+      parameters:
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        "200":
+          description: Achievement catalog
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AchievementDefinition'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "304":
+          description: Not Modified
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  # ──────────────── Accountability ────────────────
+  /v1/accountability/config:
+    get:
+      operationId: getAccountabilityConfig
+      summary: Get non-negotiable config
+      tags: [Accountability]
+      responses:
+        "200":
+          description: Accountability configuration
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/AccountabilityConfig'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+    put:
+      operationId: updateAccountabilityConfig
+      summary: Update non-negotiable config
+      tags: [Accountability]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountabilityConfig'
+      responses:
+        "200":
+          description: Updated config
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/AccountabilityConfig'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "400":
+          $ref: '#/components/responses/ValidationError'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/accountability/today:
+    get:
+      operationId: getAccountabilityToday
+      summary: Get today's accountability status
+      tags: [Accountability]
+      responses:
+        "200":
+          description: Today's status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/AccountabilityToday'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/accountability/history:
+    get:
+      operationId: getAccountabilityHistory
+      summary: Get accountability history
+      description: Returns daily accountability completion records for a date range.
+      tags: [Accountability]
+      parameters:
+        - $ref: '#/components/parameters/StartDateParam'
+        - $ref: '#/components/parameters/EndDateParam'
+        - $ref: '#/components/parameters/CursorParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        "200":
+          description: Accountability history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AccountabilityToday'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "400":
+          $ref: '#/components/responses/ValidationError'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  # ──────────────── Sync ────────────────
+  /v1/sync/batch:
+    post:
+      operationId: batchSync
+      summary: Batch sync multiple data types
+      description: Sync snapshots, workouts, study sessions, and XP events in one request.
+      tags: [Sync]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchSyncRequest'
+      responses:
+        "200":
+          description: Batch sync results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      snapshot:
+                        type: object
+                        properties:
+                          snapshot_id:
+                            type: string
+                            example: snap_abc123
+                          updated:
+                            type: boolean
+                            example: true
+                      workouts:
+                        type: object
+                        properties:
+                          created:
+                            type: integer
+                            example: 1
+                          skipped:
+                            type: integer
+                            example: 0
+                      study_sessions:
+                        type: object
+                        properties:
+                          created:
+                            type: integer
+                            example: 1
+                          skipped:
+                            type: integer
+                            example: 0
+                      xp_events:
+                        type: object
+                        properties:
+                          events_recorded:
+                            type: integer
+                            example: 1
+                          events_skipped:
+                            type: integer
+                            example: 0
+                          xp_earned:
+                            type: integer
+                            example: 50
+                      xp_total:
+                        type: integer
+                        example: 12550
+                      level:
+                        type: integer
+                        example: 8
+                      streak_days:
+                        type: integer
+                        example: 14
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "400":
+          $ref: '#/components/responses/ValidationError'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/sync/status:
+    get:
+      operationId: getSyncStatus
+      summary: Get sync status
+      tags: [Sync]
+      responses:
+        "200":
+          description: Sync timestamps
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/SyncStatus'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/rate-limits:
+    get:
+      operationId: getRateLimits
+      summary: Get rate limit status
+      description: Returns the authenticated user's current rate limit status across all endpoint categories.
+      tags: [Sync]
+      responses:
+        "200":
+          description: Rate limit status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      limits:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            endpoint:
+                              type: string
+                              example: "POST /v1/insights/weekly"
+                            limit:
+                              type: integer
+                              example: 3
+                            window:
+                              type: string
+                              example: "24h"
+                            remaining:
+                              type: integer
+                              example: 2
+                            resets_at:
+                              type: string
+                              format: date-time
+                              example: "2026-03-25T00:00:00Z"
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  # ──────────────── Devices ────────────────
+  /v1/devices:
+    post:
+      operationId: registerDevice
+      summary: Register device for push notifications
+      tags: [Devices]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceRegistration'
+      responses:
+        "200":
+          description: Device registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      device_id:
+                        type: string
+                        example: 550e8400-e29b-41d4-a716-446655440000
+                      registered:
+                        type: boolean
+                        example: true
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/devices/{device_id}:
+    delete:
+      operationId: unregisterDevice
+      summary: Unregister device
+      tags: [Devices]
+      parameters:
+        - name: device_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+      responses:
+        "200":
+          description: Device unregistered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      unregistered:
+                        type: boolean
+                        example: true
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  # ──────────────── Outbound Webhooks ────────────────
+  /v1/webhooks/outbound:
+    post:
+      operationId: createOutboundWebhook
+      summary: Register outbound webhook
+      tags: [Webhooks]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OutboundWebhookCreate'
+      responses:
+        "201":
+          description: Webhook created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/OutboundWebhook'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+    get:
+      operationId: listOutboundWebhooks
+      summary: List outbound webhooks
+      tags: [Webhooks]
+      responses:
+        "200":
+          description: Webhooks list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OutboundWebhook'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/webhooks/outbound/{id}:
+    delete:
+      operationId: deleteOutboundWebhook
+      summary: Delete outbound webhook
+      tags: [Webhooks]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: whk_abc123
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      deleted:
+                        type: boolean
+                        example: true
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /v1/webhooks/outbound/{id}/dlq:
+    get:
+      operationId: getWebhookDLQ
+      summary: Get dead letter queue for webhook
+      tags: [Webhooks]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: whk_abc123
+      responses:
+        "200":
+          description: DLQ events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        event_id:
+                          type: string
+                        event_type:
+                          type: string
+                        payload:
+                          type: object
+                        attempts:
+                          type: integer
+                        last_attempt_at:
+                          type: string
+                          format: date-time
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /v1/webhooks/outbound/{id}/dlq/{event_id}/retry:
+    post:
+      operationId: retryDLQEvent
+      summary: Retry failed webhook delivery
+      tags: [Webhooks]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: whk_abc123
+        - name: event_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Retry queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      retried:
+                        type: boolean
+                        example: true
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  # ──────────────── Insights ────────────────
+  /v1/insights/weekly:
+    post:
+      operationId: generateWeeklyInsight
+      summary: Generate weekly AI report
+      tags: [Insights]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [week_start]
+              properties:
+                week_start:
+                  type: string
+                  format: date
+                  example: "2026-03-18"
+                force_regenerate:
+                  type: boolean
+                  default: false
+                  example: false
+      responses:
+        "200":
+          description: Weekly insight
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/WeeklyInsight'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "400":
+          description: Insufficient data (need 3+ days)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "429":
+          description: Daily AI limit reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "503":
+          description: Claude API unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/insights/pattern:
+    post:
+      operationId: analyzePattern
+      summary: Analyze patterns with AI
+      tags: [Insights]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question:
+                  type: string
+                  example: "How does my sleep affect my workout performance?"
+                date_range:
+                  type: object
+                  properties:
+                    start:
+                      type: string
+                      format: date
+                      example: "2026-02-01"
+                    end:
+                      type: string
+                      format: date
+                      example: "2026-03-24"
+                data_types:
+                  type: array
+                  items:
+                    type: string
+                    enum: [sleep, workouts, recovery, nutrition, study]
+                  example: [sleep, workouts, recovery]
+      responses:
+        "200":
+          description: Pattern analysis
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    additionalProperties: true
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "429":
+          $ref: '#/components/responses/RateLimited'
+
+  /v1/insights/history:
+    get:
+      operationId: getInsightHistory
+      summary: Get insight history
+      tags: [Insights]
+      parameters:
+        - $ref: '#/components/parameters/CursorParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        "200":
+          description: Insight history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WeeklyInsight'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  # ──────────────── Reports ────────────────
+  /v1/reports:
+    post:
+      operationId: generateReport
+      summary: Generate report
+      tags: [Reports]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportRequest'
+      responses:
+        "202":
+          description: Report generation started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/Report'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "429":
+          $ref: '#/components/responses/RateLimited'
+
+  /v1/reports/{id}:
+    get:
+      operationId: getReport
+      summary: Get report status or download
+      tags: [Reports]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: rpt_abc123
+      responses:
+        "200":
+          description: Report status/download
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/Report'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /v1/export/gdpr:
+    post:
+      operationId: exportGDPR
+      summary: GDPR data export
+      description: Export all user data (GDPR Article 20 compliance).
+      tags: [Reports]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                format:
+                  type: string
+                  enum: [json, csv]
+                  default: json
+                  example: json
+      responses:
+        "202":
+          description: Export started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/GDPRExport'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "429":
+          $ref: '#/components/responses/RateLimited'
+
+  /v1/exports/{id}:
+    get:
+      operationId: getExportStatus
+      summary: Get export status
+      tags: [Reports]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: exp_abc123
+      responses:
+        "200":
+          description: Export status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/GDPRExport'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  # ──────────────── Search ────────────────
+  /v1/search/exercises:
+    get:
+      operationId: searchExercises
+      summary: Search exercises
+      tags: [Search]
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            example: bench press
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 10
+            example: 5
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Exercise'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/search/users:
+    get:
+      operationId: searchUsersAlias
+      summary: Search users (alias)
+      description: Alias for GET /v1/users/search. Included for API consistency.
+      tags: [Search]
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            example: marco
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 10
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserSearchResult'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/search/challenges:
+    get:
+      operationId: searchChallenges
+      summary: Search challenges
+      tags: [Search]
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            example: fitness
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [upcoming, active, completed]
+            example: active
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 10
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Challenge'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  # ──────────────── Admin ────────────────
+  /v1/admin/users:
+    get:
+      operationId: adminListUsers
+      summary: List all users (admin)
+      tags: [Admin]
+      parameters:
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [created_at, last_active_at, xp_total, username]
+            default: created_at
+        - $ref: '#/components/parameters/CursorParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        "200":
+          description: User list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminUser'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          description: Admin scope required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/admin/stats:
+    get:
+      operationId: adminGetStats
+      summary: Get system stats (admin)
+      tags: [Admin]
+      responses:
+        "200":
+          description: System statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/SystemStats'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          description: Admin scope required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/admin/users/{id}/suspend:
+    post:
+      operationId: adminSuspendUser
+      summary: Suspend user (admin)
+      tags: [Admin]
+      parameters:
+        - $ref: '#/components/parameters/UserIdPath'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  example: Violated terms of service
+                duration_days:
+                  type: integer
+                  nullable: true
+                  example: 7
+      responses:
+        "200":
+          description: User suspended
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      suspended:
+                        type: boolean
+                        example: true
+                      suspended_until:
+                        type: string
+                        format: date-time
+                        nullable: true
+                        example: "2026-03-31T10:00:00Z"
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          description: Admin scope required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /v1/admin/audit-log:
+    get:
+      operationId: adminGetAuditLog
+      summary: Get audit log (admin)
+      tags: [Admin]
+      parameters:
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: user_id
+          in: query
+          schema:
+            type: string
+        - $ref: '#/components/parameters/StartDateParam'
+        - $ref: '#/components/parameters/EndDateParam'
+        - $ref: '#/components/parameters/CursorParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        "200":
+          description: Audit log entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 1234
+                        user_id:
+                          type: string
+                          nullable: true
+                          example: usr_abc123def456
+                        actor_id:
+                          type: string
+                          nullable: true
+                          example: usr_admin001
+                        action:
+                          type: string
+                          example: user.deleted
+                        resource:
+                          type: string
+                          example: users
+                        resource_id:
+                          type: string
+                          nullable: true
+                          example: usr_abc123def456
+                        details:
+                          type: object
+                          nullable: true
+                          additionalProperties: true
+                        ip_address:
+                          type: string
+                          nullable: true
+                          example: 203.0.113.1
+                        created_at:
+                          type: string
+                          format: date-time
+                          example: "2026-03-24T19:00:00Z"
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          description: Admin scope required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ──────────────── Config ────────────────
+  /v1/config:
+    get:
+      operationId: getAppConfig
+      summary: Get app configuration
+      description: Feature flags, minimum version, maintenance mode. Checked on every app launch.
+      tags: [Config]
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XClientVersion'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        "200":
+          description: App configuration
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Cache-Control:
+              schema:
+                type: string
+                example: "public, max-age=300"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/AppConfig'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "304":
+          description: Not Modified
+
+  # ──────────────── WebSocket ────────────────
+  /v1/ws:
+    get:
+      operationId: websocketConnect
+      summary: WebSocket connection
+      description: |
+        Upgrade to WebSocket for live updates. JWT passed as query parameter.
+        Events: leaderboard.update, challenge.score_update, challenge.completed,
+        achievement.earned, friend.request, xp.earned.
+        Client sends ping every 30s, server responds pong.
+      tags: [Realtime]
+      parameters:
+        - name: token
+          in: query
+          required: true
+          description: JWT access token
+          schema:
+            type: string
+            example: eyJhbGciOiJFUzI1NiIs...
+      responses:
+        "101":
+          description: Switching Protocols (WebSocket upgrade)
+
+  # ──────────────── Health ────────────────
+  /v1/health:
+    get:
+      operationId: healthCheck
+      summary: Full health check
+      description: Checks all dependencies (database, Redis, Whoop API, Claude API).
+      tags: [Health]
+      security: []
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/HealthResponse'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        "503":
+          description: Unhealthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: false
+                  data:
+                    $ref: '#/components/schemas/HealthResponse'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+
+  /v1/health/ready:
+    get:
+      operationId: readinessProbe
+      summary: Readiness probe
+      description: "Lightweight check. 200 = ready, 503 = not ready."
+      tags: [Health]
+      security: []
+      responses:
+        "200":
+          description: Ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ready
+        "503":
+          description: Not ready
+
+  /v1/health/live:
+    get:
+      operationId: livenessProbe
+      summary: Liveness probe
+      description: "200 = process running. No dependency checks."
+      tags: [Health]
+      security: []
+      responses:
+        "200":
+          description: Alive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: alive
