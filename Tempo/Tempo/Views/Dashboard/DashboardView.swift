@@ -18,10 +18,27 @@ struct DashboardView: View {
                     .ignoresSafeArea()
 
                 if let viewModel {
-                    dashboardContent(viewModel)
+                    switch viewModel.loadState {
+                    case .loading where !hasAppeared:
+                        // First load — show skeleton shimmer
+                        DashboardLoadingView()
+
+                    case .error(let message) where !hasAppeared:
+                        // Error on first load — full-screen error
+                        ErrorStateView(
+                            title: "Sync failed.",
+                            message: message,
+                            retryAction: {
+                                Task { await viewModel.refresh() }
+                            }
+                        )
+
+                    default:
+                        // Loaded, or loading with previous data (pull-to-refresh keeps old data visible)
+                        dashboardContent(viewModel)
+                    }
                 } else {
-                    LoadingStateView(style: .quadrants)
-                        .padding(.horizontal, TempoSpacing.screenEdge)
+                    DashboardLoadingView()
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
@@ -31,6 +48,7 @@ struct DashboardView: View {
                 let vm = DashboardViewModel(services: services)
                 self.viewModel = vm
                 await vm.refresh()
+                hasAppeared = true
             }
         }
     }
@@ -68,20 +86,6 @@ struct DashboardView: View {
         }
         .refreshable {
             await vm.refresh()
-        }
-        .overlay {
-            switch vm.loadState {
-            case .error(let message):
-                ErrorStateView(
-                    title: "Sync failed.",
-                    message: message,
-                    retryAction: {
-                        Task { await vm.refresh() }
-                    }
-                )
-            default:
-                EmptyView()
-            }
         }
     }
 
