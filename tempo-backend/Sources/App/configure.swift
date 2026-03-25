@@ -150,6 +150,11 @@ func configure(_ app: Application) async throws {
     app.queues.schedule(MorningBriefingJob())
         .every(minutes: 15)
 
+    // Per BUILD_PLAN step 14.2 — Leaderboard refresh job.
+    // Per BACKEND_API.md Section 26.1 — Refreshes materialized view every 5 min.
+    app.queues.schedule(LeaderboardRefreshJob())
+        .every(minutes: 5)
+
     // ─────────────────────────────────────────────────
     // 9. Routes
     // ─────────────────────────────────────────────────

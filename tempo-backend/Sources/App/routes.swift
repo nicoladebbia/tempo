@@ -58,6 +58,35 @@ func routes(_ app: Application) throws {
         .register(collection: DeviceController())
 
     // ─────────────────────────────────────────────────
+    // Arena endpoints — per BACKEND_API.md Section 10
+    // ─────────────────────────────────────────────────
+
+    // XP — POST /v1/xp/events, GET /v1/xp/today, /history, /level
+    try protected.grouped("xp")
+        .grouped(RateLimitMiddleware(limit: 60, window: .minutes(1), scope: .user))
+        .register(collection: XPController())
+
+    // Leaderboards — GET /v1/leaderboards/weekly, /monthly, /alltime, /friends
+    try protected.grouped("leaderboards")
+        .grouped(RateLimitMiddleware(limit: 60, window: .minutes(1), scope: .user))
+        .register(collection: LeaderboardController())
+
+    // Friends — POST /v1/friends/requests, GET /v1/friends, etc.
+    try protected.grouped("friends")
+        .grouped(RateLimitMiddleware(limit: 20, window: .minutes(1), scope: .user))
+        .register(collection: FriendController())
+
+    // Challenges — POST /v1/challenges, GET /v1/challenges, join, leave
+    try protected.grouped("challenges")
+        .grouped(RateLimitMiddleware(limit: 60, window: .minutes(1), scope: .user))
+        .register(collection: ChallengeController())
+
+    // Achievements — GET /v1/achievements, /available, POST /check
+    try protected.grouped("achievements")
+        .grouped(RateLimitMiddleware(limit: 60, window: .minutes(1), scope: .user))
+        .register(collection: AchievementController())
+
+    // ─────────────────────────────────────────────────
     // Webhooks (no JWT — verified via HMAC)
     // ─────────────────────────────────────────────────
 

@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 12 next
 > **Total steps:** 124
-> **Completed:** 105 / 124 (85%)
+> **Completed:** 106 / 124 (85%)
 
 ---
 
@@ -171,7 +171,7 @@
 **Goal:** Build Arena backend (models, controllers), iOS views (leaderboard, friends, challenges, achievements).
 
 - [x] 14.1: Arena Backend (Models + Migrations) ✅ 2026-03-25
-- [ ] 14.2: Arena Backend Controllers
+- [x] 14.2: Arena Backend Controllers ✅ 2026-03-25
 - [ ] 14.3: Arena ViewModel + iOS Views
 
 ## Phase 15: AI Intelligence Engine
