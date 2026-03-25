@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 5 next
 > **Total steps:** 124
-> **Completed:** 53 / 124 (43%)
+> **Completed:** 54 / 124 (44%)
 
 ---
 
@@ -83,7 +83,7 @@
 
 - [x] 5.1: HealthKit Authorization Flow (2026-03-25)
 - [x] 5.2: Read Steps + Active Energy (2026-03-25)
-- [ ] 5.3: Read Heart Rate + HRV + RHR
+- [x] 5.3: Read Heart Rate + HRV + RHR (2026-03-25)
 - [ ] 5.4: Read Sleep Analysis
 - [ ] 5.5: Read Workouts
 - [ ] 5.6: Background Delivery Setup

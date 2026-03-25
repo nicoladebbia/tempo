@@ -202,22 +202,93 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
         return (startOfDay, endOfDay)
     }
 
+    // MARK: - Fetch Heart Rate + HRV + RHR
+    // Per INTEGRATION_SPECS.md Section 2.2.2 — Heart rate samples, HRV (SDNN), RHR.
+    // Per TECHNICAL_FEASIBILITY_AUDIT.md Section 1.1/1.5:
+    //   - RHR only available from Apple Watch (nil otherwise)
+    //   - Live HR during workouts requires Apple Watch
+    //   - Always prefer Whoop API data for HRV/RHR when available
+
     func fetchHeartRate(for date: Date) async throws -> [HeartRateSample] {
-        // Step 5.3: Real implementation
-        Logger.healthkit.debug("fetchHeartRate called — stub returning empty")
-        return []
+        let hrType = HKQuantityType(.heartRate)
+        let (startOfDay, endOfDay) = dayBounds(for: date)
+        let predicate = HKQuery.predicateForSamples(
+            withStart: startOfDay,
+            end: endOfDay,
+            options: .strictStartDate
+        )
+
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.quantitySample(type: hrType, predicate: predicate)],
+            sortDescriptors: [SortDescriptor(\.startDate, order: .forward)]
+        )
+
+        let samples = try await descriptor.result(for: healthStore)
+        let bpmUnit = HKUnit.count().unitDivided(by: .minute())
+
+        let result = samples.map { sample in
+            HeartRateSample(
+                timestamp: sample.startDate,
+                bpm: sample.quantity.doubleValue(for: bpmUnit)
+            )
+        }
+        Logger.healthkit.debug("fetchHeartRate: \(result.count) samples for \(date)")
+        return result
     }
 
     func fetchHRV(for date: Date) async throws -> Double? {
-        // Step 5.3: Real implementation
-        Logger.healthkit.debug("fetchHRV called — stub returning nil")
-        return nil
+        let hrvType = HKQuantityType(.heartRateVariabilitySDNN)
+        let (startOfDay, endOfDay) = dayBounds(for: date)
+        let predicate = HKQuery.predicateForSamples(
+            withStart: startOfDay,
+            end: endOfDay,
+            options: .strictStartDate
+        )
+
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.quantitySample(type: hrvType, predicate: predicate)],
+            sortDescriptors: [SortDescriptor(\.startDate, order: .reverse)],
+            limit: 1
+        )
+
+        let samples = try await descriptor.result(for: healthStore)
+        guard let latest = samples.first else {
+            Logger.healthkit.debug("fetchHRV: no data for \(date)")
+            return nil
+        }
+
+        let sdnn = latest.quantity.doubleValue(for: .secondUnit(with: .milli))
+        Logger.healthkit.debug("fetchHRV: \(String(format: "%.1f", sdnn))ms for \(date)")
+        return sdnn
     }
 
     func fetchRestingHeartRate(for date: Date) async throws -> Double? {
-        // Step 5.3: Real implementation
-        Logger.healthkit.debug("fetchRestingHeartRate called — stub returning nil")
-        return nil
+        // Per TECHNICAL_FEASIBILITY_AUDIT.md Section 1.1:
+        // RHR only written by Apple Watch. Returns nil if no Apple Watch.
+        let rhrType = HKQuantityType(.restingHeartRate)
+        let (startOfDay, endOfDay) = dayBounds(for: date)
+        let predicate = HKQuery.predicateForSamples(
+            withStart: startOfDay,
+            end: endOfDay,
+            options: .strictStartDate
+        )
+
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.quantitySample(type: rhrType, predicate: predicate)],
+            sortDescriptors: [SortDescriptor(\.startDate, order: .reverse)],
+            limit: 1
+        )
+
+        let samples = try await descriptor.result(for: healthStore)
+        guard let latest = samples.first else {
+            Logger.healthkit.debug("fetchRestingHeartRate: no data for \(date) (expected without Apple Watch)")
+            return nil
+        }
+
+        let bpmUnit = HKUnit.count().unitDivided(by: .minute())
+        let rhr = latest.quantity.doubleValue(for: bpmUnit)
+        Logger.healthkit.debug("fetchRestingHeartRate: \(String(format: "%.0f", rhr)) bpm for \(date)")
+        return rhr
     }
 
     func fetchSleepAnalysis(for date: Date) async throws -> SleepData {
