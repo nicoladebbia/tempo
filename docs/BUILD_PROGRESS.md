@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 12 next
 > **Total steps:** 124
-> **Completed:** 106 / 124 (85%)
+> **Completed:** 107 / 124 (86%)
 
 ---
 
@@ -172,7 +172,7 @@
 
 - [x] 14.1: Arena Backend (Models + Migrations) ✅ 2026-03-25
 - [x] 14.2: Arena Backend Controllers ✅ 2026-03-25
-- [ ] 14.3: Arena ViewModel + iOS Views
+- [x] 14.3: Arena ViewModel + iOS Views ✅ 2026-03-25
 
 ## Phase 15: AI Intelligence Engine
 **Goal:** Build Claude API backend service and weekly report generation with drill-sergeant copy.
