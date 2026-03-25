@@ -518,7 +518,6 @@ struct NonNegotiableCardView: View {
             radius: 4, x: 0, y: 2
         )
         .opacity(cardState == .skipped ? 0.6 : 1.0)
-        .scaleEffect(cardState == .completed ? 1.0 : 1.0)
         .onTapGesture { onTap() }
         .contextMenu { cardContextMenu }
         .accessibilityElement(children: .combine)

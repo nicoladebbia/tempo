@@ -194,10 +194,10 @@ struct DashboardView: View {
     private func quadrantGrid(_ vm: DashboardViewModel) -> some View {
         LazyVGrid(
             columns: [
-                GridItem(.flexible(), spacing: TempoSpacing.lg),
-                GridItem(.flexible(), spacing: TempoSpacing.lg),
+                GridItem(.flexible(), spacing: TempoSpacing.cardGap),
+                GridItem(.flexible(), spacing: TempoSpacing.cardGap),
             ],
-            spacing: TempoSpacing.lg
+            spacing: TempoSpacing.cardGap
         ) {
             // Top-left: BODY
             bodyQuadrantCard(vm.body)
@@ -489,7 +489,8 @@ struct DashboardView: View {
                 disconnectedState(
                     icon: "heart.text.square",
                     title: "Allow Health Access",
-                    subtitle: "to track activity"
+                    subtitle: "to track activity",
+                    cta: "Authorize"
                 )
             }
         }
@@ -702,7 +703,7 @@ struct DashboardView: View {
         return Double(current) / Double(target)
     }
 
-    private func disconnectedState(icon: String, title: String, subtitle: String) -> some View {
+    private func disconnectedState(icon: String, title: String, subtitle: String, cta: String = "Connect") -> some View {
         VStack(spacing: TempoSpacing.sm) {
             Image(systemName: icon)
                 .font(.system(size: 28))
@@ -716,7 +717,7 @@ struct DashboardView: View {
                 .font(.tempoCaption2)
                 .foregroundStyle(Color.tempoTextTertiary)
 
-            Button("Connect") {}
+            Button(cta) {}
                 .font(.tempoCallout)
                 .foregroundStyle(Color.tempoTextInverse)
                 .padding(.horizontal, 20)

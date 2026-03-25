@@ -112,12 +112,15 @@ final class ArenaViewModel {
     }
 
     // MARK: - Level Thresholds
-    // Per BACKEND_API.md Section 10.4
+    // Per MODULE_ARENA.md Section 3.1 — Formula: floor(200 * N^1.65)
 
-    static let levelThresholds = [
-        0, 100, 500, 1_000, 2_500, 5_000,
-        7_500, 10_000, 15_000, 25_000, 50_000, 100_000
-    ]
+    static let levelThresholds: [Int] = {
+        var thresholds = [0]
+        for n in 1...50 {
+            thresholds.append(Int(floor(200.0 * pow(Double(n), 1.65))))
+        }
+        return thresholds
+    }()
 
     static func levelTitle(for level: Int) -> String {
         switch level {

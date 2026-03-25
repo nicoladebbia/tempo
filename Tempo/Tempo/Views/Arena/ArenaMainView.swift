@@ -256,10 +256,8 @@ struct ArenaMainView: View {
         .frame(height: 36)
         .padding(.horizontal, TempoSpacing.xs)
         .background(
-            entry.isMe ?
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.tempoSignal.opacity(0.08)) :
-                nil
+            RoundedRectangle(cornerRadius: 8)
+                .fill(entry.isMe ? Color.tempoSignal.opacity(0.08) : Color.clear)
         )
     }
 
