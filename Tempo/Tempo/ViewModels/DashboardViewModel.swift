@@ -571,6 +571,65 @@ final class DashboardViewModel {
         )
     }
 
+    // MARK: - Accountability Connection
+    // Per BUILD_PLAN step 10.8 — Connect accountability data to Dashboard.
+
+    func refreshAccountability(modelContext: ModelContext) {
+        let today = Calendar.current.startOfDay(for: Date())
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today)!
+
+        // Fetch today's accountability
+        let accDescriptor = FetchDescriptor<DailyAccountability>(
+            predicate: #Predicate { da in
+                da.date >= today && da.date < tomorrow
+            }
+        )
+        guard let accountability = try? modelContext.fetch(accDescriptor).first else { return }
+
+        // Update Mind quadrant with real study data
+        let studyMinutes = accountability.totalStudyMinutes
+        let studyProgress = accountability.nonNegotiableProgress?.first(where: {
+            $0.nonNegotiable?.type == .study
+        })
+        let studyTarget = Int(studyProgress?.targetValue ?? 120)
+
+        // Fetch streak
+        let streakDescriptor = FetchDescriptor<Streak>(
+            predicate: #Predicate { s in s.typeRaw == "overall" }
+        )
+        let streak = try? modelContext.fetch(streakDescriptor).first
+
+        self.mind = MindQuadrantData(
+            studyMinutesToday: studyMinutes,
+            studyTargetMinutes: studyTarget,
+            currentStreakDays: streak?.currentCount ?? 0,
+            exams: mind.exams  // Preserve existing exam data
+        )
+
+        // Update non-negotiables from real data
+        let progress = accountability.nonNegotiableProgress ?? []
+        self.nonNegotiables = progress.compactMap { p in
+            guard let nn = p.nonNegotiable else { return nil }
+            let category: NonNegotiableCategory = {
+                switch nn.type {
+                case .train: return .move
+                case .meals: return .fuel
+                case .study: return .mind
+                case .sleep: return .body
+                case .steps: return .move
+                case .hydration: return .fuel
+                case .custom: return .mind
+                }
+            }()
+            return NonNegotiableItem(
+                id: nn.id,
+                title: nn.name,
+                isCompleted: p.isCompleted,
+                category: category
+            )
+        }
+    }
+
     // MARK: - Non-Negotiable Progress
 
     var nonNegotiablesDone: Int {

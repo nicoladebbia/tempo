@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 7 next
 > **Total steps:** 124
-> **Completed:** 93 / 124 (75%)
+> **Completed:** 94 / 124 (76%)
 
 ---
 
@@ -143,7 +143,7 @@
 - [x] 10.5: NonNegotiable Setup/Edit Flow (2026-03-25)
 - [x] 10.6: Streak Calendar + Streak Engine (2026-03-25)
 - [x] 10.7: Scoring Engine (Real Implementation) (2026-03-25)
-- [ ] 10.8: Accountability Tab Container + Dashboard Connection
+- [x] 10.8: Accountability Tab Container + Dashboard Connection (2026-03-25)
 
 ## Phase 11: NutriTrack Integration
 **Goal:** Build NutriTrack backend proxy, iOS service, connection UI, and connect to Dashboard Fuel quadrant.

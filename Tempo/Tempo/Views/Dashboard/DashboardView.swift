@@ -34,6 +34,7 @@ struct DashboardView: View {
                                 Task {
                                     await viewModel.refresh()
                                     viewModel.refreshTrainingStatus(modelContext: modelContext)
+                    viewModel.refreshAccountability(modelContext: modelContext)
                                 }
                             }
                         )
