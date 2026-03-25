@@ -19,7 +19,9 @@ func routes(_ app: Application) throws {
 
     // Auth endpoints — per BACKEND_API.md Section 2
     // POST /v1/auth/apple, /v1/auth/refresh, /v1/auth/logout
+    // Rate limited: 10 req/min per IP per BACKEND_API.md
     let auth = v1.grouped("auth")
+        .grouped(RateLimitMiddleware(limit: 10, window: .minutes(1), scope: .ip))
     try auth.register(collection: AuthController())
 
     // Protected endpoints — added as controllers are built
