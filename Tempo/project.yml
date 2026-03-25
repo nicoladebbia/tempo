@@ -25,6 +25,20 @@ settings:
     Release:
       xcconfig: Tempo/Configuration/Production.xcconfig
 
+packages:
+  PostHog:
+    url: https://github.com/PostHog/posthog-ios
+    majorVersion: 3.0.0
+  FirebaseSDK:
+    url: https://github.com/firebase/firebase-ios-sdk
+    majorVersion: 11.0.0
+  Lottie:
+    url: https://github.com/airbnb/lottie-ios
+    majorVersion: 4.0.0
+  SnapshotTesting:
+    url: https://github.com/pointfreeco/swift-snapshot-testing
+    majorVersion: 1.0.0
+
 targets:
   Tempo:
     type: application
@@ -33,6 +47,11 @@ targets:
       - path: Tempo
         excludes:
           - "Configuration/*.xcconfig"
+    dependencies:
+      - package: PostHog
+      - package: FirebaseSDK
+        product: FirebaseCrashlytics
+      - package: Lottie
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.tempo.Tempo
@@ -98,3 +117,18 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: app.tempo.TempoUITests
         GENERATE_INFOPLIST_FILE: true
         TEST_TARGET_NAME: Tempo
+
+  TempoSnapshotTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: TempoSnapshotTests
+    dependencies:
+      - target: Tempo
+      - package: SnapshotTesting
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.tempo.TempoSnapshotTests
+        GENERATE_INFOPLIST_FILE: true
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Tempo.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tempo"
+        BUNDLE_LOADER: "$(TEST_HOST)"

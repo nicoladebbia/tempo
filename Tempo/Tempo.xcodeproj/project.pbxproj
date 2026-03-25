@@ -8,12 +8,17 @@
 
 /* Begin PBXBuildFile section */
 		3CDADF7F0E8CF5D819573198 /* TempoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE37B2DC31D748FD529F6B6B /* TempoApp.swift */; };
+		4C3624309BEDFA2D7F6E2FCF /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = CE56BC8136A4008A89FE68F7 /* PostHog */; };
+		5DF98CD4737BAD9ECD8E32DC /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = C2BC9ACF883738C9261192CE /* SnapshotTesting */; };
+		6BDB8B61726187715C639A4C /* TempoSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1E65C1ADEA63F79B03903FC /* TempoSnapshotTests.swift */; };
 		6E31DC3FD1E53D9CD7142969 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9284B1CA6F61A72512C3CB18 /* Assets.xcassets */; };
 		772BD3105B7AB5A996B536FB /* TempoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7995A9B6697165811DE09D5 /* TempoTests.swift */; };
 		78D431FC734932DC2397F4AB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 19BD6B0F4B6E8C72E51A9764 /* Assets.xcassets */; };
 		9573B28ABEDA1B18CE629AC4 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43DB6BEFC11B05818008A600 /* ContentView.swift */; };
 		97A7593FCCAF7FC72BBF4E62 /* TempoUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 501F8E8E3FD5CC7F4C68EAAF /* TempoUITests.swift */; };
 		AAA3DFCFB482F225B2312138 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A91643404852BD885F51A3FA /* Preview Assets.xcassets */; };
+		AE5314C5233C71D9AC698677 /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = 64ADF0A1A72113591B1601F5 /* FirebaseCrashlytics */; };
+		C67FE1C0A497FA70E1F5D90C /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = 96FAF1565271D68778EA8DA8 /* Lottie */; };
 		CBA2D73A9FB323AA9797EBE9 /* AppConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = F929FBE6C861B744690D364F /* AppConstants.swift */; };
 /* End PBXBuildFile section */
 
@@ -26,6 +31,13 @@
 			remoteInfo = Tempo;
 		};
 		B51E70FF557CC552E3A33098 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AD30179AB18F679D26066274 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B4B1ABCA42D941961C207402;
+			remoteInfo = Tempo;
+		};
+		CEBDEEF4808C302FC27B3F5B /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = AD30179AB18F679D26066274 /* Project object */;
 			proxyType = 1;
@@ -47,6 +59,7 @@
 		19BD6B0F4B6E8C72E51A9764 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1B3C392B77F5DB78F4E43ADA /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		201B96536E7ACDD0996AEDE5 /* TempoUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TempoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		20C31DF00A41EB9664F8E4CA /* TempoSnapshotTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TempoSnapshotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		270B87214C8958180521CF6C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		2C81692E352CAC4BABD99F32 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		37772590FDF7609BE7A5D5A0 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
@@ -64,6 +77,7 @@
 		9284B1CA6F61A72512C3CB18 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		9354789CD22E8064188D8E5B /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		9BA725894165E147EB72A7CE /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		9CA4005283DF7B9B262A9840 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		9D48DD7160B7A6B14420A77F /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		A31496282C73D8993EE5235D /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		A587D1123A8A6F8AAA57223B /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
@@ -71,6 +85,7 @@
 		AC12674070337FB9C56B2782 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		ADF974CCFA6B9334127BA4CB /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		AE6263597B3354C508BBC7D4 /* Tempo.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Tempo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C1E65C1ADEA63F79B03903FC /* TempoSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoSnapshotTests.swift; sourceTree = "<group>"; };
 		C61EBCBD5D8D5E3F4F5C7F42 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		C7995A9B6697165811DE09D5 /* TempoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoTests.swift; sourceTree = "<group>"; };
 		D0D41E880144A54E4F98100F /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
@@ -89,6 +104,27 @@
 		F32F128E1D77765991B47C81 /* Tempo.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Tempo.entitlements; sourceTree = "<group>"; };
 		F929FBE6C861B744690D364F /* AppConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConstants.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		01D67FA7CD498405BE72BD2D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4C3624309BEDFA2D7F6E2FCF /* PostHog in Frameworks */,
+				AE5314C5233C71D9AC698677 /* FirebaseCrashlytics in Frameworks */,
+				C67FE1C0A497FA70E1F5D90C /* Lottie in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		90484B877526D14EA218DB68 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5DF98CD4737BAD9ECD8E32DC /* SnapshotTesting in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		0271089951DC7FF9C0B35A81 /* Services */ = {
@@ -223,6 +259,7 @@
 			isa = PBXGroup;
 			children = (
 				AE6263597B3354C508BBC7D4 /* Tempo.app */,
+				20C31DF00A41EB9664F8E4CA /* TempoSnapshotTests.xctest */,
 				D57F97E834A8A30DB9CAE89B /* TempoTests.xctest */,
 				201B96536E7ACDD0996AEDE5 /* TempoUITests.xctest */,
 			);
@@ -302,6 +339,7 @@
 			isa = PBXGroup;
 			children = (
 				93A5DFF654AA0B833311F529 /* Tempo */,
+				D2ACBDA63531232ED4FE4CDA /* TempoSnapshotTests */,
 				5ABE29F9C60E86484C7813E7 /* TempoTests */,
 				E3628503959B5D948C0F29B7 /* TempoUITests */,
 				551138FD8DA4B1DC4CE1CC90 /* Products */,
@@ -477,6 +515,15 @@
 			path = Models;
 			sourceTree = "<group>";
 		};
+		D2ACBDA63531232ED4FE4CDA /* TempoSnapshotTests */ = {
+			isa = PBXGroup;
+			children = (
+				9CA4005283DF7B9B262A9840 /* .gitkeep */,
+				C1E65C1ADEA63F79B03903FC /* TempoSnapshotTests.swift */,
+			);
+			path = TempoSnapshotTests;
+			sourceTree = "<group>";
+		};
 		D6F80100CE88427BBBF6CD7E /* Shared */ = {
 			isa = PBXGroup;
 			children = (
@@ -561,6 +608,26 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		171477D088F977794132BBDC /* TempoSnapshotTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4C55121C50F44FBE1553A2D4 /* Build configuration list for PBXNativeTarget "TempoSnapshotTests" */;
+			buildPhases = (
+				61AD4E5974D31CD62CCE07C4 /* Sources */,
+				90484B877526D14EA218DB68 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				EB38C5C67D0BCA945A9EEE2E /* PBXTargetDependency */,
+			);
+			name = TempoSnapshotTests;
+			packageProductDependencies = (
+				C2BC9ACF883738C9261192CE /* SnapshotTesting */,
+			);
+			productName = TempoSnapshotTests;
+			productReference = 20C31DF00A41EB9664F8E4CA /* TempoSnapshotTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		905B84C3A1A3AD8641726070 /* TempoUITests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 48242C39F70C6153F1CD33C0 /* Build configuration list for PBXNativeTarget "TempoUITests" */;
@@ -585,6 +652,7 @@
 			buildPhases = (
 				F8BECD3B83F1BDE402E1832A /* Sources */,
 				99E67F85FA1E5FB50DAA3ABA /* Resources */,
+				01D67FA7CD498405BE72BD2D /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -592,6 +660,9 @@
 			);
 			name = Tempo;
 			packageProductDependencies = (
+				CE56BC8136A4008A89FE68F7 /* PostHog */,
+				64ADF0A1A72113591B1601F5 /* FirebaseCrashlytics */,
+				96FAF1565271D68778EA8DA8 /* Lottie */,
 			);
 			productName = Tempo;
 			productReference = AE6263597B3354C508BBC7D4 /* Tempo.app */;
@@ -624,6 +695,9 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
+					171477D088F977794132BBDC = {
+						DevelopmentTeam = "";
+					};
 					905B84C3A1A3AD8641726070 = {
 						DevelopmentTeam = "";
 						TestTargetID = B4B1ABCA42D941961C207402;
@@ -646,11 +720,18 @@
 			);
 			mainGroup = 93935E517C8A0946CFCF7B9D;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				9E28DD26F273AA51C8F9C344 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				994F1E23641289C127656209 /* XCRemoteSwiftPackageReference "lottie-ios" */,
+				F481E80EA356976DD4A05C9E /* XCRemoteSwiftPackageReference "posthog-ios" */,
+				50CE7ED7B4ABBE1725F8322F /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */,
+			);
 			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				B4B1ABCA42D941961C207402 /* Tempo */,
+				171477D088F977794132BBDC /* TempoSnapshotTests */,
 				C337B61AC76E84E27EF729D6 /* TempoTests */,
 				905B84C3A1A3AD8641726070 /* TempoUITests */,
 			);
@@ -676,6 +757,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				772BD3105B7AB5A996B536FB /* TempoTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		61AD4E5974D31CD62CCE07C4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6BDB8B61726187715C639A4C /* TempoSnapshotTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -709,6 +798,11 @@
 			isa = PBXTargetDependency;
 			target = B4B1ABCA42D941961C207402 /* Tempo */;
 			targetProxy = 5686D52CB9B7A408A45BB569 /* PBXContainerItemProxy */;
+		};
+		EB38C5C67D0BCA945A9EEE2E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B4B1ABCA42D941961C207402 /* Tempo */;
+			targetProxy = CEBDEEF4808C302FC27B3F5B /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -1020,6 +1114,23 @@
 			};
 			name = Debug;
 		};
+		B7B6A36A30AA2EF823F86157 /* Staging */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.tempo.TempoSnapshotTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Tempo.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tempo";
+			};
+			name = Staging;
+		};
 		C4BB3300C35869F601FE5EED /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1061,6 +1172,40 @@
 			};
 			name = Release;
 		};
+		F13975D54A7E03438EAD24F7 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.tempo.TempoSnapshotTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Tempo.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tempo";
+			};
+			name = Debug;
+		};
+		F2036023152792A3DD880012 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.tempo.TempoSnapshotTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Tempo.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tempo";
+			};
+			name = Release;
+		};
 		F62C89335F3C250B8A88D19C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1087,6 +1232,16 @@
 				F62C89335F3C250B8A88D19C /* Debug */,
 				39D9B360A6302383A613B5DD /* Release */,
 				76B59989E5E9AA05B74A3BF3 /* Staging */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		4C55121C50F44FBE1553A2D4 /* Build configuration list for PBXNativeTarget "TempoSnapshotTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F13975D54A7E03438EAD24F7 /* Debug */,
+				F2036023152792A3DD880012 /* Release */,
+				B7B6A36A30AA2EF823F86157 /* Staging */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
@@ -1122,6 +1277,64 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		50CE7ED7B4ABBE1725F8322F /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/pointfreeco/swift-snapshot-testing";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
+		};
+		994F1E23641289C127656209 /* XCRemoteSwiftPackageReference "lottie-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/airbnb/lottie-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.0.0;
+			};
+		};
+		9E28DD26F273AA51C8F9C344 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 11.0.0;
+			};
+		};
+		F481E80EA356976DD4A05C9E /* XCRemoteSwiftPackageReference "posthog-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/PostHog/posthog-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		64ADF0A1A72113591B1601F5 /* FirebaseCrashlytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9E28DD26F273AA51C8F9C344 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCrashlytics;
+		};
+		96FAF1565271D68778EA8DA8 /* Lottie */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 994F1E23641289C127656209 /* XCRemoteSwiftPackageReference "lottie-ios" */;
+			productName = Lottie;
+		};
+		C2BC9ACF883738C9261192CE /* SnapshotTesting */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 50CE7ED7B4ABBE1725F8322F /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */;
+			productName = SnapshotTesting;
+		};
+		CE56BC8136A4008A89FE68F7 /* PostHog */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F481E80EA356976DD4A05C9E /* XCRemoteSwiftPackageReference "posthog-ios" */;
+			productName = PostHog;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = AD30179AB18F679D26066274 /* Project object */;
 }
