@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 7 next
 > **Total steps:** 124
-> **Completed:** 73 / 124 (59%)
+> **Completed:** 74 / 124 (60%)
 
 ---
 
@@ -115,7 +115,7 @@
 **Goal:** Build the Recovery Engine, views (Today, Sleep, Strain, Trends), and tab container.
 
 - [x] 8.1: Recovery Engine (Real Implementation) (2026-03-25)
-- [ ] 8.2: Recovery ViewModel
+- [x] 8.2: Recovery ViewModel (2026-03-25)
 - [ ] 8.3: RecoveryTodayView
 - [ ] 8.4: SleepDetailView + StrainDetailView
 - [ ] 8.5: RecoveryTrendsView
