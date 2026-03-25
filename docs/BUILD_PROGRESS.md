@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 6 next
 > **Total steps:** 124
-> **Completed:** 62 / 124 (50%)
+> **Completed:** 63 / 124 (51%)
 
 ---
 
@@ -96,7 +96,7 @@
 - [x] 6.1: Vapor Configuration (configure.swift + routes.swift) (2026-03-25)
 - [x] 6.2: PostgreSQL Models + Migrations (User, RefreshToken) (2026-03-25)
 - [x] 6.3: JWT Middleware (Issue + Verify + Refresh) (2026-03-25)
-- [ ] 6.4: Sign in with Apple Endpoint
+- [x] 6.4: Sign in with Apple Endpoint (2026-03-25)
 - [ ] 6.5: iOS Auth Flow (Sign in with Apple → Backend → Keychain)
 - [ ] 6.6: Rate Limiting Middleware
 - [ ] 6.7: Envelope DTO + Error Handling

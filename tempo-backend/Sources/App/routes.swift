@@ -17,9 +17,11 @@ func routes(_ app: Application) throws {
     // ─────────────────────────────────────────────────
     let v1 = app.grouped("v1")
 
-    // Public endpoints (no auth) — registered in step 6.4+
-    _ = v1.grouped("auth")
+    // Auth endpoints — per BACKEND_API.md Section 2
+    // POST /v1/auth/apple, /v1/auth/refresh, /v1/auth/logout
+    let auth = v1.grouped("auth")
+    try auth.register(collection: AuthController())
 
-    // Protected endpoints — registered in step 6.3+
-    // let protected = v1.grouped(JWTMiddleware())
+    // Protected endpoints — added as controllers are built
+    // let protected = v1.grouped(JWTAuthMiddleware())
 }
