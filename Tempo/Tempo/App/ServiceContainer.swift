@@ -75,7 +75,7 @@ final class ServiceContainer {
             authService: auth,
             healthKit: HealthKitService(),
             whoop: WhoopService(apiClient: apiClient),
-            nutriTrack: MockNutriTrackService(),
+            nutriTrack: NutriTrackService(apiClient: apiClient),
             calendar: MockCalendarService(),
             notifications: MockNotificationService(),
             trainingEngine: TrainingEngine(),
