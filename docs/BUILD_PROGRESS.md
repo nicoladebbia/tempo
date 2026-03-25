@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 7 next
 > **Total steps:** 124
-> **Completed:** 80 / 124 (65%)
+> **Completed:** 81 / 124 (65%)
 
 ---
 
@@ -126,7 +126,7 @@
 
 - [x] 9.1: Training Engine (Real Implementation) (2026-03-25)
 - [x] 9.2: Training ViewModel (2026-03-25)
-- [ ] 9.3: TodayWorkoutView
+- [x] 9.3: TodayWorkoutView (2026-03-25)
 - [ ] 9.4: ActiveWorkoutView (Set Logging)
 - [ ] 9.5: WorkoutSummaryView
 - [ ] 9.6: WeekPlanView
