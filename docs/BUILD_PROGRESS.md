@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-24
 > **Current phase:** Not started
 > **Total steps:** 124
-> **Completed:** 8 / 124 (6%)
+> **Completed:** 9 / 124 (7%)
 
 ---
 
@@ -18,7 +18,7 @@
 - [x] 0.6: Add SPM Dependencies (iOS) (2026-03-25)
 - [x] 0.7: Set Up SwiftLint + SwiftFormat (2026-03-25)
 - [x] 0.8: Create Vapor Backend Project (2026-03-25)
-- [ ] 0.9: Set Up Docker Compose (PostgreSQL + Redis)
+- [x] 0.9: Set Up Docker Compose (PostgreSQL + Redis) (2026-03-25)
 - [ ] 0.10: Create Shared Enums and Constants (iOS)
 
 ## Phase 1: Data Models (iOS)
@@ -223,3 +223,4 @@
 ## Notes
 - **0.1**: BUILD_PLAN.md says to create a `develop` branch, but CI_CD_PIPELINE.md Section 1 explicitly specifies trunk-based development (no develop branch, short-lived feature branches off main). Followed CI/CD doc as the authoritative reference.
 - **0.8**: VAPOR_PROJECT_STRUCTURE.md specifies Redis `from: "5.0.0"` but that version doesn't exist. Used `from: "4.0.0"` instead.
+- **0.9**: Docker not installed on this machine. docker-compose.yml created per docs — verify with `docker compose up -d db redis` when Docker Desktop is installed.

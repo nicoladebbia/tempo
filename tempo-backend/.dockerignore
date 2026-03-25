@@ -1,0 +1,10 @@
+.build/
+.swiftpm/
+*.xcodeproj/
+DerivedData/
+.env
+keys/
+.git/
+.gitignore
+*.md
+docker-compose*.yml
