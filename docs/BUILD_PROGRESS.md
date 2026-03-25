@@ -1,9 +1,9 @@
 # Tempo Build Progress
 
 > **Last updated:** 2026-03-25
-> **Current phase:** Phase 1 in progress
+> **Current phase:** Phase 2 in progress
 > **Total steps:** 124
-> **Completed:** 20 / 124 (16%)
+> **Completed:** 21 / 124 (17%)
 
 ---
 
@@ -38,7 +38,7 @@
 ## Phase 2: Service Layer Stubs (iOS)
 **Goal:** Define protocols for all services, create stub/mock implementations, and wire up the dependency container.
 
-- [ ] 2.1: Network Client (APIClient)
+- [x] 2.1: Network Client (APIClient) (2026-03-25)
 - [ ] 2.2: Auth Service + Keychain
 - [ ] 2.3: HealthKit Service (Protocol + Stub)
 - [ ] 2.4: Whoop Service (Protocol + Stub)

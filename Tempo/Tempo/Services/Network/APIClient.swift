@@ -1,0 +1,230 @@
+import Foundation
+import UIKit
+import os
+
+actor APIClient {
+    private let baseURL: URL
+    private let session: URLSession
+    private let authInterceptor: AuthInterceptor?
+    private let decoder: JSONDecoder
+    private let encoder: JSONEncoder
+    private var etagCache: [String: String] = [:]
+
+    private let logger = Logger(subsystem: "app.tempo", category: "APIClient")
+
+    private let maxRetries = 3
+    private let baseDelay: TimeInterval = 1.0
+
+    init(
+        baseURL: URL = AppConstants.apiBaseURL,
+        session: URLSession = .shared,
+        authInterceptor: AuthInterceptor? = nil
+    ) {
+        self.baseURL = baseURL
+        self.session = session
+        self.authInterceptor = authInterceptor
+
+        self.decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        self.encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+    }
+
+    // MARK: - Public API
+
+    func request<T: Decodable & Sendable>(
+        _ endpoint: APIEndpoint<T>,
+        body: (some Encodable & Sendable)? = nil as String?,
+        queryItems: [URLQueryItem]? = nil
+    ) async throws -> T {
+        let urlRequest = try await buildRequest(endpoint, body: body, queryItems: queryItems)
+        return try await executeWithRetry(urlRequest, endpoint: endpoint)
+    }
+
+    func request<T: Decodable & Sendable>(
+        _ endpoint: APIEndpoint<T>,
+        queryItems: [URLQueryItem]? = nil
+    ) async throws -> T {
+        let urlRequest = try await buildRequest(endpoint, body: nil as String?, queryItems: queryItems)
+        return try await executeWithRetry(urlRequest, endpoint: endpoint)
+    }
+
+    // MARK: - Request Building
+
+    private func buildRequest<T>(
+        _ endpoint: APIEndpoint<T>,
+        body: (some Encodable)?,
+        queryItems: [URLQueryItem]?
+    ) async throws -> URLRequest {
+        var components = URLComponents(url: baseURL.appendingPathComponent(endpoint.path), resolvingAgainstBaseURL: true)
+        components?.queryItems = queryItems
+
+        guard let url = components?.url else {
+            throw APIError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = endpoint.method.rawValue
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        // Custom headers per DEPENDENCIES.md Section 2.1
+        request.setValue(appVersion, forHTTPHeaderField: "X-Client-Version")
+        request.setValue(deviceID, forHTTPHeaderField: "X-Device-Id")
+
+        if endpoint.method != .get {
+            request.setValue(UUID().uuidString, forHTTPHeaderField: "Idempotency-Key")
+        }
+
+        // ETag
+        let cacheKey = endpoint.path
+        if let etag = etagCache[cacheKey] {
+            request.setValue(etag, forHTTPHeaderField: "If-None-Match")
+        }
+
+        // Auth
+        if endpoint.requiresAuth, let interceptor = authInterceptor {
+            if let token = try await interceptor.validToken() {
+                request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            }
+        }
+
+        // Body
+        if let body {
+            request.httpBody = try encoder.encode(body)
+        }
+
+        #if DEBUG
+        logRequest(request)
+        #endif
+
+        return request
+    }
+
+    // MARK: - Execution with Retry
+
+    private func executeWithRetry<T: Decodable & Sendable>(
+        _ request: URLRequest,
+        endpoint: APIEndpoint<T>,
+        attempt: Int = 0,
+        didRefreshToken: Bool = false
+    ) async throws -> T {
+        do {
+            let (data, response) = try await session.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw APIError.noResponse
+            }
+
+            #if DEBUG
+            logResponse(httpResponse, data: data)
+            #endif
+
+            // Cache ETag
+            if let etag = httpResponse.value(forHTTPHeaderField: "ETag") {
+                etagCache[endpoint.path] = etag
+            }
+
+            switch httpResponse.statusCode {
+            case 200 ... 299:
+                if T.self == EmptyResponse.self {
+                    return EmptyResponse() as! T
+                }
+                do {
+                    return try decoder.decode(T.self, from: data)
+                } catch {
+                    throw APIError.decodingFailed(error.localizedDescription)
+                }
+
+            case 304:
+                // Not Modified — caller should use cached data
+                throw APIError.notModified
+
+            case 401:
+                // Token expired — refresh and retry once (does not consume a retry attempt)
+                if endpoint.requiresAuth, let interceptor = authInterceptor, !didRefreshToken {
+                    let newToken = try await interceptor.refreshAndGetToken()
+                    var retryRequest = request
+                    retryRequest.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
+                    return try await executeWithRetry(retryRequest, endpoint: endpoint, attempt: 0, didRefreshToken: true)
+                }
+                throw APIError.unauthorized
+
+            case 403:
+                throw APIError.forbidden
+
+            case 404:
+                throw APIError.notFound
+
+            case 409:
+                throw APIError.conflict
+
+            case 429:
+                let retryAfter = httpResponse.value(forHTTPHeaderField: "Retry-After")
+                    .flatMap { TimeInterval($0) }
+                throw APIError.rateLimited(retryAfter: retryAfter)
+
+            case 500 ... 599:
+                throw APIError.serverError(statusCode: httpResponse.statusCode)
+
+            default:
+                throw APIError.unknown(statusCode: httpResponse.statusCode)
+            }
+        } catch let error as APIError {
+            // Retry logic per ERROR_RECOVERY_FLOWS.md Section 8
+            if error.isRetryable, attempt < maxRetries {
+                let delay = retryDelay(for: error, attempt: attempt)
+                try await Task.sleep(for: .seconds(delay))
+                return try await executeWithRetry(request, endpoint: endpoint, attempt: attempt + 1)
+            }
+            throw error
+        } catch is CancellationError {
+            throw APIError.timeout
+        } catch {
+            let apiError = APIError.networkError(error.localizedDescription)
+            if apiError.isRetryable, attempt < maxRetries {
+                let delay = baseDelay * pow(2.0, Double(attempt))
+                try await Task.sleep(for: .seconds(delay))
+                return try await executeWithRetry(request, endpoint: endpoint, attempt: attempt + 1)
+            }
+            throw apiError
+        }
+    }
+
+    // MARK: - Retry Delay
+
+    private func retryDelay(for error: APIError, attempt: Int) -> TimeInterval {
+        switch error {
+        case .rateLimited(let retryAfter):
+            return retryAfter ?? 60.0
+        default:
+            // Exponential backoff: 1s, 2s, 4s
+            return baseDelay * pow(2.0, Double(attempt))
+        }
+    }
+
+    // MARK: - Helpers
+
+    private var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
+    }
+
+    private nonisolated var deviceID: String {
+        // Stable device identifier — in production, store in Keychain
+        UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
+    }
+
+    // MARK: - Debug Logging
+
+    #if DEBUG
+    private func logRequest(_ request: URLRequest) {
+        logger.debug("→ \(request.httpMethod ?? "?") \(request.url?.absoluteString ?? "")")
+    }
+
+    private func logResponse(_ response: HTTPURLResponse, data: Data) {
+        let size = ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .memory)
+        logger.debug("← \(response.statusCode) [\(size)] \(response.url?.absoluteString ?? "")")
+    }
+    #endif
+}
