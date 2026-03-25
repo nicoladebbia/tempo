@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 6 next
 > **Total steps:** 124
-> **Completed:** 60 / 124 (48%)
+> **Completed:** 61 / 124 (49%)
 
 ---
 
@@ -94,7 +94,7 @@
 **Goal:** Configure Vapor, create user/auth models, implement JWT auth, Sign in with Apple, rate limiting, and error handling.
 
 - [x] 6.1: Vapor Configuration (configure.swift + routes.swift) (2026-03-25)
-- [ ] 6.2: PostgreSQL Models + Migrations (User, RefreshToken)
+- [x] 6.2: PostgreSQL Models + Migrations (User, RefreshToken) (2026-03-25)
 - [ ] 6.3: JWT Middleware (Issue + Verify + Refresh)
 - [ ] 6.4: Sign in with Apple Endpoint
 - [ ] 6.5: iOS Auth Flow (Sign in with Apple → Backend → Keychain)

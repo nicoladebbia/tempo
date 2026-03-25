@@ -88,8 +88,10 @@ func configure(_ app: Application) async throws {
     app.middleware.use(ErrorMiddleware.default(environment: app.environment))
 
     // ─────────────────────────────────────────────────
-    // 7. Migrations (registered in step 6.2+)
+    // 7. Migrations (order matters: parent tables first)
     // ─────────────────────────────────────────────────
+    app.migrations.add(CreateUsers())
+    app.migrations.add(CreateRefreshTokens())
 
     // Auto-migrate in development
     if app.environment == .development {
