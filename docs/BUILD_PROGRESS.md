@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 1 in progress
 > **Total steps:** 124
-> **Completed:** 12 / 124 (10%)
+> **Completed:** 14 / 124 (11%)
 
 ---
 
@@ -26,8 +26,8 @@
 
 - [x] 1.1: User Models (UserProfile, UserSettings) (2026-03-25)
 - [x] 1.2: Dashboard Models (DailySnapshot) (2026-03-25)
-- [ ] 1.3: Training Models
-- [ ] 1.4: Accountability Models
+- [x] 1.3: Training Models (2026-03-25)
+- [x] 1.4: Accountability Models (2026-03-25)
 - [ ] 1.5: Recovery Models
 - [ ] 1.6: Arena Models
 - [ ] 1.7: Sync Models
