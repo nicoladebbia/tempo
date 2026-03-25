@@ -1,0 +1,123 @@
+import Foundation
+
+// MARK: - WorkoutType
+
+enum WorkoutType: String, Codable, CaseIterable, Sendable {
+    case push
+    case pull
+    case legs
+    case upper
+    case lower
+    case fullBody = "full_body"
+    case football
+    case run
+    case sprint
+    case conditioning
+    case mobility
+    case rest
+
+    var displayName: String {
+        switch self {
+        case .push: "Push"
+        case .pull: "Pull"
+        case .legs: "Legs"
+        case .upper: "Upper"
+        case .lower: "Lower"
+        case .fullBody: "Full Body"
+        case .football: "Football"
+        case .run: "Run"
+        case .sprint: "Sprint"
+        case .conditioning: "Conditioning"
+        case .mobility: "Mobility"
+        case .rest: "Rest"
+        }
+    }
+
+    var isGymWorkout: Bool {
+        switch self {
+        case .push, .pull, .legs, .upper, .lower, .fullBody: true
+        default: false
+        }
+    }
+}
+
+// MARK: - WorkoutStatus
+
+enum WorkoutStatus: String, Codable, CaseIterable, Sendable {
+    case planned
+    case inProgress = "in_progress"
+    case completed
+    case skipped
+
+    var isTerminal: Bool {
+        self == .completed || self == .skipped
+    }
+}
+
+// MARK: - MuscleGroup
+
+enum MuscleGroup: String, Codable, CaseIterable, Sendable {
+    case chest
+    case back
+    case shoulders
+    case biceps
+    case triceps
+    case forearms
+    case quads
+    case hamstrings
+    case glutes
+    case calves
+    case core
+    case fullBody = "full_body"
+    case cardio
+
+    var displayName: String {
+        switch self {
+        case .fullBody: "Full Body"
+        default: rawValue.capitalized
+        }
+    }
+}
+
+// MARK: - Equipment
+
+enum Equipment: String, Codable, CaseIterable, Sendable {
+    case barbell
+    case dumbbell
+    case cable
+    case machine
+    case bodyweight
+    case kettlebell
+    case resistanceBand = "resistance_band"
+    case smithMachine = "smith_machine"
+    case ezBar = "ez_bar"
+    case trapBar = "trap_bar"
+    case pullUpBar = "pull_up_bar"
+    case bench
+    case none
+}
+
+// MARK: - MovementPattern
+
+enum MovementPattern: String, Codable, CaseIterable, Sendable {
+    case horizontalPush = "horizontal_push"
+    case horizontalPull = "horizontal_pull"
+    case verticalPush = "vertical_push"
+    case verticalPull = "vertical_pull"
+    case squat
+    case hinge
+    case lunge
+    case carry
+    case isolation
+    case rotation
+    case plank
+    case cardio
+}
+
+// MARK: - PRType
+
+enum PRType: String, Codable, CaseIterable, Sendable {
+    case oneRepMax = "1rm"
+    case repMax = "rep_max"
+    case volume
+}

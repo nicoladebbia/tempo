@@ -1,9 +1,9 @@
 # Tempo Build Progress
 
 > **Last updated:** 2026-03-24
-> **Current phase:** Not started
+> **Current phase:** Phase 0 complete, starting Phase 1
 > **Total steps:** 124
-> **Completed:** 9 / 124 (7%)
+> **Completed:** 10 / 124 (8%)
 
 ---
 
@@ -19,7 +19,7 @@
 - [x] 0.7: Set Up SwiftLint + SwiftFormat (2026-03-25)
 - [x] 0.8: Create Vapor Backend Project (2026-03-25)
 - [x] 0.9: Set Up Docker Compose (PostgreSQL + Redis) (2026-03-25)
-- [ ] 0.10: Create Shared Enums and Constants (iOS)
+- [x] 0.10: Create Shared Enums and Constants (iOS) (2026-03-25)
 
 ## Phase 1: Data Models (iOS)
 **Goal:** Create all SwiftData models, schema configuration, migration plan, and exercise seed data.
