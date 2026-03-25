@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 7 next
 > **Total steps:** 124
-> **Completed:** 75 / 124 (60%)
+> **Completed:** 76 / 124 (61%)
 
 ---
 
@@ -117,7 +117,7 @@
 - [x] 8.1: Recovery Engine (Real Implementation) (2026-03-25)
 - [x] 8.2: Recovery ViewModel (2026-03-25)
 - [x] 8.3: RecoveryTodayView (2026-03-25)
-- [ ] 8.4: SleepDetailView + StrainDetailView
+- [x] 8.4: SleepDetailView + StrainDetailView (2026-03-25)
 - [ ] 8.5: RecoveryTrendsView
 - [ ] 8.6: Recovery Tab Container
 
