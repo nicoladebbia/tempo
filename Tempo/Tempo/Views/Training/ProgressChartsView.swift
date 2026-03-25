@@ -203,7 +203,7 @@ struct ProgressChartsView: View {
     private var exercisesTab: some View {
         let exercisesWithHistory = exercises.filter { ($0.history?.isEmpty ?? true) == false }
 
-        return VStack(spacing: TempoSpacing.sm) {
+        return LazyVStack(spacing: TempoSpacing.sm) {
             if exercisesWithHistory.isEmpty {
                 VStack(spacing: TempoSpacing.md) {
                     Spacer().frame(height: 80)

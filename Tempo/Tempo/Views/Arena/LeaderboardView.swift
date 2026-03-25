@@ -25,7 +25,7 @@ struct LeaderboardView: View {
                 emptyState
             } else {
                 ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 0) {
+                    LazyVStack(spacing: 0) {
                         if rankings.count >= 3 {
                             podiumView
                         }
@@ -118,7 +118,7 @@ struct LeaderboardView: View {
     // Per WIREFRAMES.md Screen 37 — 56pt rows, movement arrows.
 
     private var rankedList: some View {
-        VStack(spacing: 0) {
+        LazyVStack(spacing: 0) {
             ForEach(rankings.dropFirst(3)) { entry in
                 HStack(spacing: TempoSpacing.sm) {
                     // Rank
