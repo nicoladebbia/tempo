@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 7 next
 > **Total steps:** 124
-> **Completed:** 77 / 124 (62%)
+> **Completed:** 78 / 124 (63%)
 
 ---
 
@@ -119,7 +119,7 @@
 - [x] 8.3: RecoveryTodayView (2026-03-25)
 - [x] 8.4: SleepDetailView + StrainDetailView (2026-03-25)
 - [x] 8.5: RecoveryTrendsView (2026-03-25)
-- [ ] 8.6: Recovery Tab Container
+- [x] 8.6: Recovery Tab Container (2026-03-25)
 
 ## Phase 9: Training Module
 **Goal:** Build the Training Engine, workout logging, exercise library, and connect to Dashboard.

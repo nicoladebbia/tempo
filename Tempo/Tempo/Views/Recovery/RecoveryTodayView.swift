@@ -303,7 +303,7 @@ struct RecoveryTodayView: View {
             // Recovery Trends Teaser
             if let avg = viewModel.avgRecovery7d {
                 NavigationLink {
-                    Text("Recovery Trends") // Placeholder — built in step 8.5
+                    RecoveryTrendsView(viewModel: viewModel)
                 } label: {
                     insightCard(
                         icon: "chart.line.uptrend.xyaxis",
@@ -318,7 +318,7 @@ struct RecoveryTodayView: View {
             // Sleep Teaser
             if viewModel.todayRecovery?.sleepHours != nil {
                 NavigationLink {
-                    Text("Sleep Detail") // Placeholder — built in step 8.4
+                    SleepDetailView(viewModel: viewModel)
                 } label: {
                     insightCard(
                         icon: "moon.zzz.fill",
@@ -333,7 +333,7 @@ struct RecoveryTodayView: View {
             // Strain Teaser
             if viewModel.todayRecovery?.strain != nil {
                 NavigationLink {
-                    Text("Strain Detail") // Placeholder — built in step 8.4
+                    StrainDetailView(viewModel: viewModel)
                 } label: {
                     insightCard(
                         icon: "flame.fill",
