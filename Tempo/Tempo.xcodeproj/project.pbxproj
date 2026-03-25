@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		3CDADF7F0E8CF5D819573198 /* TempoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE37B2DC31D748FD529F6B6B /* TempoApp.swift */; };
+		6E31DC3FD1E53D9CD7142969 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9284B1CA6F61A72512C3CB18 /* Assets.xcassets */; };
 		772BD3105B7AB5A996B536FB /* TempoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7995A9B6697165811DE09D5 /* TempoTests.swift */; };
 		78D431FC734932DC2397F4AB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 19BD6B0F4B6E8C72E51A9764 /* Assets.xcassets */; };
 		9573B28ABEDA1B18CE629AC4 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43DB6BEFC11B05818008A600 /* ContentView.swift */; };
@@ -33,18 +34,187 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		001CF84AC3DC22E5C8471149 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		0274EF643686CCE017A0F2B5 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		03A6CC1D4170A8584FAA5ED4 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		055EB01D4176D858710B980E /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		0A204D65048A4208AED4B31F /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		0AF2DF3F21453C02874A0EF5 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		0C3EFB225FA58990434E2111 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		15E65DDB86BE2EE496CAFD6E /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		197BFE06C76FB8264329C485 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		19BD6B0F4B6E8C72E51A9764 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		1B3C392B77F5DB78F4E43ADA /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		201B96536E7ACDD0996AEDE5 /* TempoUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TempoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		2C81692E352CAC4BABD99F32 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		37772590FDF7609BE7A5D5A0 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		43DB6BEFC11B05818008A600 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		501F8E8E3FD5CC7F4C68EAAF /* TempoUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoUITests.swift; sourceTree = "<group>"; };
+		504F36623C169DBC0D2B6007 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		57A2FF2DEF8D7E795DC9A975 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		60D0974C719EF6B60CDABF5D /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		65D7A538CE0A98C67A1E209A /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		6CA68962D0F3CB898FCE2B06 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		74C3F68731BE06299EE41DB4 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		7E1559B7E21E10BCE19326D2 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		849F1BE4C49918B7FC7F322D /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		864E0D966C8D2001B0A15E57 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		9284B1CA6F61A72512C3CB18 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		9354789CD22E8064188D8E5B /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		9BA725894165E147EB72A7CE /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		9D48DD7160B7A6B14420A77F /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		A31496282C73D8993EE5235D /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		A587D1123A8A6F8AAA57223B /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		A91643404852BD885F51A3FA /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		AC12674070337FB9C56B2782 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		ADF974CCFA6B9334127BA4CB /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		AE6263597B3354C508BBC7D4 /* Tempo.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Tempo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C61EBCBD5D8D5E3F4F5C7F42 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		C7995A9B6697165811DE09D5 /* TempoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoTests.swift; sourceTree = "<group>"; };
+		D0D41E880144A54E4F98100F /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		D4D37C5EFDD7E4BD6CE229FA /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		D57F97E834A8A30DB9CAE89B /* TempoTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TempoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		DA4C93C8A577191E2114B0A7 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		DC38A77AD620A2A05751C266 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		DE37B2DC31D748FD529F6B6B /* TempoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoApp.swift; sourceTree = "<group>"; };
+		E13F8115D0C5DF2208B49EE9 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		E207CFE8A1C998700CF165B2 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		E48EFB1AFEE4717EC2A91B77 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		EC8FF130C410702CD4EB3ECC /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		EDE277CDEFE92824736D57A9 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		EFC3245FEE0EA4FF71654A46 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		F2DCF3CD46C5AFFDA584B7E3 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
+		0271089951DC7FF9C0B35A81 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				FB97A3177C9D2F3CCC6B81D0 /* Auth */,
+				CC04A5022FD7321D543B4460 /* Engines */,
+				FA54DF6F53F9C10BE1962D50 /* Health */,
+				4CAB1E2B452DD0C7276C12A4 /* Integrations */,
+				439CA9F607270E0399D7E979 /* Network */,
+				3E9652389F9D3A3F6DCD4526 /* Notifications */,
+				0507482A320CCF57C02F4F77 /* Sync */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		04499B50E1A57E80057DCCD0 /* Extensions */ = {
+			isa = PBXGroup;
+			children = (
+				F2DCF3CD46C5AFFDA584B7E3 /* .gitkeep */,
+			);
+			path = Extensions;
+			sourceTree = "<group>";
+		};
+		0507482A320CCF57C02F4F77 /* Sync */ = {
+			isa = PBXGroup;
+			children = (
+				D0D41E880144A54E4F98100F /* .gitkeep */,
+			);
+			path = Sync;
+			sourceTree = "<group>";
+		};
+		089FAF50CEDDFCEFAEF70EFE /* Sync */ = {
+			isa = PBXGroup;
+			children = (
+				ADF974CCFA6B9334127BA4CB /* .gitkeep */,
+			);
+			path = Sync;
+			sourceTree = "<group>";
+		};
+		181268F22813BBDB9BA6A322 /* DTOs */ = {
+			isa = PBXGroup;
+			children = (
+				849F1BE4C49918B7FC7F322D /* .gitkeep */,
+			);
+			path = DTOs;
+			sourceTree = "<group>";
+		};
+		1F960DF24DBA03D85E005D27 /* Dashboard */ = {
+			isa = PBXGroup;
+			children = (
+				AC12674070337FB9C56B2782 /* .gitkeep */,
+			);
+			path = Dashboard;
+			sourceTree = "<group>";
+		};
+		23C2B42F4B640082F447FC60 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				DC38A77AD620A2A05751C266 /* .gitkeep */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		273DFB2AE9CD8DBB554858BB /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				E62426B3C24B8DF1C9014AD6 /* Constants */,
+				04499B50E1A57E80057DCCD0 /* Extensions */,
+				2B41682D94A27DF2C4332E5A /* Helpers */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
+		2B41682D94A27DF2C4332E5A /* Helpers */ = {
+			isa = PBXGroup;
+			children = (
+				65D7A538CE0A98C67A1E209A /* .gitkeep */,
+			);
+			path = Helpers;
+			sourceTree = "<group>";
+		};
+		386F157363A5F11730DF83A1 /* Engines */ = {
+			isa = PBXGroup;
+			children = (
+				A31496282C73D8993EE5235D /* .gitkeep */,
+			);
+			path = Engines;
+			sourceTree = "<group>";
+		};
+		3D5F94494B6C4B4D9AD39706 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				C61EBCBD5D8D5E3F4F5C7F42 /* .gitkeep */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		3E9652389F9D3A3F6DCD4526 /* Notifications */ = {
+			isa = PBXGroup;
+			children = (
+				1B3C392B77F5DB78F4E43ADA /* .gitkeep */,
+			);
+			path = Notifications;
+			sourceTree = "<group>";
+		};
+		439CA9F607270E0399D7E979 /* Network */ = {
+			isa = PBXGroup;
+			children = (
+				DA4C93C8A577191E2114B0A7 /* .gitkeep */,
+			);
+			path = Network;
+			sourceTree = "<group>";
+		};
+		4CAB1E2B452DD0C7276C12A4 /* Integrations */ = {
+			isa = PBXGroup;
+			children = (
+				197BFE06C76FB8264329C485 /* .gitkeep */,
+			);
+			path = Integrations;
+			sourceTree = "<group>";
+		};
+		4E5746E40597BBF061926DE0 /* Training */ = {
+			isa = PBXGroup;
+			children = (
+				57A2FF2DEF8D7E795DC9A975 /* .gitkeep */,
+			);
+			path = Training;
+			sourceTree = "<group>";
+		};
 		551138FD8DA4B1DC4CE1CC90 /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -55,12 +225,73 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		58C974B8052C892FE255A8ED /* Arena */ = {
+			isa = PBXGroup;
+			children = (
+				9354789CD22E8064188D8E5B /* .gitkeep */,
+			);
+			path = Arena;
+			sourceTree = "<group>";
+		};
 		5ABE29F9C60E86484C7813E7 /* TempoTests */ = {
 			isa = PBXGroup;
 			children = (
+				386F157363A5F11730DF83A1 /* Engines */,
+				A33F5E951CA3D924989151AD /* Helpers */,
+				7121529E2A8CDBB076A861A5 /* Mocks */,
+				CCA26EABDFE127FB1B146E30 /* Models */,
+				23C2B42F4B640082F447FC60 /* Services */,
 				C7995A9B6697165811DE09D5 /* TempoTests.swift */,
 			);
 			path = TempoTests;
+			sourceTree = "<group>";
+		};
+		7121529E2A8CDBB076A861A5 /* Mocks */ = {
+			isa = PBXGroup;
+			children = (
+				9D48DD7160B7A6B14420A77F /* .gitkeep */,
+			);
+			path = Mocks;
+			sourceTree = "<group>";
+		};
+		7F516DAC51925D742D471E2E /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				74C3F68731BE06299EE41DB4 /* .gitkeep */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		85C9D42770F09572CAC332F1 /* Recovery */ = {
+			isa = PBXGroup;
+			children = (
+				504F36623C169DBC0D2B6007 /* .gitkeep */,
+			);
+			path = Recovery;
+			sourceTree = "<group>";
+		};
+		86959531DF9F97004E979090 /* Recovery */ = {
+			isa = PBXGroup;
+			children = (
+				0AF2DF3F21453C02874A0EF5 /* .gitkeep */,
+			);
+			path = Recovery;
+			sourceTree = "<group>";
+		};
+		8A9F5F50DBBC920EBF7F2EA1 /* Arena */ = {
+			isa = PBXGroup;
+			children = (
+				0A204D65048A4208AED4B31F /* .gitkeep */,
+			);
+			path = Arena;
+			sourceTree = "<group>";
+		};
+		8D44F0B62D3587502F42F5C6 /* Training */ = {
+			isa = PBXGroup;
+			children = (
+				0274EF643686CCE017A0F2B5 /* .gitkeep */,
+			);
+			path = Training;
 			sourceTree = "<group>";
 		};
 		93935E517C8A0946CFCF7B9D = {
@@ -76,12 +307,28 @@
 		93A5DFF654AA0B833311F529 /* Tempo */ = {
 			isa = PBXGroup;
 			children = (
+				3D5F94494B6C4B4D9AD39706 /* App */,
+				F2E25CBB19CF85D33900DC08 /* Configuration */,
+				ABBE21625EFB4A1FDCE539D7 /* Models */,
 				99131CD8B66B5127C41F63C8 /* Preview Content */,
+				CBB251C59BDF7F2D8D8D7076 /* Resources */,
+				0271089951DC7FF9C0B35A81 /* Services */,
+				273DFB2AE9CD8DBB554858BB /* Utilities */,
+				9530035B747CE9C349DDC016 /* ViewModels */,
+				DBAD0BDBDA5FA9B5AA68E493 /* Views */,
 				19BD6B0F4B6E8C72E51A9764 /* Assets.xcassets */,
 				43DB6BEFC11B05818008A600 /* ContentView.swift */,
 				DE37B2DC31D748FD529F6B6B /* TempoApp.swift */,
 			);
 			path = Tempo;
+			sourceTree = "<group>";
+		};
+		9530035B747CE9C349DDC016 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				EDE277CDEFE92824736D57A9 /* .gitkeep */,
+			);
+			path = ViewModels;
 			sourceTree = "<group>";
 		};
 		99131CD8B66B5127C41F63C8 /* Preview Content */ = {
@@ -92,12 +339,216 @@
 			path = "Preview Content";
 			sourceTree = "<group>";
 		};
+		A33F5E951CA3D924989151AD /* Helpers */ = {
+			isa = PBXGroup;
+			children = (
+				2C81692E352CAC4BABD99F32 /* .gitkeep */,
+			);
+			path = Helpers;
+			sourceTree = "<group>";
+		};
+		A57951C1A0F7C42F32650B3C /* Modifiers */ = {
+			isa = PBXGroup;
+			children = (
+				7E1559B7E21E10BCE19326D2 /* .gitkeep */,
+			);
+			path = Modifiers;
+			sourceTree = "<group>";
+		};
+		A9B21CDDDC459E1B262977BD /* Accountability */ = {
+			isa = PBXGroup;
+			children = (
+				EC8FF130C410702CD4EB3ECC /* .gitkeep */,
+			);
+			path = Accountability;
+			sourceTree = "<group>";
+		};
+		AA5F2C0BF625D7926B44A85E /* Accountability */ = {
+			isa = PBXGroup;
+			children = (
+				60D0974C719EF6B60CDABF5D /* .gitkeep */,
+			);
+			path = Accountability;
+			sourceTree = "<group>";
+		};
+		ABBE21625EFB4A1FDCE539D7 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				A9B21CDDDC459E1B262977BD /* Accountability */,
+				58C974B8052C892FE255A8ED /* Arena */,
+				FA66DDCF705BAB597F1E2130 /* Dashboard */,
+				181268F22813BBDB9BA6A322 /* DTOs */,
+				C55ABF63140950B56E270F83 /* Enums */,
+				C7AC69E33C7B1AFE12900345 /* Integrations */,
+				86959531DF9F97004E979090 /* Recovery */,
+				C9557865DD5FA730D0CFA7C8 /* Schema */,
+				B5D88FF7BF8D87AF674FD4A9 /* SharedTypes */,
+				089FAF50CEDDFCEFAEF70EFE /* Sync */,
+				8D44F0B62D3587502F42F5C6 /* Training */,
+				B9323560168DD620A3DA3F4C /* User */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		ACE429247B6532EFCFB454D9 /* Styles */ = {
+			isa = PBXGroup;
+			children = (
+				E207CFE8A1C998700CF165B2 /* .gitkeep */,
+			);
+			path = Styles;
+			sourceTree = "<group>";
+		};
+		ADE5044FB977DE22691B7A9B /* Sounds */ = {
+			isa = PBXGroup;
+			children = (
+				A587D1123A8A6F8AAA57223B /* .gitkeep */,
+			);
+			path = Sounds;
+			sourceTree = "<group>";
+		};
+		B5D88FF7BF8D87AF674FD4A9 /* SharedTypes */ = {
+			isa = PBXGroup;
+			children = (
+				15E65DDB86BE2EE496CAFD6E /* .gitkeep */,
+			);
+			path = SharedTypes;
+			sourceTree = "<group>";
+		};
+		B9323560168DD620A3DA3F4C /* User */ = {
+			isa = PBXGroup;
+			children = (
+				D4D37C5EFDD7E4BD6CE229FA /* .gitkeep */,
+			);
+			path = User;
+			sourceTree = "<group>";
+		};
+		C55ABF63140950B56E270F83 /* Enums */ = {
+			isa = PBXGroup;
+			children = (
+				864E0D966C8D2001B0A15E57 /* .gitkeep */,
+			);
+			path = Enums;
+			sourceTree = "<group>";
+		};
+		C7AC69E33C7B1AFE12900345 /* Integrations */ = {
+			isa = PBXGroup;
+			children = (
+				03A6CC1D4170A8584FAA5ED4 /* .gitkeep */,
+			);
+			path = Integrations;
+			sourceTree = "<group>";
+		};
+		C9557865DD5FA730D0CFA7C8 /* Schema */ = {
+			isa = PBXGroup;
+			children = (
+				055EB01D4176D858710B980E /* .gitkeep */,
+			);
+			path = Schema;
+			sourceTree = "<group>";
+		};
+		CBB251C59BDF7F2D8D8D7076 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				ADE5044FB977DE22691B7A9B /* Sounds */,
+				9284B1CA6F61A72512C3CB18 /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		CC04A5022FD7321D543B4460 /* Engines */ = {
+			isa = PBXGroup;
+			children = (
+				EFC3245FEE0EA4FF71654A46 /* .gitkeep */,
+			);
+			path = Engines;
+			sourceTree = "<group>";
+		};
+		CCA26EABDFE127FB1B146E30 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				37772590FDF7609BE7A5D5A0 /* .gitkeep */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		D6F80100CE88427BBBF6CD7E /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				7F516DAC51925D742D471E2E /* Components */,
+				A57951C1A0F7C42F32650B3C /* Modifiers */,
+				ACE429247B6532EFCFB454D9 /* Styles */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		DBAD0BDBDA5FA9B5AA68E493 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				AA5F2C0BF625D7926B44A85E /* Accountability */,
+				8A9F5F50DBBC920EBF7F2EA1 /* Arena */,
+				1F960DF24DBA03D85E005D27 /* Dashboard */,
+				F02121855FE945EC7475F95A /* Onboarding */,
+				85C9D42770F09572CAC332F1 /* Recovery */,
+				D6F80100CE88427BBBF6CD7E /* Shared */,
+				4E5746E40597BBF061926DE0 /* Training */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
 		E3628503959B5D948C0F29B7 /* TempoUITests */ = {
 			isa = PBXGroup;
 			children = (
 				501F8E8E3FD5CC7F4C68EAAF /* TempoUITests.swift */,
 			);
 			path = TempoUITests;
+			sourceTree = "<group>";
+		};
+		E62426B3C24B8DF1C9014AD6 /* Constants */ = {
+			isa = PBXGroup;
+			children = (
+				001CF84AC3DC22E5C8471149 /* .gitkeep */,
+			);
+			path = Constants;
+			sourceTree = "<group>";
+		};
+		F02121855FE945EC7475F95A /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				9BA725894165E147EB72A7CE /* .gitkeep */,
+			);
+			path = Onboarding;
+			sourceTree = "<group>";
+		};
+		F2E25CBB19CF85D33900DC08 /* Configuration */ = {
+			isa = PBXGroup;
+			children = (
+				0C3EFB225FA58990434E2111 /* .gitkeep */,
+			);
+			path = Configuration;
+			sourceTree = "<group>";
+		};
+		FA54DF6F53F9C10BE1962D50 /* Health */ = {
+			isa = PBXGroup;
+			children = (
+				E13F8115D0C5DF2208B49EE9 /* .gitkeep */,
+			);
+			path = Health;
+			sourceTree = "<group>";
+		};
+		FA66DDCF705BAB597F1E2130 /* Dashboard */ = {
+			isa = PBXGroup;
+			children = (
+				6CA68962D0F3CB898FCE2B06 /* .gitkeep */,
+			);
+			path = Dashboard;
+			sourceTree = "<group>";
+		};
+		FB97A3177C9D2F3CCC6B81D0 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				E48EFB1AFEE4717EC2A91B77 /* .gitkeep */,
+			);
+			path = Auth;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -205,6 +656,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				78D431FC734932DC2397F4AB /* Assets.xcassets in Resources */,
+				6E31DC3FD1E53D9CD7142969 /* Assets.xcassets in Resources */,
 				AAA3DFCFB482F225B2312138 /* Preview Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
