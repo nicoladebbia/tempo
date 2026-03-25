@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 12 next
 > **Total steps:** 124
-> **Completed:** 113 / 124 (91%)
+> **Completed:** 114 / 124 (92%)
 
 ---
 
@@ -195,7 +195,7 @@
 **Goal:** Create Watch app target and build workout logging, timers, and complications.
 
 - [x] 18.1: Watch App Target Setup ✅ 2026-03-25
-- [ ] 18.2: Watch Workout Logging + Timer
+- [x] 18.2: Watch Workout Logging + Timer ✅ 2026-03-25
 
 ## Phase 19: Polish and Testing
 **Goal:** Audit dark mode and Dynamic Type, polish animations/haptics/sounds, write unit and UI tests, profile performance.

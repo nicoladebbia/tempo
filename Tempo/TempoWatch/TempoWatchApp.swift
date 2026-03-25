@@ -1,8 +1,8 @@
 import SwiftUI
 
 // MARK: - Tempo Watch App
-// Per APPLE_WATCH_APP.md Section 1 — Companion Watch app entry point.
-// Per XCODE_PROJECT_STRUCTURE.md Section 11.4
+// Per APPLE_WATCH_APP.md Section 3.1 — NavigationStack with vertically-paging TabView.
+// 5 pages: Glance, Workout, Focus Timer, Quick Log, Recovery.
 
 @main
 struct TempoWatchApp: App {
@@ -10,7 +10,14 @@ struct TempoWatchApp: App {
 
     var body: some Scene {
         WindowGroup {
-            GlanceHomeView(connectivity: connectivityService)
+            TabView {
+                GlanceHomeView(connectivity: connectivityService)
+                WorkoutView(connectivity: connectivityService)
+                FocusTimerView(connectivity: connectivityService)
+                QuickLogView(connectivity: connectivityService)
+                RecoveryView(connectivity: connectivityService)
+            }
+            .tabViewStyle(.verticalPage)
         }
     }
 }
