@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 12 next
 > **Total steps:** 124
-> **Completed:** 102 / 124 (82%)
+> **Completed:** 103 / 124 (83%)
 
 ---
 
@@ -164,7 +164,7 @@
 ## Phase 13: Calendar Integration
 **Goal:** Implement real Calendar/EventKit service and connect football/exam detection to Training and Accountability.
 
-- [ ] 13.1: Calendar Service (Real Implementation)
+- [x] 13.1: Calendar Service (Real Implementation) (2026-03-25)
 - [ ] 13.2: Connect Calendar to Training + Accountability + Dashboard
 
 ## Phase 14: Arena Module

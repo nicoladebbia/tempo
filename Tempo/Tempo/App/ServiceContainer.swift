@@ -80,7 +80,7 @@ final class ServiceContainer {
             healthKit: HealthKitService(),
             whoop: WhoopService(apiClient: apiClient),
             nutriTrack: NutriTrackService(apiClient: apiClient),
-            calendar: MockCalendarService(),
+            calendar: CalendarService(),
             notifications: NotificationService(),
             trainingEngine: TrainingEngine(),
             recoveryEngine: RecoveryEngine(),
