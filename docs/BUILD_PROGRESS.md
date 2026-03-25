@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 12 next
 > **Total steps:** 124
-> **Completed:** 110 / 124 (89%)
+> **Completed:** 111 / 124 (90%)
 
 ---
 
@@ -188,7 +188,7 @@
 ## Phase 17: Widgets
 **Goal:** Create widget extension target and build small, medium, large, and lock screen widgets.
 
-- [ ] 17.1: Widget Extension Target Setup
+- [x] 17.1: Widget Extension Target Setup ✅ 2026-03-25
 - [ ] 17.2: Small + Medium + Large Widgets
 
 ## Phase 18: Apple Watch
