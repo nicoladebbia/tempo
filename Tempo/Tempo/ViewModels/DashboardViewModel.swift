@@ -353,14 +353,15 @@ final class DashboardViewModel {
     }
 
     // MARK: - Refresh
+    // Per DATA_FLOW_ARCHITECTURE.md Section 2.1 — fetch from all sources concurrently.
+    // HealthKit data is real; Whoop/NutriTrack via their service protocols.
+    // Body quadrant: Whoop primary, HealthKit fallback for sleep/HRV/RHR.
+    // Move quadrant: real steps, energy, workouts, HR from HealthKit.
 
     func refresh() async {
         loadState = .loading
 
         do {
-            // Simulate network delay for stubs
-            try await Task.sleep(for: .seconds(1))
-
             let today = Date()
 
             // Fetch all data sources concurrently
@@ -370,28 +371,43 @@ final class DashboardViewModel {
             async let hkSteps = healthKit.fetchSteps(for: today)
             async let hkActiveEnergy = healthKit.fetchActiveEnergy(for: today)
             async let hkHeartRate = healthKit.fetchHeartRate(for: today)
+            async let hkHRV = healthKit.fetchHRV(for: today)
+            async let hkRHR = healthKit.fetchRestingHeartRate(for: today)
+            async let hkSleep = healthKit.fetchSleepAnalysis(for: today)
+            async let hkWorkouts = healthKit.fetchWorkouts(for: today)
             async let nutriData = nutriTrack.fetchTodayMeals()
 
             let recovery = try await whoopRecovery
-            let sleep = try await whoopSleep
+            let whoopSleepData = try await whoopSleep
             let cycle = try await whoopCycle
             let steps = try await hkSteps
             let energy = try await hkActiveEnergy
             let heartRates = try await hkHeartRate
+            let hrv = try await hkHRV
+            let rhr = try await hkRHR
+            let hkSleepData = try await hkSleep
+            let workouts = try await hkWorkouts
             let meals = try await nutriData
 
             let now = Date()
+            let healthKitConnected = steps > 0 || !heartRates.isEmpty || hrv != nil
 
             // Build Body quadrant
+            // Per INTEGRATION_SPECS.md: Whoop primary for recovery/HRV/RHR, HealthKit fallback.
+            let sleepHours = whoopSleepData.totalHours > 0 ? whoopSleepData.totalHours : hkSleepData.totalHours
+            let sleepPerf = whoopSleepData.sleepScore > 0 ? whoopSleepData.sleepScore : Double(hkSleepData.sleepScore)
+            let bodyHRV = recovery.hrvRmssd ?? hrv
+            let bodyRHR = recovery.restingHeartRate ?? rhr
+
             self.body = BodyQuadrantData(
                 recoveryScore: recovery.score,
-                hrv: recovery.hrvRmssd,
-                rhr: recovery.restingHeartRate,
-                sleepHours: sleep.totalHours,
-                sleepPerformance: sleep.sleepScore,
+                hrv: bodyHRV,
+                rhr: bodyRHR,
+                sleepHours: sleepHours > 0 ? sleepHours : nil,
+                sleepPerformance: sleepPerf > 0 ? sleepPerf : nil,
                 strain: cycle.dayStrain,
                 spo2: recovery.spo2,
-                isConnected: true,
+                isConnected: recovery.score != nil || healthKitConnected,
                 lastSync: now
             )
 
@@ -411,7 +427,7 @@ final class DashboardViewModel {
                 lastSync: now
             )
 
-            // Build Mind quadrant (local data — stub values)
+            // Build Mind quadrant (local data — stub values until Accountability module)
             self.mind = MindQuadrantData(
                 studyMinutesToday: 95,
                 studyTargetMinutes: 120,
@@ -422,27 +438,42 @@ final class DashboardViewModel {
                 ]
             )
 
-            // Build Move quadrant
+            // Build Move quadrant from real HealthKit data
             let latestHR = heartRates.last.map { Int($0.bpm) }
+            let todaysWorkout = workouts.first
+            let workoutStatus: DashboardWorkoutStatus
+            let workoutName: String?
+            let workoutDuration: Int?
+
+            if let workout = todaysWorkout {
+                workoutStatus = .completed
+                workoutName = workout.workoutType.capitalized
+                workoutDuration = Int(workout.durationMinutes)
+            } else {
+                workoutStatus = .none
+                workoutName = nil
+                workoutDuration = nil
+            }
+
             self.move = MoveQuadrantData(
-                workoutStatus: .completed,
-                workoutName: "Upper Body Push",
-                workoutDurationMinutes: 55,
+                workoutStatus: workoutStatus,
+                workoutName: workoutName,
+                workoutDurationMinutes: workoutDuration,
                 steps: steps,
                 stepsTarget: 10_000,
                 activeCalories: Int(energy),
                 heartRateCurrent: latestHR,
-                isConnected: true,
+                isConnected: healthKitConnected || !workouts.isEmpty,
                 lastSync: now
             )
 
-            // Build non-negotiables (stub data)
+            // Build non-negotiables (stub data until Accountability module)
             self.nonNegotiables = [
-                NonNegotiableItem(id: UUID(), title: "Morning workout", isCompleted: true, category: .body),
+                NonNegotiableItem(id: UUID(), title: "Morning workout", isCompleted: todaysWorkout != nil, category: .body),
                 NonNegotiableItem(id: UUID(), title: "Hit protein target", isCompleted: false, category: .fuel),
                 NonNegotiableItem(id: UUID(), title: "2h study session", isCompleted: false, category: .mind),
-                NonNegotiableItem(id: UUID(), title: "10k steps", isCompleted: true, category: .move),
-                NonNegotiableItem(id: UUID(), title: "8h sleep", isCompleted: true, category: .body),
+                NonNegotiableItem(id: UUID(), title: "10k steps", isCompleted: steps >= 10_000, category: .move),
+                NonNegotiableItem(id: UUID(), title: "8h sleep", isCompleted: sleepHours >= 8.0, category: .body),
             ]
 
             self.lastRefresh = now

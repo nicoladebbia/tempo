@@ -1,9 +1,9 @@
 # Tempo Build Progress
 
 > **Last updated:** 2026-03-25
-> **Current phase:** Phase 5 next
+> **Current phase:** Phase 6 next
 > **Total steps:** 124
-> **Completed:** 58 / 124 (47%)
+> **Completed:** 59 / 124 (48%)
 
 ---
 
@@ -88,7 +88,7 @@
 - [x] 5.5: Read Workouts (2026-03-25)
 - [x] 5.6: Background Delivery Setup (2026-03-25)
 - [x] 5.7: Write Workout Data to HealthKit (2026-03-25)
-- [ ] 5.8: Connect HealthKit Data to Dashboard
+- [x] 5.8: Connect HealthKit Data to Dashboard (2026-03-25)
 
 ## Phase 6: Backend Foundation
 **Goal:** Configure Vapor, create user/auth models, implement JWT auth, Sign in with Apple, rate limiting, and error handling.
