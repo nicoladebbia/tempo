@@ -1,14 +1,21 @@
 import Foundation
+import AuthenticationServices
+import CryptoKit
+
+// MARK: - Auth State
 
 enum AuthState: Sendable, Equatable {
     case unauthenticated
-    case authenticated(userID: UUID)
+    case authenticated(userID: String)
     case expired
 }
 
+// MARK: - Auth Service
+// Per BUILD_PLAN step 6.5 — Sign in with Apple → Backend → Keychain.
+
 @Observable
 @MainActor
-final class AuthService {
+final class AuthService: NSObject {
 
     private(set) var authState: AuthState = .unauthenticated
 
@@ -16,39 +23,127 @@ final class AuthService {
     private static let refreshTokenKey = "tempo.jwt.refresh"
     private static let userIDKey = "tempo.auth.userID"
 
-    init() {
+    private var apiClient: APIClient?
+    private var signInContinuation: CheckedContinuation<ASAuthorization, Error>?
+    private var currentNonce: String?
+
+    override init() {
+        super.init()
         restoreSession()
     }
 
-    // MARK: - Public API
-
-    func signInWithApple() async throws {
-        // Placeholder — real implementation in Phase 6 (step 6.5)
-        let mockAccessToken = "mock_access_token_\(UUID().uuidString)"
-        let mockRefreshToken = "mock_refresh_token_\(UUID().uuidString)"
-        let mockUserID = UUID()
-
-        try storeTokens(accessToken: mockAccessToken, refreshToken: mockRefreshToken)
-        try storeUserID(mockUserID)
-        authState = .authenticated(userID: mockUserID)
+    /// Wire up the API client after ServiceContainer is constructed.
+    func configure(apiClient: APIClient) {
+        self.apiClient = apiClient
     }
 
+    // MARK: - Sign in with Apple
+
+    func signInWithApple() async throws {
+        let nonce = generateNonce()
+        currentNonce = nonce
+        let hashedNonce = sha256(nonce)
+
+        let authorization = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<ASAuthorization, Error>) in
+            self.signInContinuation = continuation
+
+            let provider = ASAuthorizationAppleIDProvider()
+            let request = provider.createRequest()
+            request.requestedScopes = [.fullName, .email]
+            request.nonce = hashedNonce
+
+            let controller = ASAuthorizationController(authorizationRequests: [request])
+            controller.delegate = self
+            controller.performRequests()
+        }
+
+        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+              let identityTokenData = credential.identityToken,
+              let identityToken = String(data: identityTokenData, encoding: .utf8),
+              let authCodeData = credential.authorizationCode,
+              let authorizationCode = String(data: authCodeData, encoding: .utf8) else {
+            throw AuthError.invalidCredential
+        }
+
+        let firstName = credential.fullName?.givenName
+        let lastName = credential.fullName?.familyName
+
+        // Send to backend
+        guard let apiClient else { throw AuthError.notConfigured }
+
+        struct AppleSignInBody: Encodable, Sendable {
+            let identityToken: String
+            let authorizationCode: String
+            let firstName: String?
+            let lastName: String?
+            let nonce: String
+        }
+
+        let body = AppleSignInBody(
+            identityToken: identityToken,
+            authorizationCode: authorizationCode,
+            firstName: firstName,
+            lastName: lastName,
+            nonce: nonce
+        )
+
+        let response: AuthTokenResponse = try await apiClient.request(
+            .signInWithApple(),
+            body: body
+        )
+
+        // Store tokens in Keychain
+        try storeTokens(accessToken: response.accessToken, refreshToken: response.refreshToken)
+
+        // Decode user ID from JWT (sub claim)
+        let userID = decodeUserIDFromJWT(response.accessToken) ?? "unknown"
+        try storeUserID(userID)
+        authState = .authenticated(userID: userID)
+    }
+
+    // MARK: - Token Refresh
+
     func refreshToken() async throws -> String {
-        // Placeholder — real implementation in Phase 6 (step 6.3)
         guard case .authenticated = authState else {
             authState = .unauthenticated
             throw AuthError.notAuthenticated
         }
 
-        let newAccessToken = "refreshed_access_token_\(UUID().uuidString)"
-        try KeychainService.save(
-            key: Self.accessTokenKey,
-            data: Data(newAccessToken.utf8)
+        guard let storedRefresh = loadRefreshToken() else {
+            authState = .unauthenticated
+            throw AuthError.notAuthenticated
+        }
+
+        guard let apiClient else { throw AuthError.notConfigured }
+
+        struct RefreshBody: Encodable, Sendable {
+            let refreshToken: String
+        }
+
+        let response: AuthTokenResponse = try await apiClient.request(
+            .refreshToken(),
+            body: RefreshBody(refreshToken: storedRefresh)
         )
-        return newAccessToken
+
+        try storeTokens(accessToken: response.accessToken, refreshToken: response.refreshToken)
+        return response.accessToken
     }
 
-    func signOut() {
+    // MARK: - Sign Out
+
+    func signOut() async {
+        // Notify backend (best effort)
+        if let apiClient, let refreshTokenValue = loadRefreshToken() {
+            struct LogoutBody: Encodable, Sendable {
+                let refreshToken: String?
+                let allDevices: Bool?
+            }
+            _ = try? await apiClient.request(
+                APIEndpoint<EmptyResponse>.logout(),
+                body: LogoutBody(refreshToken: refreshTokenValue, allDevices: false)
+            )
+        }
+
         try? KeychainService.deleteAll()
         authState = .unauthenticated
     }
@@ -60,12 +155,11 @@ final class AuthService {
         return String(data: data, encoding: .utf8)
     }
 
-    // MARK: - Private
+    // MARK: - Private Helpers
 
     private func restoreSession() {
         guard let userIDData = KeychainService.load(key: Self.userIDKey),
-              let userIDString = String(data: userIDData, encoding: .utf8),
-              let userID = UUID(uuidString: userIDString),
+              let userID = String(data: userIDData, encoding: .utf8),
               KeychainService.load(key: Self.accessTokenKey) != nil else {
             authState = .unauthenticated
             return
@@ -78,12 +172,106 @@ final class AuthService {
         try KeychainService.save(key: Self.refreshTokenKey, data: Data(refreshToken.utf8))
     }
 
-    private func storeUserID(_ userID: UUID) throws {
-        try KeychainService.save(key: Self.userIDKey, data: Data(userID.uuidString.utf8))
+    private func storeUserID(_ userID: String) throws {
+        try KeychainService.save(key: Self.userIDKey, data: Data(userID.utf8))
     }
 
-    enum AuthError: Error {
+    private func loadRefreshToken() -> String? {
+        guard let data = KeychainService.load(key: Self.refreshTokenKey) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    /// Decode `sub` claim from JWT payload (base64url-encoded middle segment).
+    private func decodeUserIDFromJWT(_ jwt: String) -> String? {
+        let segments = jwt.split(separator: ".")
+        guard segments.count == 3 else { return nil }
+
+        var base64 = String(segments[1])
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        while base64.count % 4 != 0 { base64.append("=") }
+
+        guard let data = Data(base64Encoded: base64),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let sub = json["sub"] as? String else {
+            return nil
+        }
+        return sub
+    }
+
+    /// Generate a random nonce string.
+    private func generateNonce(length: Int = 32) -> String {
+        let charset = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
+        var result = ""
+        var remainingLength = length
+        while remainingLength > 0 {
+            let randoms: [UInt8] = (0..<16).map { _ in
+                var random: UInt8 = 0
+                _ = SecRandomCopyBytes(kSecRandomDefault, 1, &random)
+                return random
+            }
+            for random in randoms {
+                if remainingLength == 0 { break }
+                if random < charset.count {
+                    result.append(charset[Int(random)])
+                    remainingLength -= 1
+                }
+            }
+        }
+        return result
+    }
+
+    /// SHA-256 hash of a string, returned as hex.
+    private func sha256(_ input: String) -> String {
+        let data = Data(input.utf8)
+        let hash = SHA256.hash(data: data)
+        return hash.compactMap { String(format: "%02x", $0) }.joined()
+    }
+
+    // MARK: - Errors
+
+    enum AuthError: Error, LocalizedError {
         case notAuthenticated
+        case notConfigured
+        case invalidCredential
+        case signInCancelled
+
+        var errorDescription: String? {
+            switch self {
+            case .notAuthenticated: "Not authenticated."
+            case .notConfigured: "Auth service not configured."
+            case .invalidCredential: "Invalid Apple credential."
+            case .signInCancelled: "Sign in cancelled."
+            }
+        }
+    }
+}
+
+// MARK: - ASAuthorizationControllerDelegate
+
+extension AuthService: ASAuthorizationControllerDelegate {
+    nonisolated func authorizationController(
+        controller: ASAuthorizationController,
+        didCompleteWithAuthorization authorization: ASAuthorization
+    ) {
+        Task { @MainActor in
+            signInContinuation?.resume(returning: authorization)
+            signInContinuation = nil
+        }
+    }
+
+    nonisolated func authorizationController(
+        controller: ASAuthorizationController,
+        didCompleteWithError error: Error
+    ) {
+        Task { @MainActor in
+            if (error as? ASAuthorizationError)?.code == .canceled {
+                signInContinuation?.resume(throwing: AuthError.signInCancelled)
+            } else {
+                signInContinuation?.resume(throwing: error)
+            }
+            signInContinuation = nil
+        }
     }
 }
 

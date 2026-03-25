@@ -32,6 +32,12 @@ extension APIEndpoint where Response == AuthTokenResponse {
     }
 }
 
+extension APIEndpoint where Response == EmptyResponse {
+    static func logout() -> Self {
+        APIEndpoint(path: "/v1/auth/logout", method: .post, requiresAuth: true)
+    }
+}
+
 // MARK: - Sync Endpoints
 
 extension APIEndpoint where Response == SyncStatusResponse {
@@ -49,9 +55,10 @@ extension APIEndpoint where Response == SyncBatchResponse {
 // MARK: - Response DTOs (stubs — full definitions in later phases)
 
 struct AuthTokenResponse: Codable, Sendable {
-    let access_token: String
-    let refresh_token: String
-    let expires_in: Int
+    let accessToken: String
+    let refreshToken: String
+    let tokenType: String
+    let expiresIn: Int
 }
 
 struct SyncStatusResponse: Codable, Sendable {
