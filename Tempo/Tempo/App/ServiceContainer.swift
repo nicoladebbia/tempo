@@ -79,7 +79,7 @@ final class ServiceContainer {
             calendar: MockCalendarService(),
             notifications: MockNotificationService(),
             trainingEngine: MockTrainingEngine(),
-            recoveryEngine: MockRecoveryEngine(),
+            recoveryEngine: RecoveryEngine(),
             scoringEngine: MockScoringEngine(),
             xpEngine: MockXPEngine(),
             syncCoordinator: MockSyncCoordinator(),
