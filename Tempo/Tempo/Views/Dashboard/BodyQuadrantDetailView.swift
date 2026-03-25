@@ -76,38 +76,65 @@ struct BodyQuadrantDetailView: View {
     // Per MODULE_DASHBOARD.md Section 4.2 — Recovery Hero Section
 
     private var recoveryHeroSection: some View {
-        HStack(spacing: TempoSpacing.xl) {
-            // Recovery ring — 120pt
-            ZStack {
-                Circle()
-                    .stroke(Color.tempoBorder, style: StrokeStyle(lineWidth: 10, lineCap: .round))
-                if let score = data.recoveryScore {
-                    Circle()
-                        .trim(from: 0, to: score / 100)
-                        .stroke(
-                            zoneColor,
-                            style: StrokeStyle(lineWidth: 10, lineCap: .round)
-                        )
-                        .rotationEffect(.degrees(-90))
+        VStack(spacing: TempoSpacing.sm) {
+            // Data source badge
+            if data.dataSource != .none {
+                HStack(spacing: TempoSpacing.xs) {
+                    Image(systemName: data.dataSource == .whoop
+                          ? "sensor.tag.radiowaves.forward.fill"
+                          : "applewatch")
+                        .font(.tempoCaption2)
+                    Text(data.dataSource.rawValue)
+                        .font(.tempoCaption2)
                 }
-                Text(data.formattedRecovery)
-                    .font(.tempoScoreDisplay)
-                    .foregroundStyle(zoneColor)
-            }
-            .frame(width: 120, height: 120)
-
-            VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                Text("Recovery")
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoTextPrimary)
-
-                Text(recoveryQuip)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .italic()
+                .foregroundStyle(Color.tempoTextTertiary)
+                .padding(.horizontal, TempoSpacing.sm)
+                .padding(.vertical, 4)
+                .background(Color.tempoSurfaceCard)
+                .clipShape(Capsule())
+                .frame(maxWidth: .infinity, alignment: .trailing)
             }
 
-            Spacer()
+            HStack(spacing: TempoSpacing.xl) {
+                // Recovery ring — 120pt
+                ZStack {
+                    Circle()
+                        .stroke(Color.tempoBorder, style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                    if let score = data.recoveryScore {
+                        Circle()
+                            .trim(from: 0, to: score / 100)
+                            .stroke(
+                                zoneColor,
+                                style: StrokeStyle(lineWidth: 10, lineCap: .round)
+                            )
+                            .rotationEffect(.degrees(-90))
+                    }
+                    Text(data.formattedRecovery)
+                        .font(.tempoScoreDisplay)
+                        .foregroundStyle(zoneColor)
+                }
+                .frame(width: 120, height: 120)
+
+                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+                    Text("Recovery")
+                        .font(.tempoTitle3)
+                        .foregroundStyle(Color.tempoTextPrimary)
+
+                    Text(recoveryQuip)
+                        .font(.tempoBody)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                        .italic()
+
+                    // CTA when using HealthKit fallback (no Whoop recovery score)
+                    if data.dataSource == .healthKit && data.recoveryScore == nil {
+                        Text("Connect Whoop for full recovery data")
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoSignal)
+                    }
+                }
+
+                Spacer()
+            }
         }
         .padding(.top, TempoSpacing.lg)
     }
@@ -503,7 +530,8 @@ struct SemiCircleArc: Shape {
             data: BodyQuadrantData(
                 recoveryScore: 72, hrv: 48, rhr: 62, sleepHours: 7.2,
                 sleepPerformance: 78, strain: 12.4, spo2: 97.5,
-                isConnected: true, lastSync: Date()
+                isConnected: true, lastSync: Date(),
+                dataSource: .whoop
             )
         )
     }

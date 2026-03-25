@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 7 next
 > **Total steps:** 124
-> **Completed:** 70 / 124 (56%)
+> **Completed:** 71 / 124 (57%)
 
 ---
 
@@ -108,7 +108,7 @@
 - [x] 7.2: Whoop Data Proxy Endpoints (2026-03-25)
 - [x] 7.3: Whoop Webhook Receiver (2026-03-25)
 - [x] 7.4: iOS Whoop Service (Real Implementation) (2026-03-25)
-- [ ] 7.5: Connect Whoop Data to Dashboard Body Quadrant
+- [x] 7.5: Connect Whoop Data to Dashboard Body Quadrant (2026-03-25)
 - [ ] 7.6: Whoop Connection Management UI
 
 ## Phase 8: Recovery Module

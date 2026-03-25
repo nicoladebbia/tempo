@@ -11,6 +11,12 @@ enum DashboardLoadState: Sendable {
 
 // MARK: - Quadrant Data
 
+enum BiometricDataSource: String {
+    case whoop = "Whoop"
+    case healthKit = "HealthKit"
+    case none = ""
+}
+
 struct BodyQuadrantData {
     var recoveryScore: Double?
     var hrv: Double?
@@ -21,6 +27,7 @@ struct BodyQuadrantData {
     var spo2: Double?
     var isConnected: Bool
     var lastSync: Date?
+    var dataSource: BiometricDataSource = .none
 
     var recoveryZone: RecoveryZone? {
         recoveryScore.map { RecoveryZone(score: $0) }
@@ -364,10 +371,14 @@ final class DashboardViewModel {
         do {
             let today = Date()
 
-            // Fetch all data sources concurrently
-            async let whoopRecovery = whoop.fetchRecovery(for: today)
-            async let whoopSleep = whoop.fetchSleep(for: today)
-            async let whoopCycle = whoop.fetchCycle(for: today)
+            // Fetch Whoop data (optional — errors caught, falls back to HealthKit)
+            // Per INTEGRATION_SPECS.md: Whoop primary, HealthKit fallback.
+            let recovery = try? await whoop.fetchRecovery(for: today)
+            let whoopSleepData = try? await whoop.fetchSleep(for: today)
+            let cycle = try? await whoop.fetchCycle(for: today)
+            let whoopConnected = whoop.connectionState == .connected
+
+            // Fetch HealthKit data (always — used as fallback or standalone)
             async let hkSteps = healthKit.fetchSteps(for: today)
             async let hkActiveEnergy = healthKit.fetchActiveEnergy(for: today)
             async let hkHeartRate = healthKit.fetchHeartRate(for: today)
@@ -377,9 +388,6 @@ final class DashboardViewModel {
             async let hkWorkouts = healthKit.fetchWorkouts(for: today)
             async let nutriData = nutriTrack.fetchTodayMeals()
 
-            let recovery = try await whoopRecovery
-            let whoopSleepData = try await whoopSleep
-            let cycle = try await whoopCycle
             let steps = try await hkSteps
             let energy = try await hkActiveEnergy
             let heartRates = try await hkHeartRate
@@ -394,21 +402,42 @@ final class DashboardViewModel {
 
             // Build Body quadrant
             // Per INTEGRATION_SPECS.md: Whoop primary for recovery/HRV/RHR, HealthKit fallback.
-            let sleepHours = whoopSleepData.totalHours > 0 ? whoopSleepData.totalHours : hkSleepData.totalHours
-            let sleepPerf = whoopSleepData.sleepScore > 0 ? whoopSleepData.sleepScore : Double(hkSleepData.sleepScore)
-            let bodyHRV = recovery.hrvRmssd ?? hrv
-            let bodyRHR = recovery.restingHeartRate ?? rhr
+            let hasWhoopData = recovery != nil
+            let sleepHours: Double
+            let sleepPerf: Double
+            let bodyHRV: Double?
+            let bodyRHR: Double?
+
+            if let whoopSleepData, whoopSleepData.totalHours > 0 {
+                sleepHours = whoopSleepData.totalHours
+                sleepPerf = whoopSleepData.sleepScore
+            } else {
+                sleepHours = hkSleepData.totalHours
+                sleepPerf = Double(hkSleepData.sleepScore)
+            }
+
+            if let recovery {
+                bodyHRV = recovery.hrvRmssd
+                bodyRHR = recovery.restingHeartRate
+            } else {
+                bodyHRV = hrv
+                bodyRHR = rhr
+            }
+
+            let dataSource: BiometricDataSource = hasWhoopData ? .whoop :
+                (healthKitConnected ? .healthKit : .none)
 
             self.body = BodyQuadrantData(
-                recoveryScore: recovery.score,
+                recoveryScore: recovery?.score,
                 hrv: bodyHRV,
                 rhr: bodyRHR,
                 sleepHours: sleepHours > 0 ? sleepHours : nil,
                 sleepPerformance: sleepPerf > 0 ? sleepPerf : nil,
-                strain: cycle.dayStrain,
-                spo2: recovery.spo2,
-                isConnected: recovery.score != nil || healthKitConnected,
-                lastSync: now
+                strain: cycle?.dayStrain,
+                spo2: recovery?.spo2,
+                isConnected: hasWhoopData || healthKitConnected,
+                lastSync: now,
+                dataSource: dataSource
             )
 
             // Build Fuel quadrant
