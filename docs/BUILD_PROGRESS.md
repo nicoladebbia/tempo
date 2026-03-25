@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 2 in progress
 > **Total steps:** 124
-> **Completed:** 27 / 124 (22%)
+> **Completed:** 30 / 124 (24%)
 
 ---
 
@@ -45,9 +45,9 @@
 - [x] 2.5: NutriTrack Service (Protocol + Stub) (2026-03-25)
 - [x] 2.6: Calendar Service (Protocol + Stub) (2026-03-25)
 - [x] 2.7: Notification Service (Protocol + Stub) (2026-03-25)
-- [ ] 2.8: Training Engine (Protocol + Stub)
-- [ ] 2.9: Recovery Engine (Protocol + Stub)
-- [ ] 2.10: Scoring Engine + XP Engine (Protocol + Stub)
+- [x] 2.8: Training Engine (Protocol + Stub) (2026-03-25)
+- [x] 2.9: Recovery Engine (Protocol + Stub) (2026-03-25)
+- [x] 2.10: Scoring Engine + XP Engine (Protocol + Stub) (2026-03-25)
 - [ ] 2.11: Sync Service (Protocol + Stub)
 - [ ] 2.12: App State + Dependency Container
 
