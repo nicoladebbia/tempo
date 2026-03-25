@@ -4,6 +4,9 @@ import FluentPostgresDriver
 import Redis
 import Queues
 import QueuesRedisDriver
+import APNS
+import APNSCore
+import VaporAPNS
 
 // MARK: - Application Configuration
 // Per VAPOR_PROJECT_STRUCTURE.md Section 4 — configure.swift
@@ -63,9 +66,27 @@ func configure(_ app: Application) async throws {
     try app.queues.use(.redis(url: redisURL))
 
     // ─────────────────────────────────────────────────
-    // 5. APNs push notifications (placeholder — keys not needed yet)
-    // Configured in Phase 12 when APNs keys are available
+    // 5. APNs push notifications
+    // Per BUILD_PLAN step 12.1 — P8 token-based authentication
+    // Per ADR-019 — Direct APNs, no third-party push service
+    // Per TECHNICAL_FEASIBILITY_AUDIT.md Section 5.4 — apnswift is production-ready
     // ─────────────────────────────────────────────────
+    if let apnsKeyP8 = Environment.get("APNS_KEY_P8"),
+       let keyID = Environment.get("APNS_KEY_ID"),
+       let teamID = Environment.get("APNS_TEAM_ID") {
+
+        // Registers both .production and .development containers
+        // so debug builds (sandbox) and release builds (production) both work.
+        app.apns.configure(.jwt(
+            privateKey: try .loadFrom(string: apnsKeyP8),
+            keyIdentifier: keyID,
+            teamIdentifier: teamID
+        ))
+
+        app.logger.info("APNs configured with key \(keyID) (production + development)")
+    } else {
+        app.logger.warning("APNs not configured — set APNS_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID env vars")
+    }
 
     // ─────────────────────────────────────────────────
     // 6. Middleware (order matters: first registered = outermost)
@@ -104,6 +125,7 @@ func configure(_ app: Application) async throws {
     app.migrations.add(CreateWhoopWorkouts())
     app.migrations.add(CreateWhoopCycles())
     app.migrations.add(CreateNutriTrackIntegrations())
+    app.migrations.add(CreateDeviceTokens())
 
     // Auto-migrate in development
     if app.environment == .development {

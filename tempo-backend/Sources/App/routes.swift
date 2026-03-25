@@ -51,6 +51,12 @@ func routes(_ app: Application) throws {
         .grouped(RateLimitMiddleware(limit: 100, window: .minutes(1), scope: .user))
         .register(collection: NutriTrackDataController())
 
+    // Device token management — per BUILD_PLAN step 12.1
+    // POST /v1/devices/register, DELETE /v1/devices/:deviceID
+    try protected.grouped("devices")
+        .grouped(RateLimitMiddleware(limit: 10, window: .minutes(1), scope: .user))
+        .register(collection: DeviceController())
+
     // ─────────────────────────────────────────────────
     // Webhooks (no JWT — verified via HMAC)
     // ─────────────────────────────────────────────────

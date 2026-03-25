@@ -1,9 +1,9 @@
 # Tempo Build Progress
 
 > **Last updated:** 2026-03-25
-> **Current phase:** Phase 7 next
+> **Current phase:** Phase 12 next
 > **Total steps:** 124
-> **Completed:** 97 / 124 (78%)
+> **Completed:** 98 / 124 (79%)
 
 ---
 
@@ -155,7 +155,7 @@
 ## Phase 12: Notification System
 **Goal:** Set up APNs, local notification scheduling, accountability escalation tiers, morning briefing, and settings UI.
 
-- [ ] 12.1: APNs Setup (Backend + iOS)
+- [x] 12.1: APNs Setup (Backend + iOS) (2026-03-25)
 - [ ] 12.2: Local Notification Scheduling Engine
 - [ ] 12.3: Accountability Escalation Tiers
 - [ ] 12.4: Morning Briefing + Other Notifications

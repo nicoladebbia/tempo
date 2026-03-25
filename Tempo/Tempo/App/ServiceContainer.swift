@@ -17,6 +17,7 @@ final class ServiceContainer {
     let syncCoordinator: any SyncCoordinatorProtocol
     let backgroundSync: BackgroundSyncService
     let networkMonitor: NetworkMonitor
+    let pushRegistration: PushRegistrationService
     let appState: AppState
 
     init(
@@ -32,7 +33,8 @@ final class ServiceContainer {
         xpEngine: any XPEngineProtocol,
         syncCoordinator: any SyncCoordinatorProtocol,
         backgroundSync: BackgroundSyncService,
-        networkMonitor: NetworkMonitor
+        networkMonitor: NetworkMonitor,
+        pushRegistration: PushRegistrationService
     ) {
         self.authService = authService
         self.healthKit = healthKit
@@ -47,6 +49,7 @@ final class ServiceContainer {
         self.syncCoordinator = syncCoordinator
         self.backgroundSync = backgroundSync
         self.networkMonitor = networkMonitor
+        self.pushRegistration = pushRegistration
         self.appState = AppState(authService: authService)
     }
 
@@ -65,7 +68,8 @@ final class ServiceContainer {
             xpEngine: MockXPEngine(),
             syncCoordinator: MockSyncCoordinator(),
             backgroundSync: BackgroundSyncService(),
-            networkMonitor: NetworkMonitor()
+            networkMonitor: NetworkMonitor(),
+            pushRegistration: PushRegistrationService(apiClient: APIClient())
         )
     }
 
@@ -84,7 +88,8 @@ final class ServiceContainer {
             xpEngine: MockXPEngine(),
             syncCoordinator: MockSyncCoordinator(),
             backgroundSync: BackgroundSyncService(),
-            networkMonitor: NetworkMonitor()
+            networkMonitor: NetworkMonitor(),
+            pushRegistration: PushRegistrationService(apiClient: apiClient)
         )
     }
 }
