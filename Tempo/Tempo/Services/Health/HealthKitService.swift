@@ -12,7 +12,7 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
 
     // MARK: - Properties
 
-    private let healthStore = HKHealthStore()
+    let healthStore = HKHealthStore()
 
     /// Current authorization result. Updated on authorization and on every foreground check.
     private(set) var authResult: HealthKitAuthResult = .unavailable
@@ -522,10 +522,4 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
         Logger.healthkit.debug("writeNutrition called — stub, no-op")
     }
 
-    // MARK: - Background Delivery (Stub — Implemented in Step 5.6)
-
-    func enableBackgroundDelivery() async throws {
-        // Step 5.6: Real implementation
-        Logger.healthkit.debug("enableBackgroundDelivery called — stub, no-op")
-    }
 }

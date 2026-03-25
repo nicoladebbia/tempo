@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 5 next
 > **Total steps:** 124
-> **Completed:** 56 / 124 (45%)
+> **Completed:** 57 / 124 (46%)
 
 ---
 
@@ -86,7 +86,7 @@
 - [x] 5.3: Read Heart Rate + HRV + RHR (2026-03-25)
 - [x] 5.4: Read Sleep Analysis (2026-03-25)
 - [x] 5.5: Read Workouts (2026-03-25)
-- [ ] 5.6: Background Delivery Setup
+- [x] 5.6: Background Delivery Setup (2026-03-25)
 - [ ] 5.7: Write Workout Data to HealthKit
 - [ ] 5.8: Connect HealthKit Data to Dashboard
 
