@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 5 next
 > **Total steps:** 124
-> **Completed:** 57 / 124 (46%)
+> **Completed:** 58 / 124 (47%)
 
 ---
 
@@ -87,7 +87,7 @@
 - [x] 5.4: Read Sleep Analysis (2026-03-25)
 - [x] 5.5: Read Workouts (2026-03-25)
 - [x] 5.6: Background Delivery Setup (2026-03-25)
-- [ ] 5.7: Write Workout Data to HealthKit
+- [x] 5.7: Write Workout Data to HealthKit (2026-03-25)
 - [ ] 5.8: Connect HealthKit Data to Dashboard
 
 ## Phase 6: Backend Foundation

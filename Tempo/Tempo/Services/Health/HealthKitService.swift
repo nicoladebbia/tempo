@@ -510,16 +510,151 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
         }
     }
 
-    // MARK: - Write Methods (Stubs — Implemented in Step 5.7)
+    // MARK: - Write Workout
+    // Per INTEGRATION_SPECS.md Section 2.3.1 — Save completed RepForge workouts to HealthKit.
+    // Uses HKWorkoutBuilder per spec. Checks for duplicate writes.
 
     func writeWorkout(_ workout: WorkoutSample) async throws {
-        // Step 5.7: Real implementation
-        Logger.healthkit.debug("writeWorkout called — stub, no-op")
+        guard HKHealthStore.isHealthDataAvailable() else { return }
+        guard healthStore.authorizationStatus(for: HKWorkoutType.workoutType()) == .sharingAuthorized else {
+            Logger.healthkit.warning("writeWorkout: not authorized to write workouts")
+            return
+        }
+
+        // Check for duplicate: workout with same start time already exists
+        let predicate = HKQuery.predicateForSamples(
+            withStart: workout.startDate,
+            end: workout.startDate.addingTimeInterval(1),
+            options: .strictStartDate
+        )
+        let existing: [HKWorkout] = try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: HKWorkoutType.workoutType(),
+                predicate: predicate,
+                limit: 1,
+                sortDescriptors: nil
+            ) { _, samples, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: (samples as? [HKWorkout]) ?? [])
+                }
+            }
+            healthStore.execute(query)
+        }
+
+        if !existing.isEmpty {
+            Logger.healthkit.debug("writeWorkout: duplicate detected, skipping")
+            return
+        }
+
+        let configuration = HKWorkoutConfiguration()
+        configuration.activityType = Self.mapStringToHKActivityType(workout.workoutType)
+        configuration.locationType = .indoor
+
+        let builder = HKWorkoutBuilder(
+            healthStore: healthStore,
+            configuration: configuration,
+            device: .local()
+        )
+
+        try await builder.beginCollection(at: workout.startDate)
+
+        // Add energy burned
+        if workout.activeCalories > 0 {
+            let energySample = HKQuantitySample(
+                type: HKQuantityType(.activeEnergyBurned),
+                quantity: HKQuantity(unit: .kilocalorie(), doubleValue: workout.activeCalories),
+                start: workout.startDate,
+                end: workout.endDate
+            )
+            try await builder.addSamples([energySample])
+        }
+
+        // Add distance if available
+        if let distance = workout.distanceMeters, distance > 0 {
+            let distanceSample = HKQuantitySample(
+                type: HKQuantityType(.distanceWalkingRunning),
+                quantity: HKQuantity(unit: .meter(), doubleValue: distance),
+                start: workout.startDate,
+                end: workout.endDate
+            )
+            try await builder.addSamples([distanceSample])
+        }
+
+        try await builder.endCollection(at: workout.endDate)
+        try await builder.finishWorkout()
+
+        Logger.healthkit.info("writeWorkout: saved \(workout.workoutType) (\(String(format: "%.0f", workout.durationMinutes))m, \(String(format: "%.0f", workout.activeCalories)) cal)")
     }
 
+    // MARK: - Write Nutrition
+    // Per INTEGRATION_SPECS.md Section 2.3.2 — Write nutrition as HKCorrelation.
+    // Per TECHNICAL_FEASIBILITY_AUDIT.md Section 1.3 — use HKCorrelation for proper Health app display.
+
     func writeNutrition(_ nutrition: NutritionSample) async throws {
-        // Step 5.7: Real implementation
-        Logger.healthkit.debug("writeNutrition called — stub, no-op")
+        guard HKHealthStore.isHealthDataAvailable() else { return }
+        guard healthStore.authorizationStatus(for: HKQuantityType(.dietaryEnergyConsumed)) == .sharingAuthorized else {
+            return // Silently skip — nutrition write is optional
+        }
+
+        var samples: [HKQuantitySample] = []
+
+        samples.append(HKQuantitySample(
+            type: HKQuantityType(.dietaryEnergyConsumed),
+            quantity: HKQuantity(unit: .kilocalorie(), doubleValue: nutrition.calories),
+            start: nutrition.date,
+            end: nutrition.date
+        ))
+
+        samples.append(HKQuantitySample(
+            type: HKQuantityType(.dietaryProtein),
+            quantity: HKQuantity(unit: .gram(), doubleValue: nutrition.proteinGrams),
+            start: nutrition.date,
+            end: nutrition.date
+        ))
+
+        samples.append(HKQuantitySample(
+            type: HKQuantityType(.dietaryCarbohydrates),
+            quantity: HKQuantity(unit: .gram(), doubleValue: nutrition.carbsGrams),
+            start: nutrition.date,
+            end: nutrition.date
+        ))
+
+        samples.append(HKQuantitySample(
+            type: HKQuantityType(.dietaryFatTotal),
+            quantity: HKQuantity(unit: .gram(), doubleValue: nutrition.fatGrams),
+            start: nutrition.date,
+            end: nutrition.date
+        ))
+
+        // Wrap in HKCorrelation for proper Health app display
+        let correlation = HKCorrelation(
+            type: HKCorrelationType(.food),
+            start: nutrition.date,
+            end: nutrition.date,
+            objects: Set(samples),
+            metadata: ["TempoSource": "NutriTrack"]
+        )
+
+        try await healthStore.save(correlation)
+        Logger.healthkit.info("writeNutrition: saved \(String(format: "%.0f", nutrition.calories)) cal, P:\(String(format: "%.0f", nutrition.proteinGrams))g C:\(String(format: "%.0f", nutrition.carbsGrams))g F:\(String(format: "%.0f", nutrition.fatGrams))g")
+    }
+
+    // MARK: - Reverse Activity Type Mapping
+
+    private static func mapStringToHKActivityType(_ type: String) -> HKWorkoutActivityType {
+        switch type {
+        case "strength": return .traditionalStrengthTraining
+        case "run": return .running
+        case "football": return .soccer
+        case "cardio": return .cycling
+        case "hiit": return .highIntensityIntervalTraining
+        case "mobility": return .flexibility
+        case "walk": return .walking
+        case "sport": return .other
+        default: return .other
+        }
     }
 
 }
