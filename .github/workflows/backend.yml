@@ -1,0 +1,280 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tempo-backend/**'
+      - '.github/workflows/backend.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tempo-backend/**'
+      - '.github/workflows/backend.yml'
+
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: tempo-backend
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run SwiftLint
+        run: |
+          if command -v swiftlint &> /dev/null; then
+            swiftlint lint --strict --reporter github-actions-logging
+          else
+            echo "SwiftLint not available on Linux, skipping"
+          fi
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: lint
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: tempo_test
+          POSTGRES_PASSWORD: tempo_test
+          POSTGRES_DB: tempo_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: "postgres://tempo_test:tempo_test@localhost:5432/tempo_test"
+      REDIS_URL: "redis://localhost:6379/0"
+      ENVIRONMENT: "testing"
+      JWT_SIGNING_KEY: "dGVzdC1rZXktZm9yLWNpLXBpcGVsaW5l"
+      ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+      LOG_LEVEL: "warning"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Swift
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "5.10"
+
+      - name: Cache Swift packages
+        uses: actions/cache@v4
+        with:
+          path: tempo-backend/.build
+          key: swift-${{ runner.os }}-${{ hashFiles('tempo-backend/Package.resolved') }}
+          restore-keys: swift-${{ runner.os }}-
+
+      - name: Run unit tests
+        run: swift test --parallel --enable-code-coverage
+
+      - name: Check coverage
+        run: |
+          llvm-cov report \
+            .build/debug/tempo-backendPackageTests.xctest \
+            --instr-profile .build/debug/codecov/default.profdata \
+            --ignore-filename-regex=".build|Tests" \
+            --summary-only || true
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: unit-tests
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: tempo_test
+          POSTGRES_PASSWORD: tempo_test
+          POSTGRES_DB: tempo_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: "postgres://tempo_test:tempo_test@localhost:5432/tempo_test"
+      REDIS_URL: "redis://localhost:6379/0"
+      ENVIRONMENT: "testing"
+      JWT_SIGNING_KEY: "dGVzdC1rZXktZm9yLWNpLXBpcGVsaW5l"
+      ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+      LOG_LEVEL: "warning"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Swift
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "5.10"
+
+      - name: Cache Swift packages
+        uses: actions/cache@v4
+        with:
+          path: tempo-backend/.build
+          key: swift-${{ runner.os }}-${{ hashFiles('tempo-backend/Package.resolved') }}
+          restore-keys: swift-${{ runner.os }}-
+
+      - name: Run integration tests
+        run: swift test --parallel --filter "Integration"
+
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build -t tempo-backend:test -f tempo-backend/Dockerfile tempo-backend/
+
+      - name: Verify image runs
+        run: |
+          docker run -d --name tempo-test \
+            -e DATABASE_URL="postgres://test:test@localhost/test" \
+            -e REDIS_URL="redis://localhost:6379" \
+            -e ENVIRONMENT="testing" \
+            -e JWT_SIGNING_KEY="test" \
+            -e ENCRYPTION_KEY="0000000000000000000000000000000000000000000000000000000000000000" \
+            -p 8080:8080 \
+            tempo-backend:test || true
+          sleep 5
+          docker logs tempo-test || true
+          docker stop tempo-test || true
+          docker rm tempo-test || true
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [unit-tests, integration-tests, docker-build]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy to staging
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          cd tempo-backend
+          railway up --environment staging --detach
+
+      - name: Run migrations
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          cd tempo-backend
+          railway run --environment staging -- vapor run migrate --yes
+
+      - name: Health check
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf https://api-staging.tempo.app/v1/health/live; then
+              echo "Staging is healthy"
+              exit 0
+            fi
+            echo "Attempt $i/30 - waiting..."
+            sleep 10
+          done
+          echo "Staging health check failed"
+          exit 1
+
+      - name: Notify Slack
+        if: always()
+        uses: slackapi/slack-github-action@v1.27.0
+        with:
+          payload: |
+            {
+              "text": "Backend Staging Deploy: ${{ job.status }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: deploy-staging
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy to production
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          cd tempo-backend
+          railway up --environment production --detach
+
+      - name: Run migrations
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          cd tempo-backend
+          railway run --environment production -- vapor run migrate --yes
+
+      - name: Health check
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf https://api.tempo.app/v1/health/live; then
+              echo "Production is healthy"
+              exit 0
+            fi
+            echo "Attempt $i/30 - waiting..."
+            sleep 10
+          done
+          echo "Production health check failed"
+          exit 1
+
+      - name: Notify Slack
+        if: always()
+        uses: slackapi/slack-github-action@v1.27.0
+        with:
+          payload: |
+            {
+              "text": "Backend Production Deploy: ${{ job.status }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

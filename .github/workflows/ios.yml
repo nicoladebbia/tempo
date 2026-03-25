@@ -1,0 +1,231 @@
+name: iOS CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Tempo/**'
+      - '.github/workflows/ios.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'Tempo/**'
+      - '.github/workflows/ios.yml'
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  XCODE_VERSION: "16.0"
+  SCHEME: "Tempo"
+  PROJECT: "Tempo.xcodeproj"
+  DESTINATION_17: "platform=iOS Simulator,name=iPhone 15 Pro,OS=17.0"
+  DESTINATION_18: "platform=iOS Simulator,name=iPhone 16 Pro,OS=18.0"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: macos-14
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: Tempo
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_${{ env.XCODE_VERSION }}.app
+
+      - name: Run SwiftLint
+        run: |
+          if command -v swiftlint &> /dev/null; then
+            swiftlint lint --strict --reporter github-actions-logging
+          else
+            echo "SwiftLint not installed, skipping"
+          fi
+
+  unit-tests:
+    name: Unit Tests (iOS ${{ matrix.ios }})
+    runs-on: macos-14
+    timeout-minutes: 15
+    needs: lint
+    strategy:
+      matrix:
+        ios: ["17.0", "18.0"]
+        include:
+          - ios: "17.0"
+            destination: "platform=iOS Simulator,name=iPhone 15 Pro,OS=17.0"
+          - ios: "18.0"
+            destination: "platform=iOS Simulator,name=iPhone 16 Pro,OS=18.0"
+    defaults:
+      run:
+        working-directory: Tempo
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_${{ env.XCODE_VERSION }}.app
+
+      - name: Cache SPM
+        uses: actions/cache@v4
+        with:
+          path: Tempo/.build
+          key: spm-${{ runner.os }}-${{ hashFiles('Tempo/Tempo.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: spm-${{ runner.os }}-
+
+      - name: Generate project
+        run: |
+          if command -v xcodegen &> /dev/null; then
+            xcodegen generate
+          fi
+
+      - name: Run unit tests
+        run: |
+          xcodebuild test \
+            -project ${{ env.PROJECT }} \
+            -scheme ${{ env.SCHEME }} \
+            -destination '${{ matrix.destination }}' \
+            -only-testing:TempoTests \
+            -enableCodeCoverage YES \
+            -resultBundlePath TestResults/unit-${{ matrix.ios }}.xcresult \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-test-results-ios-${{ matrix.ios }}
+          path: Tempo/TestResults/
+
+  snapshot-tests:
+    name: Snapshot Tests
+    runs-on: macos-14
+    timeout-minutes: 20
+    needs: lint
+    defaults:
+      run:
+        working-directory: Tempo
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_${{ env.XCODE_VERSION }}.app
+
+      - name: Cache SPM
+        uses: actions/cache@v4
+        with:
+          path: Tempo/.build
+          key: spm-${{ runner.os }}-${{ hashFiles('Tempo/Tempo.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: spm-${{ runner.os }}-
+
+      - name: Generate project
+        run: |
+          if command -v xcodegen &> /dev/null; then
+            xcodegen generate
+          fi
+
+      - name: Run snapshot tests
+        run: |
+          xcodebuild test \
+            -project ${{ env.PROJECT }} \
+            -scheme ${{ env.SCHEME }} \
+            -destination '${{ env.DESTINATION_17 }}' \
+            -only-testing:TempoSnapshotTests \
+            -resultBundlePath TestResults/snapshot.xcresult \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Upload failed snapshots
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: failed-snapshots
+          path: Tempo/TempoSnapshotTests/__Snapshots__/
+
+  ui-tests:
+    name: UI Tests
+    runs-on: macos-14
+    timeout-minutes: 45
+    needs: [unit-tests, snapshot-tests]
+    defaults:
+      run:
+        working-directory: Tempo
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_${{ env.XCODE_VERSION }}.app
+
+      - name: Cache SPM
+        uses: actions/cache@v4
+        with:
+          path: Tempo/.build
+          key: spm-${{ runner.os }}-${{ hashFiles('Tempo/Tempo.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: spm-${{ runner.os }}-
+
+      - name: Generate project
+        run: |
+          if command -v xcodegen &> /dev/null; then
+            xcodegen generate
+          fi
+
+      - name: Run UI tests
+        run: |
+          xcodebuild test \
+            -project ${{ env.PROJECT }} \
+            -scheme ${{ env.SCHEME }} \
+            -destination '${{ env.DESTINATION_18 }}' \
+            -only-testing:TempoUITests \
+            -resultBundlePath TestResults/ui.xcresult \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-test-results
+          path: Tempo/TestResults/
+
+  performance-tests:
+    name: Performance Tests
+    runs-on: macos-14
+    timeout-minutes: 30
+    needs: unit-tests
+    defaults:
+      run:
+        working-directory: Tempo
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_${{ env.XCODE_VERSION }}.app
+
+      - name: Cache SPM
+        uses: actions/cache@v4
+        with:
+          path: Tempo/.build
+          key: spm-${{ runner.os }}-${{ hashFiles('Tempo/Tempo.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: spm-${{ runner.os }}-
+
+      - name: Generate project
+        run: |
+          if command -v xcodegen &> /dev/null; then
+            xcodegen generate
+          fi
+
+      - name: Run performance tests
+        run: |
+          xcodebuild test \
+            -project ${{ env.PROJECT }} \
+            -scheme ${{ env.SCHEME }} \
+            -destination '${{ env.DESTINATION_18 }}' \
+            -only-testing:TempoTests/PerformanceTests \
+            -resultBundlePath TestResults/performance.xcresult \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: performance-test-results
+          path: Tempo/TestResults/
