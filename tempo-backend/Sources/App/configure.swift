@@ -137,6 +137,11 @@ func configure(_ app: Application) async throws {
     // ─────────────────────────────────────────────────
     app.queues.add(WhoopWebhookJob())
 
+    // Per BUILD_PLAN step 12.4 — Morning briefing scheduled job.
+    // Runs every 15 minutes, checks which users need their morning briefing.
+    app.queues.schedule(MorningBriefingJob())
+        .every(minutes: 15)
+
     // ─────────────────────────────────────────────────
     // 9. Routes
     // ─────────────────────────────────────────────────

@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 12 next
 > **Total steps:** 124
-> **Completed:** 100 / 124 (81%)
+> **Completed:** 101 / 124 (81%)
 
 ---
 
@@ -158,7 +158,7 @@
 - [x] 12.1: APNs Setup (Backend + iOS) (2026-03-25)
 - [x] 12.2: Local Notification Scheduling Engine (2026-03-25)
 - [x] 12.3: Accountability Escalation Tiers (2026-03-25)
-- [ ] 12.4: Morning Briefing + Other Notifications
+- [x] 12.4: Morning Briefing + Other Notifications (2026-03-25)
 - [ ] 12.5: Notification Settings UI
 
 ## Phase 13: Calendar Integration

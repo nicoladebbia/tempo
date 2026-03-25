@@ -237,6 +237,74 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         )
     }
 
+    // MARK: - Recovery Notification
+    // Per BUILD_PLAN step 12.4 — Fires for red/yellow recovery zones.
+
+    func scheduleRecoveryNotification(recoveryScore: Int, time: Date) {
+        guard isWithinPreScheduleWindow(time) else { return }
+
+        let body: String
+        if recoveryScore < 34 {
+            body = "Your recovery is RED today (\(recoveryScore)%). Consider rest or light mobility. Don't push through this."
+        } else if recoveryScore < 67 {
+            body = "Yellow recovery (\(recoveryScore)%). Adjust intensity down 20% — not commitment, just volume. Stay smart."
+        } else {
+            return // Green recovery: no notification needed
+        }
+
+        scheduleNotification(
+            id: "recovery_\(dateKey(time))",
+            title: "TEMPO",
+            body: body,
+            date: time,
+            categoryID: "RECOVERY_REPORT",
+            threadID: "tempo.recovery.\(dateKey(time))",
+            interruptionLevel: .active,
+            budgetCost: 0, // Merged into morning briefing budget
+            priority: 7
+        )
+    }
+
+    // MARK: - Streak Warning
+    // Per ONBOARDING_AND_NOTIFICATIONS.md — Channel 13: Streak Warning.
+    // Fires at E + 1.5h if streak > 3 days and tasks incomplete.
+
+    func scheduleStreakWarning(streakDays: Int, tasksRemaining: Int, time: Date) {
+        guard isWithinPreScheduleWindow(time) else { return }
+        guard streakDays > 3 && tasksRemaining > 0 else { return }
+
+        scheduleNotification(
+            id: "streak_warning_\(dateKey(time))",
+            title: "STREAK AT RISK",
+            body: "Your \(streakDays)-day streak is at risk! Complete \(tasksRemaining) more task\(tasksRemaining == 1 ? "" : "s") to keep it alive.",
+            date: time,
+            categoryID: "STREAK_WARNING",
+            threadID: "tempo.streak.\(dateKey(time))",
+            interruptionLevel: .timeSensitive,
+            budgetCost: 1.0,
+            priority: 3
+        )
+    }
+
+    // MARK: - Training Reminder
+    // Per ONBOARDING_AND_NOTIFICATIONS.md — Channel 8: Training Reminder.
+
+    func scheduleTrainingReminder(workoutType: String, time: Date) {
+        guard isWithinPreScheduleWindow(time) else { return }
+
+        scheduleNotification(
+            id: "training_\(dateKey(time))",
+            title: "Training Time",
+            body: "\(workoutType) day. Your workout is ready. Get after it.",
+            date: time,
+            categoryID: "TRAINING_REMINDER",
+            threadID: "tempo.training.\(dateKey(time))",
+            interruptionLevel: .active,
+            budgetCost: 1.0,
+            priority: 4
+        )
+    }
+
     func scheduleBedtimeReminder(time: Date) {
         guard isWithinPreScheduleWindow(time) else { return }
 

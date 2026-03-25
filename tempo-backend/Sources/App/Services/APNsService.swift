@@ -160,7 +160,7 @@ struct APNsService {
     // MARK: - Error Helpers
 
     /// Check if an APNs error indicates an invalid or unregistered device token.
-    private static func isInvalidTokenError(_ error: Error) -> Bool {
+    static func isInvalidTokenError(_ error: Error) -> Bool {
         guard let apnsError = error as? APNSError,
               let reason = apnsError.reason else { return false }
         let invalidReasons = ["BadDeviceToken", "Unregistered", "DeviceTokenNotForTopic"]
