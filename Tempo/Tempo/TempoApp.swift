@@ -63,6 +63,11 @@ struct TempoApp: App {
                 Task {
                     await verifyHealthKitPermissions()
                 }
+                // Per BUILD_PLAN step 12.2 — Cancel pending escalation
+                // notifications when the user opens the app (anti-spam).
+                if let notifService = services.notifications as? NotificationService {
+                    notifService.cancelPendingEscalationsOnForeground()
+                }
             }
         }
     }
