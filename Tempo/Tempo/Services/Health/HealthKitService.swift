@@ -291,19 +291,150 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
         return rhr
     }
 
+    // MARK: - Fetch Sleep Analysis
+    // Per INTEGRATION_SPECS.md Section 2.2.3 — Sleep stage parsing.
+    // Search window: 6 PM yesterday → 12 PM today (sleep crosses midnight).
+    // Handles both iOS 16+ granular stages and legacy .asleep/.inBed format.
+
     func fetchSleepAnalysis(for date: Date) async throws -> SleepData {
-        // Step 5.4: Real implementation
-        Logger.healthkit.debug("fetchSleepAnalysis called — stub returning empty")
-        return SleepData(
-            totalHours: 0,
-            deepSleepMinutes: 0,
-            remSleepMinutes: 0,
-            lightSleepMinutes: 0,
-            awakeMinutes: 0,
-            sleepEfficiency: 0,
-            bedtime: nil,
-            wakeTime: nil
+        let sleepType = HKCategoryType(.sleepAnalysis)
+        let calendar = Calendar.current
+
+        // Sleep window: 6 PM previous evening to 12 PM target date
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: date)!
+        let sixPMYesterday = calendar.date(bySettingHour: 18, minute: 0, second: 0, of: yesterday)!
+        let noonToday = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: date)!
+
+        let predicate = HKQuery.predicateForSamples(
+            withStart: sixPMYesterday,
+            end: noonToday,
+            options: .strictStartDate
         )
+
+        let samples = try await fetchCategorySamples(
+            type: sleepType,
+            predicate: predicate
+        )
+
+        guard !samples.isEmpty else {
+            Logger.healthkit.debug("fetchSleepAnalysis: no sleep data for \(date)")
+            return SleepData(
+                totalHours: 0, deepSleepMinutes: 0, remSleepMinutes: 0,
+                lightSleepMinutes: 0, awakeMinutes: 0, sleepEfficiency: 0,
+                bedtime: nil, wakeTime: nil
+            )
+        }
+
+        // Group by source to handle overlapping samples from multiple apps
+        let grouped = Dictionary(grouping: samples) { $0.sourceRevision.source.bundleIdentifier }
+        let preferredSamples = selectPreferredSleepSource(grouped)
+
+        // Parse sleep stages
+        var totalInBed: TimeInterval = 0
+        var totalAsleep: TimeInterval = 0
+        var deepSleep: TimeInterval = 0
+        var remSleep: TimeInterval = 0
+        var coreSleep: TimeInterval = 0
+        var awake: TimeInterval = 0
+
+        for sample in preferredSamples {
+            let duration = sample.endDate.timeIntervalSince(sample.startDate)
+
+            switch HKCategoryValueSleepAnalysis(rawValue: sample.value) {
+            case .inBed:
+                totalInBed += duration
+            case .asleepUnspecified:
+                totalAsleep += duration
+            case .asleepCore:
+                coreSleep += duration
+                totalAsleep += duration
+            case .asleepDeep:
+                deepSleep += duration
+                totalAsleep += duration
+            case .asleepREM:
+                remSleep += duration
+                totalAsleep += duration
+            case .awake:
+                awake += duration
+            default:
+                break
+            }
+        }
+
+        // If no stage detail, count all asleep as light sleep
+        let lightMinutes: Int
+        if deepSleep == 0 && remSleep == 0 && coreSleep == 0 && totalAsleep > 0 {
+            // Legacy format: all sleep counted as light/unspecified
+            lightMinutes = Int(totalAsleep / 60)
+        } else {
+            // Granular stages: core sleep maps to light
+            lightMinutes = Int(coreSleep / 60)
+        }
+
+        let totalHours = totalAsleep / 3600
+        let totalInBedTime = max(totalInBed, totalAsleep + awake)
+        let efficiency = totalInBedTime > 0 ? (totalAsleep / totalInBedTime) * 100 : 0
+
+        let bedtime = preferredSamples.first?.startDate
+        let wakeTime = preferredSamples.last?.endDate
+
+        Logger.healthkit.debug("fetchSleepAnalysis: \(String(format: "%.1f", totalHours))h total, efficiency \(String(format: "%.0f", efficiency))%")
+
+        return SleepData(
+            totalHours: totalHours,
+            deepSleepMinutes: Int(deepSleep / 60),
+            remSleepMinutes: Int(remSleep / 60),
+            lightSleepMinutes: lightMinutes,
+            awakeMinutes: Int(awake / 60),
+            sleepEfficiency: efficiency,
+            bedtime: bedtime,
+            wakeTime: wakeTime
+        )
+    }
+
+    // MARK: - Sleep Source Priority
+    // Per INTEGRATION_SPECS.md Section 2.2.3 — Priority: Whoop > Apple Watch > iPhone > Other
+
+    private func selectPreferredSleepSource(
+        _ grouped: [String?: [HKCategorySample]]
+    ) -> [HKCategorySample] {
+        let priorityOrder = [
+            "com.whoop.Diamond",
+            "com.apple.health",
+        ]
+
+        for bundlePrefix in priorityOrder {
+            if let match = grouped.first(where: { ($0.key ?? "").hasPrefix(bundlePrefix) }) {
+                return match.value.sorted { $0.startDate < $1.startDate }
+            }
+        }
+
+        // Fall back to source with most samples
+        let best = grouped.max { $0.value.count < $1.value.count }
+        return (best?.value ?? []).sorted { $0.startDate < $1.startDate }
+    }
+
+    // MARK: - Category Sample Query Helper
+
+    private func fetchCategorySamples(
+        type: HKCategoryType,
+        predicate: NSPredicate
+    ) async throws -> [HKCategorySample] {
+        try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: type,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]
+            ) { _, samples, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: (samples as? [HKCategorySample]) ?? [])
+                }
+            }
+            healthStore.execute(query)
+        }
     }
 
     func fetchWorkouts(for date: Date) async throws -> [WorkoutSample] {
