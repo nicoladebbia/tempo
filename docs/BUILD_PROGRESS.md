@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 7 next
 > **Total steps:** 124
-> **Completed:** 67 / 124 (54%)
+> **Completed:** 68 / 124 (55%)
 
 ---
 
@@ -105,7 +105,7 @@
 **Goal:** Build Whoop OAuth flow, data proxy, webhook receiver, iOS service, and connect to Dashboard.
 
 - [x] 7.1: Whoop OAuth Backend Endpoints (2026-03-25)
-- [ ] 7.2: Whoop Data Proxy Endpoints
+- [x] 7.2: Whoop Data Proxy Endpoints (2026-03-25)
 - [ ] 7.3: Whoop Webhook Receiver
 - [ ] 7.4: iOS Whoop Service (Real Implementation)
 - [ ] 7.5: Connect Whoop Data to Dashboard Body Quadrant

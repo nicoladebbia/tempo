@@ -33,4 +33,10 @@ func routes(_ app: Application) throws {
     try protected.grouped("integrations", "whoop")
         .grouped(RateLimitMiddleware(limit: 10, window: .minutes(1), scope: .user))
         .register(collection: WhoopIntegrationController())
+
+    // Whoop data proxy — per BACKEND_API.md Sections 5.6-5.9
+    // GET /v1/whoop/recovery, /sleep, /workouts, /cycles
+    try protected.grouped("whoop")
+        .grouped(RateLimitMiddleware(limit: 100, window: .minutes(1), scope: .user))
+        .register(collection: WhoopDataController())
 }
