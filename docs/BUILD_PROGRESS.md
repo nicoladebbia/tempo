@@ -3,7 +3,7 @@
 > **Last updated:** 2026-03-25
 > **Current phase:** Phase 7 next
 > **Total steps:** 124
-> **Completed:** 92 / 124 (74%)
+> **Completed:** 93 / 124 (75%)
 
 ---
 
@@ -142,7 +142,7 @@
 - [x] 10.4: Focus Timer (Pomodoro) (2026-03-25)
 - [x] 10.5: NonNegotiable Setup/Edit Flow (2026-03-25)
 - [x] 10.6: Streak Calendar + Streak Engine (2026-03-25)
-- [ ] 10.7: Scoring Engine (Real Implementation)
+- [x] 10.7: Scoring Engine (Real Implementation) (2026-03-25)
 - [ ] 10.8: Accountability Tab Container + Dashboard Connection
 
 ## Phase 11: NutriTrack Integration
