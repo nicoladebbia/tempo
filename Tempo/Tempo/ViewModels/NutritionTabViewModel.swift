@@ -119,6 +119,49 @@ final class NutritionTabViewModel {
         return Int(Double(todayCalorieTarget) * 0.25 / 9.0)
     }
 
+    // MARK: - Recovery-Adjusted Targets (Phase 4)
+    // Whoop strain raises today's energy & carb needs. Recovery-poor days
+    // tighten cals slightly to favour rest-day eating.
+
+    /// Multiplier applied to base calorie target based on recovery + yesterday's strain.
+    /// Range ~0.95 – 1.15. Falls back to 1.0 when no Whoop data is available.
+    var recoveryCalorieMultiplier: Double {
+        // Bias up on high strain (>14 = hard day yesterday → restock).
+        let strainBoost: Double
+        if let cal = todayRecovery?.score {
+            switch cal {
+            case ..<34: strainBoost = -0.05  // poor recovery → eat less
+            case 67...: strainBoost = 0.05   // good recovery → fuel a touch more
+            default:    strainBoost = 0
+            }
+        } else {
+            strainBoost = 0
+        }
+        return 1.0 + strainBoost
+    }
+
+    var recoveryAdjustedCalorieTarget: Int {
+        Int(Double(todayCalorieTarget) * recoveryCalorieMultiplier)
+    }
+
+    /// Carbs absorb the bulk of the strain-driven calorie bump.
+    var recoveryAdjustedCarbsTarget: Int {
+        let baseCarbsCal = Double(todayCarbsTarget) * 4.0
+        let extra = Double(recoveryAdjustedCalorieTarget - todayCalorieTarget)
+        return Int((baseCarbsCal + extra) / 4.0)
+    }
+
+    /// Human-readable delta for UI (e.g. "+150 kcal for high strain").
+    var recoveryAdjustmentLabel: String? {
+        let delta = recoveryAdjustedCalorieTarget - todayCalorieTarget
+        guard delta != 0 else { return nil }
+        if delta > 0 {
+            return "+\(delta) kcal for recovery"
+        } else {
+            return "\(delta) kcal for low recovery"
+        }
+    }
+
     var calorieProgress: Double {
         guard todayCalorieTarget > 0 else { return 0 }
         return Double(todayCaloriesConsumed) / Double(todayCalorieTarget)
@@ -353,6 +396,30 @@ final class NutritionTabViewModel {
                 mealSuggestionError = error.localizedDescription
                 HapticManager.notification(.error)
             }
+        }
+    }
+
+    // MARK: - Meal Reminders (Phase 4)
+    // Schedule a local notification 5min before each planned meal's
+    // scheduled time. Skips meals already eaten/skipped/delayed.
+
+    func scheduleMealReminders(notifications: any NotificationServiceProtocol, calendar: Calendar = .current) {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        let today = calendar.startOfDay(for: Date())
+        for meal in todayMeals where meal.status == .planned {
+            guard let time = formatter.date(from: meal.scheduledTime) else { continue }
+            let comps = calendar.dateComponents([.hour, .minute], from: time)
+            guard let scheduled = calendar.date(
+                bySettingHour: comps.hour ?? 0,
+                minute: comps.minute ?? 0,
+                second: 0,
+                of: today
+            ) else { continue }
+            let fire = scheduled.addingTimeInterval(-5 * 60)
+            // Avoid scheduling already-past reminders.
+            guard fire > Date() else { continue }
+            notifications.scheduleMealReminder(mealName: meal.mealName, time: fire)
         }
     }
 
