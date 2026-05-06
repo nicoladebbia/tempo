@@ -39,6 +39,7 @@ struct TempoApp: App {
             container = try TempoModelContainer.create()
             if !ProcessInfo.processInfo.environment.keys.contains("XCTestBundlePath") {
                 try ExerciseLibraryLoader.loadIfNeeded(context: container.mainContext)
+                try AchievementLibrary.loadIfNeeded(context: container.mainContext)
             }
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
@@ -64,6 +65,12 @@ struct TempoApp: App {
             if newPhase == .active {
                 Task {
                     await verifyHealthKitPermissions()
+                }
+                // Phase 3 — proactively refresh Whoop tokens on foreground so
+                // the first API call doesn't 401 → refresh → retry.
+                let whoop = services.whoop
+                Task {
+                    try? await whoop.refreshIfNeeded()
                 }
                 // Per BUILD_PLAN step 12.2 — Cancel pending escalation
                 // notifications when the user opens the app (anti-spam).

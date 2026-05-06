@@ -13,13 +13,27 @@ enum WhoopConnectionState: Sendable, Equatable {
 
 protocol WhoopServiceProtocol: Sendable {
     var connectionState: WhoopConnectionState { get }
+    var isDemoMode: Bool { get }
+    var hasCredentials: Bool { get }
+    var lastSyncDate: Date? { get }
     func connect() async throws
+    func connectDemo() async
     func disconnect() async throws
+    func saveCredentials(clientID: String, clientSecret: String) throws
+    func clearCredentials() throws
     func fetchRecovery(for date: Date) async throws -> WhoopRecoveryData
+    func fetchRecoveryBatch(for date: Date) async throws -> [WhoopRecoveryData]
+    func fetchSleepBatch(for date: Date) async throws -> [WhoopSleepData]
     func fetchSleep(for date: Date) async throws -> WhoopSleepData
     func fetchWorkouts(for date: Date) async throws -> [WhoopWorkoutData]
     func fetchCycle(for date: Date) async throws -> WhoopCycleData
     func syncAll() async throws
+    func checkConnectionOnLaunch() async
+
+    /// Refresh the Whoop access token if it expires within 60s. No-op when fresh.
+    /// Used on scenePhase==.active and cold launch.
+    /// Retries once on transient network errors; throws on terminal 4xx responses.
+    func refreshIfNeeded() async throws
 }
 
 // MARK: - Data Types

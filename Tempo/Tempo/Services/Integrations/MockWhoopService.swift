@@ -4,6 +4,9 @@ import Foundation
 final class MockWhoopService: WhoopServiceProtocol, @unchecked Sendable {
 
     private(set) var connectionState: WhoopConnectionState = .connected
+    private(set) var isDemoMode: Bool = true
+    var hasCredentials: Bool { true }
+    private(set) var lastSyncDate: Date? = Date()
 
     func connect() async throws {
         connectionState = .connecting
@@ -11,9 +14,16 @@ final class MockWhoopService: WhoopServiceProtocol, @unchecked Sendable {
         connectionState = .connected
     }
 
+    func connectDemo() async {
+        connectionState = .connected
+    }
+
     func disconnect() async throws {
         connectionState = .disconnected
     }
+
+    func saveCredentials(clientID: String, clientSecret: String) throws {}
+    func clearCredentials() throws {}
 
     // Yellow zone recovery day
     func fetchRecovery(for date: Date) async throws -> WhoopRecoveryData {
@@ -25,6 +35,14 @@ final class MockWhoopService: WhoopServiceProtocol, @unchecked Sendable {
             skinTemp: 33.2,
             date: date
         )
+    }
+
+    func fetchRecoveryBatch(for date: Date) async throws -> [WhoopRecoveryData] {
+        [try await fetchRecovery(for: date)]
+    }
+
+    func fetchSleepBatch(for date: Date) async throws -> [WhoopSleepData] {
+        [try await fetchSleep(for: date)]
     }
 
     func fetchSleep(for date: Date) async throws -> WhoopSleepData {
@@ -69,5 +87,13 @@ final class MockWhoopService: WhoopServiceProtocol, @unchecked Sendable {
 
     func syncAll() async throws {
         // No-op in mock
+    }
+
+    func checkConnectionOnLaunch() async {
+        // Already connected in mock
+    }
+
+    func refreshIfNeeded() async throws {
+        // No-op: mock has no real tokens.
     }
 }
