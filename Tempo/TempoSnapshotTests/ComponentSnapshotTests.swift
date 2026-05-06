@@ -91,4 +91,15 @@ final class ComponentSnapshotTests: TempoSnapshotTestCase {
         )
         assertComponentSnapshot(of: view, size: CGSize(width: 393, height: 300))
     }
+
+    // MARK: - Settings Toolbar Icon
+    // Phase 2 — canonical settings gear icon used by all 5 tab roots.
+
+    func testSettingsToolbarIcon() {
+        let view = Image(systemName: TempoSymbols.settings)
+            .font(.tempoBody)
+            .foregroundStyle(Color.tempoTextSecondary)
+            .frame(width: 44, height: 44, alignment: .trailing)
+        assertComponentSnapshot(of: view, size: CGSize(width: 44, height: 44))
+    }
 }
