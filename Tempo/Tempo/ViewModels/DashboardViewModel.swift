@@ -1,6 +1,10 @@
+import CoreLocation
 import Foundation
 import SwiftData
 import SwiftUI
+#if canImport(WeatherKit)
+import WeatherKit
+#endif
 
 // MARK: - Dashboard State
 
@@ -105,6 +109,50 @@ struct FuelQuadrantData {
         return Double(consumed) / Double(target)
     }
 
+    // MARK: - Recovery-Adjusted Targets (NutritionEngine)
+
+    var adjustedTargets: AdjustedNutritionTargets?
+    var nutritionMode: NutritionMode { adjustedTargets?.mode ?? .standard }
+    var modeExplanation: String { adjustedTargets?.modeExplanation ?? "" }
+
+    // MARK: - Hydration Tracking
+
+    var hydrationMl: Int = 0
+    var hydrationTargetMl: Int { adjustedTargets?.hydrationTargetMl ?? 2500 }
+    var hydrationProgress: Double {
+        guard hydrationTargetMl > 0 else { return 0 }
+        return Double(hydrationMl) / Double(hydrationTargetMl)
+    }
+    var hydrationGlasses: Int { hydrationMl / 250 }
+    var hydrationTargetGlasses: Int { hydrationTargetMl / 250 }
+
+    // MARK: - Calorie Balance
+
+    var activeCaloriesBurned: Int?
+    var estimatedBMR: Double?
+
+    // MARK: - Meal Timing
+
+    var mealTimingSuggestions: [NutritionEngine.MealTimingSuggestion] = []
+
+    // MARK: - AI Coaching
+
+    var coachingMessage: String?
+
+    // MARK: - Macro Status
+
+    var proteinStatus: NutritionEngine.MacroStatus {
+        NutritionEngine.macroStatus(current: proteinGrams ?? 0, target: proteinTarget ?? 180)
+    }
+
+    var carbsStatus: NutritionEngine.MacroStatus {
+        NutritionEngine.macroStatus(current: carbsGrams ?? 0, target: carbsTarget ?? 280)
+    }
+
+    var fatStatus: NutritionEngine.MacroStatus {
+        NutritionEngine.macroStatus(current: fatGrams ?? 0, target: fatTarget ?? 80)
+    }
+
     // MARK: - Formatted Display Values
 
     var formattedCalories: String {
@@ -155,9 +203,19 @@ struct FuelQuadrantData {
         return "\(logged)/\(planned) meals"
     }
 
+    var formattedHydration: String {
+        "\(hydrationGlasses)/\(hydrationTargetGlasses) glasses"
+    }
+
     static let empty = FuelQuadrantData(
         isConnected: false
     )
+
+    // MARK: - Mutating Helpers
+
+    mutating func addHydration(_ ml: Int) {
+        hydrationMl += ml
+    }
 }
 
 struct MindQuadrantData {
@@ -317,6 +375,177 @@ final class DashboardViewModel {
     private(set) var mind: MindQuadrantData = .empty
     private(set) var move: MoveQuadrantData = .empty
 
+    // MARK: - Quick Actions
+    // Context-aware action buttons shown below the quadrant grid.
+    // Maximum 2 visible at a time. Priority-ordered by what's most actionable now.
+
+    struct QuickAction: Identifiable {
+        let id = UUID()
+        let title: String
+        let icon: String
+        let targetTab: Tab
+        let color: Color
+    }
+
+    var quickActions: [QuickAction] {
+        var actions: [QuickAction] = []
+
+        // Workout planned but not done
+        if move.workoutStatus == .planned, let name = move.workoutName {
+            actions.append(QuickAction(
+                title: "Start \(name) Workout",
+                icon: "dumbbell.fill",
+                targetTab: .training,
+                color: .tempoAmber
+            ))
+        }
+
+        // Study target not met
+        if mind.studyMinutesToday < mind.studyTargetMinutes && mind.studyTargetMinutes > 0 {
+            let remaining = mind.studyTargetMinutes - mind.studyMinutesToday
+            actions.append(QuickAction(
+                title: "Start Study Timer (\(remaining)m left)",
+                icon: "timer",
+                targetTab: .lockdown,
+                color: .tempoElectric
+            ))
+        }
+
+        // No meals logged
+        if let logged = fuel.mealsLogged, logged == 0, fuel.isConnected {
+            actions.append(QuickAction(
+                title: "Log a Meal",
+                icon: "fork.knife",
+                targetTab: .dashboard,
+                color: .tempoViolet
+            ))
+        } else if !fuel.isConnected {
+            actions.append(QuickAction(
+                title: "Log a Meal",
+                icon: "fork.knife",
+                targetTab: .dashboard,
+                color: .tempoViolet
+            ))
+        }
+
+        // Non-negotiables incomplete
+        if nonNegotiablesDone < nonNegotiablesTotal && nonNegotiablesTotal > 0 {
+            let remaining = nonNegotiablesTotal - nonNegotiablesDone
+            actions.append(QuickAction(
+                title: "\(remaining) Non-Negotiable\(remaining > 1 ? "s" : "") Left",
+                icon: "lock.fill",
+                targetTab: .lockdown,
+                color: .tempoSignal
+            ))
+        }
+
+        // Recovery check when low
+        if let recovery = body.recoveryScore, recovery < 40 {
+            actions.append(QuickAction(
+                title: "View Recovery Plan",
+                icon: "heart.fill",
+                targetTab: .recovery,
+                color: .tempoRecoveryRed
+            ))
+        }
+
+        return Array(actions.prefix(2))
+    }
+
+    // MARK: - Weather Data
+    // Lightweight weather info for hydration/workout recommendations.
+
+    struct WeatherInfo {
+        let temperatureCelsius: Double
+        let conditionSymbol: String  // SF Symbol name
+        let isRaining: Bool
+        let recommendation: String?
+
+        var formattedTemperature: String {
+            "\(Int(temperatureCelsius))\u{00B0}"
+        }
+
+        var hydrationTarget: Double? {
+            if temperatureCelsius > 30 { return 3.5 }
+            if temperatureCelsius > 25 { return 3.0 }
+            return nil
+        }
+    }
+
+    private(set) var weather: WeatherInfo?
+
+    /// Fetch current weather using WeatherKit.
+    func fetchWeather() async {
+        #if canImport(WeatherKit)
+        do {
+            let weatherService = WeatherService.shared
+            // Use a default location (or CLLocationManager if authorized)
+            // For now, attempt to get weather at a reasonable default
+            // This will be enhanced when CoreLocation is authorized
+            guard let location = await getCurrentLocation() else { return }
+
+            let currentWeather = try await weatherService.weather(for: location)
+            let current = currentWeather.currentWeather
+            let tempC = current.temperature.converted(to: .celsius).value
+            let isRaining = current.condition == .rain ||
+                current.condition == .heavyRain ||
+                current.condition == .drizzle ||
+                current.condition == .thunderstorms
+
+            let conditionSymbol: String
+            switch current.condition {
+            case .clear, .mostlyClear:
+                conditionSymbol = "sun.max.fill"
+            case .partlyCloudy:
+                conditionSymbol = "cloud.sun.fill"
+            case .cloudy, .mostlyCloudy:
+                conditionSymbol = "cloud.fill"
+            case .rain, .heavyRain, .drizzle:
+                conditionSymbol = "cloud.rain.fill"
+            case .thunderstorms:
+                conditionSymbol = "cloud.bolt.rain.fill"
+            case .snow, .heavySnow:
+                conditionSymbol = "cloud.snow.fill"
+            case .windy:
+                conditionSymbol = "wind"
+            default:
+                conditionSymbol = "cloud.fill"
+            }
+
+            var recommendation: String?
+            if tempC > 30 {
+                recommendation = "Stay hydrated -- target 3.5L today"
+            } else if isRaining {
+                recommendation = "Indoor workout recommended"
+            } else if tempC < 5 {
+                recommendation = "Layer up for outdoor activity"
+            }
+
+            self.weather = WeatherInfo(
+                temperatureCelsius: tempC,
+                conditionSymbol: conditionSymbol,
+                isRaining: isRaining,
+                recommendation: recommendation
+            )
+        } catch {
+            #if DEBUG
+            print("[Dashboard] Weather fetch failed: \(error)")
+            #endif
+        }
+        #endif
+    }
+
+    private func getCurrentLocation() async -> CLLocation? {
+        // Check for cached location from CLLocationManager
+        // Returns nil if location services not authorized (graceful degradation)
+        let manager = CLLocationManager()
+        if manager.authorizationStatus == .authorizedWhenInUse ||
+            manager.authorizationStatus == .authorizedAlways {
+            return manager.location
+        }
+        return nil
+    }
+
     // MARK: - Non-Negotiables
 
     private(set) var nonNegotiables: [NonNegotiableItem] = []
@@ -359,7 +588,12 @@ final class DashboardViewModel {
         self.whoop = services.whoop
         self.nutriTrack = services.nutriTrack
         self.calendar = services.calendar
-        self.userName = nil // Populated from UserProfile in later phases
+        self.userName = nil
+    }
+
+    /// Set the user's display name (called from view layer after querying SwiftData).
+    func setUserName(_ name: String?) {
+        self.userName = name
     }
 
     // MARK: - Refresh
@@ -368,37 +602,103 @@ final class DashboardViewModel {
     // Body quadrant: Whoop primary, HealthKit fallback for sleep/HRV/RHR.
     // Move quadrant: real steps, energy, workouts, HR from HealthKit.
 
+    private var isRefreshing = false
+
     func refresh() async {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        defer { isRefreshing = false }
         loadState = .loading
 
-        do {
-            let today = Date()
+        let today = Date()
 
-            // Fetch Whoop data (optional — errors caught, falls back to HealthKit)
+            // Fetch Whoop data only when connected.
             // Per INTEGRATION_SPECS.md: Whoop primary, HealthKit fallback.
-            let recovery = try? await whoop.fetchRecovery(for: today)
-            let whoopSleepData = try? await whoop.fetchSleep(for: today)
-            let cycle = try? await whoop.fetchCycle(for: today)
-            let whoopConnected = whoop.connectionState == .connected
+            let recovery: WhoopRecoveryData?
+            let whoopSleepData: WhoopSleepData?
+            let cycle: WhoopCycleData?
+            #if DEBUG
+            print("[Dashboard] Whoop state: \(whoop.connectionState), isDemoMode: \(whoop.isDemoMode)")
+            #endif
+            if whoop.connectionState == .connected {
+                do { recovery = try await whoop.fetchRecovery(for: today) }
+                catch {
+                    recovery = nil
+                    #if DEBUG
+                    print("[Dashboard] Whoop recovery fetch failed: \(error)")
+                    #endif
+                }
+                do { whoopSleepData = try await whoop.fetchSleep(for: today) }
+                catch {
+                    whoopSleepData = nil
+                    #if DEBUG
+                    print("[Dashboard] Whoop sleep fetch failed: \(error)")
+                    #endif
+                }
+                do { cycle = try await whoop.fetchCycle(for: today) }
+                catch {
+                    cycle = nil
+                    #if DEBUG
+                    print("[Dashboard] Whoop cycle fetch failed: \(error)")
+                    #endif
+                }
+            } else {
+                recovery = nil
+                whoopSleepData = nil
+                cycle = nil
+                #if DEBUG
+                print("[Dashboard] Whoop not connected — skipping Whoop data fetch")
+                #endif
+            }
+            // Fetch HealthKit data (always — used as fallback or standalone).
+            // Each call is wrapped individually so a single HealthKit failure
+            // (e.g. no authorization) doesn't prevent Whoop data from displaying.
+            var steps: Int
+            var energy: Double
+            var heartRates: [HeartRateSample]
+            var hrv: Double?
+            var rhr: Double?
+            var hkSleepData: SleepData
+            var workouts: [WorkoutSample]
+            do {
+                async let hkSteps = healthKit.fetchSteps(for: today)
+                async let hkActiveEnergy = healthKit.fetchActiveEnergy(for: today)
+                async let hkHeartRate = healthKit.fetchHeartRate(for: today)
+                async let hkHRV = healthKit.fetchHRV(for: today)
+                async let hkRHR = healthKit.fetchRestingHeartRate(for: today)
+                async let hkSleep = healthKit.fetchSleepAnalysis(for: today)
+                async let hkWorkouts = healthKit.fetchWorkouts(for: today)
+                steps = try await hkSteps
+                energy = try await hkActiveEnergy
+                heartRates = try await hkHeartRate
+                hrv = try await hkHRV
+                rhr = try await hkRHR
+                hkSleepData = try await hkSleep
+                workouts = try await hkWorkouts
+            } catch {
+                #if DEBUG
+                print("[Dashboard] HealthKit fetch failed: \(error) — using defaults")
+                #endif
+                steps = 0
+                energy = 0
+                heartRates = []
+                hrv = nil
+                rhr = nil
+                hkSleepData = SleepData(
+                    totalHours: 0, deepSleepMinutes: 0, remSleepMinutes: 0,
+                    lightSleepMinutes: 0, awakeMinutes: 0, sleepEfficiency: 0,
+                    bedtime: nil, wakeTime: nil
+                )
+                workouts = []
+            }
 
-            // Fetch HealthKit data (always — used as fallback or standalone)
-            async let hkSteps = healthKit.fetchSteps(for: today)
-            async let hkActiveEnergy = healthKit.fetchActiveEnergy(for: today)
-            async let hkHeartRate = healthKit.fetchHeartRate(for: today)
-            async let hkHRV = healthKit.fetchHRV(for: today)
-            async let hkRHR = healthKit.fetchRestingHeartRate(for: today)
-            async let hkSleep = healthKit.fetchSleepAnalysis(for: today)
-            async let hkWorkouts = healthKit.fetchWorkouts(for: today)
-            async let nutriData = nutriTrack.fetchTodayMeals()
-
-            let steps = try await hkSteps
-            let energy = try await hkActiveEnergy
-            let heartRates = try await hkHeartRate
-            let hrv = try await hkHRV
-            let rhr = try await hkRHR
-            let hkSleepData = try await hkSleep
-            let workouts = try await hkWorkouts
-            let meals = try await nutriData
+            // Fetch NutriTrack data only when connected (skip if backend unreachable)
+            let meals: NutriTrackDayData?
+            if case .connected = nutriTrack.connectionState {
+                meals = try? await nutriTrack.fetchTodayMeals()
+            } else {
+                meals = nil
+            }
 
             let now = Date()
             let healthKitConnected = steps > 0 || !heartRates.isEmpty || hrv != nil
@@ -442,22 +742,65 @@ final class DashboardViewModel {
                 lastSync: now,
                 dataSource: dataSource
             )
+            #if DEBUG
+            print("[Dashboard] Body built: recovery=\(recovery?.score ?? -1), hrv=\(bodyHRV ?? -1), rhr=\(bodyRHR ?? -1), sleep=\(sleepHours)h, strain=\(cycle?.dayStrain ?? -1), source=\(dataSource.rawValue), connected=\(hasWhoopData || healthKitConnected)")
+            #endif
 
-            // Build Fuel quadrant
-            self.fuel = FuelQuadrantData(
-                caloriesConsumed: Int(meals.totalCalories),
-                calorieTarget: Int(meals.calorieTarget),
-                proteinGrams: Int(meals.proteinGrams),
-                proteinTarget: Int(meals.proteinTarget),
-                carbsGrams: Int(meals.carbsGrams),
-                carbsTarget: Int(meals.carbsTarget),
-                fatGrams: Int(meals.fatGrams),
-                fatTarget: Int(meals.fatTarget),
-                mealsLogged: meals.mealsLogged,
-                mealsPlanned: meals.mealsPlanned,
-                isConnected: true,
+            // Build Fuel quadrant with recovery-adjusted targets
+            let baseCalTarget = Int(meals?.calorieTarget ?? 0)
+            let baseProtTarget = Int(meals?.proteinTarget ?? 0)
+            let baseCarbTarget = Int(meals?.carbsTarget ?? 0)
+            let baseFatTarget = Int(meals?.fatTarget ?? 0)
+            let recoveryZone = recovery.map { RecoveryZone(score: $0.score) }
+            let isRestDay = false // Will be enriched by refreshTrainingStatus
+
+            let adjusted = NutritionEngine.adjustedTargets(
+                baseCalories: baseCalTarget > 0 ? baseCalTarget : 2400,
+                baseProtein: baseProtTarget > 0 ? baseProtTarget : 180,
+                baseCarbs: baseCarbTarget > 0 ? baseCarbTarget : 280,
+                baseFat: baseFatTarget > 0 ? baseFatTarget : 80,
+                recoveryZone: recoveryZone,
+                currentStrain: cycle?.dayStrain,
+                isTrainingDay: true, // Enriched by refreshTrainingStatus
+                isRestDay: isRestDay
+            )
+
+            let consumedCal = Int(meals?.totalCalories ?? 0)
+            let consumedProt = Int(meals?.proteinGrams ?? 0)
+            let consumedCarbs = Int(meals?.carbsGrams ?? 0)
+            let consumedFat = Int(meals?.fatGrams ?? 0)
+            let mealsLoggedCount = meals?.mealsLogged ?? 0
+
+            // Generate AI coaching message
+            let coaching = NutritionEngine.coachingMessage(
+                proteinCurrent: consumedProt, proteinTarget: adjusted.proteinTarget,
+                carbsCurrent: consumedCarbs, carbsTarget: adjusted.carbsTarget,
+                fatCurrent: consumedFat, fatTarget: adjusted.fatTarget,
+                caloriesCurrent: consumedCal, calorieTarget: adjusted.calorieTarget,
+                isTrainingDay: true,
+                recoveryZone: recoveryZone,
+                mealsLogged: mealsLoggedCount
+            )
+
+            var fuelData = FuelQuadrantData(
+                caloriesConsumed: consumedCal,
+                calorieTarget: adjusted.calorieTarget,
+                proteinGrams: consumedProt,
+                proteinTarget: adjusted.proteinTarget,
+                carbsGrams: consumedCarbs,
+                carbsTarget: adjusted.carbsTarget,
+                fatGrams: consumedFat,
+                fatTarget: adjusted.fatTarget,
+                mealsLogged: meals?.mealsLogged,
+                mealsPlanned: meals?.mealsPlanned,
+                isConnected: meals != nil,
                 lastSync: now
             )
+            fuelData.adjustedTargets = adjusted
+            fuelData.coachingMessage = coaching
+            fuelData.activeCaloriesBurned = Int(energy)
+            fuelData.estimatedBMR = 1800 // Will use real BMR when UserProfile is available
+            self.fuel = fuelData
 
             // Build Mind quadrant — exams from calendar, study data local
             // Per BUILD_PLAN step 13.2 — exam countdown from real calendar data.
@@ -506,21 +849,13 @@ final class DashboardViewModel {
                 lastSync: now
             )
 
-            // Build non-negotiables (stub data until Accountability module)
-            self.nonNegotiables = [
-                NonNegotiableItem(id: UUID(), title: "Morning workout", isCompleted: todaysWorkout != nil, category: .body),
-                NonNegotiableItem(id: UUID(), title: "Hit protein target", isCompleted: false, category: .fuel),
-                NonNegotiableItem(id: UUID(), title: "2h study session", isCompleted: false, category: .mind),
-                NonNegotiableItem(id: UUID(), title: "10k steps", isCompleted: steps >= 10_000, category: .move),
-                NonNegotiableItem(id: UUID(), title: "8h sleep", isCompleted: sleepHours >= 8.0, category: .body),
-            ]
+            // Non-negotiables are populated by refreshAccountability() from real data.
+            // Don't overwrite with fake data here — leave as-is (empty or previously loaded).
 
             self.lastRefresh = now
             self.loadState = .loaded
-
-        } catch {
-            loadState = .error(error.localizedDescription)
-        }
+            self.updateScoreTrend()
+            self.refreshInsights()
     }
 
     // MARK: - Training Status Connection
@@ -578,6 +913,49 @@ final class DashboardViewModel {
             isConnected: move.isConnected,
             lastSync: move.lastSync
         )
+
+        // Generate meal timing suggestions based on training status (Task 3)
+        // Fetch wake time from UserSettings if available
+        let settingsDescriptor = FetchDescriptor<UserSettings>()
+        let wakeMinutes = (try? modelContext.fetch(settingsDescriptor).first?.wakeTimeMinutes) ?? 420
+        fuel.mealTimingSuggestions = NutritionEngine.mealTimingSuggestions(
+            workoutName: name ?? move.workoutName,
+            workoutStatus: status,
+            wakeTimeMinutes: wakeMinutes
+        )
+
+        // Re-compute adjusted targets with correct training/rest day status
+        let isTrainingDay = status == .planned || status == .completed
+        let isRestDayNow = status == .restDay
+        if let baseCalTarget = fuel.calorieTarget, baseCalTarget > 0 {
+            let baseTargets = fuel.adjustedTargets
+            let recomputed = NutritionEngine.adjustedTargets(
+                baseCalories: baseTargets?.baseCalorieTarget ?? baseCalTarget,
+                baseProtein: baseTargets?.baseProteinTarget ?? (fuel.proteinTarget ?? 180),
+                baseCarbs: baseTargets?.baseCarbsTarget ?? (fuel.carbsTarget ?? 280),
+                baseFat: baseTargets?.baseFatTarget ?? (fuel.fatTarget ?? 80),
+                recoveryZone: body.recoveryZone,
+                currentStrain: body.strain,
+                isTrainingDay: isTrainingDay,
+                isRestDay: isRestDayNow
+            )
+            fuel.adjustedTargets = recomputed
+            fuel.calorieTarget = recomputed.calorieTarget
+            fuel.proteinTarget = recomputed.proteinTarget
+            fuel.carbsTarget = recomputed.carbsTarget
+            fuel.fatTarget = recomputed.fatTarget
+
+            // Recompute coaching message with updated targets
+            fuel.coachingMessage = NutritionEngine.coachingMessage(
+                proteinCurrent: fuel.proteinGrams ?? 0, proteinTarget: recomputed.proteinTarget,
+                carbsCurrent: fuel.carbsGrams ?? 0, carbsTarget: recomputed.carbsTarget,
+                fatCurrent: fuel.fatGrams ?? 0, fatTarget: recomputed.fatTarget,
+                caloriesCurrent: fuel.caloriesConsumed ?? 0, calorieTarget: recomputed.calorieTarget,
+                isTrainingDay: isTrainingDay,
+                recoveryZone: body.recoveryZone,
+                mealsLogged: fuel.mealsLogged ?? 0
+            )
+        }
     }
 
     // MARK: - Accountability Connection
@@ -593,11 +971,41 @@ final class DashboardViewModel {
                 da.date >= today && da.date < tomorrow
             }
         )
-        guard let accountability = try? modelContext.fetch(accDescriptor).first else { return }
+        let accountability = try? modelContext.fetch(accDescriptor).first
+
+        // If no DailyAccountability exists yet, still load non-negotiables from SwiftData
+        if accountability == nil {
+            let nnDescriptor = FetchDescriptor<NonNegotiable>(
+                predicate: #Predicate { $0.isActive }
+            )
+            if let activeNNs = try? modelContext.fetch(nnDescriptor), !activeNNs.isEmpty {
+                self.nonNegotiables = activeNNs.map { nn in
+                    NonNegotiableItem(
+                        id: nn.id,
+                        title: nn.name,
+                        isCompleted: false,
+                        category: {
+                            switch nn.type {
+                            case .train: return .move
+                            case .meals: return .fuel
+                            case .study: return .mind
+                            case .sleep: return .body
+                            case .steps: return .move
+                            case .hydration: return .fuel
+                            case .custom: return .mind
+                            }
+                        }()
+                    )
+                }
+            }
+            return
+        }
+
+        let accountabilityRecord = accountability!
 
         // Update Mind quadrant with real study data
-        let studyMinutes = accountability.totalStudyMinutes
-        let studyProgress = accountability.nonNegotiableProgress?.first(where: {
+        let studyMinutes = accountabilityRecord.totalStudyMinutes
+        let studyProgress = accountabilityRecord.nonNegotiableProgress?.first(where: {
             $0.nonNegotiable?.type == .study
         })
         let studyTarget = Int(studyProgress?.targetValue ?? 120)
@@ -618,7 +1026,7 @@ final class DashboardViewModel {
         // Per BUILD_PLAN step 11.3 — Auto-track meal non-negotiable from NutriTrack data.
         // When NutriTrack reports meals logged, update the meals non-negotiable progress.
         if let mealsLogged = fuel.mealsLogged, mealsLogged > 0 {
-            if let mealProgress = accountability.nonNegotiableProgress?.first(where: {
+            if let mealProgress = accountabilityRecord.nonNegotiableProgress?.first(where: {
                 $0.nonNegotiable?.type == .meals
             }) {
                 let target = mealProgress.targetValue
@@ -634,7 +1042,7 @@ final class DashboardViewModel {
         }
 
         // Update non-negotiables from real data
-        let progress = accountability.nonNegotiableProgress ?? []
+        let progress = accountabilityRecord.nonNegotiableProgress ?? []
         self.nonNegotiables = progress.compactMap { p in
             guard let nn = p.nonNegotiable else { return nil }
             let category: NonNegotiableCategory = {
@@ -672,6 +1080,22 @@ final class DashboardViewModel {
         return Double(nonNegotiablesDone) / Double(nonNegotiablesTotal)
     }
 
+    // MARK: - Hydration
+
+    func addHydration(_ ml: Int = 250) {
+        fuel.addHydration(ml)
+    }
+
+    // MARK: - Meal Timing Refresh
+
+    func refreshMealTiming(wakeTimeMinutes: Int) {
+        fuel.mealTimingSuggestions = NutritionEngine.mealTimingSuggestions(
+            workoutName: move.workoutName,
+            workoutStatus: move.workoutStatus,
+            wakeTimeMinutes: wakeTimeMinutes
+        )
+    }
+
     // MARK: - Last Sync Display
 
     var formattedLastSync: String {
@@ -682,6 +1106,415 @@ final class DashboardViewModel {
         if minutes < 60 { return "Last sync: \(minutes)m ago" }
         let hours = minutes / 60
         return "Last sync: \(hours)h ago"
+    }
+
+    // MARK: - Insight Engine
+
+    struct DashboardInsight {
+        let text: String
+        let icon: String
+        let detailTitle: String
+        let detailFinding: String
+        let detailRecommendation: String
+    }
+
+    /// All generated insights for rotation display.
+    private(set) var insights: [DashboardInsight] = []
+
+    /// Index for rotating through insights.
+    private var insightIndex: Int = 0
+
+    var currentInsight: DashboardInsight {
+        if insights.isEmpty {
+            insights = generateAllInsights()
+        }
+        guard !insights.isEmpty else {
+            return DashboardInsight(
+                text: "All systems normal. Execute the plan.",
+                icon: "checkmark.shield.fill",
+                detailTitle: "Status: Operational",
+                detailFinding: "Recovery, sleep, nutrition, and training are all within normal ranges.",
+                detailRecommendation: "Stay the course. Hit every target and stack another win."
+            )
+        }
+        return insights[insightIndex % insights.count]
+    }
+
+    /// Advance to next insight in the rotation.
+    func nextInsight() {
+        if insights.isEmpty { insights = generateAllInsights() }
+        guard !insights.isEmpty else { return }
+        insightIndex = (insightIndex + 1) % insights.count
+    }
+
+    // MARK: - Cross-Module Insight Engine
+    // Generates all applicable insights based on current data.
+    // Insights are ordered by priority — urgent warnings first, patterns second, celebrations last.
+
+    private func generateAllInsights() -> [DashboardInsight] {
+        var result: [DashboardInsight] = []
+
+        // 1. Low recovery warning
+        if let recovery = body.recoveryScore, recovery < 40 {
+            result.append(DashboardInsight(
+                text: "Your recovery is \(Int(recovery))%. Consider a lighter workout today.",
+                icon: "exclamationmark.triangle.fill",
+                detailTitle: "Low Recovery Alert",
+                detailFinding: "Your recovery score is \(Int(recovery))%, which is in the red zone. Training hard today increases injury risk and delays adaptation.",
+                detailRecommendation: "Swap today's session for mobility work or a light walk. Sleep 8+ hours tonight to bounce back."
+            ))
+        }
+
+        // 2. Sleep vs nutrition cross-pattern
+        if let sleep = body.sleepHours, sleep < 7 {
+            let mealsLogged = fuel.mealsLogged ?? 0
+            let mealsPlanned = fuel.mealsPlanned ?? 3
+            if mealsLogged < mealsPlanned {
+                result.append(DashboardInsight(
+                    text: "Poor sleep + missed meals. When you sleep < 7h, you log fewer meals.",
+                    icon: "moon.zzz.fill",
+                    detailTitle: "Sleep-Nutrition Link",
+                    detailFinding: "You got \(String(format: "%.1f", sleep))h of sleep and have only logged \(mealsLogged)/\(mealsPlanned) meals. Sleep deprivation disrupts hunger hormones and decision-making, leading to skipped meals or poor choices.",
+                    detailRecommendation: "Set reminders for your remaining meals today. Prioritize protein-rich options — they require less willpower when you're tired. Hit 8+ hours tonight."
+                ))
+            } else {
+                result.append(DashboardInsight(
+                    text: "You slept \(String(format: "%.1f", sleep))h. Prioritize an early bedtime tonight.",
+                    icon: "moon.zzz.fill",
+                    detailTitle: "Sleep Deficit",
+                    detailFinding: "You got \(String(format: "%.1f", sleep)) hours of sleep. Cognitive performance and muscle recovery both drop significantly below 7 hours.",
+                    detailRecommendation: "Set an alarm for 10 PM tonight. No screens after 9 PM. Your body does its best repair work between 10 PM and 2 AM."
+                ))
+            }
+        }
+
+        // 3. Recovery vs training cross-pattern
+        if let recovery = body.recoveryScore, recovery < 60, move.workoutStatus == .planned {
+            let workoutName = move.workoutName ?? "Workout"
+            result.append(DashboardInsight(
+                text: "Recovery at \(Int(recovery))% with \(workoutName) planned. Reduce volume or intensity.",
+                icon: "waveform.path.ecg",
+                detailTitle: "Recovery vs Training Tension",
+                detailFinding: "Your recovery (\(Int(recovery))%) is below optimal for a full training session. Pushing through yellow/red recovery repeatedly leads to overtraining and plateaus.",
+                detailRecommendation: "Do the session but cut volume by 20-30%. Focus on technique over load. If recovery stays low for 3+ days, take an extra rest day."
+            ))
+        }
+
+        // 4. Study vs sleep cross-pattern
+        if let sleep = body.sleepHours, sleep >= 8 {
+            if mind.studyMinutesToday == 0 && mind.studyTargetMinutes > 0 {
+                result.append(DashboardInsight(
+                    text: "Great sleep (\(String(format: "%.1f", sleep))h). Your brain is primed for deep focus today.",
+                    icon: "brain.head.profile",
+                    detailTitle: "Sleep-Study Advantage",
+                    detailFinding: "You slept \(String(format: "%.1f", sleep)) hours. Research shows you study 40min more effectively on days with 8+ hours of sleep. Memory consolidation and focus are at peak levels.",
+                    detailRecommendation: "Start your study session now while cognitive function is highest. Tackle the hardest material first — your brain can handle it today."
+                ))
+            }
+        }
+
+        // 5. Streak celebration
+        if mind.currentStreakDays > 7 {
+            result.append(DashboardInsight(
+                text: "\(mind.currentStreakDays)-day streak. Habits are becoming automatic.",
+                icon: "flame.fill",
+                detailTitle: "Streak Momentum",
+                detailFinding: "You've maintained consistency for \(mind.currentStreakDays) days straight. Habits formed over 21+ days have an 80% chance of sticking permanently.",
+                detailRecommendation: "Don't break the chain. Even a 15-minute session on a bad day keeps the streak alive and the habit strong."
+            ))
+        }
+
+        // 6. Training day reminder
+        if move.workoutStatus == .planned, let workoutName = move.workoutName {
+            result.append(DashboardInsight(
+                text: "Today is \(workoutName) day. Don't skip it.",
+                icon: "dumbbell.fill",
+                detailTitle: "Training Day",
+                detailFinding: "You have \(workoutName) planned for today and haven't started yet. Consistency beats intensity — showing up matters more than having a perfect session.",
+                detailRecommendation: "Get it done. Even a shortened session is better than a skipped one. Start within the next 2 hours for optimal hormone levels."
+            ))
+        }
+
+        // 7. Nutrition deficit warning
+        if let consumed = fuel.caloriesConsumed, let target = fuel.calorieTarget, target > 0 {
+            let ratio = Double(consumed) / Double(target)
+            let hour = Calendar.current.component(.hour, from: Date())
+            if ratio < 0.4 && hour >= 16 {
+                result.append(DashboardInsight(
+                    text: "Only \(consumed) of \(target) kcal logged by \(hour > 12 ? hour - 12 : hour)PM. Fuel up.",
+                    icon: "fork.knife",
+                    detailTitle: "Calorie Deficit Alert",
+                    detailFinding: "You've consumed only \(Int(ratio * 100))% of your calorie target with the day winding down. Under-eating sabotages recovery, muscle growth, and cognitive function.",
+                    detailRecommendation: "Eat a high-calorie meal now. Focus on protein + carbs: chicken and rice, pasta with meat, or a large smoothie with protein powder. Don't skip dinner."
+                ))
+            }
+        }
+
+        // 8. Protein behind target
+        if let protein = fuel.proteinGrams, let target = fuel.proteinTarget, target > 0 {
+            let remaining = target - protein
+            if remaining > 40 {
+                let hour = Calendar.current.component(.hour, from: Date())
+                if hour >= 14 {
+                    result.append(DashboardInsight(
+                        text: "\(remaining)g protein still needed. Every gram counts for recovery.",
+                        icon: "leaf.fill",
+                        detailTitle: "Protein Gap",
+                        detailFinding: "You need \(remaining)g more protein to hit your \(target)g target. Protein synthesis peaks in the 24h post-training window — missing this window means slower gains.",
+                        detailRecommendation: "Quick wins: Greek yogurt (15g), chicken breast (30g), whey shake (25g), or eggs (6g each). Spread across remaining meals."
+                    ))
+                }
+            }
+        }
+
+        // 9. Steps encouragement
+        if let steps = move.steps {
+            let target = move.stepsTarget
+            let remaining = target - steps
+            let hour = Calendar.current.component(.hour, from: Date())
+            if remaining > 0 && remaining <= 3000 && hour >= 15 {
+                result.append(DashboardInsight(
+                    text: "\(NumberFormatter.localizedString(from: NSNumber(value: remaining), number: .decimal)) steps to go. A 20-min walk closes the gap.",
+                    icon: "figure.walk",
+                    detailTitle: "Steps Almost There",
+                    detailFinding: "You're \(NumberFormatter.localizedString(from: NSNumber(value: remaining), number: .decimal)) steps away from your \(NumberFormatter.localizedString(from: NSNumber(value: target), number: .decimal)) target. A brisk 20-minute walk covers about 2,000-2,500 steps.",
+                    detailRecommendation: "Take a walk after your next meal. Walking post-meal improves blood sugar regulation by 30% and gets you closer to your step goal."
+                ))
+            }
+        }
+
+        // 10. High strain + low nutrition
+        if let strain = body.strain, strain > 14 {
+            let consumed = fuel.caloriesConsumed ?? 0
+            let target = fuel.calorieTarget ?? 2400
+            if consumed < target / 2 {
+                result.append(DashboardInsight(
+                    text: "High strain (\(String(format: "%.1f", strain))) but low fuel. You're burning more than you're replacing.",
+                    icon: "flame.circle.fill",
+                    detailTitle: "Strain-Fuel Imbalance",
+                    detailFinding: "Your day strain is \(String(format: "%.1f", strain)) (high intensity) but you've only consumed \(consumed) of \(target) calories. This creates a recovery debt your body will collect on tomorrow.",
+                    detailRecommendation: "Eat a substantial meal with carbs to replenish glycogen. Add 200-300 calories above your normal target on high-strain days."
+                ))
+            }
+        }
+
+        // 11. Perfect day recognition
+        if let recovery = body.recoveryScore, recovery >= 70,
+           move.workoutStatus == .completed,
+           mind.studyMinutesToday >= mind.studyTargetMinutes,
+           nonNegotiablesDone >= nonNegotiablesTotal, nonNegotiablesTotal > 0 {
+            result.append(DashboardInsight(
+                text: "All targets hit. This is what discipline looks like.",
+                icon: "star.fill",
+                detailTitle: "Perfect Execution Day",
+                detailFinding: "Recovery green, workout done, study target hit, all non-negotiables completed. Days like this are rare — most people never string two together.",
+                detailRecommendation: "Protect your sleep tonight to make tomorrow just as good. Perfect days compound — three in a row is where real transformation happens."
+            ))
+        }
+
+        // Default fallback
+        if result.isEmpty {
+            result.append(DashboardInsight(
+                text: "All systems normal. Execute the plan.",
+                icon: "checkmark.shield.fill",
+                detailTitle: "Status: Operational",
+                detailFinding: "Recovery, sleep, nutrition, and training are all within normal ranges. No corrective actions needed today.",
+                detailRecommendation: "Stay the course. Days like this are where discipline compounds. Hit every target and stack another win."
+            ))
+        }
+
+        return result
+    }
+
+    /// Regenerate insights after data changes.
+    func refreshInsights() {
+        insights = generateAllInsights()
+        insightIndex = 0
+    }
+
+    // MARK: - Score Breakdown
+
+    struct ScoreBreakdown {
+        let recoveryPoints: Double
+        let nutritionPoints: Double
+        let studyPoints: Double
+        let movementPoints: Double
+        let recoveryAvailable: Bool
+        let nutritionAvailable: Bool
+        let studyAvailable: Bool
+        let movementAvailable: Bool
+    }
+
+    var scoreBreakdown: ScoreBreakdown {
+        computeScoreBreakdown()
+    }
+
+    private func computeScoreBreakdown() -> ScoreBreakdown {
+        let recoveryAvailable = body.isConnected && body.recoveryScore != nil
+        let recoveryRaw = body.recoveryScore ?? 0
+
+        let nutritionAvailable = fuel.isConnected && fuel.caloriesConsumed != nil
+        let nutritionRaw: Double = {
+            guard let consumed = fuel.caloriesConsumed,
+                  let target = fuel.calorieTarget, target > 0 else { return 0 }
+            return min(100, (Double(consumed) / Double(target)) * 100)
+        }()
+
+        let studyAvailable = true
+        let studyRaw: Double = {
+            guard mind.studyTargetMinutes > 0 else { return 100 }
+            return min(100, (Double(mind.studyMinutesToday) / Double(mind.studyTargetMinutes)) * 100)
+        }()
+
+        let movementAvailable = move.isConnected
+        let movementRaw: Double = {
+            let stepsComponent: Double = {
+                guard let steps = move.steps, move.stepsTarget > 0 else { return 0 }
+                return min(50, (Double(steps) / Double(move.stepsTarget)) * 50)
+            }()
+            let workoutComponent: Double = move.workoutStatus == .completed ? 50 : 0
+            return min(100, stepsComponent + workoutComponent)
+        }()
+
+        return ScoreBreakdown(
+            recoveryPoints: recoveryAvailable ? recoveryRaw * 0.25 : 0,
+            nutritionPoints: nutritionAvailable ? nutritionRaw * 0.25 : 0,
+            studyPoints: studyAvailable ? studyRaw * 0.25 : 0,
+            movementPoints: movementAvailable ? movementRaw * 0.25 : 0,
+            recoveryAvailable: recoveryAvailable,
+            nutritionAvailable: nutritionAvailable,
+            studyAvailable: studyAvailable,
+            movementAvailable: movementAvailable
+        )
+    }
+
+    // MARK: - 7-Day Score Trend
+
+    struct DailyScorePoint: Identifiable {
+        let id = UUID()
+        let date: Date
+        let score: Int
+    }
+
+    /// Stores the last 7 days of daily scores for sparkline display.
+    /// Loaded from persistent DailyScoreEntry model on launch, updated live.
+    private(set) var scoreTrend: [DailyScorePoint] = []
+
+    /// Trend direction for the sparkline arrow display.
+    var scoreTrendDirection: TrendDirection {
+        guard scoreTrend.count >= 2,
+              let last = scoreTrend.last,
+              let prev = scoreTrend.dropLast().last else {
+            return .flat
+        }
+        let delta = last.score - prev.score
+        if delta > 2 { return .up }
+        if delta < -2 { return .down }
+        return .flat
+    }
+
+    enum TrendDirection {
+        case up, down, flat
+
+        var icon: String {
+            switch self {
+            case .up: return "arrow.up.right"
+            case .down: return "arrow.down.right"
+            case .flat: return "arrow.right"
+            }
+        }
+
+        var color: Color {
+            switch self {
+            case .up: return .tempoSuccess
+            case .down: return .tempoError
+            case .flat: return .tempoTextSecondary
+            }
+        }
+    }
+
+    /// Load persisted score history from SwiftData.
+    func loadScoreHistory(modelContext: ModelContext) {
+        let calendar = Calendar.current
+        let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: calendar.startOfDay(for: Date()))!
+
+        let descriptor = FetchDescriptor<DailyScoreEntry>(
+            predicate: #Predicate { entry in
+                entry.date >= sevenDaysAgo
+            },
+            sortBy: [SortDescriptor(\.date, order: .forward)]
+        )
+
+        guard let entries = try? modelContext.fetch(descriptor) else { return }
+
+        var points = entries.map { DailyScorePoint(date: $0.date, score: $0.score) }
+
+        // Add/update today's live score
+        let today = calendar.startOfDay(for: Date())
+        points.removeAll { calendar.startOfDay(for: $0.date) == today }
+        if let todayScore = computeDailyScore() {
+            points.append(DailyScorePoint(date: today, score: todayScore))
+        }
+
+        scoreTrend = points.suffix(7).map { $0 }
+    }
+
+    /// Persist today's score to SwiftData. Called after refresh when score changes.
+    func persistDailyScore(modelContext: ModelContext) {
+        guard let score = computeDailyScore() else { return }
+
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
+
+        let descriptor = FetchDescriptor<DailyScoreEntry>(
+            predicate: #Predicate { entry in
+                entry.date >= today && entry.date < tomorrow
+            }
+        )
+
+        if let existing = try? modelContext.fetch(descriptor).first {
+            // Only update if score changed significantly (>5 points)
+            if abs(existing.score - score) > 5 {
+                existing.score = score
+                existing.updatedAt = Date()
+            }
+        } else {
+            let entry = DailyScoreEntry(date: today, score: score)
+            modelContext.insert(entry)
+        }
+
+        // Prune entries older than 30 days
+        let thirtyDaysAgo = calendar.date(byAdding: .day, value: -30, to: today)!
+        let pruneDescriptor = FetchDescriptor<DailyScoreEntry>(
+            predicate: #Predicate { entry in
+                entry.date < thirtyDaysAgo
+            }
+        )
+        if let oldEntries = try? modelContext.fetch(pruneDescriptor) {
+            for entry in oldEntries {
+                modelContext.delete(entry)
+            }
+        }
+
+        try? modelContext.save()
+    }
+
+    private func updateScoreTrend() {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+
+        // Keep existing historical points, update/add today
+        var updated = scoreTrend.filter { point in
+            let pointDay = calendar.startOfDay(for: point.date)
+            return pointDay != today && pointDay > calendar.date(byAdding: .day, value: -7, to: today)!
+        }
+
+        if let todayScore = computeDailyScore() {
+            updated.append(DailyScorePoint(date: today, score: todayScore))
+        }
+
+        scoreTrend = updated.sorted { $0.date < $1.date }.suffix(7).map { $0 }
     }
 
     // MARK: - Daily Score Calculation
@@ -749,12 +1582,60 @@ final class DashboardViewModel {
     }
 
     // MARK: - Greeting
-    // Per UX_COPY_BIBLE.md Section 3.2
+    // Per UX_COPY_BIBLE.md Section 3.2 — Context-aware greeting.
+    // Priority: recovery warning > streak milestone > training schedule > deload > time-of-day fallback.
 
     private func greetingForCurrentTime(firstName: String?) -> String {
-        let hour = Calendar.current.component(.hour, from: Date())
         let name = firstName.map { ", \($0)" } ?? ""
 
+        // Priority 1: Low recovery warning
+        if let recovery = body.recoveryScore, recovery < 40 {
+            return "Recovery is low. Take it easy today\(name)."
+        }
+
+        // Priority 2: Streak milestone (7+)
+        if mind.currentStreakDays >= 14 {
+            return "\(mind.currentStreakDays)-day streak. Keep the pressure on\(name)."
+        }
+
+        // Priority 3: Deload week detection (auto-deload enabled + week aligns)
+        if isDeloadWeek {
+            return "Deload week. Earn your recovery\(name)."
+        }
+
+        // Priority 4: Training schedule context
+        if let workoutName = move.workoutName {
+            switch move.workoutStatus {
+            case .planned:
+                return "\(workoutName) day. Finish what you started\(name)."
+            case .completed:
+                return "\(workoutName) crushed. Recover hard\(name)."
+            case .restDay:
+                return "Rest day. Recovery is training\(name)."
+            case .none:
+                break
+            }
+        } else if move.workoutStatus == .restDay {
+            return "Rest day. Recovery is training\(name)."
+        }
+
+        // Priority 5: Poor sleep nudge
+        if let sleep = body.sleepHours, sleep < 6.5 {
+            return "Rough night. Push through anyway\(name)."
+        }
+
+        // Priority 6: High recovery = green light
+        if let recovery = body.recoveryScore, recovery >= 80 {
+            return "Recovery is green. Go all out\(name)."
+        }
+
+        // Priority 7: Streak building (2-13 days)
+        if mind.currentStreakDays >= 7 {
+            return "\(mind.currentStreakDays)-day streak. Don't break the chain\(name)."
+        }
+
+        // Fallback: Time-based greeting
+        let hour = Calendar.current.component(.hour, from: Date())
         switch hour {
         case 0..<4: return "You should be asleep\(name)."
         case 4..<8: return "Early bird gets the gains\(name)."
@@ -765,6 +1646,20 @@ final class DashboardViewModel {
         case 21..<24: return "Earn your sleep\(name)."
         default: return "Rise and grind\(name)."
         }
+    }
+
+    /// Deload week detection. Uses deload frequency from settings (defaults to every 5 weeks).
+    /// Approximation based on week-of-year modulo.
+    private(set) var deloadFrequencyWeeks: Int = 5
+
+    private var isDeloadWeek: Bool {
+        guard deloadFrequencyWeeks > 0 else { return false }
+        let weekOfYear = Calendar.current.component(.weekOfYear, from: Date())
+        return weekOfYear % deloadFrequencyWeeks == 0
+    }
+
+    func setDeloadFrequency(_ weeks: Int) {
+        self.deloadFrequencyWeeks = weeks
     }
 
     // MARK: - Preview Helper
@@ -778,7 +1673,7 @@ final class DashboardViewModel {
             sleepPerformance: 78, strain: 12.4, spo2: 97.5,
             isConnected: true, lastSync: Date()
         )
-        vm.fuel = FuelQuadrantData(
+        var previewFuel = FuelQuadrantData(
             caloriesConsumed: 2100, calorieTarget: 2400,
             proteinGrams: 165, proteinTarget: 180,
             carbsGrams: 240, carbsTarget: 280,
@@ -786,6 +1681,25 @@ final class DashboardViewModel {
             mealsLogged: 3, mealsPlanned: 4,
             isConnected: true, lastSync: Date()
         )
+        previewFuel.hydrationMl = 1500
+        previewFuel.activeCaloriesBurned = 342
+        previewFuel.estimatedBMR = 1800
+        previewFuel.adjustedTargets = NutritionEngine.adjustedTargets(
+            baseCalories: 2400, baseProtein: 180, baseCarbs: 280, baseFat: 80,
+            recoveryZone: .green, currentStrain: 12.4,
+            isTrainingDay: true, isRestDay: false
+        )
+        previewFuel.coachingMessage = NutritionEngine.coachingMessage(
+            proteinCurrent: 165, proteinTarget: 180,
+            carbsCurrent: 240, carbsTarget: 280,
+            fatCurrent: 72, fatTarget: 80,
+            caloriesCurrent: 2100, calorieTarget: 2400,
+            isTrainingDay: true, recoveryZone: .green, mealsLogged: 3
+        )
+        previewFuel.mealTimingSuggestions = NutritionEngine.mealTimingSuggestions(
+            workoutName: "Upper Body Push", workoutStatus: .completed, wakeTimeMinutes: 420
+        )
+        vm.fuel = previewFuel
         vm.mind = MindQuadrantData(
             studyMinutesToday: 95, studyTargetMinutes: 120,
             currentStreakDays: 12,

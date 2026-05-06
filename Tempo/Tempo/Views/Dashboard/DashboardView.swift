@@ -2,9 +2,6 @@ import SwiftData
 import SwiftUI
 
 // MARK: - Dashboard View
-// Per MODULE_DASHBOARD.md Section 3 — Main Dashboard View.
-// ScrollView with: [A] Header, [B] Score Ring, [C] 2x2 Quadrant Grid,
-// [D] Non-Negotiables Bar, [E] Quick Insights Banner.
 
 struct DashboardView: View {
 
@@ -13,6 +10,18 @@ struct DashboardView: View {
     @State private var viewModel: DashboardViewModel?
     @State private var hasAppeared = false
     @State private var showNutriTrackConnect = false
+    @State private var showMealLogging = false
+    @State private var showWhoopConnect = false
+    @State private var showSettings = false
+    @State private var showNotifications = false
+    @State private var showInsightDetail = false
+    @State private var showNonNegotiableSetup = false
+    @State private var showScoreBreakdown = false
+    @State private var activeMilestone: MilestoneService.Milestone?
+    @State private var showMilestoneCelebration = false
+    @State private var showProgressReport = false
+    @AppStorage("healthKitAuthorized") private var healthKitAuthorized = false
+    @AppStorage("hasCompletedSetup") private var hasCompletedSetup = false
 
     var body: some View {
         NavigationStack {
@@ -23,11 +32,9 @@ struct DashboardView: View {
                 if let viewModel {
                     switch viewModel.loadState {
                     case .loading where !hasAppeared:
-                        // First load — show skeleton shimmer
                         DashboardLoadingView()
 
                     case .error(let message) where !hasAppeared:
-                        // Error on first load — full-screen error
                         ErrorStateView(
                             title: "Sync failed.",
                             message: message,
@@ -35,29 +42,91 @@ struct DashboardView: View {
                                 Task {
                                     await viewModel.refresh()
                                     viewModel.refreshTrainingStatus(modelContext: modelContext)
-                    viewModel.refreshAccountability(modelContext: modelContext)
+                                    viewModel.refreshAccountability(modelContext: modelContext)
                                 }
                             }
                         )
 
                     default:
-                        // Loaded, or loading with previous data (pull-to-refresh keeps old data visible)
                         dashboardContent(viewModel)
                     }
                 } else {
                     DashboardLoadingView()
                 }
             }
-            .toolbar(.hidden, for: .navigationBar)
+            .navigationBarHidden(true)
         }
         .task {
             if viewModel == nil {
                 let vm = DashboardViewModel(services: services)
+                // Query UserProfile and populate userName
+                let descriptor = FetchDescriptor<UserProfile>()
+                if let profile = try? modelContext.fetch(descriptor).first {
+                    vm.setUserName(profile.displayName)
+                }
                 self.viewModel = vm
+                // Validate Whoop connection BEFORE fetching data — prevents race condition
+                // where refresh() checks connectionState before tokens are verified
+                await services.whoop.checkConnectionOnLaunch()
+
+                // Update display name from Whoop profile if still default
+                let descriptor2 = FetchDescriptor<UserProfile>()
+                if let profile = try? modelContext.fetch(descriptor2).first,
+                   profile.displayName == "Athlete",
+                   let whoopService = services.whoop as? WhoopService,
+                   let firstName = whoopService.profileFirstName, !firstName.isEmpty {
+                    let fullName = [firstName, whoopService.profileLastName].compactMap { $0 }.joined(separator: " ")
+                    profile.displayName = fullName
+                    profile.updatedAt = Date()
+                    try? modelContext.save()
+                    vm.setUserName(fullName)
+                }
+
+                // Load deload frequency from settings
+                let settingsDescriptor = FetchDescriptor<UserSettings>()
+                if let settings = try? modelContext.fetch(settingsDescriptor).first {
+                    vm.setDeloadFrequency(settings.deloadFrequencyWeeks)
+                }
+
+                // Load persisted score history for sparkline
+                vm.loadScoreHistory(modelContext: modelContext)
+
                 await vm.refresh()
                 vm.refreshTrainingStatus(modelContext: modelContext)
+                vm.refreshAccountability(modelContext: modelContext)
+
+                // Persist today's score and reload trend
+                vm.persistDailyScore(modelContext: modelContext)
+                vm.loadScoreHistory(modelContext: modelContext)
+
+                // Fetch weather (non-blocking)
+                await vm.fetchWeather()
+
                 hasAppeared = true
+
+                // Check retention milestones
+                if let milestone = MilestoneService.checkMilestone(modelContext: modelContext) {
+                    activeMilestone = milestone
+                    showMilestoneCelebration = true
+                }
             }
+        }
+        .fullScreenCover(isPresented: $showMilestoneCelebration) {
+            if let milestone = activeMilestone {
+                MilestoneCelebrationView(
+                    milestone: milestone,
+                    onDismiss: { showMilestoneCelebration = false },
+                    onShowProgress: milestone == .day30 ? {
+                        showMilestoneCelebration = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            showProgressReport = true
+                        }
+                    } : nil
+                )
+            }
+        }
+        .sheet(isPresented: $showProgressReport) {
+            ProgressReportView()
         }
         .sheet(isPresented: $showNutriTrackConnect) {
             NutriTrackConnectView(
@@ -69,6 +138,57 @@ struct DashboardView: View {
                 }
             )
         }
+        .sheet(isPresented: $showMealLogging) {
+            MealLoggingView()
+        }
+        .sheet(isPresented: $showWhoopConnect, onDismiss: {
+            Task {
+                await viewModel?.refresh()
+                viewModel?.refreshTrainingStatus(modelContext: modelContext)
+            }
+        }) {
+            NavigationStack {
+                WhoopConnectionView()
+            }
+        }
+        .onChange(of: services.whoop.connectionState) { oldState, newState in
+            // Auto-refresh when Whoop connects mid-session (e.g. after OAuth completes)
+            if case .connected = newState, oldState != .connected {
+                Task {
+                    await viewModel?.refresh()
+                    viewModel?.refreshTrainingStatus(modelContext: modelContext)
+                }
+            }
+        }
+        .sheet(isPresented: $showSettings) {
+            NavigationStack {
+                DashboardSettingsView()
+            }
+        }
+        .sheet(isPresented: $showNotifications) {
+            NavigationStack {
+                NotificationSettingsView()
+            }
+        }
+        .sheet(isPresented: $showNonNegotiableSetup, onDismiss: {
+            // Refresh accountability data so banner detects new non-negotiables
+            viewModel?.refreshAccountability(modelContext: modelContext)
+        }) {
+            NavigationStack {
+                NonNegotiableSetupView()
+            }
+        }
+    }
+
+    // MARK: - Setup Tracking
+
+    /// True when at least 2 data sources are connected (Whoop, NutriTrack, HealthKit).
+    private var hasConnectedSources: Bool {
+        var count = 0
+        if services.whoop.connectionState == .connected { count += 1 }
+        if case .connected = services.nutriTrack.connectionState { count += 1 }
+        if healthKitAuthorized { count += 1 }
+        return count >= 2
     }
 
     // MARK: - Dashboard Content
@@ -76,120 +196,160 @@ struct DashboardView: View {
     @ViewBuilder
     private func dashboardContent(_ vm: DashboardViewModel) -> some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 0) {
-                // [A] Header Bar
-                headerBar(vm)
+            VStack(spacing: TempoSpacing.xxl) {
+                headerRow(vm)
 
-                // [B] Daily Score Section
-                dailyScoreSection(vm)
-                    .padding(.top, TempoSpacing.lg)
+                // Welcome banner for first-run experience
+                if !hasCompletedSetup {
+                    let whoopDone = services.whoop.connectionState == .connected
+                    // Query SwiftData directly for non-negotiables (more reliable than ViewModel state)
+                    let nnDescriptor = FetchDescriptor<NonNegotiable>()
+                    let nnCount = (try? modelContext.fetchCount(nnDescriptor)) ?? 0
+                    let nnDone = nnCount > 0
+                    // Training setup is done if the user has a settings record (created during onboarding)
+                    let settingsDescriptor = FetchDescriptor<UserSettings>()
+                    let hasSetting = ((try? modelContext.fetchCount(settingsDescriptor)) ?? 0) > 0
+                    let allDone = whoopDone && nnDone && hasSetting
 
-                // [C] Quadrant Grid
+                    if !allDone {
+                        WelcomeBannerView(
+                            isWhoopConnected: whoopDone,
+                            hasTrainingSetup: hasSetting,
+                            hasNonNegotiables: nnDone,
+                            onConnectWhoop: { showWhoopConnect = true },
+                            onSetUpTraining: { showSettings = true },
+                            onDefineNonNegotiables: { showNonNegotiableSetup = true },
+                            onSkip: {
+                                withAnimation { hasCompletedSetup = true }
+                            }
+                        )
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+                }
+
+                scoreTrendSparkline(vm)
                 quadrantGrid(vm)
-                    .padding(.top, 20)
-
-                // [D] Non-Negotiables Bar
-                nonNegotiablesBar(vm)
-                    .padding(.top, 20)
-
-                // [E] Quick Insights Banner (placeholder for now)
-                insightsBanner()
-                    .padding(.top, TempoSpacing.lg)
-
-                // Bottom breathing room
-                Spacer()
-                    .frame(height: 50)
+                quickActionsRow(vm)
+                nonNegotiablesSection(vm)
+                insightRow(vm)
+                arenaQuickAccessCard()
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
+            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
         }
+        .scrollIndicators(.hidden)
         .refreshable {
             await vm.refresh()
             vm.refreshTrainingStatus(modelContext: modelContext)
+            vm.refreshAccountability(modelContext: modelContext)
+            vm.persistDailyScore(modelContext: modelContext)
+            vm.loadScoreHistory(modelContext: modelContext)
+        }
+        .sheet(isPresented: $showScoreBreakdown) {
+            ScoreBreakdownSheet(vm: vm)
         }
     }
 
-    // MARK: - [A] Header Bar
-    // Per MODULE_DASHBOARD.md Section 3.2
+    // MARK: - Header
 
-    private func headerBar(_ vm: DashboardViewModel) -> some View {
-        HStack(alignment: .top) {
+    private func headerRow(_ vm: DashboardViewModel) -> some View {
+        HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 2) {
-                // Date line
-                Text(vm.formattedDate)
-                    .font(.tempoCallout)
-                    .foregroundStyle(Color.tempoTextSecondary)
-
-                // Greeting line
                 Text(vm.greeting)
                     .font(.tempoTitle2)
                     .foregroundStyle(Color.tempoTextPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+
+                HStack(spacing: 6) {
+                    Text(vm.formattedDate.uppercased())
+                        .font(.tempoCaption1)
+                        .fontWeight(.medium)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                        .tracking(0.5)
+
+                    // Weather indicator
+                    if let weather = vm.weather {
+                        Text("\u{00B7}")
+                            .font(.tempoCaption1)
+                            .fontWeight(.medium)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                        HStack(spacing: 3) {
+                            Image(systemName: weather.conditionSymbol)
+                                .font(.system(size: 10))
+                                .foregroundStyle(Color.tempoTextSecondary)
+                            Text(weather.formattedTemperature)
+                                .font(.tempoCaption2)
+                                .fontWeight(.medium)
+                                .foregroundStyle(Color.tempoTextSecondary)
+                        }
+                    }
+
+                    if !vm.formattedLastSync.isEmpty {
+                        Text("\u{00B7}")
+                            .font(.tempoCaption1)
+                            .fontWeight(.medium)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                        Text(vm.formattedLastSync)
+                            .font(.tempoCaption2)
+                            .fontWeight(.medium)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                    }
+                }
             }
 
             Spacer()
 
-            HStack(spacing: TempoSpacing.sm) {
-                // Settings
+            // Score pill — compact inline display, tap for breakdown
+            if let score = vm.dailyScore {
                 Button {
-                    // Settings navigation — wired in later phase
+                    showScoreBreakdown = true
                 } label: {
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 22))
-                        .foregroundStyle(Color.tempoTextSecondary)
+                    HStack(spacing: 6) {
+                        ScoreRingView(
+                            score: Double(score),
+                            maxScore: 100,
+                            size: 28,
+                            strokeWidth: 3
+                        )
+                        Text("\(score)")
+                            .font(.tempoDataMedium)
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.tempoTextPrimary)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.tempoSurfaceCard)
+                    .clipShape(Capsule())
                 }
-                .frame(width: 44, height: 44)
+            }
 
-                // Notifications
+            HStack(spacing: 4) {
                 Button {
-                    // Notifications navigation — wired in later phase
+                    showSettings = true
                 } label: {
-                    Image(systemName: "bell.fill")
-                        .font(.system(size: 22))
+                    Image(systemName: "gearshape")
+                        .font(.tempoBody)
+                        .fontWeight(.medium)
                         .foregroundStyle(Color.tempoTextSecondary)
                 }
-                .frame(width: 44, height: 44)
+                .frame(width: 34, height: 34)
+
+                Button {
+                    showNotifications = true
+                } label: {
+                    Image(systemName: "bell")
+                        .font(.tempoBody)
+                        .fontWeight(.medium)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                }
+                .frame(width: 34, height: 34)
             }
         }
         .padding(.top, TempoSpacing.sm)
     }
 
-    // MARK: - [B] Daily Score Section
-    // Per MODULE_DASHBOARD.md Section 3.3
-
-    private func dailyScoreSection(_ vm: DashboardViewModel) -> some View {
-        VStack(spacing: TempoSpacing.xs) {
-            if let score = vm.dailyScore {
-                ScoreRingView(
-                    score: Double(score),
-                    maxScore: 100,
-                    size: 100,
-                    strokeWidth: 8
-                )
-            } else {
-                // Insufficient data / loading — empty ring with "--"
-                ZStack {
-                    Circle()
-                        .stroke(Color.tempoBorder, style: StrokeStyle(lineWidth: 8, lineCap: .round))
-                        .frame(width: 100, height: 100)
-
-                    Text("--")
-                        .font(.tempoScoreDisplay)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                }
-            }
-
-            Text("Daily Score")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-
-            Text(vm.formattedLastSync)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    // MARK: - [C] Quadrant Grid
-    // Per MODULE_DASHBOARD.md Section 3.4
+    // MARK: - Quadrant Grid
 
     private func quadrantGrid(_ vm: DashboardViewModel) -> some View {
         LazyVGrid(
@@ -199,463 +359,781 @@ struct DashboardView: View {
             ],
             spacing: TempoSpacing.cardGap
         ) {
-            // Top-left: BODY
-            bodyQuadrantCard(vm.body)
+            NavigationLink(destination: BodyQuadrantDetailView(data: vm.body)) {
+                bodyCard(vm.body)
+            }
+            .buttonStyle(.plain)
 
-            // Top-right: FUEL
-            fuelQuadrantCard(vm.fuel)
+            NavigationLink(destination: MoveQuadrantDetailView(data: vm.move)) {
+                moveCard(vm.move)
+            }
+            .buttonStyle(.plain)
 
-            // Bottom-left: MIND
-            mindQuadrantCard(vm.mind)
+            NavigationLink(destination: DailyNutritionSummaryView(fuelData: vm.fuel, onAddHydration: { ml in
+                    vm.addHydration(ml)
+                })) {
+                fuelCard(vm.fuel)
+            }
+            .buttonStyle(.plain)
 
-            // Bottom-right: MOVE
-            moveQuadrantCard(vm.move)
+            NavigationLink(destination: MindQuadrantDetailView(data: vm.mind)) {
+                mindCard(vm.mind)
+            }
+            .buttonStyle(.plain)
         }
     }
 
-    // MARK: - Body Quadrant Card
-    // Per MODULE_DASHBOARD.md Section 3.4.1
+    // MARK: - Body Card
 
-    private func bodyQuadrantCard(_ data: BodyQuadrantData) -> some View {
-        quadrantCardShell(
-            label: "BODY",
-            icon: "heart.fill",
-            iconColor: data.recoveryZone?.color ?? Color.tempoTextTertiary
-        ) {
-            if data.isConnected {
+    private func bodyCard(_ data: BodyQuadrantData) -> some View {
+        cardShell(label: "BODY") {
+            if data.isConnected || services.whoop.connectionState == .connected {
                 VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    // Primary: Recovery score
                     Text(data.formattedRecovery)
-                        .font(.tempoTitle1)
+                        .font(.tempoXPDisplay)
                         .foregroundStyle(data.recoveryZone?.color ?? Color.tempoTextPrimary)
+                        .contentTransition(.numericText(countsDown: false))
+                        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: data.formattedRecovery)
 
                     Text("Recovery")
                         .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .fontWeight(.medium)
+                        .foregroundStyle(Color.tempoTextTertiary)
 
-                    // Secondary metrics row
-                    HStack(spacing: 0) {
-                        metricBlock(value: data.formattedHRV, label: "HRV")
-                        Spacer()
-                        metricBlock(value: data.formattedRHR, label: "RHR")
-                        Spacer()
-                        metricBlock(value: data.formattedSleep, label: "Sleep")
+                    Divider().opacity(0.3)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        miniMetric(label: "HRV", value: data.formattedHRV)
+                        miniMetric(label: "RHR", value: data.formattedRHR)
+                        miniMetric(label: "Sleep", value: data.formattedSleep)
                     }
 
-                    // Strain bar
-                    strainBar(strain: data.strain)
+                    if let strain = data.strain {
+                        strainIndicator(strain)
+                    }
                 }
             } else {
-                disconnectedState(
-                    icon: "sensor.tag.radiowaves.forward.fill",
-                    title: "Connect Whoop",
-                    subtitle: "to track recovery"
+                connectPrompt(
+                    icon: "waveform.path.ecg",
+                    message: "Connect Whoop",
+                    action: { showWhoopConnect = true }
                 )
             }
         }
     }
 
-    // MARK: - Fuel Quadrant Card
-    // Per MODULE_DASHBOARD.md Section 3.4.2
+    // MARK: - Fuel Card
 
-    private func fuelQuadrantCard(_ data: FuelQuadrantData) -> some View {
-        quadrantCardShell(
-            label: "FUEL",
-            icon: "flame.fill",
-            iconColor: Color.tempoViolet
-        ) {
+    private func fuelCard(_ data: FuelQuadrantData) -> some View {
+        cardShell(label: "FUEL") {
             if data.isConnected {
                 VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    // Calorie ring + text
-                    HStack(spacing: TempoSpacing.sm) {
-                        // Mini calorie ring
-                        ZStack {
-                            Circle()
-                                .stroke(Color.tempoBorder, lineWidth: 5)
-                            Circle()
-                                .trim(from: 0, to: min(data.calorieProgress, 1.0))
-                                .stroke(Color.tempoViolet, style: StrokeStyle(lineWidth: 5, lineCap: .round))
-                                .rotationEffect(.degrees(-90))
-                            Text(data.formattedCalories)
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextPrimary)
-                                .minimumScaleFactor(0.6)
-                        }
-                        .frame(width: 52, height: 52)
+                    HStack(alignment: .firstTextBaseline, spacing: 2) {
+                        Text(data.formattedCalories)
+                            .font(.tempoScoreDisplaySmall)
+                            .foregroundStyle(Color.tempoTextPrimary)
+                            .contentTransition(.numericText(countsDown: false))
+                            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: data.formattedCalories)
+                        Text("kcal")
+                            .font(.tempoCaption2)
+                            .fontWeight(.medium)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                    }
 
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack(spacing: 0) {
-                                Text(data.formattedCalories)
-                                    .font(.tempoCallout)
-                                    .foregroundStyle(Color.tempoTextPrimary)
-                                Text(" / \(data.formattedCalorieTarget)")
-                                    .font(.tempoCallout)
-                                    .foregroundStyle(Color.tempoTextTertiary)
-                            }
-                            .minimumScaleFactor(0.8)
+                    progressBar(progress: data.calorieProgress, color: Color.tempoViolet)
+                        .animation(.spring(response: 0.5, dampingFraction: 0.8), value: data.calorieProgress)
 
-                            Text("kcal")
+                    Text("of \(data.formattedCalorieTarget) target")
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoTextTertiary)
+
+                    Divider().opacity(0.3)
+
+                    // Macro mini rings with color-coded status (Task 2)
+                    HStack(spacing: 6) {
+                        fuelCardMacroRing(letter: "P", current: data.proteinGrams ?? 0, target: data.proteinTarget ?? 180, color: .cyan, status: data.proteinStatus)
+                        fuelCardMacroRing(letter: "C", current: data.carbsGrams ?? 0, target: data.carbsTarget ?? 280, color: .yellow, status: data.carbsStatus)
+                        fuelCardMacroRing(letter: "F", current: data.fatGrams ?? 0, target: data.fatTarget ?? 80, color: .orange, status: data.fatStatus)
+                    }
+
+                    // Hydration quick display (Task 4)
+                    if data.hydrationMl > 0 {
+                        HStack(spacing: 4) {
+                            Image(systemName: "drop.fill")
+                                .font(.system(size: 8))
+                                .foregroundStyle(Color.tempoElectric)
+                            Text(data.formattedHydration)
                                 .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
+                                .fontWeight(.medium)
+                                .foregroundStyle(
+                                    data.hydrationProgress >= 0.7
+                                        ? Color.tempoSuccess : Color.tempoTextSecondary
+                                )
                         }
                     }
 
-                    // Macro bars
-                    macroBar(label: "P", current: data.formattedProtein, target: data.formattedProteinTarget,
-                             progress: macroProgress(data.proteinGrams, data.proteinTarget),
-                             color: Color(red: 90/255, green: 200/255, blue: 250/255)) // #5AC8FA
+                    // Nutrition mode badge (Task 1)
+                    if data.nutritionMode != .standard {
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(fuelModeBadgeColor(data.nutritionMode))
+                                .frame(width: 5, height: 5)
+                            Text(fuelModeBadgeText(data.nutritionMode))
+                                .font(.system(size: 9, weight: .bold))
+                                .tracking(0.5)
+                                .foregroundStyle(fuelModeBadgeColor(data.nutritionMode))
+                        }
+                    }
 
-                    macroBar(label: "C", current: data.formattedCarbs, target: data.formattedCarbsTarget,
-                             progress: macroProgress(data.carbsGrams, data.carbsTarget),
-                             color: Color(red: 255/255, green: 214/255, blue: 10/255)) // #FFD60A
-
-                    macroBar(label: "F", current: data.formattedFat, target: data.formattedFatTarget,
-                             progress: macroProgress(data.fatGrams, data.fatTarget),
-                             color: Color(red: 255/255, green: 159/255, blue: 10/255)) // #FF9F0A
-
-                    // Meals logged
                     Text(data.formattedMeals)
-                        .font(.tempoCaption1)
+                        .font(.tempoCaption2)
+                            .fontWeight(.medium)
                         .foregroundStyle(
                             (data.mealsLogged ?? 0) >= (data.mealsPlanned ?? 1)
                                 ? Color.tempoSuccess : Color.tempoTextSecondary
                         )
                 }
             } else {
-                Button {
-                    showNutriTrackConnect = true
-                } label: {
-                    disconnectedState(
-                        icon: "fork.knife",
-                        title: "Connect NutriTrack",
-                        subtitle: "to track nutrition"
+                connectPrompt(
+                    icon: "fork.knife",
+                    message: "Add Meal",
+                    buttonText: "Add",
+                    action: { showMealLogging = true }
+                )
+            }
+        }
+    }
+
+    private func fuelCardMacroRing(letter: String, current: Int, target: Int, color: Color, status: NutritionEngine.MacroStatus) -> some View {
+        let progress = target > 0 ? Double(current) / Double(target) : 0
+        let ringColor: Color = {
+            switch status {
+            case .onTrack: return .tempoSuccess
+            case .behind: return .tempoWarning
+            case .over: return .tempoError
+            }
+        }()
+
+        return VStack(spacing: 2) {
+            ZStack {
+                Circle()
+                    .stroke(color.opacity(0.2), style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                Circle()
+                    .trim(from: 0, to: min(progress, 1.0))
+                    .stroke(ringColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+
+                Text(letter)
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(Color.tempoTextSecondary)
+            }
+            .frame(width: 24, height: 24)
+
+            Text("\(current)g")
+                .font(.system(size: 9, weight: .medium, design: .monospaced))
+                .foregroundStyle(Color.tempoTextTertiary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func fuelModeBadgeColor(_ mode: NutritionMode) -> Color {
+        switch mode {
+        case .repair: .tempoError
+        case .fuel: .tempoSuccess
+        case .rest: .tempoElectric
+        case .standard: .tempoTextTertiary
+        }
+    }
+
+    private func fuelModeBadgeText(_ mode: NutritionMode) -> String {
+        switch mode {
+        case .repair: "REPAIR"
+        case .fuel: "FUEL UP"
+        case .rest: "REST"
+        case .standard: ""
+        }
+    }
+
+    // MARK: - Mind Card
+
+    private func mindCard(_ data: MindQuadrantData) -> some View {
+        cardShell(label: "MIND") {
+            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+                Text(data.formattedStudyTime)
+                    .font(.tempoXPDisplay)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                    .contentTransition(.numericText(countsDown: false))
+                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: data.formattedStudyTime)
+
+                if data.studyMinutesToday >= data.studyTargetMinutes && data.studyTargetMinutes > 0 {
+                    Text("Target hit")
+                        .font(.tempoCaption1)
+                        .fontWeight(.medium)
+                        .foregroundStyle(Color.tempoSuccess)
+                } else {
+                    Text("of \(data.formattedStudyTarget) target")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                }
+
+                progressBar(
+                    progress: data.studyProgress,
+                    color: Color.tempoElectric
+                )
+                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: data.studyProgress)
+
+                if let exam = data.exams.first {
+                    HStack(spacing: 4) {
+                        Image(systemName: "calendar")
+                            .font(.tempoModuleTag)
+                        Text("\(exam.name) \(exam.formattedCountdown)")
+                            .font(.tempoCaption2)
+                            .fontWeight(.medium)
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(examCountdownColor(exam.daysUntil))
+                }
+
+                if data.currentStreakDays >= 2 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "flame.fill")
+                            .font(.tempoModuleTag)
+                            .foregroundStyle(Color.tempoAmber)
+                        Text("\(data.formattedStreak) streak")
+                            .font(.tempoCaption2)
+                            .fontWeight(.medium)
+                            .foregroundStyle(
+                                data.currentStreakDays >= 7
+                                    ? Color.tempoAmber : Color.tempoTextSecondary
+                            )
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Move Card
+
+    private func moveCard(_ data: MoveQuadrantData) -> some View {
+        cardShell(label: "MOVE") {
+            if data.isConnected || healthKitAuthorized {
+                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+                    workoutStatus(data)
+
+                    Divider().opacity(0.3)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        miniMetricAnimated(
+                            label: "Steps",
+                            value: data.formattedSteps,
+                            valueColor: stepsColor(data.steps, target: data.stepsTarget)
+                        )
+                        miniMetricAnimated(
+                            label: "Active",
+                            value: data.formattedActiveCalories,
+                            valueColor: .tempoTextPrimary
+                        )
+                    }
+
+                    progressBar(
+                        progress: data.stepsProgress,
+                        color: Color.tempoAmber
                     )
+                    .animation(.spring(response: 0.5, dampingFraction: 0.8), value: data.stepsProgress)
+
+                    HStack {
+                        Spacer()
+                        Text("\(NumberFormatter.localizedString(from: NSNumber(value: data.stepsTarget), number: .decimal)) goal")
+                            .font(.tempoModuleTag)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                    }
+                }
+            } else {
+                connectPrompt(
+                    icon: "heart.text.square",
+                    message: "Authorize Health",
+                    action: {
+                        Task {
+                            try? await services.healthKit.requestAuthorization()
+                            healthKitAuthorized = true
+                            await viewModel?.refresh()
+                        }
+                    }
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func workoutStatus(_ data: MoveQuadrantData) -> some View {
+        switch data.workoutStatus {
+        case .completed:
+            HStack(spacing: 4) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.tempoCallout)
+                    .foregroundStyle(Color.tempoSuccess)
+                Text("Done")
+                    .font(.tempoHeadline)
+                    .foregroundStyle(Color.tempoSuccess)
+            }
+            if let name = data.workoutName {
+                Text("\(name) — \(data.formattedWorkoutDuration)")
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                    .lineLimit(1)
+            }
+        case .planned:
+            Text(data.workoutName ?? "Workout")
+                .font(.tempoHeadline)
+                .foregroundStyle(Color.tempoTextPrimary)
+                .lineLimit(1)
+            Text("Planned for today")
+                .font(.tempoCaption2)
+                .fontWeight(.medium)
+                .foregroundStyle(Color.tempoAmber)
+            if let duration = data.workoutDurationMinutes {
+                Text("~\(duration) min")
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextTertiary)
+            }
+        case .restDay:
+            Text("Rest Day")
+                .font(.tempoHeadline)
+                .foregroundStyle(Color.tempoTextSecondary)
+            Text("Recovery is training.")
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextTertiary)
+                .italic()
+        case .none:
+            Text("No workout")
+                .font(.tempoHeadline)
+                .foregroundStyle(Color.tempoTextTertiary)
+            Text("Add one or skip.")
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextTertiary)
+        }
+    }
+
+    // MARK: - Non-Negotiables
+
+    private func nonNegotiablesSection(_ vm: DashboardViewModel) -> some View {
+        Group {
+            if vm.nonNegotiablesTotal > 0 {
+                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+                    HStack {
+                        Text("\(vm.nonNegotiablesDone)/\(vm.nonNegotiablesTotal) done")
+                            .font(.tempoSubheadline)
+                        .fontWeight(.semibold)
+                            .foregroundStyle(Color.tempoTextPrimary)
+
+                        Spacer()
+
+                        Image(systemName: vm.nonNegotiablesDone >= vm.nonNegotiablesTotal ? "lock.open.fill" : "lock.fill")
+                            .font(.tempoFootnote)
+                            .foregroundStyle(
+                                vm.nonNegotiablesDone >= vm.nonNegotiablesTotal
+                                    ? Color.tempoSuccess : Color.tempoTextTertiary
+                            )
+                    }
+
+                    progressBar(
+                        progress: vm.nonNegotiableProgress,
+                        color: vm.nonNegotiablesDone >= vm.nonNegotiablesTotal
+                            ? Color.tempoSuccess : Color.tempoSignal,
+                        height: 4
+                    )
+
+                    FlowLayout(spacing: 10, lineSpacing: 6) {
+                        ForEach(vm.nonNegotiables) { item in
+                            nonNegotiablePill(item)
+                        }
+                    }
+                }
+            } else {
+                VStack(spacing: TempoSpacing.sm) {
+                    Image(systemName: "lock.fill")
+                        .font(.tempoBody)
+                        .foregroundStyle(Color.tempoTextTertiary)
+
+                    Text("Set your non-negotiables")
+                        .font(.tempoSubheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.tempoTextPrimary)
+
+                    Text("Daily commitments you won't break")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextTertiary)
+
+                    Button {
+                        showNonNegotiableSetup = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "plus")
+                                .font(.tempoCaption2)
+                            Text("Add")
+                                .font(.tempoFootnote)
+                                .fontWeight(.semibold)
+                        }
+                        .foregroundStyle(Color.tempoSignal)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(TempoSpacing.cardPadding)
+        .background(Color.tempoSurfaceCard)
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+    }
+
+    private func nonNegotiablePill(_ item: NonNegotiableItem) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
+                .font(.tempoCaption1)
+                .foregroundStyle(item.isCompleted ? Color.tempoSuccess : Color.tempoTextTertiary)
+
+            Text(item.title)
+                .font(.tempoCaption1)
+                .foregroundStyle(item.isCompleted ? Color.tempoTextSecondary : Color.tempoTextPrimary)
+                .strikethrough(item.isCompleted)
+        }
+    }
+
+    // MARK: - Quick Actions
+    // Context-aware action buttons. Max 2 visible at a time.
+
+    @ViewBuilder
+    private func quickActionsRow(_ vm: DashboardViewModel) -> some View {
+        let actions = vm.quickActions
+        if !actions.isEmpty {
+            VStack(spacing: TempoSpacing.sm) {
+                ForEach(actions) { action in
+                    Button {
+                        services.appState.activeTab = action.targetTab
+                        if action.targetTab == .dashboard {
+                            // Special handling for "Log a Meal" — open meal logging sheet
+                            showMealLogging = true
+                        }
+                    } label: {
+                        HStack(spacing: TempoSpacing.sm) {
+                            Image(systemName: action.icon)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(action.color)
+                                .frame(width: 28, height: 28)
+                                .background(action.color.opacity(0.15))
+                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+                            Text(action.title)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(Color.tempoTextPrimary)
+
+                            Spacer()
+
+                            Image(systemName: "arrow.right")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(action.color)
+                        }
+                        .padding(.horizontal, TempoSpacing.cardPadding)
+                        .padding(.vertical, 12)
+                        .background(Color.tempoSurfaceCard)
+                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+
+        // Weather recommendation banner
+        if let weather = vm.weather, let recommendation = weather.recommendation {
+            HStack(spacing: TempoSpacing.sm) {
+                Image(systemName: weather.conditionSymbol)
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color.tempoElectric)
+
+                Text(recommendation)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.tempoTextSecondary)
+
+                Spacer()
+            }
+            .padding(.horizontal, TempoSpacing.cardPadding)
+            .padding(.vertical, 10)
+            .background(Color.tempoElectric.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        }
+    }
+
+    // MARK: - Arena Quick Access
+
+    @ViewBuilder
+    private func arenaQuickAccessCard() -> some View {
+        NavigationLink(destination: ArenaTabView()) {
+            HStack(spacing: TempoSpacing.md) {
+                Image(systemName: "trophy.fill")
+                    .font(.system(size: 24))
+                    .foregroundStyle(Color.tempoSignal)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("ARENA")
+                        .font(.tempoCaption1)
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                        .tracking(0.5)
+                    Text("XP, levels & challenges")
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.tempoTextTertiary)
+            }
+            .padding(TempoSpacing.md)
+            .background(Color.tempoBgSecondary)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Insight Row
+    // Now supports insight rotation via tap on dot indicator.
+
+    @ViewBuilder
+    private func insightRow(_ vm: DashboardViewModel) -> some View {
+        let insight = vm.currentInsight
+        let insightCount = vm.insights.count
+
+        VStack(spacing: TempoSpacing.xs) {
+            Button {
+                showInsightDetail = true
+            } label: {
+                HStack(spacing: TempoSpacing.sm) {
+                    Image(systemName: insight.icon)
+                        .font(.tempoFootnote)
+                        .foregroundStyle(Color.tempoWarning)
+
+                    Text(insight.text)
+                        .font(.tempoFootnote)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .multilineTextAlignment(.leading)
+                        .id(insight.text)
+                        .transition(.push(from: .trailing))
+
+                    Spacer(minLength: 0)
+
+                    Image(systemName: "chevron.right")
+                        .font(.tempoCaption2)
+                        .fontWeight(.medium)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                }
+                .padding(TempoSpacing.cardPadding)
+                .background(Color.tempoSurfaceCard)
+                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+            }
+            .sheet(isPresented: $showInsightDetail) {
+                InsightDetailSheet(vm: vm)
+            }
+
+            // Insight rotation indicator (if multiple insights)
+            if insightCount > 1 {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        vm.nextInsight()
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        ForEach(0..<min(insightCount, 6), id: \.self) { index in
+                            Circle()
+                                .fill(index == (vm.insights.firstIndex(where: { $0.text == insight.text }) ?? 0)
+                                    ? Color.tempoSignal : Color.tempoTextTertiary.opacity(0.4))
+                                .frame(width: 5, height: 5)
+                        }
+                        if insightCount > 6 {
+                            Text("+\(insightCount - 6)")
+                                .font(.system(size: 9))
+                                .foregroundStyle(Color.tempoTextTertiary)
+                        }
+                    }
                 }
                 .buttonStyle(.plain)
             }
         }
     }
 
-    // MARK: - Mind Quadrant Card
-    // Per MODULE_DASHBOARD.md Section 3.4.3
-
-    private func mindQuadrantCard(_ data: MindQuadrantData) -> some View {
-        quadrantCardShell(
-            label: "MIND",
-            icon: "book.fill",
-            iconColor: Color.tempoElectric
-        ) {
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                // Primary: Study time
-                Text(data.formattedStudyTime)
-                    .font(.tempoTitle1)
-                    .foregroundStyle(Color.tempoTextPrimary)
-
-                // Subtitle: progress fraction
-                if data.studyMinutesToday >= data.studyTargetMinutes && data.studyTargetMinutes > 0 {
-                    Text("Target hit.")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoSuccess)
-                } else {
-                    Text("\(data.studyMinutesToday) / \(data.studyTargetMinutes) min")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                }
-
-                // Progress bar
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Color.tempoBorder).frame(height: 4)
-                        Capsule().fill(Color.tempoElectric)
-                            .frame(width: geo.size.width * min(data.studyProgress, 1.0), height: 4)
-                    }
-                }
-                .frame(height: 4)
-
-                // Exam countdown
-                if let exam = data.exams.first {
-                    HStack(spacing: TempoSpacing.xs) {
-                        Image(systemName: "calendar")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Color.tempoTextSecondary)
-                        Text("\(exam.name) \(exam.formattedCountdown)")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(examCountdownColor(exam.daysUntil))
-                            .lineLimit(1)
-                    }
-                } else {
-                    Text("No upcoming exams")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                }
-
-                // Streak badge
-                if data.currentStreakDays >= 2 {
-                    HStack(spacing: TempoSpacing.xs) {
-                        Image(systemName: "flame.fill")
-                            .font(.system(size: 11))
-                            .foregroundStyle(Color.tempoAmber)
-                        Text("\(data.formattedStreak) streak")
-                            .font(data.currentStreakDays >= 7 ? .tempoCaption1 : .tempoCaption2)
-                            .foregroundStyle(data.currentStreakDays >= 7 ? Color.tempoAmber : Color.tempoTextSecondary)
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: - Move Quadrant Card
-    // Per MODULE_DASHBOARD.md Section 3.4.4
-
-    private func moveQuadrantCard(_ data: MoveQuadrantData) -> some View {
-        quadrantCardShell(
-            label: "MOVE",
-            icon: "figure.run",
-            iconColor: Color.tempoAmber
-        ) {
-            if data.isConnected {
-                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    // Primary: Workout status
-                    switch data.workoutStatus {
-                    case .completed:
-                        HStack(spacing: 4) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 20))
-                                .foregroundStyle(Color.tempoSuccess)
-                            Text("Done")
-                                .font(.tempoTitle1)
-                                .foregroundStyle(Color.tempoSuccess)
-                        }
-                        if let name = data.workoutName {
-                            Text("\(name) — \(data.formattedWorkoutDuration)")
-                                .font(.tempoCaption1)
-                                .foregroundStyle(Color.tempoTextSecondary)
-                                .lineLimit(1)
-                        }
-                    case .planned:
-                        Text(data.workoutName ?? "Workout")
-                            .font(.tempoTitle1)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                            .lineLimit(1)
-                        Text("Planned for today")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoAmber)
-                    case .restDay:
-                        Text("Rest Day")
-                            .font(.tempoTitle1)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                        Text("Recovery is training.")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                            .italic()
-                    case .none:
-                        Text("No workout")
-                            .font(.tempoTitle1)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                        Text("Add one or skip — your call.")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                    }
-
-                    // Secondary metrics: Steps + Active Cal
-                    HStack(spacing: 0) {
-                        metricBlock(
-                            value: data.formattedSteps,
-                            label: "Steps",
-                            valueColor: stepsColor(data.steps, target: data.stepsTarget)
-                        )
-                        Spacer()
-                        metricBlock(value: data.formattedActiveCalories, label: "Active Cal")
-                    }
-
-                    // Steps progress bar
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(Color.tempoBorder).frame(height: 4)
-                            Capsule().fill(Color.tempoAmber)
-                                .frame(width: geo.size.width * min(data.stepsProgress, 1.0), height: 4)
-                        }
-                    }
-                    .frame(height: 4)
-
-                    HStack {
-                        Spacer()
-                        Text("\(NumberFormatter.localizedString(from: NSNumber(value: data.stepsTarget), number: .decimal)) goal")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                    }
-                }
-            } else {
-                disconnectedState(
-                    icon: "heart.text.square",
-                    title: "Allow Health Access",
-                    subtitle: "to track activity",
-                    cta: "Authorize"
-                )
-            }
-        }
-    }
-
-    // MARK: - [D] Non-Negotiables Bar
-    // Per MODULE_DASHBOARD.md Section 3.5
-
-    private func nonNegotiablesBar(_ vm: DashboardViewModel) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            if vm.nonNegotiablesTotal > 0 {
-                // Header line
-                HStack(spacing: TempoSpacing.xs) {
-                    Text("\(vm.nonNegotiablesDone)/\(vm.nonNegotiablesTotal) done — PS5 \(vm.nonNegotiablesDone >= vm.nonNegotiablesTotal ? "unlocked" : "locked")")
-                        .font(.tempoCallout)
-                        .foregroundStyle(Color.tempoTextPrimary)
-
-                    Image(systemName: vm.nonNegotiablesDone >= vm.nonNegotiablesTotal ? "lock.open.fill" : "lock.fill")
-                        .font(.system(size: 14))
-                        .foregroundStyle(
-                            vm.nonNegotiablesDone >= vm.nonNegotiablesTotal
-                                ? Color.tempoSuccess : Color.tempoTextTertiary
-                        )
-                }
-
-                // Progress bar
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Color.tempoBorder).frame(height: 6)
-                        Capsule()
-                            .fill(vm.nonNegotiablesDone >= vm.nonNegotiablesTotal ? Color.tempoSuccess : Color.tempoSignal)
-                            .frame(width: geo.size.width * vm.nonNegotiableProgress, height: 6)
-                            .animation(TempoAnimation.springMedium, value: vm.nonNegotiableProgress)
-                    }
-                }
-                .frame(height: 6)
-
-                // Non-negotiable pills — flow layout
-                FlowLayout(spacing: 12, lineSpacing: 6) {
-                    ForEach(vm.nonNegotiables) { item in
-                        nonNegotiablePill(item)
-                    }
-                }
-            } else {
-                // Empty state
-                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                    Text("Set your daily non-negotiables")
-                        .font(.tempoCallout)
-                        .foregroundStyle(Color.tempoTextSecondary)
-
-                    Text("+ Add non-negotiable")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoSignal)
-                }
-            }
-        }
-        .padding(14)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
-    }
-
-    private func nonNegotiablePill(_ item: NonNegotiableItem) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
-                .font(.system(size: 10))
-                .foregroundStyle(item.isCompleted ? Color.tempoSuccess : Color.tempoTextTertiary)
-
-            Text(item.title)
-                .font(.tempoCaption2)
-                .foregroundStyle(item.isCompleted ? Color.tempoTextSecondary : Color.tempoTextPrimary)
-                .strikethrough(item.isCompleted)
-        }
-    }
-
-    // MARK: - [E] Quick Insights Banner (Placeholder)
+    // MARK: - Score Trend Sparkline
 
     @ViewBuilder
-    private func insightsBanner() -> some View {
-        // Insights engine not yet implemented — placeholder
-        HStack(alignment: .top, spacing: TempoSpacing.md) {
-            Image(systemName: "lightbulb.fill")
-                .font(.system(size: 14))
-                .foregroundStyle(Color.tempoWarning)
+    private func scoreTrendSparkline(_ vm: DashboardViewModel) -> some View {
+        if vm.scoreTrend.count >= 2 {
+            HStack(spacing: TempoSpacing.sm) {
+                Text("7-DAY")
+                    .font(.tempoModuleTag)
+                    .fontWeight(.bold)
+                    .tracking(0.8)
+                    .foregroundStyle(Color.tempoTextTertiary)
 
-            Text("When you sleep < 6.5h, you skip breakfast 67% of the time.")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .lineLimit(2)
+                SparklineView(
+                    data: vm.scoreTrend.map { Double($0.score) },
+                    lineColor: sparklineColor(vm.scoreTrend),
+                    height: 24
+                )
 
-            Spacer()
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12))
-                .foregroundStyle(Color.tempoTextTertiary)
+                if let last = vm.scoreTrend.last, let prev = vm.scoreTrend.dropLast().last {
+                    let delta = last.score - prev.score
+                    let trend = vm.scoreTrendDirection
+                    HStack(spacing: 2) {
+                        Image(systemName: trend.icon)
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(trend.color)
+                        Text(delta >= 0 ? "+\(delta)" : "\(delta)")
+                            .font(.tempoDataSmall)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(delta >= 0 ? Color.tempoSuccess : Color.tempoError)
+                            .contentTransition(.numericText(countsDown: delta < 0))
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color.tempoSurfaceCard)
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
         }
-        .padding(14)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
     }
 
-    // MARK: - Quadrant Card Shell
+    private func sparklineColor(_ trend: [DashboardViewModel.DailyScorePoint]) -> Color {
+        guard let first = trend.first, let last = trend.last else { return .tempoTextSecondary }
+        if last.score > first.score { return Color.tempoSuccess }
+        if last.score < first.score { return Color.tempoError }
+        return Color.tempoTextSecondary
+    }
+
+    // MARK: - Card Shell
 
     @Environment(\.colorScheme) private var colorScheme
 
-    private func quadrantCardShell<Content: View>(
+    private func cardShell<Content: View>(
         label: String,
-        icon: String,
-        iconColor: Color,
         @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Category label + icon row
-            HStack {
-                Text(label)
-                    .font(.tempoModuleTag)
-                    .tracking(TempoTracking.drillLabel)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .textCase(.uppercase)
-                Spacer()
-                Image(systemName: icon)
-                    .font(.system(size: 14))
-                    .foregroundStyle(iconColor)
-            }
-
-            Spacer().frame(height: TempoSpacing.sm)
+            Text(label)
+                .font(.tempoModuleTag)
+                .fontWeight(.bold)
+                .tracking(1.2)
+                .foregroundStyle(Color.tempoTextTertiary)
+                .padding(.bottom, TempoSpacing.sm)
 
             content()
+
+            Spacer(minLength: 0)
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, minHeight: 160, alignment: .topLeading)
+        .padding(TempoSpacing.cardPadding)
+        .frame(maxWidth: .infinity, minHeight: 170, alignment: .topLeading)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .shadow(
-            color: Color.tempoInk.opacity(colorScheme == .dark ? 0 : 0.06),
-            radius: 4, x: 0, y: 2
-        )
         .overlay(
             RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                .stroke(Color.tempoBorder, lineWidth: 0.5)
-                .opacity(colorScheme == .dark ? 1 : 0)
+                .stroke(Color.tempoBorder.opacity(colorScheme == .dark ? 0.4 : 0), lineWidth: 0.5)
         )
     }
 
-    // MARK: - Helpers
+    // MARK: - Reusable Components
 
-    private func metricBlock(value: String, label: String, valueColor: Color = .tempoTextPrimary) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text(value)
-                .font(.tempoCallout)
-                .foregroundStyle(valueColor)
-                .minimumScaleFactor(0.8)
+    private func connectPrompt(icon: String, message: String, buttonText: String = "Connect", action: @escaping () -> Void) -> some View {
+        VStack(spacing: TempoSpacing.sm) {
+            Spacer(minLength: 0)
 
+            Image(systemName: icon)
+                .font(.tempoTitle1)
+                .foregroundStyle(Color.tempoTextTertiary)
+
+            Text(message)
+                .font(.tempoSubheadline)
+                        .fontWeight(.semibold)
+                .foregroundStyle(Color.tempoTextPrimary)
+
+            Button(action: action) {
+                Text(buttonText)
+                    .font(.tempoCaption1)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.tempoTextInverse)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 7)
+                    .background(Color.tempoSignal)
+                    .clipShape(Capsule())
+            }
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func miniMetric(label: String, value: String, valueColor: Color = .tempoTextPrimary) -> some View {
+        HStack {
             Text(label)
                 .font(.tempoCaption2)
                 .foregroundStyle(Color.tempoTextTertiary)
+            Spacer()
+            Text(value)
+                .font(.tempoDataSmall)
+                .fontWeight(.bold)
+                .foregroundStyle(valueColor)
+                .minimumScaleFactor(0.7)
         }
     }
 
-    private func strainBar(strain: Double?) -> some View {
-        VStack(alignment: .trailing, spacing: 2) {
+    /// Mini metric with numeric text animation for count-up effect.
+    private func miniMetricAnimated(label: String, value: String, valueColor: Color = .tempoTextPrimary) -> some View {
+        HStack {
+            Text(label)
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextTertiary)
+            Spacer()
+            Text(value)
+                .font(.tempoDataSmall)
+                .fontWeight(.bold)
+                .foregroundStyle(valueColor)
+                .minimumScaleFactor(0.7)
+                .contentTransition(.numericText(countsDown: false))
+                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: value)
+        }
+    }
+
+    private func progressBar(progress: Double, color: Color, height: CGFloat = 3) -> some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.tempoBorder.opacity(0.5))
+                    .frame(height: height)
+                Capsule()
+                    .fill(color)
+                    .frame(width: geo.size.width * min(progress, 1.0), height: height)
+            }
+        }
+        .frame(height: height)
+    }
+
+    private func macroDot(letter: String, value: String, color: Color) -> some View {
+        HStack(spacing: 3) {
+            Circle()
+                .fill(color)
+                .frame(width: 5, height: 5)
+            Text("\(letter) \(value)")
+                .font(.tempoModuleTag)
+                .fontWeight(.medium)
+                .foregroundStyle(Color.tempoTextSecondary)
+        }
+    }
+
+    private func strainIndicator(_ strain: Double) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color.tempoBorder).frame(height: 4)
+                    Capsule()
+                        .fill(Color.tempoBorder.opacity(0.5))
+                        .frame(height: 3)
                     Capsule()
                         .fill(
                             LinearGradient(
@@ -664,69 +1142,18 @@ struct DashboardView: View {
                                 endPoint: .trailing
                             )
                         )
-                        .frame(width: geo.size.width * (strain.map { min($0 / 21.0, 1.0) } ?? 0), height: 4)
+                        .frame(width: geo.size.width * min(strain / 21.0, 1.0), height: 3)
                 }
             }
-            .frame(height: 4)
+            .frame(height: 3)
 
-            Text("Strain \(strain.map { String(format: "%.1f", $0) } ?? "--")")
-                .font(.tempoCaption2)
+            Text("Strain \(String(format: "%.1f", strain))")
+                .font(.tempoModuleTag)
                 .foregroundStyle(Color.tempoTextTertiary)
         }
     }
 
-    private func macroBar(label: String, current: String, target: String, progress: Double, color: Color) -> some View {
-        HStack(spacing: 4) {
-            Text("\(label) \(current)")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .frame(width: 50, alignment: .leading)
-
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.tempoBorder).frame(height: 6)
-                    Capsule().fill(color)
-                        .frame(width: geo.size.width * min(progress, 1.0), height: 6)
-                }
-            }
-            .frame(height: 6)
-
-            Text(target)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
-                .frame(width: 36, alignment: .trailing)
-        }
-    }
-
-    private func macroProgress(_ current: Int?, _ target: Int?) -> Double {
-        guard let current, let target, target > 0 else { return 0 }
-        return Double(current) / Double(target)
-    }
-
-    private func disconnectedState(icon: String, title: String, subtitle: String, cta: String = "Connect") -> some View {
-        VStack(spacing: TempoSpacing.sm) {
-            Image(systemName: icon)
-                .font(.system(size: 28))
-                .foregroundStyle(Color.tempoTextTertiary)
-
-            Text(title)
-                .font(.tempoCallout)
-                .foregroundStyle(Color.tempoTextPrimary)
-
-            Text(subtitle)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
-
-            Button(cta) {}
-                .font(.tempoCallout)
-                .foregroundStyle(Color.tempoTextInverse)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 8)
-                .background(Color.tempoSignal)
-                .clipShape(Capsule())
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
+    // MARK: - Helpers
 
     private func examCountdownColor(_ daysUntil: Int) -> Color {
         switch daysUntil {
@@ -807,6 +1234,342 @@ extension RecoveryZone {
         case .yellow: Color.tempoRecoveryYellow
         case .red: Color.tempoRecoveryRed
         }
+    }
+}
+
+// MARK: - Insight Detail Sheet
+
+private struct InsightDetailSheet: View {
+    let vm: DashboardViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        let insight = vm.currentInsight
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: TempoSpacing.xl) {
+                    // Insight header
+                    HStack(spacing: TempoSpacing.sm) {
+                        Image(systemName: insight.icon)
+                            .font(.tempoTitle1)
+                            .foregroundStyle(Color.tempoWarning)
+                        Text(insight.detailTitle)
+                            .font(.tempoTitle2)
+                            .foregroundStyle(Color.tempoTextPrimary)
+                    }
+                    .padding(.top, TempoSpacing.md)
+
+                    // Main finding
+                    VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+                        Text("FINDING")
+                            .font(.tempoModuleTag)
+                .fontWeight(.bold)
+                            .tracking(1.2)
+                            .foregroundStyle(Color.tempoTextTertiary)
+
+                        Text(insight.detailFinding)
+                            .font(.tempoBody)
+                            .foregroundStyle(Color.tempoTextPrimary)
+                    }
+                    .padding(TempoSpacing.lg)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.tempoSurfaceCard)
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+
+                    // Recommendation
+                    VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+                        Text("RECOMMENDATION")
+                            .font(.tempoModuleTag)
+                .fontWeight(.bold)
+                            .tracking(1.2)
+                            .foregroundStyle(Color.tempoTextTertiary)
+
+                        HStack(alignment: .top, spacing: TempoSpacing.sm) {
+                            Image(systemName: "arrow.right.circle.fill")
+                                .font(.tempoCallout)
+                                .foregroundStyle(Color.tempoSignal)
+                                .frame(width: 24)
+
+                            Text(insight.detailRecommendation)
+                                .font(.tempoBody)
+                                .foregroundStyle(Color.tempoTextPrimary)
+                        }
+                    }
+                    .padding(TempoSpacing.lg)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.tempoSurfaceCard)
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+
+                    // Current status snapshot
+                    VStack(alignment: .leading, spacing: TempoSpacing.md) {
+                        Text("CURRENT STATUS")
+                            .font(.tempoModuleTag)
+                .fontWeight(.bold)
+                            .tracking(1.2)
+                            .foregroundStyle(Color.tempoTextTertiary)
+
+                        insightMetricRow(
+                            icon: "heart.fill",
+                            label: "Recovery",
+                            value: vm.body.formattedRecovery,
+                            color: vm.body.recoveryZone?.color ?? .tempoTextTertiary
+                        )
+
+                        insightMetricRow(
+                            icon: "moon.fill",
+                            label: "Sleep",
+                            value: vm.body.formattedSleep,
+                            color: sleepColor(vm.body.sleepHours)
+                        )
+
+                        insightMetricRow(
+                            icon: "book.fill",
+                            label: "Study Streak",
+                            value: "\(vm.mind.currentStreakDays) days",
+                            color: vm.mind.currentStreakDays >= 7 ? .tempoAmber : .tempoTextPrimary
+                        )
+
+                        insightMetricRow(
+                            icon: "figure.run",
+                            label: "Training",
+                            value: trainingStatusText(vm.move),
+                            color: trainingStatusColor(vm.move)
+                        )
+                    }
+                    .padding(TempoSpacing.lg)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.tempoSurfaceCard)
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+                }
+                .padding(.horizontal, TempoSpacing.screenEdge)
+                .padding(.bottom, TempoSpacing.xxxxl)
+            }
+            .background(Color.tempoBgPrimary)
+            .navigationTitle("Insight")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.tempoTitle2)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                    }
+                }
+            }
+        }
+    }
+
+    private func insightMetricRow(icon: String, label: String, value: String, color: Color) -> some View {
+        HStack(spacing: TempoSpacing.sm) {
+            Image(systemName: icon)
+                .font(.tempoSubheadline)
+                .foregroundStyle(color)
+                .frame(width: 20)
+            Text(label)
+                .font(.tempoBody)
+                .foregroundStyle(Color.tempoTextSecondary)
+            Spacer()
+            Text(value)
+                .font(.tempoDataMedium)
+                .foregroundStyle(Color.tempoTextPrimary)
+        }
+    }
+
+    private func sleepColor(_ hours: Double?) -> Color {
+        guard let hours else { return .tempoTextTertiary }
+        if hours >= 7 { return .tempoSuccess }
+        if hours >= 6 { return .tempoWarning }
+        return .tempoError
+    }
+
+    private func trainingStatusText(_ move: MoveQuadrantData) -> String {
+        switch move.workoutStatus {
+        case .completed: return "Done"
+        case .planned: return "Planned"
+        case .restDay: return "Rest Day"
+        case .none: return "No workout"
+        }
+    }
+
+    private func trainingStatusColor(_ move: MoveQuadrantData) -> Color {
+        switch move.workoutStatus {
+        case .completed: return .tempoSuccess
+        case .planned: return .tempoAmber
+        case .restDay: return .tempoTextSecondary
+        case .none: return .tempoTextTertiary
+        }
+    }
+}
+
+// MARK: - Score Breakdown Sheet
+
+private struct ScoreBreakdownSheet: View {
+    let vm: DashboardViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        let breakdown = vm.scoreBreakdown
+        NavigationStack {
+            VStack(spacing: TempoSpacing.xl) {
+                // Total score hero
+                if let score = vm.dailyScore {
+                    VStack(spacing: TempoSpacing.xs) {
+                        ScoreRingView(
+                            score: Double(score),
+                            maxScore: 100,
+                            size: 80,
+                            strokeWidth: 8
+                        )
+                        Text("\(score)/100")
+                            .font(.tempoDataLarge)
+                            .foregroundStyle(Color.tempoTextPrimary)
+                        Text("Daily Score")
+                            .font(.tempoFootnote)
+                            .fontWeight(.medium)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                    }
+                    .padding(.top, TempoSpacing.lg)
+                }
+
+                // Component breakdown
+                VStack(spacing: TempoSpacing.md) {
+                    scoreComponentRow(
+                        icon: "heart.fill",
+                        label: "Recovery",
+                        points: breakdown.recoveryPoints,
+                        maxPoints: 25,
+                        isAvailable: breakdown.recoveryAvailable,
+                        color: .tempoRecoveryGreen
+                    )
+                    scoreComponentRow(
+                        icon: "fork.knife",
+                        label: "Nutrition",
+                        points: breakdown.nutritionPoints,
+                        maxPoints: 25,
+                        isAvailable: breakdown.nutritionAvailable,
+                        color: .tempoViolet
+                    )
+                    scoreComponentRow(
+                        icon: "book.fill",
+                        label: "Study",
+                        points: breakdown.studyPoints,
+                        maxPoints: 25,
+                        isAvailable: breakdown.studyAvailable,
+                        color: .tempoElectric
+                    )
+                    scoreComponentRow(
+                        icon: "figure.run",
+                        label: "Movement",
+                        points: breakdown.movementPoints,
+                        maxPoints: 25,
+                        isAvailable: breakdown.movementAvailable,
+                        color: .tempoAmber
+                    )
+                }
+                .padding(TempoSpacing.cardPadding)
+                .background(Color.tempoSurfaceCard)
+                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+
+                Spacer()
+            }
+            .padding(.horizontal, TempoSpacing.screenEdge)
+            .background(Color.tempoBgPrimary)
+            .navigationTitle("Score Breakdown")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.tempoTitle2)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    private func scoreComponentRow(
+        icon: String, label: String, points: Double,
+        maxPoints: Double, isAvailable: Bool, color: Color
+    ) -> some View {
+        VStack(spacing: TempoSpacing.xs) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.tempoSubheadline)
+                    .foregroundStyle(isAvailable ? color : Color.tempoTextTertiary)
+                    .frame(width: 20)
+
+                Text(label)
+                    .font(.tempoSubheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(isAvailable ? Color.tempoTextPrimary : Color.tempoTextTertiary)
+
+                Spacer()
+
+                if isAvailable {
+                    Text("\(String(format: "%.1f", points))/\(Int(maxPoints))")
+                        .font(.tempoDataMedium)
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                } else {
+                    Text("--")
+                        .font(.tempoDataMedium)
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                }
+            }
+
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.tempoBorder.opacity(0.5))
+                        .frame(height: 6)
+                    if isAvailable {
+                        Capsule()
+                            .fill(color)
+                            .frame(width: geo.size.width * min(points / maxPoints, 1.0), height: 6)
+                    }
+                }
+            }
+            .frame(height: 6)
+        }
+    }
+}
+
+// MARK: - Sparkline View
+
+private struct SparklineView: View {
+    let data: [Double]
+    let lineColor: Color
+    let height: CGFloat
+
+    var body: some View {
+        GeometryReader { geo in
+            if data.count >= 2 {
+                let minVal = data.min() ?? 0
+                let maxVal = data.max() ?? 100
+                let range = max(maxVal - minVal, 1)
+
+                Path { path in
+                    for (index, value) in data.enumerated() {
+                        let x = geo.size.width * CGFloat(index) / CGFloat(data.count - 1)
+                        let y = geo.size.height * (1 - CGFloat((value - minVal) / range))
+                        if index == 0 {
+                            path.move(to: CGPoint(x: x, y: y))
+                        } else {
+                            path.addLine(to: CGPoint(x: x, y: y))
+                        }
+                    }
+                }
+                .stroke(lineColor, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+            }
+        }
+        .frame(height: height)
     }
 }
 

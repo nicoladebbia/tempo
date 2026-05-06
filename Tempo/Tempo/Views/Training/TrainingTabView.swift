@@ -30,24 +30,16 @@ struct TrainingTabView: View {
                 }
             }
             .navigationTitle("Training")
+            .tempoSettingsToolbar()
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink {
-                        TrainingSettingsView()
-                    } label: {
-                        Image(systemName: "gearshape")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    }
-                }
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
-                        NavigationLink {
-                            if let viewModel {
+                        if let viewModel {
+                            NavigationLink {
                                 WeekPlanView(viewModel: viewModel)
+                            } label: {
+                                Label("Week Plan", systemImage: "calendar")
                             }
-                        } label: {
-                            Label("Week Plan", systemImage: "calendar")
                         }
 
                         NavigationLink {
@@ -60,6 +52,12 @@ struct TrainingTabView: View {
                             ProgressChartsView()
                         } label: {
                             Label("Progress", systemImage: "chart.line.uptrend.xyaxis")
+                        }
+
+                        NavigationLink {
+                            WorkoutHistoryView()
+                        } label: {
+                            Label("History", systemImage: "clock.arrow.circlepath")
                         }
                     } label: {
                         Image(systemName: "line.3.horizontal")
@@ -75,7 +73,9 @@ struct TrainingTabView: View {
                     }
                 }
             }
-            .fullScreenCover(isPresented: $showSummary) {
+            .fullScreenCover(isPresented: $showSummary, onDismiss: {
+                showSummary = false
+            }) {
                 if let viewModel {
                     NavigationStack {
                         WorkoutSummaryView(viewModel: viewModel)

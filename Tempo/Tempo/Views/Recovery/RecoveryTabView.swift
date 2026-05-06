@@ -24,17 +24,7 @@ struct RecoveryTabView: View {
             }
             .navigationTitle("Recovery")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink {
-                        WhoopConnectionView()
-                    } label: {
-                        Image(systemName: "gearshape")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    }
-                }
-            }
+            .tempoSettingsToolbar()
         }
         .onAppear {
             if viewModel == nil {

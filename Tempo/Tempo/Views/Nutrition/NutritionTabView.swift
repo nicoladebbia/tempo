@@ -1,0 +1,141 @@
+import SwiftUI
+import SwiftData
+
+// MARK: - Nutrition Tab View
+// Full nutrition tab with segmented sections: Today, Plan, Log, Coach.
+// Per DESIGN_SYSTEM.md — all tokens, drill-sergeant voice.
+
+struct NutritionTabView: View {
+
+    @Environment(\.modelContext) private var modelContext
+    @Environment(ServiceContainer.self) private var services
+    @State private var viewModel = NutritionTabViewModel()
+    @State private var showDietaryProfileSetup = false
+    @State private var showMealLogging = false
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.tempoBgPrimary
+                    .ignoresSafeArea()
+
+                VStack(spacing: 0) {
+                    // Segmented control
+                    sectionPicker
+                        .padding(.horizontal, TempoSpacing.screenEdge)
+                        .padding(.vertical, TempoSpacing.sm)
+
+                    // Content
+                    switch viewModel.loadState {
+                    case .loading:
+                        Spacer()
+                        ProgressView()
+                            .tint(Color.tempoSignal)
+                        Spacer()
+
+                    case .error(let message):
+                        errorState(message)
+
+                    case .loaded:
+                        sectionContent
+                    }
+                }
+            }
+            .navigationTitle("FUEL")
+            .navigationBarTitleDisplayMode(.inline)
+            .tempoSettingsToolbar()
+            .task {
+                viewModel.loadToday(modelContext: modelContext)
+            }
+            .sheet(isPresented: $showDietaryProfileSetup) {
+                DietaryProfileSetupView(onSaveAndGenerate: { _ in
+                    // Switch to Plan tab and auto-generate
+                    viewModel.loadToday(modelContext: modelContext)
+                    viewModel.selectedTab = .plan
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        viewModel.generatePlan(modelContext: modelContext, whoop: services.whoop)
+                    }
+                })
+            }
+            .sheet(isPresented: $showMealLogging) {
+                MealLoggingView()
+                    .onDisappear {
+                        viewModel.loadToday(modelContext: modelContext)
+                    }
+            }
+        }
+    }
+
+    // MARK: - Section Picker
+
+    private var sectionPicker: some View {
+        Picker("Section", selection: $viewModel.selectedTab) {
+            ForEach(NutritionSection.allCases) { section in
+                Text(section.rawValue).tag(section)
+            }
+        }
+        .pickerStyle(.segmented)
+        .onChange(of: viewModel.selectedTab) { _, _ in
+            HapticManager.selection()
+        }
+    }
+
+    // MARK: - Section Content
+
+    @ViewBuilder
+    private var sectionContent: some View {
+        switch viewModel.selectedTab {
+        case .today:
+            NutritionTodayView(viewModel: viewModel, showMealLogging: $showMealLogging)
+        case .plan:
+            NutritionWeeklyPlanView(viewModel: viewModel)
+        case .log:
+            NutritionLogView(viewModel: viewModel, showMealLogging: $showMealLogging)
+        case .coach:
+            NutritionCoachView(viewModel: viewModel)
+        }
+    }
+
+    // MARK: - Error State
+
+    private func errorState(_ message: String) -> some View {
+        VStack(spacing: TempoSpacing.lg) {
+            Spacer()
+
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 40))
+                .foregroundStyle(Color.tempoWarning)
+
+            Text("Failed to Load")
+                .font(.tempoTitle2)
+                .foregroundStyle(Color.tempoTextPrimary)
+
+            Text(message)
+                .font(.tempoBody)
+                .foregroundStyle(Color.tempoTextSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, TempoSpacing.xl)
+
+            Button {
+                viewModel.loadToday(modelContext: modelContext)
+            } label: {
+                Text("Retry")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.tempoTextInverse)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                    .background(Color.tempoSignal)
+                    .clipShape(Capsule())
+            }
+
+            Spacer()
+        }
+    }
+}
+
+// MARK: - Preview
+
+#Preview {
+    NutritionTabView()
+        .modelContainer(for: [PlannedMeal.self, WeeklyMealPlan.self, MealPreset.self, DietaryProfile.self], inMemory: true)
+}
