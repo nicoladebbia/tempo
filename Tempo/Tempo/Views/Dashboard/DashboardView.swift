@@ -1107,25 +1107,27 @@ struct DashboardView: View {
     // MARK: - Reusable Components
 
     private func connectPrompt(icon: String, message: String, buttonText: String = "Connect", action: @escaping () -> Void) -> some View {
-        VStack(spacing: TempoSpacing.sm) {
+        VStack(spacing: TempoSpacing.xs) {
             Spacer(minLength: 0)
 
             Image(systemName: icon)
-                .font(.tempoTitle1)
+                .font(.system(size: 22, weight: .regular))
                 .foregroundStyle(Color.tempoTextTertiary)
 
             Text(message)
-                .font(.tempoSubheadline)
+                .font(.tempoCaption1)
                 .fontWeight(.semibold)
                 .foregroundStyle(Color.tempoTextPrimary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
 
             Button(action: action) {
                 Text(buttonText)
-                    .font(.tempoCaption1)
+                    .font(.tempoCaption2)
                     .fontWeight(.semibold)
                     .foregroundStyle(Color.tempoTextInverse)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 7)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 5)
                     .background(Color.tempoSignal)
                     .clipShape(Capsule())
             }
