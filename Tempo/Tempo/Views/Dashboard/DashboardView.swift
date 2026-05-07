@@ -229,16 +229,13 @@ struct DashboardView: View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: TempoSpacing.lg) {
                 headerRow(vm)
-                    .padding(.top, -56)
 
                 // Welcome banner for first-run experience
                 if !hasCompletedSetup {
                     let whoopDone = services.whoop.connectionState == .connected
-                    // Query SwiftData directly for non-negotiables (more reliable than ViewModel state)
                     let nnDescriptor = FetchDescriptor<NonNegotiable>()
                     let nnCount = (try? modelContext.fetchCount(nnDescriptor)) ?? 0
                     let nnDone = nnCount > 0
-                    // Training setup is done if the user has a settings record (created during onboarding)
                     let settingsDescriptor = FetchDescriptor<UserSettings>()
                     let hasSetting = ((try? modelContext.fetchCount(settingsDescriptor)) ?? 0) > 0
                     let allDone = whoopDone && nnDone && hasSetting
@@ -260,15 +257,17 @@ struct DashboardView: View {
                 }
 
                 scoreTrendSparkline(vm)
+                // Grid fills the available viewport by claiming a generous
+                // height so cards expand to fill (per user's request: "no
+                // limit, leave it to fill up the entire phone").
                 quadrantGrid(vm)
+                    .frame(height: 480)
                 quickActionsRow(vm)
                 nonNegotiablesSection(vm)
                 insightRow(vm)
                 arenaQuickAccessCard()
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
-            // iOS 26 floating tab bar overlays content; reserve enough space
-            // so the last quadrants/cards aren't clipped behind it.
             .padding(.bottom, 140)
         }
         .scrollIndicators(.hidden)
@@ -387,34 +386,37 @@ struct DashboardView: View {
     // MARK: - Quadrant Grid
 
     private func quadrantGrid(_ vm: DashboardViewModel) -> some View {
-        LazyVGrid(
-            columns: [
-                GridItem(.flexible(), spacing: TempoSpacing.cardGap),
-                GridItem(.flexible(), spacing: TempoSpacing.cardGap),
-            ],
-            spacing: TempoSpacing.cardGap
-        ) {
-            NavigationLink(destination: BodyQuadrantDetailView(data: vm.body)) {
-                bodyCard(vm.body)
-            }
-            .buttonStyle(.plain)
+        // Two rows of two equal-size cards. Each row fills half the parent
+        // height; cards inside fill their row. The grid expands to whatever
+        // height the parent gives it.
+        VStack(spacing: TempoSpacing.cardGap) {
+            HStack(spacing: TempoSpacing.cardGap) {
+                NavigationLink(destination: BodyQuadrantDetailView(data: vm.body)) {
+                    bodyCard(vm.body)
+                }
+                .buttonStyle(.plain)
 
-            NavigationLink(destination: MoveQuadrantDetailView(data: vm.move)) {
-                moveCard(vm.move)
+                NavigationLink(destination: MoveQuadrantDetailView(data: vm.move)) {
+                    moveCard(vm.move)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+            .frame(maxHeight: .infinity)
 
-            NavigationLink(destination: DailyNutritionSummaryView(fuelData: vm.fuel, onAddHydration: { ml in
-                vm.addHydration(ml)
-            })) {
-                fuelCard(vm.fuel)
-            }
-            .buttonStyle(.plain)
+            HStack(spacing: TempoSpacing.cardGap) {
+                NavigationLink(destination: DailyNutritionSummaryView(fuelData: vm.fuel, onAddHydration: { ml in
+                    vm.addHydration(ml)
+                })) {
+                    fuelCard(vm.fuel)
+                }
+                .buttonStyle(.plain)
 
-            NavigationLink(destination: MindQuadrantDetailView(data: vm.mind)) {
-                mindCard(vm.mind)
+                NavigationLink(destination: MindQuadrantDetailView(data: vm.mind)) {
+                    mindCard(vm.mind)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+            .frame(maxHeight: .infinity)
         }
     }
 
@@ -1095,7 +1097,7 @@ struct DashboardView: View {
             Spacer(minLength: 0)
         }
         .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, minHeight: 170, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
         .overlay(
