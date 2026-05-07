@@ -32,7 +32,7 @@ final class PerformanceTests: XCTestCase {
             )
             let results = try? context.fetch(descriptor)
             XCTAssertNotNil(results)
-            XCTAssertEqual(results?.count, 30)
+            XCTAssertEqual(results?.count, 31) // today + 30 days back
         }
     }
 
@@ -64,7 +64,7 @@ final class PerformanceTests: XCTestCase {
             )
             let results = try? context.fetch(descriptor)
             XCTAssertNotNil(results)
-            XCTAssertEqual(results?.count, 7)
+            XCTAssertEqual(results?.count, 8) // today + 7 days back
         }
     }
 

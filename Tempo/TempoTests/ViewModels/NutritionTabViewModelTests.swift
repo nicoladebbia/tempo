@@ -24,8 +24,9 @@ final class NutritionTabViewModelTests: XCTestCase {
     // MARK: - Macro Math (P×4 + C×4 + F×9 ≈ kcal)
 
     func testMacroMath_planning_sumsWithin10kcal() {
+        // P×4 + C×4 + F×9 = 160 + 200 + 135 = 495 kcal
         viewModel._testSetTodayMeals([
-            makePlanned(meal: 1, p: 40, c: 50, f: 15, kcal: 535, status: .eaten),
+            makePlanned(meal: 1, p: 40, c: 50, f: 15, kcal: 495, status: .eaten),
         ])
         let computed = viewModel.todayProteinConsumed * 4
             + viewModel.todayCarbsConsumed * 4
