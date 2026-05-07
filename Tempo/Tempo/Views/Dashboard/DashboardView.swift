@@ -229,6 +229,7 @@ struct DashboardView: View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: TempoSpacing.lg) {
                 headerRow(vm)
+                    .padding(.top, -56)
 
                 // Welcome banner for first-run experience
                 if !hasCompletedSetup {
@@ -291,8 +292,9 @@ struct DashboardView: View {
                 Text(vm.greeting)
                     .font(.tempoTitle2)
                     .foregroundStyle(Color.tempoTextPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 HStack(spacing: 6) {
                     Text(vm.formattedDate.uppercased())

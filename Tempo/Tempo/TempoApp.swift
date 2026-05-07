@@ -61,6 +61,16 @@ struct TempoApp: App {
 
         // Wire push registration service to AppDelegate
         TempoAppDelegate.pushRegistration = serviceContainer.pushRegistration
+
+        // Make NavigationBar fully transparent so .toolbar(.hidden) doesn't
+        // leave a phantom inset on iOS 26.
+        let transparent = UINavigationBarAppearance()
+        transparent.configureWithTransparentBackground()
+        transparent.backgroundColor = .clear
+        transparent.shadowColor = .clear
+        UINavigationBar.appearance().standardAppearance = transparent
+        UINavigationBar.appearance().scrollEdgeAppearance = transparent
+        UINavigationBar.appearance().compactAppearance = transparent
     }
 
     var body: some Scene {
