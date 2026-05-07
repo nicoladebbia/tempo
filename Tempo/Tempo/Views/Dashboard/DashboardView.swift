@@ -78,7 +78,8 @@ struct DashboardView: View {
                     DashboardLoadingView()
                 }
             }
-            .navigationBarHidden(true)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .navigationBar)
         }
         .task {
             if viewModel == nil {
@@ -226,7 +227,7 @@ struct DashboardView: View {
 
     private func dashboardContent(_ vm: DashboardViewModel) -> some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.xxl) {
+            VStack(spacing: TempoSpacing.lg) {
                 headerRow(vm)
 
                 // Welcome banner for first-run experience
@@ -265,7 +266,9 @@ struct DashboardView: View {
                 arenaQuickAccessCard()
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+            // iOS 26 floating tab bar overlays content; reserve enough space
+            // so the last quadrants/cards aren't clipped behind it.
+            .padding(.bottom, 140)
         }
         .scrollIndicators(.hidden)
         .refreshable {

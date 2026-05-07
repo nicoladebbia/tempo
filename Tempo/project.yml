@@ -54,6 +54,7 @@ targets:
       - package: FirebaseSDK
         product: FirebaseCrashlytics
       - package: Lottie
+      - sdk: WeatherKit.framework
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.tempo.Tempo
@@ -65,6 +66,7 @@ targets:
         INFOPLIST_KEY_NSHealthShareUsageDescription: "Tempo reads your health data (steps, heart rate, HRV, sleep, workouts) to calculate your daily score, adapt your training plan to your recovery, and track your progress automatically."
         INFOPLIST_KEY_NSHealthUpdateUsageDescription: "Tempo writes your completed workouts and nutrition data to HealthKit so your health record stays complete across all your apps."
         INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription: "Tempo reads your calendar to avoid scheduling workouts during classes and football practice, and to identify study blocks for your accountability targets."
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Tempo uses your location to provide weather-aware hydration targets and workout recommendations."
       configs:
         Debug:
           PRODUCT_BUNDLE_IDENTIFIER: app.tempo.Tempo.dev
@@ -75,6 +77,8 @@ targets:
     info:
       path: Tempo/Info.plist
       properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         TEMPO_API_BASE_URL: $(TEMPO_API_BASE_URL)
         TEMPO_ENVIRONMENT: $(TEMPO_ENVIRONMENT)
         BGTaskSchedulerPermittedIdentifiers:
@@ -94,18 +98,34 @@ targets:
         script: |
           if command -v swiftlint >/dev/null 2>&1; then
               swiftlint lint --config "${SRCROOT}/.swiftlint.yml" --quiet
+          elif [ -x /opt/homebrew/bin/swiftlint ]; then
+              /opt/homebrew/bin/swiftlint lint --config "${SRCROOT}/.swiftlint.yml" --quiet
+          elif [ -x /usr/local/bin/swiftlint ]; then
+              /usr/local/bin/swiftlint lint --config "${SRCROOT}/.swiftlint.yml" --quiet
           else
               echo "warning: SwiftLint not installed. Run 'brew install swiftlint' to enable linting."
           fi
+          mkdir -p "${DERIVED_FILE_DIR}"
+          touch "${DERIVED_FILE_DIR}/swiftlint.stamp"
+        outputFiles:
+          - $(DERIVED_FILE_DIR)/swiftlint.stamp
         basedOnDependencyAnalysis: true
       - name: SwiftFormat
         shell: /bin/zsh
         script: |
           if command -v swiftformat >/dev/null 2>&1; then
               swiftformat "${SRCROOT}/Tempo" --config "${SRCROOT}/.swiftformat" --lint --quiet
+          elif [ -x /opt/homebrew/bin/swiftformat ]; then
+              /opt/homebrew/bin/swiftformat "${SRCROOT}/Tempo" --config "${SRCROOT}/.swiftformat" --lint --quiet
+          elif [ -x /usr/local/bin/swiftformat ]; then
+              /usr/local/bin/swiftformat "${SRCROOT}/Tempo" --config "${SRCROOT}/.swiftformat" --lint --quiet
           else
               echo "warning: SwiftFormat not installed. Run 'brew install swiftformat' to enable formatting."
           fi
+          mkdir -p "${DERIVED_FILE_DIR}"
+          touch "${DERIVED_FILE_DIR}/swiftformat.stamp"
+        outputFiles:
+          - $(DERIVED_FILE_DIR)/swiftformat.stamp
         basedOnDependencyAnalysis: true
     postCompileScripts:
       - name: Increment Build Number
@@ -163,6 +183,8 @@ targets:
     info:
       path: TempoWidget/Info.plist
       properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleDisplayName: Tempo Widget
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
