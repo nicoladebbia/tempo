@@ -1,9 +1,16 @@
+//
+// NutriTrackConnection.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
 @Model
 final class NutriTrackConnection {
-
     @Attribute(.unique)
     var id: UUID
 
@@ -19,7 +26,9 @@ final class NutriTrackConnection {
 
     @Transient
     var lastSyncFormatted: String? {
-        guard let lastSync = lastSyncAt else { return nil }
+        guard let lastSync = lastSyncAt else {
+            return nil
+        }
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .short
         return formatter.localizedString(for: lastSync, relativeTo: Date())

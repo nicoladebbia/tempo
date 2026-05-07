@@ -1,32 +1,41 @@
+//
+// NutritionTabViewModel.swift
+// Tempo
+//
+// Created by Tempo on 06/05/2026.
+//
+//
+
 import Foundation
 import SwiftData
 import SwiftUI
 
-// MARK: - Nutrition Section
+// MARK: - NutritionSection
 
-enum NutritionSection: String, CaseIterable, Identifiable, Sendable {
+enum NutritionSection: String, CaseIterable, Identifiable {
     case today = "Today"
     case plan = "Plan"
     case log = "Log"
     case coach = "Coach"
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 }
 
-// MARK: - Nutrition Load State
+// MARK: - NutritionLoadState
 
-enum NutritionLoadState: Sendable {
+enum NutritionLoadState {
     case loading
     case loaded
     case error(String)
 }
 
-// MARK: - Nutrition Tab ViewModel
+// MARK: - NutritionTabViewModel
 
 @Observable
 @MainActor
 final class NutritionTabViewModel {
-
     // MARK: - State
 
     private(set) var loadState: NutritionLoadState = .loading
@@ -67,13 +76,14 @@ final class NutritionTabViewModel {
     }
 
     var todayCalorieTarget: Int {
-        guard let profile = dietaryProfile else { return 2400 }
+        guard let profile = dietaryProfile else {
+            return 2400
+        }
         // Base estimate from Mifflin-St Jeor + activity
-        let bmr: Double
-        if profile.biologicalSex == .male {
-            bmr = 10 * profile.currentWeightKg + 6.25 * profile.heightCm - 5 * Double(profile.age) + 5
+        let bmr: Double = if profile.biologicalSex == .male {
+            10 * profile.currentWeightKg + 6.25 * profile.heightCm - 5 * Double(profile.age) + 5
         } else {
-            bmr = 10 * profile.currentWeightKg + 6.25 * profile.heightCm - 5 * Double(profile.age) - 161
+            10 * profile.currentWeightKg + 6.25 * profile.heightCm - 5 * Double(profile.age) - 161
         }
         let activityMultiplier = 1.2 + (Double(profile.trainingFrequency) * 0.05)
         var target = Int(bmr * activityMultiplier)
@@ -92,7 +102,9 @@ final class NutritionTabViewModel {
     }
 
     var todayProteinTarget: Int {
-        guard let profile = dietaryProfile else { return 180 }
+        guard let profile = dietaryProfile else {
+            return 180
+        }
         // ~2g per kg for training individuals
         return Int(profile.currentWeightKg * 2.0)
     }
@@ -105,7 +117,7 @@ final class NutritionTabViewModel {
 
     var todayCarbsTarget: Int {
         // ~45% of calories from carbs
-        return Int(Double(todayCalorieTarget) * 0.45 / 4.0)
+        Int(Double(todayCalorieTarget) * 0.45 / 4.0)
     }
 
     var todayFatConsumed: Int {
@@ -116,10 +128,11 @@ final class NutritionTabViewModel {
 
     var todayFatTarget: Int {
         // ~25% of calories from fat
-        return Int(Double(todayCalorieTarget) * 0.25 / 9.0)
+        Int(Double(todayCalorieTarget) * 0.25 / 9.0)
     }
 
     // MARK: - Recovery-Adjusted Targets (Phase 4)
+
     // Whoop strain raises today's energy & carb needs. Recovery-poor days
     // tighten cals slightly to favour rest-day eating.
 
@@ -127,15 +140,14 @@ final class NutritionTabViewModel {
     /// Range ~0.95 – 1.15. Falls back to 1.0 when no Whoop data is available.
     var recoveryCalorieMultiplier: Double {
         // Bias up on high strain (>14 = hard day yesterday → restock).
-        let strainBoost: Double
-        if let cal = todayRecovery?.score {
+        let strainBoost: Double = if let cal = todayRecovery?.score {
             switch cal {
-            case ..<34: strainBoost = -0.05  // poor recovery → eat less
-            case 67...: strainBoost = 0.05   // good recovery → fuel a touch more
-            default:    strainBoost = 0
+            case ..<34: -0.05 // poor recovery → eat less
+            case 67...: 0.05 // good recovery → fuel a touch more
+            default: 0
             }
         } else {
-            strainBoost = 0
+            0
         }
         return 1.0 + strainBoost
     }
@@ -154,7 +166,9 @@ final class NutritionTabViewModel {
     /// Human-readable delta for UI (e.g. "+150 kcal for high strain").
     var recoveryAdjustmentLabel: String? {
         let delta = recoveryAdjustedCalorieTarget - todayCalorieTarget
-        guard delta != 0 else { return nil }
+        guard delta != 0 else {
+            return nil
+        }
         if delta > 0 {
             return "+\(delta) kcal for recovery"
         } else {
@@ -163,7 +177,9 @@ final class NutritionTabViewModel {
     }
 
     var calorieProgress: Double {
-        guard todayCalorieTarget > 0 else { return 0 }
+        guard todayCalorieTarget > 0 else {
+            return 0
+        }
         return Double(todayCaloriesConsumed) / Double(todayCalorieTarget)
     }
 
@@ -313,7 +329,9 @@ final class NutritionTabViewModel {
     // MARK: - Generate Plan
 
     func generatePlan(modelContext: ModelContext, whoop: any WhoopServiceProtocol) {
-        guard let profile = dietaryProfile else { return }
+        guard let profile = dietaryProfile else {
+            return
+        }
 
         isGeneratingPlan = true
         planGenerationError = nil
@@ -371,11 +389,15 @@ final class NutritionTabViewModel {
         )
 
         let hour = Calendar.current.component(.hour, from: Date())
-        let timeOfDay: String
-        if hour < 11 { timeOfDay = "morning" }
-        else if hour < 15 { timeOfDay = "afternoon" }
-        else if hour < 19 { timeOfDay = "evening" }
-        else { timeOfDay = "night" }
+        let timeOfDay = if hour < 11 {
+            "morning"
+        } else if hour < 15 {
+            "afternoon"
+        } else if hour < 19 {
+            "evening"
+        } else {
+            "night"
+        }
 
         // Determine if training day based on today's plan meals count
         let isTrainingDay = !todayMeals.isEmpty
@@ -400,6 +422,7 @@ final class NutritionTabViewModel {
     }
 
     // MARK: - Meal Reminders (Phase 4)
+
     // Schedule a local notification 5min before each planned meal's
     // scheduled time. Skips meals already eaten/skipped/delayed.
 
@@ -408,17 +431,24 @@ final class NutritionTabViewModel {
         formatter.dateFormat = "HH:mm"
         let today = calendar.startOfDay(for: Date())
         for meal in todayMeals where meal.status == .planned {
-            guard let time = formatter.date(from: meal.scheduledTime) else { continue }
+            guard let time = formatter.date(from: meal.scheduledTime) else {
+                continue
+            }
             let comps = calendar.dateComponents([.hour, .minute], from: time)
             guard let scheduled = calendar.date(
                 bySettingHour: comps.hour ?? 0,
                 minute: comps.minute ?? 0,
                 second: 0,
                 of: today
-            ) else { continue }
+            )
+            else {
+                continue
+            }
             let fire = scheduled.addingTimeInterval(-5 * 60)
             // Avoid scheduling already-past reminders.
-            guard fire > Date() else { continue }
+            guard fire > Date() else {
+                continue
+            }
             notifications.scheduleMealReminder(mealName: meal.mealName, time: fire)
         }
     }
@@ -449,10 +479,16 @@ final class NutritionTabViewModel {
     }
 
     var recoveryZone: String? {
-        guard let score = recoveryScore else { return nil }
-        if score >= 67 { return "green" }
-        else if score >= 34 { return "yellow" }
-        else { return "red" }
+        guard let score = recoveryScore else {
+            return nil
+        }
+        if score >= 67 {
+            return "green"
+        } else if score >= 34 {
+            return "yellow"
+        } else {
+            return "red"
+        }
     }
 
     // MARK: - Private
@@ -474,4 +510,18 @@ final class NutritionTabViewModel {
             // Silent refresh failure
         }
     }
+
+    // MARK: - Test Hooks (Phase 4)
+
+    #if DEBUG
+        /// Test-only setter for today's planned meals. NOT for production code.
+        func _testSetTodayMeals(_ meals: [PlannedMeal]) {
+            todayMeals = meals
+        }
+
+        /// Test-only setter for today's Whoop recovery data. NOT for production code.
+        func _testSetTodayRecovery(_ recovery: WhoopRecoveryData?) {
+            todayRecovery = recovery
+        }
+    #endif
 }

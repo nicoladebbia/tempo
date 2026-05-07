@@ -1,7 +1,14 @@
+//
+// Date+Tempo.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 
 extension Date {
-
     var isToday: Bool {
         Calendar.current.isDateInToday(self)
     }

@@ -1,8 +1,15 @@
+//
+// WeightConverter.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 
 /// Converts between kg and lbs with rounding rules appropriate per equipment type.
 enum WeightConverter {
-
     /// Convert kg to lbs.
     static func toLbs(_ kg: Double) -> Double {
         kg * 2.20462
@@ -29,7 +36,7 @@ enum WeightConverter {
         return (weight / increment).rounded() * increment
     }
 
-    enum PlateIncrement: Sendable {
+    enum PlateIncrement {
         case barbell
         case dumbbell
         case machine

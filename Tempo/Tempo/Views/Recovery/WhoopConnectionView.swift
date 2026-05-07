@@ -1,19 +1,47 @@
+//
+// WhoopConnectionView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Whoop Connection View
-// Per WIREFRAMES.md Screen 35 — Whoop Connection Management.
-// Shows connection status, last sync, data preview, sync/disconnect actions.
+
+// Connects directly to Whoop's API via OAuth2.
+// User enters developer.whoop.com credentials, then taps Connect to log in.
 
 struct WhoopConnectionView: View {
+    @Environment(ServiceContainer.self)
+    private var services
+    @Environment(\.dismiss)
+    private var dismiss
+    @State
+    private var isConnecting = false
+    @State
+    private var isDisconnecting = false
+    @State
+    private var showDisconnectConfirmation = false
+    @State
+    private var errorMessage: String?
+    @State
+    private var showCredentialSetup = false
 
-    @Environment(ServiceContainer.self) private var services
-    @State private var isConnecting = false
-    @State private var isDisconnecting = false
-    @State private var showDisconnectConfirmation = false
-    @State private var errorMessage: String?
+    /// Credential input fields
+    @State
+    private var clientIDInput = ""
+    @State
+    private var clientSecretInput = ""
 
-    private var whoop: any WhoopServiceProtocol { services.whoop }
-    private var isConnected: Bool { whoop.connectionState == .connected }
+    private var whoop: any WhoopServiceProtocol {
+        services.whoop
+    }
+
+    private var isConnected: Bool {
+        whoop.connectionState == .connected
+    }
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -30,6 +58,9 @@ struct WhoopConnectionView: View {
 
                     // Disconnect button
                     disconnectButton
+                } else if showCredentialSetup || !whoop.hasCredentials {
+                    // Credential setup
+                    credentialSetupSection
                 } else {
                     // Connect CTA
                     connectSection
@@ -54,11 +85,22 @@ struct WhoopConnectionView: View {
                 }
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, 50)
+            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
         }
         .background(Color.tempoBgPrimary)
         .navigationTitle("Whoop Connection")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 22))
+                        .foregroundStyle(Color.tempoTextTertiary)
+                }
+            }
+        }
         .confirmationDialog(
             "Disconnect Whoop?",
             isPresented: $showDisconnectConfirmation,
@@ -74,7 +116,6 @@ struct WhoopConnectionView: View {
     }
 
     // MARK: - Status Section
-    // Per WIREFRAMES.md Screen 35 — Status card
 
     private var statusSection: some View {
         VStack(alignment: .leading, spacing: TempoSpacing.md) {
@@ -97,6 +138,16 @@ struct WhoopConnectionView: View {
                     Text(statusText)
                         .font(.tempoBody)
                         .foregroundStyle(Color.tempoTextPrimary)
+
+                    if whoop.isDemoMode, isConnected {
+                        Text("DEMO")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.tempoAmber)
+                            .clipShape(Capsule())
+                    }
                 }
 
                 if isConnected {
@@ -104,7 +155,7 @@ struct WhoopConnectionView: View {
                         Text("Last sync:")
                             .font(.tempoBody)
                             .foregroundStyle(Color.tempoTextSecondary)
-                        Text("Just now")
+                        Text(lastSyncText)
                             .font(.tempoBody)
                             .foregroundStyle(Color.tempoTextPrimary)
                     }
@@ -167,6 +218,137 @@ struct WhoopConnectionView: View {
         }
     }
 
+    // MARK: - Credential Setup Section
+
+    private var credentialSetupSection: some View {
+        VStack(spacing: TempoSpacing.xl) {
+            Image(systemName: "key.fill")
+                .font(.system(size: 48))
+                .foregroundStyle(Color.tempoTextTertiary)
+
+            VStack(spacing: TempoSpacing.sm) {
+                Text("Whoop Developer Setup")
+                    .font(.tempoTitle2)
+                    .foregroundStyle(Color.tempoTextPrimary)
+
+                Text("To connect your Whoop, you need API credentials from the Whoop Developer Portal.")
+                    .font(.tempoBody)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 300)
+            }
+
+            // Instructions
+            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+                instructionRow(number: "1", text: "Go to developer.whoop.com")
+                instructionRow(number: "2", text: "Create an application")
+                instructionRow(number: "3", text: "Set redirect URI to:\ntempo://whoop/callback")
+                instructionRow(number: "4", text: "Copy the Client ID and Client Secret below")
+            }
+            .padding(TempoSpacing.lg)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.tempoSurfaceCard)
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+            .tempoShadow(.card)
+
+            // Input fields
+            VStack(spacing: TempoSpacing.md) {
+                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+                    Text("Client ID")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                    TextField("Paste your Client ID", text: $clientIDInput)
+                        .font(.tempoBody)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .padding(TempoSpacing.md)
+                        .background(Color.tempoSurfaceCard)
+                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous)
+                                .stroke(Color.tempoTextTertiary.opacity(0.3), lineWidth: 1)
+                        )
+                }
+
+                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+                    Text("Client Secret")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                    SecureField("Paste your Client Secret", text: $clientSecretInput)
+                        .font(.tempoBody)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .padding(TempoSpacing.md)
+                        .background(Color.tempoSurfaceCard)
+                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous)
+                                .stroke(Color.tempoTextTertiary.opacity(0.3), lineWidth: 1)
+                        )
+                }
+            }
+
+            // Save credentials button
+            Button {
+                saveCredentials()
+            } label: {
+                Text("Save & Continue")
+                    .font(.tempoHeadline)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
+                    .background(canSave ? Color.tempoSignal : Color.tempoTextTertiary.opacity(0.3))
+                    .foregroundStyle(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+            }
+            .disabled(!canSave)
+
+            // Demo mode fallback
+            Button {
+                Task {
+                    await whoop.connectDemo()
+                    dismiss()
+                }
+            } label: {
+                Text("Skip — Use Demo Data")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.tempoTextSecondary)
+            }
+        }
+        .padding(.top, TempoSpacing.lg)
+    }
+
+    private func instructionRow(number: String, text: String) -> some View {
+        HStack(alignment: .top, spacing: TempoSpacing.sm) {
+            Text(number)
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .frame(width: 24, height: 24)
+                .background(Color.tempoSignal)
+                .clipShape(Circle())
+
+            Text(text)
+                .font(.tempoBody)
+                .foregroundStyle(Color.tempoTextPrimary)
+        }
+    }
+
+    private var canSave: Bool {
+        !clientIDInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !clientSecretInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func saveCredentials() {
+        let id = clientIDInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        let secret = clientSecretInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        do {
+            try whoop.saveCredentials(clientID: id, clientSecret: secret)
+            showCredentialSetup = false
+            errorMessage = nil
+        } catch {
+            errorMessage = "Failed to save credentials."
+        }
+    }
+
     // MARK: - Connect Section
 
     private var connectSection: some View {
@@ -180,7 +362,7 @@ struct WhoopConnectionView: View {
                     .font(.tempoTitle2)
                     .foregroundStyle(Color.tempoTextPrimary)
 
-                Text("Track recovery, sleep, strain, and HRV. Tempo uses Whoop data to optimize your training.")
+                Text("Tap Connect to log in to your Whoop account. Tempo will access your recovery, sleep, strain, and HRV data.")
                     .font(.tempoBody)
                     .foregroundStyle(Color.tempoTextSecondary)
                     .multilineTextAlignment(.center)
@@ -199,12 +381,33 @@ struct WhoopConnectionView: View {
                         .font(.tempoHeadline)
                 }
                 .frame(maxWidth: .infinity)
-                .frame(height: 56)
+                .frame(height: 52)
                 .background(Color.tempoSignal)
                 .foregroundStyle(.white)
                 .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
             }
             .disabled(isConnecting)
+
+            // Change credentials
+            Button {
+                showCredentialSetup = true
+            } label: {
+                Text("Change API Credentials")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.tempoTextSecondary)
+            }
+
+            // Demo mode fallback
+            Button {
+                Task {
+                    await whoop.connectDemo()
+                    dismiss()
+                }
+            } label: {
+                Text("Use Demo Data Instead")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.tempoTextTertiary)
+            }
         }
         .padding(.top, TempoSpacing.xxxl)
     }
@@ -253,11 +456,15 @@ struct WhoopConnectionView: View {
         errorMessage = nil
         do {
             try await whoop.connect()
+            dismiss()
         } catch {
-            if case WhoopError.userCancelled = error {
-                // User cancelled — no error to show
-            } else {
-                errorMessage = "Connection failed. Please try again."
+            switch error {
+            case WhoopError.userCancelled:
+                break
+            case WhoopError.noCredentials:
+                showCredentialSetup = true
+            default:
+                errorMessage = "Connection failed: \(error.localizedDescription)"
             }
         }
         isConnecting = false
@@ -278,19 +485,28 @@ struct WhoopConnectionView: View {
 
     private var statusDotColor: Color {
         switch whoop.connectionState {
-        case .connected: return Color.tempoSuccess
-        case .connecting: return Color.tempoWarning
-        case .disconnected: return Color.tempoTextTertiary
-        case .error: return Color.tempoError
+        case .connected: Color.tempoSuccess
+        case .connecting: Color.tempoWarning
+        case .disconnected: Color.tempoTextTertiary
+        case .error: Color.tempoError
         }
+    }
+
+    private var lastSyncText: String {
+        guard let syncDate = whoop.lastSyncDate else {
+            return "Never"
+        }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return formatter.localizedString(for: syncDate, relativeTo: Date())
     }
 
     private var statusText: String {
         switch whoop.connectionState {
-        case .connected: return "Connected"
-        case .connecting: return "Connecting..."
-        case .disconnected: return "Not Connected"
-        case .error(let msg): return "Error: \(msg)"
+        case .connected: "Connected"
+        case .connecting: "Connecting..."
+        case .disconnected: "Not Connected"
+        case let .error(msg): "Error: \(msg)"
         }
     }
 }
@@ -307,9 +523,6 @@ struct WhoopConnectionView: View {
 #Preview("Disconnected") {
     NavigationStack {
         WhoopConnectionView()
-            .environment({
-                let container = ServiceContainer.mock()
-                return container
-            }())
+            .environment(ServiceContainer.mock())
     }
 }

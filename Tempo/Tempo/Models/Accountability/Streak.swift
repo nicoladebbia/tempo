@@ -1,9 +1,18 @@
+//
+// Streak.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
+// MARK: - Streak
+
 @Model
 final class Streak {
-
     @Attribute(.unique)
     var id: UUID
 
@@ -29,7 +38,9 @@ final class Streak {
 
     @Transient
     var isActive: Bool {
-        guard let lastDate = lastCompletedDate else { return false }
+        guard let lastDate = lastCompletedDate else {
+            return false
+        }
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
         let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
@@ -47,7 +58,9 @@ final class Streak {
     func recordCompletion(for date: Date = Date()) {
         let today = Calendar.current.startOfDay(for: date)
 
-        guard lastCompletedDate != today else { return }
+        guard lastCompletedDate != today else {
+            return
+        }
 
         if isActive {
             currentCount += 1
@@ -67,7 +80,9 @@ final class Streak {
     }
 
     func useFreeze() -> Bool {
-        guard canFreeze else { return false }
+        guard canFreeze else {
+            return false
+        }
         freezesUsed += 1
         lastCompletedDate = Calendar.current.startOfDay(for: Date())
         return true
@@ -85,7 +100,7 @@ final class Streak {
         freezesAvailable: Int = 2
     ) {
         self.id = id
-        self.typeRaw = type.rawValue
+        typeRaw = type.rawValue
         self.currentCount = currentCount
         self.longestCount = longestCount
         self.lastCompletedDate = lastCompletedDate
@@ -97,8 +112,7 @@ final class Streak {
 // MARK: - DTO
 
 extension Streak {
-
-    struct DTO: Codable, Sendable {
+    struct DTO: Codable {
         let id: UUID
         let type: String
         let current_count: Int

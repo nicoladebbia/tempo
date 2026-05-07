@@ -1,18 +1,31 @@
-import SwiftUI
+//
+// TrainingTabView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftData
+import SwiftUI
 
 // MARK: - Training Tab Container
+
 // Per BUILD_PLAN step 9.8 — Training tab root.
 // Default: TodayWorkoutView. Navigation to: WeekPlanView, ExerciseLibraryView,
 // ProgressChartsView, TrainingSettingsView.
 
 struct TrainingTabView: View {
-
-    @Environment(ServiceContainer.self) private var services
-    @Environment(\.modelContext) private var modelContext
-    @State private var viewModel: TrainingViewModel?
-    @State private var showActiveWorkout = false
-    @State private var showSummary = false
+    @Environment(ServiceContainer.self)
+    private var services
+    @Environment(\.modelContext)
+    private var modelContext
+    @State
+    private var viewModel: TrainingViewModel?
+    @State
+    private var showActiveWorkout = false
+    @State
+    private var showSummary = false
 
     var body: some View {
         NavigationStack {

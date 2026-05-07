@@ -1,11 +1,21 @@
+//
+// AppState.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 
-enum Tab: String, CaseIterable, Sendable {
+// MARK: - Tab
+
+enum Tab: String, CaseIterable {
     case dashboard
-    case training
-    case lockdown
     case recovery
-    case arena
+    case training
+    case nutrition
+    case lockdown
 
     var title: String {
         rawValue.capitalized
@@ -14,18 +24,19 @@ enum Tab: String, CaseIterable, Sendable {
     var icon: String {
         switch self {
         case .dashboard: "square.grid.2x2.fill"
-        case .training: "dumbbell.fill"
-        case .lockdown: "lock.fill"
         case .recovery: "heart.fill"
-        case .arena: "trophy.fill"
+        case .training: "dumbbell.fill"
+        case .nutrition: "leaf.fill"
+        case .lockdown: "lock.fill"
         }
     }
 }
 
+// MARK: - AppState
+
 @Observable
 @MainActor
 final class AppState {
-
     var isOnboardingComplete: Bool {
         didSet { UserDefaults.standard.set(isOnboardingComplete, forKey: "tempo.onboarding.complete") }
     }
@@ -48,9 +59,9 @@ final class AppState {
             UserDefaults.standard.removeObject(forKey: "tempo.onboarding.complete")
         }
         if args.contains("--uitesting-skip-onboarding") {
-            self.isOnboardingComplete = true
+            isOnboardingComplete = true
         } else {
-            self.isOnboardingComplete = UserDefaults.standard.bool(forKey: "tempo.onboarding.complete")
+            isOnboardingComplete = UserDefaults.standard.bool(forKey: "tempo.onboarding.complete")
         }
     }
 }

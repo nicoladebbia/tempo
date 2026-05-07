@@ -1,7 +1,14 @@
+//
+// MockCalendarService.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 
 final class MockCalendarService: CalendarServiceProtocol, @unchecked Sendable {
-
     func requestAuthorization() async throws {
         // No-op in mock
     }
@@ -12,13 +19,16 @@ final class MockCalendarService: CalendarServiceProtocol, @unchecked Sendable {
         var events: [CalendarEvent] = []
 
         for dayOffset in 0 ..< 7 {
-            guard let day = calendar.date(byAdding: .day, value: dayOffset, to: start) else { continue }
+            guard let day = calendar.date(byAdding: .day, value: dayOffset, to: start) else {
+                continue
+            }
             let weekday = calendar.component(.weekday, from: day)
 
             // Classes MWF 9-12
             if [2, 4, 6].contains(weekday) {
                 if let classStart = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: day),
-                   let classEnd = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: day) {
+                   let classEnd = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: day)
+                {
                     events.append(CalendarEvent(
                         title: "Computer Science",
                         startDate: classStart,
@@ -32,7 +42,8 @@ final class MockCalendarService: CalendarServiceProtocol, @unchecked Sendable {
             // Football Tue/Thu 18:00-20:00
             if [3, 5].contains(weekday) {
                 if let fbStart = calendar.date(bySettingHour: 18, minute: 0, second: 0, of: day),
-                   let fbEnd = calendar.date(bySettingHour: 20, minute: 0, second: 0, of: day) {
+                   let fbEnd = calendar.date(bySettingHour: 20, minute: 0, second: 0, of: day)
+                {
                     events.append(CalendarEvent(
                         title: "Football Training",
                         startDate: fbStart,
@@ -77,10 +88,13 @@ final class MockCalendarService: CalendarServiceProtocol, @unchecked Sendable {
         let calendar = Calendar.current
         let weekday = calendar.component(.weekday, from: date)
 
-        guard [2, 4, 6].contains(weekday) else { return [] }
+        guard [2, 4, 6].contains(weekday) else {
+            return []
+        }
 
         guard let start = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: date),
-              let end = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: date) else {
+              let end = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: date)
+        else {
             return []
         }
 

@@ -1,20 +1,30 @@
-import SwiftUI
-import Charts
+//
+// BodyQuadrantDetailView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
 
-// MARK: - Body Quadrant Detail View
+import Charts
+import SwiftUI
+
+// MARK: - BodyQuadrantDetailView
+
 // Per MODULE_DASHBOARD.md Section 4.2 — Body Expanded View.
 // Recovery hero, metric cards, 7-day trend chart, sleep breakdown,
 // strain gauge, historical comparison.
 
 struct BodyQuadrantDetailView: View {
-
     let data: BodyQuadrantData
+    @State
+    private var showWhoopConnect = false
 
-    // Stub 7-day trend data
+    /// Stub 7-day trend data
     private let trendData: [RecoveryTrendPoint] = {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
-        return (-6...0).map { offset in
+        return (-6 ... 0).map { offset in
             let date = calendar.date(byAdding: .day, value: offset, to: today)!
             let scores: [Double] = [58, 65, 72, 55, 78, 68, 72]
             return RecoveryTrendPoint(date: date, score: scores[offset + 6])
@@ -60,19 +70,25 @@ struct BodyQuadrantDetailView: View {
                         title: "No Whoop Connected",
                         message: "Connect your Whoop to see recovery, HRV, sleep, and strain data.",
                         actionTitle: "Connect Whoop",
-                        action: {}
+                        action: { showWhoopConnect = true }
                     )
                 }
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, 50)
+            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
         }
         .background(Color.tempoBgPrimary)
         .navigationTitle("Body")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showWhoopConnect) {
+            NavigationStack {
+                WhoopConnectionView()
+            }
+        }
     }
 
     // MARK: - Recovery Hero
+
     // Per MODULE_DASHBOARD.md Section 4.2 — Recovery Hero Section
 
     private var recoveryHeroSection: some View {
@@ -81,8 +97,8 @@ struct BodyQuadrantDetailView: View {
             if data.dataSource != .none {
                 HStack(spacing: TempoSpacing.xs) {
                     Image(systemName: data.dataSource == .whoop
-                          ? "sensor.tag.radiowaves.forward.fill"
-                          : "applewatch")
+                        ? "sensor.tag.radiowaves.forward.fill"
+                        : "applewatch")
                         .font(.tempoCaption2)
                     Text(data.dataSource.rawValue)
                         .font(.tempoCaption2)
@@ -126,7 +142,7 @@ struct BodyQuadrantDetailView: View {
                         .italic()
 
                     // CTA when using HealthKit fallback (no Whoop recovery score)
-                    if data.dataSource == .healthKit && data.recoveryScore == nil {
+                    if data.dataSource == .healthKit, data.recoveryScore == nil {
                         Text("Connect Whoop for full recovery data")
                             .font(.tempoCaption1)
                             .foregroundStyle(Color.tempoSignal)
@@ -140,6 +156,7 @@ struct BodyQuadrantDetailView: View {
     }
 
     // MARK: - Metric Cards
+
     // Per MODULE_DASHBOARD.md Section 4.2 — Metric Cards Row
 
     private var metricCardsSection: some View {
@@ -195,6 +212,7 @@ struct BodyQuadrantDetailView: View {
     }
 
     // MARK: - Recovery Trend Chart
+
     // Per MODULE_DASHBOARD.md Section 4.2 — Recovery Trend Chart (7 Days)
 
     private var recoveryTrendSection: some View {
@@ -236,7 +254,7 @@ struct BodyQuadrantDetailView: View {
                 .foregroundStyle(RecoveryZone(score: point.score).color)
                 .symbolSize(36)
             }
-            .chartYScale(domain: 0...100)
+            .chartYScale(domain: 0 ... 100)
             .chartYAxis {
                 AxisMarks(position: .leading, values: [33, 67]) { _ in
                     AxisGridLine(stroke: StrokeStyle(lineWidth: 1, dash: [4, 4]))
@@ -256,13 +274,14 @@ struct BodyQuadrantDetailView: View {
             }
             .frame(height: 160)
         }
-        .padding(14)
+        .padding(TempoSpacing.buttonPaddingV)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
         .tempoShadow(.card)
     }
 
     // MARK: - Sleep Breakdown
+
     // Per MODULE_DASHBOARD.md Section 4.2 — Sleep Breakdown
 
     private var sleepBreakdownSection: some View {
@@ -276,14 +295,22 @@ struct BodyQuadrantDetailView: View {
             let total = Double(deepSleepMin + remSleepMin + lightSleepMin + awakeSleepMin)
             GeometryReader { geo in
                 HStack(spacing: 0) {
-                    sleepSegment(width: geo.size.width * Double(deepSleepMin) / total,
-                                 color: Color(red: 88/255, green: 86/255, blue: 214/255)) // #5856D6
-                    sleepSegment(width: geo.size.width * Double(remSleepMin) / total,
-                                 color: Color(red: 90/255, green: 200/255, blue: 250/255)) // #5AC8FA
-                    sleepSegment(width: geo.size.width * Double(lightSleepMin) / total,
-                                 color: Color(red: 209/255, green: 209/255, blue: 214/255)) // #D1D1D6
-                    sleepSegment(width: geo.size.width * Double(awakeSleepMin) / total,
-                                 color: Color(red: 255/255, green: 149/255, blue: 0/255)) // #FF9500
+                    sleepSegment(
+                        width: geo.size.width * Double(deepSleepMin) / total,
+                        color: Color.tempoSleepDeep
+                    ) // #5856D6
+                    sleepSegment(
+                        width: geo.size.width * Double(remSleepMin) / total,
+                        color: Color.tempoSleepREM
+                    ) // #5AC8FA
+                    sleepSegment(
+                        width: geo.size.width * Double(lightSleepMin) / total,
+                        color: Color.tempoSleepLight
+                    ) // #D1D1D6
+                    sleepSegment(
+                        width: geo.size.width * Double(awakeSleepMin) / total,
+                        color: Color.tempoSleepAwake
+                    ) // #FF9500
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
@@ -291,14 +318,26 @@ struct BodyQuadrantDetailView: View {
 
             // Legend 2x2 grid
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
-                sleepLegendItem(color: Color(red: 88/255, green: 86/255, blue: 214/255),
-                                label: "Deep", duration: formatMinutes(deepSleepMin))
-                sleepLegendItem(color: Color(red: 90/255, green: 200/255, blue: 250/255),
-                                label: "REM", duration: formatMinutes(remSleepMin))
-                sleepLegendItem(color: Color(red: 209/255, green: 209/255, blue: 214/255),
-                                label: "Light", duration: formatMinutes(lightSleepMin))
-                sleepLegendItem(color: Color(red: 255/255, green: 149/255, blue: 0/255),
-                                label: "Awake", duration: formatMinutes(awakeSleepMin))
+                sleepLegendItem(
+                    color: Color.tempoSleepDeep,
+                    label: "Deep",
+                    duration: formatMinutes(deepSleepMin)
+                )
+                sleepLegendItem(
+                    color: Color.tempoSleepREM,
+                    label: "REM",
+                    duration: formatMinutes(remSleepMin)
+                )
+                sleepLegendItem(
+                    color: Color.tempoSleepLight,
+                    label: "Light",
+                    duration: formatMinutes(lightSleepMin)
+                )
+                sleepLegendItem(
+                    color: Color.tempoSleepAwake,
+                    label: "Awake",
+                    duration: formatMinutes(awakeSleepMin)
+                )
             }
 
             // Performance + bed time
@@ -310,13 +349,14 @@ struct BodyQuadrantDetailView: View {
                 .font(.tempoCaption2)
                 .foregroundStyle(Color.tempoTextSecondary)
         }
-        .padding(14)
+        .padding(TempoSpacing.buttonPaddingV)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
         .tempoShadow(.card)
     }
 
     // MARK: - Strain Breakdown
+
     // Per MODULE_DASHBOARD.md Section 4.2 — Strain Breakdown
 
     private var strainBreakdownSection: some View {
@@ -356,13 +396,14 @@ struct BodyQuadrantDetailView: View {
                 .font(.tempoCaption2)
                 .foregroundStyle(Color.tempoTextSecondary)
         }
-        .padding(14)
+        .padding(TempoSpacing.buttonPaddingV)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
         .tempoShadow(.card)
     }
 
     // MARK: - Historical Comparison
+
     // Per MODULE_DASHBOARD.md Section 4.2 — Historical Comparison
 
     private var historicalComparisonSection: some View {
@@ -392,7 +433,7 @@ struct BodyQuadrantDetailView: View {
                     .foregroundStyle(Color.tempoTextPrimary)
             }
         }
-        .padding(14)
+        .padding(TempoSpacing.buttonPaddingV)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
         .tempoShadow(.card)
@@ -405,35 +446,47 @@ struct BodyQuadrantDetailView: View {
     }
 
     private var recoveryQuip: String {
-        guard let score = data.recoveryScore else { return "" }
+        guard let score = data.recoveryScore else {
+            return ""
+        }
         switch score {
-        case 90...100: return "Go break something. In a good way."
-        case 67..<90: return "You're good to push it."
-        case 50..<67: return "Yellow zone. Choose your battles."
-        case 34..<50: return "Your body is waving a yellow flag."
+        case 90 ... 100: return "Go break something. In a good way."
+        case 67 ..< 90: return "You're good to push it."
+        case 50 ..< 67: return "Yellow zone. Choose your battles."
+        case 34 ..< 50: return "Your body is waving a yellow flag."
         default: return "Sit down. Seriously."
         }
     }
 
     private var strainZoneLabel: String {
-        guard let strain = data.strain else { return "--" }
+        guard let strain = data.strain else {
+            return "--"
+        }
         switch strain {
-        case 0..<10: return "Low"
-        case 10..<14: return "Moderate"
-        case 14..<18: return "High"
+        case 0 ..< 10: return "Low"
+        case 10 ..< 14: return "Moderate"
+        case 14 ..< 18: return "High"
         default: return "Overreaching"
         }
     }
 
     private var strainRecommendation: String {
-        guard let recovery = data.recoveryScore else { return "--" }
-        if recovery >= 80 { return "Push it" }
-        if recovery >= 50 { return "Moderate" }
+        guard let recovery = data.recoveryScore else {
+            return "--"
+        }
+        if recovery >= 80 {
+            return "Push it"
+        }
+        if recovery >= 50 {
+            return "Moderate"
+        }
         return "Take it easy"
     }
 
     private func comparisonIndicator(current: Double?, average: Double, higherIsBetter: Bool) -> (String, Color) {
-        guard let current else { return ("--", .tempoTextTertiary) }
+        guard let current else {
+            return ("--", .tempoTextTertiary)
+        }
         let ratio = current / average
         if ratio > 1.05 {
             return ("↑ vs avg", higherIsBetter ? Color.tempoSuccess : Color.tempoError)
@@ -444,7 +497,9 @@ struct BodyQuadrantDetailView: View {
     }
 
     private var spo2Comparison: (String, Color) {
-        guard let spo2 = data.spo2 else { return ("--", .tempoTextTertiary) }
+        guard let spo2 = data.spo2 else {
+            return ("--", .tempoTextTertiary)
+        }
         return spo2 >= 95 ? ("Normal", .tempoSuccess) : ("Low", .tempoError)
     }
 
@@ -469,8 +524,12 @@ struct BodyQuadrantDetailView: View {
     private func formatMinutes(_ minutes: Int) -> String {
         let h = minutes / 60
         let m = minutes % 60
-        if h > 0 && m > 0 { return "\(h)h \(m)m" }
-        if h > 0 { return "\(h)h" }
+        if h > 0, m > 0 {
+            return "\(h)h \(m)m"
+        }
+        if h > 0 {
+            return "\(h)h"
+        }
         return "\(m)m"
     }
 
@@ -489,7 +548,7 @@ struct BodyQuadrantDetailView: View {
     }
 }
 
-// MARK: - Recovery Trend Point
+// MARK: - RecoveryTrendPoint
 
 struct RecoveryTrendPoint: Identifiable {
     let id = UUID()
@@ -497,7 +556,7 @@ struct RecoveryTrendPoint: Identifiable {
     let score: Double
 }
 
-// MARK: - Semi-Circle Arc Shape
+// MARK: - SemiCircleArc
 
 struct SemiCircleArc: Shape {
     var progress: Double

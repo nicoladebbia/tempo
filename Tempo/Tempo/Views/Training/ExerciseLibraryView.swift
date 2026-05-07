@@ -1,27 +1,40 @@
-import SwiftUI
+//
+// ExerciseLibraryView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftData
+import SwiftUI
 
 // MARK: - Exercise Library View
+
 // Per MODULE_TRAINING.md Section 10 — Exercise library with search and filters.
 // Per WIREFRAMES.md Screen 19 — Search + filter chips + grouped list.
 
 struct ExerciseLibraryView: View {
+    @Environment(\.modelContext)
+    private var modelContext
+    @Query(sort: \Exercise.name)
+    private var allExercises: [Exercise]
 
-    @Environment(\.modelContext) private var modelContext
-    @Query(sort: \Exercise.name) private var allExercises: [Exercise]
+    @State
+    private var searchText = ""
+    @State
+    private var selectedMuscleGroup: MuscleGroup?
+    @State
+    private var selectedEquipment: Equipment?
 
-    @State private var searchText = ""
-    @State private var selectedMuscleGroup: MuscleGroup?
-    @State private var selectedEquipment: Equipment?
-
-    // Per UX_COPY_BIBLE.md Section 4.8
+    /// Per UX_COPY_BIBLE.md Section 4.8
     private let muscleGroupFilters: [MuscleGroup] = [
         .chest, .back, .shoulders, .biceps, .triceps,
-        .quads, .hamstrings, .glutes, .calves, .core, .cardio
+        .quads, .hamstrings, .glutes, .calves, .core, .cardio,
     ]
 
     private let equipmentFilters: [Equipment] = [
-        .barbell, .dumbbell, .cable, .machine, .bodyweight, .kettlebell, .resistanceBand
+        .barbell, .dumbbell, .cable, .machine, .bodyweight, .kettlebell, .resistanceBand,
     ]
 
     var body: some View {
@@ -45,7 +58,7 @@ struct ExerciseLibraryView: View {
                     exerciseList
                 }
             }
-            .padding(.bottom, 100)
+            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
         }
         .background(Color.tempoBgPrimary)
         .navigationTitle("Exercises")
@@ -53,6 +66,7 @@ struct ExerciseLibraryView: View {
     }
 
     // MARK: - Search Bar
+
     // Per MODULE_TRAINING.md Section 10.2 — 44pt search bar
 
     private var searchBar: some View {
@@ -86,6 +100,7 @@ struct ExerciseLibraryView: View {
     }
 
     // MARK: - Muscle Group Chips
+
     // Per WIREFRAMES.md Screen 19 — horizontal scrollable filter chips, 24pt height
 
     private var muscleGroupChips: some View {
@@ -139,6 +154,7 @@ struct ExerciseLibraryView: View {
     }
 
     // MARK: - Exercise List
+
     // Per MODULE_TRAINING.md Section 10.1 — grouped by muscle group with count
 
     private var exerciseList: some View {
@@ -174,7 +190,7 @@ struct ExerciseLibraryView: View {
         .background(Color.tempoBgPrimary)
     }
 
-    // Per WIREFRAMES.md Screen 19 — exercise row: name, muscle group pill, equipment + compound/isolation
+    /// Per WIREFRAMES.md Screen 19 — exercise row: name, muscle group pill, equipment + compound/isolation
     private func exerciseRow(_ exercise: Exercise) -> some View {
         VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
             HStack {
@@ -215,6 +231,7 @@ struct ExerciseLibraryView: View {
     }
 
     // MARK: - Empty State
+
     // Per WIREFRAMES.md Screen 71 State B — No results
 
     private var emptyState: some View {

@@ -1,14 +1,24 @@
+//
+// OnboardingViewModel.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
-// MARK: - Onboarding View Model
-// Per STATE_MACHINES.md Section 10 — 12-step linear flow with persistence.
+// MARK: - OnboardingViewModel
+
+// Per STATE_MACHINES.md Section 10 — 11-step "show then ask" flow with persistence.
 // Per BUILD_PLAN step 16.1 — State machine with UserDefaults persistence.
+// Reordered: splash→valueDemo→goals→healthKit→auth→profile→training→academic→whoop→nutritrack→notifications→complete
 
 @Observable
 @MainActor
 final class OnboardingViewModel {
-
     // MARK: - State
+
     // Per STATE_MACHINES.md Section 10
 
     var currentStep: OnboardingStep {
@@ -22,19 +32,19 @@ final class OnboardingViewModel {
     var username: String = ""
 
     // Training data
-    var doesTrain: Bool? = nil
+    var doesTrain: Bool?
     var trainingTypes: Set<String> = []
     var daysPerWeek: Int = 4
-    var preferredSplit: String? = nil
-    var experienceLevel: String? = nil
+    var preferredSplit: String?
+    var experienceLevel: String?
 
     // Academic data
     var university: String = ""
-    var yearOfStudy: String? = nil
+    var yearOfStudy: String?
     var examSchedule: String = ""
 
     // Goals data
-    var primaryGoal: String? = nil
+    var primaryGoal: String?
     var studyTarget: Int = 120
     var mealTarget: Int = 4
     var timeWasters: Set<String> = []
@@ -55,49 +65,63 @@ final class OnboardingViewModel {
 
     // MARK: - Computed
 
-    var totalSteps: Int { 12 }
+    var totalSteps: Int {
+        OnboardingStep.allCases.count
+    }
 
-    var stepNumber: Int { currentStep.stepNumber }
+    var stepNumber: Int {
+        currentStep.stepNumber
+    }
 
     var progress: Double {
         Double(currentStep.stepNumber) / Double(totalSteps)
     }
 
     var canGoBack: Bool {
-        currentStep != .splash && currentStep != .auth
+        currentStep != .splash && currentStep != .auth && currentStep != .complete
     }
 
     var canContinue: Bool {
         switch currentStep {
-        case .splash, .auth:
-            return true
+        case .splash,
+             .valueDemo,
+             .auth:
+            true
         case .profile:
-            return !displayName.trimmingCharacters(in: .whitespaces).isEmpty &&
-                   !username.trimmingCharacters(in: .whitespaces).isEmpty
+            !displayName.trimmingCharacters(in: .whitespaces).isEmpty &&
+                !username.trimmingCharacters(in: .whitespaces).isEmpty
         case .trainingSetup:
-            return true  // Optional step
+            true // Optional step
         case .academicSetup:
-            return true  // Optional step
+            true // Optional step
         case .goals:
-            return primaryGoal != nil
-        case .whoopConnect, .nutritrackConnect, .healthkit, .notifications:
-            return true  // Optional steps
-        case .arena:
-            return true
+            primaryGoal != nil
+        case .whoopConnect,
+             .nutritrackConnect,
+             .healthkit,
+             .notifications:
+            true // Optional steps
         case .complete:
-            return true
+            true
         }
     }
 
     // MARK: - Init
+
     // Per STATE_MACHINES.md — Resume from last completed step on kill.
 
     init() {
         if let savedStep = UserDefaults.standard.string(forKey: "tempo.onboarding.step"),
-           let step = OnboardingStep(rawValue: savedStep) {
-            self.currentStep = step
+           let step = OnboardingStep(rawValue: savedStep)
+        {
+            currentStep = step
+        } else if UserDefaults.standard.string(forKey: "tempo.onboarding.step") != nil {
+            // Migration: saved step doesn't match any valid case (e.g. removed "arena").
+            // Reset to splash so user re-starts onboarding cleanly.
+            currentStep = .splash
+            UserDefaults.standard.removeObject(forKey: "tempo.onboarding.step")
         } else {
-            self.currentStep = .splash
+            currentStep = .splash
         }
         loadPersistedData()
     }
@@ -115,7 +139,9 @@ final class OnboardingViewModel {
     }
 
     func goBack() {
-        guard canGoBack, let prev = currentStep.previous else { return }
+        guard canGoBack, let prev = currentStep.previous else {
+            return
+        }
         withAnimation(.easeInOut(duration: 0.3)) {
             currentStep = prev
         }
@@ -133,6 +159,7 @@ final class OnboardingViewModel {
     }
 
     // MARK: - Persistence
+
     // Per STATE_MACHINES.md — UserDefaults for step + data.
 
     private func persistStep() {
@@ -159,7 +186,9 @@ final class OnboardingViewModel {
     }
 
     private func loadPersistedData() {
-        guard let data = UserDefaults.standard.dictionary(forKey: "tempo.onboarding.data") else { return }
+        guard let data = UserDefaults.standard.dictionary(forKey: "tempo.onboarding.data") else {
+            return
+        }
         displayName = data["displayName"] as? String ?? ""
         username = data["username"] as? String ?? ""
         doesTrain = data["doesTrain"] as? Bool
@@ -175,65 +204,78 @@ final class OnboardingViewModel {
     }
 }
 
-// MARK: - Onboarding Step Enum
-// Per STATE_MACHINES.md Section 10
+// MARK: - OnboardingStep
+
+// "Show then ask" flow — demonstrate value before collecting data.
+// splash→valueDemo→goals→healthKit→auth→profile→training→academic→whoop→nutritrack→notifications→complete
 
 enum OnboardingStep: String, Codable, CaseIterable {
     case splash
+    case valueDemo
+    case goals
+    case healthkit
     case auth
     case profile
     case trainingSetup
     case academicSetup
-    case goals
     case whoopConnect
     case nutritrackConnect
-    case healthkit
     case notifications
-    case arena
     case complete
 
     var stepNumber: Int {
         switch self {
-        case .splash: return 0
-        case .auth: return 1
-        case .profile: return 2
-        case .trainingSetup: return 3
-        case .academicSetup: return 4
-        case .goals: return 5
-        case .whoopConnect: return 6
-        case .nutritrackConnect: return 7
-        case .healthkit: return 8
-        case .notifications: return 9
-        case .arena: return 10
-        case .complete: return 11
+        case .splash: 0
+        case .valueDemo: 1
+        case .goals: 2
+        case .healthkit: 3
+        case .auth: 4
+        case .profile: 5
+        case .trainingSetup: 6
+        case .academicSetup: 7
+        case .whoopConnect: 8
+        case .nutritrackConnect: 9
+        case .notifications: 10
+        case .complete: 11
         }
     }
 
     var isRequired: Bool {
         switch self {
-        case .auth, .profile, .goals: return true
-        default: return false
+        case .auth,
+             .profile,
+             .goals: true
+        default: false
         }
     }
 
     var isSkippable: Bool {
         switch self {
-        case .trainingSetup, .academicSetup, .whoopConnect, .nutritrackConnect, .healthkit, .notifications:
-            return true
+        case .healthkit,
+             .trainingSetup,
+             .academicSetup,
+             .whoopConnect,
+             .nutritrackConnect,
+             .notifications:
+            true
         default:
-            return false
+            false
         }
     }
 
     var next: OnboardingStep? {
         let all = OnboardingStep.allCases
-        guard let idx = all.firstIndex(of: self), idx + 1 < all.count else { return nil }
+        guard let idx = all.firstIndex(of: self), idx + 1 < all.count else {
+            return nil
+        }
         return all[idx + 1]
     }
 
     var previous: OnboardingStep? {
         let all = OnboardingStep.allCases
-        guard let idx = all.firstIndex(of: self), idx > 0 else { return nil }
+        guard let idx = all.firstIndex(of: self), idx > 0 else {
+            return nil
+        }
         return all[idx - 1]
     }
 }

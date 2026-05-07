@@ -1,8 +1,15 @@
+//
+// MockNutriTrackService.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 
 @Observable
 final class MockNutriTrackService: NutriTrackServiceProtocol, @unchecked Sendable {
-
     private(set) var connectionState: NutriTrackConnectionState = .connected
 
     func connect(baseURL: URL, pin: String) async throws {

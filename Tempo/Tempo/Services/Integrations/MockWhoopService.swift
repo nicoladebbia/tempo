@@ -1,11 +1,21 @@
+//
+// MockWhoopService.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 
 @Observable
 final class MockWhoopService: WhoopServiceProtocol, @unchecked Sendable {
-
     private(set) var connectionState: WhoopConnectionState = .connected
     private(set) var isDemoMode: Bool = true
-    var hasCredentials: Bool { true }
+    var hasCredentials: Bool {
+        true
+    }
+
     private(set) var lastSyncDate: Date? = Date()
 
     func connect() async throws {
@@ -25,7 +35,7 @@ final class MockWhoopService: WhoopServiceProtocol, @unchecked Sendable {
     func saveCredentials(clientID: String, clientSecret: String) throws {}
     func clearCredentials() throws {}
 
-    // Yellow zone recovery day
+    /// Yellow zone recovery day
     func fetchRecovery(for date: Date) async throws -> WhoopRecoveryData {
         WhoopRecoveryData(
             score: 72.0,
@@ -38,11 +48,11 @@ final class MockWhoopService: WhoopServiceProtocol, @unchecked Sendable {
     }
 
     func fetchRecoveryBatch(for date: Date) async throws -> [WhoopRecoveryData] {
-        [try await fetchRecovery(for: date)]
+        try await [fetchRecovery(for: date)]
     }
 
     func fetchSleepBatch(for date: Date) async throws -> [WhoopSleepData] {
-        [try await fetchSleep(for: date)]
+        try await [fetchSleep(for: date)]
     }
 
     func fetchSleep(for date: Date) async throws -> WhoopSleepData {

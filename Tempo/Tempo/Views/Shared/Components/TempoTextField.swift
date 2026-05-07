@@ -1,20 +1,31 @@
+//
+// TempoTextField.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Tempo Text Field
+
 // Per DESIGN_SYSTEM.md Section 8.5 — Text Field:
 // 48pt height, 12pt radius, focus animation, error state, optional leading icon.
 
 struct TempoTextField: View {
-
     let label: String
     let placeholder: String
-    @Binding var text: String
+    @Binding
+    var text: String
     var leadingIcon: String?
     var helperText: String?
     var errorText: String?
 
-    @Environment(\.colorScheme) private var colorScheme
-    @FocusState private var isFocused: Bool
+    @Environment(\.colorScheme)
+    private var colorScheme
+    @FocusState
+    private var isFocused: Bool
 
     private var hasError: Bool {
         errorText != nil && !errorText!.isEmpty
@@ -22,21 +33,21 @@ struct TempoTextField: View {
 
     private var fieldBackground: Color {
         colorScheme == .dark
-            ? Color(red: 38 / 255, green: 38 / 255, blue: 38 / 255)  // #262626
-            : Color(red: 243 / 255, green: 244 / 255, blue: 246 / 255)  // #F3F4F6
+            ? Color.tempoInputBgDark
+            : Color.tempoInputBgLight
     }
 
     private var borderColor: Color {
         if hasError {
             return colorScheme == .dark
-                ? Color(red: 248 / 255, green: 113 / 255, blue: 113 / 255)
+                ? Color.tempoErrorLight
                 : Color.tempoError
         }
         if isFocused {
             return colorScheme == .dark ? Color.tempoBone : Color.tempoInk
         }
         return colorScheme == .dark
-            ? Color(red: 56 / 255, green: 56 / 255, blue: 58 / 255)
+            ? Color.tempoFillTertiary
             : Color.tempoBorder
     }
 
@@ -46,7 +57,7 @@ struct TempoTextField: View {
 
     private var placeholderColor: Color {
         colorScheme == .dark
-            ? Color(red: 82 / 255, green: 82 / 255, blue: 91 / 255)
+            ? Color.tempoPlaceholder
             : Color.tempoTextDisabled
     }
 
@@ -72,7 +83,7 @@ struct TempoTextField: View {
                     .foregroundStyle(Color.tempoTextPrimary)
                     .focused($isFocused)
 
-                if isFocused && !text.isEmpty {
+                if isFocused, !text.isEmpty {
                     Button {
                         text = ""
                     } label: {
@@ -98,7 +109,7 @@ struct TempoTextField: View {
                 Text(error)
                     .font(.tempoFootnote)
                     .foregroundStyle(colorScheme == .dark
-                        ? Color(red: 248 / 255, green: 113 / 255, blue: 113 / 255)
+                        ? Color.tempoErrorLight
                         : Color.tempoError)
             } else if let helper = helperText, !helper.isEmpty {
                 Text(helper)

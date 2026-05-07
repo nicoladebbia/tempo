@@ -1,12 +1,22 @@
+//
+// TempoButtonStyle.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
-// MARK: - Primary Button Style
+// MARK: - TempoPrimaryButtonStyle
+
 // Per DESIGN_SYSTEM.md Section 8.1 — Signal Red bg, Bone White text, 52pt height, 14pt radius.
 
 struct TempoPrimaryButtonStyle: ButtonStyle {
-
-    @Environment(\.isEnabled) private var isEnabled
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.isEnabled)
+    private var isEnabled
+    @Environment(\.colorScheme)
+    private var colorScheme
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -28,27 +38,29 @@ struct TempoPrimaryButtonStyle: ButtonStyle {
     private func background(isPressed: Bool) -> Color {
         guard isEnabled else {
             return colorScheme == .dark
-                ? Color(red: 56 / 255, green: 56 / 255, blue: 58 / 255)  // #38383A
+                ? Color.tempoFillTertiary // #38383A
                 : Color.tempoBorder
         }
         if isPressed {
             return colorScheme == .dark
-                ? Color.tempoSignal  // #E63946
-                : Color.tempoSignalPressed  // #C1303B
+                ? Color.tempoSignal // #E63946
+                : Color.tempoSignalPressed // #C1303B
         }
         return colorScheme == .dark
-            ? Color(red: 255 / 255, green: 77 / 255, blue: 90 / 255)  // #FF4D5A
-            : Color.tempoSignal  // #E63946
+            ? Color.tempoSignalHighlight // #FF4D5A
+            : Color.tempoSignal // #E63946
     }
 }
 
-// MARK: - Secondary Button Style
+// MARK: - TempoSecondaryButtonStyle
+
 // Per DESIGN_SYSTEM.md Section 8.1 — Transparent bg, Ink border 1.5pt, 52pt height.
 
 struct TempoSecondaryButtonStyle: ButtonStyle {
-
-    @Environment(\.isEnabled) private var isEnabled
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.isEnabled)
+    private var isEnabled
+    @Environment(\.colorScheme)
+    private var colorScheme
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -81,7 +93,7 @@ struct TempoSecondaryButtonStyle: ButtonStyle {
     private var borderColor: Color {
         guard isEnabled else {
             return colorScheme == .dark
-                ? Color(red: 72 / 255, green: 72 / 255, blue: 74 / 255)  // #48484A
+                ? Color.tempoFillSecondary // #48484A
                 : Color.tempoDividerHeavy
         }
         return colorScheme == .dark ? Color.tempoBone : Color.tempoInk
@@ -94,13 +106,15 @@ struct TempoSecondaryButtonStyle: ButtonStyle {
     }
 }
 
-// MARK: - Destructive Button Style
+// MARK: - TempoDestructiveButtonStyle
+
 // Per DESIGN_SYSTEM.md Section 8.1 — Transparent bg, Fail Red border 1.5pt.
 
 struct TempoDestructiveButtonStyle: ButtonStyle {
-
-    @Environment(\.isEnabled) private var isEnabled
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.isEnabled)
+    private var isEnabled
+    @Environment(\.colorScheme)
+    private var colorScheme
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -124,16 +138,18 @@ struct TempoDestructiveButtonStyle: ButtonStyle {
     }
 
     private var foregroundColor: Color {
-        guard isEnabled else { return Color.tempoTextDisabled }
+        guard isEnabled else {
+            return Color.tempoTextDisabled
+        }
         return colorScheme == .dark
-            ? Color(red: 248 / 255, green: 113 / 255, blue: 113 / 255)  // #F87171
-            : Color.tempoError  // #DC2626
+            ? Color.tempoErrorLight // #F87171
+            : Color.tempoError // #DC2626
     }
 
     private var borderColor: Color {
         guard isEnabled else {
             return colorScheme == .dark
-                ? Color(red: 72 / 255, green: 72 / 255, blue: 74 / 255)
+                ? Color.tempoFillSecondary
                 : Color.tempoDividerHeavy
         }
         return foregroundColor
@@ -141,18 +157,20 @@ struct TempoDestructiveButtonStyle: ButtonStyle {
 
     private var pressedBackground: Color {
         colorScheme == .dark
-            ? Color(red: 248 / 255, green: 113 / 255, blue: 113 / 255).opacity(0.15)
+            ? Color.tempoErrorLight.opacity(0.15)
             : Color.tempoError.opacity(0.10)
     }
 }
 
-// MARK: - Ghost Button Style
+// MARK: - TempoGhostButtonStyle
+
 // Per DESIGN_SYSTEM.md Section 8.1 — No bg/border, Signal Red text, 44pt height, 10pt radius.
 
 struct TempoGhostButtonStyle: ButtonStyle {
-
-    @Environment(\.isEnabled) private var isEnabled
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.isEnabled)
+    private var isEnabled
+    @Environment(\.colorScheme)
+    private var colorScheme
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -171,15 +189,17 @@ struct TempoGhostButtonStyle: ButtonStyle {
     }
 
     private var foregroundColor: Color {
-        guard isEnabled else { return Color.tempoTextDisabled }
+        guard isEnabled else {
+            return Color.tempoTextDisabled
+        }
         return colorScheme == .dark
-            ? Color(red: 255 / 255, green: 77 / 255, blue: 90 / 255)  // #FF4D5A
-            : Color.tempoSignal  // #E63946
+            ? Color.tempoSignalHighlight // #FF4D5A
+            : Color.tempoSignal // #E63946
     }
 
     private var pressedBackground: Color {
         colorScheme == .dark
-            ? Color(red: 255 / 255, green: 77 / 255, blue: 90 / 255).opacity(0.12)
+            ? Color.tempoSignalHighlight.opacity(0.12)
             : Color.tempoSignal.opacity(0.08)
     }
 }
@@ -187,17 +207,25 @@ struct TempoGhostButtonStyle: ButtonStyle {
 // MARK: - Convenience Extensions
 
 extension ButtonStyle where Self == TempoPrimaryButtonStyle {
-    static var tempoPrimary: TempoPrimaryButtonStyle { TempoPrimaryButtonStyle() }
+    static var tempoPrimary: TempoPrimaryButtonStyle {
+        TempoPrimaryButtonStyle()
+    }
 }
 
 extension ButtonStyle where Self == TempoSecondaryButtonStyle {
-    static var tempoSecondary: TempoSecondaryButtonStyle { TempoSecondaryButtonStyle() }
+    static var tempoSecondary: TempoSecondaryButtonStyle {
+        TempoSecondaryButtonStyle()
+    }
 }
 
 extension ButtonStyle where Self == TempoDestructiveButtonStyle {
-    static var tempoDestructive: TempoDestructiveButtonStyle { TempoDestructiveButtonStyle() }
+    static var tempoDestructive: TempoDestructiveButtonStyle {
+        TempoDestructiveButtonStyle()
+    }
 }
 
 extension ButtonStyle where Self == TempoGhostButtonStyle {
-    static var tempoGhost: TempoGhostButtonStyle { TempoGhostButtonStyle() }
+    static var tempoGhost: TempoGhostButtonStyle {
+        TempoGhostButtonStyle()
+    }
 }

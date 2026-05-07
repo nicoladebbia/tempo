@@ -1,9 +1,18 @@
+//
+// DailyPrescription.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
+// MARK: - DailyPrescription
+
 @Model
 final class DailyPrescription {
-
     @Attribute(.unique)
     var id: UUID
 
@@ -36,7 +45,8 @@ final class DailyPrescription {
     var nutritionRecs: [String] {
         get {
             guard let data = nutritionRecsJSON,
-                  let decoded = try? JSONDecoder().decode([String].self, from: data) else {
+                  let decoded = try? JSONDecoder().decode([String].self, from: data)
+            else {
                 return []
             }
             return decoded
@@ -50,7 +60,8 @@ final class DailyPrescription {
     var warnings: [String] {
         get {
             guard let data = warningsJSON,
-                  let decoded = try? JSONDecoder().decode([String].self, from: data) else {
+                  let decoded = try? JSONDecoder().decode([String].self, from: data)
+            else {
                 return []
             }
             return decoded
@@ -67,7 +78,9 @@ final class DailyPrescription {
 
     @Transient
     var caffeineCutoffFormatted: String? {
-        guard let cutoff = caffeineCutoff else { return nil }
+        guard let cutoff = caffeineCutoff else {
+            return nil
+        }
         let formatter = DateFormatter()
         formatter.dateFormat = "h:mm a"
         return formatter.string(from: cutoff)
@@ -92,11 +105,11 @@ final class DailyPrescription {
         self.date = Calendar.current.startOfDay(for: date)
         self.trainingRec = trainingRec
         self.trainingDetail = trainingDetail
-        self.nutritionRecsJSON = try? JSONEncoder().encode(nutritionRecs)
+        nutritionRecsJSON = try? JSONEncoder().encode(nutritionRecs)
         self.bedtimeTarget = bedtimeTarget
         self.caffeineCutoff = caffeineCutoff
         self.hydrationTargetMl = hydrationTargetMl
-        self.warningsJSON = try? JSONEncoder().encode(warnings)
+        warningsJSON = try? JSONEncoder().encode(warnings)
         self.wasFollowed = wasFollowed
         self.dailyRecovery = dailyRecovery
     }
@@ -105,8 +118,7 @@ final class DailyPrescription {
 // MARK: - DTO
 
 extension DailyPrescription {
-
-    struct DTO: Codable, Sendable {
+    struct DTO: Codable {
         let id: UUID
         let date: Date
         let training_rec: String

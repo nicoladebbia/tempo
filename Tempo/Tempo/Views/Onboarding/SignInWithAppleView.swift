@@ -1,13 +1,25 @@
-import SwiftUI
+//
+// SignInWithAppleView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import AuthenticationServices
+import SwiftUI
 
 // MARK: - Sign In with Apple View
+
 // Per BUILD_PLAN step 6.5 — Sign in with Apple button using AuthenticationServices.
 
 struct SignInWithAppleView: View {
-    @Environment(ServiceContainer.self) private var services
-    @State private var isSigningIn = false
-    @State private var errorMessage: String?
+    @Environment(ServiceContainer.self)
+    private var services
+    @State
+    private var isSigningIn = false
+    @State
+    private var errorMessage: String?
 
     var body: some View {
         VStack(spacing: TempoSpacing.xl) {
@@ -15,9 +27,7 @@ struct SignInWithAppleView: View {
 
             // App logo and title
             VStack(spacing: TempoSpacing.md) {
-                Image(systemName: "bolt.circle.fill")
-                    .font(.system(size: 80))
-                    .foregroundStyle(Color.tempoSignal)
+                TempoLogoView(size: 80, showGlow: true)
 
                 Text("TEMPO")
                     .font(.tempoLargeTitle)
@@ -45,21 +55,18 @@ struct SignInWithAppleView: View {
                     .tint(Color.tempoTextSecondary)
                     .padding(.bottom, TempoSpacing.xl)
             } else {
-                SignInWithAppleButton(.signIn, onRequest: { request in
-                    request.requestedScopes = [.fullName, .email]
-                }, onCompletion: { _ in
-                    // Handled by AuthService delegate — this callback is not used
-                    // because AuthService drives the flow directly
-                })
-                .signInWithAppleButtonStyle(.white)
-                .frame(height: 50)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl))
+                Button(action: {
+                    Task { await signIn() }
+                }) {
+                    SignInWithAppleButton(.signIn, onRequest: { _ in }, onCompletion: { _ in })
+                        .allowsHitTesting(false)
+                        .frame(height: 50)
+                        .frame(maxWidth: 320)
+                }
+                .buttonStyle(.plain)
                 .padding(.horizontal, TempoSpacing.xl)
                 .padding(.bottom, TempoSpacing.xl)
                 .accessibilityLabel("Sign in with Apple")
-                .onTapGesture {
-                    Task { await signIn() }
-                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

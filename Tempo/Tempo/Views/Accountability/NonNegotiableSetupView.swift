@@ -1,18 +1,35 @@
-import SwiftUI
-import SwiftData
+//
+// NonNegotiableSetupView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
 
-// MARK: - NonNegotiable Setup/Edit View
+import SwiftData
+import SwiftUI
+
+// MARK: - NonNegotiableSetupView
+
 // Per BUILD_PLAN step 10.5.
 // Per MODULE_ACCOUNTABILITY.md — Setup flow for non-negotiables.
 
 struct NonNegotiableSetupView: View {
+    @Environment(\.modelContext)
+    private var modelContext
+    @Environment(\.dismiss)
+    private var dismiss
+    @Query(sort: \NonNegotiable.order)
+    private var nonNegotiables: [NonNegotiable]
 
-    @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
-    @Query(sort: \NonNegotiable.order) private var nonNegotiables: [NonNegotiable]
-
-    @State private var showAddSheet = false
-    @State private var editingItem: NonNegotiable?
+    @State
+    private var showAddSheet = false
+    @State
+    private var editingItem: NonNegotiable?
+    @State
+    private var showDeleteConfirmation = false
+    @State
+    private var pendingDeleteItem: NonNegotiable?
 
     private let maxNonNegotiables = 7
 
@@ -51,6 +68,26 @@ struct NonNegotiableSetupView: View {
                     onSave: { _ in try? modelContext.save() }
                 )
             }
+            .confirmationDialog(
+                "Delete Non-Negotiable?",
+                isPresented: $showDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) {
+                    if let item = pendingDeleteItem {
+                        modelContext.delete(item)
+                        try? modelContext.save()
+                    }
+                    pendingDeleteItem = nil
+                }
+                Button("Cancel", role: .cancel) {
+                    pendingDeleteItem = nil
+                }
+            } message: {
+                Text(
+                    "This will permanently delete \"\(pendingDeleteItem?.name ?? "this item")\" and all its historical progress data. This cannot be undone."
+                )
+            }
         }
     }
 
@@ -64,7 +101,11 @@ struct NonNegotiableSetupView: View {
                     nonNegotiableRow(nn)
                 }
                 .onDelete { offsets in
-                    deleteItems(at: offsets, from: nonNegotiables.filter(\.isActive))
+                    let active = nonNegotiables.filter(\.isActive)
+                    if let index = offsets.first {
+                        pendingDeleteItem = active[index]
+                        showDeleteConfirmation = true
+                    }
                 }
                 .onMove { from, to in
                     moveItems(from: from, to: to)
@@ -97,7 +138,10 @@ struct NonNegotiableSetupView: View {
                             .opacity(0.6)
                     }
                     .onDelete { offsets in
-                        deleteItems(at: offsets, from: inactive)
+                        if let index = offsets.first {
+                            pendingDeleteItem = inactive[index]
+                            showDeleteConfirmation = true
+                        }
                     }
                 } header: {
                     Text("INACTIVE")
@@ -169,8 +213,12 @@ struct NonNegotiableSetupView: View {
         case .study:
             let hours = Int(nn.targetValue) / 60
             let mins = Int(nn.targetValue) % 60
-            if hours > 0 && mins > 0 { return "\(hours)h \(mins)m" }
-            if hours > 0 { return "\(hours)h" }
+            if hours > 0, mins > 0 {
+                return "\(hours)h \(mins)m"
+            }
+            if hours > 0 {
+                return "\(hours)h"
+            }
             return "\(mins)m"
         case .meals:
             return "\(Int(nn.targetValue)) meals"
@@ -295,7 +343,7 @@ struct NonNegotiableSetupView: View {
         try? modelContext.save()
     }
 
-    // Per MODULE_ACCOUNTABILITY.md — default templates.
+    /// Per MODULE_ACCOUNTABILITY.md — default templates.
     private func addDefaultTemplates() {
         let templates: [(String, NonNegotiableType, String, Double, TrackingMethod)] = [
             ("Study", .study, "book.fill", 120, .timer),
@@ -306,7 +354,9 @@ struct NonNegotiableSetupView: View {
 
         for (index, t) in templates.enumerated() {
             let existing = nonNegotiables.contains { $0.type == t.1 }
-            guard !existing else { continue }
+            guard !existing else {
+                continue
+            }
 
             let nn = NonNegotiable(
                 name: t.0,
@@ -322,23 +372,32 @@ struct NonNegotiableSetupView: View {
     }
 }
 
-// MARK: - NonNegotiable Edit Sheet
+// MARK: - NonNegotiableEditSheet
 
 struct NonNegotiableEditSheet: View {
-
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dismiss)
+    private var dismiss
 
     let editing: NonNegotiable?
     let existingCount: Int
     let onSave: (NonNegotiable) -> Void
 
-    @State private var name: String
-    @State private var selectedType: NonNegotiableType
-    @State private var icon: String
-    @State private var targetValue: Double
-    @State private var trackingMethod: TrackingMethod
-    @State private var activeDays: ActiveDays
-    @State private var isActive: Bool
+    @State
+    private var name: String
+    @State
+    private var selectedType: NonNegotiableType
+    @State
+    private var icon: String
+    @State
+    private var targetValue: Double
+    @State
+    private var trackingMethod: TrackingMethod
+    @State
+    private var activeDays: ActiveDays
+    @State
+    private var isActive: Bool
+    @State
+    private var showIconPicker = false
 
     private let maxNonNegotiables = 7
 
@@ -392,14 +451,21 @@ struct NonNegotiableEditSheet: View {
 
                 // Icon
                 Section {
-                    HStack {
-                        Text("Icon")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                        Spacer()
-                        Image(systemName: icon)
-                            .font(.system(size: 24))
-                            .foregroundStyle(Color.tempoElectric)
+                    Button {
+                        showIconPicker = true
+                    } label: {
+                        HStack {
+                            Text("Icon")
+                                .font(.tempoBody)
+                                .foregroundStyle(Color.tempoTextPrimary)
+                            Spacer()
+                            Image(systemName: icon)
+                                .font(.system(size: 24))
+                                .foregroundStyle(Color.tempoElectric)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color.tempoTextTertiary)
+                        }
                     }
                 } header: {
                     Text("ICON")
@@ -479,6 +545,9 @@ struct NonNegotiableEditSheet: View {
                 icon = newType.defaultIcon
                 applyTypeDefaults(newType)
             }
+            .sheet(isPresented: $showIconPicker) {
+                IconPickerSheet(selectedIcon: $icon)
+            }
         }
     }
 
@@ -491,7 +560,7 @@ struct NonNegotiableEditSheet: View {
             Stepper(
                 "Duration: \(Int(targetValue)) min",
                 value: $targetValue,
-                in: 15...480,
+                in: 15 ... 480,
                 step: 15
             )
             .font(.tempoBody)
@@ -499,7 +568,7 @@ struct NonNegotiableEditSheet: View {
             Stepper(
                 "Meals: \(Int(targetValue))",
                 value: $targetValue,
-                in: 1...6,
+                in: 1 ... 6,
                 step: 1
             )
             .font(.tempoBody)
@@ -517,7 +586,7 @@ struct NonNegotiableEditSheet: View {
             Stepper(
                 "Hours: \(Int(targetValue))",
                 value: $targetValue,
-                in: 4...12,
+                in: 4 ... 12,
                 step: 1
             )
             .font(.tempoBody)
@@ -525,7 +594,7 @@ struct NonNegotiableEditSheet: View {
             Stepper(
                 "Steps: \(Int(targetValue))",
                 value: $targetValue,
-                in: 1000...30000,
+                in: 1000 ... 30000,
                 step: 1000
             )
             .font(.tempoBody)
@@ -533,7 +602,7 @@ struct NonNegotiableEditSheet: View {
             Stepper(
                 "Glasses: \(Int(targetValue))",
                 value: $targetValue,
-                in: 1...20,
+                in: 1 ... 20,
                 step: 1
             )
             .font(.tempoBody)
@@ -541,7 +610,7 @@ struct NonNegotiableEditSheet: View {
             Stepper(
                 "Target: \(Int(targetValue))",
                 value: $targetValue,
-                in: 1...1000,
+                in: 1 ... 1000,
                 step: 1
             )
             .font(.tempoBody)
@@ -550,13 +619,13 @@ struct NonNegotiableEditSheet: View {
 
     private var targetHelpText: String {
         switch selectedType {
-        case .study: return "Study time in minutes. Weekend targets are halved automatically."
-        case .meals: return "Number of meals to log per day."
-        case .train: return "Auto-tracked from Whoop or HealthKit."
-        case .sleep: return "Minimum hours of sleep from HealthKit."
-        case .steps: return "Daily step count from HealthKit."
-        case .hydration: return "Number of glasses of water per day."
-        case .custom: return "Set your own target value."
+        case .study: "Study time in minutes. Weekend targets are halved automatically."
+        case .meals: "Number of meals to log per day."
+        case .train: "Auto-tracked from Whoop or HealthKit."
+        case .sleep: "Minimum hours of sleep from HealthKit."
+        case .steps: "Daily step count from HealthKit."
+        case .hydration: "Number of glasses of water per day."
+        case .custom: "Set your own target value."
         }
     }
 
@@ -567,7 +636,7 @@ struct NonNegotiableEditSheet: View {
         let dayValues: [ActiveDays] = [.monday, .tuesday, .wednesday, .thursday, .friday, .saturday, .sunday]
 
         return HStack(spacing: TempoSpacing.sm) {
-            ForEach(0..<7, id: \.self) { index in
+            ForEach(0 ..< 7, id: \.self) { index in
                 let day = dayValues[index]
                 let isOn = (activeDays.rawValue & day.rawValue) != 0
 
@@ -617,7 +686,9 @@ struct NonNegotiableEditSheet: View {
 
     private func save() {
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
-        guard !trimmedName.isEmpty else { return }
+        guard !trimmedName.isEmpty else {
+            return
+        }
 
         if let existing = editing {
             existing.name = trimmedName
@@ -641,6 +712,110 @@ struct NonNegotiableEditSheet: View {
         }
 
         dismiss()
+    }
+}
+
+// MARK: - IconPickerSheet
+
+struct IconPickerSheet: View {
+    @Binding
+    var selectedIcon: String
+    @Environment(\.dismiss)
+    private var dismiss
+
+    private let categories: [(name: String, icons: [String])] = [
+        ("Fitness", [
+            "dumbbell.fill", "figure.run", "figure.walk", "figure.cooldown",
+            "figure.strengthtraining.traditional", "figure.boxing",
+            "sportscourt.fill", "trophy.fill",
+        ]),
+        ("Food & Drink", [
+            "fork.knife", "cup.and.saucer.fill", "waterbottle.fill",
+            "carrot.fill", "leaf.fill", "flame.fill",
+        ]),
+        ("Study", [
+            "book.fill", "pencil", "graduationcap.fill", "brain.head.profile",
+            "text.book.closed.fill", "doc.text.fill", "lightbulb.fill",
+        ]),
+        ("Health", [
+            "heart.fill", "bed.double.fill", "moon.fill", "cross.case.fill",
+            "waveform.path.ecg", "lungs.fill", "pills.fill",
+        ]),
+        ("Lifestyle", [
+            "star.fill", "bolt.fill", "clock.fill", "calendar",
+            "checkmark.seal.fill", "target", "flag.fill", "medal.fill",
+        ]),
+        ("Mindfulness", [
+            "sparkles", "wind", "drop.fill", "sun.max.fill",
+            "cloud.fill", "eye.fill", "hands.sparkles.fill",
+        ]),
+    ]
+
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: TempoSpacing.md), count: 6)
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: TempoSpacing.xxl) {
+                    ForEach(categories, id: \.name) { category in
+                        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+                            Text(category.name.uppercased())
+                                .font(.tempoCaption2)
+                                .foregroundStyle(Color.tempoTextTertiary)
+                                .padding(.horizontal, TempoSpacing.screenEdge)
+
+                            LazyVGrid(columns: columns, spacing: TempoSpacing.md) {
+                                ForEach(category.icons, id: \.self) { iconName in
+                                    let isSelected = iconName == selectedIcon
+                                    Button {
+                                        HapticManager.selection()
+                                        selectedIcon = iconName
+                                        dismiss()
+                                    } label: {
+                                        Image(systemName: iconName)
+                                            .font(.system(size: 22))
+                                            .foregroundStyle(
+                                                isSelected ? Color.tempoElectric : Color.tempoTextSecondary
+                                            )
+                                            .frame(width: 44, height: 44)
+                                            .background(
+                                                isSelected
+                                                    ? Color.tempoElectric.opacity(0.12)
+                                                    : Color.tempoSurfaceElevated
+                                            )
+                                            .clipShape(
+                                                RoundedRectangle(
+                                                    cornerRadius: TempoRadius.xl,
+                                                    style: .continuous
+                                                )
+                                            )
+                                            .overlay(
+                                                isSelected
+                                                    ? RoundedRectangle(
+                                                        cornerRadius: TempoRadius.xl,
+                                                        style: .continuous
+                                                    )
+                                                    .stroke(Color.tempoElectric, lineWidth: 2)
+                                                    : nil
+                                            )
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, TempoSpacing.screenEdge)
+                        }
+                    }
+                }
+                .padding(.vertical, TempoSpacing.lg)
+            }
+            .background(Color.tempoBgPrimary)
+            .navigationTitle("Choose Icon")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
     }
 }
 

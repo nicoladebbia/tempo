@@ -1,12 +1,21 @@
+//
+// TempoCardModifier.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
-// MARK: - Standard Card Modifier
+// MARK: - TempoCardModifier
+
 // Per DESIGN_SYSTEM.md Section 8.2 — Standard Card:
 // 16pt radius (continuous), 16pt padding, elevation 2 shadow, dark mode 0.5pt border.
 
 struct TempoCardModifier: ViewModifier {
-
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.colorScheme)
+    private var colorScheme
 
     func body(content: Content) -> some View {
         content

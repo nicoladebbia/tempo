@@ -1,15 +1,25 @@
+//
+// MockSubscriptionService.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 
 // MARK: - Mock Subscription Service
+
 // For previews, tests, and ServiceContainer.mock().
 
 @Observable
 @MainActor
 final class MockSubscriptionService: SubscriptionServiceProtocol, @unchecked Sendable {
-
     private(set) var state: SubscriptionState = .free
 
-    var isPro: Bool { state.isPro }
+    var isPro: Bool {
+        state.isPro
+    }
 
     func startObserving() async {}
 

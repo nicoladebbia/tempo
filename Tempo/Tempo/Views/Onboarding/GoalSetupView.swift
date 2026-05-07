@@ -1,11 +1,21 @@
+//
+// GoalSetupView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Goal Setup View
+
 // Per WIREFRAMES.md Screen 46 — Goals + Non-negotiables + time-waster + evening time.
 // Per STATE_MACHINES.md Section 10 — REQUIRED (primaryGoal must be set).
 
 struct GoalSetupView: View {
-    @Bindable var viewModel: OnboardingViewModel
+    @Bindable
+    var viewModel: OnboardingViewModel
 
     private let goals = [
         ("Build Muscle", "Gain size and strength"),
@@ -125,4 +135,13 @@ struct GoalSetupView: View {
             }
         }
     }
+}
+
+#Preview {
+    @Previewable @State
+    var vm = OnboardingViewModel()
+
+    GoalSetupView(viewModel: vm)
+        .background(Color.black)
+        .preferredColorScheme(.dark)
 }

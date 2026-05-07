@@ -1,9 +1,18 @@
+//
+// NonNegotiableProgress.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
+// MARK: - NonNegotiableProgress
+
 @Model
 final class NonNegotiableProgress {
-
     @Attribute(.unique)
     var id: UUID
 
@@ -31,13 +40,17 @@ final class NonNegotiableProgress {
 
     @Transient
     var progressPercentage: Double {
-        guard targetValue > 0 else { return 0 }
+        guard targetValue > 0 else {
+            return 0
+        }
         return min(currentValue / targetValue, 1.0)
     }
 
     @Transient
     var sourceData: [String: Any]? {
-        guard let data = sourceDataJSON else { return nil }
+        guard let data = sourceDataJSON else {
+            return nil
+        }
         return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
     }
 
@@ -69,8 +82,7 @@ final class NonNegotiableProgress {
 // MARK: - DTO
 
 extension NonNegotiableProgress {
-
-    struct DTO: Codable, Sendable {
+    struct DTO: Codable {
         let id: UUID
         let date: Date
         let non_negotiable_id: UUID?

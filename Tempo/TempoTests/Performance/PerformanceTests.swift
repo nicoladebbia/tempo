@@ -79,10 +79,10 @@ final class PerformanceTests: XCTestCase {
         for i in 0..<1000 {
             let date = cal.date(byAdding: .hour, value: -i, to: today)!
             let event = XPEvent(
+                date: date,
                 source: .workout,
                 amount: Int.random(in: 10...100),
-                date: date,
-                detail: "Test event \(i)"
+                description: "Test event \(i)"
             )
             context.insert(event)
         }
@@ -103,22 +103,11 @@ final class PerformanceTests: XCTestCase {
 
     func testScoringEnginePerformance() {
         let engine = ScoringEngine()
+        let snapshot = DailySnapshot(date: Date())
+        let accountability = DailyAccountability(date: Date())
         measure {
             for _ in 0..<100 {
-                _ = engine.calculateDailyScore(
-                    nnCompleted: 3,
-                    nnTotal: 5,
-                    workoutCompleted: true,
-                    strain: 14.5,
-                    mealsLogged: 3,
-                    mealsPlanned: 3,
-                    calorieCompliance: 0.95,
-                    proteinCompliance: 0.9,
-                    recoveryScore: 80,
-                    sleepScore: 75,
-                    steps: 12000,
-                    activeCalories: 650
-                )
+                _ = engine.calculateDailyScore(snapshot: snapshot, accountability: accountability)
             }
         }
     }
@@ -127,9 +116,9 @@ final class PerformanceTests: XCTestCase {
         let engine = XPEngine()
         measure {
             for xp in stride(from: 0, to: 100000, by: 100) {
-                _ = engine.level(for: xp)
-                _ = engine.xpToNextLevel(currentXP: xp)
-                _ = engine.levelProgress(currentXP: xp)
+                _ = engine.currentLevel(totalXP: xp)
+                _ = engine.xpToNextLevel(totalXP: xp)
+                _ = engine.levelProgress(totalXP: xp)
             }
         }
     }

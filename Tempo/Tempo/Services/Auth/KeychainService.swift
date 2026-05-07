@@ -1,8 +1,15 @@
+//
+// KeychainService.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import Security
 
 enum KeychainService {
-
     enum KeychainError: Error {
         case saveFailed(OSStatus)
         case deleteFailed(OSStatus)
@@ -36,7 +43,9 @@ enum KeychainService {
 
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
-        guard status == errSecSuccess else { return nil }
+        guard status == errSecSuccess else {
+            return nil
+        }
         return result as? Data
     }
 

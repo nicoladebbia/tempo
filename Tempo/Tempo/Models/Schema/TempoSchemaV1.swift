@@ -1,3 +1,11 @@
+//
+// TempoSchemaV1.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftData
 
 enum TempoSchemaV1: VersionedSchema {
@@ -26,11 +34,23 @@ enum TempoSchemaV1: VersionedSchema {
             XPEvent.self,
             Achievement.self,
             ChallengeLocal.self,
+            ActivityEvent.self,
             SyncState.self,
             PendingSync.self,
             WhoopConnection.self,
             NutriTrackConnection.self,
             HealthKitState.self,
+            // Dashboard
+            DailyScoreEntry.self,
+            // Nutrition
+            MealLog.self,
+            MealFoodItem.self,
+            NutritionTarget.self,
+            CachedFood.self,
+            DietaryProfile.self,
+            WeeklyMealPlan.self,
+            PlannedMeal.self,
+            MealPreset.self,
         ]
     }
 }

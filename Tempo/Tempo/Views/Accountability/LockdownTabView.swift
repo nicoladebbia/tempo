@@ -1,22 +1,41 @@
-import SwiftUI
-import SwiftData
+//
+// LockdownTabView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
 
-// MARK: - Lockdown Tab Container
+import SwiftData
+import SwiftUI
+
+// MARK: - LockdownTabView
+
 // Per BUILD_PLAN step 10.8.
 // Per MODULE_ACCOUNTABILITY.md — Tab container with navigation.
 
 struct LockdownTabView: View {
+    @Environment(\.modelContext)
+    private var modelContext
+    @Query
+    private var allSettings: [UserSettings]
 
-    @Environment(\.modelContext) private var modelContext
-    @Query private var allSettings: [UserSettings]
+    @State
+    private var viewModel = AccountabilityViewModel()
+    @State
+    private var showFocusTimer = false
+    @State
+    private var showSetup = false
+    @State
+    private var hasAppeared = false
 
-    @State private var viewModel = AccountabilityViewModel()
-    @State private var showFocusTimer = false
-    @State private var showSetup = false
-    @State private var hasAppeared = false
+    private var settings: UserSettings? {
+        allSettings.first
+    }
 
-    private var settings: UserSettings? { allSettings.first }
-    private var focusTimerEnabled: Bool { settings?.focusTimerEnabled ?? false }
+    private var focusTimerEnabled: Bool {
+        settings?.focusTimerEnabled ?? false
+    }
 
     var body: some View {
         NavigationStack {
@@ -89,7 +108,9 @@ struct LockdownTabView: View {
                         }
                 }
                 .task {
-                    guard !hasAppeared else { return }
+                    guard !hasAppeared else {
+                        return
+                    }
                     viewModel.loadToday(modelContext: modelContext)
                     hasAppeared = true
                 }
@@ -97,6 +118,7 @@ struct LockdownTabView: View {
     }
 
     // MARK: - Override View
+
     // Per MODULE_ACCOUNTABILITY.md Section 13.
 
     private var overrideView: some View {
@@ -104,18 +126,23 @@ struct LockdownTabView: View {
     }
 }
 
-// MARK: - Override Selection View
+// MARK: - OverrideSelectionView
+
 // Extracted as a standalone View struct so @Observable tracking works
 // correctly when pushed as a NavigationLink destination.
 
 private struct OverrideSelectionView: View {
+    @Bindable
+    var viewModel: AccountabilityViewModel
+    @Environment(\.modelContext)
+    private var modelContext
+    @Environment(\.dismiss)
+    private var dismiss
 
-    @Bindable var viewModel: AccountabilityViewModel
-    @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var showOverrideConfirmation = false
-    @State private var pendingOverride: AccountabilityOverrideType?
+    @State
+    private var showOverrideConfirmation = false
+    @State
+    private var pendingOverride: AccountabilityOverrideType?
 
     var body: some View {
         List {
@@ -201,7 +228,8 @@ private struct OverrideSelectionView: View {
             }
         } message: {
             if let type = pendingOverride,
-               let option = overrideOptions.first(where: { $0.type == type }) {
+               let option = overrideOptions.first(where: { $0.type == type })
+            {
                 Text("\(option.title): \(option.description). This cannot be undone for today.")
             }
         }
@@ -216,18 +244,42 @@ private struct OverrideSelectionView: View {
 
     private var overrideOptions: [OverrideOption] {
         [
-            OverrideOption(type: .restDayFull, icon: "bed.double.fill",
-                           title: "Full Rest Day", description: "All non-negotiables suspended"),
-            OverrideOption(type: .restDayReduced, icon: "leaf.fill",
-                           title: "Reduced Rest Day", description: "Training skipped, study halved, meals remain"),
-            OverrideOption(type: .sickDay, icon: "cross.case.fill",
-                           title: "Sick Day", description: "Training skipped, study/meals reduced"),
-            OverrideOption(type: .mentalHealthDay, icon: "brain.head.profile",
-                           title: "Mental Health Day", description: "Study & training reduced, meals at full"),
-            OverrideOption(type: .injuryMode, icon: "bandage.fill",
-                           title: "Injury Mode", description: "Training auto-skipped, everything else full"),
-            OverrideOption(type: .vacationMode, icon: "airplane",
-                           title: "Vacation Mode", description: "All suspended"),
+            OverrideOption(
+                type: .restDayFull,
+                icon: "bed.double.fill",
+                title: "Full Rest Day",
+                description: "All non-negotiables suspended"
+            ),
+            OverrideOption(
+                type: .restDayReduced,
+                icon: "leaf.fill",
+                title: "Reduced Rest Day",
+                description: "Training skipped, study halved, meals remain"
+            ),
+            OverrideOption(
+                type: .sickDay,
+                icon: "cross.case.fill",
+                title: "Sick Day",
+                description: "Training skipped, study/meals reduced"
+            ),
+            OverrideOption(
+                type: .mentalHealthDay,
+                icon: "brain.head.profile",
+                title: "Mental Health Day",
+                description: "Study & training reduced, meals at full"
+            ),
+            OverrideOption(
+                type: .injuryMode,
+                icon: "bandage.fill",
+                title: "Injury Mode",
+                description: "Training auto-skipped, everything else full"
+            ),
+            OverrideOption(
+                type: .vacationMode,
+                icon: "airplane",
+                title: "Vacation Mode",
+                description: "All suspended"
+            ),
         ]
     }
 }

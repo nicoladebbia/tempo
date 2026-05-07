@@ -1,15 +1,26 @@
-import SwiftUI
+//
+// RecoveryTabView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftData
+import SwiftUI
 
 // MARK: - Recovery Tab View
+
 // Per MODULE_RECOVERY.md Section 2 — Tab container with segmented control.
 // Per BUILD_PLAN.md Step 8.6 — Today / Sleep / Strain / Trends tabs + gear icon.
 
 struct RecoveryTabView: View {
-
-    @Environment(ServiceContainer.self) private var services
-    @Environment(\.modelContext) private var modelContext
-    @State private var viewModel: RecoveryViewModel?
+    @Environment(ServiceContainer.self)
+    private var services
+    @Environment(\.modelContext)
+    private var modelContext
+    @State
+    private var viewModel: RecoveryViewModel?
 
     var body: some View {
         NavigationStack {
@@ -40,7 +51,8 @@ struct RecoveryTabView: View {
     // MARK: - Recovery Content
 
     private func recoveryContent(viewModel: RecoveryViewModel) -> some View {
-        @Bindable var vm = viewModel
+        @Bindable
+        var vm = viewModel
         return VStack(spacing: 0) {
             // Segmented control
             // Per MODULE_RECOVERY.md Section 2 — Today / Sleep / Strain / Trends

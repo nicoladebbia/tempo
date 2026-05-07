@@ -1,10 +1,18 @@
+//
+// HealthKitConstants.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import HealthKit
 
-// MARK: - HealthKit Constants
+// MARK: - HealthKitConstants
+
 // Per INTEGRATION_SPECS.md Section 2.1 — Exact HKObjectType sets.
 
 enum HealthKitConstants {
-
     // MARK: - Read Types
 
     /// Types we READ from HealthKit.
@@ -32,9 +40,11 @@ enum HealthKitConstants {
             HKQuantityType(.dietaryCarbohydrates),
             HKQuantityType(.dietaryFatTotal),
 
-            // Body
+            // Body (Withings scale syncs weight, body fat, lean mass to HealthKit)
             HKQuantityType(.bodyMass),
             HKQuantityType(.height),
+            HKQuantityType(.bodyFatPercentage),
+            HKQuantityType(.leanBodyMass),
 
             // Workouts
             HKWorkoutType.workoutType(),
@@ -73,10 +83,11 @@ enum HealthKitConstants {
     static let backgroundProcessingTaskIdentifier = "com.tempo.healthkit.processing"
 }
 
-// MARK: - HealthKit Authorization Result
+// MARK: - HealthKitAuthResult
+
 // Per INTEGRATION_SPECS.md Section 2.1 — authorization result enum.
 
-enum HealthKitAuthResult: Sendable {
+enum HealthKitAuthResult {
     /// All requested write types granted (read permissions are unknowable per Apple privacy design)
     case fullAccess
     /// Some write types denied
@@ -90,8 +101,11 @@ enum HealthKitAuthResult: Sendable {
 
     var isUsable: Bool {
         switch self {
-        case .fullAccess, .partialAccess: return true
-        case .denied, .unavailable, .error: return false
+        case .fullAccess,
+             .partialAccess: true
+        case .denied,
+             .unavailable,
+             .error: false
         }
     }
 }

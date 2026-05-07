@@ -1,17 +1,38 @@
-import SwiftUI
-import SwiftData
+//
+// ExerciseDetailView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Charts
+import SwiftData
+import SwiftUI
 
 // MARK: - Exercise Detail View
+
 // Per MODULE_TRAINING.md Section 10 — Exercise detail with stats and progress.
 // Per WIREFRAMES.md Screen 20 — Name, info pills, stats card, progress chart, instructions.
 
 struct ExerciseDetailView: View {
+    @Bindable
+    var exercise: Exercise
 
-    let exercise: Exercise
+    @Environment(\.modelContext)
+    private var modelContext
+    @Query
+    private var allSettings: [UserSettings]
+    @State
+    private var chartRange: ChartRange = .thirtyDays
 
-    @Environment(\.modelContext) private var modelContext
-    @State private var chartRange: ChartRange = .thirtyDays
+    private var settings: UserSettings? {
+        allSettings.first
+    }
+
+    private var weightUnit: WeightUnit {
+        settings?.weightUnit ?? .kg
+    }
 
     enum ChartRange: String, CaseIterable {
         case thirtyDays = "30D"
@@ -68,9 +89,12 @@ struct ExerciseDetailView: View {
                 if !exercise.cues.isEmpty {
                     cuesSection
                 }
+
+                // Rest timer customization
+                restTimerSection
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, 100)
+            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
         }
         .background(Color.tempoBgPrimary)
         .navigationTitle(exercise.name)
@@ -78,6 +102,7 @@ struct ExerciseDetailView: View {
     }
 
     // MARK: - Demo Area
+
     // Per WIREFRAMES.md Screen 20 — 200pt height, surface bg
 
     private var demoArea: some View {
@@ -93,6 +118,7 @@ struct ExerciseDetailView: View {
     }
 
     // MARK: - Info Pills
+
     // Per WIREFRAMES.md Screen 20 — 24pt height pill chips
 
     private var infoPills: some View {
@@ -114,6 +140,7 @@ struct ExerciseDetailView: View {
     }
 
     // MARK: - Stats Card
+
     // Per WIREFRAMES.md Screen 20 — Current 1RM, Best Set, Volume (30d), Sessions (30d)
 
     private var statsCard: some View {
@@ -134,11 +161,12 @@ struct ExerciseDetailView: View {
 
             LazyVGrid(columns: [
                 GridItem(.flexible(), spacing: TempoSpacing.sm),
-                GridItem(.flexible(), spacing: TempoSpacing.sm)
+                GridItem(.flexible(), spacing: TempoSpacing.sm),
             ], spacing: TempoSpacing.sm) {
                 statItem(
                     label: "Current 1RM",
-                    value: current1RM.map { String(format: "%.1f kg", $0) } ?? "—"
+                    value: current1RM
+                        .map { String(format: "%.1f %@", WeightUnit.kg.convert($0, to: weightUnit), weightUnit.abbreviation) } ?? "—"
                 )
                 statItem(
                     label: "Best Set",
@@ -159,11 +187,13 @@ struct ExerciseDetailView: View {
                 HStack(spacing: TempoSpacing.sm) {
                     Image(systemName: "trophy.fill")
                         .font(.tempoCaption1)
-                        .foregroundStyle(Color(red: 1, green: 215 / 255, blue: 0)) // prGold
+                        .foregroundStyle(Color.tempoPRGold) // prGold
 
-                    Text("All-Time 1RM PR: \(String(format: "%.1f", allTimePR)) kg")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                    Text(
+                        "All-Time 1RM PR: \(String(format: "%.1f", WeightUnit.kg.convert(allTimePR, to: weightUnit))) \(weightUnit.abbreviation)"
+                    )
+                    .font(.tempoBody)
+                    .foregroundStyle(Color.tempoTextPrimary)
                 }
                 .padding(.top, TempoSpacing.xs)
             }
@@ -187,6 +217,7 @@ struct ExerciseDetailView: View {
     }
 
     // MARK: - Progress Chart
+
     // Per WIREFRAMES.md Screen 20 — e1RM line chart, 200pt, with 30D/90D/ALL picker
 
     private var progressChart: some View {
@@ -228,7 +259,9 @@ struct ExerciseDetailView: View {
                     label: "Estimated 1RM",
                     color: Color.tempoSignal,
                     points: chartHistory.compactMap { entry in
-                        guard let e1rm = entry.estimated1RM else { return nil }
+                        guard let e1rm = entry.estimated1RM else {
+                            return nil
+                        }
                         return TempoLineChartData<String>.DataPoint(
                             date: entry.date,
                             value: e1rm
@@ -244,6 +277,7 @@ struct ExerciseDetailView: View {
     }
 
     // MARK: - Instructions
+
     // Per WIREFRAMES.md Screen 20 — Numbered step-by-step instructions
 
     private func instructionsSection(_ instructions: String) -> some View {
@@ -291,6 +325,75 @@ struct ExerciseDetailView: View {
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
     }
 
+    // MARK: - Rest Timer Customization
+
+    private var restTimerSection: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.md) {
+            Text("REST TIMER")
+                .font(.tempoHeadline)
+                .foregroundStyle(Color.tempoTextPrimary)
+
+            HStack {
+                Text("Preferred rest between sets")
+                    .font(.tempoBody)
+                    .foregroundStyle(Color.tempoTextSecondary)
+
+                Spacer()
+
+                if let rest = exercise.preferredRestSeconds {
+                    Text(formatRestDuration(rest))
+                        .font(.tempoBody)
+                        .fontWeight(.medium)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                        .monospacedDigit()
+                }
+            }
+
+            Stepper(
+                value: Binding(
+                    get: { exercise.preferredRestSeconds ?? 90 },
+                    set: { newValue in
+                        exercise.preferredRestSeconds = newValue
+                        try? modelContext.save()
+                    }
+                ),
+                in: 30 ... 300,
+                step: 15
+            ) {
+                Text(formatRestDuration(exercise.preferredRestSeconds ?? 90))
+                    .font(.tempoTitle3)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                    .monospacedDigit()
+            }
+
+            // Reset to default
+            if exercise.preferredRestSeconds != nil {
+                Button {
+                    exercise.preferredRestSeconds = nil
+                    try? modelContext.save()
+                } label: {
+                    Text("Reset to Default")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                }
+            }
+        }
+        .padding(TempoSpacing.cardPadding)
+        .background(Color.tempoSurfaceCard)
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+    }
+
+    private func formatRestDuration(_ seconds: Int) -> String {
+        let min = seconds / 60
+        let sec = seconds % 60
+        if min > 0, sec > 0 {
+            return "\(min)m \(sec)s"
+        } else if min > 0 {
+            return "\(min)m"
+        }
+        return "\(sec)s"
+    }
+
     // MARK: - Helpers
 
     private var sortedHistory: [ExerciseHistory] {
@@ -299,21 +402,27 @@ struct ExerciseDetailView: View {
 
     private func filteredHistory(for range: ChartRange) -> [ExerciseHistory] {
         let history = (exercise.history ?? []).sorted { $0.date < $1.date }
-        guard let days = range.days else { return history }
+        guard let days = range.days else {
+            return history
+        }
         let cutoff = Calendar.current.date(byAdding: .day, value: -days, to: .now) ?? .now
         return history.filter { $0.date > cutoff }
     }
 
     private func bestSetText(weight: Double?, reps: Int?) -> String {
-        guard let w = weight, let r = reps else { return "—" }
-        return "\(Int(w))kg x \(r)"
+        guard let w = weight, let r = reps else {
+            return "—"
+        }
+        let converted = WeightUnit.kg.convert(w, to: weightUnit)
+        return "\(Int(converted))\(weightUnit.abbreviation) x \(r)"
     }
 
     private func formatVolume(_ volume: Double) -> String {
-        if volume >= 1000 {
-            return String(format: "%.1fk kg", volume / 1000)
+        let converted = WeightUnit.kg.convert(volume, to: weightUnit)
+        if converted >= 1000 {
+            return String(format: "%.1fk %@", converted / 1000, weightUnit.abbreviation)
         }
-        return "\(Int(volume)) kg"
+        return "\(Int(converted)) \(weightUnit.abbreviation)"
     }
 
     private var equipmentLabel: String {
@@ -339,8 +448,13 @@ struct ExerciseDetailView: View {
         case .chest: "figure.strengthtraining.traditional"
         case .back: "figure.strengthtraining.traditional"
         case .shoulders: "figure.strengthtraining.traditional"
-        case .biceps, .triceps, .forearms: "figure.strengthtraining.traditional"
-        case .quads, .hamstrings, .glutes, .calves: "figure.strengthtraining.traditional"
+        case .biceps,
+             .triceps,
+             .forearms: "figure.strengthtraining.traditional"
+        case .quads,
+             .hamstrings,
+             .glutes,
+             .calves: "figure.strengthtraining.traditional"
         case .core: "figure.core.training"
         case .fullBody: "figure.strengthtraining.functional"
         case .cardio: "figure.run"

@@ -1,20 +1,32 @@
+//
+// StatCardView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Stat Card
+
 // Per DESIGN_SYSTEM.md Section 8.2 — Stat Card:
 // 80pt height, 12pt radius, 12pt padding, lighter shadow (0.04 opacity).
 
 struct StatCardView: View {
-
     let label: String
     let value: String
     let trendValue: String?
     let trendDirection: TrendDirection
 
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.colorScheme)
+    private var colorScheme
 
     enum TrendDirection {
-        case up, down, flat, none
+        case up
+        case down
+        case flat
+        case none
 
         var icon: String {
             switch self {
@@ -69,13 +81,10 @@ struct StatCardView: View {
         .frame(height: 80)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
-        .shadow(
-            color: Color.tempoInk.opacity(colorScheme == .dark ? 0 : 0.04),
-            radius: 2, x: 0, y: 1
-        )
+        .tempoShadow(.card)
         .overlay(
             RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous)
-                .stroke(Color.tempoBorder, lineWidth: 0.5)
+                .stroke(Color.tempoBorder, lineWidth: TempoElevation.cardDarkBorderWidth)
                 .opacity(colorScheme == .dark ? 1 : 0)
         )
     }

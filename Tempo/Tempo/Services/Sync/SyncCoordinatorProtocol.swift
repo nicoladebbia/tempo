@@ -1,21 +1,31 @@
+//
+// SyncCoordinatorProtocol.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 
-// MARK: - Sync Types
+// MARK: - SyncConflict
 
-struct SyncConflict: Sendable {
+struct SyncConflict {
     let entityType: String
     let entityID: UUID
     let localUpdatedAt: Date
     let remoteUpdatedAt: Date
 }
 
-enum SyncResolution: Sendable {
+// MARK: - SyncResolution
+
+enum SyncResolution {
     case keepLocal
     case keepRemote
     case merge
 }
 
-// MARK: - Protocol
+// MARK: - SyncCoordinatorProtocol
 
 protocol SyncCoordinatorProtocol: Sendable {
     func syncAll() async throws

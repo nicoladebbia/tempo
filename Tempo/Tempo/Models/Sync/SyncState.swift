@@ -1,9 +1,16 @@
+//
+// SyncState.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
 @Model
 final class SyncState {
-
     @Attribute(.unique)
     var id: UUID
 
@@ -30,7 +37,9 @@ final class SyncState {
 
     @Transient
     var isStale: Bool {
-        guard let interval = timeSinceLastSync else { return true }
+        guard let interval = timeSinceLastSync else {
+            return true
+        }
         return interval > 900
     }
 

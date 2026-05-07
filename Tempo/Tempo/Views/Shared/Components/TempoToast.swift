@@ -1,16 +1,27 @@
+//
+// TempoToast.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
-// MARK: - Toast Notification
+// MARK: - TempoToast
+
 // Per DESIGN_SYSTEM.md Section 8.8 — Toast:
 // Ink Black bg @95%, 14pt radius, slide from top, auto-dismiss 3s.
 
 struct TempoToast: View {
-
     let message: String
     let style: ToastStyle
 
     enum ToastStyle {
-        case success, warning, error, info
+        case success
+        case warning
+        case error
+        case info
 
         var icon: String {
             switch self {
@@ -62,11 +73,11 @@ struct TempoToast: View {
     }
 }
 
-// MARK: - Toast Modifier
+// MARK: - ToastModifier
 
 struct ToastModifier: ViewModifier {
-
-    @Binding var toast: ToastData?
+    @Binding
+    var toast: ToastData?
 
     func body(content: Content) -> some View {
         content
@@ -98,6 +109,8 @@ struct ToastModifier: ViewModifier {
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: toast?.id)
     }
 }
+
+// MARK: - ToastData
 
 struct ToastData: Identifiable, Equatable {
     let id = UUID()

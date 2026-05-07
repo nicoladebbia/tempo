@@ -1,9 +1,18 @@
+//
+// PlannedExercise.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
+// MARK: - PlannedExercise
+
 @Model
 final class PlannedExercise {
-
     @Attribute(.unique)
     var id: UUID
 
@@ -31,7 +40,9 @@ final class PlannedExercise {
 
     @Transient
     var isComplete: Bool {
-        guard let sets, !sets.isEmpty else { return false }
+        guard let sets, !sets.isEmpty else {
+            return false
+        }
         return sets.allSatisfy(\.completed)
     }
 
@@ -47,7 +58,10 @@ final class PlannedExercise {
         (sets ?? []).reduce(0) { total, set in
             guard set.completed,
                   let w = set.actualWeight,
-                  let r = set.actualReps else { return total }
+                  let r = set.actualReps
+            else {
+                return total
+            }
             return total + (w * Double(r))
         }
     }
@@ -72,8 +86,7 @@ final class PlannedExercise {
 // MARK: - DTO
 
 extension PlannedExercise {
-
-    struct DTO: Codable, Sendable {
+    struct DTO: Codable {
         let id: UUID
         let order: Int
         let superset_group: Int?

@@ -1,10 +1,18 @@
+//
+// LoadingStateView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Loading State View
+
 // Per DESIGN_SYSTEM.md Section 11 — Skeleton loading with shimmer animation.
 
 struct LoadingStateView: View {
-
     let style: LoadingStyle
 
     enum LoadingStyle {
@@ -43,7 +51,7 @@ struct LoadingStateView: View {
 
     private var cardSkeletons: some View {
         VStack(spacing: TempoSpacing.cardGap) {
-            ForEach(0..<style.itemCount, id: \.self) { _ in
+            ForEach(0 ..< style.itemCount, id: \.self) { _ in
                 VStack(alignment: .leading, spacing: TempoSpacing.md) {
                     skeletonRect(width: 120, height: 12)
                     skeletonRect(height: 20)
@@ -58,7 +66,7 @@ struct LoadingStateView: View {
 
     private var quadrantSkeletons: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: TempoSpacing.cardGap) {
-            ForEach(0..<style.itemCount, id: \.self) { _ in
+            ForEach(0 ..< style.itemCount, id: \.self) { _ in
                 VStack(alignment: .leading, spacing: TempoSpacing.sm) {
                     skeletonRect(width: 80, height: 12)
                     Spacer()
@@ -77,7 +85,7 @@ struct LoadingStateView: View {
 
     private var listSkeletons: some View {
         VStack(spacing: 0) {
-            ForEach(0..<style.itemCount, id: \.self) { _ in
+            ForEach(0 ..< style.itemCount, id: \.self) { _ in
                 HStack(spacing: TempoSpacing.md) {
                     Circle()
                         .fill(Color.tempoTextDisabled.opacity(0.3))

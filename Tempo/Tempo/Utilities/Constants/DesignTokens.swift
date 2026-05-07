@@ -1,10 +1,18 @@
+//
+// DesignTokens.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
-// MARK: - Spacing Tokens
+// MARK: - TempoSpacing
+
 // Per DESIGN_SYSTEM.md Section 5 — base unit 4pt, all values multiples of 4 (except 2xs = 2pt).
 
 enum TempoSpacing {
-
     // MARK: - Scale
 
     /// 2pt — icon-to-text gap in tight layouts (exception to 4pt rule).
@@ -124,11 +132,11 @@ enum TempoSpacing {
     static let bottomSafe: CGFloat = 48
 }
 
-// MARK: - Corner Radius Tokens
+// MARK: - TempoRadius
+
 // Per DESIGN_SYSTEM.md Section 2.2 — Corner Radius Tokens.
 
 enum TempoRadius {
-
     /// 3pt — heatmap cells.
     static let xs: CGFloat = 3
 
@@ -157,11 +165,11 @@ enum TempoRadius {
     static let pill: CGFloat = 9999
 }
 
-// MARK: - Opacity Tokens
+// MARK: - TempoOpacity
+
 // Per DESIGN_SYSTEM.md Section 2.2 — Opacity Tokens.
 
 enum TempoOpacity {
-
     static let o10: Double = 0.10
     static let o15: Double = 0.15
     static let o20: Double = 0.20
@@ -177,11 +185,11 @@ enum TempoOpacity {
     static let skeleton: Double = 1.0
 }
 
-// MARK: - Motion / Animation Tokens
+// MARK: - TempoAnimation
+
 // Per DESIGN_SYSTEM.md Section 2.2 — Motion Tokens.
 
 enum TempoAnimation {
-
     // MARK: - Durations
 
     /// 0.1s — micro interactions (button press feedback, toggle switch).
@@ -245,7 +253,8 @@ enum TempoAnimation {
     static let small: Animation = .easeInOut(duration: 0.2)
 }
 
-// MARK: - Shadow Definitions
+// MARK: - TempoShadow
+
 // Per DESIGN_SYSTEM.md Section 6 — Depth & Elevation System.
 
 struct TempoShadow {
@@ -255,8 +264,9 @@ struct TempoShadow {
     let y: CGFloat
 }
 
-enum TempoElevation {
+// MARK: - TempoElevation
 
+enum TempoElevation {
     // MARK: - Card (Elevation 2)
 
     /// Card shadow — light mode: y:2, blur:8 (radius:4), ink @ 6%.

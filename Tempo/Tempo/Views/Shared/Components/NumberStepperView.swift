@@ -1,29 +1,41 @@
+//
+// NumberStepperView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Number Stepper View
+
 // Per DESIGN_SYSTEM.md Section 8.5 — Number Stepper:
 // Minus/Plus buttons (36pt circle), value display (Data Medium), long press acceleration.
 
 struct NumberStepperView: View {
-
-    @Binding var value: Double
+    @Binding
+    var value: Double
     let range: ClosedRange<Double>
     let step: Double
     let format: String
     let unit: String
 
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var timer: Timer?
-    @State private var holdDuration: TimeInterval = 0
+    @Environment(\.colorScheme)
+    private var colorScheme
+    @State
+    private var timer: Timer?
+    @State
+    private var holdDuration: TimeInterval = 0
 
     init(
         value: Binding<Double>,
-        range: ClosedRange<Double> = 0...999,
+        range: ClosedRange<Double> = 0 ... 999,
         step: Double = 2.5,
         format: String = "%.1f",
         unit: String = "kg"
     ) {
-        self._value = value
+        _value = value
         self.range = range
         self.step = step
         self.format = format
@@ -32,8 +44,8 @@ struct NumberStepperView: View {
 
     private var buttonBackground: Color {
         colorScheme == .dark
-            ? Color(red: 38 / 255, green: 38 / 255, blue: 38 / 255)
-            : Color(red: 243 / 255, green: 244 / 255, blue: 246 / 255)
+            ? Color.tempoInputBgDark
+            : Color.tempoInputBgLight
     }
 
     var body: some View {
@@ -86,30 +98,38 @@ struct NumberStepperView: View {
 
     private func increment() {
         let newValue = min(value + step, range.upperBound)
-        guard newValue != value else { return }
+        guard newValue != value else {
+            return
+        }
         value = newValue
         HapticManager.lightImpact()
     }
 
     private func decrement() {
         let newValue = max(value - step, range.lowerBound)
-        guard newValue != value else { return }
+        guard newValue != value else {
+            return
+        }
         value = newValue
         HapticManager.lightImpact()
     }
 
-    private func longPressGesture(action: @escaping () -> Void) -> some Gesture {
+    private func longPressGesture(action: @escaping @MainActor @Sendable () -> Void) -> some Gesture {
         LongPressGesture(minimumDuration: 0.3)
             .onEnded { _ in
                 holdDuration = 0
                 timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
-                    holdDuration += 0.1
-                    action()
-                    // Accelerate after 2 seconds
-                    if holdDuration > 2 {
-                        timer?.invalidate()
-                        timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { _ in
-                            action()
+                    Task { @MainActor in
+                        holdDuration += 0.1
+                        action()
+                        // Accelerate after 2 seconds
+                        if holdDuration > 2 {
+                            timer?.invalidate()
+                            timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { _ in
+                                Task { @MainActor in
+                                    action()
+                                }
+                            }
                         }
                     }
                 }

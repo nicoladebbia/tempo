@@ -1,16 +1,23 @@
+//
+// Double+Formatting.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 
 extension Double {
-
     /// Formats weight: "80.5 kg" or "177 lbs"
     func formattedWeight(unit: WeightUnit = .kg) -> String {
         switch unit {
         case .kg:
-            return truncatingRemainder(dividingBy: 1) == 0
+            truncatingRemainder(dividingBy: 1) == 0
                 ? "\(Int(self)) kg"
                 : String(format: "%.1f kg", self)
         case .lbs:
-            return "\(Int(self)) lbs"
+            "\(Int(self)) lbs"
         }
     }
 
@@ -54,8 +61,8 @@ extension Double {
         if self >= 1_000_000 {
             return String(format: "%.1fM", self / 1_000_000)
         }
-        if self >= 1_000 {
-            return String(format: "%.1fk", self / 1_000)
+        if self >= 1000 {
+            return String(format: "%.1fk", self / 1000)
         }
         return "\(Int(self))"
     }

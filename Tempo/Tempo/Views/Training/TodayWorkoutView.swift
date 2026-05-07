@@ -1,16 +1,36 @@
-import SwiftUI
+//
+// TodayWorkoutView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftData
+import SwiftUI
 
 // MARK: - Today's Workout View
+
 // Per MODULE_TRAINING.md Section 2 — Launch pad for every training session.
 // Per WIREFRAMES.md Section 3 — Training screens.
 
 struct TodayWorkoutView: View {
+    @Bindable
+    var viewModel: TrainingViewModel
+    @Binding
+    var showActiveWorkout: Bool
+    @Binding
+    var showSummary: Bool
+    @Environment(\.modelContext)
+    private var modelContext
+    @Query
+    private var allSettings: [UserSettings]
+    @State
+    private var showMobilityAlert = false
 
-    @Bindable var viewModel: TrainingViewModel
-    @Binding var showActiveWorkout: Bool
-    @Binding var showSummary: Bool
-    @Environment(\.modelContext) private var modelContext
+    private var settings: UserSettings? {
+        allSettings.first
+    }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -32,9 +52,14 @@ struct TodayWorkoutView: View {
             .background(Color.tempoBgPrimary)
 
             // Floating Start Workout button
-            if !viewModel.isRestDay && viewModel.todayPlan != nil && !viewModel.isLoading {
+            if !viewModel.isRestDay, viewModel.todayPlan != nil, !viewModel.isLoading {
                 startWorkoutButton
             }
+        }
+        .alert("Mobility Flows", isPresented: $showMobilityAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Mobility flows coming soon")
         }
         .task {
             await viewModel.loadToday(modelContext: modelContext)
@@ -47,6 +72,11 @@ struct TodayWorkoutView: View {
         VStack(spacing: TempoSpacing.lg) {
             // Workout type header
             workoutHeader(plan: plan)
+
+            // Deload week banner
+            if viewModel.isDeloadWeek {
+                deloadBanner
+            }
 
             // Recovery badge bar
             // Per MODULE_TRAINING.md Section 2.5
@@ -77,7 +107,38 @@ struct TodayWorkoutView: View {
         .padding(.top, TempoSpacing.md)
     }
 
+    // MARK: - Deload Banner
+
+    private var deloadBanner: some View {
+        HStack(spacing: TempoSpacing.sm) {
+            Image(systemName: "arrow.down.circle.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(Color.tempoRecoveryYellow)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("DELOAD WEEK")
+                    .font(.tempoHeadline)
+                    .foregroundStyle(Color.tempoRecoveryYellow)
+
+                Text("Weights reduced 40% — same reps, lighter load.")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextSecondary)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, TempoSpacing.md)
+        .padding(.vertical, TempoSpacing.sm)
+        .background(Color.tempoRecoveryYellow.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous)
+                .stroke(Color.tempoRecoveryYellow.opacity(0.3), lineWidth: 1)
+        )
+    }
+
     // MARK: - Recovery Badge
+
     // Per MODULE_TRAINING.md Section 2.5
 
     private func recoveryBadge(plan: WorkoutPlan) -> some View {
@@ -107,6 +168,7 @@ struct TodayWorkoutView: View {
     }
 
     // MARK: - Workout Meta
+
     // Per MODULE_TRAINING.md Section 2.6
 
     private func workoutMeta(plan: WorkoutPlan) -> some View {
@@ -136,19 +198,122 @@ struct TodayWorkoutView: View {
     }
 
     // MARK: - Exercise List
+
     // Per MODULE_TRAINING.md Section 2.7
 
     private func exerciseList(plan: WorkoutPlan) -> some View {
-        VStack(spacing: TempoSpacing.sm) {
-            ForEach(Array(plan.orderedExercises.enumerated()), id: \.element.id) { index, plannedEx in
-                exerciseCard(index: index + 1, plannedExercise: plannedEx)
+        let exercises = plan.orderedExercises
+        let groups = groupedBySupersets(exercises)
+
+        return VStack(spacing: TempoSpacing.sm) {
+            ForEach(Array(groups.enumerated()), id: \.offset) { _, group in
+                if group.count > 1 {
+                    // Superset group: shared card with connecting indicator
+                    supersetCard(exercises: group, startIndex: exercises.firstIndex(where: { $0.id == group[0].id }) ?? 0)
+                } else if let single = group.first {
+                    let idx = (exercises.firstIndex(where: { $0.id == single.id }) ?? 0)
+                    exerciseCard(index: idx + 1, plannedExercise: single)
+                }
             }
         }
     }
 
+    /// Groups exercises by supersetGroup. Consecutive exercises with the same non-nil supersetGroup
+    /// are grouped together; exercises without a superset group are returned as single-element arrays.
+    private func groupedBySupersets(_ exercises: [PlannedExercise]) -> [[PlannedExercise]] {
+        var groups: [[PlannedExercise]] = []
+        var current: [PlannedExercise] = []
+        var currentGroup: Int? = nil
+
+        for ex in exercises {
+            if let sg = ex.supersetGroup {
+                if sg == currentGroup {
+                    current.append(ex)
+                } else {
+                    if !current.isEmpty {
+                        groups.append(current)
+                    }
+                    current = [ex]
+                    currentGroup = sg
+                }
+            } else {
+                if !current.isEmpty {
+                    groups.append(current)
+                }
+                current = []
+                currentGroup = nil
+                groups.append([ex])
+            }
+        }
+        if !current.isEmpty {
+            groups.append(current)
+        }
+        return groups
+    }
+
+    private func supersetCard(exercises: [PlannedExercise], startIndex: Int) -> some View {
+        VStack(spacing: 0) {
+            // Superset header badge
+            HStack(spacing: TempoSpacing.xxs) {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.system(size: 10, weight: .semibold))
+                Text("SUPERSET")
+                    .font(.tempoCaption2)
+                    .fontWeight(.bold)
+            }
+            .foregroundStyle(Color.tempoSignal)
+            .padding(.horizontal, TempoSpacing.sm)
+            .padding(.vertical, 4)
+
+            // Exercise cards with connecting line
+            ForEach(Array(exercises.enumerated()), id: \.element.id) { idx, plannedEx in
+                HStack(spacing: TempoSpacing.sm) {
+                    // Vertical connecting line
+                    VStack(spacing: 0) {
+                        Rectangle()
+                            .fill(idx == 0 ? Color.clear : Color.tempoSignal.opacity(0.4))
+                            .frame(width: 2)
+
+                        Circle()
+                            .fill(Color.tempoSignal)
+                            .frame(width: 8, height: 8)
+
+                        Rectangle()
+                            .fill(idx == exercises.count - 1 ? Color.clear : Color.tempoSignal.opacity(0.4))
+                            .frame(width: 2)
+                    }
+                    .frame(width: 8)
+
+                    // Exercise card content
+                    exerciseCard(index: startIndex + idx + 1, plannedExercise: plannedEx)
+                }
+            }
+        }
+        .padding(TempoSpacing.xs)
+        .background(Color.tempoSurfaceCard.opacity(0.5))
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
+                .stroke(Color.tempoSignal.opacity(0.2), lineWidth: 1)
+        )
+    }
+
     private func exerciseCard(index: Int, plannedExercise: PlannedExercise) -> some View {
+        Group {
+            if let exercise = plannedExercise.exercise {
+                NavigationLink(destination: ExerciseDetailView(exercise: exercise)) {
+                    exerciseCardContent(index: index, plannedExercise: plannedExercise)
+                }
+                .buttonStyle(.plain)
+            } else {
+                exerciseCardContent(index: index, plannedExercise: plannedExercise)
+            }
+        }
+    }
+
+    private func exerciseCardContent(index: Int, plannedExercise: PlannedExercise) -> some View {
         VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            // Row 1: Number + Name + Muscle group
+            // Row 1: Number + Name + Muscle group + chevron
             HStack {
                 Text("\(index)")
                     .font(.tempoCaption1)
@@ -172,6 +337,10 @@ struct TodayWorkoutView: View {
                         .background(Color.tempoBgSecondary)
                         .clipShape(Capsule())
                 }
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.tempoTextTertiary)
             }
 
             // Row 2: Sets x Reps @ Weight
@@ -183,12 +352,49 @@ struct TodayWorkoutView: View {
 
                     // Progressive overload indicator
                     if let notes = plannedExercise.workoutPlan?.notes,
-                       notes.contains("Increased") {
+                       notes.contains("Increased")
+                    {
                         Image(systemName: "arrow.up.right")
                             .font(.system(size: 11))
                             .foregroundStyle(Color.tempoSignal)
                     }
                 }
+            }
+
+            // Row 3: Last 3 sessions' performance with trend indicator
+            if let exercise = plannedExercise.exercise {
+                let recentSessions = lastThreePerformances(for: exercise)
+                if !recentSessions.isEmpty {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: TempoSpacing.xxs) {
+                            Text("Recent:")
+                                .font(.tempoCaption2)
+                                .foregroundStyle(Color.tempoTextTertiary)
+
+                            // Trend indicator
+                            let trend = performanceTrend(sessions: recentSessions)
+                            Text(trend.symbol)
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(trend.color)
+                        }
+
+                        // Last 3 best sets
+                        HStack(spacing: TempoSpacing.sm) {
+                            ForEach(Array(recentSessions.enumerated()), id: \.offset) { idx, session in
+                                Text(bestSetSummary(history: session))
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(idx == 0 ? Color.tempoTextSecondary : Color.tempoTextTertiary)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Row 4: Equipment hint
+            if let equipment = plannedExercise.exercise?.equipment {
+                Text(equipmentHint(equipment))
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.tempoTextTertiary)
             }
         }
         .padding(TempoSpacing.cardPadding)
@@ -198,7 +404,33 @@ struct TodayWorkoutView: View {
         .tempoShadow(.card)
     }
 
+    private func equipmentHint(_ equipment: Equipment) -> String {
+        switch equipment {
+        case .barbell: "Barbell"
+        case .dumbbell: "Dumbbell"
+        case .cable: "Cable Machine"
+        case .machine: "Machine"
+        case .bodyweight: "Bodyweight"
+        case .kettlebell: "Kettlebell"
+        default: equipment.rawValue.capitalized
+        }
+    }
+
+    /// SF Symbol for equipment type — used in place of emoji.
+    private func equipmentIcon(_ equipment: Equipment) -> String {
+        switch equipment {
+        case .barbell: "figure.strengthtraining.traditional"
+        case .dumbbell: "dumbbell.fill"
+        case .cable: "cable.connector"
+        case .machine: "gearshape.fill"
+        case .bodyweight: "figure.flexibility"
+        case .kettlebell: "figure.strengthtraining.functional"
+        default: "figure.mixed.cardio"
+        }
+    }
+
     // MARK: - Start Workout Button
+
     // Per MODULE_TRAINING.md Section 2.9
 
     private var startWorkoutButton: some View {
@@ -209,6 +441,7 @@ struct TodayWorkoutView: View {
                 .blur(radius: 10)
 
             Button {
+                HapticManager.impact(.heavy)
                 viewModel.startWorkout()
                 showActiveWorkout = true
             } label: {
@@ -231,6 +464,7 @@ struct TodayWorkoutView: View {
     }
 
     // MARK: - Rest Day Content
+
     // Per MODULE_TRAINING.md Section 2.10
 
     private var restDayContent: some View {
@@ -269,7 +503,7 @@ struct TodayWorkoutView: View {
 
             // Mobility flow button
             Button {
-                // Navigate to mobility session
+                showMobilityAlert = true
             } label: {
                 HStack(spacing: TempoSpacing.sm) {
                     Image(systemName: "figure.flexibility")
@@ -325,46 +559,150 @@ struct TodayWorkoutView: View {
 
     private func recoveryDotColor(plan: WorkoutPlan) -> Color {
         let adj = plan.recoveryAdjustment
-        if adj >= 1.0 { return Color.tempoRecoveryGreen }
-        if adj >= 0.6 { return Color.tempoRecoveryYellow }
+        if adj >= 1.0 {
+            return Color.tempoRecoveryGreen
+        }
+        if adj >= 0.6 {
+            return Color.tempoRecoveryYellow
+        }
         return Color.tempoRecoveryRed
     }
 
     private func recoveryText(plan: WorkoutPlan) -> String {
         let adj = plan.recoveryAdjustment
-        if adj >= 1.0 { return "Green Recovery" }
-        if adj >= 0.6 { return "Yellow Recovery" }
+        if adj >= 1.0 {
+            return "Green Recovery"
+        }
+        if adj >= 0.6 {
+            return "Yellow Recovery"
+        }
         return "Red Recovery"
     }
 
     private func adjustmentLabel(plan: WorkoutPlan) -> String {
         let adj = plan.recoveryAdjustment
-        if adj >= 1.0 { return "Full Volume" }
-        if adj >= 0.8 { return "-20% Volume" }
-        if adj >= 0.75 { return "-20% Volume, Lighter Load" }
+        if adj >= 1.0 {
+            return "Full Volume"
+        }
+        if adj >= 0.8 {
+            return "-20% Volume"
+        }
+        if adj >= 0.75 {
+            return "-20% Volume, Lighter Load"
+        }
         return "Swapped to Mobility"
     }
 
     private func estimatedDuration(plan: WorkoutPlan) -> Int {
         let exercises = plan.orderedExercises
-        let totalSets = exercises.reduce(0) { $0 + ($1.sets?.count ?? 0) }
-        // ~2 min per set (including rest)
-        return max(20, totalSets * 2 + exercises.count * 2)
+        guard !exercises.isEmpty else {
+            return 20
+        }
+
+        var totalMinutes = 5.0 // Warmup period
+        let exerciseCount = exercises.count
+
+        for (index, plannedEx) in exercises.enumerated() {
+            let sets = plannedEx.orderedSets
+            let isCompound = plannedEx.exercise?.isCompound ?? false
+
+            for set in sets {
+                if set.isWarmup {
+                    totalMinutes += 1.0 // Warmup sets: 1 min each
+                } else if isCompound {
+                    totalMinutes += 2.5 // Working compound sets: 2.5 min (set + rest)
+                } else {
+                    totalMinutes += 1.5 // Working isolation sets: 1.5 min (set + rest)
+                }
+            }
+
+            // Between-exercise transition (not after the last exercise)
+            if index < exerciseCount - 1 {
+                totalMinutes += 1.0
+            }
+        }
+
+        totalMinutes += 3.0 // Cooldown
+
+        return max(20, Int(totalMinutes.rounded()))
     }
 
     private func prescriptionText(sets: [PlannedSet], firstSet: PlannedSet) -> String {
-        let setCount = sets.count
-        let reps = firstSet.targetReps
-        if let weight = firstSet.targetWeight, weight > 0 {
-            return "\(setCount) x \(reps) @ \(Int(weight))kg"
+        let workingSets = sets.filter { !$0.isWarmup }
+        let warmupSets = sets.filter(\.isWarmup)
+        let setCount = workingSets.count
+        let reps = (workingSets.first ?? firstSet).targetReps
+        let unit = settings?.weightUnit ?? .kg
+
+        var text: String
+        if let weight = (workingSets.first ?? firstSet).targetWeight, weight > 0 {
+            let displayWeight = WeightUnit.kg.convert(weight, to: unit)
+            text = "\(setCount) x \(reps) @ \(Int(displayWeight))\(unit.abbreviation)"
+        } else {
+            text = "\(setCount) x \(reps) (BW)"
         }
-        return "\(setCount) x \(reps) (BW)"
+
+        if !warmupSets.isEmpty {
+            text += " + \(warmupSets.count) warmup"
+        }
+
+        return text
     }
 
     private var nextWorkoutType: String? {
         // Look at tomorrow's plan in weekPlans if loaded
         viewModel.weekPlans
             .first { Calendar.current.isDateInTomorrow($0.date) }
-            .map { $0.type.displayName }
+            .map(\.type.displayName)
+    }
+
+    /// Returns the most recent 3 ExerciseHistory entries for a given exercise (excluding today).
+    private func lastThreePerformances(for exercise: Exercise) -> [ExerciseHistory] {
+        let today = Calendar.current.startOfDay(for: Date())
+        return (exercise.history ?? [])
+            .filter { $0.date < today }
+            .sorted { $0.date > $1.date }
+            .prefix(3)
+            .map(\.self)
+    }
+
+    /// Compact best-set summary for a session.
+    private func bestSetSummary(history: ExerciseHistory) -> String {
+        let unit = settings?.weightUnit ?? .kg
+        if let w = history.bestSetWeight, w > 0 {
+            let converted = WeightUnit.kg.convert(w, to: unit)
+            if let r = history.bestSetReps {
+                return "\(Int(converted))\(unit.abbreviation)x\(r)"
+            }
+            return "\(Int(converted))\(unit.abbreviation)"
+        }
+        return "done"
+    }
+
+    /// Performance trend based on recent sessions.
+    private struct PerformanceTrend {
+        let symbol: String
+        let color: Color
+    }
+
+    private func performanceTrend(sessions: [ExerciseHistory]) -> PerformanceTrend {
+        guard sessions.count >= 2 else {
+            return PerformanceTrend(symbol: "--", color: Color.tempoTextTertiary)
+        }
+
+        let latest = sessions[0]
+        let previous = sessions[1]
+
+        // Compare estimated 1RM first, fall back to best set weight
+        let latestValue = latest.estimated1RM ?? latest.bestSetWeight ?? 0
+        let previousValue = previous.estimated1RM ?? previous.bestSetWeight ?? 0
+
+        if latestValue > previousValue {
+            return PerformanceTrend(symbol: "\u{2191}", color: Color.tempoRecoveryGreen) // up arrow
+        } else if latestValue < previousValue {
+            return PerformanceTrend(symbol: "\u{2193}", color: Color.tempoRecoveryRed) // down arrow
+        } else {
+            return PerformanceTrend(symbol: "\u{2192}", color: Color.tempoTextTertiary) // right arrow
+        }
     }
 }

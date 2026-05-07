@@ -1,20 +1,35 @@
-import SwiftUI
+//
+// ActiveWorkoutView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftData
+import SwiftUI
 
 // MARK: - Active Workout View
+
 // Per MODULE_TRAINING.md Section 3 — Exercise-by-exercise set logging.
 // Per STATE_MACHINES.md Section 1 — Workout session states.
 
 struct ActiveWorkoutView: View {
+    @Bindable
+    var viewModel: TrainingViewModel
+    @Environment(\.modelContext)
+    private var modelContext
+    @Environment(\.dismiss)
+    private var dismiss
 
-    @Bindable var viewModel: TrainingViewModel
-    @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var inputWeight: Double = 0
-    @State private var inputReps: Double = 8
-    @State private var inputRPE: Int?
-    @State private var showFinishConfirmation = false
+    @State
+    private var inputWeight: Double = 0
+    @State
+    private var inputReps: Double = 8
+    @State
+    private var inputRPE: Int?
+    @State
+    private var showFinishConfirmation = false
 
     var body: some View {
         ZStack {
@@ -32,7 +47,7 @@ struct ActiveWorkoutView: View {
                 case .exercise(.resting):
                     RestTimerView(viewModel: viewModel)
 
-                case .exercise(.betweenExercises(_, let toIndex)):
+                case let .exercise(.betweenExercises(_, toIndex)):
                     exerciseTransition(toIndex: toIndex)
 
                 case .cooldown:
@@ -109,6 +124,7 @@ struct ActiveWorkoutView: View {
     }
 
     // MARK: - Set Active Content
+
     // Per MODULE_TRAINING.md Section 3 — Weight/reps inputs, DONE button
 
     private var setActiveContent: some View {
@@ -129,7 +145,7 @@ struct ActiveWorkoutView: View {
                         .foregroundStyle(Color.tempoTextTertiary)
                     NumberStepperView(
                         value: $inputWeight,
-                        range: 0...500,
+                        range: 0 ... 500,
                         step: 2.5,
                         format: "%.1f",
                         unit: "kg"
@@ -143,7 +159,7 @@ struct ActiveWorkoutView: View {
                         .foregroundStyle(Color.tempoTextTertiary)
                     NumberStepperView(
                         value: $inputReps,
-                        range: 1...100,
+                        range: 1 ... 100,
                         step: 1,
                         format: "%.0f",
                         unit: "reps"
@@ -208,7 +224,7 @@ struct ActiveWorkoutView: View {
                 .foregroundStyle(Color.tempoTextTertiary)
 
             HStack(spacing: TempoSpacing.xs) {
-                ForEach(6...10, id: \.self) { rpe in
+                ForEach(6 ... 10, id: \.self) { rpe in
                     Button {
                         inputRPE = inputRPE == rpe ? nil : rpe
                     } label: {
@@ -228,13 +244,52 @@ struct ActiveWorkoutView: View {
     // MARK: - Set Progress
 
     private var setProgress: some View {
-        HStack(spacing: TempoSpacing.xs) {
-            if let exercise = viewModel.currentExercise {
-                ForEach(exercise.orderedSets.indices, id: \.self) { idx in
-                    let set = exercise.orderedSets[idx]
-                    Circle()
-                        .fill(setDotColor(set: set, index: idx))
-                        .frame(width: 12, height: 12)
+        VStack(spacing: TempoSpacing.sm) {
+            HStack(spacing: TempoSpacing.xs) {
+                if let exercise = viewModel.currentExercise {
+                    ForEach(exercise.orderedSets.indices, id: \.self) { idx in
+                        let set = exercise.orderedSets[idx]
+                        if set.isWarmup {
+                            // Warmup sets shown as smaller, outlined dots
+                            Circle()
+                                .stroke(setDotColor(set: set, index: idx), lineWidth: 1.5)
+                                .frame(width: 10, height: 10)
+                        } else {
+                            Circle()
+                                .fill(setDotColor(set: set, index: idx))
+                                .frame(width: 12, height: 12)
+                        }
+                    }
+                }
+            }
+
+            // +/- set buttons
+            HStack(spacing: TempoSpacing.md) {
+                Button {
+                    viewModel.removeLastUncompletedSet(
+                        from: viewModel.currentExerciseIndex,
+                        modelContext: modelContext
+                    )
+                } label: {
+                    Image(systemName: "minus.circle")
+                        .font(.tempoBody)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                }
+                .disabled((viewModel.currentExercise?.orderedSets.count ?? 0) <= 1)
+
+                Text("\(viewModel.currentExercise?.orderedSets.count ?? 0) sets")
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextSecondary)
+
+                Button {
+                    viewModel.addSet(
+                        to: viewModel.currentExerciseIndex,
+                        modelContext: modelContext
+                    )
+                } label: {
+                    Image(systemName: "plus.circle")
+                        .font(.tempoBody)
+                        .foregroundStyle(Color.tempoSignal)
                 }
             }
         }
@@ -242,11 +297,11 @@ struct ActiveWorkoutView: View {
 
     private func setDotColor(set: PlannedSet, index: Int) -> Color {
         if set.completed {
-            return Color.tempoRecoveryGreen
+            Color.tempoRecoveryGreen
         } else if index == viewModel.currentSetIndex {
-            return Color.tempoSignal
+            Color.tempoSignal
         } else {
-            return Color.tempoTextTertiary.opacity(0.3)
+            Color.tempoTextTertiary.opacity(0.3)
         }
     }
 
@@ -294,7 +349,7 @@ struct ActiveWorkoutView: View {
                 VStack(spacing: TempoSpacing.sm) {
                     Image(systemName: "trophy.fill")
                         .font(.system(size: 32))
-                        .foregroundStyle(Color(red: 1, green: 215 / 255, blue: 0))
+                        .foregroundStyle(Color.tempoPRGold)
 
                     Text("\(viewModel.detectedPRs.count) PR\(viewModel.detectedPRs.count > 1 ? "s" : "") Hit!")
                         .font(.tempoHeadline)

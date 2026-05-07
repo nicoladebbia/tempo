@@ -1,11 +1,20 @@
-import Foundation
-import SwiftUI
-import SwiftData
+//
+// AccountabilityViewModel.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
 
-// MARK: - Focus Timer State
+import Foundation
+import SwiftData
+import SwiftUI
+
+// MARK: - FocusTimerState
+
 // Per STATE_MACHINES.md Section 2 — Focus Timer state machine.
 
-enum FocusTimerState: Equatable, Sendable {
+enum FocusTimerState: Equatable {
     case idle
     case configuring
     case focusing(remaining: TimeInterval)
@@ -18,7 +27,7 @@ enum FocusTimerState: Equatable, Sendable {
     case paused(previous: PausedFocusState)
     case cancelled
 
-    enum PausedFocusState: Equatable, Sendable {
+    enum PausedFocusState: Equatable {
         case focusing(remaining: TimeInterval)
         case onBreak(remaining: TimeInterval)
         case longBreak(remaining: TimeInterval)
@@ -26,13 +35,16 @@ enum FocusTimerState: Equatable, Sendable {
 
     var isActive: Bool {
         switch self {
-        case .focusing, .onBreak, .longBreak: true
+        case .focusing,
+             .onBreak,
+             .longBreak: true
         default: false
         }
     }
 }
 
-// MARK: - Accountability ViewModel
+// MARK: - AccountabilityViewModel
+
 // Per BUILD_PLAN step 10.2.
 // Per MODULE_ACCOUNTABILITY.md — Accountability module state and logic.
 // Per STATE_MACHINES.md Section 2 (Focus Timer) and Section 3 (Daily Accountability).
@@ -40,7 +52,6 @@ enum FocusTimerState: Equatable, Sendable {
 @Observable
 @MainActor
 final class AccountabilityViewModel {
-
     // MARK: - State
 
     var dailyState: DailyAccountabilityState = .morningSetup
@@ -51,11 +62,12 @@ final class AccountabilityViewModel {
     var activeOverride: AccountabilityOverrideType?
 
     // MARK: - Focus Timer State
+
     // Per STATE_MACHINES.md Section 2
 
     var focusState: FocusTimerState = .idle
     var focusDuration: TimeInterval = 25 * 60 // Default 25 min pomodoro
-    var breakDuration: TimeInterval = 5 * 60  // Default 5 min break
+    var breakDuration: TimeInterval = 5 * 60 // Default 5 min break
     var longBreakDuration: TimeInterval = 15 * 60
     var sessionsBeforeLongBreak = 4
     var currentSessionCount = 0
@@ -65,28 +77,46 @@ final class AccountabilityViewModel {
     // Timer internals
     private var focusTimerTask: Task<Void, Never>?
     private var focusStartDate: Date?
-    var totalFocusMinutesToday: Int { accountability?.totalStudyMinutes ?? 0 }
+    var totalFocusMinutesToday: Int {
+        accountability?.totalStudyMinutes ?? 0
+    }
 
     // MARK: - Computed
 
-    var isLeisureUnlocked: Bool { accountability?.leisureUnlocked ?? false }
+    var isLeisureUnlocked: Bool {
+        accountability?.leisureUnlocked ?? false
+    }
 
-    var completionPercentage: Double { accountability?.completionPercentage ?? 0 }
+    var completionPercentage: Double {
+        accountability?.completionPercentage ?? 0
+    }
 
-    var completedCount: Int { accountability?.completedCount ?? 0 }
+    var completedCount: Int {
+        accountability?.completedCount ?? 0
+    }
 
-    var totalCount: Int { accountability?.totalCount ?? 0 }
+    var totalCount: Int {
+        accountability?.totalCount ?? 0
+    }
 
-    var streakCount: Int { overallStreak?.currentCount ?? 0 }
+    var streakCount: Int {
+        overallStreak?.currentCount ?? 0
+    }
 
-    var longestStreak: Int { overallStreak?.longestCount ?? 0 }
+    var longestStreak: Int {
+        overallStreak?.longestCount ?? 0
+    }
 
     var isStreakAtRisk: Bool {
-        guard let accountability, let streak = overallStreak else { return false }
+        guard let accountability, let streak = overallStreak else {
+            return false
+        }
         return engine.isStreakAtRisk(accountability: accountability, streak: streak)
     }
 
-    var ps5TimeToday: Date { engine.ps5Time() }
+    var ps5TimeToday: Date {
+        engine.ps5Time()
+    }
 
     var formattedPS5Time: String {
         let formatter = DateFormatter()
@@ -108,17 +138,20 @@ final class AccountabilityViewModel {
     }
 
     var formattedFocusTimer: String {
-        let remaining: TimeInterval
-        switch focusState {
-        case .focusing(let r), .onBreak(let r), .longBreak(let r):
-            remaining = r
-        case .paused(let prev):
+        let remaining: TimeInterval = switch focusState {
+        case let .focusing(r),
+             let .onBreak(r),
+             let .longBreak(r):
+            r
+        case let .paused(prev):
             switch prev {
-            case .focusing(let r), .onBreak(let r), .longBreak(let r):
-                remaining = r
+            case let .focusing(r),
+                 let .onBreak(r),
+                 let .longBreak(r):
+                r
             }
         default:
-            remaining = 0
+            0
         }
         let mins = Int(remaining) / 60
         let secs = Int(remaining) % 60
@@ -130,19 +163,21 @@ final class AccountabilityViewModel {
         let remaining: TimeInterval
 
         switch focusState {
-        case .focusing(let r):
+        case let .focusing(r):
             total = focusDuration
             remaining = r
-        case .onBreak(let r):
+        case let .onBreak(r):
             total = breakDuration
             remaining = r
-        case .longBreak(let r):
+        case let .longBreak(r):
             total = longBreakDuration
             remaining = r
         default:
             return 0
         }
-        guard total > 0 else { return 0 }
+        guard total > 0 else {
+            return 0
+        }
         return 1 - (remaining / total)
     }
 
@@ -164,6 +199,7 @@ final class AccountabilityViewModel {
         accountability = engine.loadTodayNonNegotiables(modelContext: modelContext)
         progressItems = accountability?.nonNegotiableProgress ?? []
         loadStreak(modelContext: modelContext)
+        loadHabitStreaks(modelContext: modelContext)
         refreshState()
 
         isLoading = false
@@ -186,7 +222,9 @@ final class AccountabilityViewModel {
     // MARK: - State Refresh
 
     func refreshState() {
-        guard let accountability else { return }
+        guard let accountability else {
+            return
+        }
         dailyState = engine.evaluateState(
             accountability: accountability,
             override: activeOverride,
@@ -195,6 +233,7 @@ final class AccountabilityViewModel {
     }
 
     // MARK: - Manual Check-Off
+
     // Per MODULE_ACCOUNTABILITY.md — manual completion flow.
 
     func completeItem(
@@ -207,6 +246,11 @@ final class AccountabilityViewModel {
             modelContext: modelContext
         )
 
+        // Update per-habit streak when a non-negotiable is completed
+        if let nnType = progress.nonNegotiable?.type {
+            updateHabitStreak(for: nnType, completed: true, modelContext: modelContext)
+        }
+
         refreshProgressItems()
         checkForUnlock(modelContext: modelContext)
     }
@@ -216,11 +260,18 @@ final class AccountabilityViewModel {
         value: Double,
         modelContext: ModelContext
     ) {
+        let wasCompleted = progress.isCompleted
+
         engine.updateProgress(
             progress: progress,
             newValue: value,
             modelContext: modelContext
         )
+
+        // Update per-habit streak when progress crosses completion threshold
+        if !wasCompleted, progress.isCompleted, let nnType = progress.nonNegotiable?.type {
+            updateHabitStreak(for: nnType, completed: true, modelContext: modelContext)
+        }
 
         refreshProgressItems()
         checkForUnlock(modelContext: modelContext)
@@ -242,7 +293,9 @@ final class AccountabilityViewModel {
     }
 
     private func checkForUnlock(modelContext: ModelContext) {
-        guard let accountability else { return }
+        guard let accountability else {
+            return
+        }
         let newlyUnlocked = engine.processUnlock(
             accountability: accountability,
             modelContext: modelContext
@@ -258,13 +311,16 @@ final class AccountabilityViewModel {
     }
 
     // MARK: - Override Actions
+
     // Per MODULE_ACCOUNTABILITY.md Section 13
 
     func activateOverride(
         type: AccountabilityOverrideType,
         modelContext: ModelContext
     ) {
-        guard let accountability else { return }
+        guard let accountability else {
+            return
+        }
         activeOverride = type
         engine.applyRestDayOverride(
             accountability: accountability,
@@ -280,6 +336,7 @@ final class AccountabilityViewModel {
     }
 
     // MARK: - Focus Timer
+
     // Per STATE_MACHINES.md Section 2 — Focus Timer state machine.
 
     func configureFocusTimer(duration: TimeInterval = 25 * 60, subject: String? = nil) {
@@ -289,7 +346,9 @@ final class AccountabilityViewModel {
     }
 
     func startFocusSession(modelContext: ModelContext) {
-        guard let accountability else { return }
+        guard let accountability else {
+            return
+        }
 
         // Create study session
         let session = StudySession(
@@ -309,15 +368,17 @@ final class AccountabilityViewModel {
     }
 
     func pauseFocus() {
-        guard case let currentState = focusState, currentState.isActive else { return }
+        guard case let currentState = focusState, currentState.isActive else {
+            return
+        }
         focusTimerTask?.cancel()
 
         switch focusState {
-        case .focusing(let r):
+        case let .focusing(r):
             focusState = .paused(previous: .focusing(remaining: r))
-        case .onBreak(let r):
+        case let .onBreak(r):
             focusState = .paused(previous: .onBreak(remaining: r))
-        case .longBreak(let r):
+        case let .longBreak(r):
             focusState = .paused(previous: .longBreak(remaining: r))
         default:
             break
@@ -325,16 +386,18 @@ final class AccountabilityViewModel {
     }
 
     func resumeFocus(modelContext: ModelContext) {
-        guard case .paused(let previous) = focusState else { return }
+        guard case let .paused(previous) = focusState else {
+            return
+        }
 
         switch previous {
-        case .focusing(let r):
+        case let .focusing(r):
             focusState = .focusing(remaining: r)
             startFocusCountdown(total: r, modelContext: modelContext)
-        case .onBreak(let r):
+        case let .onBreak(r):
             focusState = .onBreak(remaining: r)
             startBreakCountdown(total: r)
-        case .longBreak(let r):
+        case let .longBreak(r):
             focusState = .longBreak(remaining: r)
             startBreakCountdown(total: r)
         }
@@ -350,6 +413,7 @@ final class AccountabilityViewModel {
             if elapsed > 5 * 60 {
                 session.endTime = Date()
                 session.durationMinutes = Int(elapsed / 60)
+                session.distractions = distractionCount
                 try? modelContext.save()
             } else {
                 modelContext.delete(session)
@@ -359,6 +423,7 @@ final class AccountabilityViewModel {
 
         currentStudySession = nil
         focusStartDate = nil
+        distractionCount = 0
         focusState = .cancelled
         // Return to idle after brief delay
         Task {
@@ -386,16 +451,14 @@ final class AccountabilityViewModel {
 
     func finishFocusReview(modelContext: ModelContext) {
         // Per STATE_MACHINES.md Section 2: review → idle (save session to SwiftData)
-        if let session = currentStudySession, let start = focusStartDate {
+        if let session = currentStudySession {
             session.endTime = Date()
-            session.durationMinutes = Int(Date().timeIntervalSince(start) / 60)
-            session.completedPomodoros = currentSessionCount
+            session.distractions = distractionCount
+            session.focusScore = max(0, 100 - (distractionCount * 10))
 
-            // Update daily study minutes
-            accountability?.totalStudyMinutes += session.durationMinutes
-
-            // Update study non-negotiable progress
-            updateStudyProgress(minutes: session.durationMinutes, modelContext: modelContext)
+            // Note: study minutes and progress are saved incrementally
+            // after each pomodoro in savePartialSession(). We only finalize
+            // the end time and focus score here to avoid double-counting.
 
             try? modelContext.save()
         }
@@ -403,7 +466,78 @@ final class AccountabilityViewModel {
         currentStudySession = nil
         focusStartDate = nil
         currentSessionCount = 0
+        distractionCount = 0
         focusState = .idle
+    }
+
+    // MARK: - Per-Habit Streaks
+
+    var habitStreaks: [NonNegotiableType: Streak] = [:]
+
+    func loadHabitStreaks(modelContext: ModelContext) {
+        let streakTypes: [(NonNegotiableType, StreakType)] = [
+            (.study, .study),
+            (.train, .training),
+            (.meals, .meals),
+        ]
+
+        for (nnType, streakType) in streakTypes {
+            let raw = streakType.rawValue
+            let descriptor = FetchDescriptor<Streak>(
+                predicate: #Predicate { s in s.typeRaw == raw }
+            )
+            if let existing = try? modelContext.fetch(descriptor).first {
+                habitStreaks[nnType] = existing
+            } else {
+                let streak = Streak(type: streakType)
+                modelContext.insert(streak)
+                habitStreaks[nnType] = streak
+            }
+        }
+        try? modelContext.save()
+    }
+
+    func updateHabitStreak(
+        for nnType: NonNegotiableType,
+        completed: Bool,
+        modelContext: ModelContext
+    ) {
+        guard let streak = habitStreaks[nnType] else {
+            return
+        }
+        if completed {
+            streak.recordCompletion()
+        }
+        try? modelContext.save()
+    }
+
+    func habitStreakCount(for nnType: NonNegotiableType) -> Int {
+        habitStreaks[nnType]?.currentCount ?? 0
+    }
+
+    // MARK: - Focus Timer Distraction Count (persisted across view dismiss)
+
+    var distractionCount: Int = 0
+
+    // MARK: - Save Partial Focus Session
+
+    /// Save session progress incrementally after each completed pomodoro
+    /// so that data survives an app kill mid-session.
+    private func savePartialSession(modelContext: ModelContext) {
+        guard let session = currentStudySession, let start = focusStartDate else {
+            return
+        }
+        session.endTime = Date()
+        session.durationMinutes = Int(Date().timeIntervalSince(start) / 60)
+        session.completedPomodoros = currentSessionCount
+        session.distractions = distractionCount
+
+        // Update daily study minutes incrementally
+        let pomodoroMinutes = Int(focusDuration / 60)
+        accountability?.totalStudyMinutes += pomodoroMinutes
+        updateStudyProgress(minutes: pomodoroMinutes, modelContext: modelContext)
+
+        try? modelContext.save()
     }
 
     // MARK: - Focus Timer Internals
@@ -412,18 +546,27 @@ final class AccountabilityViewModel {
         focusTimerTask?.cancel()
         focusTimerTask = Task { [weak self] in
             var remaining = total
-            while remaining > 0 && !Task.isCancelled {
+            while remaining > 0, !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled else {
+                    return
+                }
                 remaining -= 1
                 await MainActor.run {
                     self?.focusState = .focusing(remaining: remaining)
                 }
             }
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled else {
+                return
+            }
             await MainActor.run {
                 self?.currentSessionCount += 1
                 HapticManager.notification(.success)
+
+                // Save partial session after each completed pomodoro
+                // so progress is preserved if the app is killed.
+                self?.savePartialSession(modelContext: modelContext)
+
                 let allDone = (self?.currentSessionCount ?? 0) >= (self?.sessionsBeforeLongBreak ?? 4)
                 if allDone {
                     self?.focusState = .completed(totalSessions: self?.currentSessionCount ?? 0)
@@ -438,9 +581,11 @@ final class AccountabilityViewModel {
         focusTimerTask?.cancel()
         focusTimerTask = Task { [weak self] in
             var remaining = total
-            while remaining > 0 && !Task.isCancelled {
+            while remaining > 0, !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled else {
+                    return
+                }
                 remaining -= 1
                 let isLong = total > 10 * 60
                 await MainActor.run {
@@ -451,7 +596,9 @@ final class AccountabilityViewModel {
                     }
                 }
             }
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled else {
+                return
+            }
             await MainActor.run {
                 HapticManager.impact(.light)
                 self?.focusState = .breakDone
@@ -467,7 +614,10 @@ final class AccountabilityViewModel {
     private func updateStudyProgress(minutes: Int, modelContext: ModelContext) {
         guard let studyProgress = progressItems.first(where: {
             $0.nonNegotiable?.type == .study
-        }) else { return }
+        })
+        else {
+            return
+        }
 
         let newValue = studyProgress.currentValue + Double(minutes)
         engine.updateProgress(progress: studyProgress, newValue: newValue, modelContext: modelContext)
@@ -475,21 +625,183 @@ final class AccountabilityViewModel {
         checkForUnlock(modelContext: modelContext)
     }
 
+    // MARK: - Smart Notification Scheduling
+
+    // Schedules context-aware notifications based on historical completion patterns.
+    // Progressive urgency: gentle at 50% time remaining, firm at 25%, urgent at 10%.
+
+    func scheduleSmartNotifications(
+        notificationService: NotificationService,
+        modelContext: ModelContext
+    ) {
+        guard let accountability, !accountability.leisureUnlocked else {
+            return
+        }
+        guard activeOverride == nil else {
+            return
+        }
+
+        let now = Date()
+        let ps5Time = ps5TimeToday
+        let timeToPS5 = ps5Time.timeIntervalSince(now)
+        guard timeToPS5 > 0 else {
+            return
+        }
+
+        let completedCount = accountability.completedCount
+        let totalCount = accountability.totalCount
+        guard totalCount > 0, completedCount < totalCount else {
+            return
+        }
+
+        let remaining = totalCount - completedCount
+        let streakDays = overallStreak?.currentCount ?? 0
+
+        // Calculate historical study start time (placeholder: default 2 PM)
+        // In production, this would analyze StudySession history for avg start time.
+        let historicalStudyHour = historicalAverageStudyHour(modelContext: modelContext)
+
+        // Study-specific check: if user hasn't started study and it's past their usual time
+        let studyProgress = progressItems.first(where: { $0.nonNegotiable?.type == .study })
+        let studyNotStarted = (studyProgress?.currentValue ?? 0) == 0 && studyProgress != nil
+        let studyRemainingMin = max(0, Int((studyProgress?.targetValue ?? 0) - (studyProgress?.currentValue ?? 0)))
+
+        let calendar = Calendar.current
+        let currentHour = calendar.component(.hour, from: now)
+
+        // Schedule study nudge if past historical study time and study not started
+        if studyNotStarted, currentHour >= historicalStudyHour {
+            let nudgeTime = now.addingTimeInterval(30 * 60) // 30 min from now
+            if nudgeTime < ps5Time {
+                let message = if streakDays > 5 {
+                    "You're behind on study today. \(studyRemainingMin)min target. Your \(streakDays)-day streak needs this."
+                } else {
+                    "You haven't started studying yet. \(studyRemainingMin)min left to hit your target. Open Tempo and start a timer."
+                }
+                notificationService.scheduleAccountabilityEscalation(
+                    tier: .gentle,
+                    time: nudgeTime,
+                    content: message
+                )
+            }
+        }
+
+        // Progressive urgency based on time remaining
+        let halfwayPoint = now.addingTimeInterval(timeToPS5 * 0.5) // 50% time remaining
+        let quarterPoint = now.addingTimeInterval(timeToPS5 * 0.75) // 25% time remaining
+        let tenPercentPoint = now.addingTimeInterval(timeToPS5 * 0.9) // 10% time remaining
+
+        // Gentle reminder at 50% time remaining (if less than half done)
+        let completionPct = Double(completedCount) / Double(totalCount)
+        if completionPct < 0.5, halfwayPoint > now.addingTimeInterval(60) {
+            let body = "\(remaining) task\(remaining == 1 ? "" : "s") remaining. \(formatTimeInterval(timeToPS5 * 0.5)) left. You've got time, but don't waste it."
+            notificationService.scheduleAccountabilityEscalation(
+                tier: .gentle,
+                time: halfwayPoint,
+                content: body
+            )
+        }
+
+        // Firm at 25% time remaining
+        if completionPct < 0.75, quarterPoint > now.addingTimeInterval(60) {
+            var body = "\(remaining) task\(remaining == 1 ? "" : "s") incomplete. \(formatTimeInterval(timeToPS5 * 0.25)) left."
+            if studyRemainingMin > 0 {
+                body += " Study: \(studyRemainingMin)min to go."
+            }
+            body += " Time is running."
+            notificationService.scheduleAccountabilityEscalation(
+                tier: .firm,
+                time: quarterPoint,
+                content: body
+            )
+        }
+
+        // Urgent at 10% time remaining
+        if completionPct < 1.0, tenPercentPoint > now.addingTimeInterval(60) {
+            var body = if streakDays > 3 {
+                "Your \(streakDays)-day streak dies in \(formatTimeInterval(timeToPS5 * 0.1)). \(remaining) task\(remaining == 1 ? "" : "s") left. DO IT NOW."
+            } else {
+                "\(formatTimeInterval(timeToPS5 * 0.1)) until PS5 time. \(remaining) task\(remaining == 1 ? "" : "s") undone. This is it."
+            }
+            notificationService.scheduleAccountabilityEscalation(
+                tier: .urgent,
+                time: tenPercentPoint,
+                content: body
+            )
+        }
+
+        // Streak warning (if streak > 3 and significant tasks remain)
+        if streakDays > 3, remaining > 0 {
+            let streakWarningTime = ps5Time.addingTimeInterval(-45 * 60) // 45 min before PS5
+            if streakWarningTime > now.addingTimeInterval(60) {
+                notificationService.scheduleStreakWarning(
+                    streakDays: streakDays,
+                    tasksRemaining: remaining,
+                    time: streakWarningTime
+                )
+            }
+        }
+    }
+
+    /// Analyze StudySession history to find the user's average study start hour.
+    /// Falls back to 14 (2 PM) if no history exists.
+    private func historicalAverageStudyHour(modelContext: ModelContext) -> Int {
+        let calendar = Calendar.current
+        let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: Date())!
+
+        let descriptor = FetchDescriptor<StudySession>(
+            predicate: #Predicate { s in s.startTime >= sevenDaysAgo }
+        )
+
+        guard let sessions = try? modelContext.fetch(descriptor), !sessions.isEmpty else {
+            return 14 // Default: 2 PM
+        }
+
+        let totalHours = sessions.reduce(0) { $0 + calendar.component(.hour, from: $1.startTime) }
+        return totalHours / sessions.count
+    }
+
+    private func formatTimeInterval(_ interval: TimeInterval) -> String {
+        let hours = Int(interval) / 3600
+        let minutes = (Int(interval) % 3600) / 60
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        }
+        return "\(minutes)m"
+    }
+
     // MARK: - End of Day
 
     func processEndOfDay(modelContext: ModelContext) {
-        guard let accountability, let streak = overallStreak else { return }
+        guard let accountability, let streak = overallStreak else {
+            return
+        }
 
         // Update score
         accountability.accountabilityScore = engine.calculateDailyScore(accountability: accountability)
 
-        // Update streak
+        // Update overall streak
         engine.updateStreak(
             streak: streak,
             dayCompleted: accountability.allComplete,
             override: activeOverride,
             modelContext: modelContext
         )
+
+        // Update per-habit streaks based on each non-negotiable's completion
+        for progress in progressItems {
+            guard let nnType = progress.nonNegotiable?.type,
+                  let habitStreak = habitStreaks[nnType]
+            else {
+                continue
+            }
+            engine.updateStreak(
+                streak: habitStreak,
+                dayCompleted: progress.isCompleted,
+                override: activeOverride,
+                modelContext: modelContext
+            )
+        }
 
         // Check milestone
         if let milestone = engine.streakMilestone(count: streak.currentCount) {

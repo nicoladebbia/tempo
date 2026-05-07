@@ -1,20 +1,32 @@
-import SwiftUI
+//
+// AchievementsView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftData
+import SwiftUI
 
 // MARK: - Achievements View
+
 // Per MODULE_ARENA.md Section 10 — Grid of 108 achievements.
 // Per WIREFRAMES.md Screen 40 — 3-column grid, earned/locked states.
 
 struct AchievementsView: View {
+    @Environment(ServiceContainer.self)
+    private var services
+    @Query
+    private var achievements: [Achievement]
 
-    @Environment(ServiceContainer.self) private var services
-    @Query private var achievements: [Achievement]
-
-    @State private var selectedCategory: AchievementCategory? = nil
-    @State private var selectedAchievement: Achievement?
+    @State
+    private var selectedCategory: AchievementCategory? = nil
+    @State
+    private var selectedAchievement: Achievement?
 
     private var earnedCount: Int {
-        achievements.filter { $0.isEarned }.count
+        achievements.count(where: { $0.isEarned })
     }
 
     private var filteredAchievements: [Achievement] {
@@ -73,6 +85,7 @@ struct AchievementsView: View {
     }
 
     // MARK: - Category Filter
+
     // Per WIREFRAMES.md Screen 40 — Horizontal scroll pills.
 
     private var categoryFilter: some View {
@@ -109,6 +122,7 @@ struct AchievementsView: View {
     }
 
     // MARK: - Achievement Cell
+
     // Per WIREFRAMES.md Screen 40 — 80x100pt each, 3-column grid.
     // Earned: full color + checkmark. Locked: gray tint + lock icon.
 
@@ -123,7 +137,7 @@ struct AchievementsView: View {
                     Image(systemName: rarityIcon(achievement.rarity))
                         .font(.system(size: 28))
                         .foregroundStyle(rarityColor(achievement.rarity))
-                } else if achievement.isHidden && !achievement.isEarned {
+                } else if achievement.isHidden, !achievement.isEarned {
                     Image(systemName: "questionmark")
                         .font(.system(size: 24, weight: .bold))
                         .foregroundStyle(Color.tempoSteel.opacity(0.4))
@@ -148,19 +162,51 @@ struct AchievementsView: View {
                     .frame(width: 80, height: 80)
                     .padding(4)
                 }
+
+                // Progress bar for locked achievements with a target
+                if !achievement.isEarned, !achievement.isHidden, achievement.targetValue > 0 {
+                    VStack {
+                        Spacer()
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(Color.tempoSteel.opacity(0.2))
+                                    .frame(height: 4)
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(rarityColor(achievement.rarity).opacity(0.7))
+                                    .frame(width: geo.size.width * achievement.progressFraction, height: 4)
+                            }
+                        }
+                        .frame(height: 4)
+                        .padding(.horizontal, 8)
+                        .padding(.bottom, 6)
+                    }
+                    .frame(width: 80, height: 80)
+                }
             }
 
-            Text(achievement.isHidden && !achievement.isEarned ? "???" : achievement.name)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(achievement.isEarned ? Color.tempoTextPrimary : Color.tempoTextTertiary)
-                .lineLimit(2)
-                .multilineTextAlignment(.center)
-                .frame(width: 80, height: 28)
+            VStack(spacing: 2) {
+                Text(achievement.isHidden && !achievement.isEarned ? "???" : achievement.name)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(achievement.isEarned ? Color.tempoTextPrimary : Color.tempoTextTertiary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .frame(width: 80)
+
+                // Progress label for locked achievements
+                if !achievement.isEarned, !achievement.isHidden, achievement.targetValue > 0 {
+                    Text("\(achievement.progressValue)/\(achievement.targetValue)")
+                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .foregroundStyle(Color.tempoTextTertiary)
+                }
+            }
+            .frame(height: 28)
         }
-        .frame(height: 112)
+        .frame(height: 120)
     }
 
     // MARK: - Achievement Detail
+
     // Per MODULE_ARENA.md Section 11.4 — Achievement unlock detail.
 
     private func achievementDetail(_ achievement: Achievement) -> some View {
@@ -215,6 +261,23 @@ struct AchievementsView: View {
                     Text("XP Reward: \(achievement.xpReward)")
                         .font(.system(size: 14))
                         .foregroundStyle(Color.tempoTextTertiary)
+
+                    // Progress toward unlocking
+                    if achievement.targetValue > 0 {
+                        VStack(spacing: TempoSpacing.xs) {
+                            LinearProgressBar(
+                                progress: achievement.progressFraction,
+                                label: "Progress",
+                                color: rarityColor(achievement.rarity),
+                                height: 8,
+                                showPercentage: false
+                            )
+                            Text("\(achievement.progressValue) / \(achievement.targetValue)")
+                                .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(Color.tempoTextSecondary)
+                        }
+                        .padding(.horizontal, TempoSpacing.lg)
+                    }
                 }
             }
 
@@ -230,22 +293,21 @@ struct AchievementsView: View {
 
     private func rarityColor(_ rarity: AchievementRarity) -> Color {
         switch rarity {
-        case .common: return Color.tempoSteel
-        case .uncommon: return Color.tempoSuccess
-        case .rare: return Color.tempoSignal
-        case .epic: return Color.tempoViolet
-        case .legendary: return Color.tempoAmber
+        case .common: Color.tempoSteel
+        case .uncommon: Color.tempoSuccess
+        case .rare: Color.tempoSignal
+        case .epic: Color.tempoViolet
+        case .legendary: Color.tempoAmber
         }
     }
 
     private func rarityIcon(_ rarity: AchievementRarity) -> String {
         switch rarity {
-        case .common: return "star.fill"
-        case .uncommon: return "star.fill"
-        case .rare: return "star.circle.fill"
-        case .epic: return "shield.checkered"
-        case .legendary: return "crown.fill"
+        case .common: "star.fill"
+        case .uncommon: "star.fill"
+        case .rare: "star.circle.fill"
+        case .epic: "shield.checkered"
+        case .legendary: "crown.fill"
         }
     }
 }
-

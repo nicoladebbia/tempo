@@ -1,19 +1,37 @@
-import SwiftUI
+//
+// FriendSystemView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
 
-// MARK: - Friend System View
+import SwiftUI
+import UIKit
+
+// MARK: - FriendSystemView
+
 // Per MODULE_ARENA.md Section 8 — Friend list, requests, search.
 // Per WIREFRAMES.md Screen 41 — Friend list layout.
 
 struct FriendSystemView: View {
+    @Environment(ServiceContainer.self)
+    private var services
 
-    @Environment(ServiceContainer.self) private var services
+    @State
+    private var searchText = ""
+    @State
+    private var showAddFriend = false
 
-    @State private var searchText = ""
-    @State private var showAddFriend = false
-
-    // Mock data — will be replaced with API calls
-    @State private var friends: [FriendDisplayItem] = []
-    @State private var pendingRequests: [FriendRequestItem] = []
+    /// Mock data — will be replaced with API calls
+    @State
+    private var friends: [FriendDisplayItem] = []
+    @State
+    private var pendingRequests: [FriendRequestItem] = []
+    @State
+    private var showComingSoonAlert = false
+    @State
+    private var showShareSheet = false
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -27,7 +45,7 @@ struct FriendSystemView: View {
                 }
 
                 // Online friends
-                let online = friends.filter { $0.isOnline }
+                let online = friends.filter(\.isOnline)
                 if !online.isEmpty {
                     friendSection(title: "ONLINE (\(online.count))", friends: online, isOnline: true)
                 }
@@ -39,7 +57,7 @@ struct FriendSystemView: View {
                 }
 
                 // Empty state
-                if friends.isEmpty && pendingRequests.isEmpty {
+                if friends.isEmpty, pendingRequests.isEmpty {
                     emptyState
                 }
 
@@ -121,7 +139,7 @@ struct FriendSystemView: View {
 
                     Spacer()
 
-                    Button("Accept") {}
+                    Button("Accept") { acceptRequest(request) }
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 12)
@@ -129,7 +147,7 @@ struct FriendSystemView: View {
                         .background(Color.tempoSignal)
                         .clipShape(Capsule())
 
-                    Button("Decline") {}
+                    Button("Decline") { declineRequest(request) }
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Color.tempoTextSecondary)
                         .padding(.horizontal, 12)
@@ -285,10 +303,47 @@ struct FriendSystemView: View {
             }
         }
         .presentationDetents([.large])
+        .alert("Coming Soon", isPresented: $showComingSoonAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("This feature is not yet available. Stay tuned!")
+        }
+        .sheet(isPresented: $showShareSheet) {
+            ShareSheetView(activityItems: ["Join me on Tempo! Download the app and add me as a friend."])
+        }
+    }
+
+    // MARK: - Friend Request Actions
+
+    private func acceptRequest(_ request: FriendRequestItem) {
+        withAnimation {
+            // Move from pending to friends
+            pendingRequests.removeAll { $0.id == request.id }
+            friends.append(FriendDisplayItem(
+                userID: request.requestID,
+                username: request.username,
+                displayName: request.username.capitalized,
+                level: 1,
+                weeklyXP: 0,
+                isOnline: false
+            ))
+        }
+    }
+
+    private func declineRequest(_ request: FriendRequestItem) {
+        withAnimation {
+            pendingRequests.removeAll { $0.id == request.id }
+        }
     }
 
     private func addMethodButton(icon: String, title: String) -> some View {
-        Button {} label: {
+        Button {
+            if title == "Share Link" {
+                showShareSheet = true
+            } else {
+                showComingSoonAlert = true
+            }
+        } label: {
             HStack(spacing: TempoSpacing.md) {
                 Image(systemName: icon)
                     .font(.system(size: 20))
@@ -313,7 +368,7 @@ struct FriendSystemView: View {
     }
 }
 
-// MARK: - Supporting Types
+// MARK: - FriendDisplayItem
 
 struct FriendDisplayItem: Identifiable {
     let id = UUID()
@@ -325,9 +380,23 @@ struct FriendDisplayItem: Identifiable {
     let isOnline: Bool
 }
 
+// MARK: - FriendRequestItem
+
 struct FriendRequestItem: Identifiable {
     let id = UUID()
     let requestID: String
     let username: String
     let timeAgo: String
+}
+
+// MARK: - ShareSheetView
+
+struct ShareSheetView: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }

@@ -1,22 +1,35 @@
-import SwiftUI
+//
+// NutriTrackConnectView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import os
+import SwiftUI
 
 // MARK: - NutriTrack Connect View
+
 // Per BUILD_PLAN step 11.3.
 // Per INTEGRATION_SPECS.md Section 3.1 — Connection form (URL + PIN).
 // Per UX_COPY_BIBLE.md Section 2.9 — All strings.
 
 struct NutriTrackConnectView: View {
-
     let nutriTrackService: any NutriTrackServiceProtocol
     var onConnected: (() -> Void)?
 
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dismiss)
+    private var dismiss
 
-    @State private var serverURL = ""
-    @State private var pin = ""
-    @State private var connectionState: ConnectState = .idle
-    @State private var showInfoSheet = false
+    @State
+    private var serverURL = ""
+    @State
+    private var pin = ""
+    @State
+    private var connectionState: ConnectState = .idle
+    @State
+    private var showInfoSheet = false
 
     private enum ConnectState: Equatable {
         case idle
@@ -121,7 +134,7 @@ struct NutriTrackConnectView: View {
 
     @ViewBuilder
     private var errorSection: some View {
-        if case .error(let message) = connectionState {
+        if case let .error(message) = connectionState {
             HStack(spacing: TempoSpacing.sm) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.tempoCaption1)
@@ -225,10 +238,12 @@ struct NutriTrackConnectView: View {
                     .foregroundStyle(Color.tempoElectric)
 
                 // Per UX_COPY_BIBLE: onb_nutritrack_no_app_body
-                Text("NutriTrack is a self-hosted nutrition tracking app. Without NutriTrack, Tempo won't track your nutrition automatically. You can still set meal-count non-negotiables and check them off manually.")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .multilineTextAlignment(.center)
+                Text(
+                    "NutriTrack is a self-hosted nutrition tracking app. Without NutriTrack, Tempo won't track your nutrition automatically. You can still set meal-count non-negotiables and check them off manually."
+                )
+                .font(.tempoBody)
+                .foregroundStyle(Color.tempoTextSecondary)
+                .multilineTextAlignment(.center)
 
                 Spacer()
 
@@ -257,7 +272,9 @@ struct NutriTrackConnectView: View {
     // MARK: - Connect Action
 
     private func connectAction() {
-        guard isFormValid else { return }
+        guard isFormValid else {
+            return
+        }
 
         let trimmedURL = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let url = URL(string: trimmedURL) else {
@@ -281,37 +298,39 @@ struct NutriTrackConnectView: View {
                 dismiss()
             } catch {
                 // Map errors to user-facing messages
-                let message: String
-                if let nutriError = error as? NutriTrackError {
+                let message: String = if let nutriError = error as? NutriTrackError {
                     switch nutriError {
                     case .invalidURL:
                         // Per UX_COPY_BIBLE: onb_nutritrack_error_url
-                        message = "Couldn't reach that server. Check the URL and try again."
+                        "Couldn't reach that server. Check the URL and try again."
                     case .invalidPIN:
                         // Per UX_COPY_BIBLE: onb_nutritrack_error_pin
-                        message = "Invalid PIN. Check your NutriTrack settings."
+                        "Invalid PIN. Check your NutriTrack settings."
                     case .serverUnreachable:
                         // Per UX_COPY_BIBLE: onb_nutritrack_error_unreachable
-                        message = "Server not responding. Is NutriTrack running?"
+                        "Server not responding. Is NutriTrack running?"
                     case .timeout:
                         // Per UX_COPY_BIBLE: onb_nutritrack_error_timeout
-                        message = "Connection timed out. Check that NutriTrack is accessible from the internet."
+                        "Connection timed out. Check that NutriTrack is accessible from the internet."
                     default:
-                        message = error.localizedDescription
+                        error.localizedDescription
                     }
                 } else if let apiError = error as? APIError {
                     switch apiError {
                     case .unauthorized:
-                        message = "Invalid PIN. Check your NutriTrack settings."
-                    case .notFound, .networkError:
-                        message = "Couldn't reach that server. Check the URL and try again."
+                        "Invalid PIN. Check your NutriTrack settings."
+                    case .notFound,
+                         .networkError:
+                        "Couldn't reach that server. Check the URL and try again."
+                    case .connectionRefused:
+                        "Cannot reach the Tempo server. Make sure the backend is running."
                     case .timeout:
-                        message = "Connection timed out. Check that NutriTrack is accessible from the internet."
+                        "Connection timed out. Check that NutriTrack is accessible from the internet."
                     default:
-                        message = "Connection failed. Please try again."
+                        "Connection failed. Please try again."
                     }
                 } else {
-                    message = "Connection failed: \(error.localizedDescription)"
+                    "Connection failed: \(error.localizedDescription)"
                 }
 
                 connectionState = .error(message)

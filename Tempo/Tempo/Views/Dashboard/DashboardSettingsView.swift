@@ -1,25 +1,44 @@
+//
+// DashboardSettingsView.swift
+// Tempo
+//
+// Created by Tempo on 06/05/2026.
+//
+//
+
 import SwiftData
 import SwiftUI
 import UIKit
 
-// MARK: - Dashboard Settings View
+// MARK: - DashboardSettingsView
+
 // General app settings accessible from the dashboard gear icon.
 // Organized into sections with NavigationLinks to detail editors.
 
 struct DashboardSettingsView: View {
+    @Environment(\.dismiss)
+    private var dismiss
+    @Environment(\.modelContext)
+    private var modelContext
+    @Environment(ServiceContainer.self)
+    private var services
+    @Query
+    private var allSettings: [UserSettings]
+    @Query
+    private var allProfiles: [UserProfile]
 
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var modelContext
-    @Environment(ServiceContainer.self) private var services
-    @Query private var allSettings: [UserSettings]
-    @Query private var allProfiles: [UserProfile]
+    private var settings: UserSettings? {
+        allSettings.first
+    }
 
-    private var settings: UserSettings? { allSettings.first }
-    private var profile: UserProfile? { allProfiles.first }
+    private var profile: UserProfile? {
+        allProfiles.first
+    }
 
     var body: some View {
         List {
             // MARK: - Profile Header
+
             Section {
                 NavigationLink {
                     ProfileSettingsDetailView()
@@ -50,6 +69,7 @@ struct DashboardSettingsView: View {
             }
 
             // MARK: - Settings Sections
+
             Section("Schedule") {
                 NavigationLink {
                     ScheduleSettingsDetailView()
@@ -160,6 +180,7 @@ struct DashboardSettingsView: View {
             .listRowBackground(Color.tempoSurfaceCard)
 
             // MARK: - About
+
             Section("About") {
                 HStack {
                     Text("Version")
@@ -208,7 +229,8 @@ struct DashboardSettingsView: View {
         return String(name.prefix(1)).uppercased()
     }
 
-    @AppStorage("healthKitAuthorized") private var healthKitAuthorized = false
+    @AppStorage("healthKitAuthorized")
+    private var healthKitAuthorized = false
 
     private func integrationRow(icon: String, label: String, status: String, statusColor: Color) -> some View {
         HStack {
@@ -225,16 +247,20 @@ struct DashboardSettingsView: View {
 
     private var whoopStatusText: String {
         switch services.whoop.connectionState {
-        case .connected: return "Connected"
-        case .connecting: return "Connecting..."
-        case .error(_): return "Error"
-        case .disconnected: return "Not Connected"
+        case .connected: "Connected"
+        case .connecting: "Connecting..."
+        case .error: "Error"
+        case .disconnected: "Not Connected"
         }
     }
 
     private var whoopStatusColor: Color {
-        if case .connected = services.whoop.connectionState { return .tempoSuccess }
-        if case .error = services.whoop.connectionState { return .tempoError }
+        if case .connected = services.whoop.connectionState {
+            return .tempoSuccess
+        }
+        if case .error = services.whoop.connectionState {
+            return .tempoError
+        }
         return .tempoTextTertiary
     }
 
@@ -256,16 +282,20 @@ struct DashboardSettingsView: View {
 
     private var nutriTrackStatusText: String {
         switch services.nutriTrack.connectionState {
-        case .connected: return "Connected"
-        case .connecting: return "Connecting..."
-        case .error(_): return "Error"
-        case .disconnected: return "Not Connected"
+        case .connected: "Connected"
+        case .connecting: "Connecting..."
+        case .error: "Error"
+        case .disconnected: "Not Connected"
         }
     }
 
     private var nutriTrackStatusColor: Color {
-        if case .connected = services.nutriTrack.connectionState { return .tempoSuccess }
-        if case .error = services.nutriTrack.connectionState { return .tempoError }
+        if case .connected = services.nutriTrack.connectionState {
+            return .tempoSuccess
+        }
+        if case .error = services.nutriTrack.connectionState {
+            return .tempoError
+        }
         return .tempoTextTertiary
     }
 
@@ -278,20 +308,28 @@ struct DashboardSettingsView: View {
     }
 }
 
-// MARK: - Profile Settings Detail
+// MARK: - ProfileSettingsDetailView
 
 struct ProfileSettingsDetailView: View {
+    @Environment(\.modelContext)
+    private var modelContext
+    @Query
+    private var allProfiles: [UserProfile]
 
-    @Environment(\.modelContext) private var modelContext
-    @Query private var allProfiles: [UserProfile]
+    private var profile: UserProfile? {
+        allProfiles.first
+    }
 
-    private var profile: UserProfile? { allProfiles.first }
-
-    @State private var displayName = ""
-    @State private var username = ""
-    @State private var weightKg = ""
-    @State private var heightCm = ""
-    @State private var age = ""
+    @State
+    private var displayName = ""
+    @State
+    private var username = ""
+    @State
+    private var weightKg = ""
+    @State
+    private var heightCm = ""
+    @State
+    private var age = ""
 
     var body: some View {
         List {
@@ -374,7 +412,9 @@ struct ProfileSettingsDetailView: View {
     }
 
     private func loadProfile() {
-        guard let p = profile else { return }
+        guard let p = profile else {
+            return
+        }
         displayName = p.displayName
         username = p.username
         weightKg = p.weightKg.map { String(format: "%.1f", $0) } ?? ""
@@ -387,18 +427,24 @@ struct ProfileSettingsDetailView: View {
     }
 }
 
-// MARK: - Schedule Settings Detail
+// MARK: - ScheduleSettingsDetailView
 
 struct ScheduleSettingsDetailView: View {
+    @Environment(\.modelContext)
+    private var modelContext
+    @Query
+    private var allSettings: [UserSettings]
 
-    @Environment(\.modelContext) private var modelContext
-    @Query private var allSettings: [UserSettings]
+    private var settings: UserSettings? {
+        allSettings.first
+    }
 
-    private var settings: UserSettings? { allSettings.first }
-
-    @State private var wakeTime = Date()
-    @State private var bedtime = Date()
-    @State private var leisureMinutes = 60
+    @State
+    private var wakeTime = Date()
+    @State
+    private var bedtime = Date()
+    @State
+    private var leisureMinutes = 60
 
     var body: some View {
         List {
@@ -423,7 +469,7 @@ struct ScheduleSettingsDetailView: View {
                     save()
                 }
 
-                Stepper(value: $leisureMinutes, in: 15...180, step: 15) {
+                Stepper(value: $leisureMinutes, in: 15 ... 180, step: 15) {
                     HStack {
                         Label("Leisure Time", systemImage: "hourglass")
                             .font(.tempoSubheadline)
@@ -448,13 +494,17 @@ struct ScheduleSettingsDetailView: View {
     }
 
     private func loadSettings() {
-        guard let s = settings else { return }
+        guard let s = settings else {
+            return
+        }
         wakeTime = dateFromMinutes(s.wakeTimeMinutes)
         bedtime = dateFromMinutes(s.bedtimeTargetMinutes)
         leisureMinutes = s.leisureTimeMinutes
     }
 
-    private func save() { try? modelContext.save() }
+    private func save() {
+        try? modelContext.save()
+    }
 
     private func dateFromMinutes(_ totalMinutes: Int) -> Date {
         var comps = DateComponents()
@@ -464,18 +514,24 @@ struct ScheduleSettingsDetailView: View {
     }
 }
 
-// MARK: - Training Settings Detail
+// MARK: - TrainingSettingsDetailView
 
 struct TrainingSettingsDetailView: View {
+    @Environment(\.modelContext)
+    private var modelContext
+    @Query
+    private var allSettings: [UserSettings]
 
-    @Environment(\.modelContext) private var modelContext
-    @Query private var allSettings: [UserSettings]
+    private var settings: UserSettings? {
+        allSettings.first
+    }
 
-    private var settings: UserSettings? { allSettings.first }
-
-    @State private var trainingSplit: TrainingSplit = .pushPullLegs
-    @State private var autoDeload = true
-    @State private var deloadWeeks = 5
+    @State
+    private var trainingSplit: TrainingSplit = .pushPullLegs
+    @State
+    private var autoDeload = true
+    @State
+    private var deloadWeeks = 5
 
     var body: some View {
         List {
@@ -532,7 +588,7 @@ struct TrainingSettingsDetailView: View {
                 }
 
                 if autoDeload {
-                    Stepper(value: $deloadWeeks, in: 3...8) {
+                    Stepper(value: $deloadWeeks, in: 3 ... 8) {
                         HStack {
                             Text("Every")
                                 .font(.tempoSubheadline)
@@ -561,26 +617,34 @@ struct TrainingSettingsDetailView: View {
         }
     }
 
-    private func save() { try? modelContext.save() }
+    private func save() {
+        try? modelContext.save()
+    }
 }
 
-// MARK: - Focus Timer Settings Detail
+// MARK: - FocusTimerSettingsDetailView
 
 struct FocusTimerSettingsDetailView: View {
+    @Environment(\.modelContext)
+    private var modelContext
+    @Query
+    private var allSettings: [UserSettings]
 
-    @Environment(\.modelContext) private var modelContext
-    @Query private var allSettings: [UserSettings]
+    private var settings: UserSettings? {
+        allSettings.first
+    }
 
-    private var settings: UserSettings? { allSettings.first }
-
-    @State private var pomodoroDuration = 25
-    @State private var breakDuration = 5
-    @State private var longBreakDuration = 15
+    @State
+    private var pomodoroDuration = 25
+    @State
+    private var breakDuration = 5
+    @State
+    private var longBreakDuration = 15
 
     var body: some View {
         List {
             Section {
-                Stepper(value: $pomodoroDuration, in: 10...60, step: 5) {
+                Stepper(value: $pomodoroDuration, in: 10 ... 60, step: 5) {
                     HStack {
                         Label("Pomodoro", systemImage: "timer")
                             .font(.tempoSubheadline)
@@ -595,7 +659,7 @@ struct FocusTimerSettingsDetailView: View {
                     save()
                 }
 
-                Stepper(value: $breakDuration, in: 3...15) {
+                Stepper(value: $breakDuration, in: 3 ... 15) {
                     HStack {
                         Label("Break", systemImage: "cup.and.saucer.fill")
                             .font(.tempoSubheadline)
@@ -610,7 +674,7 @@ struct FocusTimerSettingsDetailView: View {
                     save()
                 }
 
-                Stepper(value: $longBreakDuration, in: 10...30, step: 5) {
+                Stepper(value: $longBreakDuration, in: 10 ... 30, step: 5) {
                     HStack {
                         Label("Long Break", systemImage: "cup.and.saucer")
                             .font(.tempoSubheadline)
@@ -638,20 +702,27 @@ struct FocusTimerSettingsDetailView: View {
         }
     }
 
-    private func save() { try? modelContext.save() }
+    private func save() {
+        try? modelContext.save()
+    }
 }
 
-// MARK: - Modes Settings Detail
+// MARK: - ModesSettingsDetailView
 
 struct ModesSettingsDetailView: View {
+    @Environment(\.modelContext)
+    private var modelContext
+    @Query
+    private var allSettings: [UserSettings]
 
-    @Environment(\.modelContext) private var modelContext
-    @Query private var allSettings: [UserSettings]
+    private var settings: UserSettings? {
+        allSettings.first
+    }
 
-    private var settings: UserSettings? { allSettings.first }
-
-    @State private var weekendMode = false
-    @State private var examMode = false
+    @State
+    private var weekendMode = false
+    @State
+    private var examMode = false
 
     var body: some View {
         List {
@@ -698,5 +769,7 @@ struct ModesSettingsDetailView: View {
         }
     }
 
-    private func save() { try? modelContext.save() }
+    private func save() {
+        try? modelContext.save()
+    }
 }

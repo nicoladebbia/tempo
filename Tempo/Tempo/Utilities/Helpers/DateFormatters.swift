@@ -1,8 +1,15 @@
+//
+// DateFormatters.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 
 /// Cached, thread-safe date formatters. Never create DateFormatter per call.
 enum TempoDateFormatters {
-
     /// ISO 8601 date only: "2026-03-25"
     static let isoDate: DateFormatter = {
         let formatter = DateFormatter()
@@ -12,7 +19,7 @@ enum TempoDateFormatters {
     }()
 
     /// ISO 8601 full: "2026-03-25T14:30:00Z"
-    static nonisolated(unsafe) let iso8601: ISO8601DateFormatter = {
+    nonisolated(unsafe) static let iso8601: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         return formatter
@@ -57,7 +64,7 @@ enum TempoDateFormatters {
     }()
 
     /// Relative: "5 minutes ago", "Yesterday", "2 days ago"
-    static nonisolated(unsafe) let relative: RelativeDateTimeFormatter = {
+    nonisolated(unsafe) static let relative: RelativeDateTimeFormatter = {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .full
         return formatter

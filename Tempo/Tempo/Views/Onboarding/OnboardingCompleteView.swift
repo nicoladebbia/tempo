@@ -1,13 +1,24 @@
+//
+// OnboardingCompleteView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Onboarding Complete View
+
 // Per STATE_MACHINES.md Section 10 — "Welcome to Tempo" with first day briefing. Terminal.
 // Per BUILD_PLAN step 16.1 — Sets isOnboardingComplete = true, shows main tab view.
 
 struct OnboardingCompleteView: View {
     let viewModel: OnboardingViewModel
-    @State private var opacity: Double = 0
-    @State private var scale: Double = 0.9
+    @State
+    private var opacity: Double = 0
+    @State
+    private var scale: Double = 0.9
 
     var body: some View {
         VStack(spacing: TempoSpacing.xxl) {
@@ -45,4 +56,10 @@ struct OnboardingCompleteView: View {
             }
         }
     }
+}
+
+#Preview {
+    OnboardingCompleteView(viewModel: OnboardingViewModel())
+        .background(Color.black)
+        .preferredColorScheme(.dark)
 }

@@ -1,19 +1,29 @@
+//
+// LinearProgressBar.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Linear Progress Bar
+
 // Per DESIGN_SYSTEM.md Section 8.6 — Linear Progress Bar:
 // 6pt default height, fully rounded, spring fill animation.
 
 struct LinearProgressBar: View {
-
     let progress: Double
     let label: String
     let color: Color
     let height: CGFloat
     let showPercentage: Bool
 
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var animatedProgress: Double = 0
+    @Environment(\.colorScheme)
+    private var colorScheme
+    @State
+    private var animatedProgress: Double = 0
 
     init(
         progress: Double,
@@ -22,7 +32,7 @@ struct LinearProgressBar: View {
         height: CGFloat = 6,
         showPercentage: Bool = true
     ) {
-        self.progress = min(max(progress, 0), 1.5)  // Allow up to 150% for overfill
+        self.progress = min(max(progress, 0), 1.5) // Allow up to 150% for overfill
         self.label = label
         self.color = color
         self.height = height
@@ -31,7 +41,7 @@ struct LinearProgressBar: View {
 
     private var trackColor: Color {
         colorScheme == .dark
-            ? Color(red: 56 / 255, green: 56 / 255, blue: 58 / 255)
+            ? Color.tempoFillTertiary
             : Color.tempoBorder
     }
 

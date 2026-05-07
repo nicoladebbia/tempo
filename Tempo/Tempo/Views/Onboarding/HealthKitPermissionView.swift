@@ -1,11 +1,22 @@
+//
+// HealthKitPermissionView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - HealthKit Permission View (Onboarding)
+
 // Per STATE_MACHINES.md Section 10 — Request HealthKit permissions. OPTIONAL.
 
 struct HealthKitPermissionView: View {
-    @Bindable var viewModel: OnboardingViewModel
-    @Environment(ServiceContainer.self) private var services
+    @Bindable
+    var viewModel: OnboardingViewModel
+    @Environment(ServiceContainer.self)
+    private var services
 
     var body: some View {
         VStack(spacing: TempoSpacing.xxl) {
@@ -60,4 +71,14 @@ struct HealthKitPermissionView: View {
                 .foregroundStyle(.white.opacity(0.8))
         }
     }
+}
+
+#Preview {
+    @Previewable @State
+    var vm = OnboardingViewModel()
+
+    HealthKitPermissionView(viewModel: vm)
+        .background(Color.black)
+        .preferredColorScheme(.dark)
+        .environment(ServiceContainer.mock())
 }

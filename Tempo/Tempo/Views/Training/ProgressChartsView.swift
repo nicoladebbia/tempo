@@ -1,19 +1,32 @@
-import SwiftUI
-import SwiftData
+//
+// ProgressChartsView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Charts
+import SwiftData
+import SwiftUI
 
 // MARK: - Progress Charts View
+
 // Per MODULE_TRAINING.md Section 11 — Three tabs: Per Exercise, Muscle Groups, Overview.
 // Per WIREFRAMES.md Screen 21 — Progress chart per exercise.
 
 struct ProgressChartsView: View {
+    @Environment(\.modelContext)
+    private var modelContext
+    @Query(sort: \ExerciseHistory.date, order: .reverse)
+    private var allHistory: [ExerciseHistory]
+    @Query(sort: \Exercise.name)
+    private var exercises: [Exercise]
+    @Query(sort: \WorkoutPlan.date, order: .reverse)
+    private var workoutPlans: [WorkoutPlan]
 
-    @Environment(\.modelContext) private var modelContext
-    @Query(sort: \ExerciseHistory.date, order: .reverse) private var allHistory: [ExerciseHistory]
-    @Query(sort: \Exercise.name) private var exercises: [Exercise]
-    @Query(sort: \WorkoutPlan.date, order: .reverse) private var workoutPlans: [WorkoutPlan]
-
-    @State private var selectedTab: ProgressTab = .overview
+    @State
+    private var selectedTab: ProgressTab = .overview
 
     enum ProgressTab: String, CaseIterable {
         case overview = "Overview"
@@ -21,27 +34,39 @@ struct ProgressChartsView: View {
         case muscles = "Muscles"
     }
 
+    private var hasAnyData: Bool {
+        !workoutPlans.filter { $0.status == .completed }.isEmpty || !allHistory.isEmpty
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            // Segmented picker
-            // Per MODULE_TRAINING.md Section 11.1 — segmented control at top
-            Picker("View", selection: $selectedTab) {
-                ForEach(ProgressTab.allCases, id: \.self) { tab in
-                    Text(tab.rawValue).tag(tab)
+            if !hasAnyData {
+                EmptyStateView(
+                    icon: "chart.line.uptrend.xyaxis",
+                    title: "No Progress Yet",
+                    message: "Complete your first workout to start tracking progress."
+                )
+            } else {
+                // Segmented picker
+                // Per MODULE_TRAINING.md Section 11.1 — segmented control at top
+                Picker("View", selection: $selectedTab) {
+                    ForEach(ProgressTab.allCases, id: \.self) { tab in
+                        Text(tab.rawValue).tag(tab)
+                    }
                 }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.vertical, TempoSpacing.sm)
+                .pickerStyle(.segmented)
+                .padding(.horizontal, TempoSpacing.screenEdge)
+                .padding(.vertical, TempoSpacing.sm)
 
-            ScrollView(.vertical, showsIndicators: false) {
-                switch selectedTab {
-                case .overview:
-                    overviewTab
-                case .exercises:
-                    exercisesTab
-                case .muscles:
-                    muscleGroupsTab
+                ScrollView(.vertical, showsIndicators: false) {
+                    switch selectedTab {
+                    case .overview:
+                        overviewTab
+                    case .exercises:
+                        exercisesTab
+                    case .muscles:
+                        muscleGroupsTab
+                    }
                 }
             }
         }
@@ -51,6 +76,7 @@ struct ProgressChartsView: View {
     }
 
     // MARK: - Overview Tab
+
     // Per MODULE_TRAINING.md Section 11.4
 
     private var overviewTab: some View {
@@ -65,11 +91,11 @@ struct ProgressChartsView: View {
             bodyPartSplitCard
         }
         .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.bottom, 100)
+        .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
     }
 
     private var allTimeStats: some View {
-        let totalWorkouts = workoutPlans.filter { $0.status == .completed }.count
+        let totalWorkouts = workoutPlans.count(where: { $0.status == .completed })
         let totalVolume = allHistory.reduce(0.0) { $0 + $1.totalVolume }
         let totalSets = workoutPlans
             .filter { $0.status == .completed }
@@ -83,7 +109,7 @@ struct ProgressChartsView: View {
             LazyVGrid(columns: [
                 GridItem(.flexible(), spacing: TempoSpacing.sm),
                 GridItem(.flexible(), spacing: TempoSpacing.sm),
-                GridItem(.flexible(), spacing: TempoSpacing.sm)
+                GridItem(.flexible(), spacing: TempoSpacing.sm),
             ], spacing: TempoSpacing.sm) {
                 overviewStatCell(label: "Workouts", value: "\(totalWorkouts)")
                 overviewStatCell(label: "Volume", value: formatVolume(totalVolume))
@@ -106,7 +132,7 @@ struct ProgressChartsView: View {
         }
     }
 
-    // Per MODULE_TRAINING.md Section 11.4 — Workout frequency bar chart
+    /// Per MODULE_TRAINING.md Section 11.4 — Workout frequency bar chart
     private var workoutFrequencyCard: some View {
         let last4Weeks = weeklyWorkoutCounts(weeks: 4)
 
@@ -154,7 +180,7 @@ struct ProgressChartsView: View {
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
     }
 
-    // Per MODULE_TRAINING.md Section 11.4 — Body part split donut chart
+    /// Per MODULE_TRAINING.md Section 11.4 — Body part split donut chart
     private var bodyPartSplitCard: some View {
         let distribution = muscleGroupDistribution
 
@@ -198,6 +224,7 @@ struct ProgressChartsView: View {
     }
 
     // MARK: - Exercises Tab
+
     // Per MODULE_TRAINING.md Section 11.2
 
     private var exercisesTab: some View {
@@ -227,7 +254,7 @@ struct ProgressChartsView: View {
             }
         }
         .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.bottom, 100)
+        .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
     }
 
     private func exerciseProgressRow(_ exercise: Exercise) -> some View {
@@ -265,6 +292,7 @@ struct ProgressChartsView: View {
     }
 
     // MARK: - Muscle Groups Tab
+
     // Per MODULE_TRAINING.md Section 11.3
 
     private var muscleGroupsTab: some View {
@@ -315,7 +343,7 @@ struct ProgressChartsView: View {
             balanceAnalysis
         }
         .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.bottom, 100)
+        .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
     }
 
     private var balanceAnalysis: some View {
@@ -364,12 +392,12 @@ struct ProgressChartsView: View {
     private func weeklyWorkoutCounts(weeks: Int) -> [WeekCount] {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
-        return (0..<weeks).reversed().map { weekOffset in
+        return (0 ..< weeks).reversed().map { weekOffset in
             let weekStart = cal.date(byAdding: .weekOfYear, value: -weekOffset, to: today)!
             let weekEnd = cal.date(byAdding: .day, value: 7, to: weekStart)!
-            let count = workoutPlans.filter {
+            let count = workoutPlans.count(where: {
                 $0.status == .completed && $0.date >= weekStart && $0.date < weekEnd
-            }.count
+            })
             return WeekCount(weekLabel: "W\(weeks - weekOffset)", count: count)
         }
     }
@@ -392,7 +420,9 @@ struct ProgressChartsView: View {
         }
 
         let total = volumeByGroup.values.reduce(0, +)
-        guard total > 0 else { return [] }
+        guard total > 0 else {
+            return []
+        }
 
         return volumeByGroup
             .map { MuscleDistribution(group: $0.key, volume: $0.value, percentage: $0.value / total) }

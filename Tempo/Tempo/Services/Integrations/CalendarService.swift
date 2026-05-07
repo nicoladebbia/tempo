@@ -1,15 +1,23 @@
-import Foundation
+//
+// CalendarService.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import EventKit
+import Foundation
 import os
 
 // MARK: - Calendar Service (Real Implementation)
+
 // Per BUILD_PLAN step 13.1 — Real EventKit calendar integration.
 // Per INTEGRATION_SPECS.md Section 4 — Authorization, fetching, categorization.
 // Per ADR-013 — Apple Calendar via EventKit, singleton EKEventStore.
 
 @Observable
 final class CalendarService: CalendarServiceProtocol, @unchecked Sendable {
-
     private let eventStore = EKEventStore()
     private let logger = Logger(subsystem: "app.tempo", category: "Calendar")
 
@@ -26,6 +34,7 @@ final class CalendarService: CalendarServiceProtocol, @unchecked Sendable {
     }
 
     // MARK: - Authorization
+
     // Per INTEGRATION_SPECS.md Section 4.1 — Use requestFullAccessToEvents() for iOS 17.4+.
 
     func requestAuthorization() async throws {
@@ -41,6 +50,7 @@ final class CalendarService: CalendarServiceProtocol, @unchecked Sendable {
     }
 
     // MARK: - Authorization Check
+
     // Per INTEGRATION_SPECS.md Section 4.1 — Check on every app launch.
 
     private func checkAuthorizationStatus() {
@@ -49,10 +59,13 @@ final class CalendarService: CalendarServiceProtocol, @unchecked Sendable {
     }
 
     // MARK: - Fetch Events
+
     // Per INTEGRATION_SPECS.md Section 4.2 — Fetch and categorize calendar events.
 
     func fetchEvents(for dateRange: DateInterval) async throws -> [CalendarEvent] {
-        guard isAuthorized else { return [] }
+        guard isAuthorized else {
+            return []
+        }
 
         let predicate = eventStore.predicateForEvents(
             withStart: dateRange.start,
@@ -78,6 +91,7 @@ final class CalendarService: CalendarServiceProtocol, @unchecked Sendable {
     }
 
     // MARK: - Football Detection
+
     // Per BUILD_PLAN step 13.1 — Events containing "football" or "calcio" in title.
     // Per TECHNICAL_FEASIBILITY_AUDIT.md Section 6.5 — English + Italian keywords.
 
@@ -93,6 +107,7 @@ final class CalendarService: CalendarServiceProtocol, @unchecked Sendable {
     }
 
     // MARK: - Exam Detection
+
     // Per BUILD_PLAN step 13.1 — Events containing "exam" or "esame" recognized.
 
     func detectExamDates(in range: DateInterval) -> [CalendarExam] {
@@ -136,6 +151,7 @@ final class CalendarService: CalendarServiceProtocol, @unchecked Sendable {
     }
 
     // MARK: - Event Categorization
+
     // Per INTEGRATION_SPECS.md Section 4.2 — Keyword-based categorization.
     // Per TECHNICAL_FEASIBILITY_AUDIT.md Section 6.5 — Dual-language (English + Italian).
 
@@ -143,7 +159,7 @@ final class CalendarService: CalendarServiceProtocol, @unchecked Sendable {
         let keywords = [
             "football", "soccer", "calcio", "calcetto",
             "partita", "match", "game", "practice",
-            "allenamento"
+            "allenamento",
         ]
         return matchesAnyKeyword(event.title, keywords: keywords)
     }
@@ -152,7 +168,7 @@ final class CalendarService: CalendarServiceProtocol, @unchecked Sendable {
         let keywords = [
             "exam", "esame", "test", "final", "midterm",
             "partial", "parziale", "appello", "prova",
-            "quiz", "assessment"
+            "quiz", "assessment",
         ]
         return matchesAnyKeyword(event.title, keywords: keywords)
     }
@@ -161,7 +177,7 @@ final class CalendarService: CalendarServiceProtocol, @unchecked Sendable {
         let keywords = [
             "class", "lecture", "lezione", "lab",
             "laboratorio", "seminar", "seminario",
-            "tutorial", "lesson", "corso"
+            "tutorial", "lesson", "corso",
         ]
         return matchesAnyKeyword(event.title, keywords: keywords)
     }
@@ -176,7 +192,7 @@ final class CalendarService: CalendarServiceProtocol, @unchecked Sendable {
         let removeWords = [
             "exam", "esame", "test", "final", "midterm",
             "partial", "parziale", "appello", "prova", "quiz",
-            "-", ":", "–"
+            "-", ":", "–",
         ]
         var result = title
         for word in removeWords {
@@ -195,14 +211,17 @@ final class CalendarService: CalendarServiceProtocol, @unchecked Sendable {
     private func eventsInRange(_ range: DateInterval) -> [CalendarEvent] {
         // Use cached events if available and overlapping
         if let cached = lastFetchRange,
-           cached.start <= range.start && cached.end >= range.end {
+           cached.start <= range.start, cached.end >= range.end
+        {
             return cachedEvents.filter {
                 $0.startDate >= range.start && $0.startDate < range.end
             }
         }
 
         // Otherwise fetch fresh
-        guard isAuthorized else { return [] }
+        guard isAuthorized else {
+            return []
+        }
 
         let predicate = eventStore.predicateForEvents(
             withStart: range.start,
@@ -222,6 +241,7 @@ final class CalendarService: CalendarServiceProtocol, @unchecked Sendable {
     }
 
     // MARK: - Change Observation
+
     // Per INTEGRATION_SPECS.md Section 4.4 — Observe EKEventStoreChanged.
 
     private func observeCalendarChanges() {

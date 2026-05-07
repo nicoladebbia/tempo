@@ -1,6 +1,16 @@
+//
+// APIEndpoints.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 
-enum HTTPMethod: String, Sendable {
+// MARK: - HTTPMethod
+
+enum HTTPMethod: String {
     case get = "GET"
     case post = "POST"
     case put = "PUT"
@@ -8,7 +18,9 @@ enum HTTPMethod: String, Sendable {
     case delete = "DELETE"
 }
 
-struct APIEndpoint<Response: Decodable & Sendable>: Sendable {
+// MARK: - APIEndpoint
+
+struct APIEndpoint<Response: Decodable & Sendable> {
     let path: String
     let method: HTTPMethod
     let requiresAuth: Bool
@@ -52,22 +64,28 @@ extension APIEndpoint where Response == SyncBatchResponse {
     }
 }
 
-// MARK: - Response DTOs (stubs — full definitions in later phases)
+// MARK: - AuthTokenResponse
 
-struct AuthTokenResponse: Codable, Sendable {
+struct AuthTokenResponse: Codable {
     let accessToken: String
     let refreshToken: String
     let tokenType: String
     let expiresIn: Int
 }
 
-struct SyncStatusResponse: Codable, Sendable {
+// MARK: - SyncStatusResponse
+
+struct SyncStatusResponse: Codable {
     let last_synced: [String: String]
 }
 
-struct SyncBatchResponse: Codable, Sendable {
+// MARK: - SyncBatchResponse
+
+struct SyncBatchResponse: Codable {
     let succeeded: Int
     let failed: Int
 }
 
-struct EmptyResponse: Codable, Sendable {}
+// MARK: - EmptyResponse
+
+struct EmptyResponse: Codable {}

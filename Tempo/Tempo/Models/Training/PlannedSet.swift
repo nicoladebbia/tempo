@@ -1,9 +1,18 @@
+//
+// PlannedSet.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
+// MARK: - PlannedSet
+
 @Model
 final class PlannedSet {
-
     @Attribute(.unique)
     var id: UUID
 
@@ -29,6 +38,8 @@ final class PlannedSet {
 
     var completedAt: Date?
 
+    var isWarmup: Bool
+
     // MARK: - Relationships
 
     @Relationship(deleteRule: .nullify)
@@ -38,20 +49,28 @@ final class PlannedSet {
 
     @Transient
     var volume: Double? {
-        guard completed, let w = actualWeight, let r = actualReps else { return nil }
+        guard completed, let w = actualWeight, let r = actualReps else {
+            return nil
+        }
         return w * Double(r)
     }
 
     @Transient
     var estimated1RM: Double? {
-        guard completed, let w = actualWeight, let r = actualReps, r > 0 else { return nil }
-        if r == 1 { return w }
+        guard completed, let w = actualWeight, let r = actualReps, r > 0 else {
+            return nil
+        }
+        if r == 1 {
+            return w
+        }
         return w * (1 + Double(r) / 30.0)
     }
 
     @Transient
     var metTarget: Bool {
-        guard completed, let ar = actualReps else { return false }
+        guard completed, let ar = actualReps else {
+            return false
+        }
         let weightMet = targetWeight == nil || (actualWeight ?? 0) >= (targetWeight ?? 0)
         return ar >= targetReps && weightMet
     }
@@ -68,6 +87,7 @@ final class PlannedSet {
         rpe: Int? = nil,
         completed: Bool = false,
         restSeconds: Int? = nil,
+        isWarmup: Bool = false,
         plannedExercise: PlannedExercise? = nil
     ) {
         self.id = id
@@ -79,6 +99,7 @@ final class PlannedSet {
         self.rpe = rpe
         self.completed = completed
         self.restSeconds = restSeconds
+        self.isWarmup = isWarmup
         self.plannedExercise = plannedExercise
     }
 }
@@ -86,8 +107,7 @@ final class PlannedSet {
 // MARK: - DTO
 
 extension PlannedSet {
-
-    struct DTO: Codable, Sendable {
+    struct DTO: Codable {
         let id: UUID
         let set_number: Int
         let target_reps: Int
@@ -98,6 +118,7 @@ extension PlannedSet {
         let completed: Bool
         let rest_seconds: Int?
         let completed_at: Date?
+        let is_warmup: Bool
     }
 
     func toDTO() -> DTO {
@@ -111,7 +132,8 @@ extension PlannedSet {
             rpe: rpe,
             completed: completed,
             rest_seconds: restSeconds,
-            completed_at: completedAt
+            completed_at: completedAt,
+            is_warmup: isWarmup
         )
     }
 }
@@ -119,7 +141,6 @@ extension PlannedSet {
 // MARK: - Validation
 
 extension PlannedSet {
-
     enum ValidationError: LocalizedError {
         case invalidReps
         case invalidWeight
@@ -137,21 +158,33 @@ extension PlannedSet {
     }
 
     func validate() throws {
-        guard (1...100).contains(targetReps) else { throw ValidationError.invalidReps }
+        guard (1 ... 100).contains(targetReps) else {
+            throw ValidationError.invalidReps
+        }
         if let w = targetWeight {
-            guard (0...500).contains(w) else { throw ValidationError.invalidWeight }
+            guard (0 ... 500).contains(w) else {
+                throw ValidationError.invalidWeight
+            }
         }
         if let ar = actualReps {
-            guard (1...100).contains(ar) else { throw ValidationError.invalidReps }
+            guard (1 ... 100).contains(ar) else {
+                throw ValidationError.invalidReps
+            }
         }
         if let aw = actualWeight {
-            guard (0...500).contains(aw) else { throw ValidationError.invalidWeight }
+            guard (0 ... 500).contains(aw) else {
+                throw ValidationError.invalidWeight
+            }
         }
         if let r = rpe {
-            guard (1...10).contains(r) else { throw ValidationError.invalidRPE }
+            guard (1 ... 10).contains(r) else {
+                throw ValidationError.invalidRPE
+            }
         }
         if let rest = restSeconds {
-            guard (0...600).contains(rest) else { throw ValidationError.invalidRestSeconds }
+            guard (0 ... 600).contains(rest) else {
+                throw ValidationError.invalidRestSeconds
+            }
         }
     }
 }

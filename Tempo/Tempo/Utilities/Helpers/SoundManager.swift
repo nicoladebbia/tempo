@@ -1,7 +1,16 @@
+//
+// SoundManager.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import AVFoundation
 import UIKit
 
-// MARK: - Sound Manager
+// MARK: - SoundManager
+
 // Per SOUND_AND_HAPTICS.md — Centralized sound playback.
 // AVAudioSession category .ambient, mixes with other audio.
 // Sounds are CAF files in Resources/Sounds/.
@@ -9,7 +18,6 @@ import UIKit
 
 @MainActor
 final class SoundManager {
-
     static let shared = SoundManager()
 
     private var players: [String: AVAudioPlayer] = [:]
@@ -34,7 +42,9 @@ final class SoundManager {
     // MARK: - Playback
 
     func play(_ sound: TempoSound, volume: Float? = nil) {
-        guard isEnabled else { return }
+        guard isEnabled else {
+            return
+        }
 
         if let player = players[sound.rawValue], player.isPlaying {
             player.stop()
@@ -45,12 +55,15 @@ final class SoundManager {
         }
 
         guard let url = Bundle.main.url(forResource: sound.rawValue, withExtension: "caf")
-                ?? Bundle.main.url(forResource: sound.rawValue, withExtension: "wav") else {
+            ?? Bundle.main.url(forResource: sound.rawValue, withExtension: "wav")
+        else {
             // Sound file not yet added — silently skip
             return
         }
 
-        guard let player = try? AVAudioPlayer(contentsOf: url) else { return }
+        guard let player = try? AVAudioPlayer(contentsOf: url) else {
+            return
+        }
         player.volume = volume ?? sound.defaultVolume
         player.prepareToPlay()
         player.play()
@@ -59,7 +72,9 @@ final class SoundManager {
 
     /// Play for timer completions — uses .playback to cut through music
     func playImportant(_ sound: TempoSound) {
-        guard isEnabled else { return }
+        guard isEnabled else {
+            return
+        }
         let session = AVAudioSession.sharedInstance()
         try? session.setCategory(.playback, options: [.duckOthers])
         play(sound, volume: 1.0)
@@ -70,7 +85,8 @@ final class SoundManager {
     }
 }
 
-// MARK: - Sound Catalog
+// MARK: - TempoSound
+
 // Per SOUND_AND_HAPTICS.md Section 2
 
 enum TempoSound: String {
@@ -104,17 +120,20 @@ enum TempoSound: String {
 
     var defaultVolume: Float {
         switch self {
-        case .workoutRestTick: return 0.5
-        case .workoutSetComplete: return 0.7
-        case .workoutExerciseComplete, .workoutRestDone: return 0.8
-        case .workoutStart: return 0.9
-        case .workoutComplete, .workoutPRachieved: return 1.0
-        case .timerTick: return 0.4
-        case .timerComplete: return 0.9
-        case .arenaXPGain: return 0.6
-        case .arenaLevelUp, .arenaChallengeWon: return 1.0
-        case .systemTabSwitch: return 0.3
-        default: return 0.7
+        case .workoutRestTick: 0.5
+        case .workoutSetComplete: 0.7
+        case .workoutExerciseComplete,
+             .workoutRestDone: 0.8
+        case .workoutStart: 0.9
+        case .workoutComplete,
+             .workoutPRachieved: 1.0
+        case .timerTick: 0.4
+        case .timerComplete: 0.9
+        case .arenaXPGain: 0.6
+        case .arenaLevelUp,
+             .arenaChallengeWon: 1.0
+        case .systemTabSwitch: 0.3
+        default: 0.7
         }
     }
 }

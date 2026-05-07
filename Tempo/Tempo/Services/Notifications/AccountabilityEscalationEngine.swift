@@ -1,16 +1,25 @@
+//
+// AccountabilityEscalationEngine.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
-import UserNotifications
 import os
+import UserNotifications
 
 // MARK: - Accountability Escalation Engine
+
 // Per BUILD_PLAN step 12.3 — 4-tier escalation system.
 // Per STATE_MACHINES.md Section 11 — Push Notification Escalation.
 // Per ONBOARDING_AND_NOTIFICATIONS.md — Channels 2-6.
 
 @Observable
 final class AccountabilityEscalationEngine: @unchecked Sendable {
-
     // MARK: - State
+
     // Per STATE_MACHINES.md Section 11 — Swift Enum.
 
     enum EscalationState: Codable, Equatable {
@@ -44,6 +53,7 @@ final class AccountabilityEscalationEngine: @unchecked Sendable {
     }
 
     // MARK: - Escalation Scheduling
+
     // Per ONBOARDING_AND_NOTIFICATIONS.md — Timing relative to evening start.
     // Gentle: E - 5.5h, Firm: E - 2.5h, Urgent: E - 1h, Final: E - 30min.
 
@@ -58,19 +68,23 @@ final class AccountabilityEscalationEngine: @unchecked Sendable {
         studyTarget: String,
         tasksRemaining: Int
     ) {
-        guard totalCount > 0 else { return }
+        guard totalCount > 0 else {
+            return
+        }
 
         let completionPercent = Double(completedCount) / Double(totalCount)
         let now = Date()
 
         // If already resolved today, don't re-schedule
-        if case .resolved = state { return }
+        if case .resolved = state {
+            return
+        }
 
         var escalations: [(tier: EscalationTier, time: Date, content: String)] = []
 
         // Tier 1: Gentle — E - 5.5h
         let gentleTime = eveningStartTime.addingTimeInterval(-5.5 * 3600)
-        if gentleTime > now && completionPercent < 0.5 {
+        if gentleTime > now, completionPercent < 0.5 {
             let content = gentleCopy(
                 name: userName,
                 tasksRemaining: tasksRemaining,
@@ -82,7 +96,7 @@ final class AccountabilityEscalationEngine: @unchecked Sendable {
 
         // Tier 2: Firm — E - 2.5h
         let firmTime = eveningStartTime.addingTimeInterval(-2.5 * 3600)
-        if firmTime > now && completionPercent < 0.75 {
+        if firmTime > now, completionPercent < 0.75 {
             let content = firmCopy(
                 tasksRemaining: tasksRemaining,
                 studyDone: studyDone,
@@ -94,7 +108,7 @@ final class AccountabilityEscalationEngine: @unchecked Sendable {
 
         // Tier 3: Urgent — E - 1h
         let urgentTime = eveningStartTime.addingTimeInterval(-1 * 3600)
-        if urgentTime > now && completionPercent < 1.0 {
+        if urgentTime > now, completionPercent < 1.0 {
             let content = urgentCopy(
                 studyDone: studyDone,
                 studyTarget: studyTarget,
@@ -105,7 +119,7 @@ final class AccountabilityEscalationEngine: @unchecked Sendable {
 
         // Tier 4: Critical — E - 30min
         let criticalTime = eveningStartTime.addingTimeInterval(-30 * 60)
-        if criticalTime > now && completionPercent < 1.0 {
+        if criticalTime > now, completionPercent < 1.0 {
             let content = criticalCopy(tasksRemaining: tasksRemaining)
             escalations.append((.critical, criticalTime, content))
         }
@@ -120,7 +134,7 @@ final class AccountabilityEscalationEngine: @unchecked Sendable {
         }
 
         // Update state
-        if state == .quiet && !escalations.isEmpty {
+        if state == .quiet, !escalations.isEmpty {
             state = .gentle(briefingSentAt: Date())
             saveState()
         }
@@ -129,6 +143,7 @@ final class AccountabilityEscalationEngine: @unchecked Sendable {
     }
 
     // MARK: - All Tasks Complete
+
     // Per STATE_MACHINES.md Section 11 — Any non-resolved → resolved.
     // Cancels all pending escalation notifications, fires All Clear.
 
@@ -184,6 +199,7 @@ final class AccountabilityEscalationEngine: @unchecked Sendable {
     }
 
     // MARK: - New Day Reset
+
     // Per STATE_MACHINES.md Section 11 — resolved → quiet at 00:00.
 
     func resetForNewDay() {
@@ -209,12 +225,14 @@ final class AccountabilityEscalationEngine: @unchecked Sendable {
             return
         }
         if let data = UserDefaults.standard.data(forKey: stateKey),
-           let decoded = try? JSONDecoder().decode(EscalationState.self, from: data) {
+           let decoded = try? JSONDecoder().decode(EscalationState.self, from: data)
+        {
             state = decoded
         }
     }
 
     // MARK: - Copy Generators
+
     // Per ONBOARDING_AND_NOTIFICATIONS.md — Channel 2-6 copy variations.
     // Using Drill Sergeant intensity as default (most common for target users).
 

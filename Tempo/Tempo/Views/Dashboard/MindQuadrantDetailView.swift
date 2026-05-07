@@ -1,27 +1,39 @@
-import SwiftUI
-import Charts
+//
+// MindQuadrantDetailView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
 
-// MARK: - Mind Quadrant Detail View
+import Charts
+import SwiftUI
+
+// MARK: - MindQuadrantDetailView
+
 // Per MODULE_DASHBOARD.md Section 4.4 — Mind Expanded View.
 // Study progress hero, today's sessions, upcoming exams,
 // study trend chart, streak display.
 
 struct MindQuadrantDetailView: View {
-
     let data: MindQuadrantData
+    @State
+    private var showFocusTimer = false
+    @State
+    private var showAddExam = false
 
-    // Stub session data
+    /// Stub session data
     private let sessions: [StudySessionItem] = [
         StudySessionItem(subject: "Calculus II", durationMinutes: 55, startTime: "9:00 AM", endTime: "9:55 AM"),
         StudySessionItem(subject: "Physics Lab", durationMinutes: 40, startTime: "2:00 PM", endTime: "2:40 PM"),
     ]
 
-    // Stub 7-day study trend
+    /// Stub 7-day study trend
     private let studyTrend: [StudyTrendPoint] = {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
         let values = [130, 90, 110, 120, 80, 150, 95]
-        return (-6...0).map { offset in
+        return (-6 ... 0).map { offset in
             let date = calendar.date(byAdding: .day, value: offset, to: today)!
             return StudyTrendPoint(date: date, minutes: values[offset + 6])
         }
@@ -37,7 +49,7 @@ struct MindQuadrantDetailView: View {
                 studyTrendSection
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, 50)
+            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
         }
         .background(Color.tempoBgPrimary)
         .navigationTitle("Mind")
@@ -45,6 +57,7 @@ struct MindQuadrantDetailView: View {
     }
 
     // MARK: - Progress Hero
+
     // Per MODULE_DASHBOARD.md Section 4.4 — Progress Hero
 
     private var progressHeroSection: some View {
@@ -99,6 +112,7 @@ struct MindQuadrantDetailView: View {
     }
 
     // MARK: - Today's Sessions
+
     // Per MODULE_DASHBOARD.md Section 4.4 — Today's Sessions
 
     private var todaySessionsSection: some View {
@@ -125,7 +139,7 @@ struct MindQuadrantDetailView: View {
                 }
             }
         }
-        .padding(14)
+        .padding(TempoSpacing.buttonPaddingV)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
         .tempoShadow(.card)
@@ -156,10 +170,13 @@ struct MindQuadrantDetailView: View {
     }
 
     // MARK: - Start Session Button
+
     // Per MODULE_DASHBOARD.md Section 4.4
 
     private var startSessionButton: some View {
-        Button {} label: {
+        Button {
+            showFocusTimer = true
+        } label: {
             HStack(spacing: 6) {
                 Image(systemName: "play.fill")
                     .font(.system(size: 14))
@@ -172,9 +189,15 @@ struct MindQuadrantDetailView: View {
             .background(Color.tempoElectric)
             .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
         }
+        .sheet(isPresented: $showFocusTimer) {
+            NavigationStack {
+                FocusTimerView(viewModel: AccountabilityViewModel())
+            }
+        }
     }
 
     // MARK: - Upcoming Exams
+
     // Per MODULE_DASHBOARD.md Section 4.4 — Upcoming Exams
 
     private var upcomingExamsSection: some View {
@@ -197,17 +220,24 @@ struct MindQuadrantDetailView: View {
             }
 
             // Add exam button
-            Button {} label: {
+            Button {
+                showAddExam = true
+            } label: {
                 Text("+ Add Exam")
                     .font(.tempoCallout)
                     .foregroundStyle(Color.tempoElectric)
             }
             .padding(.top, TempoSpacing.sm)
         }
-        .padding(14)
+        .padding(TempoSpacing.buttonPaddingV)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
         .tempoShadow(.card)
+        .sheet(isPresented: $showAddExam) {
+            NavigationStack {
+                AddExamSheet()
+            }
+        }
     }
 
     private func examRow(_ exam: ExamData) -> some View {
@@ -232,6 +262,7 @@ struct MindQuadrantDetailView: View {
     }
 
     // MARK: - Study Trend Chart
+
     // Per MODULE_DASHBOARD.md Section 4.4 — Study Trend Chart
 
     private var studyTrendSection: some View {
@@ -272,7 +303,7 @@ struct MindQuadrantDetailView: View {
                 .font(.tempoCallout)
                 .foregroundStyle(Color.tempoTextPrimary)
         }
-        .padding(14)
+        .padding(TempoSpacing.buttonPaddingV)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
         .tempoShadow(.card)
@@ -293,22 +324,26 @@ struct MindQuadrantDetailView: View {
 
     private func examDotColor(_ daysUntil: Int) -> Color {
         switch daysUntil {
-        case ...7: return Color.tempoError
-        case 8...14: return Color.tempoWarning
-        default: return Color.tempoTextTertiary
+        case ...7: Color.tempoError
+        case 8 ... 14: Color.tempoWarning
+        default: Color.tempoTextTertiary
         }
     }
 
     private func formatMinutes(_ minutes: Int) -> String {
         let h = minutes / 60
         let m = minutes % 60
-        if h > 0 && m > 0 { return "\(h)h \(m)m" }
-        if h > 0 { return "\(h)h" }
+        if h > 0, m > 0 {
+            return "\(h)h \(m)m"
+        }
+        if h > 0 {
+            return "\(h)h"
+        }
         return "\(m)m"
     }
 }
 
-// MARK: - Supporting Types
+// MARK: - StudySessionItem
 
 struct StudySessionItem: Identifiable {
     let id = UUID()
@@ -318,10 +353,47 @@ struct StudySessionItem: Identifiable {
     let endTime: String
 }
 
+// MARK: - StudyTrendPoint
+
 struct StudyTrendPoint: Identifiable {
     let id = UUID()
     let date: Date
     let minutes: Int
+}
+
+// MARK: - AddExamSheet
+
+struct AddExamSheet: View {
+    @Environment(\.dismiss)
+    private var dismiss
+    @State
+    private var examName = ""
+    @State
+    private var examDate = Date().addingTimeInterval(86400 * 7)
+
+    var body: some View {
+        Form {
+            Section("Exam Details") {
+                TextField("Exam name", text: $examName)
+                DatePicker("Date", selection: $examDate, in: Date()..., displayedComponents: .date)
+            }
+        }
+        .navigationTitle("Add Exam")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button("Cancel") { dismiss() }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Save") {
+                    // TODO: Save exam to calendar/SwiftData
+                    dismiss()
+                }
+                .disabled(examName.isEmpty)
+                .fontWeight(.semibold)
+            }
+        }
+    }
 }
 
 // MARK: - Preview

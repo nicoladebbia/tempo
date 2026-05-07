@@ -1,72 +1,106 @@
+//
+// ArenaIntroView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Arena Intro View (Onboarding)
+
 // Per STATE_MACHINES.md Section 10 — Explain XP, leaderboards, challenges. Informational.
 
 struct ArenaIntroView: View {
     let viewModel: OnboardingViewModel
 
     var body: some View {
-        VStack(spacing: TempoSpacing.xxl) {
-            Spacer()
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                Spacer()
+                    .frame(height: geometry.size.height * 0.1)
 
-            Text("WELCOME TO\nTHE ARENA.")
-                .font(.system(size: 24, weight: .bold))
-                .foregroundStyle(.white)
-                .multilineTextAlignment(.center)
+                Text("WELCOME TO\nTHE ARENA.")
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, TempoSpacing.xl)
 
-            Image(systemName: "trophy.fill")
-                .font(.system(size: 60))
-                .foregroundStyle(Color.tempoAmber)
+                Spacer()
+                    .frame(height: geometry.size.height * 0.05)
 
-            VStack(spacing: TempoSpacing.lg) {
-                featureCard(
-                    icon: "star.fill",
-                    title: "EARN XP",
-                    body: "Every workout, study session, and meal logged earns experience points."
-                )
-                featureCard(
-                    icon: "chart.bar.fill",
-                    title: "CLIMB THE RANKS",
-                    body: "Compete with friends on weekly leaderboards."
-                )
-                featureCard(
-                    icon: "bolt.fill",
-                    title: "CHALLENGE FRIENDS",
-                    body: "Head-to-head challenges to push each other harder."
-                )
+                Image(systemName: "trophy.fill")
+                    .font(.system(size: 70))
+                    .foregroundStyle(Color.tempoAmber)
+
+                Spacer()
+                    .frame(height: geometry.size.height * 0.06)
+
+                VStack(spacing: TempoSpacing.lg) {
+                    featureCard(
+                        icon: "star.fill",
+                        title: "EARN XP",
+                        body: "Every workout, study session, and meal logged earns experience points."
+                    )
+                    featureCard(
+                        icon: "chart.bar.fill",
+                        title: "CLIMB THE RANKS",
+                        body: "Compete with friends on weekly leaderboards."
+                    )
+                    featureCard(
+                        icon: "bolt.fill",
+                        title: "CHALLENGE FRIENDS",
+                        body: "Head-to-head challenges to push each other harder."
+                    )
+                }
+                .padding(.horizontal, TempoSpacing.xl)
+
+                Spacer()
+
+                OnboardingPrimaryButton(title: "ENTER TEMPO", enabled: true) {
+                    viewModel.advance()
+                }
+
+                Spacer()
+                    .frame(height: max(geometry.safeAreaInsets.bottom + 20, 40))
             }
-            .padding(.horizontal, TempoSpacing.lg)
-
-            Spacer()
-
-            OnboardingPrimaryButton(title: "ENTER TEMPO", enabled: true) {
-                viewModel.advance()
-            }
-
-            Spacer().frame(height: TempoSpacing.xxxl)
+            .frame(width: geometry.size.width, height: geometry.size.height)
         }
     }
 
     private func featureCard(icon: String, title: String, body: String) -> some View {
         HStack(alignment: .top, spacing: TempoSpacing.md) {
             Image(systemName: icon)
-                .font(.system(size: 20))
+                .font(.system(size: 24))
                 .foregroundStyle(Color.tempoAmber)
-                .frame(width: 28)
+                .frame(width: 32)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.system(size: 14, weight: .bold))
-                    .tracking(0.8)
+                    .font(.system(size: 15, weight: .bold))
+                    .tracking(1)
                     .foregroundStyle(.white)
                 Text(body)
                     .font(.system(size: 14))
                     .foregroundStyle(.white.opacity(0.7))
-                    .lineSpacing(2)
+                    .lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .onboardingCard()
+        .padding(TempoSpacing.md)
+        .background(Color.white.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.white.opacity(0.15), lineWidth: 1)
+        )
     }
+}
+
+#Preview {
+    ArenaIntroView(viewModel: OnboardingViewModel())
+        .background(Color.black)
+        .preferredColorScheme(.dark)
 }

@@ -1,18 +1,28 @@
+//
+// TempoBarChart.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Charts
 import SwiftUI
 
-// MARK: - Tempo Bar Chart
+// MARK: - TempoBarChart
+
 // Per DESIGN_SYSTEM.md Section 8.7 — Bar Chart:
 // 200pt height, min 16pt bar width, 4-6pt top corner radius, spring draw animation.
 
 struct TempoBarChart<ID: Hashable>: View {
-
     let series: [TempoBarChartSeries<ID>]
     let height: CGFloat
     let showGrid: Bool
 
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var selectedBar: String?
+    @Environment(\.colorScheme)
+    private var colorScheme
+    @State
+    private var selectedBar: String?
 
     init(series: [TempoBarChartSeries<ID>], height: CGFloat = 200, showGrid: Bool = true) {
         self.series = series
@@ -43,7 +53,8 @@ struct TempoBarChart<ID: Hashable>: View {
             }
 
             if let selected = selectedBar,
-               let bar = firstBar(for: selected) {
+               let bar = firstBar(for: selected)
+            {
                 RuleMark(x: .value("Selected", selected))
                     .foregroundStyle(Color.tempoTextTertiary)
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
@@ -98,12 +109,14 @@ struct TempoBarChart<ID: Hashable>: View {
 
     private var gridColor: Color {
         colorScheme == .dark
-            ? Color(red: 56 / 255, green: 56 / 255, blue: 58 / 255)
+            ? Color.tempoFillTertiary
             : Color.tempoBorder
     }
 
     private func barOpacity(for label: String) -> Double {
-        guard let selected = selectedBar else { return 1.0 }
+        guard let selected = selectedBar else {
+            return 1.0
+        }
         return label == selected ? 1.0 : 0.4
     }
 
@@ -112,7 +125,7 @@ struct TempoBarChart<ID: Hashable>: View {
     }
 }
 
-// MARK: - Data Types
+// MARK: - TempoBarChartSeries
 
 struct TempoBarChartSeries<ID: Hashable>: Identifiable {
     let id: ID
@@ -120,7 +133,7 @@ struct TempoBarChartSeries<ID: Hashable>: Identifiable {
     let color: Color
     let bars: [Bar]
 
-    struct Bar: Sendable {
+    struct Bar {
         let label: String
         let value: Double
     }

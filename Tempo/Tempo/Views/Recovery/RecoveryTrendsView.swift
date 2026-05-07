@@ -1,21 +1,35 @@
+//
+// RecoveryTrendsView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
+import SwiftData
 import SwiftUI
 
 // MARK: - Recovery Trends View
+
 // Per MODULE_RECOVERY.md Section 7 — Trends screen.
 // Per BUILD_PLAN.md Step 8.5 — Time range picker, multi-line chart, pattern insights.
 
 struct RecoveryTrendsView: View {
+    @Bindable
+    var viewModel: RecoveryViewModel
+    @Environment(\.modelContext)
+    private var modelContext
 
-    @Bindable var viewModel: RecoveryViewModel
-
-    @State private var showRecovery = true
-    @State private var showHRV = true
-    @State private var showRHR = false
+    @State
+    private var showRecovery = true
+    @State
+    private var showHRV = true
+    @State
+    private var showRHR = false
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: TempoSpacing.xl) {
-
                 // Time range picker
                 timeRangePicker
 
@@ -28,18 +42,25 @@ struct RecoveryTrendsView: View {
                 // Legend / toggles
                 legendRow
 
+                // Weekly Summary Link (Task 5)
+                weeklySummaryLink
+
                 // Pattern Insights
                 insightsSection
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, 100)
+            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
         }
         .background(Color.tempoBgPrimary)
         .navigationTitle("Trends")
         .navigationBarTitleDisplayMode(.inline)
+        .refreshable {
+            await viewModel.refresh(modelContext: modelContext)
+        }
     }
 
     // MARK: - Time Range Picker
+
     // Per MODULE_RECOVERY.md Section 7 — Time range pills
 
     private var timeRangePicker: some View {
@@ -70,6 +91,7 @@ struct RecoveryTrendsView: View {
             }
         }
         .padding(.top, TempoSpacing.md)
+        .sensoryFeedback(.selection, trigger: viewModel.selectedTrendRange)
     }
 
     // MARK: - Averages Row
@@ -107,12 +129,13 @@ struct RecoveryTrendsView: View {
     }
 
     // MARK: - Multi-Line Chart
+
     // Per MODULE_RECOVERY.md Section 7 — Recovery, HRV, RHR overlaid
 
     private var chartSection: some View {
         VStack(alignment: .leading, spacing: TempoSpacing.md) {
             if chartData.isEmpty {
-                Text("Not enough data yet. Check back after a few days.")
+                Text("Need more days of data to show trends.")
                     .font(.tempoCaption1)
                     .foregroundStyle(Color.tempoTextTertiary)
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -129,7 +152,7 @@ struct RecoveryTrendsView: View {
     private var chartData: [TempoLineChartData<String>] {
         var series: [TempoLineChartData<String>] = []
 
-        if showRecovery && viewModel.recoveryChartData.count >= 2 {
+        if showRecovery, viewModel.recoveryChartData.count >= 3 {
             series.append(
                 TempoLineChartData(
                     id: "recovery",
@@ -142,12 +165,12 @@ struct RecoveryTrendsView: View {
             )
         }
 
-        if showHRV && viewModel.hrvChartData.count >= 2 {
+        if showHRV, viewModel.hrvChartData.count >= 3 {
             series.append(
                 TempoLineChartData(
                     id: "hrv",
                     label: "HRV",
-                    color: Color(red: 162 / 255, green: 155 / 255, blue: 254 / 255), // #A29BFE
+                    color: Color.tempoSleepREM, // #A29BFE
                     points: viewModel.hrvChartData.map {
                         TempoLineChartData<String>.DataPoint(date: $0.0, value: $0.1)
                     }
@@ -155,7 +178,7 @@ struct RecoveryTrendsView: View {
             )
         }
 
-        if showRHR && viewModel.rhrChartData.count >= 2 {
+        if showRHR, viewModel.rhrChartData.count >= 3 {
             series.append(
                 TempoLineChartData(
                     id: "rhr",
@@ -172,6 +195,7 @@ struct RecoveryTrendsView: View {
     }
 
     // MARK: - Legend / Toggles
+
     // Per MODULE_RECOVERY.md Section 7 — Toggle legend
 
     private var legendRow: some View {
@@ -183,7 +207,7 @@ struct RecoveryTrendsView: View {
             )
             legendToggle(
                 label: "HRV",
-                color: Color(red: 162 / 255, green: 155 / 255, blue: 254 / 255),
+                color: Color.tempoSleepREM,
                 isOn: $showHRV
             )
             legendToggle(
@@ -215,15 +239,59 @@ struct RecoveryTrendsView: View {
         }
     }
 
+    // MARK: - Weekly Summary Link (Task 5)
+
+    private var weeklySummaryLink: some View {
+        NavigationLink {
+            WeeklyRecoverySummaryView(viewModel: viewModel)
+        } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+                    HStack(spacing: TempoSpacing.sm) {
+                        Image(systemName: "calendar.badge.clock")
+                            .font(.tempoBody)
+                            .foregroundStyle(zoneColor)
+
+                        Text("Weekly Recovery Report")
+                            .font(.tempoHeadline)
+                            .foregroundStyle(Color.tempoTextPrimary)
+                    }
+
+                    if let stats = viewModel.weeklyStats {
+                        Text(
+                            "Avg \(Int(stats.avgRecovery))% recovery  |  \(String(format: "%.1f", stats.avgSleep))h sleep  |  \(String(format: "%.0f", stats.totalStrain)) total strain"
+                        )
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                    } else {
+                        Text("View your 7-day summary")
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                    }
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(zoneColor)
+            }
+            .padding(TempoSpacing.cardPadding)
+            .background(Color.tempoSurfaceCard)
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+            .tempoShadow(.card)
+        }
+        .buttonStyle(.plain)
+    }
+
     // MARK: - Pattern Insights Section
+
     // Per MODULE_RECOVERY.md Section 7 — Pattern insight cards
 
     private var insightsSection: some View {
         VStack(alignment: .leading, spacing: TempoSpacing.md) {
             if !viewModel.insights.isEmpty {
-                Text("Pattern Insights")
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                TempoSectionHeader("Pattern Insights")
 
                 ForEach(viewModel.insights, id: \.id) { insight in
                     insightCard(insight)

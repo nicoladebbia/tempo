@@ -1,11 +1,19 @@
+//
+// CircularRingView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Circular Ring View (Activity Ring Style)
+
 // Per DESIGN_SYSTEM.md Section 8.6 — Score Ring (Activity Ring Style):
 // Thin ring, configurable size/color, round end cap, gradient fill.
 
 struct CircularRingView: View {
-
     let progress: Double
     let color: Color
     let size: CGFloat
@@ -13,11 +21,16 @@ struct CircularRingView: View {
     let label: String
     let valueText: String
 
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var animatedProgress: Double = 0
+    @Environment(\.colorScheme)
+    private var colorScheme
+    @State
+    private var animatedProgress: Double = 0
 
     enum RingSize {
-        case small, medium, large, extraLarge
+        case small
+        case medium
+        case large
+        case extraLarge
 
         var diameter: CGFloat {
             switch self {
@@ -57,8 +70,8 @@ struct CircularRingView: View {
     init(progress: Double, color: Color = .tempoSignal, ringSize: RingSize, label: String = "", valueText: String = "") {
         self.progress = min(max(progress, 0), 1.0)
         self.color = color
-        self.size = ringSize.diameter
-        self.strokeWidth = ringSize.stroke
+        size = ringSize.diameter
+        strokeWidth = ringSize.stroke
         self.label = label
         self.valueText = valueText
     }

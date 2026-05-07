@@ -1,22 +1,30 @@
-import Foundation
+//
+// AuthService.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import AuthenticationServices
 import CryptoKit
+import Foundation
 
-// MARK: - Auth State
+// MARK: - AuthState
 
-enum AuthState: Sendable, Equatable {
+enum AuthState: Equatable {
     case unauthenticated
     case authenticated(userID: String)
     case expired
 }
 
-// MARK: - Auth Service
+// MARK: - AuthService
+
 // Per BUILD_PLAN step 6.5 — Sign in with Apple → Backend → Keychain.
 
 @Observable
 @MainActor
 final class AuthService: NSObject {
-
     private(set) var authState: AuthState = .unauthenticated
 
     private static let accessTokenKey = "tempo.jwt.access"
@@ -61,7 +69,8 @@ final class AuthService: NSObject {
               let identityTokenData = credential.identityToken,
               let identityToken = String(data: identityTokenData, encoding: .utf8),
               let authCodeData = credential.authorizationCode,
-              let authorizationCode = String(data: authCodeData, encoding: .utf8) else {
+              let authorizationCode = String(data: authCodeData, encoding: .utf8)
+        else {
             throw AuthError.invalidCredential
         }
 
@@ -69,7 +78,9 @@ final class AuthService: NSObject {
         let lastName = credential.fullName?.familyName
 
         // Send to backend
-        guard let apiClient else { throw AuthError.notConfigured }
+        guard let apiClient else {
+            throw AuthError.notConfigured
+        }
 
         struct AppleSignInBody: Encodable, Sendable {
             let identityToken: String
@@ -114,7 +125,9 @@ final class AuthService: NSObject {
             throw AuthError.notAuthenticated
         }
 
-        guard let apiClient else { throw AuthError.notConfigured }
+        guard let apiClient else {
+            throw AuthError.notConfigured
+        }
 
         struct RefreshBody: Encodable, Sendable {
             let refreshToken: String
@@ -151,7 +164,9 @@ final class AuthService: NSObject {
     // MARK: - Token Access
 
     var accessToken: String? {
-        guard let data = KeychainService.load(key: Self.accessTokenKey) else { return nil }
+        guard let data = KeychainService.load(key: Self.accessTokenKey) else {
+            return nil
+        }
         return String(data: data, encoding: .utf8)
     }
 
@@ -160,7 +175,8 @@ final class AuthService: NSObject {
     private func restoreSession() {
         guard let userIDData = KeychainService.load(key: Self.userIDKey),
               let userID = String(data: userIDData, encoding: .utf8),
-              KeychainService.load(key: Self.accessTokenKey) != nil else {
+              KeychainService.load(key: Self.accessTokenKey) != nil
+        else {
             authState = .unauthenticated
             return
         }
@@ -177,23 +193,30 @@ final class AuthService: NSObject {
     }
 
     private func loadRefreshToken() -> String? {
-        guard let data = KeychainService.load(key: Self.refreshTokenKey) else { return nil }
+        guard let data = KeychainService.load(key: Self.refreshTokenKey) else {
+            return nil
+        }
         return String(data: data, encoding: .utf8)
     }
 
     /// Decode `sub` claim from JWT payload (base64url-encoded middle segment).
     private func decodeUserIDFromJWT(_ jwt: String) -> String? {
         let segments = jwt.split(separator: ".")
-        guard segments.count == 3 else { return nil }
+        guard segments.count == 3 else {
+            return nil
+        }
 
         var base64 = String(segments[1])
             .replacingOccurrences(of: "-", with: "+")
             .replacingOccurrences(of: "_", with: "/")
-        while base64.count % 4 != 0 { base64.append("=") }
+        while base64.count % 4 != 0 {
+            base64.append("=")
+        }
 
         guard let data = Data(base64Encoded: base64),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let sub = json["sub"] as? String else {
+              let sub = json["sub"] as? String
+        else {
             return nil
         }
         return sub
@@ -205,13 +228,15 @@ final class AuthService: NSObject {
         var result = ""
         var remainingLength = length
         while remainingLength > 0 {
-            let randoms: [UInt8] = (0..<16).map { _ in
+            let randoms: [UInt8] = (0 ..< 16).map { _ in
                 var random: UInt8 = 0
                 _ = SecRandomCopyBytes(kSecRandomDefault, 1, &random)
                 return random
             }
             for random in randoms {
-                if remainingLength == 0 { break }
+                if remainingLength == 0 {
+                    break
+                }
                 if random < charset.count {
                     result.append(charset[Int(random)])
                     remainingLength -= 1
@@ -247,7 +272,7 @@ final class AuthService: NSObject {
     }
 }
 
-// MARK: - ASAuthorizationControllerDelegate
+// MARK: ASAuthorizationControllerDelegate
 
 extension AuthService: ASAuthorizationControllerDelegate {
     nonisolated func authorizationController(
@@ -275,7 +300,7 @@ extension AuthService: ASAuthorizationControllerDelegate {
     }
 }
 
-// MARK: - AuthTokenProvider Conformance
+// MARK: - AuthServiceTokenProvider
 
 final class AuthServiceTokenProvider: AuthTokenProvider, @unchecked Sendable {
     private let authService: AuthService

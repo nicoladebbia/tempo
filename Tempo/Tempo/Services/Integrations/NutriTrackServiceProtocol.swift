@@ -1,15 +1,23 @@
+//
+// NutriTrackServiceProtocol.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 
-// MARK: - Connection State
+// MARK: - NutriTrackConnectionState
 
-enum NutriTrackConnectionState: Sendable {
+enum NutriTrackConnectionState {
     case disconnected
     case connecting
     case connected
     case error(String)
 }
 
-// MARK: - Protocol
+// MARK: - NutriTrackServiceProtocol
 
 protocol NutriTrackServiceProtocol: Sendable {
     var connectionState: NutriTrackConnectionState { get }
@@ -20,9 +28,9 @@ protocol NutriTrackServiceProtocol: Sendable {
     func fetchWeeklyReport() async throws -> NutriTrackWeeklyReport
 }
 
-// MARK: - Data Types
+// MARK: - NutriTrackMeal
 
-struct NutriTrackMeal: Sendable {
+struct NutriTrackMeal {
     let name: String
     let calories: Double
     let proteinGrams: Double
@@ -31,7 +39,9 @@ struct NutriTrackMeal: Sendable {
     let time: Date
 }
 
-struct NutriTrackDayData: Sendable {
+// MARK: - NutriTrackDayData
+
+struct NutriTrackDayData {
     let date: Date
     let totalCalories: Double
     let calorieTarget: Double
@@ -46,13 +56,17 @@ struct NutriTrackDayData: Sendable {
     let meals: [NutriTrackMeal]
 }
 
-struct MacroBalance: Sendable {
+// MARK: - MacroBalance
+
+struct MacroBalance {
     let proteinPercentage: Double
     let carbsPercentage: Double
     let fatPercentage: Double
 }
 
-struct NutriTrackWeeklyReport: Sendable {
+// MARK: - NutriTrackWeeklyReport
+
+struct NutriTrackWeeklyReport {
     let averageCalories: Double
     let averageProtein: Double
     let adherencePercentage: Double

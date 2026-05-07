@@ -1,10 +1,18 @@
+//
+// StaleDataIndicator.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Stale Data Indicator
+
 // Amber dot indicating data is older than 15 minutes.
 
 struct StaleDataIndicator: View {
-
     let lastUpdated: Date
     let threshold: TimeInterval
 

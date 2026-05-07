@@ -1,7 +1,14 @@
+//
+// Color+Tempo.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 extension Color {
-
     // MARK: - Backgrounds
 
     static let tempoBgPrimary = Color("tempo-bg-primary")
@@ -64,4 +71,48 @@ extension Color {
     static let tempoRecoveryYellowBg = Color("tempo-recovery-yellow-bg")
     static let tempoRecoveryRed = Color("tempo-recovery-red")
     static let tempoRecoveryRedBg = Color("tempo-recovery-red-bg")
+
+    // MARK: - Training
+
+    /// PR Gold — #FFD700
+    static let tempoPRGold = Color(red: 1, green: 215 / 255, blue: 0)
+
+    // MARK: - Nutrition Macro Colors
+
+    /// Protein — #5AC8FA
+    static let tempoMacroProtein = Color(red: 90 / 255, green: 200 / 255, blue: 250 / 255)
+    /// Carbs — #FFD60A
+    static let tempoMacroCarbs = Color(red: 255 / 255, green: 214 / 255, blue: 10 / 255)
+    /// Fat — #FF9F0A
+    static let tempoMacroFat = Color(red: 255 / 255, green: 159 / 255, blue: 10 / 255)
+
+    // MARK: - Sleep Stage Colors
+
+    /// Sleep Awake — #FF6B6B
+    static let tempoSleepAwake = Color(red: 1.0, green: 107 / 255, blue: 107 / 255)
+    /// Sleep Light — #74B9FF
+    static let tempoSleepLight = Color(red: 116 / 255, green: 185 / 255, blue: 1.0)
+    /// Sleep Deep — #0652DD
+    static let tempoSleepDeep = Color(red: 6 / 255, green: 82 / 255, blue: 221 / 255)
+    /// Sleep REM / HRV — #A29BFE
+    static let tempoSleepREM = Color(red: 162 / 255, green: 155 / 255, blue: 254 / 255)
+
+    // MARK: - Dark Mode Component Colors
+
+    /// Dark gray fill — #383838 / #38383A
+    static let tempoFillTertiary = Color(red: 56 / 255, green: 56 / 255, blue: 58 / 255)
+    /// Input background dark — #262626
+    static let tempoInputBgDark = Color(red: 38 / 255, green: 38 / 255, blue: 38 / 255)
+    /// Input background light — #F3F4F6
+    static let tempoInputBgLight = Color(red: 243 / 255, green: 244 / 255, blue: 246 / 255)
+    /// Signal pressed / highlight — #FF4D5A
+    static let tempoSignalHighlight = Color(red: 255 / 255, green: 77 / 255, blue: 90 / 255)
+    /// Error light — #F87171
+    static let tempoErrorLight = Color(red: 248 / 255, green: 113 / 255, blue: 113 / 255)
+    /// Secondary fill dark — #48484A
+    static let tempoFillSecondary = Color(red: 72 / 255, green: 72 / 255, blue: 74 / 255)
+    /// Tertiary text dark — #52525B
+    static let tempoPlaceholder = Color(red: 82 / 255, green: 82 / 255, blue: 91 / 255)
+    /// Deep dark surface — #1C1C1E
+    static let tempoSurfaceDeep = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
 }

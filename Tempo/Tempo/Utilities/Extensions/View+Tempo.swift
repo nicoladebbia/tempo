@@ -1,9 +1,16 @@
+//
+// View+Tempo.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 extension View {
-
-    /// Applies standard Tempo card styling (already defined in TempoCardModifier, re-exported here).
-    /// Note: `.tempoCard()` is defined in TempoCardModifier.swift.
+    // Applies standard Tempo card styling (already defined in TempoCardModifier, re-exported here).
+    // Note: `.tempoCard()` is defined in TempoCardModifier.swift.
 
     /// Applies elevation shadow appropriate for light/dark mode.
     func tempoShadow(_ elevation: TempoShadowLevel = .card) -> some View {
@@ -16,16 +23,21 @@ extension View {
     }
 }
 
-// MARK: - Shadow Levels
+// MARK: - TempoShadowLevel
 
 enum TempoShadowLevel {
-    case card, sheet, fab, popover
+    case card
+    case sheet
+    case fab
+    case popover
 }
 
-private struct TempoShadowModifier: ViewModifier {
+// MARK: - TempoShadowModifier
 
+private struct TempoShadowModifier: ViewModifier {
     let level: TempoShadowLevel
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.colorScheme)
+    private var colorScheme
 
     func body(content: Content) -> some View {
         switch level {
@@ -47,12 +59,12 @@ private struct TempoShadowModifier: ViewModifier {
     }
 }
 
-// MARK: - Shimmer Effect
+// MARK: - ShimmerModifier
 
 private struct ShimmerModifier: ViewModifier {
-
     let isActive: Bool
-    @State private var phase: CGFloat = 0
+    @State
+    private var phase: CGFloat = 0
 
     func body(content: Content) -> some View {
         if isActive {

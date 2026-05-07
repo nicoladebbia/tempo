@@ -1,6 +1,14 @@
+//
+// HealthKitServiceProtocol.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 
-// MARK: - Protocol
+// MARK: - HealthKitServiceProtocol
 
 protocol HealthKitServiceProtocol: Sendable {
     func requestAuthorization() async throws
@@ -11,19 +19,22 @@ protocol HealthKitServiceProtocol: Sendable {
     func fetchRestingHeartRate(for date: Date) async throws -> Double?
     func fetchSleepAnalysis(for date: Date) async throws -> SleepData
     func fetchWorkouts(for date: Date) async throws -> [WorkoutSample]
+    func fetchBodyComposition() async throws -> BodyCompositionData
     func writeWorkout(_ workout: WorkoutSample) async throws
     func writeNutrition(_ nutrition: NutritionSample) async throws
     func enableBackgroundDelivery() async throws
 }
 
-// MARK: - Data Types (plain Swift — no HealthKit import)
+// MARK: - HeartRateSample
 
-struct HeartRateSample: Sendable {
+struct HeartRateSample {
     let timestamp: Date
     let bpm: Double
 }
 
-struct SleepData: Sendable {
+// MARK: - SleepData
+
+struct SleepData {
     let totalHours: Double
     let deepSleepMinutes: Int
     let remSleepMinutes: Int
@@ -42,7 +53,9 @@ struct SleepData: Sendable {
     }
 }
 
-struct WorkoutSample: Sendable {
+// MARK: - WorkoutSample
+
+struct WorkoutSample {
     let startDate: Date
     let endDate: Date
     let workoutType: String
@@ -53,7 +66,34 @@ struct WorkoutSample: Sendable {
     let distanceMeters: Double?
 }
 
-struct NutritionSample: Sendable {
+// MARK: - BodyCompositionData
+
+struct BodyCompositionData {
+    let weightKg: Double?
+    let bodyFatPercent: Double?
+    let leanMassKg: Double?
+    let heightCm: Double?
+    let measurementDate: Date?
+
+    /// Computed muscle mass estimate (lean mass minus ~15% bone/organ mass)
+    var estimatedMuscleMassKg: Double? {
+        guard let lean = leanMassKg else {
+            return nil
+        }
+        return lean * 0.85
+    }
+
+    var fatMassKg: Double? {
+        guard let w = weightKg, let bf = bodyFatPercent else {
+            return nil
+        }
+        return w * (bf / 100.0)
+    }
+}
+
+// MARK: - NutritionSample
+
+struct NutritionSample {
     let date: Date
     let calories: Double
     let proteinGrams: Double

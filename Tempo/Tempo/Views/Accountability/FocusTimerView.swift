@@ -1,34 +1,53 @@
-import SwiftUI
+//
+// FocusTimerView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftData
+import SwiftUI
 
 // MARK: - Focus Timer View
+
 // Per BUILD_PLAN step 10.4.
 // Per MODULE_ACCOUNTABILITY.md — Focus Timer / Pomodoro.
 // Per STATE_MACHINES.md Section 2 — Focus Timer state machine.
 // Per WIREFRAMES.md — Focus Timer screen.
 
 struct FocusTimerView: View {
+    @Bindable
+    var viewModel: AccountabilityViewModel
+    @Environment(\.modelContext)
+    private var modelContext
+    @Environment(\.dismiss)
+    private var dismiss
 
-    @Bindable var viewModel: AccountabilityViewModel
-    @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
+    @State
+    private var showStopConfirmation = false
+    @State
+    private var showCloseConfirmation = false
+    @State
+    private var showSettings = false
+    @State
+    private var showSubjectPicker = false
+    @State
+    private var colonVisible = true
+    @State
+    private var blinkTask: Task<Void, Never>?
 
-    @State private var showStopConfirmation = false
-    @State private var showCloseConfirmation = false
-    @State private var showSettings = false
-    @State private var distractionCount = 0
-    @State private var colonVisible = true
-
-    // Break messages pool
+    /// Break messages pool
     private let breakMessages = [
         "Stand up. Stretch. You've earned it.",
         "Hydrate. Your brain needs water.",
         "Look at something 20 feet away for 20 seconds.",
         "Roll your neck. Release the tension.",
-        "Deep breath in... hold... and out."
+        "Deep breath in... hold... and out.",
     ]
 
-    @State private var breakMessageIndex = Int.random(in: 0..<5)
+    @State
+    private var breakMessageIndex = Int.random(in: 0 ..< 5)
 
     var body: some View {
         ZStack {
@@ -44,6 +63,17 @@ struct FocusTimerView: View {
                 // Navigation bar
                 navigationBar
                     .padding(.horizontal, TempoSpacing.screenEdge)
+
+                // Smart recommendation banner
+                if case .idle = viewModel.focusState {
+                    focusRecommendationBanner
+                        .padding(.horizontal, TempoSpacing.screenEdge)
+                        .padding(.top, TempoSpacing.sm)
+                } else if case .configuring = viewModel.focusState {
+                    focusRecommendationBanner
+                        .padding(.horizontal, TempoSpacing.screenEdge)
+                        .padding(.top, TempoSpacing.sm)
+                }
 
                 Spacer()
 
@@ -99,7 +129,7 @@ struct FocusTimerView: View {
             }
 
             // Completion overlay
-            if case .completed(let totalSessions) = viewModel.focusState {
+            if case let .completed(totalSessions) = viewModel.focusState {
                 completionOverlay(totalSessions: totalSessions)
             }
 
@@ -142,6 +172,159 @@ struct FocusTimerView: View {
             // Start colon blink timer for paused state
             startColonBlink()
         }
+        .onDisappear {
+            blinkTask?.cancel()
+            blinkTask = nil
+        }
+    }
+
+    // MARK: - Smart Focus Recommendation Banner
+
+    // Shows context-aware timer recommendation based on study progress today.
+
+    private var focusRecommendationBanner: some View {
+        let recommendation = focusRecommendation
+
+        return HStack(spacing: TempoSpacing.sm) {
+            Image(systemName: recommendation.icon)
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(recommendation.color)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(recommendation.title)
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextPrimary)
+
+                Text(recommendation.subtitle)
+                    .font(.tempoFootnote)
+                    .foregroundStyle(Color.tempoTextSecondary)
+            }
+
+            Spacer()
+
+            if let suggestedMinutes = recommendation.suggestedDuration {
+                Button {
+                    viewModel.focusDuration = TimeInterval(suggestedMinutes * 60)
+                    HapticManager.impact(.light)
+                } label: {
+                    Text("\(suggestedMinutes)m")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, TempoSpacing.md)
+                        .frame(height: 28)
+                        .background(recommendation.color)
+                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+                }
+            }
+        }
+        .padding(TempoSpacing.md)
+        .background(recommendation.color.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous)
+                .stroke(recommendation.color.opacity(0.25), lineWidth: 1)
+        )
+    }
+
+    private struct FocusRecommendation {
+        let title: String
+        let subtitle: String
+        let icon: String
+        let color: Color
+        let suggestedDuration: Int?
+    }
+
+    private var focusRecommendation: FocusRecommendation {
+        let totalMinutes = viewModel.totalFocusMinutesToday
+        let target = studyTargetMinutes
+        let remaining = max(0, target - totalMinutes)
+        let timeToPS5 = viewModel.timeToPS5
+
+        // Already hit target
+        if remaining <= 0 {
+            return FocusRecommendation(
+                title: "Target reached! Extra credit time.",
+                subtitle: "You've hit \(totalMinutes)m / \(target)m. Any session now is bonus.",
+                icon: "star.fill",
+                color: .tempoSuccess,
+                suggestedDuration: 25
+            )
+        }
+
+        // Very close to target (15 min or less)
+        if remaining <= 15 {
+            return FocusRecommendation(
+                title: "Just \(remaining)m left. Finish strong.",
+                subtitle: "One short sprint to complete your study goal.",
+                icon: "flag.checkered",
+                color: .tempoSuccess,
+                suggestedDuration: remaining
+            )
+        }
+
+        // Haven't started today
+        if totalMinutes == 0 {
+            let suggestedDuration: Int
+            let subtitle: String
+
+            if remaining > 90 {
+                suggestedDuration = 25
+                subtitle = "You need \(remaining)m total. Start with a 25m sprint to build momentum."
+            } else if remaining > 45 {
+                suggestedDuration = 25
+                subtitle = "You need \(remaining)m today. Start with a 25m pomodoro."
+            } else {
+                suggestedDuration = min(remaining, 25)
+                subtitle = "You need \(remaining)m today. A quick sprint will get you started."
+            }
+
+            // Time pressure context
+            if timeToPS5 < 2 * 3600, remaining > 30 {
+                return FocusRecommendation(
+                    title: "\(remaining)m needed. Only \(Int(timeToPS5 / 60))m until PS5 time.",
+                    subtitle: "Start NOW. Every minute counts.",
+                    icon: "exclamationmark.triangle.fill",
+                    color: .tempoSignal,
+                    suggestedDuration: min(remaining, 50)
+                )
+            }
+
+            return FocusRecommendation(
+                title: "You need \(remaining)m today. Let's go.",
+                subtitle: subtitle,
+                icon: "play.circle.fill",
+                color: .tempoElectric,
+                suggestedDuration: suggestedDuration
+            )
+        }
+
+        // Partially done — recommend based on remaining
+        let suggestedDuration: Int = if remaining > 60 {
+            50 // Deep work session
+        } else if remaining > 30 {
+            25 // Standard pomodoro
+        } else {
+            remaining // Just finish it
+        }
+
+        // Time pressure
+        if timeToPS5 < 1.5 * 3600, remaining > 20 {
+            return FocusRecommendation(
+                title: "\(remaining)m remaining. Clock's ticking.",
+                subtitle: "Less than \(Int(timeToPS5 / 60))m until PS5 time. Buckle down.",
+                icon: "exclamationmark.triangle.fill",
+                color: .tempoAmber,
+                suggestedDuration: min(remaining, 50)
+            )
+        }
+
+        return FocusRecommendation(
+            title: "\(remaining)m remaining. Time for \(suggestedDuration >= 45 ? "a deep work session" : "a sprint").",
+            subtitle: "\(totalMinutes)m done so far. Keep the momentum.",
+            icon: "bolt.fill",
+            color: .tempoElectric,
+            suggestedDuration: suggestedDuration
+        )
     }
 
     // MARK: - Navigation Bar
@@ -193,26 +376,76 @@ struct FocusTimerView: View {
     // MARK: - Subject Pill
 
     private func subjectPill(_ subject: String) -> some View {
-        HStack(spacing: TempoSpacing.sm) {
-            Text(subject)
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
+        Button {
+            showSubjectPicker = true
+        } label: {
+            HStack(spacing: TempoSpacing.sm) {
+                Text(subject)
+                    .font(.tempoHeadline)
+                    .foregroundStyle(Color.tempoTextPrimary)
 
-            Image(systemName: "chevron.down")
-                .font(.system(size: 12))
-                .foregroundStyle(Color.tempoTextSecondary)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.tempoTextSecondary)
+            }
+            .padding(.horizontal, TempoSpacing.md)
+            .frame(height: 32)
+            .background(Color.tempoSurfaceElevated)
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous)
+                    .stroke(Color.tempoBorder, lineWidth: 1)
+            )
         }
-        .padding(.horizontal, TempoSpacing.md)
-        .frame(height: 32)
-        .background(Color.tempoSurfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous)
-                .stroke(Color.tempoBorder, lineWidth: 1)
-        )
+        .sheet(isPresented: $showSubjectPicker) {
+            subjectPickerSheet
+        }
+    }
+
+    // MARK: - Subject Picker
+
+    private static let studySubjects = [
+        "Math", "CS", "Languages", "Physics", "Chemistry",
+        "Biology", "History", "Literature", "Economics", "Engineering",
+    ]
+
+    private var subjectPickerSheet: some View {
+        NavigationStack {
+            List {
+                ForEach(Self.studySubjects, id: \.self) { subject in
+                    Button {
+                        viewModel.focusSubject = subject
+                        viewModel.currentStudySession?.subject = subject
+                        showSubjectPicker = false
+                    } label: {
+                        HStack {
+                            Text(subject)
+                                .font(.tempoBody)
+                                .foregroundStyle(Color.tempoTextPrimary)
+                            Spacer()
+                            if viewModel.focusSubject == subject {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(Color.tempoElectric)
+                            }
+                        }
+                    }
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(Color.tempoBgPrimary)
+            .navigationTitle("Study Subject")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { showSubjectPicker = false }
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 
     // MARK: - Timer Ring
+
     // Per MODULE_ACCOUNTABILITY.md — 260pt ring, 8pt stroke.
 
     private var timerRing: some View {
@@ -262,12 +495,17 @@ struct FocusTimerView: View {
     }
 
     private var ringColor: Color {
-        if isPaused { return .tempoAmber }
-        if isBreakState { return .tempoSuccess }
+        if isPaused {
+            return .tempoAmber
+        }
+        if isBreakState {
+            return .tempoSuccess
+        }
         return .tempoElectric
     }
 
     // MARK: - Phase Label
+
     // Per MODULE_ACCOUNTABILITY.md — phase label below ring.
 
     private var phaseLabel: some View {
@@ -279,25 +517,29 @@ struct FocusTimerView: View {
 
     private var phaseLabelText: String {
         switch viewModel.focusState {
-        case .idle, .configuring: return "READY"
-        case .focusing: return "FOCUS TIME"
-        case .onBreak, .longBreak: return "BREAK TIME"
-        case .paused: return "PAUSED"
-        case .sessionDone: return "SESSION DONE"
-        case .breakDone: return "BREAK DONE"
-        case .completed: return "COMPLETE"
-        case .review: return "REVIEW"
-        case .cancelled: return "CANCELLED"
+        case .idle,
+             .configuring: "READY"
+        case .focusing: "FOCUS TIME"
+        case .onBreak,
+             .longBreak: "BREAK TIME"
+        case .paused: "PAUSED"
+        case .sessionDone: "SESSION DONE"
+        case .breakDone: "BREAK DONE"
+        case .completed: "COMPLETE"
+        case .review: "REVIEW"
+        case .cancelled: "CANCELLED"
         }
     }
 
     private var phaseLabelColor: Color {
         switch viewModel.focusState {
-        case .focusing: return .tempoElectric
-        case .onBreak, .longBreak, .breakDone: return .tempoSuccess
-        case .paused: return .tempoAmber
-        case .completed: return .tempoSuccess
-        default: return .tempoTextSecondary
+        case .focusing: .tempoElectric
+        case .onBreak,
+             .longBreak,
+             .breakDone: .tempoSuccess
+        case .paused: .tempoAmber
+        case .completed: .tempoSuccess
+        default: .tempoTextSecondary
         }
     }
 
@@ -329,7 +571,7 @@ struct FocusTimerView: View {
     // MARK: - Focus Score
 
     private var focusScoreDisplay: some View {
-        let score = max(0, 100 - (distractionCount * 10))
+        let score = max(0, 100 - (viewModel.distractionCount * 10))
         return Text("Focus Score: \(score)")
             .font(.tempoCallout)
             .foregroundStyle(Color.tempoTextPrimary)
@@ -352,7 +594,7 @@ struct FocusTimerView: View {
             // Distraction button
             Button {
                 HapticManager.impact(.light)
-                distractionCount += 1
+                viewModel.distractionCount += 1
             } label: {
                 VStack(spacing: TempoSpacing.xs) {
                     ZStack(alignment: .topTrailing) {
@@ -360,8 +602,8 @@ struct FocusTimerView: View {
                             .font(.system(size: 24))
                             .foregroundStyle(Color.tempoTextSecondary)
 
-                        if distractionCount > 0 {
-                            Text("\(distractionCount)")
+                        if viewModel.distractionCount > 0 {
+                            Text("\(viewModel.distractionCount)")
                                 .font(.system(size: 10, weight: .bold))
                                 .foregroundStyle(.white)
                                 .frame(width: 16, height: 16)
@@ -397,6 +639,7 @@ struct FocusTimerView: View {
     }
 
     // MARK: - Primary Controls
+
     // Per MODULE_ACCOUNTABILITY.md — Stop (48pt), Main (160x64pt), Skip (48pt).
 
     private var primaryControls: some View {
@@ -463,20 +706,24 @@ struct FocusTimerView: View {
 
     private var mainButtonTitle: String {
         switch viewModel.focusState {
-        case .idle, .configuring: return "START"
-        case .focusing: return "PAUSE"
-        case .paused: return "RESUME"
-        case .onBreak, .longBreak: return "SKIP BREAK"
-        case .sessionDone: return "START BREAK"
-        case .breakDone: return "START FOCUS"
-        case .completed: return "REVIEW"
-        case .review: return "DONE"
-        case .cancelled: return "START"
+        case .idle,
+             .configuring: "START"
+        case .focusing: "PAUSE"
+        case .paused: "RESUME"
+        case .onBreak,
+             .longBreak: "SKIP BREAK"
+        case .sessionDone: "START BREAK"
+        case .breakDone: "START FOCUS"
+        case .completed: "REVIEW"
+        case .review: "DONE"
+        case .cancelled: "START"
         }
     }
 
     private var mainButtonTextColor: Color {
-        if isBreakState { return .tempoSuccess }
+        if isBreakState {
+            return .tempoSuccess
+        }
         return .white
     }
 
@@ -501,13 +748,16 @@ struct FocusTimerView: View {
 
     private func mainButtonAction() {
         switch viewModel.focusState {
-        case .idle, .configuring, .cancelled:
+        case .idle,
+             .configuring,
+             .cancelled:
             viewModel.startFocusSession(modelContext: modelContext)
         case .focusing:
             viewModel.pauseFocus()
         case .paused:
             viewModel.resumeFocus(modelContext: modelContext)
-        case .onBreak, .longBreak:
+        case .onBreak,
+             .longBreak:
             viewModel.skipBreak(modelContext: modelContext)
         case .sessionDone:
             viewModel.startBreak()
@@ -548,6 +798,7 @@ struct FocusTimerView: View {
     }
 
     // MARK: - Completion Overlay
+
     // Per MODULE_ACCOUNTABILITY.md — celebration on all sessions complete.
     // Per SOUND_AND_HAPTICS.md — triple success haptic.
 
@@ -600,7 +851,7 @@ struct FocusTimerView: View {
                         .padding(.top, TempoSpacing.xxxl)
 
                     // Focus score ring
-                    let score = max(0, 100 - (distractionCount * 10))
+                    let score = max(0, 100 - (viewModel.distractionCount * 10))
                     CircularRingView(
                         progress: Double(score) / 100.0,
                         color: scoreColor(score),
@@ -625,7 +876,7 @@ struct FocusTimerView: View {
 
                         reviewStatCard(
                             title: "Distractions",
-                            value: "\(distractionCount)",
+                            value: "\(viewModel.distractionCount)",
                             icon: "hand.raised.fill"
                         )
                     }
@@ -677,16 +928,28 @@ struct FocusTimerView: View {
     }
 
     private func scoreColor(_ score: Int) -> Color {
-        if score >= 90 { return .tempoSuccess }
-        if score >= 75 { return .tempoElectric }
-        if score >= 50 { return .tempoAmber }
+        if score >= 90 {
+            return .tempoSuccess
+        }
+        if score >= 75 {
+            return .tempoElectric
+        }
+        if score >= 50 {
+            return .tempoAmber
+        }
         return .tempoSignal
     }
 
     private func scoreLabel(_ score: Int) -> String {
-        if score >= 90 { return "Excellent" }
-        if score >= 75 { return "Good" }
-        if score >= 50 { return "Fair" }
+        if score >= 90 {
+            return "Excellent"
+        }
+        if score >= 75 {
+            return "Good"
+        }
+        if score >= 50 {
+            return "Fair"
+        }
         return "Needs work"
     }
 
@@ -702,7 +965,8 @@ struct FocusTimerView: View {
                     startRadius: 50,
                     endRadius: 300
                 )
-            case .onBreak, .longBreak:
+            case .onBreak,
+                 .longBreak:
                 RadialGradient(
                     colors: [Color.tempoSuccess.opacity(0.03), .clear],
                     center: .center,
@@ -728,44 +992,77 @@ struct FocusTimerView: View {
         NavigationStack {
             List {
                 Section {
-                    HStack {
-                        Text("Focus Duration")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                        Spacer()
-                        Text("\(Int(viewModel.focusDuration / 60)) min")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                    Stepper(
+                        value: Binding(
+                            get: { Int(viewModel.focusDuration / 60) },
+                            set: { viewModel.focusDuration = TimeInterval($0 * 60) }
+                        ),
+                        in: 15 ... 60,
+                        step: 5
+                    ) {
+                        HStack {
+                            Text("Focus Duration")
+                                .font(.tempoBody)
+                                .foregroundStyle(Color.tempoTextPrimary)
+                            Spacer()
+                            Text("\(Int(viewModel.focusDuration / 60)) min")
+                                .font(.tempoBody)
+                                .foregroundStyle(Color.tempoTextSecondary)
+                        }
                     }
 
-                    HStack {
-                        Text("Short Break")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                        Spacer()
-                        Text("\(Int(viewModel.breakDuration / 60)) min")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                    Stepper(
+                        value: Binding(
+                            get: { Int(viewModel.breakDuration / 60) },
+                            set: { viewModel.breakDuration = TimeInterval($0 * 60) }
+                        ),
+                        in: 3 ... 15,
+                        step: 1
+                    ) {
+                        HStack {
+                            Text("Short Break")
+                                .font(.tempoBody)
+                                .foregroundStyle(Color.tempoTextPrimary)
+                            Spacer()
+                            Text("\(Int(viewModel.breakDuration / 60)) min")
+                                .font(.tempoBody)
+                                .foregroundStyle(Color.tempoTextSecondary)
+                        }
                     }
 
-                    HStack {
-                        Text("Long Break")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                        Spacer()
-                        Text("\(Int(viewModel.longBreakDuration / 60)) min")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                    Stepper(
+                        value: Binding(
+                            get: { Int(viewModel.longBreakDuration / 60) },
+                            set: { viewModel.longBreakDuration = TimeInterval($0 * 60) }
+                        ),
+                        in: 15 ... 30,
+                        step: 5
+                    ) {
+                        HStack {
+                            Text("Long Break")
+                                .font(.tempoBody)
+                                .foregroundStyle(Color.tempoTextPrimary)
+                            Spacer()
+                            Text("\(Int(viewModel.longBreakDuration / 60)) min")
+                                .font(.tempoBody)
+                                .foregroundStyle(Color.tempoTextSecondary)
+                        }
                     }
 
-                    HStack {
-                        Text("Sessions Before Long Break")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                        Spacer()
-                        Text("\(viewModel.sessionsBeforeLongBreak)")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                    Stepper(
+                        value: $viewModel.sessionsBeforeLongBreak,
+                        in: 2 ... 6,
+                        step: 1
+                    ) {
+                        HStack {
+                            Text("Sessions Before Long Break")
+                                .font(.tempoBody)
+                                .foregroundStyle(Color.tempoTextPrimary)
+                            Spacer()
+                            Text("\(viewModel.sessionsBeforeLongBreak)")
+                                .font(.tempoBody)
+                                .foregroundStyle(Color.tempoTextSecondary)
+                        }
                     }
                 } header: {
                     Text("TIMER")
@@ -790,19 +1087,24 @@ struct FocusTimerView: View {
     // MARK: - Helpers
 
     private var isPaused: Bool {
-        if case .paused = viewModel.focusState { return true }
+        if case .paused = viewModel.focusState {
+            return true
+        }
         return false
     }
 
     private var isBreakState: Bool {
         switch viewModel.focusState {
-        case .onBreak, .longBreak: return true
-        default: return false
+        case .onBreak,
+             .longBreak: true
+        default: false
         }
     }
 
     private var elapsedMinutes: Int {
-        guard let start = viewModel.currentStudySession?.startTime else { return 0 }
+        guard let start = viewModel.currentStudySession?.startTime else {
+            return 0
+        }
         return Int(Date().timeIntervalSince(start) / 60)
     }
 
@@ -821,17 +1123,22 @@ struct FocusTimerView: View {
                 try? await Task.sleep(for: .milliseconds(200))
                 HapticManager.notification(.success)
             }
-        case .onBreak, .longBreak:
-            breakMessageIndex = Int.random(in: 0..<breakMessages.count)
+        case .onBreak,
+             .longBreak:
+            breakMessageIndex = Int.random(in: 0 ..< breakMessages.count)
         default:
             break
         }
     }
 
     private func startColonBlink() {
-        Task {
+        blinkTask?.cancel()
+        blinkTask = Task {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled else {
+                    return
+                }
                 if isPaused {
                     withAnimation(.easeInOut(duration: 0.3)) {
                         colonVisible.toggle()

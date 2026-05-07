@@ -1,33 +1,41 @@
+//
+// NotificationServiceProtocol.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 
-// MARK: - Escalation Tier
+// MARK: - EscalationTier
 
-enum EscalationTier: String, Sendable, CaseIterable {
+enum EscalationTier: String, CaseIterable {
     case gentle
     case firm
     case urgent
     case critical
 }
 
-// MARK: - Briefing Content
+// MARK: - BriefingContent
 
-struct BriefingContent: Sendable {
+struct BriefingContent {
     let recoveryScore: Double?
     let workoutType: String?
     let nonNegotiablesCount: Int
     let topPriority: String
 }
 
-// MARK: - Scheduled Notification Record (for testing)
+// MARK: - ScheduledNotification
 
-struct ScheduledNotification: Sendable {
+struct ScheduledNotification {
     let category: String
     let title: String
     let body: String
     let triggerDate: Date
 }
 
-// MARK: - Protocol
+// MARK: - NotificationServiceProtocol
 
 protocol NotificationServiceProtocol: Sendable {
     func requestAuthorization() async throws -> Bool

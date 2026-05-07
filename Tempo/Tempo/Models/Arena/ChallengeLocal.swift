@@ -1,9 +1,18 @@
+//
+// ChallengeLocal.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
+// MARK: - ChallengeLocal
+
 @Model
 final class ChallengeLocal {
-
     @Attribute(.unique)
     var id: UUID
 
@@ -51,8 +60,12 @@ final class ChallengeLocal {
 
     @Transient
     var timelineProgress: Double {
-        guard hasStarted else { return 0 }
-        guard !hasEnded else { return 1 }
+        guard hasStarted else {
+            return 0
+        }
+        guard !hasEnded else {
+            return 1
+        }
         let elapsed = Calendar.current.dateComponents([.day], from: startDate, to: Date()).day ?? 0
         return Double(elapsed) / Double(totalDays)
     }
@@ -89,8 +102,7 @@ final class ChallengeLocal {
 // MARK: - DTO
 
 extension ChallengeLocal {
-
-    struct DTO: Codable, Sendable {
+    struct DTO: Codable {
         let id: UUID
         let server_id: UUID?
         let name: String

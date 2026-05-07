@@ -1,22 +1,31 @@
+//
+// ArenaViewModel.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
-import SwiftUI
 import SwiftData
+import SwiftUI
 
-// MARK: - Arena Load State
+// MARK: - ArenaLoadState
 
-enum ArenaLoadState: Sendable {
+enum ArenaLoadState {
     case loading
     case loaded
     case error(String)
 }
 
-// MARK: - Arena ViewModel
+// MARK: - ArenaViewModel
+
 // Per MODULE_ARENA.md Sections 5-12 and BUILD_PLAN.md Step 14.3.
+// Enhanced with level names, XP earning categories, and weekly recap.
 
 @Observable
 @MainActor
 final class ArenaViewModel {
-
     // MARK: - State
 
     var loadState: ArenaLoadState = .loading
@@ -25,13 +34,29 @@ final class ArenaViewModel {
     var todayXP: Int = 0
     var totalXP: Int = 0
     var level: Int = 1
-    var levelTitle: String = "Rookie"
+    var levelTitle: String = "Recruit"
     var xpProgress: Double = 0
     var xpForNextLevel: Int = 100
     var streakDays: Int = 0
     var streakMultiplier: Double = 1.0
 
-    // XP Breakdown
+    // XP gain animation
+    var showXPGain: Bool = false
+    var lastXPGainAmount: Int = 0
+
+    // Daily XP goal
+    var dailyXPGoal: Int = 100
+    var dailyXPProgress: Double = 0
+
+    /// League
+    var currentLeague: League = .bronze
+
+    // Streak freeze
+    var freezesAvailable: Int = 0
+    var freezesUsed: Int = 0
+    var showFreezeSaved: Bool = false
+
+    /// XP Breakdown
     var xpBreakdown: [XPBreakdownRow] = []
 
     // Leaderboard
@@ -43,15 +68,24 @@ final class ArenaViewModel {
     var friendCount: Int = 0
     var pendingRequestCount: Int = 0
 
-    // Challenges
+    /// Challenges
     var activeChallenges: [ChallengeLocal] = []
 
     // Achievements
     var recentAchievements: [Achievement] = []
     var totalEarned: Int = 0
 
-    // Detail sheet
+    /// Detail sheet
     var showXPDetail: Bool = false
+
+    // Weekly recap
+    var weeklyXPEarned: Int = 0
+    var weeklyAchievementsUnlocked: Int = 0
+    var weeklyRankChange: Int = 0
+    var weeklyPersonalBests: Int = 0
+
+    /// Activity feed
+    var recentActivityEvents: [ActivityEvent] = []
 
     // MARK: - Dependencies
 
@@ -68,78 +102,99 @@ final class ArenaViewModel {
         achievements: [Achievement],
         challenges: [ChallengeLocal],
         userTotalXP: Int,
-        userStreakDays: Int
+        userStreakDays: Int,
+        settings: UserSettings? = nil,
+        streak: Streak? = nil,
+        activityEvents: [ActivityEvent] = []
     ) {
         // XP calculations
         let today = Calendar.current.startOfDay(for: Date())
         let todayEvents = xpEvents.filter { Calendar.current.isDate($0.date, inSameDayAs: today) }
 
-        self.todayXP = todayEvents.reduce(0) { $0 + $1.amount }
-        self.totalXP = userTotalXP
-        self.level = xpEngine.currentLevel(totalXP: userTotalXP)
-        self.levelTitle = Self.levelTitle(for: level)
-        self.xpForNextLevel = xpEngine.xpToNextLevel(totalXP: userTotalXP)
-        self.streakDays = userStreakDays
-        self.streakMultiplier = 1.0 + min(0.50, Double(userStreakDays) * 0.02)
+        let previousTodayXP = todayXP
+        let newTodayXP = todayEvents.reduce(0) { $0 + $1.amount }
+        todayXP = newTodayXP
+        totalXP = userTotalXP
 
-        // XP progress bar
-        let thresholds = Self.levelThresholds
-        let currentLevelXP = thresholds[safe: level - 1] ?? 0
-        let nextLevelXP = thresholds[safe: level] ?? currentLevelXP
+        // Use new level system
+        let currentLevel = xpEngine.currentLevel(totalXP: userTotalXP)
+        level = currentLevel
+        levelTitle = xpEngine.levelName(for: currentLevel)
+        xpForNextLevel = xpEngine.xpToNextLevel(totalXP: userTotalXP)
+        streakDays = userStreakDays
+        streakMultiplier = 1.0 + min(0.50, Double(userStreakDays) * 0.02)
+
+        // XP progress bar (using LevelSystem thresholds)
+        let currentLevelXP = xpEngine.xpForLevel(currentLevel)
+        let nextLevel = currentLevel + 1
+        let nextLevelXP = nextLevel <= LevelSystem.definitions.count
+            ? xpEngine.xpForLevel(nextLevel)
+            : currentLevelXP + 10000
         let range = max(1, nextLevelXP - currentLevelXP)
-        self.xpProgress = Double(userTotalXP - currentLevelXP) / Double(range)
+        xpProgress = Double(userTotalXP - currentLevelXP) / Double(range)
 
         // XP breakdown by source
         let grouped = Dictionary(grouping: todayEvents, by: { $0.source })
-        self.xpBreakdown = XPSource.allCases.map { source in
+        xpBreakdown = XPSource.allCases.map { source in
             let events = grouped[source] ?? []
             let total = events.reduce(0) { $0 + $1.amount }
             return XPBreakdownRow(source: source, xp: total, count: events.count)
         }.filter { $0.xp != 0 }
 
         // Challenges
-        self.activeChallenges = challenges.filter { $0.isActive && !$0.hasEnded }
+        activeChallenges = challenges.filter { $0.isActive && !$0.hasEnded }
 
         // Achievements
-        self.recentAchievements = achievements
-            .filter { $0.isEarned }
+        recentAchievements = achievements
+            .filter(\.isEarned)
             .sorted { ($0.earnedAt ?? .distantPast) > ($1.earnedAt ?? .distantPast) }
             .prefix(3)
-            .map { $0 }
-        self.totalEarned = achievements.filter { $0.isEarned }.count
+            .map(\.self)
+        totalEarned = achievements.count(where: { $0.isEarned })
 
-        self.loadState = .loaded
-    }
-
-    // MARK: - Level Thresholds
-    // Per MODULE_ARENA.md Section 3.1 — Formula: floor(200 * N^1.65)
-
-    static let levelThresholds: [Int] = {
-        var thresholds = [0]
-        for n in 1...50 {
-            thresholds.append(Int(floor(200.0 * pow(Double(n), 1.65))))
+        // Daily XP goal
+        if let settings {
+            dailyXPGoal = settings.dailyXPGoal.rawValue
+            currentLeague = settings.league
         }
-        return thresholds
-    }()
+        dailyXPProgress = dailyXPGoal > 0 ? min(Double(todayXP) / Double(dailyXPGoal), 1.0) : 0
 
-    static func levelTitle(for level: Int) -> String {
-        switch level {
-        case 1...5: return "Rookie"
-        case 6...10: return "Contender"
-        case 11...15: return "Warrior"
-        case 16...20: return "Gladiator"
-        case 21...25: return "Centurion"
-        case 26...30: return "Captain"
-        case 31...35: return "Commander"
-        case 36...40: return "Titan"
-        case 41...45: return "Warlord"
-        case 46...50: return "Legend"
-        default: return "Rookie"
+        // Streak freeze
+        if let streak {
+            freezesAvailable = max(0, streak.freezesAvailable - streak.freezesUsed)
+            freezesUsed = streak.freezesUsed
         }
+
+        // Weekly recap calculations
+        let calendar = Calendar.current
+        let weekStart = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: today))!
+        let weekEvents = xpEvents.filter { $0.date >= weekStart }
+        weeklyXPEarned = weekEvents.reduce(0) { $0 + $1.amount }
+        weeklyAchievementsUnlocked = achievements
+            .count(where: { $0.isEarned && ($0.earnedAt ?? .distantPast) >= weekStart })
+
+        // Activity feed
+        recentActivityEvents = activityEvents
+            .sorted { $0.timestamp > $1.timestamp }
+            .prefix(20)
+            .map(\.self)
+
+        // XP gain animation -- trigger when todayXP increases
+        let isInitialLoad = if case .loading = loadState {
+            true
+        } else {
+            false
+        }
+        if newTodayXP > previousTodayXP, !isInitialLoad {
+            lastXPGainAmount = newTodayXP - previousTodayXP
+            showXPGain = true
+        }
+
+        loadState = .loaded
     }
 }
 
-// MARK: - Supporting Types
+// MARK: - XPBreakdownRow
 
 struct XPBreakdownRow: Identifiable {
     let id = UUID()
@@ -149,36 +204,40 @@ struct XPBreakdownRow: Identifiable {
 
     var emoji: String {
         switch source {
-        case .workout: return "🏋️"
-        case .study: return "📖"
-        case .meal: return "🍴"
-        case .sleep: return "🌙"
-        case .steps: return "🦶"
-        case .nonNegotiable: return "✓"
-        case .streak: return "🔥"
-        case .challenge: return "⚔️"
-        case .achievement: return "🏅"
-        case .perfectDay: return "⭐"
-        case .penalty: return "⚠️"
+        case .workout: "🏋️"
+        case .study: "📖"
+        case .meal: "🍴"
+        case .sleep: "🌙"
+        case .steps: "🦶"
+        case .nonNegotiable: "✓"
+        case .streak: "🔥"
+        case .challenge: "⚔️"
+        case .achievement: "🏅"
+        case .perfectDay: "⭐"
+        case .penalty: "⚠️"
+        case .earlyBird: "🌅"
         }
     }
 
     var label: String {
         switch source {
-        case .workout: return "Workout"
-        case .study: return "Study"
-        case .meal: return "Meals"
-        case .sleep: return "Sleep"
-        case .steps: return "Steps"
-        case .nonNegotiable: return "Tasks"
-        case .streak: return "Streak"
-        case .challenge: return "Challenge"
-        case .achievement: return "Achievement"
-        case .perfectDay: return "Perfect Day"
-        case .penalty: return "Penalty"
+        case .workout: "Workout"
+        case .study: "Study"
+        case .meal: "Meals"
+        case .sleep: "Sleep"
+        case .steps: "Steps"
+        case .nonNegotiable: "Tasks"
+        case .streak: "Streak"
+        case .challenge: "Challenge"
+        case .achievement: "Achievement"
+        case .perfectDay: "Perfect Day"
+        case .penalty: "Penalty"
+        case .earlyBird: "Early Bird"
         }
     }
 }
+
+// MARK: - LeaderboardEntry
 
 struct LeaderboardEntry: Identifiable {
     let id = UUID()

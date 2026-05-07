@@ -1,6 +1,14 @@
+//
+// CalendarServiceProtocol.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 
-// MARK: - Protocol
+// MARK: - CalendarServiceProtocol
 
 protocol CalendarServiceProtocol: Sendable {
     func requestAuthorization() async throws
@@ -10,9 +18,9 @@ protocol CalendarServiceProtocol: Sendable {
     func detectClassSchedule(for date: Date) -> [CalendarClass]
 }
 
-// MARK: - Data Types (plain structs — no EventKit dependency)
+// MARK: - CalendarEvent
 
-struct CalendarEvent: Sendable {
+struct CalendarEvent {
     let title: String
     let startDate: Date
     let endDate: Date
@@ -20,13 +28,17 @@ struct CalendarEvent: Sendable {
     let calendarName: String?
 }
 
-struct CalendarExam: Sendable {
+// MARK: - CalendarExam
+
+struct CalendarExam {
     let subject: String
     let date: Date
     let durationMinutes: Int
 }
 
-struct CalendarClass: Sendable {
+// MARK: - CalendarClass
+
+struct CalendarClass {
     let subject: String
     let startTime: Date
     let endTime: Date

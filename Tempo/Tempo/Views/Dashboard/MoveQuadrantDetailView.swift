@@ -1,16 +1,28 @@
-import SwiftUI
-import Charts
+//
+// MoveQuadrantDetailView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
 
-// MARK: - Move Quadrant Detail View
+import Charts
+import SwiftUI
+
+// MARK: - MoveQuadrantDetailView
+
 // Per MODULE_DASHBOARD.md Section 4.5 — Move Expanded View.
 // Workout hero, activity stats, steps progress, heart rate section,
 // workout history, weekly volume chart.
 
 struct MoveQuadrantDetailView: View {
-
     let data: MoveQuadrantData
+    @Environment(ServiceContainer.self)
+    private var services
+    @AppStorage("healthKitAuthorized")
+    private var healthKitAuthorized = false
 
-    // Stub workout history
+    /// Stub workout history
     private let workoutHistory: [WorkoutHistoryItem] = [
         WorkoutHistoryItem(day: "Today", name: "Upper Body Push", duration: 55, calories: 342),
         WorkoutHistoryItem(day: "Mon", name: "Lower Body", duration: 62, calories: 410),
@@ -18,27 +30,32 @@ struct MoveQuadrantDetailView: View {
         WorkoutHistoryItem(day: "Thu", name: "Upper Body Pull", duration: 52, calories: 335),
     ]
 
-    // Stub 7-day active calorie trend
+    /// Stub 7-day active calorie trend
     private let volumeTrend: [ActiveCalTrendPoint] = {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
         let values = [420, 0, 380, 0, 335, 0, 342]
-        return (-6...0).map { offset in
+        return (-6 ... 0).map { offset in
             let date = calendar.date(byAdding: .day, value: offset, to: today)!
             return ActiveCalTrendPoint(date: date, calories: values[offset + 6])
         }
     }()
 
-    // Stub HR data
+    /// Stub HR data
     private let heartRateData: [HRDataPoint] = {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
-        return (6...Int(Date().timeIntervalSince(calendar.startOfDay(for: Date())) / 3600)).compactMap { hour in
-            guard hour <= 24 else { return nil }
+        return (6 ... Int(Date().timeIntervalSince(calendar.startOfDay(for: Date())) / 3600)).compactMap { hour in
+            guard hour <= 24 else {
+                return nil
+            }
             let date = calendar.date(byAdding: .hour, value: hour, to: today)!
-            let bpm: Double
-            if hour >= 9 && hour <= 10 { bpm = Double.random(in: 120...165) } // Workout window
-            else { bpm = Double.random(in: 55...85) }
+            let bpm = if hour >= 9, hour <= 10 {
+                Double.random(in: 120 ... 165)
+            } // Workout window
+            else {
+                Double.random(in: 55 ... 85)
+            }
             return HRDataPoint(time: date, bpm: bpm)
         }
     }()
@@ -46,7 +63,7 @@ struct MoveQuadrantDetailView: View {
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: TempoSpacing.xl) {
-                if data.isConnected {
+                if data.isConnected || healthKitAuthorized {
                     workoutHeroSection
                     todayActivitySection
                     heartRateSection
@@ -59,12 +76,17 @@ struct MoveQuadrantDetailView: View {
                         title: "Health Access Required",
                         message: "Allow HealthKit access to track steps, calories, and workout data.",
                         actionTitle: "Authorize",
-                        action: {}
+                        action: {
+                            Task {
+                                try? await services.healthKit.requestAuthorization()
+                                healthKitAuthorized = true
+                            }
+                        }
                     )
                 }
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, 50)
+            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
         }
         .background(Color.tempoBgPrimary)
         .navigationTitle("Move")
@@ -72,6 +94,7 @@ struct MoveQuadrantDetailView: View {
     }
 
     // MARK: - Workout Hero
+
     // Per MODULE_DASHBOARD.md Section 4.5 — Workout Hero
 
     private var workoutHeroSection: some View {
@@ -134,6 +157,7 @@ struct MoveQuadrantDetailView: View {
     }
 
     // MARK: - Today's Activity
+
     // Per MODULE_DASHBOARD.md Section 4.5 — Today's Activity
 
     private var todayActivitySection: some View {
@@ -175,7 +199,7 @@ struct MoveQuadrantDetailView: View {
                 .font(.tempoCaption1)
                 .foregroundStyle(stepPaceColor)
         }
-        .padding(14)
+        .padding(TempoSpacing.buttonPaddingV)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
         .tempoShadow(.card)
@@ -207,6 +231,7 @@ struct MoveQuadrantDetailView: View {
     }
 
     // MARK: - Heart Rate Section
+
     // Per MODULE_DASHBOARD.md Section 4.5 — Heart Rate Section
 
     private var heartRateSection: some View {
@@ -271,13 +296,14 @@ struct MoveQuadrantDetailView: View {
                 }
             }
         }
-        .padding(14)
+        .padding(TempoSpacing.buttonPaddingV)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
         .tempoShadow(.card)
     }
 
     // MARK: - Workout History
+
     // Per MODULE_DASHBOARD.md Section 4.5 — Workout History
 
     private var workoutHistorySection: some View {
@@ -320,13 +346,14 @@ struct MoveQuadrantDetailView: View {
                 }
             }
         }
-        .padding(14)
+        .padding(TempoSpacing.buttonPaddingV)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
         .tempoShadow(.card)
     }
 
     // MARK: - Weekly Volume Chart
+
     // Per MODULE_DASHBOARD.md Section 4.5 — Weekly Volume Chart
 
     private var weeklyVolumeSection: some View {
@@ -359,22 +386,25 @@ struct MoveQuadrantDetailView: View {
 
             // Weekly totals
             let totalCal = volumeTrend.reduce(0) { $0 + $1.calories }
-            let workoutCount = volumeTrend.filter { $0.calories > 0 }.count
-            Text("Total: \(NumberFormatter.localizedString(from: NSNumber(value: totalCal), number: .decimal)) cal · \(workoutCount) workouts")
-                .font(.tempoCallout)
-                .foregroundStyle(Color.tempoTextPrimary)
+            let workoutCount = volumeTrend.count(where: { $0.calories > 0 })
+            Text(
+                "Total: \(NumberFormatter.localizedString(from: NSNumber(value: totalCal), number: .decimal)) cal · \(workoutCount) workouts"
+            )
+            .font(.tempoCallout)
+            .foregroundStyle(Color.tempoTextPrimary)
 
             Text("vs last week: +12%")
                 .font(.tempoCaption1)
                 .foregroundStyle(Color.tempoSuccess)
         }
-        .padding(14)
+        .padding(TempoSpacing.buttonPaddingV)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
         .tempoShadow(.card)
     }
 
     // MARK: - Start Workout Button
+
     // Per MODULE_DASHBOARD.md Section 4.5
 
     private var startWorkoutButton: some View {
@@ -396,10 +426,12 @@ struct MoveQuadrantDetailView: View {
     // MARK: - Helpers
 
     private var workoutQuip: String {
-        ["Solid session. Now recover.",
-         "Done and dusted.",
-         "Checked off. Next one's waiting.",
-         "Work in the bank."].randomElement() ?? ""
+        [
+            "Solid session. Now recover.",
+            "Done and dusted.",
+            "Checked off. Next one's waiting.",
+            "Work in the bank.",
+        ].randomElement() ?? ""
     }
 
     private var stepPaceProjection: String {
@@ -418,18 +450,26 @@ struct MoveQuadrantDetailView: View {
     }
 
     private var stepPaceColor: Color {
-        guard let steps = data.steps else { return .tempoTextSecondary }
+        guard let steps = data.steps else {
+            return .tempoTextSecondary
+        }
         let calendar = Calendar.current
         let hoursElapsed = Date().timeIntervalSince(calendar.startOfDay(for: Date())) / 3600
-        guard hoursElapsed >= 1 else { return .tempoTextSecondary }
+        guard hoursElapsed >= 1 else {
+            return .tempoTextSecondary
+        }
         let projected = Int(Double(steps) / hoursElapsed * 16)
-        if projected >= data.stepsTarget { return .tempoSuccess }
-        if projected < Int(Double(data.stepsTarget) * 0.8) { return .tempoWarning }
+        if projected >= data.stepsTarget {
+            return .tempoSuccess
+        }
+        if projected < Int(Double(data.stepsTarget) * 0.8) {
+            return .tempoWarning
+        }
         return .tempoTextSecondary
     }
 }
 
-// MARK: - Supporting Types
+// MARK: - WorkoutHistoryItem
 
 struct WorkoutHistoryItem: Identifiable {
     let id = UUID()
@@ -439,11 +479,15 @@ struct WorkoutHistoryItem: Identifiable {
     let calories: Int
 }
 
+// MARK: - ActiveCalTrendPoint
+
 struct ActiveCalTrendPoint: Identifiable {
     let id = UUID()
     let date: Date
     let calories: Int
 }
+
+// MARK: - HRDataPoint
 
 struct HRDataPoint: Identifiable {
     let id = UUID()
@@ -461,7 +505,7 @@ struct HRDataPoint: Identifiable {
                 workoutName: "Upper Body Push",
                 workoutDurationMinutes: 55,
                 steps: 8432,
-                stepsTarget: 10_000,
+                stepsTarget: 10000,
                 activeCalories: 342,
                 heartRateCurrent: 72,
                 isConnected: true,
@@ -469,4 +513,5 @@ struct HRDataPoint: Identifiable {
             )
         )
     }
+    .environment(ServiceContainer.mock())
 }

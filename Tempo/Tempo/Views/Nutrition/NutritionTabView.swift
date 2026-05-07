@@ -1,17 +1,30 @@
-import SwiftUI
+//
+// NutritionTabView.swift
+// Tempo
+//
+// Created by Tempo on 06/05/2026.
+//
+//
+
 import SwiftData
+import SwiftUI
 
 // MARK: - Nutrition Tab View
+
 // Full nutrition tab with segmented sections: Today, Plan, Log, Coach.
 // Per DESIGN_SYSTEM.md — all tokens, drill-sergeant voice.
 
 struct NutritionTabView: View {
-
-    @Environment(\.modelContext) private var modelContext
-    @Environment(ServiceContainer.self) private var services
-    @State private var viewModel = NutritionTabViewModel()
-    @State private var showDietaryProfileSetup = false
-    @State private var showMealLogging = false
+    @Environment(\.modelContext)
+    private var modelContext
+    @Environment(ServiceContainer.self)
+    private var services
+    @State
+    private var viewModel = NutritionTabViewModel()
+    @State
+    private var showDietaryProfileSetup = false
+    @State
+    private var showMealLogging = false
 
     var body: some View {
         NavigationStack {
@@ -33,7 +46,7 @@ struct NutritionTabView: View {
                             .tint(Color.tempoSignal)
                         Spacer()
 
-                    case .error(let message):
+                    case let .error(message):
                         errorState(message)
 
                     case .loaded:

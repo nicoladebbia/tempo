@@ -151,7 +151,7 @@ struct TempoWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: TempoTimelineProvider()) { entry in
             TempoWidgetEntryView(entry: entry)
-                .containerBackground(.black, for: .widget)
+                .background(Color.black)
         }
         .configurationDisplayName("Tempo Score")
         .description("Your daily life operating score at a glance.")
@@ -167,7 +167,7 @@ struct TempoLockScreenWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: TempoTimelineProvider()) { entry in
             LockScreenWidgetView(entry: entry)
-                .containerBackground(.black, for: .widget)
+                .background(Color.black)
         }
         .configurationDisplayName("Tempo Score")
         .description("Daily score on your lock screen.")

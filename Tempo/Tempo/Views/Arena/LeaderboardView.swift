@@ -1,17 +1,30 @@
+//
+// LeaderboardView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
-// MARK: - Leaderboard View
+// MARK: - LeaderboardView
+
 // Per MODULE_ARENA.md Section 7 — Full weekly leaderboard.
 // Per WIREFRAMES.md Screen 37 — Period tabs, podium, ranked list.
 
 struct LeaderboardView: View {
+    @Environment(ServiceContainer.self)
+    private var services
 
-    @Environment(ServiceContainer.self) private var services
-
-    @State private var selectedPeriod: LeaderboardPeriod = .weekly
-    @State private var rankings: [LeaderboardEntry] = []
-    @State private var myRank: Int = 0
-    @State private var isLoading = true
+    @State
+    private var selectedPeriod: LeaderboardPeriod = .weekly
+    @State
+    private var rankings: [LeaderboardEntry] = []
+    @State
+    private var myRank: Int = 0
+    @State
+    private var isLoading = true
 
     var body: some View {
         VStack(spacing: 0) {
@@ -41,6 +54,7 @@ struct LeaderboardView: View {
     }
 
     // MARK: - Period Picker
+
     // Per WIREFRAMES.md Screen 37 — 36pt segmented control.
 
     private var periodPicker: some View {
@@ -55,6 +69,7 @@ struct LeaderboardView: View {
     }
 
     // MARK: - Podium (Top 3)
+
     // Per WIREFRAMES.md Screen 37 — 180pt total, pillar heights 120/100/85.
 
     private var podiumView: some View {
@@ -101,8 +116,8 @@ struct LeaderboardView: View {
             // Pillar
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(entry.rank == 1 ? Color.tempoAmber.opacity(0.3) :
-                      entry.rank == 2 ? Color.tempoSteel.opacity(0.3) :
-                      Color.tempoAmber.opacity(0.15))
+                    entry.rank == 2 ? Color.tempoSteel.opacity(0.3) :
+                    Color.tempoAmber.opacity(0.15))
                 .frame(height: pillarHeight)
                 .overlay(alignment: .top) {
                     Text("#\(entry.rank)")
@@ -115,6 +130,7 @@ struct LeaderboardView: View {
     }
 
     // MARK: - Ranked List (4+)
+
     // Per WIREFRAMES.md Screen 37 — 56pt rows, movement arrows.
 
     private var rankedList: some View {
@@ -203,20 +219,30 @@ struct LeaderboardView: View {
 
     private func loadMockData() {
         // Placeholder data — will be replaced with real API calls
+        rankings = [
+            LeaderboardEntry(rank: 1, username: "marcus", displayName: "Marcus", xp: 2450, level: 8, isMe: false),
+            LeaderboardEntry(rank: 2, username: "sofia", displayName: "Sofia", xp: 2280, level: 7, isMe: false),
+            LeaderboardEntry(rank: 3, username: "you", displayName: "You", xp: 1890, level: 6, isMe: true),
+            LeaderboardEntry(rank: 4, username: "jake", displayName: "Jake", xp: 1650, level: 5, isMe: false),
+            LeaderboardEntry(rank: 5, username: "emma", displayName: "Emma", xp: 1420, level: 5, isMe: false),
+        ]
+        myRank = 3
         isLoading = false
     }
 }
 
-// MARK: - Leaderboard Period
+// MARK: - LeaderboardPeriod
 
 enum LeaderboardPeriod: String, CaseIterable {
-    case weekly, monthly, alltime
+    case weekly
+    case monthly
+    case alltime
 
     var label: String {
         switch self {
-        case .weekly: return "WEEKLY"
-        case .monthly: return "MONTHLY"
-        case .alltime: return "ALL-TIME"
+        case .weekly: "WEEKLY"
+        case .monthly: "MONTHLY"
+        case .alltime: "ALL-TIME"
         }
     }
 }

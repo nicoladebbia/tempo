@@ -1,10 +1,20 @@
+//
+// NutriTrackConnectStepView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - NutriTrack Connect Step View (Onboarding)
+
 // Per STATE_MACHINES.md Section 10 — Connect NutriTrack. OPTIONAL.
 
 struct NutriTrackConnectStepView: View {
-    @Bindable var viewModel: OnboardingViewModel
+    @Bindable
+    var viewModel: OnboardingViewModel
 
     var body: some View {
         VStack(spacing: TempoSpacing.xxl) {
@@ -50,4 +60,13 @@ struct NutriTrackConnectStepView: View {
                 .foregroundStyle(.white.opacity(0.8))
         }
     }
+}
+
+#Preview {
+    @Previewable @State
+    var vm = OnboardingViewModel()
+
+    NutriTrackConnectStepView(viewModel: vm)
+        .background(Color.black)
+        .preferredColorScheme(.dark)
 }

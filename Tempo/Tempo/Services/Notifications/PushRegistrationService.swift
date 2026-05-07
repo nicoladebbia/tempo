@@ -1,16 +1,24 @@
-import Foundation
-import UserNotifications
-import UIKit
-import os
+//
+// PushRegistrationService.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
 
-// MARK: - Push Registration Service
+import Foundation
+import os
+import UIKit
+import UserNotifications
+
+// MARK: - PushRegistrationService
+
 // Per BUILD_PLAN step 12.1 — Register for remote notifications, send device token to backend.
 // Per ADR-019 — Direct APNs with P8 token-based authentication.
 // Per TECHNICAL_FEASIBILITY_AUDIT.md Section 5.4 — apnswift is production-ready.
 
 @Observable
 final class PushRegistrationService: @unchecked Sendable {
-
     private let apiClient: APIClient
     private let logger = Logger(subsystem: "app.tempo", category: "PushRegistration")
 
@@ -127,9 +135,9 @@ extension APIEndpoint where Response == DeviceTokenEnvelope<EmptyResponse> {
     }
 }
 
-// MARK: - DTOs
+// MARK: - DeviceTokenRegisterBody
 
-struct DeviceTokenRegisterBody: Codable, Sendable {
+struct DeviceTokenRegisterBody: Codable {
     let token: String
     let deviceID: String
     let deviceName: String?
@@ -143,13 +151,17 @@ struct DeviceTokenRegisterBody: Codable, Sendable {
     }
 }
 
-struct DeviceTokenRegisterResponseDTO: Codable, Sendable {
+// MARK: - DeviceTokenRegisterResponseDTO
+
+struct DeviceTokenRegisterResponseDTO: Codable {
     let id: String
     let registered: Bool
 }
 
+// MARK: - DeviceTokenEnvelope
+
 /// Envelope DTO matching backend Envelope<T>.
-struct DeviceTokenEnvelope<T: Codable & Sendable>: Codable, Sendable {
+struct DeviceTokenEnvelope<T: Codable & Sendable>: Codable {
     let ok: Bool
     let data: T
 }

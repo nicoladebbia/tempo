@@ -1,21 +1,32 @@
-import Foundation
-import StoreKit
-import os
+//
+// SubscriptionService.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
 
-// MARK: - Subscription Service
+import Foundation
+import os
+import StoreKit
+
+// MARK: - SubscriptionService
+
 // Per BUILD_PLAN Step 20.1 — StoreKit 2 implementation.
 // Per MONETIZATION_STRATEGY.md — $4.99/month, $39.99/year, 7-day trial.
+// Per MONETIZATION_STRATEGY.md — Student pricing: $2.99/month, $23.99/year (40% off).
 // Per DEPENDENCIES.md Section 2.15 — Raw StoreKit 2 (no RevenueCat).
 
 @Observable
 @MainActor
 final class SubscriptionService: SubscriptionServiceProtocol, @unchecked Sendable {
-
     // MARK: - State
 
     private(set) var state: SubscriptionState = .free
 
-    var isPro: Bool { state.isPro }
+    var isPro: Bool {
+        state.isPro
+    }
 
     // MARK: - Private
 
@@ -40,7 +51,7 @@ final class SubscriptionService: SubscriptionServiceProtocol, @unchecked Sendabl
         let result = try await storeProduct.purchase()
 
         switch result {
-        case .success(let verification):
+        case let .success(verification):
             let transaction = try checkVerified(verification)
             await transaction.finish()
             await refreshState()
@@ -71,8 +82,12 @@ final class SubscriptionService: SubscriptionServiceProtocol, @unchecked Sendabl
         var latestDate: Date = .distantPast
 
         for await result in Transaction.currentEntitlements {
-            guard let transaction = try? checkVerified(result) else { continue }
-            guard productIds.contains(transaction.productID) else { continue }
+            guard let transaction = try? checkVerified(result) else {
+                continue
+            }
+            guard productIds.contains(transaction.productID) else {
+                continue
+            }
 
             if transaction.purchaseDate > latestDate {
                 latestDate = transaction.purchaseDate
@@ -110,10 +125,14 @@ final class SubscriptionService: SubscriptionServiceProtocol, @unchecked Sendabl
         updateTask?.cancel()
         updateTask = Task(priority: .background) { [weak self] in
             for await result in Transaction.updates {
-                guard let self else { return }
-                guard let transaction = try? self.checkVerified(result) else { continue }
+                guard let self else {
+                    return
+                }
+                guard let transaction = try? checkVerified(result) else {
+                    continue
+                }
                 await transaction.finish()
-                await self.refreshState()
+                await refreshState()
             }
         }
     }
@@ -123,9 +142,10 @@ final class SubscriptionService: SubscriptionServiceProtocol, @unchecked Sendabl
         let now = Date()
 
         // Check if in trial
-        if let offerType = transaction.offerType, offerType == .introductory,
+        if let offer = transaction.offer, offer.type == .introductory,
            let expirationDate = transaction.expirationDate,
-           expirationDate > now {
+           expirationDate > now
+        {
             state = .trial(startDate: transaction.purchaseDate, endDate: expirationDate)
             return
         }
@@ -160,16 +180,15 @@ final class SubscriptionService: SubscriptionServiceProtocol, @unchecked Sendabl
 
     private nonisolated func checkVerified<T>(_ result: VerificationResult<T>) throws -> T {
         switch result {
-        case .verified(let value):
+        case let .verified(value):
             return value
-        case .unverified(_, let error):
+        case let .unverified(_, error):
             throw SubscriptionError.verificationFailed(error)
         }
     }
-
 }
 
-// MARK: - Errors
+// MARK: - SubscriptionError
 
 enum SubscriptionError: LocalizedError {
     case productNotFound
@@ -180,11 +199,11 @@ enum SubscriptionError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .productNotFound: return "Subscription product not found."
-        case .userCancelled: return "Purchase was cancelled."
-        case .pending: return "Purchase is pending approval."
-        case .unknown: return "An unknown error occurred."
-        case .verificationFailed: return "Transaction verification failed."
+        case .productNotFound: "Subscription product not found."
+        case .userCancelled: "Purchase was cancelled."
+        case .pending: "Purchase is pending approval."
+        case .unknown: "An unknown error occurred."
+        case .verificationFailed: "Transaction verification failed."
         }
     }
 }

@@ -1,11 +1,19 @@
+//
+// ErrorStateView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Error State View
+
 // Per DESIGN_SYSTEM.md Section 12.5 — Full-Screen Error:
 // Centered layout, exclamationmark icon 48pt Fail Red, retry + go back buttons.
 
 struct ErrorStateView: View {
-
     let title: String
     let message: String
     let retryAction: () -> Void

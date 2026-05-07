@@ -1,14 +1,22 @@
-import Foundation
+//
+// WhoopService.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import AuthenticationServices
+import Foundation
 import os
 
-// MARK: - Whoop Service (Direct OAuth — No Backend Required)
+// MARK: - WhoopService
+
 // Connects directly to Whoop's Developer API v2 via OAuth2.
 // User must register at developer.whoop.com and enter client_id/secret.
 
 @Observable
 final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
-
     private(set) var connectionState: WhoopConnectionState = .disconnected
     private(set) var isDemoMode: Bool = false
     private(set) var lastSyncDate: Date?
@@ -28,8 +36,8 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
         static let apiBase = URL(string: "https://api.prod.whoop.com/developer/v2")!
         static let callbackScheme = "tempo"
         static let redirectURI = "tempo://whoop/callback"
-        // `offline` is REQUIRED to receive a refresh token. Without it, Whoop
-        // returns only a 1-hour access token and the connection breaks daily.
+        /// `offline` is REQUIRED to receive a refresh token. Without it, Whoop
+        /// returns only a 1-hour access token and the connection breaks daily.
         static let scopes = "offline read:recovery read:cycles read:sleep read:workout read:profile read:body_measurement"
         // Registered at developer.whoop.com
         static let defaultClientID = "9f8c50af-76a4-4fad-8e18-6fbf96f92c16"
@@ -41,7 +49,7 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
     private enum Keys {
         static let clientID = "whoop.client_id"
         static let clientSecret = "whoop.client_secret"
-        // Atomic JSON bundle holding {access, refresh, expiry}. Phase 3.
+        /// Atomic JSON bundle holding {access, refresh, expiry}. Phase 3.
         static let tokenBundle = "whoop.token_bundle"
         // Legacy 3-key storage (read-only, for migration to bundle).
         static let accessToken = "whoop.access_token"
@@ -51,7 +59,7 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
 
     // MARK: - Token Bundle
 
-    private struct TokenBundle: Codable, Sendable {
+    private struct TokenBundle: Codable {
         let accessToken: String
         let refreshToken: String
         let expiresAt: TimeInterval
@@ -121,7 +129,8 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
     private func loadTokenBundle() -> TokenBundle? {
         // Try the atomic bundle first.
         if let data = KeychainService.load(key: Keys.tokenBundle),
-           let bundle = try? JSONDecoder().decode(TokenBundle.self, from: data) {
+           let bundle = try? JSONDecoder().decode(TokenBundle.self, from: data)
+        {
             return bundle
         }
         // Migrate from legacy 3-key storage (one-shot).
@@ -129,7 +138,8 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
               let refresh = KeychainService.load(key: Keys.refreshToken).flatMap({ String(data: $0, encoding: .utf8) }),
               let expiryData = KeychainService.load(key: Keys.tokenExpiry),
               let expiryStr = String(data: expiryData, encoding: .utf8),
-              let expiry = Double(expiryStr) else {
+              let expiry = Double(expiryStr)
+        else {
             return nil
         }
         let bundle = TokenBundle(accessToken: access, refreshToken: refresh, expiresAt: expiry)
@@ -144,8 +154,14 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
         return bundle
     }
 
-    private var storedAccessToken: String? { loadTokenBundle()?.accessToken }
-    private var storedRefreshToken: String? { loadTokenBundle()?.refreshToken }
+    private var storedAccessToken: String? {
+        loadTokenBundle()?.accessToken
+    }
+
+    private var storedRefreshToken: String? {
+        loadTokenBundle()?.refreshToken
+    }
+
     private var tokenExpiry: Date? {
         loadTokenBundle().map { Date(timeIntervalSince1970: $0.expiresAt) }
     }
@@ -187,7 +203,8 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
     private func forceTokenRefresh() async throws -> String {
         guard let refreshToken = storedRefreshToken,
               let cID = clientID,
-              let cSecret = clientSecret else {
+              let cSecret = clientSecret
+        else {
             throw WhoopError.notConnected
         }
 
@@ -239,11 +256,15 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
 
     private static func isTransient(_ error: URLError) -> Bool {
         switch error.code {
-        case .notConnectedToInternet, .networkConnectionLost, .timedOut,
-             .dnsLookupFailed, .cannotFindHost, .cannotConnectToHost:
-            return true
+        case .notConnectedToInternet,
+             .networkConnectionLost,
+             .timedOut,
+             .dnsLookupFailed,
+             .cannotFindHost,
+             .cannotConnectToHost:
+            true
         default:
-            return false
+            false
         }
     }
 
@@ -264,7 +285,9 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
     // MARK: - Connect (Direct OAuth)
 
     func connect() async throws {
-        guard connectionState != .connecting else { return }
+        guard connectionState != .connecting else {
+            return
+        }
 
         guard let cID = clientID else {
             throw WhoopError.noCredentials
@@ -352,7 +375,9 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
     // MARK: - Fetch Recovery
 
     func fetchRecovery(for date: Date) async throws -> WhoopRecoveryData {
-        if isDemoMode { return try await mockService.fetchRecovery(for: date) }
+        if isDemoMode {
+            return try await mockService.fetchRecovery(for: date)
+        }
 
         let (start, end) = dateRange(for: date)
         print("[Whoop] fetchRecovery: range \(start) → \(end)")
@@ -394,7 +419,9 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
     // MARK: - Fetch Recovery Batch (all scored records in range)
 
     func fetchRecoveryBatch(for date: Date) async throws -> [WhoopRecoveryData] {
-        if isDemoMode { return [try await mockService.fetchRecovery(for: date)] }
+        if isDemoMode {
+            return try await [mockService.fetchRecovery(for: date)]
+        }
 
         let (start, end) = dateRange(for: date)
         let response: WhoopAPIResponse<WhoopAPIRecoveryRecord> = try await whoopGet(
@@ -409,7 +436,9 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
         isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
 
         return response.records.compactMap { record in
-            guard record.scoreState == "SCORED", let score = record.score else { return nil }
+            guard record.scoreState == "SCORED", let score = record.score else {
+                return nil
+            }
             let recordDate = record.createdAt.flatMap { isoFormatter.date(from: $0) } ?? date
             return WhoopRecoveryData(
                 score: score.recoveryScore ?? 0,
@@ -425,7 +454,9 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
     // MARK: - Fetch Sleep Batch (all scored records in range)
 
     func fetchSleepBatch(for date: Date) async throws -> [WhoopSleepData] {
-        if isDemoMode { return [try await mockService.fetchSleep(for: date)] }
+        if isDemoMode {
+            return try await [mockService.fetchSleep(for: date)]
+        }
 
         let (start, end) = dateRange(for: date)
         let response: WhoopAPIResponse<WhoopAPISleepRecord> = try await whoopGet(
@@ -440,7 +471,9 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
         isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
 
         return response.records.compactMap { record in
-            guard record.nap != true, record.scoreState == "SCORED", let score = record.score else { return nil }
+            guard record.nap != true, record.scoreState == "SCORED", let score = record.score else {
+                return nil
+            }
             let stages = score.stageSummary
             let lightMilli: Int64 = stages?.totalLightSleepTimeMilli ?? 0
             let deepMilli: Int64 = stages?.totalSlowWaveSleepTimeMilli ?? 0
@@ -454,10 +487,10 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
                 sleepScore: score.sleepPerformancePercentage ?? 0,
                 sleepEfficiency: score.sleepEfficiencyPercentage ?? 0,
                 sleepConsistency: score.sleepConsistencyPercentage ?? 0,
-                deepSleepMinutes: Int(deepMilli / 60_000),
-                remSleepMinutes: Int(remMilli / 60_000),
-                lightSleepMinutes: Int(lightMilli / 60_000),
-                awakeMinutes: Int(awakeMilli / 60_000),
+                deepSleepMinutes: Int(deepMilli / 60000),
+                remSleepMinutes: Int(remMilli / 60000),
+                lightSleepMinutes: Int(lightMilli / 60000),
+                awakeMinutes: Int(awakeMilli / 60000),
                 respiratoryRate: score.respiratoryRate ?? 0,
                 date: recordDate
             )
@@ -467,7 +500,9 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
     // MARK: - Fetch Sleep
 
     func fetchSleep(for date: Date) async throws -> WhoopSleepData {
-        if isDemoMode { return try await mockService.fetchSleep(for: date) }
+        if isDemoMode {
+            return try await mockService.fetchSleep(for: date)
+        }
 
         let (start, end) = dateRange(for: date)
         print("[Whoop] fetchSleep: range \(start) → \(end)")
@@ -505,10 +540,10 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
             sleepScore: score.sleepPerformancePercentage ?? 0,
             sleepEfficiency: score.sleepEfficiencyPercentage ?? 0,
             sleepConsistency: score.sleepConsistencyPercentage ?? 0,
-            deepSleepMinutes: Int(deepMilli / 60_000),
-            remSleepMinutes: Int(remMilli / 60_000),
-            lightSleepMinutes: Int(lightMilli / 60_000),
-            awakeMinutes: Int(awakeMilli / 60_000),
+            deepSleepMinutes: Int(deepMilli / 60000),
+            remSleepMinutes: Int(remMilli / 60000),
+            lightSleepMinutes: Int(lightMilli / 60000),
+            awakeMinutes: Int(awakeMilli / 60000),
             respiratoryRate: score.respiratoryRate ?? 0,
             date: date
         )
@@ -517,7 +552,9 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
     // MARK: - Fetch Workouts
 
     func fetchWorkouts(for date: Date) async throws -> [WhoopWorkoutData] {
-        if isDemoMode { return try await mockService.fetchWorkouts(for: date) }
+        if isDemoMode {
+            return try await mockService.fetchWorkouts(for: date)
+        }
 
         let (start, end) = dateRange(for: date)
         let response: WhoopAPIResponse<WhoopAPIWorkoutRecord> = try await whoopGet(
@@ -549,7 +586,9 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
     // MARK: - Fetch Cycle (Strain)
 
     func fetchCycle(for date: Date) async throws -> WhoopCycleData {
-        if isDemoMode { return try await mockService.fetchCycle(for: date) }
+        if isDemoMode {
+            return try await mockService.fetchCycle(for: date)
+        }
 
         let (start, end) = dateRange(for: date)
         let response: WhoopAPIResponse<WhoopAPICycleRecord> = try await whoopGet(
@@ -768,7 +807,8 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
                 retryRequest.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
                 let (retryData, retryResponse) = try await session.data(for: retryRequest)
                 guard let retryHttp = retryResponse as? HTTPURLResponse,
-                      (200 ... 299).contains(retryHttp.statusCode) else {
+                      (200 ... 299).contains(retryHttp.statusCode)
+                else {
                     logger.error("Whoop \(path): retry also failed")
                     try? clearTokens()
                     connectionState = .disconnected
@@ -805,7 +845,7 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
     }
 }
 
-// MARK: - ASWebAuthenticationPresentationContextProviding
+// MARK: ASWebAuthenticationPresentationContextProviding
 
 extension WhoopService: ASWebAuthenticationPresentationContextProviding {
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
@@ -813,7 +853,7 @@ extension WhoopService: ASWebAuthenticationPresentationContextProviding {
     }
 }
 
-// MARK: - Whoop Errors
+// MARK: - WhoopError
 
 enum WhoopError: Error, Equatable {
     case userCancelled
@@ -828,9 +868,9 @@ enum WhoopError: Error, Equatable {
     case noCredentials
 }
 
-// MARK: - Whoop OAuth Token Response
+// MARK: - WhoopTokenResponse
 
-private struct WhoopTokenResponse: Codable, Sendable {
+private struct WhoopTokenResponse: Codable {
     let accessToken: String
     let tokenType: String
     let expiresIn: Int
@@ -838,10 +878,11 @@ private struct WhoopTokenResponse: Codable, Sendable {
     let scope: String?
 }
 
-// MARK: - Whoop API v2 Response Wrapper
+// MARK: - WhoopAPIResponse
+
 // All DTOs use generous optionals — Whoop API fields vary by device model and score state.
 
-private struct WhoopAPIResponse<T: Codable & Sendable>: Codable, Sendable {
+private struct WhoopAPIResponse<T: Codable & Sendable>: Codable {
     let records: [T]
     let nextToken: String?
 
@@ -873,33 +914,37 @@ private struct WhoopAPIResponse<T: Codable & Sendable>: Codable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case records, nextToken
+        case records
+        case nextToken
     }
 
     /// Empty struct that decodes from any JSON object — used to skip bad array elements.
     private struct SkipElement: Decodable {}
 }
 
-// MARK: - Whoop API v2 Profile
+// MARK: - WhoopAPIProfileResponse
 
-// Profile response — parse first_name, last_name, email from Whoop API.
-private struct WhoopAPIProfileResponse: Codable, Sendable {
+/// Profile response — parse first_name, last_name, email from Whoop API.
+private struct WhoopAPIProfileResponse: Codable {
     let firstName: String?
     let lastName: String?
     let email: String?
 }
 
-// MARK: - Whoop API v2 DTOs
+// MARK: - WhoopAPIRecoveryRecord
+
 // Minimal structs — only fields we actually read. Extra JSON keys are ignored by decoder.
 // Avoids type-mismatch failures (e.g. Whoop returns some IDs as strings, some as ints).
 
-private struct WhoopAPIRecoveryRecord: Codable, Sendable {
+private struct WhoopAPIRecoveryRecord: Codable {
     let createdAt: String?
     let scoreState: String?
     let score: WhoopAPIRecoveryScore?
 }
 
-private struct WhoopAPIRecoveryScore: Codable, Sendable {
+// MARK: - WhoopAPIRecoveryScore
+
+private struct WhoopAPIRecoveryScore: Codable {
     let userCalibrating: Bool?
     let recoveryScore: Double?
     let restingHeartRate: Double?
@@ -908,14 +953,18 @@ private struct WhoopAPIRecoveryScore: Codable, Sendable {
     let skinTempCelsius: Double?
 }
 
-private struct WhoopAPISleepRecord: Codable, Sendable {
+// MARK: - WhoopAPISleepRecord
+
+private struct WhoopAPISleepRecord: Codable {
     let createdAt: String?
     let nap: Bool?
     let scoreState: String?
     let score: WhoopAPISleepScore?
 }
 
-private struct WhoopAPISleepScore: Codable, Sendable {
+// MARK: - WhoopAPISleepScore
+
+private struct WhoopAPISleepScore: Codable {
     let stageSummary: WhoopAPIStageSummary?
     let respiratoryRate: Double?
     let sleepPerformancePercentage: Double?
@@ -923,7 +972,9 @@ private struct WhoopAPISleepScore: Codable, Sendable {
     let sleepEfficiencyPercentage: Double?
 }
 
-private struct WhoopAPIStageSummary: Codable, Sendable {
+// MARK: - WhoopAPIStageSummary
+
+private struct WhoopAPIStageSummary: Codable {
     let totalInBedTimeMilli: Int64?
     let totalAwakeTimeMilli: Int64?
     let totalLightSleepTimeMilli: Int64?
@@ -933,7 +984,9 @@ private struct WhoopAPIStageSummary: Codable, Sendable {
     let disturbanceCount: Int?
 }
 
-private struct WhoopAPIWorkoutRecord: Codable, Sendable {
+// MARK: - WhoopAPIWorkoutRecord
+
+private struct WhoopAPIWorkoutRecord: Codable {
     let start: String?
     let end: String?
     let sportId: Int?
@@ -941,7 +994,9 @@ private struct WhoopAPIWorkoutRecord: Codable, Sendable {
     let score: WhoopAPIWorkoutScore?
 }
 
-private struct WhoopAPIWorkoutScore: Codable, Sendable {
+// MARK: - WhoopAPIWorkoutScore
+
+private struct WhoopAPIWorkoutScore: Codable {
     let strain: Double?
     let averageHeartRate: Int?
     let maxHeartRate: Int?
@@ -949,12 +1004,16 @@ private struct WhoopAPIWorkoutScore: Codable, Sendable {
     let distanceMeter: Double?
 }
 
-private struct WhoopAPICycleRecord: Codable, Sendable {
+// MARK: - WhoopAPICycleRecord
+
+private struct WhoopAPICycleRecord: Codable {
     let scoreState: String?
     let score: WhoopAPICycleScore?
 }
 
-private struct WhoopAPICycleScore: Codable, Sendable {
+// MARK: - WhoopAPICycleScore
+
+private struct WhoopAPICycleScore: Codable {
     let strain: Double?
     let kilojoule: Double?
     let averageHeartRate: Int?

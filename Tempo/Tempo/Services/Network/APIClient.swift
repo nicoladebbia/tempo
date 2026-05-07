@@ -1,6 +1,14 @@
+//
+// APIClient.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
-import UIKit
 import os
+import UIKit
 
 actor APIClient {
     private let baseURL: URL
@@ -24,10 +32,10 @@ actor APIClient {
         self.session = session
         self.authInterceptor = authInterceptor
 
-        self.decoder = JSONDecoder()
+        decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
 
-        self.encoder = JSONEncoder()
+        encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
     }
 
@@ -52,8 +60,8 @@ actor APIClient {
 
     // MARK: - Request Building
 
-    private func buildRequest<T>(
-        _ endpoint: APIEndpoint<T>,
+    private func buildRequest(
+        _ endpoint: APIEndpoint<some Any>,
         body: (some Encodable)?,
         queryItems: [URLQueryItem]?
     ) async throws -> URLRequest {
@@ -71,7 +79,7 @@ actor APIClient {
 
         // Custom headers per DEPENDENCIES.md Section 2.1
         request.setValue(appVersion, forHTTPHeaderField: "X-Client-Version")
-        request.setValue(deviceID, forHTTPHeaderField: "X-Device-Id")
+        await request.setValue(deviceID(), forHTTPHeaderField: "X-Device-Id")
 
         if endpoint.method != .get {
             request.setValue(UUID().uuidString, forHTTPHeaderField: "Idempotency-Key")
@@ -96,7 +104,7 @@ actor APIClient {
         }
 
         #if DEBUG
-        logRequest(request)
+            logRequest(request)
         #endif
 
         return request
@@ -118,7 +126,7 @@ actor APIClient {
             }
 
             #if DEBUG
-            logResponse(httpResponse, data: data)
+                logResponse(httpResponse, data: data)
             #endif
 
             // Cache ETag
@@ -182,6 +190,11 @@ actor APIClient {
         } catch is CancellationError {
             throw APIError.timeout
         } catch {
+            // Connection refused (code -1004) — server not running, do not retry
+            if let urlError = error as? URLError, urlError.code.rawValue == -1004 {
+                throw APIError.connectionRefused
+            }
+
             let apiError = APIError.networkError(error.localizedDescription)
             if apiError.isRetryable, attempt < maxRetries {
                 let delay = baseDelay * pow(2.0, Double(attempt))
@@ -196,11 +209,11 @@ actor APIClient {
 
     private func retryDelay(for error: APIError, attempt: Int) -> TimeInterval {
         switch error {
-        case .rateLimited(let retryAfter):
-            return retryAfter ?? 60.0
+        case let .rateLimited(retryAfter):
+            retryAfter ?? 60.0
         default:
             // Exponential backoff: 1s, 2s, 4s
-            return baseDelay * pow(2.0, Double(attempt))
+            baseDelay * pow(2.0, Double(attempt))
         }
     }
 
@@ -210,21 +223,22 @@ actor APIClient {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
     }
 
-    private nonisolated var deviceID: String {
+    private func deviceID() async -> String {
         // Stable device identifier — in production, store in Keychain
-        UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
+        let vendorID = await MainActor.run { UIDevice.current.identifierForVendor }
+        return vendorID?.uuidString ?? UUID().uuidString
     }
 
     // MARK: - Debug Logging
 
     #if DEBUG
-    private func logRequest(_ request: URLRequest) {
-        logger.debug("→ \(request.httpMethod ?? "?") \(request.url?.absoluteString ?? "")")
-    }
+        private func logRequest(_ request: URLRequest) {
+            logger.debug("→ \(request.httpMethod ?? "?") \(request.url?.absoluteString ?? "")")
+        }
 
-    private func logResponse(_ response: HTTPURLResponse, data: Data) {
-        let size = ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .memory)
-        logger.debug("← \(response.statusCode) [\(size)] \(response.url?.absoluteString ?? "")")
-    }
+        private func logResponse(_ response: HTTPURLResponse, data: Data) {
+            let size = ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .memory)
+            logger.debug("← \(response.statusCode) [\(size)] \(response.url?.absoluteString ?? "")")
+        }
     #endif
 }

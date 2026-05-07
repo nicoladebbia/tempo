@@ -1,6 +1,14 @@
+//
+// WhoopServiceProtocol.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 
-// MARK: - Connection State
+// MARK: - WhoopConnectionState
 
 enum WhoopConnectionState: Sendable, Equatable {
     case disconnected
@@ -9,7 +17,7 @@ enum WhoopConnectionState: Sendable, Equatable {
     case error(String)
 }
 
-// MARK: - Protocol
+// MARK: - WhoopServiceProtocol
 
 protocol WhoopServiceProtocol: Sendable {
     var connectionState: WhoopConnectionState { get }
@@ -36,7 +44,7 @@ protocol WhoopServiceProtocol: Sendable {
     func refreshIfNeeded() async throws
 }
 
-// MARK: - Data Types
+// MARK: - WhoopRecoveryData
 
 struct WhoopRecoveryData: Sendable {
     let score: Double
@@ -46,6 +54,8 @@ struct WhoopRecoveryData: Sendable {
     let skinTemp: Double?
     let date: Date
 }
+
+// MARK: - WhoopSleepData
 
 struct WhoopSleepData: Sendable {
     let totalHours: Double
@@ -60,6 +70,8 @@ struct WhoopSleepData: Sendable {
     let date: Date
 }
 
+// MARK: - WhoopWorkoutData
+
 struct WhoopWorkoutData: Sendable {
     let strain: Double
     let averageHeartRate: Double
@@ -69,6 +81,8 @@ struct WhoopWorkoutData: Sendable {
     let sportID: Int
     let startTime: Date
 }
+
+// MARK: - WhoopCycleData
 
 struct WhoopCycleData: Sendable {
     let strain: Double

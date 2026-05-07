@@ -1,15 +1,25 @@
+//
+// TempoFAB.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Floating Action Button
+
 // Per DESIGN_SYSTEM.md Section 8.1 — 56pt circle, Signal Red, plus icon, elevation 3 shadow.
 
 struct TempoFAB: View {
-
     let icon: String
     let action: () -> Void
 
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var isPressed = false
+    @Environment(\.colorScheme)
+    private var colorScheme
+    @State
+    private var isPressed = false
 
     init(icon: String = "plus", action: @escaping () -> Void) {
         self.icon = icon
@@ -49,11 +59,11 @@ struct TempoFAB: View {
 
     private var backgroundColor: Color {
         if isPressed {
-            return Color.tempoSignalPressed  // #C1303B
+            return Color.tempoSignalPressed // #C1303B
         }
         return colorScheme == .dark
-            ? Color(red: 255 / 255, green: 77 / 255, blue: 90 / 255)  // #FF4D5A
-            : Color.tempoSignal  // #E63946
+            ? Color.tempoSignalHighlight
+            : Color.tempoSignal
     }
 
     private var shadowColor: Color {

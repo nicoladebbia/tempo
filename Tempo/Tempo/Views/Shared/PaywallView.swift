@@ -1,20 +1,36 @@
-import SwiftUI
-import StoreKit
+//
+// PaywallView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
 
-// MARK: - Paywall View
+import StoreKit
+import SwiftUI
+
+// MARK: - PaywallView
+
 // Per BUILD_PLAN Step 20.1 — Paywall UI with feature comparison.
 // Per MONETIZATION_STRATEGY.md — Annual pre-selected, "BEST VALUE" badge, trial callout.
 // Per APP_STORE_COMPLIANCE.md Section 5 — Required disclosure text.
 
 struct PaywallView: View {
+    @Environment(ServiceContainer.self)
+    private var services
+    @Environment(\.dismiss)
+    private var dismiss
 
-    @Environment(ServiceContainer.self) private var services
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var selectedProduct: SubscriptionProduct = .annual
-    @State private var isPurchasing = false
-    @State private var errorMessage: String?
-    @State private var products: [Product] = []
+    @State
+    private var selectedProduct: SubscriptionProduct = .annual
+    @State
+    private var isStudentMode = false
+    @State
+    private var isPurchasing = false
+    @State
+    private var errorMessage: String?
+    @State
+    private var products: [Product] = []
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -22,11 +38,20 @@ struct PaywallView: View {
                 // Header
                 header
 
+                // Consolidation pitch
+                consolidationPitch
+
                 // Feature list
                 featureList
 
                 // Plan selector
                 planSelector
+
+                // Student discount
+                studentToggle
+
+                // Savings callout
+                savingsCallout
 
                 // CTA
                 purchaseButton
@@ -51,7 +76,9 @@ struct PaywallView: View {
         }
         .alert("Error", isPresented: .init(
             get: { errorMessage != nil },
-            set: { if !$0 { errorMessage = nil } }
+            set: { if !$0 {
+                errorMessage = nil
+            } }
         )) {
             Button("OK") { errorMessage = nil }
         } message: {
@@ -78,15 +105,32 @@ struct PaywallView: View {
         }
     }
 
+    // MARK: - Consolidation Pitch
+
+    private var consolidationPitch: some View {
+        VStack(spacing: 4) {
+            Text("STOP PAYING FOR 5 APPS")
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoAmber)
+                .tracking(1.5)
+            Text("Sleep tracking + Workouts + Recovery + Nutrition + Accountability")
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.bottom, TempoSpacing.md)
+    }
+
     // MARK: - Features
-    // Per MONETIZATION_STRATEGY.md — 3-4 hero Pro features.
+
+    // Per MONETIZATION_STRATEGY.md — Hero Pro features, ordered by Tier 1 priority.
 
     private var featureList: some View {
         VStack(alignment: .leading, spacing: TempoSpacing.md) {
+            featureRow(icon: "sparkles", text: "Recovery insights from Whoop & wearables")
             featureRow(icon: "brain.head.profile", text: "AI-powered workout programming")
-            featureRow(icon: "chart.line.uptrend.xyaxis", text: "Progress charts & weekly AI reports")
-            featureRow(icon: "person.2.fill", text: "Unlimited friends & social feed")
-            featureRow(icon: "sparkles", text: "Pattern detection & recovery insights")
+            featureRow(icon: "fork.knife", text: "AI nutrition coaching & meal plans")
+            featureRow(icon: "chart.line.uptrend.xyaxis", text: "Progress charts & weekly reports")
         }
         .padding(TempoSpacing.cardPadding)
         .background(Color.tempoSurfaceCard)
@@ -109,21 +153,27 @@ struct PaywallView: View {
     }
 
     // MARK: - Plan Selector
+
     // Per MONETIZATION_STRATEGY.md — Annual pre-selected with "BEST VALUE" badge.
+
+    /// The effective product for the current mode (standard or student).
+    private var effectiveProduct: SubscriptionProduct {
+        isStudentMode ? selectedProduct.studentVariant : selectedProduct.standardVariant
+    }
 
     private var planSelector: some View {
         VStack(spacing: TempoSpacing.sm) {
             // Annual plan
             planCard(
-                product: .annual,
-                isSelected: selectedProduct == .annual,
+                product: isStudentMode ? .studentAnnual : .annual,
+                isSelected: selectedProduct.standardVariant == .annual,
                 badge: "BEST VALUE"
             )
 
             // Monthly plan
             planCard(
-                product: .monthly,
-                isSelected: selectedProduct == .monthly,
+                product: isStudentMode ? .studentMonthly : .monthly,
+                isSelected: selectedProduct.standardVariant == .monthly,
                 badge: nil
             )
         }
@@ -135,6 +185,14 @@ struct PaywallView: View {
         badge: String?
     ) -> some View {
         let storeProduct = products.first { $0.id == product.rawValue }
+        let isAnnual = product == .annual || product == .studentAnnual
+        let isMonthly = product == .monthly || product == .studentMonthly
+        let fallbackPrice = switch product {
+        case .monthly: "$4.99"
+        case .annual: "$39.99"
+        case .studentMonthly: "$2.99"
+        case .studentAnnual: "$23.99"
+        }
 
         return Button {
             selectedProduct = product
@@ -155,9 +213,19 @@ struct PaywallView: View {
                                 .background(Color.tempoAmber.opacity(0.15))
                                 .clipShape(Capsule())
                         }
+
+                        if product.isStudent {
+                            Text("40% OFF")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(Color.tempoSuccess)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.tempoSuccess.opacity(0.15))
+                                .clipShape(Capsule())
+                        }
                     }
 
-                    if product == .annual {
+                    if isAnnual {
                         Text("Save 33%")
                             .font(.tempoCaption1)
                             .foregroundStyle(Color.tempoRecoveryGreen)
@@ -168,11 +236,11 @@ struct PaywallView: View {
 
                 // Per APP_STORE_COMPLIANCE.md Section 5.6 — Use Product.displayPrice
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text(storeProduct?.displayPrice ?? (product == .monthly ? "$4.99" : "$39.99"))
+                    Text(storeProduct?.displayPrice ?? fallbackPrice)
                         .font(.tempoTitle3)
                         .foregroundStyle(Color.tempoTextPrimary)
 
-                    Text(product == .monthly ? "/month" : "/year")
+                    Text(isMonthly ? "/month" : "/year")
                         .font(.tempoCaption2)
                         .foregroundStyle(Color.tempoTextTertiary)
                 }
@@ -186,7 +254,51 @@ struct PaywallView: View {
             )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(product.displayName) plan\(badge != nil ? ", \(badge!)" : "")")
+        .accessibilityLabel(
+            "\(product.displayName) plan\(badge != nil ? ", \(badge!)" : "")\(product.isStudent ? ", student pricing" : "")"
+        )
+    }
+
+    // MARK: - Student Toggle
+
+    private var studentToggle: some View {
+        VStack(spacing: TempoSpacing.sm) {
+            Button(action: { isStudentMode.toggle() }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "graduationcap.fill")
+                        .foregroundStyle(Color.tempoAmber)
+                    Text("I'm a student")
+                        .font(.tempoBody)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                    Spacer()
+                    Image(systemName: isStudentMode ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(isStudentMode ? Color.tempoSuccess : Color.tempoTextTertiary)
+                }
+            }
+            .buttonStyle(.plain)
+
+            if isStudentMode {
+                Text("40% off with valid .edu email")
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextTertiary)
+            }
+        }
+    }
+
+    // MARK: - Savings Callout
+
+    @ViewBuilder
+    private var savingsCallout: some View {
+        if !isStudentMode {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.down.circle.fill")
+                    .foregroundStyle(Color.tempoSuccess)
+                Text("Replaces Whoop ($30) + MyFitnessPal ($20) + Strong ($5) = saves $55/mo")
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextSecondary)
+            }
+            .padding(.horizontal, TempoSpacing.screenEdge)
+        }
     }
 
     // MARK: - Purchase Button
@@ -235,13 +347,15 @@ struct PaywallView: View {
         }
     }
 
-    // Per APP_STORE_COMPLIANCE.md Section 5.2, 5.5 — Required subscription disclosure.
+    /// Per APP_STORE_COMPLIANCE.md Section 5.2, 5.5 — Required subscription disclosure.
     private var legalText: some View {
-        Text("7-day free trial, then auto-renews. Payment will be charged to your Apple ID account at the confirmation of purchase. Subscription automatically renews unless it is canceled at least 24 hours before the end of the current period.")
-            .font(.tempoCaption2)
-            .foregroundStyle(Color.tempoTextTertiary)
-            .multilineTextAlignment(.center)
-            .padding(.horizontal, TempoSpacing.md)
+        Text(
+            "7-day free trial, then auto-renews. Payment will be charged to your Apple ID account at the confirmation of purchase. Subscription automatically renews unless it is canceled at least 24 hours before the end of the current period."
+        )
+        .font(.tempoCaption2)
+        .foregroundStyle(Color.tempoTextTertiary)
+        .multilineTextAlignment(.center)
+        .padding(.horizontal, TempoSpacing.md)
     }
 
     private var dismissButton: some View {
@@ -269,7 +383,7 @@ struct PaywallView: View {
         defer { isPurchasing = false }
 
         do {
-            try await services.subscriptions.purchase(selectedProduct)
+            try await services.subscriptions.purchase(effectiveProduct)
             dismiss()
         } catch let error as SubscriptionError where error == .userCancelled {
             // User cancelled — no error to show
@@ -290,7 +404,7 @@ struct PaywallView: View {
     }
 }
 
-// MARK: - SubscriptionError Equatable
+// MARK: - SubscriptionError + Equatable
 
 extension SubscriptionError: Equatable {
     static func == (lhs: SubscriptionError, rhs: SubscriptionError) -> Bool {
@@ -299,11 +413,11 @@ extension SubscriptionError: Equatable {
              (.userCancelled, .userCancelled),
              (.pending, .pending),
              (.unknown, .unknown):
-            return true
+            true
         case (.verificationFailed, .verificationFailed):
-            return true
+            true
         default:
-            return false
+            false
         }
     }
 }

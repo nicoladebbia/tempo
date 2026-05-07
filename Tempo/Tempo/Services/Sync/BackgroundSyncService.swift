@@ -1,9 +1,16 @@
-import Foundation
+//
+// BackgroundSyncService.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import BackgroundTasks
+import Foundation
 import os
 
 final class BackgroundSyncService: @unchecked Sendable {
-
     static let healthKitSyncID = "com.tempo.healthkit-sync"
     static let dataSyncID = "com.tempo.data-sync"
     static let dailyResetID = "com.tempo.daily-reset"

@@ -1,11 +1,19 @@
+//
+// OfflineBannerView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Offline Banner
+
 // Per DESIGN_SYSTEM.md Section 8.8 — Banner:
 // Warning style, full width, yellow tint bg, left accent bar.
 
 struct OfflineBannerView: View {
-
     var body: some View {
         HStack(spacing: 0) {
             // Left accent bar

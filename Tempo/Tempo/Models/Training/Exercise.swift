@@ -1,9 +1,18 @@
+//
+// Exercise.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
+// MARK: - Exercise
+
 @Model
 final class Exercise {
-
     @Attribute(.unique)
     var id: UUID
 
@@ -26,6 +35,8 @@ final class Exercise {
     var instructions: String?
 
     var cuesJSON: Data?
+
+    var preferredRestSeconds: Int?
 
     // MARK: - Relationships
 
@@ -50,7 +61,8 @@ final class Exercise {
     var secondaryMuscles: [MuscleGroup] {
         get {
             guard let data = secondaryMusclesJSON,
-                  let raw = try? JSONDecoder().decode([String].self, from: data) else {
+                  let raw = try? JSONDecoder().decode([String].self, from: data)
+            else {
                 return []
             }
             return raw.compactMap { MuscleGroup(rawValue: $0) }
@@ -76,7 +88,8 @@ final class Exercise {
     var cues: [String] {
         get {
             guard let data = cuesJSON,
-                  let decoded = try? JSONDecoder().decode([String].self, from: data) else {
+                  let decoded = try? JSONDecoder().decode([String].self, from: data)
+            else {
                 return []
             }
             return decoded
@@ -119,23 +132,22 @@ final class Exercise {
     ) {
         self.id = id
         self.name = name
-        self.muscleGroupRaw = muscleGroup.rawValue
-        self.secondaryMusclesJSON = try? JSONEncoder().encode(secondaryMuscles.map(\.rawValue))
-        self.equipmentRaw = equipment.rawValue
-        self.movementPatternRaw = movementPattern.rawValue
+        muscleGroupRaw = muscleGroup.rawValue
+        secondaryMusclesJSON = try? JSONEncoder().encode(secondaryMuscles.map(\.rawValue))
+        equipmentRaw = equipment.rawValue
+        movementPatternRaw = movementPattern.rawValue
         self.isCompound = isCompound
         self.isCustom = isCustom
         self.demoAsset = demoAsset
         self.instructions = instructions
-        self.cuesJSON = try? JSONEncoder().encode(cues)
+        cuesJSON = try? JSONEncoder().encode(cues)
     }
 }
 
 // MARK: - DTO
 
 extension Exercise {
-
-    struct DTO: Codable, Sendable {
+    struct DTO: Codable {
         let id: UUID
         let name: String
         let muscle_group: String

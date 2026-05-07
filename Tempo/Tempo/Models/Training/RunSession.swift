@@ -1,9 +1,18 @@
+//
+// RunSession.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
+// MARK: - RunSession
+
 @Model
 final class RunSession {
-
     @Attribute(.unique)
     var id: UUID
 
@@ -51,7 +60,8 @@ final class RunSession {
     var splits: [Double] {
         get {
             guard let data = splitsJSON,
-                  let decoded = try? JSONDecoder().decode([Double].self, from: data) else {
+                  let decoded = try? JSONDecoder().decode([Double].self, from: data)
+            else {
                 return []
             }
             return decoded
@@ -63,7 +73,9 @@ final class RunSession {
 
     @Transient
     var avgPaceFormatted: String? {
-        guard let pace = avgPaceSecondsPerKm else { return nil }
+        guard let pace = avgPaceSecondsPerKm else {
+            return nil
+        }
         let mins = Int(pace) / 60
         let secs = Int(pace) % 60
         return String(format: "%d:%02d /km", mins, secs)
@@ -90,7 +102,7 @@ final class RunSession {
         self.distanceMeters = distanceMeters
         self.durationSeconds = durationSeconds
         self.avgPaceSecondsPerKm = avgPaceSecondsPerKm
-        self.splitsJSON = try? JSONEncoder().encode(splits)
+        splitsJSON = try? JSONEncoder().encode(splits)
         self.routePolyline = routePolyline
         self.avgHR = avgHR
         self.maxHR = maxHR
@@ -103,8 +115,7 @@ final class RunSession {
 // MARK: - DTO
 
 extension RunSession {
-
-    struct DTO: Codable, Sendable {
+    struct DTO: Codable {
         let id: UUID
         let date: Date
         let distance_meters: Double

@@ -1,13 +1,24 @@
+//
+// ExerciseLibraryLoader.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
+// MARK: - ExerciseLibraryLoader
+
 @MainActor
 struct ExerciseLibraryLoader {
-
     static func loadIfNeeded(context: ModelContext) throws {
         let descriptor = FetchDescriptor<Exercise>()
         let count = try context.fetchCount(descriptor)
-        guard count == 0 else { return }
+        guard count == 0 else {
+            return
+        }
 
         let exercises = try loadFromBundle()
         for entry in exercises {
@@ -38,6 +49,8 @@ struct ExerciseLibraryLoader {
         case fileNotFound
     }
 }
+
+// MARK: - ExerciseEntry
 
 private struct ExerciseEntry: Decodable {
     let name: String

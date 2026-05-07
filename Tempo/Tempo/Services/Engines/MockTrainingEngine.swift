@@ -1,21 +1,27 @@
+//
+// MockTrainingEngine.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
 final class MockTrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
-
     func generateWorkout(
         for date: Date,
         recoveryScore: Double?,
         footballDays: ActiveDays,
         split: TrainingSplit
     ) -> WorkoutPlan {
-        let plan = WorkoutPlan(
+        WorkoutPlan(
             date: date,
             type: .push,
             status: .planned,
             notes: "Mock push workout"
         )
-        return plan
     }
 
     func adjustForRecovery(plan: WorkoutPlan, score: Double) -> WorkoutPlan {
@@ -52,5 +58,13 @@ final class MockTrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                 status: .planned
             )
         }
+    }
+
+    func isDeloadWeek(date: Date, deloadFrequencyWeeks: Int, trainingStartDate: Date?) -> Bool {
+        false
+    }
+
+    func deloadWeightMultiplier() -> Double {
+        0.6
     }
 }

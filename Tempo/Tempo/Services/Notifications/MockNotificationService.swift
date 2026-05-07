@@ -1,9 +1,16 @@
+//
+// MockNotificationService.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import os
 
 @Observable
 final class MockNotificationService: NotificationServiceProtocol, @unchecked Sendable {
-
     private(set) var scheduledNotifications: [ScheduledNotification] = []
     private let logger = Logger(subsystem: "app.tempo", category: "MockNotifications")
 

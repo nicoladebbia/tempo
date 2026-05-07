@@ -1,3 +1,11 @@
+//
+// TrainingEngineProtocol.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 
 protocol TrainingEngineProtocol: Sendable {
@@ -27,4 +35,10 @@ protocol TrainingEngineProtocol: Sendable {
         footballDays: ActiveDays,
         split: TrainingSplit
     ) -> [WorkoutPlan]
+
+    /// Returns true if the given date falls in a deload week based on training history.
+    func isDeloadWeek(date: Date, deloadFrequencyWeeks: Int, trainingStartDate: Date?) -> Bool
+
+    /// Returns the deload weight multiplier (e.g., 0.6 for 40% reduction).
+    func deloadWeightMultiplier() -> Double
 }

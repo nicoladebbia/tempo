@@ -1,19 +1,29 @@
+//
+// ScoreRingView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Score Ring View
+
 // Per DESIGN_SYSTEM.md Section 8.6 — Circular Progress Ring:
 // Angular gradient fill, round end cap, center score display, spring animation.
 
 struct ScoreRingView: View {
-
     let score: Double
     let maxScore: Double
     let label: String
     let size: CGFloat
     let strokeWidth: CGFloat
 
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var animatedProgress: Double = 0
+    @Environment(\.colorScheme)
+    private var colorScheme
+    @State
+    private var animatedProgress: Double = 0
 
     init(
         score: Double,
@@ -30,31 +40,33 @@ struct ScoreRingView: View {
     }
 
     private var progress: Double {
-        guard maxScore > 0 else { return 0 }
+        guard maxScore > 0 else {
+            return 0
+        }
         return min(score / maxScore, 1.0)
     }
 
     private var trackColor: Color {
         colorScheme == .dark
-            ? Color(red: 56 / 255, green: 56 / 255, blue: 58 / 255)  // #38383A
+            ? Color.tempoFillTertiary
             : Color.tempoBorder
     }
 
     /// Per MODULE_DASHBOARD.md — 100pt ring uses 34pt, larger rings use 64pt/48pt.
     private var scoreFont: Font {
         if size >= 200 {
-            return .tempoScoreDisplay        // 64pt for large rings
+            .tempoScoreDisplay // 64pt for large rings
         } else if size <= 120 {
-            return .tempoXPDisplay            // 36pt for dashboard 100pt ring
+            .tempoXPDisplay // 36pt for dashboard 100pt ring
         } else {
-            return .tempoScoreDisplaySmall   // 48pt for medium rings
+            .tempoScoreDisplaySmall // 48pt for medium rings
         }
     }
 
     private var gradientColors: [Color] {
         colorScheme == .dark
-            ? [Color(red: 1, green: 77 / 255, blue: 90 / 255), Color.tempoSignal]  // #FF4D5A → #E63946
-            : [Color.tempoSignal, Color(red: 220 / 255, green: 38 / 255, blue: 38 / 255)]  // #E63946 → #DC2626
+            ? [Color.tempoSignalHighlight, Color.tempoSignal]
+            : [Color.tempoSignal, Color(red: 220 / 255, green: 38 / 255, blue: 38 / 255)]
     }
 
     var body: some View {
@@ -77,17 +89,19 @@ struct ScoreRingView: View {
                 )
                 .rotationEffect(.degrees(-90))
 
-            // Center content
-            VStack(spacing: TempoSpacing.xxs) {
-                Text("\(Int(score))")
-                    .font(scoreFont)
-                    .tracking(size >= 200 ? TempoTracking.scoreDisplay : TempoTracking.scoreDisplaySmall)
-                    .foregroundStyle(Color.tempoTextPrimary)
+            // Center content — hidden when ring is too small (e.g. header pill)
+            if size >= 60 {
+                VStack(spacing: TempoSpacing.xxs) {
+                    Text("\(Int(score))")
+                        .font(scoreFont)
+                        .tracking(size >= 200 ? TempoTracking.scoreDisplay : TempoTracking.scoreDisplaySmall)
+                        .foregroundStyle(Color.tempoTextPrimary)
 
-                if !label.isEmpty {
-                    Text(label)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                    if !label.isEmpty {
+                        Text(label)
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                    }
                 }
             }
         }

@@ -1,11 +1,19 @@
+//
+// PrescriptionCardView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Prescription Card (Drill Sergeant Message)
+
 // Per DESIGN_SYSTEM.md Section 8.2 — Prescription Card:
 // Ink Black bg (BOTH modes), Signal Red left accent 4pt, drill sergeant glow shadow.
 
 struct PrescriptionCardView: View {
-
     let message: String
     let timestamp: String
 

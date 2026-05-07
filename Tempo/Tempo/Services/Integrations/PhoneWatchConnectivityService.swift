@@ -1,19 +1,32 @@
+//
+// PhoneWatchConnectivityService.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import WatchConnectivity
 
 // MARK: - Phone Watch Connectivity Service (iPhone Side)
+
 // Per XCODE_PROJECT_STRUCTURE.md Section 11.5 — WCSession management on iPhone.
 
 final class PhoneWatchConnectivityService: NSObject, WCSessionDelegate, @unchecked Sendable {
     static let shared = PhoneWatchConnectivityService()
 
     func activate() {
-        guard WCSession.isSupported() else { return }
+        guard WCSession.isSupported() else {
+            return
+        }
         WCSession.default.delegate = self
         WCSession.default.activate()
     }
 
     func pushSnapshot(_ snapshot: [String: Any]) {
-        guard WCSession.default.activationState == .activated else { return }
+        guard WCSession.default.activationState == .activated else {
+            return
+        }
 
         if WCSession.default.isReachable {
             WCSession.default.sendMessage(snapshot, replyHandler: nil)

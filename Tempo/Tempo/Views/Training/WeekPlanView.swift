@@ -1,14 +1,26 @@
-import SwiftUI
-import SwiftData
+//
+// WeekPlanView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
 
-// MARK: - Week Plan View
+import SwiftData
+import SwiftUI
+
+// MARK: - WeekPlanView
+
 // Per MODULE_TRAINING.md Section 9 — 7-day training plan grid.
 // Per WIREFRAMES.md Section 3 — Week plan layout.
 
 struct WeekPlanView: View {
-
-    @Bindable var viewModel: TrainingViewModel
-    @Environment(\.modelContext) private var modelContext
+    @Bindable
+    var viewModel: TrainingViewModel
+    @Environment(\.modelContext)
+    private var modelContext
+    @State
+    private var expandedPlanID: UUID?
 
     private let dayAbbreviations = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
     private let calendar = Calendar.current
@@ -19,6 +31,11 @@ struct WeekPlanView: View {
                 // Week header
                 weekHeader
 
+                // Deload week indicator
+                if viewModel.isDeloadWeek {
+                    deloadBanner
+                }
+
                 // 7-day grid
                 // Per MODULE_TRAINING.md Section 9.2
                 dayGrid
@@ -27,7 +44,7 @@ struct WeekPlanView: View {
                 dailyCards
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, 100)
+            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
         }
         .background(Color.tempoBgPrimary)
         .navigationTitle("This Week")
@@ -56,7 +73,37 @@ struct WeekPlanView: View {
             .padding(.top, TempoSpacing.md)
     }
 
+    // MARK: - Deload Banner
+
+    private var deloadBanner: some View {
+        HStack(spacing: TempoSpacing.sm) {
+            Image(systemName: "arrow.down.circle.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(Color.tempoRecoveryYellow)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("DELOAD WEEK")
+                    .font(.tempoHeadline)
+                    .foregroundStyle(Color.tempoRecoveryYellow)
+
+                Text("Weights reduced 40% — same reps, lighter load. Your body rebuilds stronger.")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextSecondary)
+            }
+
+            Spacer()
+        }
+        .padding(TempoSpacing.cardPadding)
+        .background(Color.tempoRecoveryYellow.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous)
+                .stroke(Color.tempoRecoveryYellow.opacity(0.3), lineWidth: 1)
+        )
+    }
+
     // MARK: - 7-Day Grid
+
     // Per MODULE_TRAINING.md Section 9.2
 
     private var dayGrid: some View {
@@ -116,6 +163,7 @@ struct WeekPlanView: View {
     }
 
     // MARK: - Daily Detail Cards
+
     // Per MODULE_TRAINING.md Section 9.3
 
     private var dailyCards: some View {
@@ -130,71 +178,119 @@ struct WeekPlanView: View {
         let isToday = calendar.isDateInToday(plan.date)
         let isCompleted = plan.status == .completed
         let dayName = dayName(for: plan.date)
+        let isExpanded = expandedPlanID == plan.id
 
-        return VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            // Day label
-            HStack(spacing: TempoSpacing.sm) {
-                if isToday {
-                    Text("TODAY")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoSignal)
-                } else {
-                    Text(dayName)
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+        return VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    expandedPlanID = isExpanded ? nil : plan.id
                 }
-            }
-
-            // Workout info
-            HStack {
-                // Icon
-                Image(systemName: workoutIcon(plan.type))
-                    .font(.tempoBody)
-                    .foregroundStyle(workoutTypeColor(plan: plan))
-
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: TempoSpacing.xs) {
-                        Text(plan.type.displayName.uppercased())
-                            .font(.tempoHeadline)
-                            .foregroundStyle(Color.tempoTextPrimary)
-
-                        if isCompleted {
-                            Text("— Completed")
-                                .font(.tempoCaption1)
-                                .foregroundStyle(Color.tempoRecoveryGreen)
+            } label: {
+                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+                    // Day label
+                    HStack(spacing: TempoSpacing.sm) {
+                        if isToday {
+                            Text("TODAY")
+                                .font(.tempoCaption2)
+                                .foregroundStyle(Color.tempoSignal)
+                        } else {
+                            Text(dayName)
+                                .font(.tempoCaption2)
+                                .foregroundStyle(Color.tempoTextTertiary)
                         }
                     }
 
-                    // Meta line
-                    if plan.type.isGymWorkout {
-                        Text("~\(plan.durationMinutes ?? estimatedDuration(plan: plan)) min · \(plan.orderedExercises.count) exercises")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    } else if plan.type == .football {
-                        Text("Match day")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    } else if plan.type == .rest {
-                        Text("Recovery day")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    } else if plan.type == .mobility {
-                        Text("~25 min · Active recovery")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                    // Workout info
+                    HStack {
+                        // Icon
+                        Image(systemName: workoutIcon(plan.type))
+                            .font(.tempoBody)
+                            .foregroundStyle(workoutTypeColor(plan: plan))
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: TempoSpacing.xs) {
+                                Text(plan.type.displayName.uppercased())
+                                    .font(.tempoHeadline)
+                                    .foregroundStyle(Color.tempoTextPrimary)
+
+                                if isCompleted {
+                                    Text("— Completed")
+                                        .font(.tempoCaption1)
+                                        .foregroundStyle(Color.tempoRecoveryGreen)
+                                }
+                            }
+
+                            // Meta line
+                            if plan.type.isGymWorkout {
+                                Text(
+                                    "~\(plan.durationMinutes ?? estimatedDuration(plan: plan)) min · \(plan.orderedExercises.count) exercises"
+                                )
+                                .font(.tempoCaption1)
+                                .foregroundStyle(Color.tempoTextSecondary)
+                            } else if plan.type == .football {
+                                Text("Match day")
+                                    .font(.tempoCaption1)
+                                    .foregroundStyle(Color.tempoTextSecondary)
+                            } else if plan.type == .rest {
+                                Text("Recovery day")
+                                    .font(.tempoCaption1)
+                                    .foregroundStyle(Color.tempoTextSecondary)
+                            } else if plan.type == .mobility {
+                                Text("~25 min · Active recovery")
+                                    .font(.tempoCaption1)
+                                    .foregroundStyle(Color.tempoTextSecondary)
+                            }
+                        }
+
+                        Spacer()
+
+                        if isCompleted, let duration = plan.actualDurationMinutes {
+                            Text("\(duration) min")
+                                .font(.tempoCaption1)
+                                .foregroundStyle(Color.tempoTextTertiary)
+                        }
+
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(Color.tempoTextTertiary)
                     }
                 }
+                .padding(TempoSpacing.cardPadding)
+            }
+            .buttonStyle(.plain)
 
-                Spacer()
+            // Expanded exercise list
+            if isExpanded, plan.type.isGymWorkout {
+                Divider()
+                    .padding(.horizontal, TempoSpacing.cardPadding)
 
-                if isCompleted, let duration = plan.actualDurationMinutes {
-                    Text("\(duration) min")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+                    ForEach(Array(plan.orderedExercises.enumerated()), id: \.element.id) { index, plannedEx in
+                        HStack(spacing: TempoSpacing.sm) {
+                            Text("\(index + 1)")
+                                .font(.tempoCaption2)
+                                .foregroundStyle(Color.tempoTextTertiary)
+                                .frame(width: 16, alignment: .trailing)
+
+                            Text(plannedEx.exercise?.name ?? "Exercise")
+                                .font(.tempoBody)
+                                .foregroundStyle(Color.tempoTextPrimary)
+                                .lineLimit(1)
+
+                            Spacer()
+
+                            if let sets = plannedEx.sets {
+                                Text("\(sets.count) sets")
+                                    .font(.tempoCaption2)
+                                    .foregroundStyle(Color.tempoTextSecondary)
+                            }
+                        }
+                    }
                 }
+                .padding(.horizontal, TempoSpacing.cardPadding)
+                .padding(.vertical, TempoSpacing.sm)
             }
         }
-        .padding(TempoSpacing.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
@@ -222,10 +318,16 @@ struct WeekPlanView: View {
 
     private func workoutIcon(_ type: WorkoutType) -> String {
         switch type {
-        case .push, .pull, .legs, .upper, .lower, .fullBody:
+        case .push,
+             .pull,
+             .legs,
+             .upper,
+             .lower,
+             .fullBody:
             "figure.strengthtraining.traditional"
         case .football: "sportscourt"
-        case .run, .sprint: "figure.run"
+        case .run,
+             .sprint: "figure.run"
         case .conditioning: "flame"
         case .mobility: "figure.flexibility"
         case .rest: "bed.double"
@@ -233,7 +335,9 @@ struct WeekPlanView: View {
     }
 
     private func workoutTypeColor(plan: WorkoutPlan) -> Color {
-        if plan.status == .completed { return Color.tempoRecoveryGreen }
+        if plan.status == .completed {
+            return Color.tempoRecoveryGreen
+        }
         switch plan.type {
         case .football: return Color.tempoRecoveryYellow
         case .rest: return Color.tempoTextTertiary
@@ -244,14 +348,22 @@ struct WeekPlanView: View {
 
     private func recoveryDotColor(plan: WorkoutPlan) -> Color {
         let adj = plan.recoveryAdjustment
-        if adj >= 1.0 { return Color.tempoRecoveryGreen }
-        if adj >= 0.6 { return Color.tempoRecoveryYellow }
+        if adj >= 1.0 {
+            return Color.tempoRecoveryGreen
+        }
+        if adj >= 0.6 {
+            return Color.tempoRecoveryYellow
+        }
         return Color.tempoRecoveryRed
     }
 
     private func dayName(for date: Date) -> String {
-        if calendar.isDateInToday(date) { return "Today" }
-        if calendar.isDateInTomorrow(date) { return "Tomorrow" }
+        if calendar.isDateInToday(date) {
+            return "Today"
+        }
+        if calendar.isDateInTomorrow(date) {
+            return "Tomorrow"
+        }
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE"
         return formatter.string(from: date)
@@ -259,8 +371,34 @@ struct WeekPlanView: View {
 
     private func estimatedDuration(plan: WorkoutPlan) -> Int {
         let exercises = plan.orderedExercises
-        let totalSets = exercises.reduce(0) { $0 + ($1.sets?.count ?? 0) }
-        return max(20, totalSets * 2 + exercises.count * 2)
+        guard !exercises.isEmpty else {
+            return 20
+        }
+
+        var totalMinutes = 5.0 // Warmup period
+
+        for (index, plannedEx) in exercises.enumerated() {
+            let sets = plannedEx.orderedSets
+            let isCompound = plannedEx.exercise?.isCompound ?? false
+
+            for set in sets {
+                if set.isWarmup {
+                    totalMinutes += 1.0
+                } else if isCompound {
+                    totalMinutes += 2.5
+                } else {
+                    totalMinutes += 1.5
+                }
+            }
+
+            if index < exercises.count - 1 {
+                totalMinutes += 1.0 // Between-exercise transition
+            }
+        }
+
+        totalMinutes += 3.0 // Cooldown
+
+        return max(20, Int(totalMinutes.rounded()))
     }
 }
 

@@ -1,12 +1,24 @@
+//
+// TempoSettingsToolbarModifier.swift
+// Tempo
+//
+// Created by Tempo on 06/05/2026.
+//
+//
+
 import SwiftUI
+
+// MARK: - TempoSymbols
 
 enum TempoSymbols {
     static let settings = "gearshape"
 }
 
-struct TempoSettingsToolbarModifier: ViewModifier {
+// MARK: - TempoSettingsToolbarModifier
 
-    @Binding var isPresented: Bool
+struct TempoSettingsToolbarModifier: ViewModifier {
+    @Binding
+    var isPresented: Bool
 
     func body(content: Content) -> some View {
         content
@@ -32,9 +44,11 @@ struct TempoSettingsToolbarModifier: ViewModifier {
     }
 }
 
-private struct TempoSettingsToolbarStandalone: ViewModifier {
+// MARK: - TempoSettingsToolbarStandalone
 
-    @State private var isPresented = false
+private struct TempoSettingsToolbarStandalone: ViewModifier {
+    @State
+    private var isPresented = false
 
     func body(content: Content) -> some View {
         content.modifier(TempoSettingsToolbarModifier(isPresented: $isPresented))
@@ -42,7 +56,6 @@ private struct TempoSettingsToolbarStandalone: ViewModifier {
 }
 
 extension View {
-
     func tempoSettingsToolbar(isPresented: Binding<Bool>) -> some View {
         modifier(TempoSettingsToolbarModifier(isPresented: isPresented))
     }

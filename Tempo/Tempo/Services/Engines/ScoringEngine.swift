@@ -1,13 +1,22 @@
+//
+// ScoringEngine.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 
 // MARK: - Scoring Engine (Real Implementation)
+
 // Per BUILD_PLAN step 10.7.
 // Per ARCHITECTURE.md — Daily Score composite.
 // Per MODULE_ARENA.md — XP System scoring.
 
 final class ScoringEngine: ScoringEngineProtocol, @unchecked Sendable {
-
     // MARK: - Weight Configuration
+
     // Per BUILD_PLAN 10.7 — weighted composite:
     //   Non-negotiable completion: 40%
     //   Training compliance: 20%
@@ -58,11 +67,11 @@ final class ScoringEngine: ScoringEngineProtocol, @unchecked Sendable {
     // MARK: - Detailed Breakdown
 
     struct DetailedBreakdown {
-        let nonNegotiableScore: Double  // 0-100
-        let trainingScore: Double       // 0-100
-        let nutritionScore: Double      // 0-100
-        let recoveryScore: Double       // 0-100
-        let activityScore: Double       // 0-100
+        let nonNegotiableScore: Double // 0-100
+        let trainingScore: Double // 0-100
+        let nutritionScore: Double // 0-100
+        let recoveryScore: Double // 0-100
+        let activityScore: Double // 0-100
     }
 
     func detailedBreakdown(
@@ -83,7 +92,9 @@ final class ScoringEngine: ScoringEngineProtocol, @unchecked Sendable {
     /// Non-negotiable completion score (0-100).
     /// Based on completion percentage + time bonus + no-skip bonus.
     private func nonNegotiableScore(accountability: DailyAccountability) -> Double {
-        guard accountability.totalCount > 0 else { return 0 }
+        guard accountability.totalCount > 0 else {
+            return 0
+        }
 
         // Base: completion percentage × 80
         let base = accountability.completionPercentage * 80
@@ -93,9 +104,9 @@ final class ScoringEngine: ScoringEngineProtocol, @unchecked Sendable {
         if accountability.allComplete, let unlockedAt = accountability.unlockedAt {
             let hour = Calendar.current.component(.hour, from: unlockedAt)
             if hour < 12 {
-                timeBonus = 10  // Early bird
+                timeBonus = 10 // Early bird
             } else if hour < 17 {
-                timeBonus = 5   // Afternoon
+                timeBonus = 5 // Afternoon
             }
         }
 
@@ -107,9 +118,13 @@ final class ScoringEngine: ScoringEngineProtocol, @unchecked Sendable {
 
     /// Training compliance score (0-100).
     private func trainingScore(snapshot: DailySnapshot) -> Double {
-        if snapshot.workoutCompleted { return 100 }
+        if snapshot.workoutCompleted {
+            return 100
+        }
         // Partial credit: high strain without explicit workout
-        if let strain = snapshot.strain, strain > 10 { return 60 }
+        if let strain = snapshot.strain, strain > 10 {
+            return 60
+        }
         return 0
     }
 
@@ -189,9 +204,13 @@ final class ScoringEngine: ScoringEngineProtocol, @unchecked Sendable {
 
         // Active calories: up to 30 points
         if let cal = snapshot.activeCalories {
-            if cal >= 500 { score += 30 }
-            else if cal >= 300 { score += 20 }
-            else if cal >= 150 { score += 10 }
+            if cal >= 500 {
+                score += 30
+            } else if cal >= 300 {
+                score += 20
+            } else if cal >= 150 {
+                score += 10
+            }
         }
 
         return min(100, score)
@@ -214,13 +233,13 @@ final class ScoringEngine: ScoringEngineProtocol, @unchecked Sendable {
 
         // HRV/RHR within healthy range: 20%
         if snapshot.hrv != nil {
-            score += 10  // Has data bonus
+            score += 10 // Has data bonus
         }
         if snapshot.rhr != nil {
-            score += 10  // Has data bonus
+            score += 10 // Has data bonus
         }
 
-        return min(25, Int(score / 4))  // Each quadrant is 0-25
+        return min(25, Int(score / 4)) // Each quadrant is 0-25
     }
 
     private func fuelScore(snapshot: DailySnapshot) -> Int {
@@ -229,16 +248,24 @@ final class ScoringEngine: ScoringEngineProtocol, @unchecked Sendable {
     }
 
     private func mindScore(snapshot: DailySnapshot) -> Int {
-        guard snapshot.studyTarget > 0 else { return 0 }
+        guard snapshot.studyTarget > 0 else {
+            return 0
+        }
         let compliance = Double(snapshot.studyMinutes) / Double(snapshot.studyTarget)
         return min(25, Int(compliance * 25))
     }
 
     private func moveScore(snapshot: DailySnapshot) -> Int {
         var score: Double = 0
-        if snapshot.workoutCompleted { score += 50 }
-        if let steps = snapshot.steps, steps >= 8000 { score += 30 }
-        if let cal = snapshot.activeCalories, cal >= 300 { score += 20 }
+        if snapshot.workoutCompleted {
+            score += 50
+        }
+        if let steps = snapshot.steps, steps >= 8000 {
+            score += 30
+        }
+        if let cal = snapshot.activeCalories, cal >= 300 {
+            score += 20
+        }
         return min(25, Int(score / 4))
     }
 }

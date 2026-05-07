@@ -1,7 +1,14 @@
+//
+// MockHealthKitService.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 
 final class MockHealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
-
     func requestAuthorization() async throws {
         // No-op in mock
     }
@@ -46,6 +53,16 @@ final class MockHealthKitService: HealthKitServiceProtocol, @unchecked Sendable 
             sleepEfficiency: 88.0,
             bedtime: bedtime,
             wakeTime: wakeTime
+        )
+    }
+
+    func fetchBodyComposition() async throws -> BodyCompositionData {
+        BodyCompositionData(
+            weightKg: 75.2,
+            bodyFatPercent: 14.5,
+            leanMassKg: 64.3,
+            heightCm: 178,
+            measurementDate: Date().addingTimeInterval(-3600)
         )
     }
 

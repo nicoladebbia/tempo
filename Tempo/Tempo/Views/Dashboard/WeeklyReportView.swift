@@ -1,17 +1,29 @@
+//
+// WeeklyReportView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
-// MARK: - Weekly Report View
+// MARK: - WeeklyReportView
+
 // Per BUILD_PLAN step 15.2 — Display weekly AI insights.
 // Per WIREFRAMES.md Screen 10 — Overall score, 4-section breakdown, AI insights, share.
 // Per AI_INTELLIGENCE_ENGINE.md Section 3.2 — Sonnet 4.6 generated report.
 
 struct WeeklyReportView: View {
+    @Environment(ServiceContainer.self)
+    private var services
 
-    @Environment(ServiceContainer.self) private var services
-
-    @State private var report: WeeklyReportData?
-    @State private var isLoading = true
-    @State private var expandedInsight: String?
+    @State
+    private var report: WeeklyReportData?
+    @State
+    private var isLoading = true
+    @State
+    private var expandedInsight: String?
 
     // Per WIREFRAMES.md Screen 10 — Week period display
     let weekStart: Date
@@ -43,6 +55,7 @@ struct WeeklyReportView: View {
     }
 
     // MARK: - Report Content
+
     // Per WIREFRAMES.md Screen 10 — Full layout
 
     private func reportContent(_ report: WeeklyReportData) -> some View {
@@ -108,6 +121,7 @@ struct WeeklyReportView: View {
     }
 
     // MARK: - Overall Score Ring
+
     // Per WIREFRAMES.md Screen 10 — 100pt diameter, 8pt stroke
 
     private func overallScoreRing(_ report: WeeklyReportData) -> some View {
@@ -133,6 +147,7 @@ struct WeeklyReportView: View {
     }
 
     // MARK: - Mini Score Grid
+
     // Per WIREFRAMES.md Screen 10 — 2x2 mini-grid, 10pt gap
 
     private func miniScoreGrid(_ report: WeeklyReportData) -> some View {
@@ -166,6 +181,7 @@ struct WeeklyReportView: View {
     }
 
     // MARK: - Section Card
+
     // Per WIREFRAMES.md Screen 10 — Body/Fuel/Mind/Move sections with charts
 
     private func sectionCard(_ section: ReportSectionData) -> some View {
@@ -205,6 +221,7 @@ struct WeeklyReportView: View {
     }
 
     // MARK: - AI Insights Section
+
     // Per WIREFRAMES.md Screen 10 — Expandable insight cards
 
     private func aiInsightsSection(_ items: [String]) -> some View {
@@ -330,17 +347,21 @@ struct WeeklyReportView: View {
     // MARK: - Helpers
 
     private func scoreColor(_ score: Int) -> Color {
-        if score >= 80 { return Color.tempoSuccess }
-        if score >= 60 { return Color.tempoAmber }
+        if score >= 80 {
+            return Color.tempoSuccess
+        }
+        if score >= 60 {
+            return Color.tempoAmber
+        }
         return Color.tempoError
     }
 
     private func sentimentColor(_ sentiment: String) -> Color {
         switch sentiment {
-        case "positive": return Color.tempoSuccess
-        case "warning": return Color.tempoAmber
-        case "negative": return Color.tempoError
-        default: return Color.tempoTextSecondary
+        case "positive": Color.tempoSuccess
+        case "warning": Color.tempoAmber
+        case "negative": Color.tempoError
+        default: Color.tempoTextSecondary
         }
     }
 
@@ -354,7 +375,7 @@ struct WeeklyReportView: View {
     }
 }
 
-// MARK: - View Models
+// MARK: - WeeklyReportData
 
 struct WeeklyReportData {
     let title: String
@@ -369,6 +390,8 @@ struct WeeklyReportData {
     let comparedToLastWeek: WeekOverWeekData?
 }
 
+// MARK: - ReportSectionData
+
 struct ReportSectionData: Identifiable {
     let id = UUID()
     let title: String
@@ -376,6 +399,8 @@ struct ReportSectionData: Identifiable {
     let body: String
     let sentiment: String
 }
+
+// MARK: - WeekOverWeekData
 
 struct WeekOverWeekData {
     let recoveryAvgChange: Int

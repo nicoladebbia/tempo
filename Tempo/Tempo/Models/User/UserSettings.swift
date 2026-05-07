@@ -1,9 +1,18 @@
+//
+// UserSettings.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
+// MARK: - UserSettings
+
 @Model
 final class UserSettings {
-
     @Attribute(.unique)
     var id: UUID
 
@@ -34,6 +43,16 @@ final class UserSettings {
 
     var trainingSplitRaw: String
 
+    var weightUnitRaw: String
+
+    var autoStartRestTimer: Bool
+
+    var showPlateCalculator: Bool
+
+    var autoDeload: Bool
+
+    var deloadFrequencyWeeks: Int
+
     var footballDaysRaw: Int
 
     // MARK: - Schedule
@@ -46,11 +65,19 @@ final class UserSettings {
 
     // MARK: - Focus Timer
 
+    var focusTimerEnabled: Bool
+
     var pomodoroDuration: Int
 
     var breakDuration: Int
 
     var longBreakDuration: Int
+
+    // MARK: - Arena
+
+    var dailyXPGoalRaw: Int
+
+    var leagueRaw: String
 
     // MARK: - Modes
 
@@ -73,9 +100,27 @@ final class UserSettings {
     }
 
     @Transient
+    var weightUnit: WeightUnit {
+        get { WeightUnit(rawValue: weightUnitRaw) ?? .kg }
+        set { weightUnitRaw = newValue.rawValue }
+    }
+
+    @Transient
     var footballDays: ActiveDays {
         get { ActiveDays(rawValue: footballDaysRaw) }
         set { footballDaysRaw = newValue.rawValue }
+    }
+
+    @Transient
+    var dailyXPGoal: DailyXPGoal {
+        get { DailyXPGoal(rawValue: dailyXPGoalRaw) ?? .regular }
+        set { dailyXPGoalRaw = newValue.rawValue }
+    }
+
+    @Transient
+    var league: League {
+        get { League(rawValue: leagueRaw) ?? .bronze }
+        set { leagueRaw = newValue.rawValue }
     }
 
     @Transient
@@ -123,13 +168,21 @@ final class UserSettings {
         quietHoursStartMinutes: Int = 1380,
         quietHoursEndMinutes: Int = 420,
         trainingSplit: TrainingSplit = .pushPullLegs,
+        weightUnit: WeightUnit = .kg,
+        autoStartRestTimer: Bool = true,
+        showPlateCalculator: Bool = true,
+        autoDeload: Bool = true,
+        deloadFrequencyWeeks: Int = 5,
         footballDays: ActiveDays = ActiveDays(rawValue: 0),
         leisureTimeMinutes: Int = 1170,
         wakeTimeMinutes: Int = 420,
         bedtimeTargetMinutes: Int = 1380,
+        focusTimerEnabled: Bool = false,
         pomodoroDuration: Int = 25,
         breakDuration: Int = 5,
         longBreakDuration: Int = 15,
+        dailyXPGoal: DailyXPGoal = .regular,
+        league: League = .bronze,
         weekendMode: Bool = true,
         examMode: Bool = false,
         examModeEndDate: Date? = nil
@@ -149,26 +202,33 @@ final class UserSettings {
         self.quietHoursEnabled = quietHoursEnabled
         self.quietHoursStartMinutes = quietHoursStartMinutes
         self.quietHoursEndMinutes = quietHoursEndMinutes
-        self.trainingSplitRaw = trainingSplit.rawValue
-        self.footballDaysRaw = footballDays.rawValue
+        trainingSplitRaw = trainingSplit.rawValue
+        weightUnitRaw = weightUnit.rawValue
+        self.autoStartRestTimer = autoStartRestTimer
+        self.showPlateCalculator = showPlateCalculator
+        self.autoDeload = autoDeload
+        self.deloadFrequencyWeeks = deloadFrequencyWeeks
+        footballDaysRaw = footballDays.rawValue
         self.leisureTimeMinutes = leisureTimeMinutes
         self.wakeTimeMinutes = wakeTimeMinutes
         self.bedtimeTargetMinutes = bedtimeTargetMinutes
+        self.focusTimerEnabled = focusTimerEnabled
         self.pomodoroDuration = pomodoroDuration
         self.breakDuration = breakDuration
         self.longBreakDuration = longBreakDuration
+        dailyXPGoalRaw = dailyXPGoal.rawValue
+        leagueRaw = league.rawValue
         self.weekendMode = weekendMode
         self.examMode = examMode
         self.examModeEndDate = examModeEndDate
-        self.updatedAt = Date()
+        updatedAt = Date()
     }
 }
 
 // MARK: - Codable DTO
 
 extension UserSettings {
-
-    struct DTO: Codable, Sendable {
+    struct DTO: Codable {
         let notification_intensity: Int
         let morning_briefing_enabled: Bool
         let accountability_enabled: Bool
@@ -184,13 +244,21 @@ extension UserSettings {
         let quiet_hours_start_minutes: Int
         let quiet_hours_end_minutes: Int
         let training_split: String
+        let weight_unit: String
+        let auto_start_rest_timer: Bool
+        let show_plate_calculator: Bool
+        let auto_deload: Bool
+        let deload_frequency_weeks: Int
         let football_days: Int
         let leisure_time_minutes: Int
         let wake_time_minutes: Int
         let bedtime_target_minutes: Int
+        let focus_timer_enabled: Bool
         let pomodoro_duration: Int
         let break_duration: Int
         let long_break_duration: Int
+        let daily_xp_goal: Int
+        let league: String
         let weekend_mode: Bool
         let exam_mode: Bool
         let exam_mode_end_date: Date?
@@ -213,13 +281,21 @@ extension UserSettings {
             quiet_hours_start_minutes: quietHoursStartMinutes,
             quiet_hours_end_minutes: quietHoursEndMinutes,
             training_split: trainingSplitRaw,
+            weight_unit: weightUnitRaw,
+            auto_start_rest_timer: autoStartRestTimer,
+            show_plate_calculator: showPlateCalculator,
+            auto_deload: autoDeload,
+            deload_frequency_weeks: deloadFrequencyWeeks,
             football_days: footballDaysRaw,
             leisure_time_minutes: leisureTimeMinutes,
             wake_time_minutes: wakeTimeMinutes,
             bedtime_target_minutes: bedtimeTargetMinutes,
+            focus_timer_enabled: focusTimerEnabled,
             pomodoro_duration: pomodoroDuration,
             break_duration: breakDuration,
             long_break_duration: longBreakDuration,
+            daily_xp_goal: dailyXPGoalRaw,
+            league: leagueRaw,
             weekend_mode: weekendMode,
             exam_mode: examMode,
             exam_mode_end_date: examModeEndDate
@@ -230,7 +306,6 @@ extension UserSettings {
 // MARK: - Validation
 
 extension UserSettings {
-
     enum ValidationError: LocalizedError {
         case invalidNotificationIntensity
         case invalidPomodoroDuration
@@ -248,22 +323,23 @@ extension UserSettings {
     }
 
     func validate() throws {
-        guard (1...4).contains(notificationIntensity) else {
+        guard (1 ... 4).contains(notificationIntensity) else {
             throw ValidationError.invalidNotificationIntensity
         }
-        guard (5...120).contains(pomodoroDuration) else {
+        guard (5 ... 120).contains(pomodoroDuration) else {
             throw ValidationError.invalidPomodoroDuration
         }
-        guard (1...60).contains(breakDuration) else {
+        guard (1 ... 60).contains(breakDuration) else {
             throw ValidationError.invalidBreakDuration
         }
-        guard (1...60).contains(longBreakDuration) else {
+        guard (1 ... 60).contains(longBreakDuration) else {
             throw ValidationError.invalidBreakDuration
         }
-        let validTimeRange = 0..<1440
+        let validTimeRange = 0 ..< 1440
         guard validTimeRange.contains(leisureTimeMinutes),
               validTimeRange.contains(wakeTimeMinutes),
-              validTimeRange.contains(bedtimeTargetMinutes) else {
+              validTimeRange.contains(bedtimeTargetMinutes)
+        else {
             throw ValidationError.invalidTimeOfDay
         }
     }

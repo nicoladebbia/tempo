@@ -1,13 +1,22 @@
+//
+// TrainingEngine.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
 // MARK: - Training Engine (Real Implementation)
+
 // Per MODULE_TRAINING.md Sections 15-19 — Workout generation, progressive overload,
 // recovery adjustment, football integration, deload detection.
 
 final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
-
     // MARK: - Constants
+
     // Per MODULE_TRAINING.md Section 16.2 — Standard weight increments
 
     private static let barbellIncrement: Double = 2.5
@@ -17,6 +26,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
     private static let deloadWeekInterval: Int = 5 // weeks
 
     // MARK: - Generate Workout
+
     // Per MODULE_TRAINING.md Section 15 — Full workout generation for a single day.
 
     func generateWorkout(
@@ -75,7 +85,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         var workoutType = nextWorkoutType(for: date, split: split)
 
         // Per MODULE_TRAINING.md Section 18.2 — T-1: no legs
-        if isTMinus1 && workoutType == .legs {
+        if isTMinus1, workoutType == .legs {
             workoutType = swapLegsForUpper(split: split)
         }
 
@@ -107,6 +117,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
     }
 
     // MARK: - Adjust For Recovery
+
     // Per MODULE_TRAINING.md Section 17.2 — Apply volume/intensity adjustments
 
     func adjustForRecovery(plan: WorkoutPlan, score: Double) -> WorkoutPlan {
@@ -132,6 +143,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
     }
 
     // MARK: - Progressive Overload
+
     // Per MODULE_TRAINING.md Section 16 — 2-of-3 rule
 
     func calculateProgressiveOverload(
@@ -164,7 +176,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         if successCount >= 2 {
             // Increase weight
             return (weight: currentWeight + increment, reps: defaultReps)
-        } else if successCount == 0 && recentSessions.count >= 3 {
+        } else if successCount == 0, recentSessions.count >= 3 {
             // Failed 3 sessions in a row — check if needs deload
             let avgReps = recentSessions.compactMap(\.bestSetReps)
                 .reduce(0, +) / max(1, recentSessions.count)
@@ -179,6 +191,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
     }
 
     // MARK: - PR Detection
+
     // Per MODULE_TRAINING.md Section 12 — Compare to historical bests
 
     func detectPersonalRecord(
@@ -186,14 +199,15 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         weight: Double,
         reps: Int
     ) -> PersonalRecord? {
-        guard weight > 0, reps > 0 else { return nil }
+        guard weight > 0, reps > 0 else {
+            return nil
+        }
 
         // Calculate estimated 1RM using Brzycki formula
-        let estimated1RM: Double
-        if reps == 1 {
-            estimated1RM = weight
+        let estimated1RM: Double = if reps == 1 {
+            weight
         } else {
-            estimated1RM = weight * (36.0 / (37.0 - Double(reps)))
+            weight * (36.0 / (37.0 - Double(reps)))
         }
 
         // Compare to all-time PR
@@ -213,7 +227,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         let repMaxPR = records
             .filter { $0.type == .repMax }
             .max { $0.value < $1.value }
-        if weight > (repMaxPR?.value ?? 0) && reps >= 3 {
+        if weight > (repMaxPR?.value ?? 0), reps >= 3 {
             return PersonalRecord(
                 type: .repMax,
                 value: weight,
@@ -227,6 +241,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
     }
 
     // MARK: - Generate Week Plan
+
     // Per MODULE_TRAINING.md Section 15.4 — Full week planning with football awareness
 
     func generateWeekPlan(
@@ -245,7 +260,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
 
         // First pass: identify football days, T-1, T+1
         var dayMeta: [(date: Date, isFootball: Bool, isTMinus1: Bool, isTPlus1: Bool)] = []
-        for offset in 0..<7 {
+        for offset in 0 ..< 7 {
             let date = cal.date(byAdding: .day, value: offset, to: startDate)!
             let weekday = cal.component(.weekday, from: date)
             dayMeta.append((
@@ -362,6 +377,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
     }
 
     // MARK: - Calendar-Aware Week Plan
+
     // Per BUILD_PLAN step 13.2 — Merge calendar-detected football days with static settings.
     // Football on calendar → training plan avoids heavy legs the day before.
 
@@ -389,15 +405,40 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         )
     }
 
+    // MARK: - Deload Detection
+
+    // Every Nth week (configurable), generate a deload week.
+    // Deload: reduce weights by 40%, keep reps the same.
+
+    func isDeloadWeek(date: Date, deloadFrequencyWeeks: Int, trainingStartDate: Date?) -> Bool {
+        let cal = Calendar.current
+        let startDate = trainingStartDate ?? cal.date(byAdding: .month, value: -3, to: date) ?? date
+        let weeksSinceStart = cal.dateComponents([.weekOfYear], from: cal.startOfDay(for: startDate), to: cal.startOfDay(for: date))
+            .weekOfYear ?? 0
+        let frequency = max(1, deloadFrequencyWeeks)
+        // Week N, 2N, 3N... are deload weeks (1-indexed: weeks frequency, 2*frequency, etc.)
+        return weeksSinceStart > 0 && (weeksSinceStart % frequency) == 0
+    }
+
+    func deloadWeightMultiplier() -> Double {
+        0.6 // 40% reduction
+    }
+
     // MARK: - Private Helpers
 
     // Recovery zone classification
     // Per CROSS_DOC_AUDIT.md canonical boundaries: Green >= 67, Yellow 34-66, Red < 34
 
     private func classifyRecoveryZone(score: Double?) -> RecoveryZone {
-        guard let score else { return .green } // default to green if no data
-        if score >= 67 { return .green }
-        if score >= 34 { return .yellow }
+        guard let score else {
+            return .green
+        } // default to green if no data
+        if score >= 67 {
+            return .green
+        }
+        if score >= 34 {
+            return .yellow
+        }
         return .red
     }
 
@@ -407,7 +448,8 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         switch equipment {
         case .barbell: Self.barbellIncrement
         case .dumbbell: Self.dumbbellIncrement
-        case .cable, .machine: Self.cableIncrement
+        case .cable,
+             .machine: Self.cableIncrement
         default: Self.defaultIncrement
         }
     }
@@ -418,15 +460,15 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
     private func getSplitSequence(_ split: TrainingSplit) -> [WorkoutType] {
         switch split {
         case .pushPullLegs:
-            return [.push, .pull, .legs, .push, .pull, .legs]
+            [.push, .pull, .legs, .push, .pull, .legs]
         case .upperLower:
-            return [.upper, .lower, .upper, .lower]
+            [.upper, .lower, .upper, .lower]
         case .fullBody:
-            return [.fullBody, .fullBody, .fullBody]
+            [.fullBody, .fullBody, .fullBody]
         case .bro:
-            return [.push, .pull, .legs, .push, .pull]
+            [.push, .pull, .legs, .push, .pull]
         case .custom:
-            return [.push, .pull, .legs] // fallback
+            [.push, .pull, .legs] // fallback
         }
     }
 
@@ -437,7 +479,9 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         let cal = Calendar.current
         let dayOfYear = cal.ordinality(of: .day, in: .year, for: date) ?? 0
         let sequence = getSplitSequence(split)
-        guard !sequence.isEmpty else { return .push }
+        guard !sequence.isEmpty else {
+            return .push
+        }
         return sequence[dayOfYear % sequence.count]
     }
 
@@ -446,12 +490,14 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
 
     private func swapLegsForUpper(split: TrainingSplit) -> WorkoutType {
         switch split {
-        case .pushPullLegs, .bro, .custom:
-            return .push
+        case .pushPullLegs,
+             .bro,
+             .custom:
+            .push
         case .upperLower:
-            return .upper
+            .upper
         case .fullBody:
-            return .upper
+            .upper
         }
     }
 
@@ -460,10 +506,13 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
 
     private func preferredUpperType(for date: Date, split: TrainingSplit) -> WorkoutType {
         switch split {
-        case .pushPullLegs, .bro, .custom:
-            return .pull // Per Section 18.2: prefer Pull on T+1
-        case .upperLower, .fullBody:
-            return .upper
+        case .pushPullLegs,
+             .bro,
+             .custom:
+            .pull // Per Section 18.2: prefer Pull on T+1
+        case .upperLower,
+             .fullBody:
+            .upper
         }
     }
 
@@ -472,7 +521,9 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
 
     private func isFootballTMinus1(date: Date, footballDays: ActiveDays) -> Bool {
         let cal = Calendar.current
-        guard let tomorrow = cal.date(byAdding: .day, value: 1, to: date) else { return false }
+        guard let tomorrow = cal.date(byAdding: .day, value: 1, to: date) else {
+            return false
+        }
         let tomorrowWeekday = cal.component(.weekday, from: tomorrow)
         return footballDays.isActive(on: tomorrowWeekday)
     }
@@ -482,7 +533,9 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
 
     private func isFootballTPlus1(date: Date, footballDays: ActiveDays) -> Bool {
         let cal = Calendar.current
-        guard let yesterday = cal.date(byAdding: .day, value: -1, to: date) else { return false }
+        guard let yesterday = cal.date(byAdding: .day, value: -1, to: date) else {
+            return false
+        }
         let yesterdayWeekday = cal.component(.weekday, from: yesterday)
         return footballDays.isActive(on: yesterdayWeekday)
     }

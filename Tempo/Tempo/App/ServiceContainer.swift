@@ -1,9 +1,16 @@
+//
+// ServiceContainer.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 
 @Observable
 @MainActor
 final class ServiceContainer {
-
     let authService: AuthService
     let healthKit: any HealthKitServiceProtocol
     let whoop: any WhoopServiceProtocol
@@ -19,6 +26,7 @@ final class ServiceContainer {
     let networkMonitor: NetworkMonitor
     let pushRegistration: PushRegistrationService
     let subscriptions: any SubscriptionServiceProtocol
+    let nutrition: any NutritionServiceProtocol
     let appState: AppState
 
     init(
@@ -36,7 +44,8 @@ final class ServiceContainer {
         backgroundSync: BackgroundSyncService,
         networkMonitor: NetworkMonitor,
         pushRegistration: PushRegistrationService,
-        subscriptions: any SubscriptionServiceProtocol
+        subscriptions: any SubscriptionServiceProtocol,
+        nutrition: any NutritionServiceProtocol
     ) {
         self.authService = authService
         self.healthKit = healthKit
@@ -53,7 +62,8 @@ final class ServiceContainer {
         self.networkMonitor = networkMonitor
         self.pushRegistration = pushRegistration
         self.subscriptions = subscriptions
-        self.appState = AppState(authService: authService)
+        self.nutrition = nutrition
+        appState = AppState(authService: authService)
     }
 
     static func mock() -> ServiceContainer {
@@ -73,16 +83,18 @@ final class ServiceContainer {
             backgroundSync: BackgroundSyncService(),
             networkMonitor: NetworkMonitor(),
             pushRegistration: PushRegistrationService(apiClient: APIClient()),
-            subscriptions: MockSubscriptionService()
+            subscriptions: MockSubscriptionService(),
+            nutrition: MockNutritionService()
         )
     }
 
     static func live(apiClient: APIClient) -> ServiceContainer {
         let auth = AuthService()
+        let healthKit = HealthKitService()
         return ServiceContainer(
             authService: auth,
-            healthKit: HealthKitService(),
-            whoop: WhoopService(apiClient: apiClient),
+            healthKit: healthKit,
+            whoop: WhoopService(),
             nutriTrack: NutriTrackService(apiClient: apiClient),
             calendar: CalendarService(),
             notifications: NotificationService(),
@@ -94,7 +106,8 @@ final class ServiceContainer {
             backgroundSync: BackgroundSyncService(),
             networkMonitor: NetworkMonitor(),
             pushRegistration: PushRegistrationService(apiClient: apiClient),
-            subscriptions: SubscriptionService()
+            subscriptions: SubscriptionService(),
+            nutrition: NutritionService.live(healthKit: healthKit)
         )
     }
 }

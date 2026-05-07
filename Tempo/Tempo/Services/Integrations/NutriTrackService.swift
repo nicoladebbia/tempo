@@ -1,14 +1,22 @@
-import Foundation
-import SwiftData
-import os
+//
+// NutriTrackService.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
 
-// MARK: - NutriTrack Service (Real Implementation)
+import Foundation
+import os
+import SwiftData
+
+// MARK: - NutriTrackService
+
 // Per BUILD_PLAN step 11.2.
 // Per INTEGRATION_SPECS.md Section 3 — Communicates with Tempo backend proxy.
 
 @Observable
 final class NutriTrackService: NutriTrackServiceProtocol, @unchecked Sendable {
-
     private(set) var connectionState: NutriTrackConnectionState = .disconnected
 
     private let apiClient: APIClient
@@ -25,11 +33,14 @@ final class NutriTrackService: NutriTrackServiceProtocol, @unchecked Sendable {
     }
 
     // MARK: - Connect
+
     // Per INTEGRATION_SPECS.md Section 3.1 — Send base URL + PIN to backend.
     // Backend validates URL, tests PIN against NutriTrack /api/pin/verify, stores encrypted.
 
     func connect(baseURL: URL, pin: String) async throws {
-        if case .connecting = connectionState { return }
+        if case .connecting = connectionState {
+            return
+        }
         connectionState = .connecting
 
         do {
@@ -50,6 +61,7 @@ final class NutriTrackService: NutriTrackServiceProtocol, @unchecked Sendable {
     }
 
     // MARK: - Disconnect
+
     // Per INTEGRATION_SPECS.md Section 3.1 — Delete connection on backend.
 
     func disconnect() {
@@ -65,6 +77,7 @@ final class NutriTrackService: NutriTrackServiceProtocol, @unchecked Sendable {
     }
 
     // MARK: - Fetch Today's Meals
+
     // Per INTEGRATION_SPECS.md Section 3.3 — Proxy to NutriTrack /api/today.
 
     func fetchTodayMeals() async throws -> NutriTrackDayData {
@@ -87,6 +100,7 @@ final class NutriTrackService: NutriTrackServiceProtocol, @unchecked Sendable {
     }
 
     // MARK: - Fetch Macro Balance
+
     // Per INTEGRATION_SPECS.md Section 3.3 — Proxy to NutriTrack /api/today/macro-balance.
 
     func fetchMacroBalance() async throws -> MacroBalance {
@@ -101,6 +115,7 @@ final class NutriTrackService: NutriTrackServiceProtocol, @unchecked Sendable {
     }
 
     // MARK: - Fetch Weekly Report
+
     // Per INTEGRATION_SPECS.md Section 3.3 — Proxy to NutriTrack /api/week/:date.
 
     func fetchWeeklyReport() async throws -> NutriTrackWeeklyReport {
@@ -116,6 +131,7 @@ final class NutriTrackService: NutriTrackServiceProtocol, @unchecked Sendable {
     }
 
     // MARK: - Sync to SwiftData
+
     // Per BUILD_PLAN step 11.2 — Update DailySnapshot fuel fields from NutriTrack data.
 
     func syncToSwiftData(dayData: NutriTrackDayData, modelContext: ModelContext) {
@@ -150,6 +166,7 @@ final class NutriTrackService: NutriTrackServiceProtocol, @unchecked Sendable {
     }
 
     // MARK: - Check Connection on Launch
+
     // Per INTEGRATION_SPECS.md Section 3.2 — Sync on app launch.
 
     func checkConnectionOnLaunch() async {
@@ -163,12 +180,17 @@ final class NutriTrackService: NutriTrackServiceProtocol, @unchecked Sendable {
                 connectionState = .disconnected
             }
         } catch {
-            logger.warning("Failed to check NutriTrack connection: \(error.localizedDescription)")
+            if let apiError = error as? APIError, case .connectionRefused = apiError {
+                connectionState = .disconnected
+                logger.debug("Backend not reachable, keeping NutriTrack disconnected")
+            } else {
+                logger.warning("Failed to check NutriTrack connection: \(error.localizedDescription)")
+            }
         }
     }
 }
 
-// MARK: - NutriTrack Errors
+// MARK: - NutriTrackError
 
 enum NutriTrackError: Error {
     case invalidURL
@@ -217,16 +239,16 @@ extension APIEndpoint where Response == NutriTrackWeeklyReportDTO {
     }
 }
 
-// MARK: - Envelope DTO (matches backend Envelope<T>)
+// MARK: - NutriTrackEnvelope
 
-struct NutriTrackEnvelope<T: Codable & Sendable>: Codable, Sendable {
+struct NutriTrackEnvelope<T: Codable & Sendable>: Codable {
     let ok: Bool
     let data: T
 }
 
-// MARK: - Request/Response DTOs
+// MARK: - NutriTrackConnectRequestDTO
 
-struct NutriTrackConnectRequestDTO: Codable, Sendable {
+struct NutriTrackConnectRequestDTO: Codable {
     let baseURL: String
     let pin: String
 
@@ -236,7 +258,9 @@ struct NutriTrackConnectRequestDTO: Codable, Sendable {
     }
 }
 
-struct NutriTrackConnectResponseDTO: Codable, Sendable {
+// MARK: - NutriTrackConnectResponseDTO
+
+struct NutriTrackConnectResponseDTO: Codable {
     let connected: Bool
     let baseURL: String
 
@@ -246,7 +270,9 @@ struct NutriTrackConnectResponseDTO: Codable, Sendable {
     }
 }
 
-struct NutriTrackStatusResponseDTO: Codable, Sendable {
+// MARK: - NutriTrackStatusResponseDTO
+
+struct NutriTrackStatusResponseDTO: Codable {
     let connected: Bool
     let baseURL: String?
     let lastSyncAt: String?
@@ -260,10 +286,11 @@ struct NutriTrackStatusResponseDTO: Codable, Sendable {
     }
 }
 
-// MARK: - Data Proxy DTOs (raw Flask JSON format)
+// MARK: - NutriTrackTodayDTO
+
 // NutriTrack Flask API uses snake_case keys.
 
-struct NutriTrackTodayDTO: Codable, Sendable {
+struct NutriTrackTodayDTO: Codable {
     let caloriesConsumed: Double
     let targetCalories: Double
     let proteinG: Double
@@ -309,7 +336,9 @@ struct NutriTrackTodayDTO: Codable, Sendable {
     }
 }
 
-struct NutriTrackMealDTO: Codable, Sendable {
+// MARK: - NutriTrackMealDTO
+
+struct NutriTrackMealDTO: Codable {
     let name: String
     let calories: Double
     let proteinG: Double
@@ -319,7 +348,10 @@ struct NutriTrackMealDTO: Codable, Sendable {
     let time: String?
 
     enum CodingKeys: String, CodingKey {
-        case name, calories, status, time
+        case name
+        case calories
+        case status
+        case time
         case proteinG = "protein_g"
         case carbsG = "carbs_g"
         case fatG = "fat_g"
@@ -327,11 +359,10 @@ struct NutriTrackMealDTO: Codable, Sendable {
 
     /// Convert to protocol data type.
     func toMeal() -> NutriTrackMeal {
-        let mealTime: Date
-        if let time, let parsed = NutriTrackMealDTO.timeFormatter.date(from: time) {
-            mealTime = parsed
+        let mealTime: Date = if let time, let parsed = NutriTrackMealDTO.timeFormatter.date(from: time) {
+            parsed
         } else {
-            mealTime = Date()
+            Date()
         }
 
         return NutriTrackMeal(
@@ -351,7 +382,9 @@ struct NutriTrackMealDTO: Codable, Sendable {
     }()
 }
 
-struct NutriTrackMacroBalanceDTO: Codable, Sendable {
+// MARK: - NutriTrackMacroBalanceDTO
+
+struct NutriTrackMacroBalanceDTO: Codable {
     let proteinPercentage: Double
     let carbsPercentage: Double
     let fatPercentage: Double
@@ -363,7 +396,9 @@ struct NutriTrackMacroBalanceDTO: Codable, Sendable {
     }
 }
 
-struct NutriTrackWeeklyReportDTO: Codable, Sendable {
+// MARK: - NutriTrackWeeklyReportDTO
+
+struct NutriTrackWeeklyReportDTO: Codable {
     let averageCalories: Double
     let averageProtein: Double
     let adherencePercentage: Double

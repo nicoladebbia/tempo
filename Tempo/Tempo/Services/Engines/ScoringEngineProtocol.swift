@@ -1,17 +1,27 @@
+//
+// ScoringEngineProtocol.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 
-// MARK: - Score Breakdown
+// MARK: - ScoreBreakdown
 
-struct ScoreBreakdown: Sendable {
+struct ScoreBreakdown {
     let body: Int
     let fuel: Int
     let mind: Int
     let move: Int
 
-    var total: Int { body + fuel + mind + move }
+    var total: Int {
+        body + fuel + mind + move
+    }
 }
 
-// MARK: - Protocol
+// MARK: - ScoringEngineProtocol
 
 protocol ScoringEngineProtocol: Sendable {
     func calculateDailyScore(

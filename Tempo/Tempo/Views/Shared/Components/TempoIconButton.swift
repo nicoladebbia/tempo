@@ -1,16 +1,27 @@
+//
+// TempoIconButton.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Icon-Only Button
+
 // Per DESIGN_SYSTEM.md Section 8.1 — 44x44pt touch target, 22pt icon, 12pt radius.
 
 struct TempoIconButton: View {
-
     let icon: String
     let action: () -> Void
 
-    @Environment(\.isEnabled) private var isEnabled
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var isPressed = false
+    @Environment(\.isEnabled)
+    private var isEnabled
+    @Environment(\.colorScheme)
+    private var colorScheme
+    @State
+    private var isPressed = false
 
     var body: some View {
         Button(action: action) {
@@ -26,7 +37,9 @@ struct TempoIconButton: View {
         .simultaneousGesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { _ in
-                    guard isEnabled, !isPressed else { return }
+                    guard isEnabled, !isPressed else {
+                        return
+                    }
                     isPressed = true
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 }
@@ -35,7 +48,9 @@ struct TempoIconButton: View {
     }
 
     private var iconColor: Color {
-        guard isEnabled else { return Color.tempoTextDisabled }
+        guard isEnabled else {
+            return Color.tempoTextDisabled
+        }
         return colorScheme == .dark ? Color.tempoBone : Color.tempoInk
     }
 

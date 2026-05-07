@@ -1,11 +1,19 @@
+//
+// Font+Tempo.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 import UIKit
 
 // MARK: - Tempo Typography Scale
+
 // Per DESIGN_SYSTEM.md Section 4 — all sizes, weights, and designs match the canonical spec.
 
 extension Font {
-
     // MARK: - Display Styles (SF Pro Rounded / SF Mono — Capped Dynamic Type)
 
     /// Score Display: SF Pro Rounded Bold 64pt — daily composite score on dashboard.
@@ -174,11 +182,11 @@ extension Font {
     }
 }
 
-// MARK: - Tracking Constants
+// MARK: - TempoTracking
+
 // Per DESIGN_SYSTEM.md Section 4.2 — apply via .tracking() view modifier.
 
 enum TempoTracking {
-
     // Display Styles
     static let scoreDisplay: CGFloat = -1.0
     static let scoreDisplaySmall: CGFloat = -0.8

@@ -1,16 +1,25 @@
+//
+// StreakDotsView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
-// MARK: - Streak Dots View
+// MARK: - StreakDotsView
+
 // Per DESIGN_SYSTEM.md Section 8.6 — Streak Dots:
 // 8pt dots, 4pt gap. Active = Signal Red, missed = Fail Red + border, future = border only.
 
 struct StreakDotsView: View {
-
     let days: [DayStatus]
 
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.colorScheme)
+    private var colorScheme
 
-    enum DayStatus: Sendable {
+    enum DayStatus {
         case completed
         case missed
         case today(completed: Bool)
@@ -19,13 +28,13 @@ struct StreakDotsView: View {
 
     private var emptyDotColor: Color {
         colorScheme == .dark
-            ? Color(red: 56 / 255, green: 56 / 255, blue: 58 / 255)
+            ? Color.tempoFillTertiary
             : Color.tempoBorder
     }
 
     private var missedBorderColor: Color {
         colorScheme == .dark
-            ? Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)  // #1C1C1E
+            ? Color.tempoSurfaceDeep
             : Color.white
     }
 
@@ -59,7 +68,7 @@ struct StreakDotsView: View {
                 )
                 .frame(width: 8, height: 8)
 
-        case .today(let completed):
+        case let .today(completed):
             ZStack {
                 if completed {
                     Circle()
@@ -91,11 +100,11 @@ struct StreakDotsView: View {
     }
 }
 
-// MARK: - Pulsing Ring Animation
+// MARK: - PulsingRing
 
 private struct PulsingRing: View {
-
-    @State private var isPulsing = false
+    @State
+    private var isPulsing = false
 
     var body: some View {
         Circle()
@@ -117,8 +126,9 @@ extension StreakDotsView.DayStatus {
     var isCompleted: Bool {
         switch self {
         case .completed: true
-        case .today(let completed): completed
-        case .missed, .future: false
+        case let .today(completed): completed
+        case .missed,
+             .future: false
         }
     }
 }

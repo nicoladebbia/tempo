@@ -1,57 +1,95 @@
-import SwiftUI
-import SwiftData
+//
+// NotificationSettingsView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
 
-// MARK: - Notification Settings View
+import SwiftData
+import SwiftUI
+import UserNotifications
+
+// MARK: - NotificationSettingsView
+
 // Per BUILD_PLAN step 12.5 — Notification settings UI.
 // Per WIREFRAMES.md Screen 58 — NotificationSettingsView layout.
 // Per ONBOARDING_AND_NOTIFICATIONS.md — Intensity, categories, quiet hours.
 
 struct NotificationSettingsView: View {
+    @Environment(ServiceContainer.self)
+    private var services
+    @Environment(\.modelContext)
+    private var modelContext
+    @Environment(\.dismiss)
+    private var dismiss
+    @Query
+    private var allSettings: [UserSettings]
 
-    @Environment(ServiceContainer.self) private var services
-    @Environment(\.modelContext) private var modelContext
-    @Query private var allSettings: [UserSettings]
+    private var settings: UserSettings? {
+        allSettings.first
+    }
 
-    private var settings: UserSettings? { allSettings.first }
+    // MARK: - Authorization State
+
+    @State
+    private var authorizationStatus: UNAuthorizationStatus = .notDetermined
+    @State
+    private var hasCheckedAuth = false
 
     // MARK: - Local State
 
-    @State private var intensity: Int = 3
-    @State private var morningBriefing: Bool = true
-    @State private var accountability: Bool = true
-    @State private var recovery: Bool = true
-    @State private var mealReminders: Bool = true
-    @State private var bedtimeReminder: Bool = true
-    @State private var streakWarning: Bool = true
-    @State private var arenaNotifications: Bool = true
-    @State private var weeklyReport: Bool = true
-    @State private var trainingReminder: Bool = true
-    @State private var soundEnabled: Bool = true
-    @State private var quietHoursEnabled: Bool = false
-    @State private var quietHoursStart: Date = Self.timeFromMinutes(1380)
-    @State private var quietHoursEnd: Date = Self.timeFromMinutes(420)
+    @State
+    private var intensity: Int = 3
+    @State
+    private var morningBriefing: Bool = true
+    @State
+    private var accountability: Bool = true
+    @State
+    private var recovery: Bool = true
+    @State
+    private var mealReminders: Bool = true
+    @State
+    private var bedtimeReminder: Bool = true
+    @State
+    private var streakWarning: Bool = true
+    @State
+    private var arenaNotifications: Bool = true
+    @State
+    private var weeklyReport: Bool = true
+    @State
+    private var trainingReminder: Bool = true
+    @State
+    private var soundEnabled: Bool = true
+    @State
+    private var quietHoursEnabled: Bool = false
+    @State
+    private var quietHoursStart: Date = Self.timeFromMinutes(1380)
+    @State
+    private var quietHoursEnd: Date = Self.timeFromMinutes(420)
 
     var body: some View {
         ScrollView {
             VStack(spacing: TempoSpacing.lg) {
+                // MARK: - Permission Gate
 
-                // MARK: - Intensity Section
-                intensitySection
-
-                // MARK: - Daily Reminders
-                dailyRemindersSection
-
-                // MARK: - Accountability
-                accountabilitySection
-
-                // MARK: - Social
-                socialSection
-
-                // MARK: - Sound
-                soundSection
-
-                // MARK: - Quiet Hours
-                quietHoursSection
+                if hasCheckedAuth {
+                    switch authorizationStatus {
+                    case .notDetermined:
+                        notificationPermissionCard
+                    case .denied:
+                        notificationDeniedCard
+                    case .authorized,
+                         .provisional,
+                         .ephemeral:
+                        authorizedContent
+                    @unknown default:
+                        authorizedContent
+                    }
+                } else {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, minHeight: 200)
+                }
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.vertical, TempoSpacing.lg)
@@ -59,7 +97,169 @@ struct NotificationSettingsView: View {
         .background(Color.tempoBgPrimary)
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear(perform: loadFromSettings)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Done") { dismiss() }
+                    .font(.tempoSubheadline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.tempoSignal)
+            }
+        }
+        .onAppear {
+            loadFromSettings()
+            checkAuthorizationStatus()
+        }
+    }
+
+    // MARK: - Permission Not Determined Card
+
+    private var notificationPermissionCard: some View {
+        VStack(spacing: TempoSpacing.lg) {
+            VStack(spacing: TempoSpacing.md) {
+                Image(systemName: "bell.badge.fill")
+                    .font(.system(size: 44))
+                    .foregroundStyle(Color.tempoSignal)
+
+                Text("Enable Notifications")
+                    .font(.tempoTitle3)
+                    .foregroundStyle(Color.tempoTextPrimary)
+
+                Text(
+                    "Tempo uses notifications to keep you accountable. Get morning briefings, workout reminders, streak warnings, and drill-sergeant escalations when you fall behind."
+                )
+                .font(.tempoFootnote)
+                .foregroundStyle(Color.tempoTextSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, TempoSpacing.lg)
+            }
+
+            VStack(spacing: TempoSpacing.sm) {
+                notificationFeatureRow(icon: "sunrise.fill", text: "Morning briefing with your daily plan")
+                notificationFeatureRow(icon: "bolt.fill", text: "Accountability escalations")
+                notificationFeatureRow(icon: "flame.fill", text: "Streak warnings before you lose progress")
+                notificationFeatureRow(icon: "moon.fill", text: "Bedtime reminders for recovery")
+            }
+            .padding(TempoSpacing.cardPadding)
+            .background(Color.tempoSurfaceCard)
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+
+            Button {
+                requestNotificationPermission()
+            } label: {
+                Text("Enable Notifications")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.tempoTextInverse)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, TempoSpacing.buttonPaddingV)
+                    .background(Color.tempoSignal)
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+            }
+
+            Button {
+                // Allow skipping — show settings anyway
+                authorizationStatus = .authorized
+            } label: {
+                Text("Skip for now")
+                    .font(.tempoFootnote)
+                    .fontWeight(.medium)
+                    .foregroundStyle(Color.tempoTextTertiary)
+            }
+        }
+    }
+
+    // MARK: - Permission Denied Card
+
+    private var notificationDeniedCard: some View {
+        VStack(spacing: TempoSpacing.lg) {
+            VStack(spacing: TempoSpacing.md) {
+                Image(systemName: "bell.slash.fill")
+                    .font(.system(size: 44))
+                    .foregroundStyle(Color.tempoTextTertiary)
+
+                Text("Notifications Disabled")
+                    .font(.tempoTitle3)
+                    .foregroundStyle(Color.tempoTextPrimary)
+
+                Text(
+                    "Notifications are turned off in iOS Settings. Tempo needs notifications for accountability reminders, morning briefings, and streak warnings."
+                )
+                .font(.tempoFootnote)
+                .foregroundStyle(Color.tempoTextSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, TempoSpacing.lg)
+            }
+
+            Button {
+                openSystemSettings()
+            } label: {
+                HStack(spacing: TempoSpacing.sm) {
+                    Image(systemName: "gear")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text("Open Settings")
+                        .font(.system(size: 15, weight: .semibold))
+                }
+                .foregroundStyle(Color.tempoTextInverse)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, TempoSpacing.buttonPaddingV)
+                .background(Color.tempoSignal)
+                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+            }
+
+            // Still show the settings toggles below (for when they return)
+            authorizedContent
+        }
+    }
+
+    // MARK: - Authorized Content (normal toggle list)
+
+    private var authorizedContent: some View {
+        VStack(spacing: TempoSpacing.lg) {
+            intensitySection
+            dailyRemindersSection
+            accountabilitySection
+            socialSection
+            soundSection
+            quietHoursSection
+        }
+    }
+
+    // MARK: - Permission Helpers
+
+    private func checkAuthorizationStatus() {
+        Task {
+            let settings = await UNUserNotificationCenter.current().notificationSettings()
+            await MainActor.run {
+                authorizationStatus = settings.authorizationStatus
+                hasCheckedAuth = true
+            }
+        }
+    }
+
+    private func requestNotificationPermission() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, _ in
+            DispatchQueue.main.async {
+                authorizationStatus = granted ? .authorized : .denied
+            }
+        }
+    }
+
+    private func openSystemSettings() {
+        if let url = URL(string: UIApplication.openSettingsURLString) {
+            UIApplication.shared.open(url)
+        }
+    }
+
+    private func notificationFeatureRow(icon: String, text: String) -> some View {
+        HStack(spacing: TempoSpacing.md) {
+            Image(systemName: icon)
+                .font(.system(size: 13))
+                .foregroundStyle(Color.tempoSignal)
+                .frame(width: 20)
+            Text(text)
+                .font(.tempoCallout)
+                .foregroundStyle(Color.tempoTextPrimary)
+            Spacer()
+        }
     }
 
     // MARK: - Intensity Section
@@ -79,11 +279,13 @@ struct NotificationSettingsView: View {
                             VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
                                 HStack(spacing: TempoSpacing.sm) {
                                     Text(option.title)
-                                        .font(.system(size: 16, weight: .semibold))
+                                        .font(.tempoCallout)
+                                        .fontWeight(.semibold)
                                         .foregroundStyle(Color.tempoTextPrimary)
                                     if option == .drillSergeant {
                                         Text("REC")
-                                            .font(.system(size: 10, weight: .bold))
+                                            .font(.tempoModuleTag)
+                                            .fontWeight(.bold)
                                             .foregroundStyle(Color.tempoBone)
                                             .padding(.horizontal, 6)
                                             .padding(.vertical, 2)
@@ -92,12 +294,12 @@ struct NotificationSettingsView: View {
                                     }
                                 }
                                 Text(option.description)
-                                    .font(.system(size: 13))
+                                    .font(.tempoFootnote)
                                     .foregroundStyle(Color.tempoTextSecondary)
                             }
                             Spacer()
                             Image(systemName: intensity == option.rawValue ? "checkmark.circle.fill" : "circle")
-                                .font(.system(size: 22))
+                                .font(.tempoTitle2)
                                 .foregroundStyle(intensity == option.rawValue ? Color.tempoSignal : Color.tempoTextTertiary)
                         }
                         .padding(.vertical, TempoSpacing.md)
@@ -115,7 +317,7 @@ struct NotificationSettingsView: View {
 
             // Preview text for selected intensity
             Text(IntensityOption(rawValue: intensity)?.preview ?? "")
-                .font(.system(size: 13, weight: .medium, design: .monospaced))
+                .font(.tempoDataSmall)
                 .foregroundStyle(Color.tempoTextSecondary)
                 .padding(.horizontal, TempoSpacing.xs)
         }
@@ -134,7 +336,9 @@ struct NotificationSettingsView: View {
                     icon: "sunrise.fill",
                     onToggle: { enabled in
                         persistToggle(\.morningBriefingEnabled, value: enabled)
-                        if !enabled { services.notifications.cancelCategory("MORNING_BRIEFING") }
+                        if !enabled {
+                            services.notifications.cancelCategory("MORNING_BRIEFING")
+                        }
                     }
                 )
                 settingsDivider()
@@ -144,7 +348,9 @@ struct NotificationSettingsView: View {
                     icon: "heart.fill",
                     onToggle: { enabled in
                         persistToggle(\.recoveryEnabled, value: enabled)
-                        if !enabled { services.notifications.cancelCategory("RECOVERY_REPORT") }
+                        if !enabled {
+                            services.notifications.cancelCategory("RECOVERY_REPORT")
+                        }
                     }
                 )
                 settingsDivider()
@@ -154,7 +360,9 @@ struct NotificationSettingsView: View {
                     icon: "fork.knife",
                     onToggle: { enabled in
                         persistToggle(\.mealRemindersEnabled, value: enabled)
-                        if !enabled { services.notifications.cancelCategory("MEAL_REMINDER") }
+                        if !enabled {
+                            services.notifications.cancelCategory("MEAL_REMINDER")
+                        }
                     }
                 )
                 settingsDivider()
@@ -164,7 +372,9 @@ struct NotificationSettingsView: View {
                     icon: "moon.fill",
                     onToggle: { enabled in
                         persistToggle(\.bedtimeReminderEnabled, value: enabled)
-                        if !enabled { services.notifications.cancelCategory("BEDTIME_REMINDER") }
+                        if !enabled {
+                            services.notifications.cancelCategory("BEDTIME_REMINDER")
+                        }
                     }
                 )
                 settingsDivider()
@@ -174,7 +384,9 @@ struct NotificationSettingsView: View {
                     icon: "chart.bar.fill",
                     onToggle: { enabled in
                         persistToggle(\.weeklyReportEnabled, value: enabled)
-                        if !enabled { services.notifications.cancelCategory("WEEKLY_SUMMARY") }
+                        if !enabled {
+                            services.notifications.cancelCategory("WEEKLY_SUMMARY")
+                        }
                     }
                 )
             }
@@ -210,7 +422,9 @@ struct NotificationSettingsView: View {
                     icon: "flame.fill",
                     onToggle: { enabled in
                         persistToggle(\.streakWarningEnabled, value: enabled)
-                        if !enabled { services.notifications.cancelCategory("STREAK_WARNING") }
+                        if !enabled {
+                            services.notifications.cancelCategory("STREAK_WARNING")
+                        }
                     }
                 )
                 settingsDivider()
@@ -220,7 +434,9 @@ struct NotificationSettingsView: View {
                     icon: "dumbbell.fill",
                     onToggle: { enabled in
                         persistToggle(\.trainingReminderEnabled, value: enabled)
-                        if !enabled { services.notifications.cancelCategory("TRAINING_REMINDER") }
+                        if !enabled {
+                            services.notifications.cancelCategory("TRAINING_REMINDER")
+                        }
                     }
                 )
             }
@@ -241,7 +457,9 @@ struct NotificationSettingsView: View {
                     icon: "trophy.fill",
                     onToggle: { enabled in
                         persistToggle(\.arenaNotificationsEnabled, value: enabled)
-                        if !enabled { services.notifications.cancelCategory("ARENA_SOCIAL") }
+                        if !enabled {
+                            services.notifications.cancelCategory("ARENA_SOCIAL")
+                        }
                     }
                 )
             }
@@ -289,7 +507,7 @@ struct NotificationSettingsView: View {
                     settingsDivider()
                     HStack {
                         Text("From")
-                            .font(.system(size: 16))
+                            .font(.tempoCallout)
                             .foregroundStyle(Color.tempoTextPrimary)
                         Spacer()
                         DatePicker("", selection: $quietHoursStart, displayedComponents: .hourAndMinute)
@@ -304,7 +522,7 @@ struct NotificationSettingsView: View {
                     settingsDivider()
                     HStack {
                         Text("Until")
-                            .font(.system(size: 16))
+                            .font(.tempoCallout)
                             .foregroundStyle(Color.tempoTextPrimary)
                         Spacer()
                         DatePicker("", selection: $quietHoursEnd, displayedComponents: .hourAndMinute)
@@ -321,7 +539,7 @@ struct NotificationSettingsView: View {
             .animation(.easeInOut(duration: 0.2), value: quietHoursEnabled)
 
             Text("Time Sensitive notifications (accountability escalations) still break through during quiet hours.")
-                .font(.system(size: 12))
+                .font(.tempoCaption1)
                 .foregroundStyle(Color.tempoTextTertiary)
                 .padding(.horizontal, TempoSpacing.xs)
         }
@@ -331,9 +549,10 @@ struct NotificationSettingsView: View {
 
     private func sectionHeader(_ title: String) -> some View {
         Text(title)
-            .font(.system(size: 12, weight: .semibold))
+            .font(.tempoCaption1)
+            .fontWeight(.semibold)
             .foregroundStyle(Color.tempoTextTertiary)
-            .tracking(0.8)
+            .tracking(TempoTracking.caption1)
     }
 
     private func settingsToggle(
@@ -344,11 +563,11 @@ struct NotificationSettingsView: View {
     ) -> some View {
         HStack(spacing: TempoSpacing.md) {
             Image(systemName: icon)
-                .font(.system(size: 16))
+                .font(.tempoCallout)
                 .foregroundStyle(Color.tempoSignal)
                 .frame(width: 24)
             Text(label)
-                .font(.system(size: 16))
+                .font(.tempoCallout)
                 .foregroundStyle(Color.tempoTextPrimary)
             Spacer()
             Toggle("", isOn: isOn)
@@ -370,7 +589,9 @@ struct NotificationSettingsView: View {
     // MARK: - Persistence
 
     private func loadFromSettings() {
-        guard let settings else { return }
+        guard let settings else {
+            return
+        }
         intensity = settings.notificationIntensity
         morningBriefing = settings.morningBriefingEnabled
         accountability = settings.accountabilityEnabled
@@ -424,7 +645,7 @@ struct NotificationSettingsView: View {
     }
 }
 
-// MARK: - Intensity Options
+// MARK: - IntensityOption
 
 private enum IntensityOption: Int, CaseIterable, Identifiable {
     case gentle = 1
@@ -432,9 +653,11 @@ private enum IntensityOption: Int, CaseIterable, Identifiable {
     case drillSergeant = 3
     case savage = 4
 
-    var id: Int { rawValue }
+    var id: Int {
+        rawValue
+    }
 
-    // Per UX_COPY_BIBLE.md — Notification intensity option strings
+    /// Per UX_COPY_BIBLE.md — Notification intensity option strings
     var title: String {
         switch self {
         case .gentle: "Gentle Coach"

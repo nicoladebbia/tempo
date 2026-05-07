@@ -1,8 +1,16 @@
+//
+// WorkoutEnums.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 
 // MARK: - WorkoutType
 
-enum WorkoutType: String, Codable, CaseIterable, Sendable {
+enum WorkoutType: String, Codable, CaseIterable {
     case push
     case pull
     case legs
@@ -35,7 +43,12 @@ enum WorkoutType: String, Codable, CaseIterable, Sendable {
 
     var isGymWorkout: Bool {
         switch self {
-        case .push, .pull, .legs, .upper, .lower, .fullBody: true
+        case .push,
+             .pull,
+             .legs,
+             .upper,
+             .lower,
+             .fullBody: true
         default: false
         }
     }
@@ -43,7 +56,7 @@ enum WorkoutType: String, Codable, CaseIterable, Sendable {
 
 // MARK: - WorkoutStatus
 
-enum WorkoutStatus: String, Codable, CaseIterable, Sendable {
+enum WorkoutStatus: String, Codable, CaseIterable {
     case planned
     case inProgress = "in_progress"
     case completed
@@ -56,7 +69,7 @@ enum WorkoutStatus: String, Codable, CaseIterable, Sendable {
 
 // MARK: - MuscleGroup
 
-enum MuscleGroup: String, Codable, CaseIterable, Sendable {
+enum MuscleGroup: String, Codable, CaseIterable {
     case chest
     case back
     case shoulders
@@ -81,7 +94,7 @@ enum MuscleGroup: String, Codable, CaseIterable, Sendable {
 
 // MARK: - Equipment
 
-enum Equipment: String, Codable, CaseIterable, Sendable {
+enum Equipment: String, Codable, CaseIterable {
     case barbell
     case dumbbell
     case cable
@@ -99,7 +112,7 @@ enum Equipment: String, Codable, CaseIterable, Sendable {
 
 // MARK: - MovementPattern
 
-enum MovementPattern: String, Codable, CaseIterable, Sendable {
+enum MovementPattern: String, Codable, CaseIterable {
     case horizontalPush = "horizontal_push"
     case horizontalPull = "horizontal_pull"
     case verticalPush = "vertical_push"
@@ -116,7 +129,7 @@ enum MovementPattern: String, Codable, CaseIterable, Sendable {
 
 // MARK: - PRType
 
-enum PRType: String, Codable, CaseIterable, Sendable {
+enum PRType: String, Codable, CaseIterable {
     case oneRepMax = "1rm"
     case repMax = "rep_max"
     case volume

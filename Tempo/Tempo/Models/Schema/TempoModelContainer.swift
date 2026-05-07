@@ -1,21 +1,30 @@
+//
+// TempoModelContainer.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
 @MainActor
 struct TempoModelContainer {
-
     static func create(inMemory: Bool = false) throws -> ModelContainer {
         let schema = Schema(TempoSchemaV1.models)
 
-        // Use App Group container for production builds; fall back to default
-        // container when the App Group isn't available (e.g., simulator without
-        // provisioning profile, or unit tests).
-        let hasAppGroup = FileManager.default.containerURL(
+        let groupURL = FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: "group.app.tempo"
-        ) != nil
+        )
+
+        if let groupURL, !inMemory {
+            let supportDir = groupURL.appendingPathComponent("Library/Application Support", isDirectory: true)
+            try? FileManager.default.createDirectory(at: supportDir, withIntermediateDirectories: true)
+        }
 
         let groupContainer: ModelConfiguration.GroupContainer =
-            (!inMemory && hasAppGroup) ? .identifier("group.app.tempo") : .none
+            (!inMemory && groupURL != nil) ? .identifier("group.app.tempo") : .none
 
         let config = ModelConfiguration(
             "Tempo",
@@ -25,20 +34,10 @@ struct TempoModelContainer {
             cloudKitDatabase: .none
         )
 
-        // When the App Group is available, use migration plan for data upgrades.
-        // Otherwise (simulator/tests), skip migration to avoid SwiftData issues.
-        if hasAppGroup {
-            return try ModelContainer(
-                for: schema,
-                migrationPlan: TempoMigrationPlan.self,
-                configurations: [config]
-            )
-        } else {
-            return try ModelContainer(
-                for: schema,
-                configurations: [config]
-            )
-        }
+        return try ModelContainer(
+            for: schema,
+            configurations: [config]
+        )
     }
 
     static func preview() throws -> ModelContainer {

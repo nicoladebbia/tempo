@@ -1,15 +1,23 @@
+//
+// HealthKitService.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import HealthKit
-import UIKit
 import os
+import UIKit
 
 // MARK: - HealthKit Service (Real Implementation)
+
 // Per INTEGRATION_SPECS.md Section 2.1 — Real HKHealthStore implementation.
 // Per BUILD_PLAN.md Step 5.1 — Authorization flow, partial handling, logging.
 // Fetch/write methods are stubs (implemented in steps 5.2-5.7).
 
 final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
-
     // MARK: - Properties
 
     let healthStore = HKHealthStore()
@@ -22,6 +30,7 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
     private var previousWriteStatus: HKAuthorizationStatus = .notDetermined
 
     // MARK: - Authorization
+
     // Per INTEGRATION_SPECS.md Section 2.1 — requestAuthorization()
 
     func requestAuthorization() async throws {
@@ -49,6 +58,7 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
     }
 
     // MARK: - Permission Verification
+
     // Per INTEGRATION_SPECS.md Section 2.1 — verifyPermissionsOnLaunch()
     // Must be called on every app launch and every return to foreground.
 
@@ -60,7 +70,7 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
 
         // Check write permissions (these ARE queryable)
         let workoutStatus = healthStore.authorizationStatus(for: HKWorkoutType.workoutType())
-        if workoutStatus == .sharingDenied && previousWriteStatus == .sharingAuthorized {
+        if workoutStatus == .sharingDenied, previousWriteStatus == .sharingAuthorized {
             Logger.healthkit.warning("HealthKit write permission revoked by user")
             authResult = .denied
         }
@@ -87,11 +97,12 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
             )
             _ = try await descriptor.result(for: healthStore)
         } catch {
-            Logger.healthkit.warning("HealthKit read query failed on launch: \(error.localizedDescription)")
+            Logger.healthkit.debug("HealthKit read query failed on launch: \(error.localizedDescription)")
         }
     }
 
     // MARK: - Check Authorization Status
+
     // Per INTEGRATION_SPECS.md Section 2.1 — checkAuthorizationStatus()
     // NOTE: Read permissions are unknowable per Apple privacy design.
     // We can only check write type authorization.
@@ -116,6 +127,7 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
     }
 
     // MARK: - Open Health Settings
+
     // Per INTEGRATION_SPECS.md Section 2.1 — guide user to Settings for re-enabling.
 
     @MainActor
@@ -126,6 +138,7 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
     }
 
     // MARK: - Fetch Steps + Active Energy
+
     // Per INTEGRATION_SPECS.md Section 2.2.1 — HKStatisticsQuery with .cumulativeSum.
     // Automatically deduplicates across sources (iPhone + Apple Watch).
 
@@ -203,6 +216,7 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
     }
 
     // MARK: - Fetch Heart Rate + HRV + RHR
+
     // Per INTEGRATION_SPECS.md Section 2.2.2 — Heart rate samples, HRV (SDNN), RHR.
     // Per TECHNICAL_FEASIBILITY_AUDIT.md Section 1.1/1.5:
     //   - RHR only available from Apple Watch (nil otherwise)
@@ -292,6 +306,7 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
     }
 
     // MARK: - Fetch Sleep Analysis
+
     // Per INTEGRATION_SPECS.md Section 2.2.3 — Sleep stage parsing.
     // Search window: 6 PM yesterday → 12 PM today (sleep crosses midnight).
     // Handles both iOS 16+ granular stages and legacy .asleep/.inBed format.
@@ -362,13 +377,12 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
         }
 
         // If no stage detail, count all asleep as light sleep
-        let lightMinutes: Int
-        if deepSleep == 0 && remSleep == 0 && coreSleep == 0 && totalAsleep > 0 {
+        let lightMinutes = if deepSleep == 0 && remSleep == 0 && coreSleep == 0 && totalAsleep > 0 {
             // Legacy format: all sleep counted as light/unspecified
-            lightMinutes = Int(totalAsleep / 60)
+            Int(totalAsleep / 60)
         } else {
             // Granular stages: core sleep maps to light
-            lightMinutes = Int(coreSleep / 60)
+            Int(coreSleep / 60)
         }
 
         let totalHours = totalAsleep / 3600
@@ -378,7 +392,8 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
         let bedtime = preferredSamples.first?.startDate
         let wakeTime = preferredSamples.last?.endDate
 
-        Logger.healthkit.debug("fetchSleepAnalysis: \(String(format: "%.1f", totalHours))h total, efficiency \(String(format: "%.0f", efficiency))%")
+        Logger.healthkit
+            .debug("fetchSleepAnalysis: \(String(format: "%.1f", totalHours))h total, efficiency \(String(format: "%.0f", efficiency))%")
 
         return SleepData(
             totalHours: totalHours,
@@ -393,6 +408,7 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
     }
 
     // MARK: - Sleep Source Priority
+
     // Per INTEGRATION_SPECS.md Section 2.2.3 — Priority: Whoop > Apple Watch > iPhone > Other
 
     private func selectPreferredSleepSource(
@@ -437,7 +453,72 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
         }
     }
 
+    // MARK: - Fetch Body Composition
+
+    // Reads weight, body fat %, lean mass, and height from HealthKit.
+    // Withings Body Comp scale syncs this data automatically via the Withings app.
+
+    func fetchBodyComposition() async throws -> BodyCompositionData {
+        let weight = await fetchLatestQuantity(.bodyMass, unit: .gramUnit(with: .kilo))
+        let bodyFat = await fetchLatestQuantity(.bodyFatPercentage, unit: .percent())
+        let leanMass = await fetchLatestQuantity(.leanBodyMass, unit: .gramUnit(with: .kilo))
+        let height = await fetchLatestQuantity(.height, unit: .meterUnit(with: .centi))
+
+        // Get the measurement date from the weight sample (most recent)
+        let measurementDate = await fetchLatestSampleDate(.bodyMass)
+
+        let result = BodyCompositionData(
+            weightKg: weight,
+            bodyFatPercent: bodyFat.map { $0 * 100 }, // HealthKit stores as 0.0-1.0
+            leanMassKg: leanMass,
+            heightCm: height,
+            measurementDate: measurementDate
+        )
+
+        Logger.healthkit
+            .debug(
+                "fetchBodyComposition: weight=\(weight ?? -1)kg, bf=\(result.bodyFatPercent ?? -1)%, lean=\(leanMass ?? -1)kg, height=\(height ?? -1)cm"
+            )
+        return result
+    }
+
+    private func fetchLatestQuantity(_ identifier: HKQuantityTypeIdentifier, unit: HKUnit) async -> Double? {
+        let type = HKQuantityType(identifier)
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
+
+        return await withCheckedContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: type,
+                predicate: nil,
+                limit: 1,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, _ in
+                let value = (samples?.first as? HKQuantitySample)?.quantity.doubleValue(for: unit)
+                continuation.resume(returning: value)
+            }
+            healthStore.execute(query)
+        }
+    }
+
+    private func fetchLatestSampleDate(_ identifier: HKQuantityTypeIdentifier) async -> Date? {
+        let type = HKQuantityType(identifier)
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
+
+        return await withCheckedContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: type,
+                predicate: nil,
+                limit: 1,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, _ in
+                continuation.resume(returning: samples?.first?.startDate)
+            }
+            healthStore.execute(query)
+        }
+    }
+
     // MARK: - Fetch Workouts
+
     // Per INTEGRATION_SPECS.md Section 2.2.4 — Fetch workouts from all sources.
     // Maps HKWorkoutActivityType to Tempo display format.
 
@@ -484,38 +565,59 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
     }
 
     // MARK: - Activity Type Mapping
+
     // Per INTEGRATION_SPECS.md Section 2.2.4 — Map HKWorkoutActivityType to Tempo display format.
 
     private static func mapActivityType(_ activityType: HKWorkoutActivityType) -> String {
         switch activityType {
-        case .traditionalStrengthTraining, .functionalStrengthTraining:
-            return "strength"
+        case .traditionalStrengthTraining,
+             .functionalStrengthTraining:
+            "strength"
         case .running:
-            return "run"
+            "run"
         case .soccer:
-            return "football"
-        case .cycling, .swimming, .rowing, .elliptical, .stairClimbing:
-            return "cardio"
-        case .highIntensityIntervalTraining, .crossTraining:
-            return "hiit"
-        case .yoga, .flexibility, .pilates, .mindAndBody:
-            return "mobility"
-        case .walking, .hiking:
-            return "walk"
-        case .basketball, .tennis, .tableTennis, .badminton, .rugby,
-             .volleyball, .handball, .martialArts, .boxing:
-            return "sport"
+            "football"
+        case .cycling,
+             .swimming,
+             .rowing,
+             .elliptical,
+             .stairClimbing:
+            "cardio"
+        case .highIntensityIntervalTraining,
+             .crossTraining:
+            "hiit"
+        case .yoga,
+             .flexibility,
+             .pilates,
+             .mindAndBody:
+            "mobility"
+        case .walking,
+             .hiking:
+            "walk"
+        case .basketball,
+             .tennis,
+             .tableTennis,
+             .badminton,
+             .rugby,
+             .volleyball,
+             .handball,
+             .martialArts,
+             .boxing:
+            "sport"
         default:
-            return "other"
+            "other"
         }
     }
 
     // MARK: - Write Workout
+
     // Per INTEGRATION_SPECS.md Section 2.3.1 — Save completed RepForge workouts to HealthKit.
     // Uses HKWorkoutBuilder per spec. Checks for duplicate writes.
 
     func writeWorkout(_ workout: WorkoutSample) async throws {
-        guard HKHealthStore.isHealthDataAvailable() else { return }
+        guard HKHealthStore.isHealthDataAvailable() else {
+            return
+        }
         guard healthStore.authorizationStatus(for: HKWorkoutType.workoutType()) == .sharingAuthorized else {
             Logger.healthkit.warning("writeWorkout: not authorized to write workouts")
             return
@@ -585,15 +687,21 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
         try await builder.endCollection(at: workout.endDate)
         try await builder.finishWorkout()
 
-        Logger.healthkit.info("writeWorkout: saved \(workout.workoutType) (\(String(format: "%.0f", workout.durationMinutes))m, \(String(format: "%.0f", workout.activeCalories)) cal)")
+        Logger.healthkit
+            .info(
+                "writeWorkout: saved \(workout.workoutType) (\(String(format: "%.0f", workout.durationMinutes))m, \(String(format: "%.0f", workout.activeCalories)) cal)"
+            )
     }
 
     // MARK: - Write Nutrition
+
     // Per INTEGRATION_SPECS.md Section 2.3.2 — Write nutrition as HKCorrelation.
     // Per TECHNICAL_FEASIBILITY_AUDIT.md Section 1.3 — use HKCorrelation for proper Health app display.
 
     func writeNutrition(_ nutrition: NutritionSample) async throws {
-        guard HKHealthStore.isHealthDataAvailable() else { return }
+        guard HKHealthStore.isHealthDataAvailable() else {
+            return
+        }
         guard healthStore.authorizationStatus(for: HKQuantityType(.dietaryEnergyConsumed)) == .sharingAuthorized else {
             return // Silently skip — nutrition write is optional
         }
@@ -638,23 +746,25 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
         )
 
         try await healthStore.save(correlation)
-        Logger.healthkit.info("writeNutrition: saved \(String(format: "%.0f", nutrition.calories)) cal, P:\(String(format: "%.0f", nutrition.proteinGrams))g C:\(String(format: "%.0f", nutrition.carbsGrams))g F:\(String(format: "%.0f", nutrition.fatGrams))g")
+        Logger.healthkit
+            .info(
+                "writeNutrition: saved \(String(format: "%.0f", nutrition.calories)) cal, P:\(String(format: "%.0f", nutrition.proteinGrams))g C:\(String(format: "%.0f", nutrition.carbsGrams))g F:\(String(format: "%.0f", nutrition.fatGrams))g"
+            )
     }
 
     // MARK: - Reverse Activity Type Mapping
 
     private static func mapStringToHKActivityType(_ type: String) -> HKWorkoutActivityType {
         switch type {
-        case "strength": return .traditionalStrengthTraining
-        case "run": return .running
-        case "football": return .soccer
-        case "cardio": return .cycling
-        case "hiit": return .highIntensityIntervalTraining
-        case "mobility": return .flexibility
-        case "walk": return .walking
-        case "sport": return .other
-        default: return .other
+        case "strength": .traditionalStrengthTraining
+        case "run": .running
+        case "football": .soccer
+        case "cardio": .cycling
+        case "hiit": .highIntensityIntervalTraining
+        case "mobility": .flexibility
+        case "walk": .walking
+        case "sport": .other
+        default: .other
         }
     }
-
 }

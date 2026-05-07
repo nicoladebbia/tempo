@@ -1,26 +1,36 @@
+//
+// DashboardViewModel.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import CoreLocation
 import Foundation
 import SwiftData
 import SwiftUI
 #if canImport(WeatherKit)
-import WeatherKit
+    import WeatherKit
 #endif
 
-// MARK: - Dashboard State
+// MARK: - DashboardLoadState
 
-enum DashboardLoadState: Sendable {
+enum DashboardLoadState {
     case loading
     case loaded
     case error(String)
 }
 
-// MARK: - Quadrant Data
+// MARK: - BiometricDataSource
 
 enum BiometricDataSource: String {
     case whoop = "Whoop"
     case healthKit = "HealthKit"
     case none = ""
 }
+
+// MARK: - BodyQuadrantData
 
 struct BodyQuadrantData {
     var recoveryScore: Double?
@@ -39,44 +49,60 @@ struct BodyQuadrantData {
     }
 
     var isStale: Bool {
-        guard let lastSync else { return false }
+        guard let lastSync else {
+            return false
+        }
         return Date().timeIntervalSince(lastSync) > 1800 // 30 min
     }
 
     // MARK: - Formatted Display Values
 
     var formattedRecovery: String {
-        guard let recoveryScore else { return "--" }
+        guard let recoveryScore else {
+            return "--"
+        }
         return "\(Int(recoveryScore))%"
     }
 
     var formattedHRV: String {
-        guard let hrv else { return "--" }
+        guard let hrv else {
+            return "--"
+        }
         return String(format: "%.1f ms", hrv)
     }
 
     var formattedRHR: String {
-        guard let rhr else { return "--" }
+        guard let rhr else {
+            return "--"
+        }
         return "\(Int(rhr)) bpm"
     }
 
     var formattedSleep: String {
-        guard let sleepHours else { return "--" }
+        guard let sleepHours else {
+            return "--"
+        }
         return String(format: "%.1fh", sleepHours)
     }
 
     var formattedSleepPerformance: String {
-        guard let sleepPerformance else { return "--" }
+        guard let sleepPerformance else {
+            return "--"
+        }
         return "\(Int(sleepPerformance))%"
     }
 
     var formattedStrain: String {
-        guard let strain else { return "--" }
+        guard let strain else {
+            return "--"
+        }
         return String(format: "%.1f", strain)
     }
 
     var formattedSpo2: String {
-        guard let spo2 else { return "--" }
+        guard let spo2 else {
+            return "--"
+        }
         return "\(Int(spo2))%"
     }
 
@@ -84,6 +110,8 @@ struct BodyQuadrantData {
         isConnected: false
     )
 }
+
+// MARK: - FuelQuadrantData
 
 struct FuelQuadrantData {
     var caloriesConsumed: Int?
@@ -100,31 +128,51 @@ struct FuelQuadrantData {
     var lastSync: Date?
 
     var isStale: Bool {
-        guard let lastSync else { return false }
+        guard let lastSync else {
+            return false
+        }
         return Date().timeIntervalSince(lastSync) > 1200 // 20 min
     }
 
     var calorieProgress: Double {
-        guard let consumed = caloriesConsumed, let target = calorieTarget, target > 0 else { return 0 }
+        guard let consumed = caloriesConsumed, let target = calorieTarget, target > 0 else {
+            return 0
+        }
         return Double(consumed) / Double(target)
     }
 
     // MARK: - Recovery-Adjusted Targets (NutritionEngine)
 
     var adjustedTargets: AdjustedNutritionTargets?
-    var nutritionMode: NutritionMode { adjustedTargets?.mode ?? .standard }
-    var modeExplanation: String { adjustedTargets?.modeExplanation ?? "" }
+    var nutritionMode: NutritionMode {
+        adjustedTargets?.mode ?? .standard
+    }
+
+    var modeExplanation: String {
+        adjustedTargets?.modeExplanation ?? ""
+    }
 
     // MARK: - Hydration Tracking
 
     var hydrationMl: Int = 0
-    var hydrationTargetMl: Int { adjustedTargets?.hydrationTargetMl ?? 2500 }
+    var hydrationTargetMl: Int {
+        adjustedTargets?.hydrationTargetMl ?? 2500
+    }
+
     var hydrationProgress: Double {
-        guard hydrationTargetMl > 0 else { return 0 }
+        guard hydrationTargetMl > 0 else {
+            return 0
+        }
         return Double(hydrationMl) / Double(hydrationTargetMl)
     }
-    var hydrationGlasses: Int { hydrationMl / 250 }
-    var hydrationTargetGlasses: Int { hydrationTargetMl / 250 }
+
+    var hydrationGlasses: Int {
+        hydrationMl / 250
+    }
+
+    var hydrationTargetGlasses: Int {
+        hydrationTargetMl / 250
+    }
 
     // MARK: - Calorie Balance
 
@@ -156,47 +204,65 @@ struct FuelQuadrantData {
     // MARK: - Formatted Display Values
 
     var formattedCalories: String {
-        guard let caloriesConsumed else { return "--" }
+        guard let caloriesConsumed else {
+            return "--"
+        }
         return NumberFormatter.localizedString(from: NSNumber(value: caloriesConsumed), number: .decimal)
     }
 
     var formattedCalorieTarget: String {
-        guard let calorieTarget else { return "--" }
+        guard let calorieTarget else {
+            return "--"
+        }
         return NumberFormatter.localizedString(from: NSNumber(value: calorieTarget), number: .decimal)
     }
 
     var formattedProtein: String {
-        guard let proteinGrams else { return "--" }
+        guard let proteinGrams else {
+            return "--"
+        }
         return "\(proteinGrams)g"
     }
 
     var formattedProteinTarget: String {
-        guard let proteinTarget else { return "--" }
+        guard let proteinTarget else {
+            return "--"
+        }
         return "\(proteinTarget)g"
     }
 
     var formattedCarbs: String {
-        guard let carbsGrams else { return "--" }
+        guard let carbsGrams else {
+            return "--"
+        }
         return "\(carbsGrams)g"
     }
 
     var formattedCarbsTarget: String {
-        guard let carbsTarget else { return "--" }
+        guard let carbsTarget else {
+            return "--"
+        }
         return "\(carbsTarget)g"
     }
 
     var formattedFat: String {
-        guard let fatGrams else { return "--" }
+        guard let fatGrams else {
+            return "--"
+        }
         return "\(fatGrams)g"
     }
 
     var formattedFatTarget: String {
-        guard let fatTarget else { return "--" }
+        guard let fatTarget else {
+            return "--"
+        }
         return "\(fatTarget)g"
     }
 
     var formattedMeals: String {
-        guard let logged = mealsLogged, let planned = mealsPlanned else { return "--" }
+        guard let logged = mealsLogged, let planned = mealsPlanned else {
+            return "--"
+        }
         if logged >= planned {
             return "All \(planned) meals logged"
         }
@@ -218,6 +284,8 @@ struct FuelQuadrantData {
     }
 }
 
+// MARK: - MindQuadrantData
+
 struct MindQuadrantData {
     var studyMinutesToday: Int
     var studyTargetMinutes: Int
@@ -225,7 +293,9 @@ struct MindQuadrantData {
     var exams: [ExamData]
 
     var studyProgress: Double {
-        guard studyTargetMinutes > 0 else { return 1.0 }
+        guard studyTargetMinutes > 0 else {
+            return 1.0
+        }
         return Double(studyMinutesToday) / Double(studyTargetMinutes)
     }
 
@@ -244,7 +314,9 @@ struct MindQuadrantData {
         if studyTargetMinutes >= 60 {
             let hours = studyTargetMinutes / 60
             let minutes = studyTargetMinutes % 60
-            if minutes == 0 { return "\(hours)h" }
+            if minutes == 0 {
+                return "\(hours)h"
+            }
             return "\(hours)h \(minutes)m"
         }
         return "\(studyTargetMinutes)m"
@@ -262,23 +334,28 @@ struct MindQuadrantData {
     )
 }
 
+// MARK: - ExamData
+
 struct ExamData: Identifiable {
     let id = UUID()
     let name: String
     let date: Date
 
     var daysUntil: Int {
-        Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: Date()), to: Calendar.current.startOfDay(for: date)).day ?? 0
+        Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: Date()), to: Calendar.current.startOfDay(for: date))
+            .day ?? 0
     }
 
     var formattedCountdown: String {
         switch daysUntil {
-        case 0: return "TODAY"
-        case 1: return "TOMORROW"
-        default: return "in \(daysUntil) days"
+        case 0: "TODAY"
+        case 1: "TOMORROW"
+        default: "in \(daysUntil) days"
         }
     }
 }
+
+// MARK: - DashboardWorkoutStatus
 
 /// Dashboard-specific workout display state.
 /// Maps from the canonical `WorkoutStatus` model enum but adds rest-day / no-workout states
@@ -289,6 +366,8 @@ enum DashboardWorkoutStatus {
     case restDay
     case none
 }
+
+// MARK: - MoveQuadrantData
 
 struct MoveQuadrantData {
     var workoutStatus: DashboardWorkoutStatus
@@ -302,34 +381,46 @@ struct MoveQuadrantData {
     var lastSync: Date?
 
     var stepsProgress: Double {
-        guard let steps, stepsTarget > 0 else { return 0 }
+        guard let steps, stepsTarget > 0 else {
+            return 0
+        }
         return Double(steps) / Double(stepsTarget)
     }
 
     var isStale: Bool {
-        guard let lastSync else { return false }
+        guard let lastSync else {
+            return false
+        }
         return Date().timeIntervalSince(lastSync) > 600 // 10 min for HR
     }
 
     // MARK: - Formatted Display Values
 
     var formattedSteps: String {
-        guard let steps else { return "--" }
+        guard let steps else {
+            return "--"
+        }
         return NumberFormatter.localizedString(from: NSNumber(value: steps), number: .decimal)
     }
 
     var formattedActiveCalories: String {
-        guard let activeCalories else { return "--" }
+        guard let activeCalories else {
+            return "--"
+        }
         return "\(activeCalories) cal"
     }
 
     var formattedHeartRate: String {
-        guard let heartRateCurrent else { return "--" }
+        guard let heartRateCurrent else {
+            return "--"
+        }
         return "\(heartRateCurrent) bpm"
     }
 
     var formattedWorkoutDuration: String {
-        guard let minutes = workoutDurationMinutes else { return "--" }
+        guard let minutes = workoutDurationMinutes else {
+            return "--"
+        }
         if minutes >= 60 {
             return "\(minutes / 60)h \(minutes % 60)m"
         }
@@ -338,12 +429,12 @@ struct MoveQuadrantData {
 
     static let empty = MoveQuadrantData(
         workoutStatus: .none,
-        stepsTarget: 10_000,
+        stepsTarget: 10000,
         isConnected: false
     )
 }
 
-// MARK: - Non-Negotiable Display
+// MARK: - NonNegotiableItem
 
 struct NonNegotiableItem: Identifiable {
     let id: UUID
@@ -352,16 +443,20 @@ struct NonNegotiableItem: Identifiable {
     let category: NonNegotiableCategory
 }
 
-enum NonNegotiableCategory: String, Sendable {
-    case body, fuel, mind, move
+// MARK: - NonNegotiableCategory
+
+enum NonNegotiableCategory: String {
+    case body
+    case fuel
+    case mind
+    case move
 }
 
-// MARK: - Dashboard ViewModel
+// MARK: - DashboardViewModel
 
 @Observable
 @MainActor
 final class DashboardViewModel {
-
     // MARK: - State
 
     private(set) var loadState: DashboardLoadState = .loading
@@ -376,6 +471,7 @@ final class DashboardViewModel {
     private(set) var move: MoveQuadrantData = .empty
 
     // MARK: - Quick Actions
+
     // Context-aware action buttons shown below the quadrant grid.
     // Maximum 2 visible at a time. Priority-ordered by what's most actionable now.
 
@@ -401,7 +497,7 @@ final class DashboardViewModel {
         }
 
         // Study target not met
-        if mind.studyMinutesToday < mind.studyTargetMinutes && mind.studyTargetMinutes > 0 {
+        if mind.studyMinutesToday < mind.studyTargetMinutes, mind.studyTargetMinutes > 0 {
             let remaining = mind.studyTargetMinutes - mind.studyMinutesToday
             actions.append(QuickAction(
                 title: "Start Study Timer (\(remaining)m left)",
@@ -429,7 +525,7 @@ final class DashboardViewModel {
         }
 
         // Non-negotiables incomplete
-        if nonNegotiablesDone < nonNegotiablesTotal && nonNegotiablesTotal > 0 {
+        if nonNegotiablesDone < nonNegotiablesTotal, nonNegotiablesTotal > 0 {
             let remaining = nonNegotiablesTotal - nonNegotiablesDone
             actions.append(QuickAction(
                 title: "\(remaining) Non-Negotiable\(remaining > 1 ? "s" : "") Left",
@@ -453,11 +549,12 @@ final class DashboardViewModel {
     }
 
     // MARK: - Weather Data
+
     // Lightweight weather info for hydration/workout recommendations.
 
     struct WeatherInfo {
         let temperatureCelsius: Double
-        let conditionSymbol: String  // SF Symbol name
+        let conditionSymbol: String // SF Symbol name
         let isRaining: Bool
         let recommendation: String?
 
@@ -466,8 +563,12 @@ final class DashboardViewModel {
         }
 
         var hydrationTarget: Double? {
-            if temperatureCelsius > 30 { return 3.5 }
-            if temperatureCelsius > 25 { return 3.0 }
+            if temperatureCelsius > 30 {
+                return 3.5
+            }
+            if temperatureCelsius > 25 {
+                return 3.0
+            }
             return nil
         }
     }
@@ -477,61 +578,67 @@ final class DashboardViewModel {
     /// Fetch current weather using WeatherKit.
     func fetchWeather() async {
         #if canImport(WeatherKit)
-        do {
-            let weatherService = WeatherService.shared
-            // Use a default location (or CLLocationManager if authorized)
-            // For now, attempt to get weather at a reasonable default
-            // This will be enhanced when CoreLocation is authorized
-            guard let location = await getCurrentLocation() else { return }
+            do {
+                let weatherService = WeatherService.shared
+                // Use a default location (or CLLocationManager if authorized)
+                // For now, attempt to get weather at a reasonable default
+                // This will be enhanced when CoreLocation is authorized
+                guard let location = await getCurrentLocation() else {
+                    return
+                }
 
-            let currentWeather = try await weatherService.weather(for: location)
-            let current = currentWeather.currentWeather
-            let tempC = current.temperature.converted(to: .celsius).value
-            let isRaining = current.condition == .rain ||
-                current.condition == .heavyRain ||
-                current.condition == .drizzle ||
-                current.condition == .thunderstorms
+                let currentWeather = try await weatherService.weather(for: location)
+                let current = currentWeather.currentWeather
+                let tempC = current.temperature.converted(to: .celsius).value
+                let isRaining = current.condition == .rain ||
+                    current.condition == .heavyRain ||
+                    current.condition == .drizzle ||
+                    current.condition == .thunderstorms
 
-            let conditionSymbol: String
-            switch current.condition {
-            case .clear, .mostlyClear:
-                conditionSymbol = "sun.max.fill"
-            case .partlyCloudy:
-                conditionSymbol = "cloud.sun.fill"
-            case .cloudy, .mostlyCloudy:
-                conditionSymbol = "cloud.fill"
-            case .rain, .heavyRain, .drizzle:
-                conditionSymbol = "cloud.rain.fill"
-            case .thunderstorms:
-                conditionSymbol = "cloud.bolt.rain.fill"
-            case .snow, .heavySnow:
-                conditionSymbol = "cloud.snow.fill"
-            case .windy:
-                conditionSymbol = "wind"
-            default:
-                conditionSymbol = "cloud.fill"
+                let conditionSymbol = switch current.condition {
+                case .clear,
+                     .mostlyClear:
+                    "sun.max.fill"
+                case .partlyCloudy:
+                    "cloud.sun.fill"
+                case .cloudy,
+                     .mostlyCloudy:
+                    "cloud.fill"
+                case .rain,
+                     .heavyRain,
+                     .drizzle:
+                    "cloud.rain.fill"
+                case .thunderstorms:
+                    "cloud.bolt.rain.fill"
+                case .snow,
+                     .heavySnow:
+                    "cloud.snow.fill"
+                case .windy:
+                    "wind"
+                default:
+                    "cloud.fill"
+                }
+
+                var recommendation: String?
+                if tempC > 30 {
+                    recommendation = "Stay hydrated -- target 3.5L today"
+                } else if isRaining {
+                    recommendation = "Indoor workout recommended"
+                } else if tempC < 5 {
+                    recommendation = "Layer up for outdoor activity"
+                }
+
+                weather = WeatherInfo(
+                    temperatureCelsius: tempC,
+                    conditionSymbol: conditionSymbol,
+                    isRaining: isRaining,
+                    recommendation: recommendation
+                )
+            } catch {
+                #if DEBUG
+                    print("[Dashboard] Weather fetch failed: \(error)")
+                #endif
             }
-
-            var recommendation: String?
-            if tempC > 30 {
-                recommendation = "Stay hydrated -- target 3.5L today"
-            } else if isRaining {
-                recommendation = "Indoor workout recommended"
-            } else if tempC < 5 {
-                recommendation = "Layer up for outdoor activity"
-            }
-
-            self.weather = WeatherInfo(
-                temperatureCelsius: tempC,
-                conditionSymbol: conditionSymbol,
-                isRaining: isRaining,
-                recommendation: recommendation
-            )
-        } catch {
-            #if DEBUG
-            print("[Dashboard] Weather fetch failed: \(error)")
-            #endif
-        }
         #endif
     }
 
@@ -540,7 +647,8 @@ final class DashboardViewModel {
         // Returns nil if location services not authorized (graceful degradation)
         let manager = CLLocationManager()
         if manager.authorizationStatus == .authorizedWhenInUse ||
-            manager.authorizationStatus == .authorizedAlways {
+            manager.authorizationStatus == .authorizedAlways
+        {
             return manager.location
         }
         return nil
@@ -557,7 +665,9 @@ final class DashboardViewModel {
     }
 
     var formattedDailyScore: String {
-        guard let dailyScore else { return "--" }
+        guard let dailyScore else {
+            return "--"
+        }
         return "\(dailyScore)"
     }
 
@@ -584,19 +694,20 @@ final class DashboardViewModel {
     // MARK: - Init
 
     init(services: ServiceContainer) {
-        self.healthKit = services.healthKit
-        self.whoop = services.whoop
-        self.nutriTrack = services.nutriTrack
-        self.calendar = services.calendar
-        self.userName = nil
+        healthKit = services.healthKit
+        whoop = services.whoop
+        nutriTrack = services.nutriTrack
+        calendar = services.calendar
+        userName = nil
     }
 
     /// Set the user's display name (called from view layer after querying SwiftData).
     func setUserName(_ name: String?) {
-        self.userName = name
+        userName = name
     }
 
     // MARK: - Refresh
+
     // Per DATA_FLOW_ARCHITECTURE.md Section 2.1 — fetch from all sources concurrently.
     // HealthKit data is real; Whoop/NutriTrack via their service protocols.
     // Body quadrant: Whoop primary, HealthKit fallback for sleep/HRV/RHR.
@@ -605,260 +716,264 @@ final class DashboardViewModel {
     private var isRefreshing = false
 
     func refresh() async {
-        guard !isRefreshing else { return }
+        guard !isRefreshing else {
+            return
+        }
         isRefreshing = true
         defer { isRefreshing = false }
         loadState = .loading
 
         let today = Date()
 
-            // Fetch Whoop data only when connected.
-            // Per INTEGRATION_SPECS.md: Whoop primary, HealthKit fallback.
-            let recovery: WhoopRecoveryData?
-            let whoopSleepData: WhoopSleepData?
-            let cycle: WhoopCycleData?
-            #if DEBUG
+        // Fetch Whoop data only when connected.
+        // Per INTEGRATION_SPECS.md: Whoop primary, HealthKit fallback.
+        let recovery: WhoopRecoveryData?
+        let whoopSleepData: WhoopSleepData?
+        let cycle: WhoopCycleData?
+        #if DEBUG
             print("[Dashboard] Whoop state: \(whoop.connectionState), isDemoMode: \(whoop.isDemoMode)")
-            #endif
-            if whoop.connectionState == .connected {
-                do { recovery = try await whoop.fetchRecovery(for: today) }
-                catch {
-                    recovery = nil
-                    #if DEBUG
-                    print("[Dashboard] Whoop recovery fetch failed: \(error)")
-                    #endif
-                }
-                do { whoopSleepData = try await whoop.fetchSleep(for: today) }
-                catch {
-                    whoopSleepData = nil
-                    #if DEBUG
-                    print("[Dashboard] Whoop sleep fetch failed: \(error)")
-                    #endif
-                }
-                do { cycle = try await whoop.fetchCycle(for: today) }
-                catch {
-                    cycle = nil
-                    #if DEBUG
-                    print("[Dashboard] Whoop cycle fetch failed: \(error)")
-                    #endif
-                }
-            } else {
+        #endif
+        if whoop.connectionState == .connected {
+            do { recovery = try await whoop.fetchRecovery(for: today) }
+            catch {
                 recovery = nil
+                #if DEBUG
+                    print("[Dashboard] Whoop recovery fetch failed: \(error)")
+                #endif
+            }
+            do { whoopSleepData = try await whoop.fetchSleep(for: today) }
+            catch {
                 whoopSleepData = nil
+                #if DEBUG
+                    print("[Dashboard] Whoop sleep fetch failed: \(error)")
+                #endif
+            }
+            do { cycle = try await whoop.fetchCycle(for: today) }
+            catch {
                 cycle = nil
                 #if DEBUG
-                print("[Dashboard] Whoop not connected — skipping Whoop data fetch")
+                    print("[Dashboard] Whoop cycle fetch failed: \(error)")
                 #endif
             }
-            // Fetch HealthKit data (always — used as fallback or standalone).
-            // Each call is wrapped individually so a single HealthKit failure
-            // (e.g. no authorization) doesn't prevent Whoop data from displaying.
-            var steps: Int
-            var energy: Double
-            var heartRates: [HeartRateSample]
-            var hrv: Double?
-            var rhr: Double?
-            var hkSleepData: SleepData
-            var workouts: [WorkoutSample]
-            do {
-                async let hkSteps = healthKit.fetchSteps(for: today)
-                async let hkActiveEnergy = healthKit.fetchActiveEnergy(for: today)
-                async let hkHeartRate = healthKit.fetchHeartRate(for: today)
-                async let hkHRV = healthKit.fetchHRV(for: today)
-                async let hkRHR = healthKit.fetchRestingHeartRate(for: today)
-                async let hkSleep = healthKit.fetchSleepAnalysis(for: today)
-                async let hkWorkouts = healthKit.fetchWorkouts(for: today)
-                steps = try await hkSteps
-                energy = try await hkActiveEnergy
-                heartRates = try await hkHeartRate
-                hrv = try await hkHRV
-                rhr = try await hkRHR
-                hkSleepData = try await hkSleep
-                workouts = try await hkWorkouts
-            } catch {
-                #if DEBUG
-                print("[Dashboard] HealthKit fetch failed: \(error) — using defaults")
-                #endif
-                steps = 0
-                energy = 0
-                heartRates = []
-                hrv = nil
-                rhr = nil
-                hkSleepData = SleepData(
-                    totalHours: 0, deepSleepMinutes: 0, remSleepMinutes: 0,
-                    lightSleepMinutes: 0, awakeMinutes: 0, sleepEfficiency: 0,
-                    bedtime: nil, wakeTime: nil
-                )
-                workouts = []
-            }
-
-            // Fetch NutriTrack data only when connected (skip if backend unreachable)
-            let meals: NutriTrackDayData?
-            if case .connected = nutriTrack.connectionState {
-                meals = try? await nutriTrack.fetchTodayMeals()
-            } else {
-                meals = nil
-            }
-
-            let now = Date()
-            let healthKitConnected = steps > 0 || !heartRates.isEmpty || hrv != nil
-
-            // Build Body quadrant
-            // Per INTEGRATION_SPECS.md: Whoop primary for recovery/HRV/RHR, HealthKit fallback.
-            let hasWhoopData = recovery != nil
-            let sleepHours: Double
-            let sleepPerf: Double
-            let bodyHRV: Double?
-            let bodyRHR: Double?
-
-            if let whoopSleepData, whoopSleepData.totalHours > 0 {
-                sleepHours = whoopSleepData.totalHours
-                sleepPerf = whoopSleepData.sleepScore
-            } else {
-                sleepHours = hkSleepData.totalHours
-                sleepPerf = Double(hkSleepData.sleepScore)
-            }
-
-            if let recovery {
-                bodyHRV = recovery.hrvRmssd
-                bodyRHR = recovery.restingHeartRate
-            } else {
-                bodyHRV = hrv
-                bodyRHR = rhr
-            }
-
-            let dataSource: BiometricDataSource = hasWhoopData ? .whoop :
-                (healthKitConnected ? .healthKit : .none)
-
-            self.body = BodyQuadrantData(
-                recoveryScore: recovery?.score,
-                hrv: bodyHRV,
-                rhr: bodyRHR,
-                sleepHours: sleepHours > 0 ? sleepHours : nil,
-                sleepPerformance: sleepPerf > 0 ? sleepPerf : nil,
-                strain: cycle?.dayStrain,
-                spo2: recovery?.spo2,
-                isConnected: hasWhoopData || healthKitConnected,
-                lastSync: now,
-                dataSource: dataSource
-            )
+        } else {
+            recovery = nil
+            whoopSleepData = nil
+            cycle = nil
             #if DEBUG
-            print("[Dashboard] Body built: recovery=\(recovery?.score ?? -1), hrv=\(bodyHRV ?? -1), rhr=\(bodyRHR ?? -1), sleep=\(sleepHours)h, strain=\(cycle?.dayStrain ?? -1), source=\(dataSource.rawValue), connected=\(hasWhoopData || healthKitConnected)")
+                print("[Dashboard] Whoop not connected — skipping Whoop data fetch")
             #endif
-
-            // Build Fuel quadrant with recovery-adjusted targets
-            let baseCalTarget = Int(meals?.calorieTarget ?? 0)
-            let baseProtTarget = Int(meals?.proteinTarget ?? 0)
-            let baseCarbTarget = Int(meals?.carbsTarget ?? 0)
-            let baseFatTarget = Int(meals?.fatTarget ?? 0)
-            let recoveryZone = recovery.map { RecoveryZone(score: $0.score) }
-            let isRestDay = false // Will be enriched by refreshTrainingStatus
-
-            let adjusted = NutritionEngine.adjustedTargets(
-                baseCalories: baseCalTarget > 0 ? baseCalTarget : 2400,
-                baseProtein: baseProtTarget > 0 ? baseProtTarget : 180,
-                baseCarbs: baseCarbTarget > 0 ? baseCarbTarget : 280,
-                baseFat: baseFatTarget > 0 ? baseFatTarget : 80,
-                recoveryZone: recoveryZone,
-                currentStrain: cycle?.dayStrain,
-                isTrainingDay: true, // Enriched by refreshTrainingStatus
-                isRestDay: isRestDay
+        }
+        // Fetch HealthKit data (always — used as fallback or standalone).
+        // Each call is wrapped individually so a single HealthKit failure
+        // (e.g. no authorization) doesn't prevent Whoop data from displaying.
+        var steps: Int
+        var energy: Double
+        var heartRates: [HeartRateSample]
+        var hrv: Double?
+        var rhr: Double?
+        var hkSleepData: SleepData
+        var workouts: [WorkoutSample]
+        do {
+            async let hkSteps = healthKit.fetchSteps(for: today)
+            async let hkActiveEnergy = healthKit.fetchActiveEnergy(for: today)
+            async let hkHeartRate = healthKit.fetchHeartRate(for: today)
+            async let hkHRV = healthKit.fetchHRV(for: today)
+            async let hkRHR = healthKit.fetchRestingHeartRate(for: today)
+            async let hkSleep = healthKit.fetchSleepAnalysis(for: today)
+            async let hkWorkouts = healthKit.fetchWorkouts(for: today)
+            steps = try await hkSteps
+            energy = try await hkActiveEnergy
+            heartRates = try await hkHeartRate
+            hrv = try await hkHRV
+            rhr = try await hkRHR
+            hkSleepData = try await hkSleep
+            workouts = try await hkWorkouts
+        } catch {
+            #if DEBUG
+                print("[Dashboard] HealthKit fetch failed: \(error) — using defaults")
+            #endif
+            steps = 0
+            energy = 0
+            heartRates = []
+            hrv = nil
+            rhr = nil
+            hkSleepData = SleepData(
+                totalHours: 0, deepSleepMinutes: 0, remSleepMinutes: 0,
+                lightSleepMinutes: 0, awakeMinutes: 0, sleepEfficiency: 0,
+                bedtime: nil, wakeTime: nil
             )
+            workouts = []
+        }
 
-            let consumedCal = Int(meals?.totalCalories ?? 0)
-            let consumedProt = Int(meals?.proteinGrams ?? 0)
-            let consumedCarbs = Int(meals?.carbsGrams ?? 0)
-            let consumedFat = Int(meals?.fatGrams ?? 0)
-            let mealsLoggedCount = meals?.mealsLogged ?? 0
+        // Fetch NutriTrack data only when connected (skip if backend unreachable)
+        let meals: NutriTrackDayData? = if case .connected = nutriTrack.connectionState {
+            try? await nutriTrack.fetchTodayMeals()
+        } else {
+            nil
+        }
 
-            // Generate AI coaching message
-            let coaching = NutritionEngine.coachingMessage(
-                proteinCurrent: consumedProt, proteinTarget: adjusted.proteinTarget,
-                carbsCurrent: consumedCarbs, carbsTarget: adjusted.carbsTarget,
-                fatCurrent: consumedFat, fatTarget: adjusted.fatTarget,
-                caloriesCurrent: consumedCal, calorieTarget: adjusted.calorieTarget,
-                isTrainingDay: true,
-                recoveryZone: recoveryZone,
-                mealsLogged: mealsLoggedCount
+        let now = Date()
+        let healthKitConnected = steps > 0 || !heartRates.isEmpty || hrv != nil
+
+        // Build Body quadrant
+        // Per INTEGRATION_SPECS.md: Whoop primary for recovery/HRV/RHR, HealthKit fallback.
+        let hasWhoopData = recovery != nil
+        let sleepHours: Double
+        let sleepPerf: Double
+        let bodyHRV: Double?
+        let bodyRHR: Double?
+
+        if let whoopSleepData, whoopSleepData.totalHours > 0 {
+            sleepHours = whoopSleepData.totalHours
+            sleepPerf = whoopSleepData.sleepScore
+        } else {
+            sleepHours = hkSleepData.totalHours
+            sleepPerf = Double(hkSleepData.sleepScore)
+        }
+
+        if let recovery {
+            bodyHRV = recovery.hrvRmssd
+            bodyRHR = recovery.restingHeartRate
+        } else {
+            bodyHRV = hrv
+            bodyRHR = rhr
+        }
+
+        let dataSource: BiometricDataSource = hasWhoopData ? .whoop :
+            (healthKitConnected ? .healthKit : .none)
+
+        body = BodyQuadrantData(
+            recoveryScore: recovery?.score,
+            hrv: bodyHRV,
+            rhr: bodyRHR,
+            sleepHours: sleepHours > 0 ? sleepHours : nil,
+            sleepPerformance: sleepPerf > 0 ? sleepPerf : nil,
+            strain: cycle?.dayStrain,
+            spo2: recovery?.spo2,
+            isConnected: hasWhoopData || healthKitConnected,
+            lastSync: now,
+            dataSource: dataSource
+        )
+        #if DEBUG
+            print(
+                "[Dashboard] Body built: recovery=\(recovery?.score ?? -1), hrv=\(bodyHRV ?? -1), rhr=\(bodyRHR ?? -1), sleep=\(sleepHours)h, strain=\(cycle?.dayStrain ?? -1), source=\(dataSource.rawValue), connected=\(hasWhoopData || healthKitConnected)"
             )
+        #endif
 
-            var fuelData = FuelQuadrantData(
-                caloriesConsumed: consumedCal,
-                calorieTarget: adjusted.calorieTarget,
-                proteinGrams: consumedProt,
-                proteinTarget: adjusted.proteinTarget,
-                carbsGrams: consumedCarbs,
-                carbsTarget: adjusted.carbsTarget,
-                fatGrams: consumedFat,
-                fatTarget: adjusted.fatTarget,
-                mealsLogged: meals?.mealsLogged,
-                mealsPlanned: meals?.mealsPlanned,
-                isConnected: meals != nil,
-                lastSync: now
-            )
-            fuelData.adjustedTargets = adjusted
-            fuelData.coachingMessage = coaching
-            fuelData.activeCaloriesBurned = Int(energy)
-            fuelData.estimatedBMR = 1800 // Will use real BMR when UserProfile is available
-            self.fuel = fuelData
+        // Build Fuel quadrant with recovery-adjusted targets
+        let baseCalTarget = Int(meals?.calorieTarget ?? 0)
+        let baseProtTarget = Int(meals?.proteinTarget ?? 0)
+        let baseCarbTarget = Int(meals?.carbsTarget ?? 0)
+        let baseFatTarget = Int(meals?.fatTarget ?? 0)
+        let recoveryZone = recovery.map { RecoveryZone(score: $0.score) }
+        let isRestDay = false // Will be enriched by refreshTrainingStatus
 
-            // Build Mind quadrant — exams from calendar, study data local
-            // Per BUILD_PLAN step 13.2 — exam countdown from real calendar data.
-            let threeWeeks = DateInterval(
-                start: Calendar.current.startOfDay(for: Date()),
-                end: Calendar.current.date(byAdding: .weekOfYear, value: 3, to: Date()) ?? Date()
-            )
-            let calendarExams = calendar.detectExamDates(in: threeWeeks)
-            let examItems = calendarExams.map { exam in
-                ExamData(name: exam.subject, date: exam.date)
-            }
+        let adjusted = NutritionEngine.adjustedTargets(
+            baseCalories: baseCalTarget > 0 ? baseCalTarget : 2400,
+            baseProtein: baseProtTarget > 0 ? baseProtTarget : 180,
+            baseCarbs: baseCarbTarget > 0 ? baseCarbTarget : 280,
+            baseFat: baseFatTarget > 0 ? baseFatTarget : 80,
+            recoveryZone: recoveryZone,
+            currentStrain: cycle?.dayStrain,
+            isTrainingDay: true, // Enriched by refreshTrainingStatus
+            isRestDay: isRestDay
+        )
 
-            self.mind = MindQuadrantData(
-                studyMinutesToday: mind.studyMinutesToday,
-                studyTargetMinutes: mind.studyTargetMinutes,
-                currentStreakDays: mind.currentStreakDays,
-                exams: examItems.isEmpty ? mind.exams : examItems
-            )
+        let consumedCal = Int(meals?.totalCalories ?? 0)
+        let consumedProt = Int(meals?.proteinGrams ?? 0)
+        let consumedCarbs = Int(meals?.carbsGrams ?? 0)
+        let consumedFat = Int(meals?.fatGrams ?? 0)
+        let mealsLoggedCount = meals?.mealsLogged ?? 0
 
-            // Build Move quadrant from real HealthKit data
-            let latestHR = heartRates.last.map { Int($0.bpm) }
-            let todaysWorkout = workouts.first
-            let workoutStatus: DashboardWorkoutStatus
-            let workoutName: String?
-            let workoutDuration: Int?
+        // Generate AI coaching message
+        let coaching = NutritionEngine.coachingMessage(
+            proteinCurrent: consumedProt, proteinTarget: adjusted.proteinTarget,
+            carbsCurrent: consumedCarbs, carbsTarget: adjusted.carbsTarget,
+            fatCurrent: consumedFat, fatTarget: adjusted.fatTarget,
+            caloriesCurrent: consumedCal, calorieTarget: adjusted.calorieTarget,
+            isTrainingDay: true,
+            recoveryZone: recoveryZone,
+            mealsLogged: mealsLoggedCount
+        )
 
-            if let workout = todaysWorkout {
-                workoutStatus = .completed
-                workoutName = workout.workoutType.capitalized
-                workoutDuration = Int(workout.durationMinutes)
-            } else {
-                workoutStatus = .none
-                workoutName = nil
-                workoutDuration = nil
-            }
+        var fuelData = FuelQuadrantData(
+            caloriesConsumed: consumedCal,
+            calorieTarget: adjusted.calorieTarget,
+            proteinGrams: consumedProt,
+            proteinTarget: adjusted.proteinTarget,
+            carbsGrams: consumedCarbs,
+            carbsTarget: adjusted.carbsTarget,
+            fatGrams: consumedFat,
+            fatTarget: adjusted.fatTarget,
+            mealsLogged: meals?.mealsLogged,
+            mealsPlanned: meals?.mealsPlanned,
+            isConnected: meals != nil,
+            lastSync: now
+        )
+        fuelData.adjustedTargets = adjusted
+        fuelData.coachingMessage = coaching
+        fuelData.activeCaloriesBurned = Int(energy)
+        fuelData.estimatedBMR = 1800 // Will use real BMR when UserProfile is available
+        fuel = fuelData
 
-            self.move = MoveQuadrantData(
-                workoutStatus: workoutStatus,
-                workoutName: workoutName,
-                workoutDurationMinutes: workoutDuration,
-                steps: steps,
-                stepsTarget: 10_000,
-                activeCalories: Int(energy),
-                heartRateCurrent: latestHR,
-                isConnected: healthKitConnected || !workouts.isEmpty,
-                lastSync: now
-            )
+        // Build Mind quadrant — exams from calendar, study data local
+        // Per BUILD_PLAN step 13.2 — exam countdown from real calendar data.
+        let threeWeeks = DateInterval(
+            start: Calendar.current.startOfDay(for: Date()),
+            end: Calendar.current.date(byAdding: .weekOfYear, value: 3, to: Date()) ?? Date()
+        )
+        let calendarExams = calendar.detectExamDates(in: threeWeeks)
+        let examItems = calendarExams.map { exam in
+            ExamData(name: exam.subject, date: exam.date)
+        }
 
-            // Non-negotiables are populated by refreshAccountability() from real data.
-            // Don't overwrite with fake data here — leave as-is (empty or previously loaded).
+        mind = MindQuadrantData(
+            studyMinutesToday: mind.studyMinutesToday,
+            studyTargetMinutes: mind.studyTargetMinutes,
+            currentStreakDays: mind.currentStreakDays,
+            exams: examItems.isEmpty ? mind.exams : examItems
+        )
 
-            self.lastRefresh = now
-            self.loadState = .loaded
-            self.updateScoreTrend()
-            self.refreshInsights()
+        // Build Move quadrant from real HealthKit data
+        let latestHR = heartRates.last.map { Int($0.bpm) }
+        let todaysWorkout = workouts.first
+        let workoutStatus: DashboardWorkoutStatus
+        let workoutName: String?
+        let workoutDuration: Int?
+
+        if let workout = todaysWorkout {
+            workoutStatus = .completed
+            workoutName = workout.workoutType.capitalized
+            workoutDuration = Int(workout.durationMinutes)
+        } else {
+            workoutStatus = .none
+            workoutName = nil
+            workoutDuration = nil
+        }
+
+        move = MoveQuadrantData(
+            workoutStatus: workoutStatus,
+            workoutName: workoutName,
+            workoutDurationMinutes: workoutDuration,
+            steps: steps,
+            stepsTarget: 10000,
+            activeCalories: Int(energy),
+            heartRateCurrent: latestHR,
+            isConnected: healthKitConnected || !workouts.isEmpty,
+            lastSync: now
+        )
+
+        // Non-negotiables are populated by refreshAccountability() from real data.
+        // Don't overwrite with fake data here — leave as-is (empty or previously loaded).
+
+        lastRefresh = now
+        loadState = .loaded
+        updateScoreTrend()
+        refreshInsights()
     }
 
     // MARK: - Training Status Connection
+
     // Per BUILD_PLAN step 9.8 — Connect training data to Dashboard Move quadrant.
     // Shows workout type and completion from SwiftData WorkoutPlan.
 
@@ -902,7 +1017,7 @@ final class DashboardViewModel {
         }
 
         // Update move quadrant, preserving HealthKit steps/calories/HR data
-        self.move = MoveQuadrantData(
+        move = MoveQuadrantData(
             workoutStatus: status,
             workoutName: name ?? move.workoutName,
             workoutDurationMinutes: todayPlan.actualDurationMinutes ?? move.workoutDurationMinutes,
@@ -959,6 +1074,7 @@ final class DashboardViewModel {
     }
 
     // MARK: - Accountability Connection
+
     // Per BUILD_PLAN step 10.8 — Connect accountability data to Dashboard.
 
     func refreshAccountability(modelContext: ModelContext) {
@@ -979,20 +1095,20 @@ final class DashboardViewModel {
                 predicate: #Predicate { $0.isActive }
             )
             if let activeNNs = try? modelContext.fetch(nnDescriptor), !activeNNs.isEmpty {
-                self.nonNegotiables = activeNNs.map { nn in
+                nonNegotiables = activeNNs.map { nn in
                     NonNegotiableItem(
                         id: nn.id,
                         title: nn.name,
                         isCompleted: false,
                         category: {
                             switch nn.type {
-                            case .train: return .move
-                            case .meals: return .fuel
-                            case .study: return .mind
-                            case .sleep: return .body
-                            case .steps: return .move
-                            case .hydration: return .fuel
-                            case .custom: return .mind
+                            case .train: .move
+                            case .meals: .fuel
+                            case .study: .mind
+                            case .sleep: .body
+                            case .steps: .move
+                            case .hydration: .fuel
+                            case .custom: .mind
                             }
                         }()
                     )
@@ -1016,11 +1132,11 @@ final class DashboardViewModel {
         )
         let streak = try? modelContext.fetch(streakDescriptor).first
 
-        self.mind = MindQuadrantData(
+        mind = MindQuadrantData(
             studyMinutesToday: studyMinutes,
             studyTargetMinutes: studyTarget,
             currentStreakDays: streak?.currentCount ?? 0,
-            exams: mind.exams  // Preserve existing exam data
+            exams: mind.exams // Preserve existing exam data
         )
 
         // Per BUILD_PLAN step 11.3 — Auto-track meal non-negotiable from NutriTrack data.
@@ -1032,7 +1148,7 @@ final class DashboardViewModel {
                 let target = mealProgress.targetValue
                 if Double(mealsLogged) > mealProgress.currentValue {
                     mealProgress.currentValue = Double(mealsLogged)
-                    if Double(mealsLogged) >= target && !mealProgress.isCompleted {
+                    if Double(mealsLogged) >= target, !mealProgress.isCompleted {
                         mealProgress.isCompleted = true
                         mealProgress.completedAt = Date()
                     }
@@ -1043,19 +1159,19 @@ final class DashboardViewModel {
 
         // Update non-negotiables from real data
         let progress = accountabilityRecord.nonNegotiableProgress ?? []
-        self.nonNegotiables = progress.compactMap { p in
-            guard let nn = p.nonNegotiable else { return nil }
-            let category: NonNegotiableCategory = {
-                switch nn.type {
-                case .train: return .move
-                case .meals: return .fuel
-                case .study: return .mind
-                case .sleep: return .body
-                case .steps: return .move
-                case .hydration: return .fuel
-                case .custom: return .mind
-                }
-            }()
+        nonNegotiables = progress.compactMap { p in
+            guard let nn = p.nonNegotiable else {
+                return nil
+            }
+            let category: NonNegotiableCategory = switch nn.type {
+            case .train: .move
+            case .meals: .fuel
+            case .study: .mind
+            case .sleep: .body
+            case .steps: .move
+            case .hydration: .fuel
+            case .custom: .mind
+            }
             return NonNegotiableItem(
                 id: nn.id,
                 title: nn.name,
@@ -1076,7 +1192,9 @@ final class DashboardViewModel {
     }
 
     var nonNegotiableProgress: Double {
-        guard nonNegotiablesTotal > 0 else { return 0 }
+        guard nonNegotiablesTotal > 0 else {
+            return 0
+        }
         return Double(nonNegotiablesDone) / Double(nonNegotiablesTotal)
     }
 
@@ -1099,11 +1217,17 @@ final class DashboardViewModel {
     // MARK: - Last Sync Display
 
     var formattedLastSync: String {
-        guard let lastRefresh else { return "" }
+        guard let lastRefresh else {
+            return ""
+        }
         let interval = Date().timeIntervalSince(lastRefresh)
-        if interval < 60 { return "Last sync: Just now" }
+        if interval < 60 {
+            return "Last sync: Just now"
+        }
         let minutes = Int(interval / 60)
-        if minutes < 60 { return "Last sync: \(minutes)m ago" }
+        if minutes < 60 {
+            return "Last sync: \(minutes)m ago"
+        }
         let hours = minutes / 60
         return "Last sync: \(hours)h ago"
     }
@@ -1142,12 +1266,17 @@ final class DashboardViewModel {
 
     /// Advance to next insight in the rotation.
     func nextInsight() {
-        if insights.isEmpty { insights = generateAllInsights() }
-        guard !insights.isEmpty else { return }
+        if insights.isEmpty {
+            insights = generateAllInsights()
+        }
+        guard !insights.isEmpty else {
+            return
+        }
         insightIndex = (insightIndex + 1) % insights.count
     }
 
     // MARK: - Cross-Module Insight Engine
+
     // Generates all applicable insights based on current data.
     // Insights are ordered by priority — urgent warnings first, patterns second, celebrations last.
 
@@ -1202,7 +1331,7 @@ final class DashboardViewModel {
 
         // 4. Study vs sleep cross-pattern
         if let sleep = body.sleepHours, sleep >= 8 {
-            if mind.studyMinutesToday == 0 && mind.studyTargetMinutes > 0 {
+            if mind.studyMinutesToday == 0, mind.studyTargetMinutes > 0 {
                 result.append(DashboardInsight(
                     text: "Great sleep (\(String(format: "%.1f", sleep))h). Your brain is primed for deep focus today.",
                     icon: "brain.head.profile",
@@ -1239,7 +1368,7 @@ final class DashboardViewModel {
         if let consumed = fuel.caloriesConsumed, let target = fuel.calorieTarget, target > 0 {
             let ratio = Double(consumed) / Double(target)
             let hour = Calendar.current.component(.hour, from: Date())
-            if ratio < 0.4 && hour >= 16 {
+            if ratio < 0.4, hour >= 16 {
                 result.append(DashboardInsight(
                     text: "Only \(consumed) of \(target) kcal logged by \(hour > 12 ? hour - 12 : hour)PM. Fuel up.",
                     icon: "fork.knife",
@@ -1272,7 +1401,7 @@ final class DashboardViewModel {
             let target = move.stepsTarget
             let remaining = target - steps
             let hour = Calendar.current.component(.hour, from: Date())
-            if remaining > 0 && remaining <= 3000 && hour >= 15 {
+            if remaining > 0, remaining <= 3000, hour >= 15 {
                 result.append(DashboardInsight(
                     text: "\(NumberFormatter.localizedString(from: NSNumber(value: remaining), number: .decimal)) steps to go. A 20-min walk closes the gap.",
                     icon: "figure.walk",
@@ -1302,7 +1431,8 @@ final class DashboardViewModel {
         if let recovery = body.recoveryScore, recovery >= 70,
            move.workoutStatus == .completed,
            mind.studyMinutesToday >= mind.studyTargetMinutes,
-           nonNegotiablesDone >= nonNegotiablesTotal, nonNegotiablesTotal > 0 {
+           nonNegotiablesDone >= nonNegotiablesTotal, nonNegotiablesTotal > 0
+        {
             result.append(DashboardInsight(
                 text: "All targets hit. This is what discipline looks like.",
                 icon: "star.fill",
@@ -1356,20 +1486,27 @@ final class DashboardViewModel {
         let nutritionAvailable = fuel.isConnected && fuel.caloriesConsumed != nil
         let nutritionRaw: Double = {
             guard let consumed = fuel.caloriesConsumed,
-                  let target = fuel.calorieTarget, target > 0 else { return 0 }
+                  let target = fuel.calorieTarget, target > 0
+            else {
+                return 0
+            }
             return min(100, (Double(consumed) / Double(target)) * 100)
         }()
 
         let studyAvailable = true
         let studyRaw: Double = {
-            guard mind.studyTargetMinutes > 0 else { return 100 }
+            guard mind.studyTargetMinutes > 0 else {
+                return 100
+            }
             return min(100, (Double(mind.studyMinutesToday) / Double(mind.studyTargetMinutes)) * 100)
         }()
 
         let movementAvailable = move.isConnected
         let movementRaw: Double = {
             let stepsComponent: Double = {
-                guard let steps = move.steps, move.stepsTarget > 0 else { return 0 }
+                guard let steps = move.steps, move.stepsTarget > 0 else {
+                    return 0
+                }
                 return min(50, (Double(steps) / Double(move.stepsTarget)) * 50)
             }()
             let workoutComponent: Double = move.workoutStatus == .completed ? 50 : 0
@@ -1404,31 +1541,38 @@ final class DashboardViewModel {
     var scoreTrendDirection: TrendDirection {
         guard scoreTrend.count >= 2,
               let last = scoreTrend.last,
-              let prev = scoreTrend.dropLast().last else {
+              let prev = scoreTrend.dropLast().last
+        else {
             return .flat
         }
         let delta = last.score - prev.score
-        if delta > 2 { return .up }
-        if delta < -2 { return .down }
+        if delta > 2 {
+            return .up
+        }
+        if delta < -2 {
+            return .down
+        }
         return .flat
     }
 
     enum TrendDirection {
-        case up, down, flat
+        case up
+        case down
+        case flat
 
         var icon: String {
             switch self {
-            case .up: return "arrow.up.right"
-            case .down: return "arrow.down.right"
-            case .flat: return "arrow.right"
+            case .up: "arrow.up.right"
+            case .down: "arrow.down.right"
+            case .flat: "arrow.right"
             }
         }
 
         var color: Color {
             switch self {
-            case .up: return .tempoSuccess
-            case .down: return .tempoError
-            case .flat: return .tempoTextSecondary
+            case .up: .tempoSuccess
+            case .down: .tempoError
+            case .flat: .tempoTextSecondary
             }
         }
     }
@@ -1445,7 +1589,9 @@ final class DashboardViewModel {
             sortBy: [SortDescriptor(\.date, order: .forward)]
         )
 
-        guard let entries = try? modelContext.fetch(descriptor) else { return }
+        guard let entries = try? modelContext.fetch(descriptor) else {
+            return
+        }
 
         var points = entries.map { DailyScorePoint(date: $0.date, score: $0.score) }
 
@@ -1456,12 +1602,14 @@ final class DashboardViewModel {
             points.append(DailyScorePoint(date: today, score: todayScore))
         }
 
-        scoreTrend = points.suffix(7).map { $0 }
+        scoreTrend = points.suffix(7).map(\.self)
     }
 
     /// Persist today's score to SwiftData. Called after refresh when score changes.
     func persistDailyScore(modelContext: ModelContext) {
-        guard let score = computeDailyScore() else { return }
+        guard let score = computeDailyScore() else {
+            return
+        }
 
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
@@ -1514,10 +1662,11 @@ final class DashboardViewModel {
             updated.append(DailyScorePoint(date: today, score: todayScore))
         }
 
-        scoreTrend = updated.sorted { $0.date < $1.date }.suffix(7).map { $0 }
+        scoreTrend = updated.sorted { $0.date < $1.date }.suffix(7).map(\.self)
     }
 
     // MARK: - Daily Score Calculation
+
     // Per MODULE_DASHBOARD.md Section 2.3
 
     private func computeDailyScore() -> Int? {
@@ -1534,7 +1683,10 @@ final class DashboardViewModel {
         let nutritionAvailable = fuel.isConnected && fuel.caloriesConsumed != nil
         let nutritionRaw: Double = {
             guard let consumed = fuel.caloriesConsumed,
-                  let target = fuel.calorieTarget, target > 0 else { return 0 }
+                  let target = fuel.calorieTarget, target > 0
+            else {
+                return 0
+            }
             let base = min(100, (Double(consumed) / Double(target)) * 100)
             return max(0, base)
         }()
@@ -1542,7 +1694,9 @@ final class DashboardViewModel {
         // Study component
         let studyAvailable = true // Local data always available
         let studyRaw: Double = {
-            guard mind.studyTargetMinutes > 0 else { return 100 }
+            guard mind.studyTargetMinutes > 0 else {
+                return 100
+            }
             return min(100, (Double(mind.studyMinutesToday) / Double(mind.studyTargetMinutes)) * 100)
         }()
 
@@ -1550,7 +1704,9 @@ final class DashboardViewModel {
         let movementAvailable = move.isConnected
         let movementRaw: Double = {
             let stepsComponent: Double = {
-                guard let steps = move.steps, move.stepsTarget > 0 else { return 0 }
+                guard let steps = move.steps, move.stepsTarget > 0 else {
+                    return 0
+                }
                 return min(50, (Double(steps) / Double(move.stepsTarget)) * 50)
             }()
             let workoutComponent: Double = move.workoutStatus == .completed ? 50 : 0
@@ -1565,7 +1721,9 @@ final class DashboardViewModel {
         ]
 
         let connected = sources.filter(\.isAvailable)
-        guard connected.count >= 2 else { return nil }
+        guard connected.count >= 2 else {
+            return nil
+        }
 
         let baseWeight = 0.25
         let missingCount = 4 - connected.count
@@ -1577,11 +1735,14 @@ final class DashboardViewModel {
         }
 
         let clamped = max(0, min(100, score))
-        guard !clamped.isNaN && !clamped.isInfinite else { return nil }
+        guard !clamped.isNaN, !clamped.isInfinite else {
+            return nil
+        }
         return Int(round(clamped))
     }
 
     // MARK: - Greeting
+
     // Per UX_COPY_BIBLE.md Section 3.2 — Context-aware greeting.
     // Priority: recovery warning > streak milestone > training schedule > deload > time-of-day fallback.
 
@@ -1637,13 +1798,13 @@ final class DashboardViewModel {
         // Fallback: Time-based greeting
         let hour = Calendar.current.component(.hour, from: Date())
         switch hour {
-        case 0..<4: return "You should be asleep\(name)."
-        case 4..<8: return "Early bird gets the gains\(name)."
-        case 8..<12: return "Rise and grind\(name)."
-        case 12..<14: return "No half reps this afternoon\(name)."
-        case 14..<17: return "Keep the pressure on\(name)."
-        case 17..<21: return "Finish what you started\(name)."
-        case 21..<24: return "Earn your sleep\(name)."
+        case 0 ..< 4: return "You should be asleep\(name)."
+        case 4 ..< 8: return "Early bird gets the gains\(name)."
+        case 8 ..< 12: return "Rise and grind\(name)."
+        case 12 ..< 14: return "No half reps this afternoon\(name)."
+        case 14 ..< 17: return "Keep the pressure on\(name)."
+        case 17 ..< 21: return "Finish what you started\(name)."
+        case 21 ..< 24: return "Earn your sleep\(name)."
         default: return "Rise and grind\(name)."
         }
     }
@@ -1653,13 +1814,15 @@ final class DashboardViewModel {
     private(set) var deloadFrequencyWeeks: Int = 5
 
     private var isDeloadWeek: Bool {
-        guard deloadFrequencyWeeks > 0 else { return false }
+        guard deloadFrequencyWeeks > 0 else {
+            return false
+        }
         let weekOfYear = Calendar.current.component(.weekOfYear, from: Date())
         return weekOfYear % deloadFrequencyWeeks == 0
     }
 
     func setDeloadFrequency(_ weeks: Int) {
-        self.deloadFrequencyWeeks = weeks
+        deloadFrequencyWeeks = weeks
     }
 
     // MARK: - Preview Helper
@@ -1710,7 +1873,7 @@ final class DashboardViewModel {
         )
         vm.move = MoveQuadrantData(
             workoutStatus: .completed, workoutName: "Upper Body Push",
-            workoutDurationMinutes: 55, steps: 8432, stepsTarget: 10_000,
+            workoutDurationMinutes: 55, steps: 8432, stepsTarget: 10000,
             activeCalories: 342, heartRateCurrent: 72,
             isConnected: true, lastSync: Date()
         )

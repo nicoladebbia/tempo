@@ -1,17 +1,32 @@
+//
+// WhoopConnectView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Whoop Connect View
+
 // Per WIREFRAMES.md Screen 47 — Whoop connection during onboarding. OPTIONAL.
 // Per STATE_MACHINES.md Section 10 — Connected or Skip.
 
 struct WhoopConnectView: View {
-    @Bindable var viewModel: OnboardingViewModel
+    @Bindable
+    var viewModel: OnboardingViewModel
+    @Environment(ServiceContainer.self)
+    private var services
+    @State
+    private var isConnecting = false
+    @State
+    private var errorMessage: String?
 
     var body: some View {
         VStack(spacing: TempoSpacing.xxl) {
             Spacer()
 
-            // Per WIREFRAMES.md Screen 47 — "YOUR BODY TALKS. LET'S LISTEN."
             Text("YOUR BODY TALKS.\nLET'S LISTEN.")
                 .font(.system(size: 24, weight: .bold))
                 .foregroundStyle(.white)
@@ -31,10 +46,27 @@ struct WhoopConnectView: View {
 
             Spacer()
 
-            OnboardingPrimaryButton(title: "CONNECT WHOOP", enabled: true) {
-                // TODO: Trigger Whoop OAuth flow
-                viewModel.whoopConnected = true
-                viewModel.advance()
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.tempoError)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, TempoSpacing.xl)
+            }
+
+            OnboardingPrimaryButton(title: isConnecting ? "CONNECTING..." : "CONNECT WHOOP", enabled: !isConnecting) {
+                Task {
+                    isConnecting = true
+                    errorMessage = nil
+                    do {
+                        try await services.whoop.connect()
+                        viewModel.whoopConnected = true
+                        viewModel.advance()
+                    } catch {
+                        errorMessage = "Connection failed. You can try again or skip."
+                        isConnecting = false
+                    }
+                }
             }
 
             OnboardingSkipButton { viewModel.skip() }
@@ -54,4 +86,13 @@ struct WhoopConnectView: View {
                 .foregroundStyle(.white.opacity(0.8))
         }
     }
+}
+
+#Preview {
+    @Previewable @State
+    var vm = OnboardingViewModel()
+
+    WhoopConnectView(viewModel: vm)
+        .background(Color.black)
+        .preferredColorScheme(.dark)
 }

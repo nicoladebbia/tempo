@@ -1,18 +1,28 @@
+//
+// TempoLineChart.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Charts
 import SwiftUI
 
-// MARK: - Tempo Line Chart
+// MARK: - TempoLineChart
+
 // Per DESIGN_SYSTEM.md Section 8.7 — Line Chart:
 // 2pt line, area gradient, 6pt data points, scrub gesture with tooltip.
 
 struct TempoLineChart<ID: Hashable>: View {
-
     let data: [TempoLineChartData<ID>]
     let height: CGFloat
     let showGrid: Bool
 
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var selectedPoint: (series: ID, date: Date, value: Double)?
+    @Environment(\.colorScheme)
+    private var colorScheme
+    @State
+    private var selectedPoint: (series: ID, date: Date, value: Double)?
 
     init(data: [TempoLineChartData<ID>], height: CGFloat = 200, showGrid: Bool = true) {
         self.data = data
@@ -90,9 +100,13 @@ struct TempoLineChart<ID: Hashable>: View {
                     .gesture(
                         DragGesture(minimumDistance: 0)
                             .onChanged { value in
-                                guard let firstSeries = data.first else { return }
+                                guard let firstSeries = data.first else {
+                                    return
+                                }
                                 let xPosition = value.location.x - geometry[proxy.plotFrame!].origin.x
-                                guard let date: Date = proxy.value(atX: xPosition) else { return }
+                                guard let date: Date = proxy.value(atX: xPosition) else {
+                                    return
+                                }
                                 if let closest = firstSeries.points.min(by: {
                                     abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date))
                                 }) {
@@ -113,18 +127,21 @@ struct TempoLineChart<ID: Hashable>: View {
 
     private var gridColor: Color {
         colorScheme == .dark
-            ? Color(red: 56 / 255, green: 56 / 255, blue: 58 / 255)
+            ? Color.tempoFillTertiary
             : Color.tempoBorder
     }
 
     private var axisStride: Int {
         let totalPoints = data.first?.points.count ?? 7
-        if totalPoints <= 7 { return 1 }
-        if totalPoints <= 30 { return 7 }
+        if totalPoints <= 7 {
+            return 1
+        }
+        if totalPoints <= 30 {
+            return 7
+        }
         return 14
     }
 
-    @ViewBuilder
     private func tooltipView(value: Double, date: Date) -> some View {
         VStack(spacing: TempoSpacing.xxs) {
             Text(String(format: "%.1f", value))
@@ -141,7 +158,7 @@ struct TempoLineChart<ID: Hashable>: View {
     }
 }
 
-// MARK: - Data Types
+// MARK: - TempoLineChartData
 
 struct TempoLineChartData<ID: Hashable>: Identifiable {
     let id: ID
@@ -149,7 +166,7 @@ struct TempoLineChartData<ID: Hashable>: Identifiable {
     let color: Color
     let points: [DataPoint]
 
-    struct DataPoint: Sendable {
+    struct DataPoint {
         let date: Date
         let value: Double
     }

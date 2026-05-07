@@ -1,11 +1,19 @@
+//
+// AchievementCardView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Achievement Card
+
 // Per DESIGN_SYSTEM.md Section 8.2 — Achievement Card:
 // 96pt height, 16pt radius, 16pt padding. Badge icon 40pt circle with tier bg.
 
 struct AchievementCardView: View {
-
     let name: String
     let description: String
     let icon: String
@@ -14,7 +22,8 @@ struct AchievementCardView: View {
     let earnedDate: String?
     let isLocked: Bool
 
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.colorScheme)
+    private var colorScheme
 
     var body: some View {
         HStack(spacing: TempoSpacing.cardGap) {
@@ -54,13 +63,10 @@ struct AchievementCardView: View {
         .frame(height: 96)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .shadow(
-            color: Color.tempoInk.opacity(colorScheme == .dark ? 0 : 0.06),
-            radius: 4, x: 0, y: 2
-        )
+        .tempoShadow(.card)
         .overlay(
             RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                .stroke(Color.tempoBorder, lineWidth: 0.5)
+                .stroke(Color.tempoBorder, lineWidth: TempoElevation.cardDarkBorderWidth)
                 .opacity(colorScheme == .dark ? 1 : 0)
         )
         .opacity(isLocked ? 0.5 : 1.0)

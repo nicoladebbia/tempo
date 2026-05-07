@@ -1,19 +1,30 @@
-import SwiftUI
-import Charts
+//
+// FuelQuadrantDetailView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
 
-// MARK: - Fuel Quadrant Detail View
+import Charts
+import SwiftUI
+
+// MARK: - FuelQuadrantDetailView
+
 // Per MODULE_DASHBOARD.md Section 4.3 — Fuel Expanded View.
 // Calorie hero ring, macro bars, meals list, calorie trend chart, weekly averages.
 
 struct FuelQuadrantDetailView: View {
-
     let data: FuelQuadrantData
     var nutriTrackService: (any NutriTrackServiceProtocol)?
     var onRefreshNeeded: (() -> Void)?
 
-    @State private var showNutriTrackConnect = false
+    @State
+    private var showNutriTrackConnect = false
+    @State
+    private var showNativeNutrition = false
 
-    // Stub meal data for detail view
+    /// Stub meal data for detail view
     private let meals: [MealDisplayItem] = [
         MealDisplayItem(name: "Breakfast", time: "7:30 AM", calories: 650, status: .logged),
         MealDisplayItem(name: "Lunch", time: "12:30 PM", calories: 780, status: .logged),
@@ -21,21 +32,21 @@ struct FuelQuadrantDetailView: View {
         MealDisplayItem(name: "Dinner", time: "(planned)", calories: nil, status: .planned),
     ]
 
-    // Stub 7-day calorie trend
+    /// Stub 7-day calorie trend
     private let calorieTrend: [CalorieTrendPoint] = {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
         let values = [2250, 2100, 2500, 1980, 2350, 2150, 2100]
-        return (-6...0).map { offset in
+        return (-6 ... 0).map { offset in
             let date = calendar.date(byAdding: .day, value: offset, to: today)!
             return CalorieTrendPoint(date: date, calories: values[offset + 6])
         }
     }()
 
     // Macro bar colors per MODULE_DASHBOARD.md Section 3.4.2
-    private let proteinColor = Color(red: 90/255, green: 200/255, blue: 250/255)  // #5AC8FA
-    private let carbsColor = Color(red: 255/255, green: 214/255, blue: 10/255)    // #FFD60A
-    private let fatColor = Color(red: 255/255, green: 159/255, blue: 10/255)       // #FF9F0A
+    private let proteinColor = Color.tempoMacroProtein
+    private let carbsColor = Color.tempoMacroCarbs
+    private let fatColor = Color.tempoMacroFat
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -47,13 +58,38 @@ struct FuelQuadrantDetailView: View {
                     calorieTrendSection
                     weeklyAverageSection
                 } else {
-                    EmptyStateView(
-                        icon: "fork.knife",
-                        title: "No NutriTrack Connected",
-                        message: "Connect NutriTrack to see calories, macros, and meal data.",
-                        actionTitle: "Connect NutriTrack",
-                        action: { showNutriTrackConnect = true }
-                    )
+                    // Native nutrition mode — log meals directly without NutriTrack
+                    VStack(spacing: TempoSpacing.xl) {
+                        Image(systemName: "fork.knife.circle.fill")
+                            .font(.system(size: 48))
+                            .foregroundStyle(Color.tempoViolet)
+
+                        Text("Track nutrition natively")
+                            .font(.tempoTitle3)
+                            .foregroundStyle(Color.tempoTextPrimary)
+
+                        Text("Log meals manually, or connect NutriTrack for automatic tracking.")
+                            .font(.tempoBody)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: 280)
+
+                        VStack(spacing: TempoSpacing.buttonStackVertical) {
+                            NavigationLink {
+                                DailyNutritionSummaryView()
+                            } label: {
+                                Text("Log Meals Manually")
+                            }
+                            .buttonStyle(.tempoPrimary)
+
+                            Button("Connect NutriTrack") {
+                                showNutriTrackConnect = true
+                            }
+                            .buttonStyle(.tempoSecondary)
+                        }
+                        .padding(.horizontal, TempoSpacing.screenEdge)
+                    }
+                    .padding(.top, TempoSpacing.xxxxl)
                     .sheet(isPresented: $showNutriTrackConnect) {
                         if let service = nutriTrackService {
                             NutriTrackConnectView(
@@ -65,7 +101,7 @@ struct FuelQuadrantDetailView: View {
                 }
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, 50)
+            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
         }
         .background(Color.tempoBgPrimary)
         .navigationTitle("Fuel")
@@ -73,6 +109,7 @@ struct FuelQuadrantDetailView: View {
     }
 
     // MARK: - Calorie Hero
+
     // Per MODULE_DASHBOARD.md Section 4.3 — Calorie Hero Section
 
     private var calorieHeroSection: some View {
@@ -122,18 +159,34 @@ struct FuelQuadrantDetailView: View {
     }
 
     // MARK: - Macro Section
+
     // Per MODULE_DASHBOARD.md Section 4.3 — Macro Section
 
     private var macroSection: some View {
         VStack(spacing: TempoSpacing.lg) {
-            macroRow(name: "Protein", current: data.proteinGrams, target: data.proteinTarget,
-                     color: proteinColor, calPerGram: 4)
-            macroRow(name: "Carbs", current: data.carbsGrams, target: data.carbsTarget,
-                     color: carbsColor, calPerGram: 4)
-            macroRow(name: "Fat", current: data.fatGrams, target: data.fatTarget,
-                     color: fatColor, calPerGram: 9)
+            macroRow(
+                name: "Protein",
+                current: data.proteinGrams,
+                target: data.proteinTarget,
+                color: proteinColor,
+                calPerGram: 4
+            )
+            macroRow(
+                name: "Carbs",
+                current: data.carbsGrams,
+                target: data.carbsTarget,
+                color: carbsColor,
+                calPerGram: 4
+            )
+            macroRow(
+                name: "Fat",
+                current: data.fatGrams,
+                target: data.fatTarget,
+                color: fatColor,
+                calPerGram: 9
+            )
         }
-        .padding(14)
+        .padding(TempoSpacing.buttonPaddingV)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
         .tempoShadow(.card)
@@ -172,6 +225,7 @@ struct FuelQuadrantDetailView: View {
     }
 
     // MARK: - Meals Section
+
     // Per MODULE_DASHBOARD.md Section 4.3 — Meals Section
 
     private var mealsSection: some View {
@@ -207,7 +261,7 @@ struct FuelQuadrantDetailView: View {
             }
             .padding(.top, TempoSpacing.md)
         }
-        .padding(14)
+        .padding(TempoSpacing.buttonPaddingV)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
         .tempoShadow(.card)
@@ -238,6 +292,7 @@ struct FuelQuadrantDetailView: View {
     }
 
     // MARK: - Calorie Trend Chart
+
     // Per MODULE_DASHBOARD.md Section 4.3 — Calorie Trend Chart (7 Days)
 
     private var calorieTrendSection: some View {
@@ -277,13 +332,14 @@ struct FuelQuadrantDetailView: View {
             }
             .frame(height: 160)
         }
-        .padding(14)
+        .padding(TempoSpacing.buttonPaddingV)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
         .tempoShadow(.card)
     }
 
     // MARK: - Weekly Average
+
     // Per MODULE_DASHBOARD.md Section 4.3 — Weekly Average Section
 
     private var weeklyAverageSection: some View {
@@ -310,7 +366,7 @@ struct FuelQuadrantDetailView: View {
                     .foregroundStyle(Color.tempoSuccess) // >= 80% = green
             }
         }
-        .padding(14)
+        .padding(TempoSpacing.buttonPaddingV)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
         .tempoShadow(.card)
@@ -320,7 +376,8 @@ struct FuelQuadrantDetailView: View {
 
     private var calorieQuip: String {
         guard let consumed = data.caloriesConsumed,
-              let target = data.calorieTarget, target > 0 else {
+              let target = data.calorieTarget, target > 0
+        else {
             return ""
         }
         let ratio = Double(consumed) / Double(target)
@@ -329,25 +386,29 @@ struct FuelQuadrantDetailView: View {
 
         switch ratio {
         case ..<0.5: return "You running on fumes?"
-        case 0.5..<0.8: return "Still got room for \(remaining) kcal."
-        case 0.8...1.0: return "On track. Don't blow it at dinner."
-        case 1.0..<1.2: return "Over by \(overage). Noted."
+        case 0.5 ..< 0.8: return "Still got room for \(remaining) kcal."
+        case 0.8 ... 1.0: return "On track. Don't blow it at dinner."
+        case 1.0 ..< 1.2: return "Over by \(overage). Noted."
         default: return "That's a surplus, not a strategy."
         }
     }
 
     private func macroProgress(_ current: Int?, _ target: Int?) -> Double {
-        guard let current, let target, target > 0 else { return 0 }
+        guard let current, let target, target > 0 else {
+            return 0
+        }
         return Double(current) / Double(target)
     }
 
     private func macroCaloriePercent(grams: Int?, calPerGram: Int) -> Int {
-        guard let grams, let totalCal = data.caloriesConsumed, totalCal > 0 else { return 0 }
+        guard let grams, let totalCal = data.caloriesConsumed, totalCal > 0 else {
+            return 0
+        }
         return Int(round(Double(grams * calPerGram) / Double(totalCal) * 100))
     }
 }
 
-// MARK: - Supporting Types
+// MARK: - MealDisplayItem
 
 struct MealDisplayItem: Identifiable {
     let id = UUID()
@@ -373,9 +434,15 @@ struct MealDisplayItem: Identifiable {
     }
 }
 
+// MARK: - MealDisplayStatus
+
 enum MealDisplayStatus {
-    case logged, planned, skipped
+    case logged
+    case planned
+    case skipped
 }
+
+// MARK: - CalorieTrendPoint
 
 struct CalorieTrendPoint: Identifiable {
     let id = UUID()

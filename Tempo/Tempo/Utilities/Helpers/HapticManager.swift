@@ -1,11 +1,20 @@
+//
+// HapticManager.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import UIKit
 
 // MARK: - Haptic Manager
+
 // Per SOUND_AND_HAPTICS.md Section 4 — Complete haptic catalog.
 // Centralized haptic feedback for all interactions.
 
+@MainActor
 enum HapticManager {
-
     // MARK: - Impact
 
     static func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
@@ -49,6 +58,7 @@ enum HapticManager {
     }
 
     // MARK: - Workout Haptics
+
     // Per SOUND_AND_HAPTICS.md Section 4.2
 
     /// Set completed — sharp medium impact

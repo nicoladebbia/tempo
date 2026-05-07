@@ -1,11 +1,19 @@
+//
+// QuadrantCardView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Dashboard Quadrant Card
+
 // Per DESIGN_SYSTEM.md Section 8.2 — Dashboard Quadrant Card:
 // Square 1:1, 12pt padding, module tint bar 3pt top, compact layout.
 
 struct QuadrantCardView: View {
-
     let moduleIcon: String
     let moduleLabel: String
     let moduleColor: Color
@@ -13,8 +21,10 @@ struct QuadrantCardView: View {
     let secondaryMetric: String
     let action: () -> Void
 
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var isPressed = false
+    @Environment(\.colorScheme)
+    private var colorScheme
+    @State
+    private var isPressed = false
 
     var body: some View {
         Button(action: action) {
@@ -50,13 +60,10 @@ struct QuadrantCardView: View {
                 }
             )
             .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-            .shadow(
-                color: Color.tempoInk.opacity(colorScheme == .dark ? 0 : 0.06),
-                radius: 4, x: 0, y: 2
-            )
+            .tempoShadow(.card)
             .overlay(
                 RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                    .stroke(Color.tempoBorder, lineWidth: 0.5)
+                    .stroke(Color.tempoBorder, lineWidth: TempoElevation.cardDarkBorderWidth)
                     .opacity(colorScheme == .dark ? 1 : 0)
             )
         }

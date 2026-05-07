@@ -1,11 +1,21 @@
+//
+// TrainingSetupView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Training Setup View
+
 // Per WIREFRAMES.md Screen 45 — Training profile: train?, types, days/week, split, experience.
 // Per STATE_MACHINES.md Section 10 — OPTIONAL (can skip).
 
 struct TrainingSetupView: View {
-    @Bindable var viewModel: OnboardingViewModel
+    @Bindable
+    var viewModel: OnboardingViewModel
 
     private let trainingTypes = ["Gym", "Running", "Team Sport", "Other"]
     private let splits = ["PPL", "Upper/Lower", "Full Body", "Bro Split", "I Don't Know"]
@@ -17,19 +27,19 @@ struct TrainingSetupView: View {
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: TempoSpacing.xxl) {
-                Spacer().frame(height: TempoSpacing.lg)
+            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+                Spacer().frame(height: TempoSpacing.md)
 
                 // Per WIREFRAMES.md Screen 45 — "LET'S BUILD YOUR TRAINING PROFILE."
                 Text("LET'S BUILD YOUR\nTRAINING PROFILE.")
-                    .font(.system(size: 24, weight: .bold))
+                    .font(.system(size: 20, weight: .bold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, TempoSpacing.lg)
 
                 // Do you train?
-                VStack(alignment: .leading, spacing: TempoSpacing.md) {
+                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
                     Text("Do you train?")
-                        .font(.system(size: 16, weight: .medium))
+                        .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(.white)
 
                     HStack(spacing: TempoSpacing.sm) {
@@ -46,9 +56,9 @@ struct TrainingSetupView: View {
 
                 if viewModel.doesTrain == true {
                     // What do you do?
-                    VStack(alignment: .leading, spacing: TempoSpacing.md) {
+                    VStack(alignment: .leading, spacing: TempoSpacing.sm) {
                         Text("What do you do?")
-                            .font(.system(size: 16, weight: .medium))
+                            .font(.system(size: 14, weight: .medium))
                             .foregroundStyle(.white)
 
                         FlowLayout(spacing: TempoSpacing.sm, lineSpacing: TempoSpacing.sm) {
@@ -67,20 +77,20 @@ struct TrainingSetupView: View {
                     .padding(.horizontal, TempoSpacing.lg)
 
                     // Days per week
-                    VStack(alignment: .leading, spacing: TempoSpacing.md) {
+                    VStack(alignment: .leading, spacing: TempoSpacing.sm) {
                         Text("How many days/week?")
-                            .font(.system(size: 16, weight: .medium))
+                            .font(.system(size: 14, weight: .medium))
                             .foregroundStyle(.white)
 
                         HStack(spacing: TempoSpacing.xs) {
-                            ForEach(1...7, id: \.self) { day in
+                            ForEach(1 ... 7, id: \.self) { day in
                                 Button {
                                     viewModel.daysPerWeek = day
                                 } label: {
                                     Text("\(day)")
-                                        .font(.system(size: 15, weight: .semibold))
+                                        .font(.system(size: 14, weight: .semibold))
                                         .foregroundStyle(viewModel.daysPerWeek == day ? .black : .white)
-                                        .frame(width: 40, height: 40)
+                                        .frame(width: 36, height: 36)
                                         .background(viewModel.daysPerWeek == day ? Color.tempoAmber : Color.white.opacity(0.1))
                                         .clipShape(Circle())
                                 }
@@ -91,9 +101,9 @@ struct TrainingSetupView: View {
                     .padding(.horizontal, TempoSpacing.lg)
 
                     // Preferred split
-                    VStack(alignment: .leading, spacing: TempoSpacing.md) {
+                    VStack(alignment: .leading, spacing: TempoSpacing.sm) {
                         Text("Preferred split?")
-                            .font(.system(size: 16, weight: .medium))
+                            .font(.system(size: 14, weight: .medium))
                             .foregroundStyle(.white)
 
                         FlowLayout(spacing: TempoSpacing.sm, lineSpacing: TempoSpacing.sm) {
@@ -108,9 +118,9 @@ struct TrainingSetupView: View {
                     .padding(.horizontal, TempoSpacing.lg)
 
                     // Experience level
-                    VStack(alignment: .leading, spacing: TempoSpacing.md) {
+                    VStack(alignment: .leading, spacing: TempoSpacing.sm) {
                         Text("Experience level")
-                            .font(.system(size: 16, weight: .medium))
+                            .font(.system(size: 14, weight: .medium))
                             .foregroundStyle(.white)
 
                         ForEach(levels, id: \.0) { name, desc in
@@ -120,19 +130,19 @@ struct TrainingSetupView: View {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(name)
-                                            .font(.system(size: 16, weight: .semibold))
+                                            .font(.system(size: 15, weight: .semibold))
                                             .foregroundStyle(.white)
                                         Text(desc)
-                                            .font(.system(size: 13))
+                                            .font(.system(size: 12))
                                             .foregroundStyle(.white.opacity(0.6))
                                     }
                                     Spacer()
                                 }
-                                .padding(TempoSpacing.md)
+                                .padding(TempoSpacing.sm)
                                 .background(Color.white.opacity(0.05))
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
+                                    RoundedRectangle(cornerRadius: 10)
                                         .stroke(
                                             viewModel.experienceLevel == name ? Color.tempoAmber : Color.white.opacity(0.15),
                                             lineWidth: viewModel.experienceLevel == name ? 2 : 1
@@ -187,3 +197,28 @@ struct TrainingSetupView: View {
     }
 }
 
+#Preview {
+    @Previewable @State
+    var vm = OnboardingViewModel()
+
+    TrainingSetupView(viewModel: vm)
+        .background(Color.black)
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Training Active") {
+    @Previewable @State
+    var vm = {
+        let vm = OnboardingViewModel()
+        vm.doesTrain = true
+        vm.trainingTypes = ["Gym", "Running"]
+        vm.daysPerWeek = 5
+        vm.preferredSplit = "PPL"
+        vm.experienceLevel = "Intermediate"
+        return vm
+    }()
+
+    TrainingSetupView(viewModel: vm)
+        .background(Color.black)
+        .preferredColorScheme(.dark)
+}

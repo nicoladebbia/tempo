@@ -1,9 +1,18 @@
+//
+// XPEvent.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
+// MARK: - XPEvent
+
 @Model
 final class XPEvent {
-
     @Attribute(.unique)
     var id: UUID
 
@@ -42,9 +51,9 @@ final class XPEvent {
     ) {
         self.id = id
         self.date = Calendar.current.startOfDay(for: date)
-        self.sourceRaw = source.rawValue
+        sourceRaw = source.rawValue
         self.amount = amount
-        self.eventDescription = description
+        eventDescription = description
         self.createdAt = createdAt
     }
 }
@@ -52,8 +61,7 @@ final class XPEvent {
 // MARK: - DTO
 
 extension XPEvent {
-
-    struct DTO: Codable, Sendable {
+    struct DTO: Codable {
         let id: UUID
         let date: Date
         let source: String

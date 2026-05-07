@@ -63,6 +63,8 @@ struct SmallWidgetView: View {
                 }
             }
         }
+        .padding(12)
+        .background(Color.black)
         .widgetURL(URL(string: "tempo://dashboard"))
     }
 }
@@ -158,6 +160,8 @@ struct MediumWidgetView: View {
 
             Spacer(minLength: 2)
         }
+        .padding(12)
+        .background(Color.black)
         .widgetURL(URL(string: "tempo://dashboard"))
     }
 
@@ -303,6 +307,8 @@ struct LargeWidgetView: View {
                 .frame(height: 4)
             }
         }
+        .padding(12)
+        .background(Color.black)
         .widgetURL(URL(string: "tempo://dashboard"))
     }
 

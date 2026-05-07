@@ -1,9 +1,16 @@
+//
+// HealthKitState.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
 @Model
 final class HealthKitState {
-
     @Attribute(.unique)
     var id: UUID
 
@@ -21,7 +28,8 @@ final class HealthKitState {
     var authorizedReadTypes: [String] {
         get {
             guard let data = authorizedReadTypesJSON,
-                  let decoded = try? JSONDecoder().decode([String].self, from: data) else {
+                  let decoded = try? JSONDecoder().decode([String].self, from: data)
+            else {
                 return []
             }
             return decoded
@@ -35,7 +43,8 @@ final class HealthKitState {
     var authorizedWriteTypes: [String] {
         get {
             guard let data = authorizedWriteTypesJSON,
-                  let decoded = try? JSONDecoder().decode([String].self, from: data) else {
+                  let decoded = try? JSONDecoder().decode([String].self, from: data)
+            else {
                 return []
             }
             return decoded
@@ -55,8 +64,8 @@ final class HealthKitState {
         authorizationRequested: Bool = false
     ) {
         self.id = id
-        self.authorizedReadTypesJSON = try? JSONEncoder().encode(authorizedReadTypes)
-        self.authorizedWriteTypesJSON = try? JSONEncoder().encode(authorizedWriteTypes)
+        authorizedReadTypesJSON = try? JSONEncoder().encode(authorizedReadTypes)
+        authorizedWriteTypesJSON = try? JSONEncoder().encode(authorizedWriteTypes)
         self.lastBackgroundDelivery = lastBackgroundDelivery
         self.authorizationRequested = authorizationRequested
     }

@@ -1,9 +1,18 @@
+//
+// RecoveryInsight.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
+// MARK: - RecoveryInsight
+
 @Model
 final class RecoveryInsight {
-
     @Attribute(.unique)
     var id: UUID
 
@@ -33,7 +42,9 @@ final class RecoveryInsight {
 
     @Transient
     var dataPoints: [[String: Any]]? {
-        guard let data = dataPointsJSON else { return nil }
+        guard let data = dataPointsJSON else {
+            return nil
+        }
         return try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
     }
 
@@ -56,7 +67,7 @@ final class RecoveryInsight {
     ) {
         self.id = id
         self.date = date
-        self.typeRaw = type.rawValue
+        typeRaw = type.rawValue
         self.title = title
         self.body = body
         self.dataPointsJSON = dataPointsJSON
@@ -68,8 +79,7 @@ final class RecoveryInsight {
 // MARK: - DTO
 
 extension RecoveryInsight {
-
-    struct DTO: Codable, Sendable {
+    struct DTO: Codable {
         let id: UUID
         let date: Date
         let type: String

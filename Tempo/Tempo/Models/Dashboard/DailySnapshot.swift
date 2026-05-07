@@ -1,14 +1,23 @@
+//
+// DailySnapshot.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
-// PERFORMANCE NOTE: DailySnapshot has ~30 stored properties. This is at the upper limit
-// for SwiftData fetch performance. If fetch times degrade (>50ms for single-row lookup),
-// consider splitting into DailySnapshot (core fields: date, scores, compliance) and
-// DailySnapshotDetail (individual metrics). For now, 30 properties on a single-row-per-day
-// model is acceptable — the total row count stays low (~365/year).
+// MARK: - DailySnapshot
+
+/// PERFORMANCE NOTE: DailySnapshot has ~30 stored properties. This is at the upper limit
+/// for SwiftData fetch performance. If fetch times degrade (>50ms for single-row lookup),
+/// consider splitting into DailySnapshot (core fields: date, scores, compliance) and
+/// DailySnapshotDetail (individual metrics). For now, 30 properties on a single-row-per-day
+/// model is acceptable — the total row count stays low (~365/year).
 @Model
 final class DailySnapshot {
-
     @Attribute(.unique)
     var id: UUID
 
@@ -108,13 +117,17 @@ final class DailySnapshot {
 
     @Transient
     var studyCompliance: Double {
-        guard studyTarget > 0 else { return 1.0 }
+        guard studyTarget > 0 else {
+            return 1.0
+        }
         return Double(studyMinutes) / Double(studyTarget)
     }
 
     @Transient
     var nonNegotiableCompliance: Double {
-        guard nonNegotiablesTotal > 0 else { return 1.0 }
+        guard nonNegotiablesTotal > 0 else {
+            return 1.0
+        }
         return Double(nonNegotiablesCompleted) / Double(nonNegotiablesTotal)
     }
 
@@ -127,13 +140,14 @@ final class DailySnapshot {
     var macrosOnTarget: Bool {
         guard let pA = proteinActual, let pT = proteinTarget, pT > 0,
               let cA = carbsActual, let cT = carbsTarget, cT > 0,
-              let fA = fatActual, let fT = fatTarget, fT > 0 else {
+              let fA = fatActual, let fT = fatTarget, fT > 0
+        else {
             return false
         }
         let tolerance = 0.10
         return abs(pA - pT) / pT <= tolerance &&
-               abs(cA - cT) / cT <= tolerance &&
-               abs(fA - fT) / fT <= tolerance
+            abs(cA - cT) / cT <= tolerance &&
+            abs(fA - fT) / fT <= tolerance
     }
 
     // MARK: - Init
@@ -190,19 +204,18 @@ final class DailySnapshot {
         self.steps = steps
         self.activeCalories = activeCalories
         self.workoutCompleted = workoutCompleted
-        self.workoutTypeRaw = workoutType?.rawValue
+        workoutTypeRaw = workoutType?.rawValue
         self.dailyScore = dailyScore
         self.nonNegotiablesCompleted = nonNegotiablesCompleted
         self.nonNegotiablesTotal = nonNegotiablesTotal
-        self.updatedAt = Date()
+        updatedAt = Date()
     }
 }
 
 // MARK: - Codable DTO
 
 extension DailySnapshot {
-
-    struct DTO: Codable, Sendable {
+    struct DTO: Codable {
         let id: UUID
         let date: Date
         let recovery_score: Double?

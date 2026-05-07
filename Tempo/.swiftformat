@@ -42,7 +42,7 @@
 --enable blockComments
 --enable docComments
 --enable markTypes
---enable organizeDeclarations
+# --enable organizeDeclarations   # Disabled: times out on large token enums (DesignTokens.swift)
 --enable sortImports
 --enable wrapConditionalBodies
 --enable wrapEnumCases
@@ -50,3 +50,5 @@
 
 --disable acronyms
 --disable sortedSwitchCases
+--disable redundantSendable
+--disable redundantSelf

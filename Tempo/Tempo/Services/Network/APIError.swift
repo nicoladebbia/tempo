@@ -1,6 +1,14 @@
+//
+// APIError.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 
-enum APIError: Error, Sendable {
+enum APIError: Error {
     case invalidURL
     case noResponse
     case unauthorized
@@ -11,6 +19,7 @@ enum APIError: Error, Sendable {
     case serverError(statusCode: Int)
     case decodingFailed(String)
     case networkError(String)
+    case connectionRefused
     case notModified
     case timeout
     case unknown(statusCode: Int)
@@ -39,6 +48,8 @@ enum APIError: Error, Sendable {
             "Received unexpected data from the server."
         case .networkError:
             "Network error. Check your connection and try again."
+        case .connectionRefused:
+            "Cannot reach the server. Please try again later."
         case .timeout:
             "Request timed out. Please try again."
         case .unknown:
@@ -48,10 +59,14 @@ enum APIError: Error, Sendable {
 
     var isRetryable: Bool {
         switch self {
-        case .serverError, .networkError, .timeout:
+        case .serverError,
+             .networkError,
+             .timeout:
             true
         case .rateLimited:
             true
+        case .connectionRefused:
+            false
         default:
             false
         }

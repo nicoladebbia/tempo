@@ -1,21 +1,33 @@
+//
+// HeatmapCalendarView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Heatmap Calendar View
+
 // Per DESIGN_SYSTEM.md Section 8.7 — Heatmap Calendar:
-// 14pt cells, 2pt gap, 3pt radius, 5 intensity levels, Canvas-based for performance.
+// Dynamic cell sizing (fits screen width), 5 intensity levels, Canvas-based for performance.
+// Cell size computed from available width via GeometryReader — no horizontal scroll needed.
 
 struct HeatmapCalendarView: View {
-
     let data: [Date: Double]
     let startDate: Date
     let endDate: Date
 
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var selectedDate: Date?
+    @Environment(\.colorScheme)
+    private var colorScheme
+    @State
+    private var selectedDate: Date?
 
-    private let cellSize: CGFloat = 14
-    private let cellGap: CGFloat = 2
-    private let cellRadius: CGFloat = 3
+    /// Day label column width
+    private let dayLabelWidth: CGFloat = 20
+    private let dayLabelTrailing: CGFloat = 4
+    private let cellRadius: CGFloat = 2
 
     init(data: [Date: Double], startDate: Date? = nil, endDate: Date? = nil) {
         self.data = data
@@ -24,66 +36,100 @@ struct HeatmapCalendarView: View {
         self.startDate = startDate ?? calendar.date(byAdding: .day, value: -364, to: self.endDate)!
     }
 
+    /// Number of weeks in the grid
+    private var weekCount: Int {
+        let calendar = Calendar.current
+        let weeks = calendar.dateComponents([.weekOfYear], from: startDate, to: endDate).weekOfYear ?? 52
+        return weeks + 1
+    }
+
+    /// Calculate cell size and gap to fit within a given width
+    private func cellMetrics(for availableWidth: CGFloat) -> (cellSize: CGFloat, cellGap: CGFloat) {
+        let gridWidth = availableWidth - dayLabelWidth - dayLabelTrailing
+        // cellSize + cellGap per column, minus one gap
+        // totalWidth = weekCount * cellSize + (weekCount - 1) * cellGap
+        // Use a ratio: gap = cellSize * 0.15 (roughly)
+        // totalWidth = weekCount * cellSize + (weekCount - 1) * cellSize * 0.15
+        // totalWidth = cellSize * (weekCount + (weekCount - 1) * 0.15)
+        let ratio: CGFloat = 0.15
+        let denominator = CGFloat(weekCount) + CGFloat(weekCount - 1) * ratio
+        let size = gridWidth / denominator
+        let gap = size * ratio
+        return (cellSize: floor(size * 2) / 2, cellGap: floor(gap * 2) / 2)
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            // Month labels
-            monthLabelsView
+        GeometryReader { geometry in
+            let metrics = cellMetrics(for: geometry.size.width)
+            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+                // Month labels
+                monthLabelsView(cellSize: metrics.cellSize, cellGap: metrics.cellGap)
 
-            HStack(alignment: .top, spacing: 0) {
-                // Day labels
-                dayLabelsView
+                HStack(alignment: .top, spacing: 0) {
+                    // Day labels
+                    dayLabelsView(cellSize: metrics.cellSize, cellGap: metrics.cellGap)
 
-                // Heatmap grid
-                ScrollView(.horizontal, showsIndicators: false) {
-                    heatmapGridView
+                    // Heatmap grid — fits within available width, no scroll needed
+                    heatmapGridView(cellSize: metrics.cellSize, cellGap: metrics.cellGap)
+                }
+
+                // Legend
+                legendView(cellSize: metrics.cellSize)
+
+                // Tooltip
+                if let selected = selectedDate {
+                    tooltipView(for: selected)
                 }
             }
-
-            // Legend
-            legendView
-
-            // Tooltip
-            if let selected = selectedDate {
-                tooltipView(for: selected)
-            }
         }
+        .frame(height: dynamicHeight)
+    }
+
+    /// Estimate total height so GeometryReader doesn't collapse
+    private var dynamicHeight: CGFloat {
+        // Month labels (~14) + spacing + grid (7 rows) + spacing + legend (~14) + spacing + tooltip (~20)
+        // Use a conservative estimate with small cell size
+        let estimatedCellSize: CGFloat = 10
+        let estimatedGap: CGFloat = 1.5
+        let gridHeight = 7 * (estimatedCellSize + estimatedGap) - estimatedGap
+        return 14 + TempoSpacing.sm + gridHeight + TempoSpacing.sm + 14 + TempoSpacing.sm + 20
     }
 
     // MARK: - Subviews
 
-    private var monthLabelsView: some View {
+    private func monthLabelsView(cellSize: CGFloat, cellGap: CGFloat) -> some View {
         HStack(spacing: 0) {
             // Offset for day labels
-            Spacer().frame(width: 24)
+            Spacer().frame(width: dayLabelWidth + dayLabelTrailing)
 
             let months = monthPositions()
             ForEach(months, id: \.offset) { month in
                 Text(month.label)
-                    .font(.tempoCaption1)
+                    .font(.tempoCaption2)
                     .foregroundStyle(Color.tempoTextSecondary)
                     .frame(width: CGFloat(month.weeks) * (cellSize + cellGap), alignment: .leading)
             }
         }
     }
 
-    private var dayLabelsView: some View {
+    private func dayLabelsView(cellSize: CGFloat, cellGap: CGFloat) -> some View {
         VStack(spacing: cellGap) {
-            ForEach(0..<7, id: \.self) { dayIndex in
+            ForEach(0 ..< 7, id: \.self) { dayIndex in
                 if dayIndex % 2 == 0 {
                     Text(dayLabel(for: dayIndex))
-                        .font(.tempoCaption2)
+                        .font(.system(size: max(7, cellSize * 0.7)))
                         .foregroundStyle(Color.tempoTextTertiary)
-                        .frame(width: 20, height: cellSize, alignment: .trailing)
+                        .frame(width: dayLabelWidth, height: cellSize, alignment: .trailing)
                 } else {
-                    Spacer().frame(width: 20, height: cellSize)
+                    Spacer().frame(width: dayLabelWidth, height: cellSize)
                 }
             }
         }
-        .padding(.trailing, TempoSpacing.xs)
+        .padding(.trailing, dayLabelTrailing)
     }
 
-    private var heatmapGridView: some View {
-        Canvas { context, size in
+    private func heatmapGridView(cellSize: CGFloat, cellGap: CGFloat) -> some View {
+        Canvas { context, _ in
             let calendar = Calendar.current
             var current = startDate
 
@@ -108,18 +154,21 @@ struct HeatmapCalendarView: View {
                 // Today border
                 if calendar.isDateInToday(current) {
                     let borderColor = colorScheme == .dark ? Color.tempoBone : Color.tempoInk
-                    context.stroke(path, with: .color(borderColor), lineWidth: 1.5)
+                    context.stroke(path, with: .color(borderColor), lineWidth: 1)
                 }
 
                 current = calendar.date(byAdding: .day, value: 1, to: current)!
             }
         }
-        .frame(width: gridWidth, height: 7 * (cellSize + cellGap) - cellGap)
+        .frame(
+            width: CGFloat(weekCount) * (cellSize + cellGap) - cellGap,
+            height: 7 * (cellSize + cellGap) - cellGap
+        )
         .contentShape(Rectangle())
         .gesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { value in
-                    selectedDate = dateAt(point: value.location)
+                    selectedDate = dateAt(point: value.location, cellSize: cellSize, cellGap: cellGap)
                 }
                 .onEnded { _ in
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
@@ -129,8 +178,8 @@ struct HeatmapCalendarView: View {
         )
     }
 
-    private var legendView: some View {
-        HStack(spacing: TempoSpacing.sm) {
+    private func legendView(cellSize: CGFloat) -> some View {
+        HStack(spacing: TempoSpacing.xs) {
             Spacer()
             Text("Less")
                 .font(.tempoCaption2)
@@ -165,20 +214,34 @@ struct HeatmapCalendarView: View {
 
     private func cellColor(for intensity: Double) -> Color {
         let emptyColor = colorScheme == .dark
-            ? Color(red: 56 / 255, green: 56 / 255, blue: 58 / 255)
+            ? Color.tempoFillTertiary
             : Color.tempoBorder
 
-        guard intensity > 0 else { return emptyColor }
+        guard intensity > 0 else {
+            return emptyColor
+        }
 
         let levels: [(threshold: Double, light: Color, dark: Color)] = [
-            (0.25, Color(red: 252 / 255, green: 165 / 255, blue: 165 / 255),
-             Color(red: 127 / 255, green: 29 / 255, blue: 29 / 255)),
-            (0.50, Color(red: 248 / 255, green: 113 / 255, blue: 113 / 255),
-             Color(red: 153 / 255, green: 27 / 255, blue: 27 / 255)),
-            (0.75, Color(red: 239 / 255, green: 68 / 255, blue: 68 / 255),
-             Color(red: 185 / 255, green: 28 / 255, blue: 28 / 255)),
-            (1.00, Color.tempoError,
-             Color.tempoError),
+            (
+                0.25,
+                Color(red: 252 / 255, green: 165 / 255, blue: 165 / 255),
+                Color(red: 127 / 255, green: 29 / 255, blue: 29 / 255)
+            ),
+            (
+                0.50,
+                Color(red: 248 / 255, green: 113 / 255, blue: 113 / 255),
+                Color(red: 153 / 255, green: 27 / 255, blue: 27 / 255)
+            ),
+            (
+                0.75,
+                Color(red: 239 / 255, green: 68 / 255, blue: 68 / 255),
+                Color(red: 185 / 255, green: 28 / 255, blue: 28 / 255)
+            ),
+            (
+                1.00,
+                Color.tempoError,
+                Color.tempoError
+            ),
         ]
 
         for level in levels {
@@ -189,23 +252,21 @@ struct HeatmapCalendarView: View {
         return colorScheme == .dark ? levels.last!.dark : levels.last!.light
     }
 
-    private var gridWidth: CGFloat {
-        let calendar = Calendar.current
-        let weeks = calendar.dateComponents([.weekOfYear], from: startDate, to: endDate).weekOfYear ?? 52
-        return CGFloat(weeks + 1) * (cellSize + cellGap)
-    }
-
-    private func dateAt(point: CGPoint) -> Date? {
+    private func dateAt(point: CGPoint, cellSize: CGFloat, cellGap: CGFloat) -> Date? {
         let calendar = Calendar.current
         let col = Int(point.x / (cellSize + cellGap))
         let row = Int(point.y / (cellSize + cellGap))
-        guard row >= 0, row < 7 else { return nil }
+        guard row >= 0, row < 7 else {
+            return nil
+        }
 
         let weekday = calendar.component(.weekday, from: startDate)
         let startOffset = (weekday - calendar.firstWeekday + 7) % 7
         var baseDate = calendar.date(byAdding: .day, value: -startOffset, to: startDate)!
         baseDate = calendar.date(byAdding: .day, value: col * 7 + row, to: baseDate)!
-        guard baseDate >= startDate, baseDate <= endDate else { return nil }
+        guard baseDate >= startDate, baseDate <= endDate else {
+            return nil
+        }
         return calendar.startOfDay(for: baseDate)
     }
 

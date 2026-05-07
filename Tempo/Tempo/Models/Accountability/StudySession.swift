@@ -1,9 +1,18 @@
+//
+// StudySession.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
+// MARK: - StudySession
+
 @Model
 final class StudySession {
-
     @Attribute(.unique)
     var id: UUID
 
@@ -53,7 +62,9 @@ final class StudySession {
 
     @Transient
     var effectiveFocusScore: Int {
-        if let fs = focusScore { return fs }
+        if let fs = focusScore {
+            return fs
+        }
         return max(0, 100 - (distractions * 10))
     }
 
@@ -76,7 +87,7 @@ final class StudySession {
         self.endTime = endTime
         self.durationMinutes = durationMinutes
         self.subject = subject
-        self.sessionTypeRaw = sessionType.rawValue
+        sessionTypeRaw = sessionType.rawValue
         self.focusScore = focusScore
         self.distractions = distractions
         self.completedPomodoros = completedPomodoros
@@ -87,8 +98,7 @@ final class StudySession {
 // MARK: - DTO
 
 extension StudySession {
-
-    struct DTO: Codable, Sendable {
+    struct DTO: Codable {
         let id: UUID
         let start_time: Date
         let end_time: Date?

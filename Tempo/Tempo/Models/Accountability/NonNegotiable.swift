@@ -1,9 +1,18 @@
+//
+// NonNegotiable.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
+// MARK: - NonNegotiable
+
 @Model
 final class NonNegotiable {
-
     @Attribute(.unique)
     var id: UUID
 
@@ -81,22 +90,21 @@ final class NonNegotiable {
     ) {
         self.id = id
         self.name = name
-        self.typeRaw = type.rawValue
+        typeRaw = type.rawValue
         self.icon = icon ?? type.defaultIcon
         self.targetValue = targetValue
-        self.trackingMethodRaw = trackingMethod.rawValue
-        self.activeDaysRaw = activeDays.rawValue
+        trackingMethodRaw = trackingMethod.rawValue
+        activeDaysRaw = activeDays.rawValue
         self.order = order
         self.isActive = isActive
-        self.createdAt = Date()
+        createdAt = Date()
     }
 }
 
 // MARK: - DTO
 
 extension NonNegotiable {
-
-    struct DTO: Codable, Sendable {
+    struct DTO: Codable {
         let id: UUID
         let name: String
         let type: String

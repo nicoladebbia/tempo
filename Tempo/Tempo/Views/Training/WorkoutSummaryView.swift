@@ -1,15 +1,26 @@
-import SwiftUI
+//
+// WorkoutSummaryView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftData
+import SwiftUI
 
 // MARK: - Workout Summary View
+
 // Per MODULE_TRAINING.md Section 8 — Post-workout summary.
 // Per STATE_MACHINES.md Section 1 — summary → saved.
 
 struct WorkoutSummaryView: View {
-
-    @Bindable var viewModel: TrainingViewModel
-    @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
+    @Bindable
+    var viewModel: TrainingViewModel
+    @Environment(\.modelContext)
+    private var modelContext
+    @Environment(\.dismiss)
+    private var dismiss
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -32,7 +43,7 @@ struct WorkoutSummaryView: View {
                 saveButton
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, 100)
+            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
         }
         .background(Color.tempoBgPrimary)
         .navigationBarBackButtonHidden()
@@ -60,6 +71,7 @@ struct WorkoutSummaryView: View {
     }
 
     // MARK: - PR Section
+
     // Per MODULE_TRAINING.md Section 8 — Gold badge for PRs
 
     private var prSection: some View {
@@ -67,7 +79,7 @@ struct WorkoutSummaryView: View {
             HStack(spacing: TempoSpacing.sm) {
                 Image(systemName: "trophy.fill")
                     .font(.tempoTitle3)
-                    .foregroundStyle(Color(red: 1, green: 215 / 255, blue: 0)) // gold
+                    .foregroundStyle(Color.tempoPRGold) // gold
 
                 Text("\(viewModel.detectedPRs.count) Personal Record\(viewModel.detectedPRs.count > 1 ? "s" : "")!")
                     .font(.tempoHeadline)
@@ -78,7 +90,7 @@ struct WorkoutSummaryView: View {
                 HStack(spacing: TempoSpacing.sm) {
                     Image(systemName: "star.fill")
                         .font(.tempoCaption1)
-                        .foregroundStyle(Color(red: 1, green: 215 / 255, blue: 0))
+                        .foregroundStyle(Color.tempoPRGold)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(pr.exercise?.name ?? "Exercise")
@@ -99,7 +111,7 @@ struct WorkoutSummaryView: View {
                         .foregroundStyle(Color.tempoTextPrimary)
                 }
                 .padding(TempoSpacing.md)
-                .background(Color(red: 1, green: 215 / 255, blue: 0).opacity(0.1))
+                .background(Color.tempoPRGold.opacity(0.1))
                 .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
             }
         }
@@ -110,7 +122,7 @@ struct WorkoutSummaryView: View {
     private var statsGrid: some View {
         LazyVGrid(columns: [
             GridItem(.flexible(), spacing: TempoSpacing.sm),
-            GridItem(.flexible(), spacing: TempoSpacing.sm)
+            GridItem(.flexible(), spacing: TempoSpacing.sm),
         ], spacing: TempoSpacing.sm) {
             statCell(
                 icon: "timer",
@@ -181,7 +193,8 @@ struct WorkoutSummaryView: View {
                 // Best set
                 if let best = plannedEx.bestSet,
                    let weight = best.actualWeight,
-                   let reps = best.actualReps {
+                   let reps = best.actualReps
+                {
                     Text("Best: \(Int(weight))kg x \(reps)")
                         .font(.tempoCaption1)
                         .foregroundStyle(Color.tempoTextSecondary)
@@ -211,6 +224,7 @@ struct WorkoutSummaryView: View {
     }
 
     // MARK: - Save Button
+
     // Per STATE_MACHINES.md — summary → saved
 
     private var saveButton: some View {

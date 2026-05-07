@@ -1,11 +1,20 @@
+//
+// MockRecoveryEngine.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 
 final class MockRecoveryEngine: RecoveryEngineProtocol, @unchecked Sendable {
-
     func generatePrescription(
         recovery: DailyRecovery,
         schedule: [CalendarEvent]
     ) -> DailyPrescription {
+        // NOTE: Do NOT set dailyRecovery here — the caller sets the
+        // relationship after both objects are in the SwiftData context.
         DailyPrescription(
             date: recovery.date,
             trainingRec: "Moderate training — keep intensity at 70% max",
@@ -22,8 +31,7 @@ final class MockRecoveryEngine: RecoveryEngineProtocol, @unchecked Sendable {
                 bySettingHour: 14, minute: 0, second: 0, of: Date()
             ),
             hydrationTargetMl: 2500,
-            warnings: ["HRV trending down 3 days — consider extra rest"],
-            dailyRecovery: recovery
+            warnings: ["HRV trending down 3 days — consider extra rest"]
         )
     }
 
@@ -49,7 +57,13 @@ final class MockRecoveryEngine: RecoveryEngineProtocol, @unchecked Sendable {
                 type: .pattern,
                 title: "HRV Declining",
                 body: "Your HRV has dropped 15% over the last 5 days. Consider a deload.",
-                dataPointsJSON: try? JSONSerialization.data(withJSONObject: [["day": 1, "hrv": 52], ["day": 2, "hrv": 48], ["day": 3, "hrv": 45], ["day": 4, "hrv": 43], ["day": 5, "hrv": 42]]),
+                dataPointsJSON: try? JSONSerialization.data(withJSONObject: [
+                    ["day": 1, "hrv": 52],
+                    ["day": 2, "hrv": 48],
+                    ["day": 3, "hrv": 45],
+                    ["day": 4, "hrv": 43],
+                    ["day": 5, "hrv": 42],
+                ]),
                 confidence: 0.82
             ),
         ]

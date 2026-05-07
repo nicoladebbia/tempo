@@ -1,12 +1,20 @@
-import SwiftUI
+//
+// TempoApp.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftData
+import SwiftUI
 import UIKit
 
-// MARK: - App Delegate
+// MARK: - TempoAppDelegate
+
 // Per BUILD_PLAN step 12.1 — Handle remote notification device token callbacks.
 
 class TempoAppDelegate: NSObject, UIApplicationDelegate {
-
     /// Shared push registration service, set by TempoApp on init.
     static var pushRegistration: PushRegistrationService?
 
@@ -25,14 +33,17 @@ class TempoAppDelegate: NSObject, UIApplicationDelegate {
     }
 }
 
-// MARK: - App
+// MARK: - TempoApp
 
 @main
 struct TempoApp: App {
-    @UIApplicationDelegateAdaptor(TempoAppDelegate.self) var appDelegate
+    @UIApplicationDelegateAdaptor(TempoAppDelegate.self)
+    var appDelegate
     let container: ModelContainer
-    @State private var services: ServiceContainer
-    @Environment(\.scenePhase) private var scenePhase
+    @State
+    private var services: ServiceContainer
+    @Environment(\.scenePhase)
+    private var scenePhase
 
     init() {
         do {
@@ -82,10 +93,13 @@ struct TempoApp: App {
     }
 
     // MARK: - HealthKit Background Setup
+
     // Per INTEGRATION_SPECS.md Section 2.4 — enable background delivery on launch.
 
     private func setupHealthKitBackground() async {
-        guard let healthKit = services.healthKit as? HealthKitService else { return }
+        guard let healthKit = services.healthKit as? HealthKitService else {
+            return
+        }
         do {
             try await healthKit.enableBackgroundDelivery()
             healthKit.setupObserverQueries()
@@ -95,10 +109,13 @@ struct TempoApp: App {
     }
 
     // MARK: - Permission Verification on Foreground
+
     // Per INTEGRATION_SPECS.md Section 2.1 — verify permissions on every foreground return.
 
     private func verifyHealthKitPermissions() async {
-        guard let healthKit = services.healthKit as? HealthKitService else { return }
+        guard let healthKit = services.healthKit as? HealthKitService else {
+            return
+        }
         await healthKit.verifyPermissionsOnLaunch()
     }
 }

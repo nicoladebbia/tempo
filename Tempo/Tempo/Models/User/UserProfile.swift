@@ -1,9 +1,18 @@
+//
+// UserProfile.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
+// MARK: - UserProfile
+
 @Model
 final class UserProfile {
-
     // MARK: - Identity
 
     @Attribute(.unique)
@@ -73,7 +82,8 @@ final class UserProfile {
     var equipment: [Equipment] {
         get {
             guard let data = equipmentJSON,
-                  let raw = try? JSONDecoder().decode([String].self, from: data) else {
+                  let raw = try? JSONDecoder().decode([String].self, from: data)
+            else {
                 return []
             }
             return raw.compactMap { Equipment(rawValue: $0) }
@@ -92,7 +102,9 @@ final class UserProfile {
 
     @Transient
     var estimatedBMR: Double? {
-        guard let w = weightKg, let h = heightCm, let a = age else { return nil }
+        guard let w = weightKg, let h = heightCm, let a = age else {
+            return nil
+        }
         return (10 * w) + (6.25 * h) - (5 * Double(a)) + 5
     }
 
@@ -122,22 +134,21 @@ final class UserProfile {
         self.weightKg = weightKg
         self.heightCm = heightCm
         self.age = age
-        self.trainingSplitRaw = trainingSplit.rawValue
-        self.footballDaysRaw = footballDays.rawValue
-        self.equipmentJSON = try? JSONEncoder().encode(equipment.map(\.rawValue))
-        self.weightUnitRaw = weightUnit.rawValue
-        self.totalXP = 0
-        self.currentLevel = 1
-        self.createdAt = Date()
-        self.updatedAt = Date()
+        trainingSplitRaw = trainingSplit.rawValue
+        footballDaysRaw = footballDays.rawValue
+        equipmentJSON = try? JSONEncoder().encode(equipment.map(\.rawValue))
+        weightUnitRaw = weightUnit.rawValue
+        totalXP = 0
+        currentLevel = 1
+        createdAt = Date()
+        updatedAt = Date()
     }
 }
 
 // MARK: - Codable DTO (for API sync)
 
 extension UserProfile {
-
-    struct DTO: Codable, Sendable {
+    struct DTO: Codable {
         let id: UUID
         let apple_id: String
         let username: String
@@ -198,7 +209,6 @@ extension UserProfile {
 // MARK: - Validation
 
 extension UserProfile {
-
     enum ValidationError: LocalizedError {
         case usernameTooShort
         case usernameTooLong
@@ -224,25 +234,39 @@ extension UserProfile {
     }
 
     func validate() throws {
-        guard username.count >= 3 else { throw ValidationError.usernameTooShort }
-        guard username.count <= 30 else { throw ValidationError.usernameTooLong }
+        guard username.count >= 3 else {
+            throw ValidationError.usernameTooShort
+        }
+        guard username.count <= 30 else {
+            throw ValidationError.usernameTooLong
+        }
 
         let usernameRegex = /^[a-zA-Z0-9_]+$/
         guard username.wholeMatch(of: usernameRegex) != nil else {
             throw ValidationError.usernameInvalidChars
         }
 
-        guard !displayName.isEmpty else { throw ValidationError.displayNameEmpty }
-        guard displayName.count <= 50 else { throw ValidationError.displayNameTooLong }
+        guard !displayName.isEmpty else {
+            throw ValidationError.displayNameEmpty
+        }
+        guard displayName.count <= 50 else {
+            throw ValidationError.displayNameTooLong
+        }
 
         if let w = weightKg {
-            guard (30...300).contains(w) else { throw ValidationError.invalidWeight }
+            guard (30 ... 300).contains(w) else {
+                throw ValidationError.invalidWeight
+            }
         }
         if let h = heightCm {
-            guard (100...250).contains(h) else { throw ValidationError.invalidHeight }
+            guard (100 ... 250).contains(h) else {
+                throw ValidationError.invalidHeight
+            }
         }
         if let a = age {
-            guard (13...100).contains(a) else { throw ValidationError.invalidAge }
+            guard (13 ... 100).contains(a) else {
+                throw ValidationError.invalidAge
+            }
         }
     }
 }

@@ -1,3 +1,11 @@
+//
+// TempoSchemaV2.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftData
 
 enum TempoSchemaV2: VersionedSchema {

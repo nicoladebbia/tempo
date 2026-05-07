@@ -1,16 +1,25 @@
+//
+// NotificationService.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
-import UserNotifications
 import os
+import UserNotifications
 
 // MARK: - Notification Service (Real Implementation)
+
 // Per BUILD_PLAN step 12.2 — Local notification scheduling engine.
 // Per TECHNICAL_FEASIBILITY_AUDIT.md Section 3.1 — Priority queue, 64-slot limit.
 // Per ONBOARDING_AND_NOTIFICATIONS.md — Categories, actions, budget, anti-spam.
 
 @Observable
 final class NotificationService: NotificationServiceProtocol, @unchecked Sendable {
-
     // MARK: - Constants
+
     // Per TECHNICAL_FEASIBILITY_AUDIT.md Section 3.1 — iOS hard limit.
     private static let maxPendingNotifications = 64
     private static let maxPreScheduleHours: TimeInterval = 48 * 3600
@@ -23,6 +32,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
     private let center = UNUserNotificationCenter.current()
 
     // MARK: - Budget Tracking
+
     // Per ONBOARDING_AND_NOTIFICATIONS.md — Hard Daily Notification Budget.
 
     private var budgetSpentToday: Double = 0.0
@@ -40,7 +50,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
                 id: "MORNING_BRIEFING",
                 actions: [
                     UNNotificationAction(identifier: "VIEW_DAY", title: "View Day", options: .foreground),
-                    UNNotificationAction(identifier: "START_WORKOUT", title: "Start Workout", options: .foreground)
+                    UNNotificationAction(identifier: "START_WORKOUT", title: "Start Workout", options: .foreground),
                 ]
             ),
             // Accountability — Gentle
@@ -48,7 +58,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
                 id: "ACCOUNTABILITY_GENTLE",
                 actions: [
                     UNNotificationAction(identifier: "START_STUDY", title: "Start Study", options: .foreground),
-                    UNNotificationAction(identifier: "VIEW_TASKS", title: "View Tasks", options: .foreground)
+                    UNNotificationAction(identifier: "VIEW_TASKS", title: "View Tasks", options: .foreground),
                 ]
             ),
             // Accountability — Firm
@@ -56,7 +66,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
                 id: "ACCOUNTABILITY_FIRM",
                 actions: [
                     UNNotificationAction(identifier: "START_NOW", title: "Start Now", options: .foreground),
-                    UNNotificationAction(identifier: "VIEW_TASKS", title: "View Tasks", options: .foreground)
+                    UNNotificationAction(identifier: "VIEW_TASKS", title: "View Tasks", options: .foreground),
                 ]
             ),
             // Accountability — Urgent
@@ -64,7 +74,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
                 id: "ACCOUNTABILITY_URGENT",
                 actions: [
                     UNNotificationAction(identifier: "START_STUDY_TIMER", title: "Start Study Timer", options: .foreground),
-                    UNNotificationAction(identifier: "IM_ON_IT", title: "I'm On It")
+                    UNNotificationAction(identifier: "IM_ON_IT", title: "I'm On It"),
                 ]
             ),
             // Accountability — Final Warning
@@ -72,14 +82,14 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
                 id: "ACCOUNTABILITY_FINAL",
                 actions: [
                     UNNotificationAction(identifier: "START_NOW", title: "Start Now", options: .foreground),
-                    UNNotificationAction(identifier: "OVERRIDE", title: "Override", options: [.foreground, .destructive])
+                    UNNotificationAction(identifier: "OVERRIDE", title: "Override", options: [.foreground, .destructive]),
                 ]
             ),
             // Accountability — All Clear
             makeCategory(
                 id: "ACCOUNTABILITY_CLEAR",
                 actions: [
-                    UNNotificationAction(identifier: "VIEW_STATS", title: "View Stats", options: .foreground)
+                    UNNotificationAction(identifier: "VIEW_STATS", title: "View Stats", options: .foreground),
                 ]
             ),
             // Meal Reminder
@@ -87,7 +97,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
                 id: "MEAL_REMINDER",
                 actions: [
                     UNNotificationAction(identifier: "LOG_MEAL", title: "Log Meal", options: .foreground),
-                    UNNotificationAction(identifier: "DELAY_30MIN", title: "Delay 30min")
+                    UNNotificationAction(identifier: "DELAY_30MIN", title: "Delay 30min"),
                 ]
             ),
             // Training Reminder
@@ -95,7 +105,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
                 id: "TRAINING_REMINDER",
                 actions: [
                     UNNotificationAction(identifier: "VIEW_WORKOUT", title: "View Workout", options: .foreground),
-                    UNNotificationAction(identifier: "SKIP_TODAY", title: "Skip Today", options: .destructive)
+                    UNNotificationAction(identifier: "SKIP_TODAY", title: "Skip Today", options: .destructive),
                 ]
             ),
             // Recovery Report
@@ -103,28 +113,28 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
                 id: "RECOVERY_REPORT",
                 actions: [
                     UNNotificationAction(identifier: "VIEW_RECOVERY", title: "View Recovery", options: .foreground),
-                    UNNotificationAction(identifier: "VIEW_WORKOUT", title: "View Workout", options: .foreground)
+                    UNNotificationAction(identifier: "VIEW_WORKOUT", title: "View Workout", options: .foreground),
                 ]
             ),
             // Bedtime Reminder
             makeCategory(
                 id: "BEDTIME_REMINDER",
                 actions: [
-                    UNNotificationAction(identifier: "WIND_DOWN", title: "Wind Down", options: .foreground)
+                    UNNotificationAction(identifier: "WIND_DOWN", title: "Wind Down", options: .foreground),
                 ]
             ),
             // Arena Social
             makeCategory(
                 id: "ARENA_SOCIAL",
                 actions: [
-                    UNNotificationAction(identifier: "VIEW_ARENA", title: "View Arena", options: .foreground)
+                    UNNotificationAction(identifier: "VIEW_ARENA", title: "View Arena", options: .foreground),
                 ]
             ),
             // Weekly Summary
             makeCategory(
                 id: "WEEKLY_SUMMARY",
                 actions: [
-                    UNNotificationAction(identifier: "VIEW_REPORT", title: "View Report", options: .foreground)
+                    UNNotificationAction(identifier: "VIEW_REPORT", title: "View Report", options: .foreground),
                 ]
             ),
             // Streak Warning
@@ -132,9 +142,9 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
                 id: "STREAK_WARNING",
                 actions: [
                     UNNotificationAction(identifier: "SAVE_STREAK", title: "Save Streak", options: .foreground),
-                    UNNotificationAction(identifier: "VIEW_TASKS", title: "View Tasks", options: .foreground)
+                    UNNotificationAction(identifier: "VIEW_TASKS", title: "View Tasks", options: .foreground),
                 ]
-            )
+            ),
         ]
 
         center.setNotificationCategories(categories)
@@ -157,11 +167,10 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
             return
         }
 
-        let body: String
-        if let score = content.recoveryScore {
-            body = "Recovery: \(Int(score))%. \(content.nonNegotiablesCount) tasks today. Top priority: \(content.topPriority)."
+        let body = if let score = content.recoveryScore {
+            "Recovery: \(Int(score))%. \(content.nonNegotiablesCount) tasks today. Top priority: \(content.topPriority)."
         } else {
-            body = "\(content.nonNegotiablesCount) tasks today. Top priority: \(content.topPriority)."
+            "\(content.nonNegotiablesCount) tasks today. Top priority: \(content.topPriority)."
         }
 
         scheduleNotification(
@@ -178,7 +187,9 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
     }
 
     func scheduleAccountabilityEscalation(tier: EscalationTier, time: Date, content: String) {
-        guard isWithinPreScheduleWindow(time) else { return }
+        guard isWithinPreScheduleWindow(time) else {
+            return
+        }
 
         let categoryID: String
         let interruptionLevel: UNNotificationInterruptionLevel
@@ -222,7 +233,9 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
     }
 
     func scheduleMealReminder(mealName: String, time: Date) {
-        guard isWithinPreScheduleWindow(time) else { return }
+        guard isWithinPreScheduleWindow(time) else {
+            return
+        }
 
         scheduleNotification(
             id: "meal_\(mealName.lowercased())_\(dateKey(time))",
@@ -238,10 +251,13 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
     }
 
     // MARK: - Recovery Notification
+
     // Per BUILD_PLAN step 12.4 — Fires for red/yellow recovery zones.
 
     func scheduleRecoveryNotification(recoveryScore: Int, time: Date) {
-        guard isWithinPreScheduleWindow(time) else { return }
+        guard isWithinPreScheduleWindow(time) else {
+            return
+        }
 
         let body: String
         if recoveryScore < 34 {
@@ -266,12 +282,17 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
     }
 
     // MARK: - Streak Warning
+
     // Per ONBOARDING_AND_NOTIFICATIONS.md — Channel 13: Streak Warning.
     // Fires at E + 1.5h if streak > 3 days and tasks incomplete.
 
     func scheduleStreakWarning(streakDays: Int, tasksRemaining: Int, time: Date) {
-        guard isWithinPreScheduleWindow(time) else { return }
-        guard streakDays > 3 && tasksRemaining > 0 else { return }
+        guard isWithinPreScheduleWindow(time) else {
+            return
+        }
+        guard streakDays > 3, tasksRemaining > 0 else {
+            return
+        }
 
         scheduleNotification(
             id: "streak_warning_\(dateKey(time))",
@@ -287,10 +308,13 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
     }
 
     // MARK: - Training Reminder
+
     // Per ONBOARDING_AND_NOTIFICATIONS.md — Channel 8: Training Reminder.
 
     func scheduleTrainingReminder(workoutType: String, time: Date) {
-        guard isWithinPreScheduleWindow(time) else { return }
+        guard isWithinPreScheduleWindow(time) else {
+            return
+        }
 
         scheduleNotification(
             id: "training_\(dateKey(time))",
@@ -306,7 +330,9 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
     }
 
     func scheduleBedtimeReminder(time: Date) {
-        guard isWithinPreScheduleWindow(time) else { return }
+        guard isWithinPreScheduleWindow(time) else {
+            return
+        }
 
         scheduleNotification(
             id: "bedtime_\(dateKey(time))",
@@ -332,13 +358,14 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         center.getPendingNotificationRequests { [weak self] requests in
             let idsToCancel = requests
                 .filter { $0.content.categoryIdentifier == category }
-                .map { $0.identifier }
+                .map(\.identifier)
             self?.center.removePendingNotificationRequests(withIdentifiers: idsToCancel)
             self?.logger.info("Cancelled \(idsToCancel.count) notifications for category \(category)")
         }
     }
 
     // MARK: - Anti-Spam: Cancel on App Foreground
+
     // Per ONBOARDING_AND_NOTIFICATIONS.md — Anti-Spam Rules.
     // Opening the app cancels pending escalation notifications.
 
@@ -347,13 +374,13 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
             "ACCOUNTABILITY_GENTLE",
             "ACCOUNTABILITY_FIRM",
             "ACCOUNTABILITY_URGENT",
-            "ACCOUNTABILITY_FINAL"
+            "ACCOUNTABILITY_FINAL",
         ]
 
         center.getPendingNotificationRequests { [weak self] requests in
             let idsToCancel = requests
                 .filter { escalationCategories.contains($0.content.categoryIdentifier) }
-                .map { $0.identifier }
+                .map(\.identifier)
             if !idsToCancel.isEmpty {
                 self?.center.removePendingNotificationRequests(withIdentifiers: idsToCancel)
                 self?.logger.info("Cancelled \(idsToCancel.count) pending escalation notifications on foreground")
@@ -362,6 +389,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
     }
 
     // MARK: - Reschedule All
+
     // Per TECHNICAL_FEASIBILITY_AUDIT.md Section 3.1 — Reschedule on app foreground.
 
     func rescheduleAllForToday(
@@ -376,7 +404,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         resetDailyBudget()
 
         // 1. Schedule today's notifications first (highest priority)
-        if let briefing = briefing, let time = briefingTime, time > Date() {
+        if let briefing, let time = briefingTime, time > Date() {
             scheduleMorningBriefing(for: time, content: briefing)
         }
 
@@ -392,7 +420,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
             scheduleMealReminder(mealName: meal.name, time: meal.time)
         }
 
-        if let bedtime = bedtime, bedtime > Date() {
+        if let bedtime, bedtime > Date() {
             scheduleBedtimeReminder(time: bedtime)
         }
 
@@ -401,6 +429,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
     }
 
     // MARK: - Badge Count
+
     // Per ONBOARDING_AND_NOTIFICATIONS.md — Badge Count Logic.
 
     func updateBadgeCount(_ count: Int) {
@@ -437,22 +466,27 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         if interruptionLevel != .timeSensitive,
            categoryID != "ACCOUNTABILITY_CLEAR",
            let lastTime = lastNotificationTime,
-           date.timeIntervalSince(lastTime) < Self.minIntervalBetweenNotifications {
+           date.timeIntervalSince(lastTime) < Self.minIntervalBetweenNotifications
+        {
             logger.debug("Anti-spam: too close to last notification, skipping \(id)")
             return
         }
 
         // 64-slot enforcement
         center.getPendingNotificationRequests { [weak self] requests in
-            guard let self else { return }
+            guard let self else {
+                return
+            }
             if requests.count >= Self.maxPendingNotifications {
                 // Evict lowest-priority (furthest future) notification
                 if let evictable = requests
                     .sorted(by: { ($0.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() ?? .distantFuture
-                        > ($1.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() ?? .distantFuture })
-                    .first {
-                    self.center.removePendingNotificationRequests(withIdentifiers: [evictable.identifier])
-                    self.logger.info("Evicted notification \(evictable.identifier) to make room (64 limit)")
+                            > ($1.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() ?? .distantFuture
+                    })
+                    .first
+                {
+                    center.removePendingNotificationRequests(withIdentifiers: [evictable.identifier])
+                    logger.info("Evicted notification \(evictable.identifier) to make room (64 limit)")
                 }
             }
 
@@ -462,7 +496,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
             content.categoryIdentifier = categoryID
             content.threadIdentifier = threadID
             content.interruptionLevel = interruptionLevel
-            content.sound = self.sound(for: categoryID)
+            content.sound = sound(for: categoryID)
 
             let components = Calendar.current.dateComponents(
                 [.year, .month, .day, .hour, .minute, .second],
@@ -472,7 +506,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
 
             let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
 
-            self.center.add(request) { error in
+            center.add(request) { error in
                 if let error {
                     self.logger.error("Failed to schedule notification \(id): \(error.localizedDescription)")
                 } else {
@@ -485,6 +519,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
     }
 
     // MARK: - Budget Management
+
     // Per ONBOARDING_AND_NOTIFICATIONS.md — Hard Daily Notification Budget.
 
     private func refreshBudgetDateIfNeeded() {
@@ -533,16 +568,17 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
     /// Per ONBOARDING_AND_NOTIFICATIONS.md — Sound Strategy.
     private func sound(for categoryID: String) -> UNNotificationSound {
         switch categoryID {
-        case "ACCOUNTABILITY_URGENT", "STREAK_WARNING":
-            return UNNotificationSound(named: UNNotificationSoundName("tempo_urgent.caf"))
+        case "ACCOUNTABILITY_URGENT",
+             "STREAK_WARNING":
+            UNNotificationSound(named: UNNotificationSoundName("tempo_urgent.caf"))
         case "ACCOUNTABILITY_FINAL":
-            return UNNotificationSound(named: UNNotificationSoundName("tempo_final.caf"))
+            UNNotificationSound(named: UNNotificationSoundName("tempo_final.caf"))
         case "ACCOUNTABILITY_CLEAR":
-            return UNNotificationSound(named: UNNotificationSoundName("tempo_clear.caf"))
+            UNNotificationSound(named: UNNotificationSoundName("tempo_clear.caf"))
         case "BEDTIME_REMINDER":
-            return UNNotificationSound(named: UNNotificationSoundName("tempo_bedtime.caf"))
+            UNNotificationSound(named: UNNotificationSoundName("tempo_bedtime.caf"))
         default:
-            return .default
+            .default
         }
     }
 

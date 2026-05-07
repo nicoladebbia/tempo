@@ -1,8 +1,17 @@
-import Foundation
-import PostHog
-import os
+//
+// AnalyticsService.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
 
-// MARK: - Analytics Service
+import Foundation
+import os
+import PostHog
+
+// MARK: - AnalyticsService
+
 // Per BUILD_PLAN Step 20.2 — PostHog wrapper.
 // Per ANALYTICS_AND_METRICS.md — 89 events, 3-tier consent, lazy init.
 // Per ADR-024 — PostHog for analytics + feature flags + A/B testing.
@@ -10,10 +19,10 @@ import os
 @Observable
 @MainActor
 final class AnalyticsService: @unchecked Sendable {
-
     static let shared = AnalyticsService()
 
     // MARK: - Consent
+
     // Per ANALYTICS_AND_METRICS.md Section — 3-tier consent model.
 
     private(set) var consent: AnalyticsConsent {
@@ -32,14 +41,17 @@ final class AnalyticsService: @unchecked Sendable {
 
     private init() {
         let raw = UserDefaults.standard.string(forKey: "tempo.analytics.consent") ?? AnalyticsConsent.full.rawValue
-        self.consent = AnalyticsConsent(rawValue: raw) ?? .full
+        consent = AnalyticsConsent(rawValue: raw) ?? .full
     }
 
     // MARK: - Setup (Lazy — NOT called in app init)
+
     // Per ANALYTICS_AND_METRICS.md — Lazy initialization.
 
     func configure(apiKey: String, host: String = "https://us.i.posthog.com") {
-        guard !isInitialized else { return }
+        guard !isInitialized else {
+            return
+        }
 
         let config = PostHogConfig(apiKey: apiKey, host: host)
         config.captureApplicationLifecycleEvents = false
@@ -55,40 +67,50 @@ final class AnalyticsService: @unchecked Sendable {
     // MARK: - Consent Management
 
     func updateConsent(_ newConsent: AnalyticsConsent) {
-        if consent != .none && newConsent == .none {
+        if consent != .none, newConsent == .none {
             // Send final consent change event before stopping
             track("analytics_consent_changed", properties: [
                 "from": consent.rawValue,
-                "to": newConsent.rawValue
+                "to": newConsent.rawValue,
             ])
         }
         consent = newConsent
     }
 
     // MARK: - Identification
+
     // Per ANALYTICS_AND_METRICS.md — Set after sign-in.
 
     func identify(userId: String, traits: [String: Any] = [:]) {
-        guard consent != .none, isInitialized else { return }
+        guard consent != .none, isInitialized else {
+            return
+        }
         PostHogSDK.shared.identify(userId, userProperties: traits)
         Logger.analytics.info("User identified")
     }
 
     func setUserProperties(_ properties: [String: Any]) {
-        guard consent != .none, isInitialized else { return }
+        guard consent != .none, isInitialized else {
+            return
+        }
         PostHogSDK.shared.capture("$set", properties: properties)
     }
 
     func reset() {
-        guard isInitialized else { return }
+        guard isInitialized else {
+            return
+        }
         PostHogSDK.shared.reset()
     }
 
     // MARK: - Event Tracking
+
     // Per ANALYTICS_AND_METRICS.md — Auto-attach event_id, timestamp, session_id, app_version, etc.
 
     func track(_ event: String, properties: [String: Any] = [:]) {
-        guard isInitialized else { return }
+        guard isInitialized else {
+            return
+        }
 
         // Consent check
         switch consent {
@@ -96,7 +118,9 @@ final class AnalyticsService: @unchecked Sendable {
             return
         case .essential:
             // Only allow crash/error events
-            guard event == "error_occurred" || event.hasPrefix("crash_") else { return }
+            guard event == "error_occurred" || event.hasPrefix("crash_") else {
+                return
+            }
         case .full:
             break
         }
@@ -114,28 +138,35 @@ final class AnalyticsService: @unchecked Sendable {
     }
 
     // MARK: - Feature Flags
+
     // Per ADR-026 — Cached locally, take effect on next app launch.
 
     func reloadFeatureFlags() {
-        guard isInitialized else { return }
+        guard isInitialized else {
+            return
+        }
         PostHogSDK.shared.reloadFeatureFlags()
     }
 
     func isFeatureFlagEnabled(_ flag: String) -> Bool {
-        guard isInitialized else { return false }
+        guard isInitialized else {
+            return false
+        }
         return PostHogSDK.shared.isFeatureEnabled(flag)
     }
 
     func getFeatureFlagPayload(_ flag: String) -> Any? {
-        guard isInitialized else { return nil }
-        return PostHogSDK.shared.getFeatureFlagPayload(flag)
+        guard isInitialized else {
+            return nil
+        }
+        return PostHogSDK.shared.getFeatureFlagResult(flag)
     }
 
     // MARK: - Session
 
     func startSession() {
         track("app_launched", properties: [
-            "launch_type": "cold"
+            "launch_type": "cold",
         ])
     }
 
@@ -144,15 +175,20 @@ final class AnalyticsService: @unchecked Sendable {
     }
 
     func flush() {
-        guard isInitialized else { return }
+        guard isInitialized else {
+            return
+        }
         PostHogSDK.shared.flush()
     }
 
     // MARK: - User Deletion (GDPR Article 17)
+
     // Per ANALYTICS_AND_METRICS.md — Send $delete on account deletion.
 
     func deleteUser() {
-        guard isInitialized else { return }
+        guard isInitialized else {
+            return
+        }
         // PostHog processes deletion via their API; reset local state
         PostHogSDK.shared.reset()
         Logger.analytics.info("User data deletion requested")
@@ -161,22 +197,25 @@ final class AnalyticsService: @unchecked Sendable {
     // MARK: - Private
 
     private func applyConsent() {
-        guard isInitialized else { return }
+        guard isInitialized else {
+            return
+        }
         switch consent {
         case .none:
             PostHogSDK.shared.optOut()
-        case .essential, .full:
+        case .essential,
+             .full:
             PostHogSDK.shared.optIn()
         }
     }
 }
 
-// MARK: - Analytics Consent
+// MARK: - AnalyticsConsent
+
 // Per ANALYTICS_AND_METRICS.md — 3-tier system.
 
-enum AnalyticsConsent: String, Codable, Sendable {
-    case full       // All behavioral events
-    case essential  // Crashes + errors only
-    case none       // Nothing sent
+enum AnalyticsConsent: String, Codable {
+    case full // All behavioral events
+    case essential // Crashes + errors only
+    case none // Nothing sent
 }
-

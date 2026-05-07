@@ -1,13 +1,22 @@
+//
+// DashboardLoadingView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Dashboard Loading View
+
 // Per MODULE_DASHBOARD.md Section 3.1 + WIREFRAMES.md Screen 4 — Skeleton loading state.
 // Shows header (real, local data), pulsing score ring placeholder,
 // 4 quadrant skeleton cards with shimmer, non-negotiables placeholder.
 
 struct DashboardLoadingView: View {
-
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.colorScheme)
+    private var colorScheme
 
     var body: some View {
         VStack(spacing: 0) {
@@ -50,6 +59,7 @@ struct DashboardLoadingView: View {
     }
 
     // MARK: - Pulsing Score Ring
+
     // Per WIREFRAMES.md Screen 4 — track pulses opacity 0.3-1.0, 1.5s sinusoidal
 
     private var pulsingScoreRing: some View {
@@ -73,6 +83,7 @@ struct DashboardLoadingView: View {
     }
 
     // MARK: - Quadrant Skeletons
+
     // Per WIREFRAMES.md Screen 4 — 4 quadrant skeleton cards
 
     private var quadrantSkeletons: some View {
@@ -83,7 +94,7 @@ struct DashboardLoadingView: View {
             ],
             spacing: TempoSpacing.lg
         ) {
-            ForEach(0..<4, id: \.self) { index in
+            ForEach(0 ..< 4, id: \.self) { index in
                 quadrantSkeletonCard(
                     label: ["BODY", "FUEL", "MIND", "MOVE"][index]
                 )
@@ -132,14 +143,11 @@ struct DashboardLoadingView: View {
             // Bottom bar placeholder
             skeletonRect(height: 4)
         }
-        .padding(14)
+        .padding(TempoSpacing.buttonPaddingV)
         .frame(maxWidth: .infinity, minHeight: 160, alignment: .topLeading)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .shadow(
-            color: Color.tempoInk.opacity(colorScheme == .dark ? 0 : 0.06),
-            radius: 4, x: 0, y: 2
-        )
+        .tempoShadow(.card)
     }
 
     // MARK: - Non-Negotiables Placeholder
@@ -154,20 +162,17 @@ struct DashboardLoadingView: View {
                 skeletonRect(width: 90, height: 12)
             }
         }
-        .padding(14)
+        .padding(TempoSpacing.buttonPaddingV)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .shadow(
-            color: Color.tempoInk.opacity(colorScheme == .dark ? 0 : 0.06),
-            radius: 4, x: 0, y: 2
-        )
+        .tempoShadow(.card)
     }
 
     // MARK: - Skeleton Helpers
 
     private var trackColor: Color {
         colorScheme == .dark
-            ? Color(red: 56/255, green: 56/255, blue: 58/255)
+            ? Color.tempoFillTertiary
             : Color.tempoBorder
     }
 

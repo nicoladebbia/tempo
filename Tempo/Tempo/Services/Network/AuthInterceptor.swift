@@ -1,9 +1,21 @@
+//
+// AuthInterceptor.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
+
+// MARK: - AuthTokenProvider
 
 protocol AuthTokenProvider: Sendable {
     func accessToken() async -> String?
     func refreshToken() async throws -> String
 }
+
+// MARK: - AuthInterceptor
 
 actor AuthInterceptor {
     private let tokenProvider: AuthTokenProvider

@@ -1,26 +1,35 @@
+//
+// OnboardingSplashView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Onboarding Splash View
+
 // Per STATE_MACHINES.md Section 10 — Animated splash, 1.8s, auto-advances.
 
 struct OnboardingSplashView: View {
     let viewModel: OnboardingViewModel
-    @State private var opacity: Double = 0
-    @State private var scale: Double = 0.8
+    @State
+    private var opacity: Double = 0
+    @State
+    private var scale: Double = 0.8
 
     var body: some View {
-        VStack(spacing: TempoSpacing.xxl) {
+        VStack(spacing: TempoSpacing.lg) {
             Spacer()
 
-            Image(systemName: "bolt.circle.fill")
-                .font(.system(size: 80))
-                .foregroundStyle(Color.tempoAmber)
+            TempoLogoView(size: 80, showGlow: true)
                 .scaleEffect(scale)
                 .opacity(opacity)
 
             Text("TEMPO")
-                .font(.system(size: 36, weight: .black))
-                .tracking(4)
+                .font(.system(size: 28, weight: .black))
+                .tracking(3)
                 .foregroundStyle(.white)
                 .opacity(opacity)
 
@@ -34,4 +43,10 @@ struct OnboardingSplashView: View {
             }
         }
     }
+}
+
+#Preview {
+    OnboardingSplashView(viewModel: OnboardingViewModel())
+        .background(Color.black)
+        .preferredColorScheme(.dark)
 }

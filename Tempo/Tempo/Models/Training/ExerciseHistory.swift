@@ -1,9 +1,18 @@
+//
+// ExerciseHistory.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
+// MARK: - ExerciseHistory
+
 @Model
 final class ExerciseHistory {
-
     @Attribute(.unique)
     var id: UUID
 
@@ -16,6 +25,8 @@ final class ExerciseHistory {
     var bestSetWeight: Double?
 
     var bestSetReps: Int?
+
+    var setsPerformed: Int?
 
     // MARK: - Relationships
 
@@ -31,6 +42,7 @@ final class ExerciseHistory {
         totalVolume: Double = 0,
         bestSetWeight: Double? = nil,
         bestSetReps: Int? = nil,
+        setsPerformed: Int? = nil,
         exercise: Exercise? = nil
     ) {
         self.id = id
@@ -39,6 +51,7 @@ final class ExerciseHistory {
         self.totalVolume = totalVolume
         self.bestSetWeight = bestSetWeight
         self.bestSetReps = bestSetReps
+        self.setsPerformed = setsPerformed
         self.exercise = exercise
     }
 }
@@ -46,8 +59,7 @@ final class ExerciseHistory {
 // MARK: - DTO
 
 extension ExerciseHistory {
-
-    struct DTO: Codable, Sendable {
+    struct DTO: Codable {
         let id: UUID
         let date: Date
         let exercise_id: UUID?
@@ -55,6 +67,7 @@ extension ExerciseHistory {
         let total_volume: Double
         let best_set_weight: Double?
         let best_set_reps: Int?
+        let sets_performed: Int?
     }
 
     func toDTO() -> DTO {
@@ -65,7 +78,8 @@ extension ExerciseHistory {
             estimated_1rm: estimated1RM,
             total_volume: totalVolume,
             best_set_weight: bestSetWeight,
-            best_set_reps: bestSetReps
+            best_set_reps: bestSetReps,
+            sets_performed: setsPerformed
         )
     }
 }

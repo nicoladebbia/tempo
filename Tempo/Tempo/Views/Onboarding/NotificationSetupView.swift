@@ -1,12 +1,22 @@
+//
+// NotificationSetupView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 import UserNotifications
 
 // MARK: - Notification Setup View (Onboarding)
+
 // Per STATE_MACHINES.md Section 10 — Request notification permissions. OPTIONAL (strongly encouraged).
 // Per BUILD_PLAN step 16.1 — Permission request + intensity selection.
 
 struct NotificationSetupView: View {
-    @Bindable var viewModel: OnboardingViewModel
+    @Bindable
+    var viewModel: OnboardingViewModel
 
     var body: some View {
         VStack(spacing: TempoSpacing.xxl) {
@@ -62,4 +72,13 @@ struct NotificationSetupView: View {
                 .foregroundStyle(.white.opacity(0.8))
         }
     }
+}
+
+#Preview {
+    @Previewable @State
+    var vm = OnboardingViewModel()
+
+    NotificationSetupView(viewModel: vm)
+        .background(Color.black)
+        .preferredColorScheme(.dark)
 }

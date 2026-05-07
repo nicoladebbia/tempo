@@ -1,14 +1,23 @@
+//
+// MicroInteractionModifiers.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
-// MARK: - Micro-Interaction Modifiers
+// MARK: - PressScaleModifier
+
 // Per DESIGN_SYSTEM.md Section 8 — Motion system.
 // Per BUILD_PLAN Step 19.2 — Button press scales, card tap highlight, tab switch animation.
 
-// MARK: - Press Scale Effect
-
 struct PressScaleModifier: ViewModifier {
-    @State private var isPressed = false
-    @Environment(\.accessibilityReduceMotion) var reduceMotion
+    @State
+    private var isPressed = false
+    @Environment(\.accessibilityReduceMotion)
+    var reduceMotion
     let scale: CGFloat
 
     func body(content: Content) -> some View {
@@ -30,11 +39,13 @@ extension View {
     }
 }
 
-// MARK: - Appear Animation
+// MARK: - AppearAnimationModifier
 
 struct AppearAnimationModifier: ViewModifier {
-    @State private var isVisible = false
-    @Environment(\.accessibilityReduceMotion) var reduceMotion
+    @State
+    private var isVisible = false
+    @Environment(\.accessibilityReduceMotion)
+    var reduceMotion
     let delay: Double
 
     func body(content: Content) -> some View {
@@ -53,11 +64,13 @@ extension View {
     }
 }
 
-// MARK: - Score Ring Animation
+// MARK: - ScoreRingAnimationModifier
 
 struct ScoreRingAnimationModifier: ViewModifier {
-    @State private var animatedProgress: Double = 0
-    @Environment(\.accessibilityReduceMotion) var reduceMotion
+    @State
+    private var animatedProgress: Double = 0
+    @Environment(\.accessibilityReduceMotion)
+    var reduceMotion
     let targetProgress: Double
 
     func body(content: Content) -> some View {
@@ -74,11 +87,13 @@ struct ScoreRingAnimationModifier: ViewModifier {
     }
 }
 
-// MARK: - Celebration Shake
+// MARK: - CelebrationShakeModifier
 
 struct CelebrationShakeModifier: ViewModifier {
-    @State private var shakeOffset: CGFloat = 0
-    @Environment(\.accessibilityReduceMotion) var reduceMotion
+    @State
+    private var shakeOffset: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion)
+    var reduceMotion
 
     func body(content: Content) -> some View {
         content
@@ -86,7 +101,9 @@ struct CelebrationShakeModifier: ViewModifier {
     }
 
     func trigger() {
-        guard !reduceMotion else { return }
+        guard !reduceMotion else {
+            return
+        }
         withAnimation(.interpolatingSpring(stiffness: 300, damping: 5)) {
             shakeOffset = 8
         }

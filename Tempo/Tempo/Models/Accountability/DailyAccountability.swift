@@ -1,9 +1,18 @@
+//
+// DailyAccountability.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
+// MARK: - DailyAccountability
+
 @Model
 final class DailyAccountability {
-
     @Attribute(.unique)
     var id: UUID
 
@@ -40,7 +49,9 @@ final class DailyAccountability {
 
     @Transient
     var completionPercentage: Double {
-        guard totalCount > 0 else { return 0 }
+        guard totalCount > 0 else {
+            return 0
+        }
         return Double(completedCount) / Double(totalCount)
     }
 
@@ -76,8 +87,7 @@ final class DailyAccountability {
 // MARK: - DTO
 
 extension DailyAccountability {
-
-    struct DTO: Codable, Sendable {
+    struct DTO: Codable {
         let id: UUID
         let date: Date
         let leisure_unlocked: Bool

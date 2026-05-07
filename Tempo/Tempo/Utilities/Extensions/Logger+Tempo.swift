@@ -1,7 +1,14 @@
+//
+// Logger+Tempo.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import OSLog
 
 extension Logger {
-
     private static let subsystem = Bundle.main.bundleIdentifier ?? "app.tempo"
 
     /// Network requests, API calls, response handling.
@@ -39,4 +46,7 @@ extension Logger {
 
     /// PostHog analytics, event tracking, feature flags.
     static let analytics = Logger(subsystem: subsystem, category: "analytics")
+
+    /// Nutrition services: food search, meal logging, photo analysis.
+    static let nutrition = Logger(subsystem: subsystem, category: "nutrition")
 }

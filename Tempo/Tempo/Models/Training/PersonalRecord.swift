@@ -1,9 +1,18 @@
+//
+// PersonalRecord.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
+// MARK: - PersonalRecord
+
 @Model
 final class PersonalRecord {
-
     @Attribute(.unique)
     var id: UUID
 
@@ -42,7 +51,7 @@ final class PersonalRecord {
         exercise: Exercise? = nil
     ) {
         self.id = id
-        self.typeRaw = type.rawValue
+        typeRaw = type.rawValue
         self.value = value
         self.date = date
         self.workoutPlanID = workoutPlanID
@@ -54,8 +63,7 @@ final class PersonalRecord {
 // MARK: - DTO
 
 extension PersonalRecord {
-
-    struct DTO: Codable, Sendable {
+    struct DTO: Codable {
         let id: UUID
         let exercise_id: UUID?
         let type: String

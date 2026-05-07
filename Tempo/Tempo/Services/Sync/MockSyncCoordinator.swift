@@ -1,8 +1,15 @@
+//
+// MockSyncCoordinator.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import os
 
 final class MockSyncCoordinator: SyncCoordinatorProtocol, @unchecked Sendable {
-
     private let logger = Logger(subsystem: "app.tempo", category: "MockSync")
 
     func syncAll() async throws {

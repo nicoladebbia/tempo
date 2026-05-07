@@ -1,14 +1,24 @@
+//
+// OnboardingContainerView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
-// MARK: - Onboarding Container View
-// Per BUILD_PLAN step 16.1 — PageView-style container for 12 onboarding steps.
+// MARK: - OnboardingContainerView
+
+// Per BUILD_PLAN step 16.1 — PageView-style container for 11 onboarding steps.
 // Per WIREFRAMES.md Screen 44 — Progress bar, dark mode, full-bleed layout.
-// Per STATE_MACHINES.md Section 10 — Linear flow with back navigation and skip.
+// Per STATE_MACHINES.md Section 10 — "Show then ask" flow with back navigation and skip.
 
 struct OnboardingContainerView: View {
-
-    @Environment(ServiceContainer.self) private var services
-    @State private var viewModel = OnboardingViewModel()
+    @Environment(ServiceContainer.self)
+    private var services
+    @State
+    private var viewModel = OnboardingViewModel()
 
     var body: some View {
         ZStack {
@@ -16,14 +26,16 @@ struct OnboardingContainerView: View {
             Color.black.ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Progress bar
+                // Progress bar — hidden during splash, valueDemo, and complete
                 // Per WIREFRAMES.md Screen 44 — 3pt height, full width - 32pt, white fill
-                if viewModel.currentStep != .splash && viewModel.currentStep != .complete {
+                if viewModel.currentStep != .splash, viewModel.currentStep != .valueDemo, viewModel.currentStep != .complete {
                     progressBar
+                        .padding(.top, TempoSpacing.md)
                 }
 
-                // Step content
+                // Step content - fills remaining space
                 stepContent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .transition(.asymmetric(
                         insertion: .move(edge: .trailing).combined(with: .opacity),
                         removal: .move(edge: .leading).combined(with: .opacity)
@@ -46,6 +58,7 @@ struct OnboardingContainerView: View {
     }
 
     // MARK: - Progress Bar
+
     // Per WIREFRAMES.md Screen 44 — 3pt height, white fill, 20% white unfill
 
     private var progressBar: some View {
@@ -86,6 +99,12 @@ struct OnboardingContainerView: View {
         switch viewModel.currentStep {
         case .splash:
             OnboardingSplashView(viewModel: viewModel)
+        case .valueDemo:
+            ValueDemoView(onContinue: { viewModel.advance() })
+        case .goals:
+            GoalSetupView(viewModel: viewModel)
+        case .healthkit:
+            HealthKitPermissionView(viewModel: viewModel)
         case .auth:
             OnboardingAuthView(viewModel: viewModel)
         case .profile:
@@ -94,25 +113,19 @@ struct OnboardingContainerView: View {
             TrainingSetupView(viewModel: viewModel)
         case .academicSetup:
             AcademicSetupView(viewModel: viewModel)
-        case .goals:
-            GoalSetupView(viewModel: viewModel)
         case .whoopConnect:
             WhoopConnectView(viewModel: viewModel)
-        case .healthkit:
-            HealthKitPermissionView(viewModel: viewModel)
         case .nutritrackConnect:
             NutriTrackConnectStepView(viewModel: viewModel)
         case .notifications:
             NotificationSetupView(viewModel: viewModel)
-        case .arena:
-            ArenaIntroView(viewModel: viewModel)
         case .complete:
             OnboardingCompleteView(viewModel: viewModel)
         }
     }
 }
 
-// MARK: - Onboarding Button Styles
+// MARK: - OnboardingPrimaryButton
 
 struct OnboardingPrimaryButton: View {
     let title: String
@@ -122,17 +135,19 @@ struct OnboardingPrimaryButton: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(enabled ? .black : .white.opacity(0.5))
                 .frame(maxWidth: .infinity)
-                .frame(height: 56)
+                .frame(height: 54)
                 .background(enabled ? Color.tempoAmber : Color.white.opacity(0.1))
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .disabled(!enabled)
-        .padding(.horizontal, TempoSpacing.lg)
+        .padding(.horizontal, TempoSpacing.xl)
     }
 }
+
+// MARK: - OnboardingSkipButton
 
 struct OnboardingSkipButton: View {
     let action: () -> Void
@@ -146,7 +161,8 @@ struct OnboardingSkipButton: View {
     }
 }
 
-// MARK: - Onboarding Card Modifier
+// MARK: - OnboardingCardModifier
+
 // Per WIREFRAMES.md Screen 44-48 — 10% white bg, 1pt 15% white border, radius 16pt
 
 struct OnboardingCardModifier: ViewModifier {

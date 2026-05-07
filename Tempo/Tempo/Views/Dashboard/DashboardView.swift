@@ -1,27 +1,51 @@
+//
+// DashboardView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftData
 import SwiftUI
 
-// MARK: - Dashboard View
+// MARK: - DashboardView
 
 struct DashboardView: View {
-
-    @Environment(ServiceContainer.self) private var services
-    @Environment(\.modelContext) private var modelContext
-    @State private var viewModel: DashboardViewModel?
-    @State private var hasAppeared = false
-    @State private var showNutriTrackConnect = false
-    @State private var showMealLogging = false
-    @State private var showWhoopConnect = false
-    @State private var showSettings = false
-    @State private var showNotifications = false
-    @State private var showInsightDetail = false
-    @State private var showNonNegotiableSetup = false
-    @State private var showScoreBreakdown = false
-    @State private var activeMilestone: MilestoneService.Milestone?
-    @State private var showMilestoneCelebration = false
-    @State private var showProgressReport = false
-    @AppStorage("healthKitAuthorized") private var healthKitAuthorized = false
-    @AppStorage("hasCompletedSetup") private var hasCompletedSetup = false
+    @Environment(ServiceContainer.self)
+    private var services
+    @Environment(\.modelContext)
+    private var modelContext
+    @State
+    private var viewModel: DashboardViewModel?
+    @State
+    private var hasAppeared = false
+    @State
+    private var showNutriTrackConnect = false
+    @State
+    private var showMealLogging = false
+    @State
+    private var showWhoopConnect = false
+    @State
+    private var showSettings = false
+    @State
+    private var showNotifications = false
+    @State
+    private var showInsightDetail = false
+    @State
+    private var showNonNegotiableSetup = false
+    @State
+    private var showScoreBreakdown = false
+    @State
+    private var activeMilestone: MilestoneService.Milestone?
+    @State
+    private var showMilestoneCelebration = false
+    @State
+    private var showProgressReport = false
+    @AppStorage("healthKitAuthorized")
+    private var healthKitAuthorized = false
+    @AppStorage("hasCompletedSetup")
+    private var hasCompletedSetup = false
 
     var body: some View {
         NavigationStack {
@@ -34,7 +58,7 @@ struct DashboardView: View {
                     case .loading where !hasAppeared:
                         DashboardLoadingView()
 
-                    case .error(let message) where !hasAppeared:
+                    case let .error(message) where !hasAppeared:
                         ErrorStateView(
                             title: "Sync failed.",
                             message: message,
@@ -64,7 +88,7 @@ struct DashboardView: View {
                 if let profile = try? modelContext.fetch(descriptor).first {
                     vm.setUserName(profile.displayName)
                 }
-                self.viewModel = vm
+                viewModel = vm
                 // Validate Whoop connection BEFORE fetching data — prevents race condition
                 // where refresh() checks connectionState before tokens are verified
                 await services.whoop.checkConnectionOnLaunch()
@@ -74,8 +98,9 @@ struct DashboardView: View {
                 if let profile = try? modelContext.fetch(descriptor2).first,
                    profile.displayName == "Athlete",
                    let whoopService = services.whoop as? WhoopService,
-                   let firstName = whoopService.profileFirstName, !firstName.isEmpty {
-                    let fullName = [firstName, whoopService.profileLastName].compactMap { $0 }.joined(separator: " ")
+                   let firstName = whoopService.profileFirstName, !firstName.isEmpty
+                {
+                    let fullName = [firstName, whoopService.profileLastName].compactMap(\.self).joined(separator: " ")
                     profile.displayName = fullName
                     profile.updatedAt = Date()
                     try? modelContext.save()
@@ -185,15 +210,20 @@ struct DashboardView: View {
     /// True when at least 2 data sources are connected (Whoop, NutriTrack, HealthKit).
     private var hasConnectedSources: Bool {
         var count = 0
-        if services.whoop.connectionState == .connected { count += 1 }
-        if case .connected = services.nutriTrack.connectionState { count += 1 }
-        if healthKitAuthorized { count += 1 }
+        if services.whoop.connectionState == .connected {
+            count += 1
+        }
+        if case .connected = services.nutriTrack.connectionState {
+            count += 1
+        }
+        if healthKitAuthorized {
+            count += 1
+        }
         return count >= 2
     }
 
     // MARK: - Dashboard Content
 
-    @ViewBuilder
     private func dashboardContent(_ vm: DashboardViewModel) -> some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: TempoSpacing.xxl) {
@@ -370,8 +400,8 @@ struct DashboardView: View {
             .buttonStyle(.plain)
 
             NavigationLink(destination: DailyNutritionSummaryView(fuelData: vm.fuel, onAddHydration: { ml in
-                    vm.addHydration(ml)
-                })) {
+                vm.addHydration(ml)
+            })) {
                 fuelCard(vm.fuel)
             }
             .buttonStyle(.plain)
@@ -451,9 +481,27 @@ struct DashboardView: View {
 
                     // Macro mini rings with color-coded status (Task 2)
                     HStack(spacing: 6) {
-                        fuelCardMacroRing(letter: "P", current: data.proteinGrams ?? 0, target: data.proteinTarget ?? 180, color: .cyan, status: data.proteinStatus)
-                        fuelCardMacroRing(letter: "C", current: data.carbsGrams ?? 0, target: data.carbsTarget ?? 280, color: .yellow, status: data.carbsStatus)
-                        fuelCardMacroRing(letter: "F", current: data.fatGrams ?? 0, target: data.fatTarget ?? 80, color: .orange, status: data.fatStatus)
+                        fuelCardMacroRing(
+                            letter: "P",
+                            current: data.proteinGrams ?? 0,
+                            target: data.proteinTarget ?? 180,
+                            color: .cyan,
+                            status: data.proteinStatus
+                        )
+                        fuelCardMacroRing(
+                            letter: "C",
+                            current: data.carbsGrams ?? 0,
+                            target: data.carbsTarget ?? 280,
+                            color: .yellow,
+                            status: data.carbsStatus
+                        )
+                        fuelCardMacroRing(
+                            letter: "F",
+                            current: data.fatGrams ?? 0,
+                            target: data.fatTarget ?? 80,
+                            color: .orange,
+                            status: data.fatStatus
+                        )
                     }
 
                     // Hydration quick display (Task 4)
@@ -487,7 +535,7 @@ struct DashboardView: View {
 
                     Text(data.formattedMeals)
                         .font(.tempoCaption2)
-                            .fontWeight(.medium)
+                        .fontWeight(.medium)
                         .foregroundStyle(
                             (data.mealsLogged ?? 0) >= (data.mealsPlanned ?? 1)
                                 ? Color.tempoSuccess : Color.tempoTextSecondary
@@ -504,15 +552,19 @@ struct DashboardView: View {
         }
     }
 
-    private func fuelCardMacroRing(letter: String, current: Int, target: Int, color: Color, status: NutritionEngine.MacroStatus) -> some View {
+    private func fuelCardMacroRing(
+        letter: String,
+        current: Int,
+        target: Int,
+        color: Color,
+        status: NutritionEngine.MacroStatus
+    ) -> some View {
         let progress = target > 0 ? Double(current) / Double(target) : 0
-        let ringColor: Color = {
-            switch status {
-            case .onTrack: return .tempoSuccess
-            case .behind: return .tempoWarning
-            case .over: return .tempoError
-            }
-        }()
+        let ringColor: Color = switch status {
+        case .onTrack: .tempoSuccess
+        case .behind: .tempoWarning
+        case .over: .tempoError
+        }
 
         return VStack(spacing: 2) {
             ZStack {
@@ -565,7 +617,7 @@ struct DashboardView: View {
                     .contentTransition(.numericText(countsDown: false))
                     .animation(.spring(response: 0.4, dampingFraction: 0.8), value: data.formattedStudyTime)
 
-                if data.studyMinutesToday >= data.studyTargetMinutes && data.studyTargetMinutes > 0 {
+                if data.studyMinutesToday >= data.studyTargetMinutes, data.studyTargetMinutes > 0 {
                     Text("Target hit")
                         .font(.tempoCaption1)
                         .fontWeight(.medium)
@@ -723,7 +775,7 @@ struct DashboardView: View {
                     HStack {
                         Text("\(vm.nonNegotiablesDone)/\(vm.nonNegotiablesTotal) done")
                             .font(.tempoSubheadline)
-                        .fontWeight(.semibold)
+                            .fontWeight(.semibold)
                             .foregroundStyle(Color.tempoTextPrimary)
 
                         Spacer()
@@ -799,6 +851,7 @@ struct DashboardView: View {
     }
 
     // MARK: - Quick Actions
+
     // Context-aware action buttons. Max 2 visible at a time.
 
     @ViewBuilder
@@ -864,7 +917,6 @@ struct DashboardView: View {
 
     // MARK: - Arena Quick Access
 
-    @ViewBuilder
     private func arenaQuickAccessCard() -> some View {
         NavigationLink(destination: ArenaTabView()) {
             HStack(spacing: TempoSpacing.md) {
@@ -897,6 +949,7 @@ struct DashboardView: View {
     }
 
     // MARK: - Insight Row
+
     // Now supports insight rotation via tap on dot indicator.
 
     @ViewBuilder
@@ -944,7 +997,7 @@ struct DashboardView: View {
                     }
                 } label: {
                     HStack(spacing: 4) {
-                        ForEach(0..<min(insightCount, 6), id: \.self) { index in
+                        ForEach(0 ..< min(insightCount, 6), id: \.self) { index in
                             Circle()
                                 .fill(index == (vm.insights.firstIndex(where: { $0.text == insight.text }) ?? 0)
                                     ? Color.tempoSignal : Color.tempoTextTertiary.opacity(0.4))
@@ -1003,19 +1056,26 @@ struct DashboardView: View {
     }
 
     private func sparklineColor(_ trend: [DashboardViewModel.DailyScorePoint]) -> Color {
-        guard let first = trend.first, let last = trend.last else { return .tempoTextSecondary }
-        if last.score > first.score { return Color.tempoSuccess }
-        if last.score < first.score { return Color.tempoError }
+        guard let first = trend.first, let last = trend.last else {
+            return .tempoTextSecondary
+        }
+        if last.score > first.score {
+            return Color.tempoSuccess
+        }
+        if last.score < first.score {
+            return Color.tempoError
+        }
         return Color.tempoTextSecondary
     }
 
     // MARK: - Card Shell
 
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.colorScheme)
+    private var colorScheme
 
-    private func cardShell<Content: View>(
+    private func cardShell(
         label: String,
-        @ViewBuilder content: () -> Content
+        @ViewBuilder content: () -> some View
     ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(label)
@@ -1051,7 +1111,7 @@ struct DashboardView: View {
 
             Text(message)
                 .font(.tempoSubheadline)
-                        .fontWeight(.semibold)
+                .fontWeight(.semibold)
                 .foregroundStyle(Color.tempoTextPrimary)
 
             Button(action: action) {
@@ -1157,21 +1217,27 @@ struct DashboardView: View {
 
     private func examCountdownColor(_ daysUntil: Int) -> Color {
         switch daysUntil {
-        case ...3: return Color.tempoError
-        case 4...7: return Color.tempoWarning
-        default: return Color.tempoTextSecondary
+        case ...3: Color.tempoError
+        case 4 ... 7: Color.tempoWarning
+        default: Color.tempoTextSecondary
         }
     }
 
     private func stepsColor(_ steps: Int?, target: Int) -> Color {
-        guard let steps else { return .tempoTextSecondary }
-        if steps >= target { return .tempoSuccess }
-        if steps >= Int(Double(target) * 0.7) { return .tempoTextPrimary }
+        guard let steps else {
+            return .tempoTextSecondary
+        }
+        if steps >= target {
+            return .tempoSuccess
+        }
+        if steps >= Int(Double(target) * 0.7) {
+            return .tempoTextPrimary
+        }
         return .tempoTextSecondary
     }
 }
 
-// MARK: - Flow Layout (for non-negotiable pills)
+// MARK: - FlowLayout
 
 struct FlowLayout: Layout {
     var spacing: CGFloat
@@ -1207,7 +1273,7 @@ struct FlowLayout: Layout {
 
         for subview in subviews {
             let size = subview.sizeThatFits(.unspecified)
-            if currentX + size.width > maxWidth && currentX > 0 {
+            if currentX + size.width > maxWidth, currentX > 0 {
                 currentX = 0
                 currentY += lineHeight + lineSpacing
                 lineHeight = 0
@@ -1237,11 +1303,12 @@ extension RecoveryZone {
     }
 }
 
-// MARK: - Insight Detail Sheet
+// MARK: - InsightDetailSheet
 
 private struct InsightDetailSheet: View {
     let vm: DashboardViewModel
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dismiss)
+    private var dismiss
 
     var body: some View {
         let insight = vm.currentInsight
@@ -1263,7 +1330,7 @@ private struct InsightDetailSheet: View {
                     VStack(alignment: .leading, spacing: TempoSpacing.sm) {
                         Text("FINDING")
                             .font(.tempoModuleTag)
-                .fontWeight(.bold)
+                            .fontWeight(.bold)
                             .tracking(1.2)
                             .foregroundStyle(Color.tempoTextTertiary)
 
@@ -1280,7 +1347,7 @@ private struct InsightDetailSheet: View {
                     VStack(alignment: .leading, spacing: TempoSpacing.sm) {
                         Text("RECOMMENDATION")
                             .font(.tempoModuleTag)
-                .fontWeight(.bold)
+                            .fontWeight(.bold)
                             .tracking(1.2)
                             .foregroundStyle(Color.tempoTextTertiary)
 
@@ -1304,7 +1371,7 @@ private struct InsightDetailSheet: View {
                     VStack(alignment: .leading, spacing: TempoSpacing.md) {
                         Text("CURRENT STATUS")
                             .font(.tempoModuleTag)
-                .fontWeight(.bold)
+                            .fontWeight(.bold)
                             .tracking(1.2)
                             .foregroundStyle(Color.tempoTextTertiary)
 
@@ -1378,36 +1445,43 @@ private struct InsightDetailSheet: View {
     }
 
     private func sleepColor(_ hours: Double?) -> Color {
-        guard let hours else { return .tempoTextTertiary }
-        if hours >= 7 { return .tempoSuccess }
-        if hours >= 6 { return .tempoWarning }
+        guard let hours else {
+            return .tempoTextTertiary
+        }
+        if hours >= 7 {
+            return .tempoSuccess
+        }
+        if hours >= 6 {
+            return .tempoWarning
+        }
         return .tempoError
     }
 
     private func trainingStatusText(_ move: MoveQuadrantData) -> String {
         switch move.workoutStatus {
-        case .completed: return "Done"
-        case .planned: return "Planned"
-        case .restDay: return "Rest Day"
-        case .none: return "No workout"
+        case .completed: "Done"
+        case .planned: "Planned"
+        case .restDay: "Rest Day"
+        case .none: "No workout"
         }
     }
 
     private func trainingStatusColor(_ move: MoveQuadrantData) -> Color {
         switch move.workoutStatus {
-        case .completed: return .tempoSuccess
-        case .planned: return .tempoAmber
-        case .restDay: return .tempoTextSecondary
-        case .none: return .tempoTextTertiary
+        case .completed: .tempoSuccess
+        case .planned: .tempoAmber
+        case .restDay: .tempoTextSecondary
+        case .none: .tempoTextTertiary
         }
     }
 }
 
-// MARK: - Score Breakdown Sheet
+// MARK: - ScoreBreakdownSheet
 
 private struct ScoreBreakdownSheet: View {
     let vm: DashboardViewModel
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dismiss)
+    private var dismiss
 
     var body: some View {
         let breakdown = vm.scoreBreakdown
@@ -1541,7 +1615,7 @@ private struct ScoreBreakdownSheet: View {
     }
 }
 
-// MARK: - Sparkline View
+// MARK: - SparklineView
 
 private struct SparklineView: View {
     let data: [Double]

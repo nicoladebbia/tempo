@@ -1,12 +1,21 @@
+//
+// RestTimerView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Rest Timer View
+
 // Per MODULE_TRAINING.md Section 7 — Countdown rest timer between sets.
 // Per STATE_MACHINES.md Section 1 — exercise.resting state.
 
 struct RestTimerView: View {
-
-    @Bindable var viewModel: TrainingViewModel
+    @Bindable
+    var viewModel: TrainingViewModel
 
     var body: some View {
         VStack(spacing: TempoSpacing.xxl) {
@@ -54,19 +63,39 @@ struct RestTimerView: View {
                 }
             }
 
-            // Skip Rest button
-            Button {
-                viewModel.skipRest()
-            } label: {
-                Text("SKIP REST")
-                    .font(.tempoHeadline)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 48)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous)
-                            .stroke(Color.tempoTextTertiary, lineWidth: 1)
-                    )
+            // +15s and Skip Rest buttons
+            HStack(spacing: TempoSpacing.md) {
+                // +15s button
+                Button {
+                    viewModel.extendRest(by: 15)
+                    HapticManager.selection()
+                } label: {
+                    Text("+15s")
+                        .font(.tempoHeadline)
+                        .frame(width: 72, height: 48)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                        .background(Color.tempoSurfaceCard)
+                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous)
+                                .stroke(Color.tempoTextTertiary, lineWidth: 1)
+                        )
+                }
+
+                // Skip Rest button
+                Button {
+                    viewModel.skipRest()
+                } label: {
+                    Text("SKIP REST")
+                        .font(.tempoHeadline)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 48)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous)
+                                .stroke(Color.tempoTextTertiary, lineWidth: 1)
+                        )
+                }
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
 

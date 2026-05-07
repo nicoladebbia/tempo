@@ -1,9 +1,18 @@
+//
+// DailyRecovery.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
+// MARK: - DailyRecovery
+
 @Model
 final class DailyRecovery {
-
     @Attribute(.unique)
     var id: UUID
 
@@ -82,13 +91,17 @@ final class DailyRecovery {
 
     @Transient
     var deepSleepPercentage: Double? {
-        guard let deep = deepSleepMin, totalSleepStageMinutes > 0 else { return nil }
+        guard let deep = deepSleepMin, totalSleepStageMinutes > 0 else {
+            return nil
+        }
         return Double(deep) / Double(totalSleepStageMinutes) * 100
     }
 
     @Transient
     var remSleepPercentage: Double? {
-        guard let rem = remSleepMin, totalSleepStageMinutes > 0 else { return nil }
+        guard let rem = remSleepMin, totalSleepStageMinutes > 0 else {
+            return nil
+        }
         return Double(rem) / Double(totalSleepStageMinutes) * 100
     }
 
@@ -126,7 +139,7 @@ final class DailyRecovery {
         self.id = id
         self.date = Calendar.current.startOfDay(for: date)
         self.recoveryScore = recoveryScore
-        self.recoveryZoneRaw = RecoveryZone(score: recoveryScore).rawValue
+        recoveryZoneRaw = RecoveryZone(score: recoveryScore).rawValue
         self.hrvRmssd = hrvRmssd
         self.restingHR = restingHR
         self.spo2 = spo2
@@ -152,8 +165,7 @@ final class DailyRecovery {
 // MARK: - DTO
 
 extension DailyRecovery {
-
-    struct DTO: Codable, Sendable {
+    struct DTO: Codable {
         let id: UUID
         let date: Date
         let recovery_score: Double

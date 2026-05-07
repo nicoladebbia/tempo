@@ -1,11 +1,19 @@
+//
+// EmptyStateView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Empty State View
+
 // Per DESIGN_SYSTEM.md Section 8.11 — Empty States:
 // Centered layout, 48pt icon (Ultralight, Ash), Title 3, Body, optional CTA.
 
 struct EmptyStateView: View {
-
     let icon: String
     let title: String
     let message: String

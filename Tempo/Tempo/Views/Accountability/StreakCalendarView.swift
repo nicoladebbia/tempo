@@ -1,17 +1,28 @@
-import SwiftUI
+//
+// StreakCalendarView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftData
+import SwiftUI
 
 // MARK: - Streak Calendar View
+
 // Per BUILD_PLAN step 10.6.
 // Per MODULE_ACCOUNTABILITY.md — Streaks section.
 // Per STATE_MACHINES.md Section 7 — Streak state machine.
 
 struct StreakCalendarView: View {
+    @Bindable
+    var viewModel: AccountabilityViewModel
+    @Environment(\.modelContext)
+    private var modelContext
 
-    @Bindable var viewModel: AccountabilityViewModel
-    @Environment(\.modelContext) private var modelContext
-
-    @Query(sort: \DailyAccountability.date) private var allAccountability: [DailyAccountability]
+    @Query(sort: \DailyAccountability.date)
+    private var allAccountability: [DailyAccountability]
 
     var body: some View {
         ScrollView {
@@ -36,7 +47,7 @@ struct StreakCalendarView: View {
                 milestonesSection
                     .padding(.horizontal, TempoSpacing.screenEdge)
 
-                Spacer().frame(height: TempoSpacing.bottomSafe)
+                Spacer().frame(height: TempoSpacing.bottomSafe + 60)
             }
             .padding(.top, TempoSpacing.lg)
         }
@@ -53,7 +64,7 @@ struct StreakCalendarView: View {
             VStack(spacing: TempoSpacing.xs) {
                 Text("\(viewModel.streakCount)")
                     .font(.tempoScoreDisplaySmall)
-                    .foregroundStyle(Color.tempoSignal)
+                    .foregroundStyle(Color.tempoSuccess)
 
                 Text("Current Streak")
                     .font(.tempoCaption1)
@@ -118,7 +129,7 @@ struct StreakCalendarView: View {
         let mondayOffset = (weekday - 2 + 7) % 7
         let monday = calendar.date(byAdding: .day, value: -mondayOffset, to: today)!
 
-        return (0..<7).map { dayIndex in
+        return (0 ..< 7).map { dayIndex in
             let date = calendar.date(byAdding: .day, value: dayIndex, to: monday)!
             let dayStart = calendar.startOfDay(for: date)
 
@@ -174,6 +185,7 @@ struct StreakCalendarView: View {
     }
 
     // MARK: - Freeze Section
+
     // Per STATE_MACHINES.md Section 7 — freeze mechanics.
 
     private var freezeSection: some View {
@@ -189,7 +201,7 @@ struct StreakCalendarView: View {
 
                 // Freeze icons
                 HStack(spacing: TempoSpacing.sm) {
-                    ForEach(0..<(viewModel.overallStreak?.freezesAvailable ?? 2), id: \.self) { index in
+                    ForEach(0 ..< (viewModel.overallStreak?.freezesAvailable ?? 2), id: \.self) { index in
                         Image(systemName: index < freezesRemaining ? "snowflake" : "snowflake")
                             .font(.system(size: 24))
                             .foregroundStyle(
@@ -219,6 +231,7 @@ struct StreakCalendarView: View {
     }
 
     // MARK: - Milestones Section
+
     // Per STATE_MACHINES.md Section 7 — milestone system.
 
     private var milestonesSection: some View {
@@ -248,7 +261,7 @@ struct StreakCalendarView: View {
         let achieved = viewModel.streakCount >= milestone.rawValue
         let isNext = !achieved && (
             StreakMilestone.allCases.first(where: { $0.rawValue > viewModel.streakCount })
-            == milestone
+                == milestone
         )
 
         return HStack(spacing: TempoSpacing.md) {

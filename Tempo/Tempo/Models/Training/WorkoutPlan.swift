@@ -1,9 +1,18 @@
+//
+// WorkoutPlan.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
+// MARK: - WorkoutPlan
+
 @Model
 final class WorkoutPlan {
-
     @Attribute(.unique)
     var id: UUID
 
@@ -61,7 +70,9 @@ final class WorkoutPlan {
 
     @Transient
     var completionPercentage: Double {
-        guard totalSets > 0 else { return 0 }
+        guard totalSets > 0 else {
+            return 0
+        }
         return Double(completedSets) / Double(totalSets)
     }
 
@@ -71,7 +82,10 @@ final class WorkoutPlan {
             total + (ex.sets ?? []).reduce(0) { setTotal, set in
                 guard set.completed,
                       let weight = set.actualWeight,
-                      let reps = set.actualReps else { return setTotal }
+                      let reps = set.actualReps
+                else {
+                    return setTotal
+                }
                 return setTotal + (weight * Double(reps))
             }
         }
@@ -79,7 +93,9 @@ final class WorkoutPlan {
 
     @Transient
     var actualDurationMinutes: Int? {
-        guard let start = startedAt, let end = finishedAt else { return nil }
+        guard let start = startedAt, let end = finishedAt else {
+            return nil
+        }
         return Int(end.timeIntervalSince(start) / 60)
     }
 
@@ -96,9 +112,9 @@ final class WorkoutPlan {
     ) {
         self.id = id
         self.date = Calendar.current.startOfDay(for: date)
-        self.typeRaw = type.rawValue
+        typeRaw = type.rawValue
         self.recoveryAdjustment = recoveryAdjustment
-        self.statusRaw = status.rawValue
+        statusRaw = status.rawValue
         self.durationMinutes = durationMinutes
         self.notes = notes
     }
@@ -107,8 +123,7 @@ final class WorkoutPlan {
 // MARK: - DTO
 
 extension WorkoutPlan {
-
-    struct DTO: Codable, Sendable {
+    struct DTO: Codable {
         let id: UUID
         let date: Date
         let type: String

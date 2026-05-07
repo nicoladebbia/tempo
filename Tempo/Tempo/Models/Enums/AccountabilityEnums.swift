@@ -1,8 +1,16 @@
+//
+// AccountabilityEnums.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 
 // MARK: - NonNegotiableType
 
-enum NonNegotiableType: String, Codable, CaseIterable, Sendable {
+enum NonNegotiableType: String, Codable, CaseIterable {
     case study
     case train
     case meals
@@ -26,7 +34,7 @@ enum NonNegotiableType: String, Codable, CaseIterable, Sendable {
 
 // MARK: - TrackingMethod
 
-enum TrackingMethod: String, Codable, CaseIterable, Sendable {
+enum TrackingMethod: String, Codable, CaseIterable {
     case autoWhoop = "auto_whoop"
     case autoNutritrack = "auto_nutritrack"
     case autoHealthkit = "auto_healthkit"
@@ -36,7 +44,7 @@ enum TrackingMethod: String, Codable, CaseIterable, Sendable {
 
 // MARK: - StudySessionType
 
-enum StudySessionType: String, Codable, CaseIterable, Sendable {
+enum StudySessionType: String, Codable, CaseIterable {
     case pomodoro
     case deepWork = "deep_work"
     case custom
@@ -44,7 +52,7 @@ enum StudySessionType: String, Codable, CaseIterable, Sendable {
 
 // MARK: - StreakType
 
-enum StreakType: String, Codable, CaseIterable, Sendable {
+enum StreakType: String, Codable, CaseIterable {
     case overall
     case study
     case training

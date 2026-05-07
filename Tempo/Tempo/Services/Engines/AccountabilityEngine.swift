@@ -1,10 +1,19 @@
+//
+// AccountabilityEngine.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
-// MARK: - Daily Accountability State
+// MARK: - DailyAccountabilityState
+
 // Per STATE_MACHINES.md Section 3 — Daily Accountability states.
 
-enum DailyAccountabilityState: String, Codable, Sendable {
+enum DailyAccountabilityState: String, Codable {
     case morningSetup
     case tracking
     case approachingDeadline
@@ -15,10 +24,11 @@ enum DailyAccountabilityState: String, Codable, Sendable {
     case review
 }
 
-// MARK: - Override Type
+// MARK: - AccountabilityOverrideType
+
 // Per MODULE_ACCOUNTABILITY.md Section 13
 
-enum AccountabilityOverrideType: String, Codable, Sendable {
+enum AccountabilityOverrideType: String, Codable {
     case restDayFull
     case restDayReduced
     case sickDay
@@ -27,13 +37,13 @@ enum AccountabilityOverrideType: String, Codable, Sendable {
     case vacationMode
 }
 
-// MARK: - Accountability Engine
+// MARK: - AccountabilityEngine
+
 // Per BUILD_PLAN step 10.1.
 // Per STATE_MACHINES.md Section 3 — Daily Accountability state machine.
 // Per MODULE_ACCOUNTABILITY.md Sections 8, 9, 13, 15.
 
 final class AccountabilityEngine: @unchecked Sendable {
-
     // MARK: - Configuration
 
     /// Default PS5 unlock time (weekdays)
@@ -86,20 +96,20 @@ final class AccountabilityEngine: @unchecked Sendable {
 
         // Past PS5 time and incomplete → dayFailed
         // Per STATE_MACHINES.md Section 3: finalWarning → dayFailed (PS5 time reached AND tasks incomplete)
-        if now >= ps5Time && !accountability.allComplete {
+        if now >= ps5Time, !accountability.allComplete {
             return .dayFailed
         }
 
         // Within 30 minutes of PS5 time → finalWarning
         // Per STATE_MACHINES.md Section 3: approachingDeadline → finalWarning (timeToPS5 < 30 min)
         let timeToPS5 = ps5Time.timeIntervalSince(now)
-        if timeToPS5 > 0 && timeToPS5 < 30 * 60 {
+        if timeToPS5 > 0, timeToPS5 < 30 * 60 {
             return .finalWarning
         }
 
         // Past 50% of day window and incomplete → approachingDeadline
         // Per STATE_MACHINES.md Section 3: tracking → approachingDeadline (completionPercent < 100 && timeToPS5 < 50% of day window)
-        if timeToPS5 > 0 && timeToPS5 < totalDayWindow(ps5Time: ps5Time) * 0.5 {
+        if timeToPS5 > 0, timeToPS5 < totalDayWindow(ps5Time: ps5Time) * 0.5 {
             return .approachingDeadline
         }
 
@@ -124,7 +134,7 @@ final class AccountabilityEngine: @unchecked Sendable {
         accountability: DailyAccountability,
         modelContext: ModelContext
     ) -> Bool {
-        guard accountability.allComplete && !accountability.leisureUnlocked else {
+        guard accountability.allComplete, !accountability.leisureUnlocked else {
             return false
         }
 
@@ -139,7 +149,9 @@ final class AccountabilityEngine: @unchecked Sendable {
     /// Calculate daily accountability score (0-100).
     /// Per MODULE_ACCOUNTABILITY.md — Score weights each non-negotiable equally.
     func calculateDailyScore(accountability: DailyAccountability) -> Int {
-        guard accountability.totalCount > 0 else { return 0 }
+        guard accountability.totalCount > 0 else {
+            return 0
+        }
 
         let baseScore = accountability.completionPercentage * 80 // 80 points from completion
 
@@ -218,10 +230,10 @@ final class AccountabilityEngine: @unchecked Sendable {
         progress.currentValue = newValue
 
         // Check completion
-        if newValue >= progress.targetValue && !progress.isCompleted {
+        if newValue >= progress.targetValue, !progress.isCompleted {
             progress.isCompleted = true
             progress.completedAt = Date()
-        } else if newValue < progress.targetValue && progress.isCompleted {
+        } else if newValue < progress.targetValue, progress.isCompleted {
             // Target increased mid-day — re-open
             // Per MODULE_ACCOUNTABILITY.md Section 15.12
             progress.isCompleted = false
@@ -266,7 +278,9 @@ final class AccountabilityEngine: @unchecked Sendable {
         case .restDayReduced:
             // Training skipped, study halved, meals remain
             for p in progress {
-                guard let nn = p.nonNegotiable else { continue }
+                guard let nn = p.nonNegotiable else {
+                    continue
+                }
                 if nn.type == .train {
                     p.isCompleted = true
                     p.completedAt = Date()
@@ -278,7 +292,9 @@ final class AccountabilityEngine: @unchecked Sendable {
         case .sickDay:
             // Training skipped, study optional (30 min max), meals reduced to 2
             for p in progress {
-                guard let nn = p.nonNegotiable else { continue }
+                guard let nn = p.nonNegotiable else {
+                    continue
+                }
                 if nn.type == .train {
                     p.isCompleted = true
                     p.completedAt = Date()
@@ -293,7 +309,9 @@ final class AccountabilityEngine: @unchecked Sendable {
             // Study optional (30 min), training optional, meals at full
             // Per MODULE_ACCOUNTABILITY.md Section 13.3 — zero tough love
             for p in progress {
-                guard let nn = p.nonNegotiable else { continue }
+                guard let nn = p.nonNegotiable else {
+                    continue
+                }
                 if nn.type == .train || nn.type == .study {
                     p.targetValue = 30
                 }
@@ -303,7 +321,9 @@ final class AccountabilityEngine: @unchecked Sendable {
             // Training skipped automatically, everything else at full
             // Per MODULE_ACCOUNTABILITY.md Section 13.4
             for p in progress {
-                guard let nn = p.nonNegotiable else { continue }
+                guard let nn = p.nonNegotiable else {
+                    continue
+                }
                 if nn.type == .train {
                     p.isCompleted = true
                     p.completedAt = Date()
@@ -344,7 +364,7 @@ final class AccountabilityEngine: @unchecked Sendable {
             streak.recordCompletion()
         } else {
             // Check if we should use a freeze
-            if streak.canFreeze && streak.currentCount > 0 {
+            if streak.canFreeze, streak.currentCount > 0 {
                 _ = streak.useFreeze()
             } else if streak.currentCount > 0 {
                 streak.breakStreak()
@@ -360,7 +380,9 @@ final class AccountabilityEngine: @unchecked Sendable {
         accountability: DailyAccountability,
         streak: Streak
     ) -> Bool {
-        guard streak.currentCount > 0 && !accountability.allComplete else { return false }
+        guard streak.currentCount > 0, !accountability.allComplete else {
+            return false
+        }
         let now = Date()
         let midnight = Calendar.current.startOfDay(for: Calendar.current.date(byAdding: .day, value: 1, to: now)!)
         return midnight.timeIntervalSince(now) < 2 * 3600
@@ -370,19 +392,20 @@ final class AccountabilityEngine: @unchecked Sendable {
     /// Per STATE_MACHINES.md Section 7 — Milestone system.
     func streakMilestone(count: Int) -> StreakMilestone? {
         switch count {
-        case 3: return .threeDay
-        case 5: return .fiveDay
-        case 7: return .oneWeek
-        case 14: return .twoWeek
-        case 21: return .threeWeek
-        case 30: return .oneMonth
-        case 50: return .elite
-        case 100: return .century
-        default: return nil
+        case 3: .threeDay
+        case 5: .fiveDay
+        case 7: .oneWeek
+        case 14: .twoWeek
+        case 21: .threeWeek
+        case 30: .oneMonth
+        case 50: .elite
+        case 100: .century
+        default: nil
         }
     }
 
     // MARK: - Weekend Mode
+
     // Per MODULE_ACCOUNTABILITY.md Section 8
 
     /// Check if today is a weekend.
@@ -404,6 +427,7 @@ final class AccountabilityEngine: @unchecked Sendable {
     // MARK: - Target Adjustments
 
     // MARK: - Exam-Aware Study Target
+
     // Per BUILD_PLAN step 13.2 — Exam within 7 days → study target increased by 50%.
 
     /// The number of days until the next exam. Set by DashboardViewModel from calendar data.
@@ -416,7 +440,7 @@ final class AccountabilityEngine: @unchecked Sendable {
     private func adjustedTarget(for nn: NonNegotiable, date: Date) -> Double {
         var target = nn.targetValue
 
-        if isWeekend(date: date) && nn.type == .study {
+        if isWeekend(date: date), nn.type == .study {
             target = target / 2
         }
 
@@ -438,10 +462,11 @@ final class AccountabilityEngine: @unchecked Sendable {
     }
 }
 
-// MARK: - Streak Milestone
+// MARK: - StreakMilestone
+
 // Per STATE_MACHINES.md Section 7 — Milestone system.
 
-enum StreakMilestone: Int, CaseIterable, Sendable {
+enum StreakMilestone: Int, CaseIterable {
     case threeDay = 3
     case fiveDay = 5
     case oneWeek = 7

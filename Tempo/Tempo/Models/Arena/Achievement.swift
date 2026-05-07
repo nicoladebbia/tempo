@@ -1,9 +1,18 @@
+//
+// Achievement.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
+// MARK: - Achievement
+
 @Model
 final class Achievement {
-
     @Attribute(.unique)
     var id: UUID
 
@@ -23,6 +32,10 @@ final class Achievement {
     var earnedAt: Date?
 
     var isHidden: Bool
+
+    var progressValue: Int
+
+    var targetValue: Int
 
     // MARK: - Computed
 
@@ -44,6 +57,14 @@ final class Achievement {
     }
 
     @Transient
+    var progressFraction: Double {
+        guard targetValue > 0 else {
+            return 0
+        }
+        return min(Double(progressValue) / Double(targetValue), 1.0)
+    }
+
+    @Transient
     var effectiveXPReward: Int {
         Int(Double(xpReward) * rarity.xpMultiplier)
     }
@@ -59,25 +80,28 @@ final class Achievement {
         rarity: AchievementRarity,
         xpReward: Int,
         earnedAt: Date? = nil,
-        isHidden: Bool = false
+        isHidden: Bool = false,
+        progressValue: Int = 0,
+        targetValue: Int = 0
     ) {
         self.id = id
         self.badgeID = badgeID
         self.name = name
-        self.achievementDescription = description
-        self.categoryRaw = category.rawValue
-        self.rarityRaw = rarity.rawValue
+        achievementDescription = description
+        categoryRaw = category.rawValue
+        rarityRaw = rarity.rawValue
         self.xpReward = xpReward
         self.earnedAt = earnedAt
         self.isHidden = isHidden
+        self.progressValue = progressValue
+        self.targetValue = targetValue
     }
 }
 
 // MARK: - DTO
 
 extension Achievement {
-
-    struct DTO: Codable, Sendable {
+    struct DTO: Codable {
         let id: UUID
         let badge_id: String
         let name: String
@@ -87,6 +111,8 @@ extension Achievement {
         let xp_reward: Int
         let earned_at: Date?
         let is_hidden: Bool
+        let progress_value: Int
+        let target_value: Int
     }
 
     func toDTO() -> DTO {
@@ -99,7 +125,9 @@ extension Achievement {
             rarity: rarityRaw,
             xp_reward: xpReward,
             earned_at: earnedAt,
-            is_hidden: isHidden
+            is_hidden: isHidden,
+            progress_value: progressValue,
+            target_value: targetValue
         )
     }
 }

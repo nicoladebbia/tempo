@@ -1,6 +1,14 @@
+//
+// ActiveDays.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 
-struct ActiveDays: Codable, Equatable, Sendable {
+struct ActiveDays: Codable, Equatable {
     var rawValue: Int
 
     static let monday = ActiveDays(rawValue: 1 << 0)

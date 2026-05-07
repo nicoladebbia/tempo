@@ -1,9 +1,16 @@
+//
+// PendingSync.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import SwiftData
 
 @Model
 final class PendingSync {
-
     @Attribute(.unique)
     var id: UUID
 
@@ -33,7 +40,9 @@ final class PendingSync {
 
     @Transient
     var isReadyForRetry: Bool {
-        guard let nextRetry = nextRetryAt else { return true }
+        guard let nextRetry = nextRetryAt else {
+            return true
+        }
         return Date() >= nextRetry
     }
 
@@ -65,7 +74,7 @@ final class PendingSync {
         self.id = id
         self.entityType = entityType
         self.entityID = entityID
-        self.actionRaw = action.rawValue
+        actionRaw = action.rawValue
         self.payload = payload
         self.createdAt = createdAt
         self.retryCount = retryCount

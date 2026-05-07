@@ -1,19 +1,51 @@
-import SwiftUI
-import SwiftData
+//
+// LockdownMainView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
 
-// MARK: - LockdownView (Non-Negotiable Cards)
+import SwiftData
+import SwiftUI
+
+// MARK: - LockdownMainView
+
 // Per BUILD_PLAN step 10.3.
 // Per MODULE_ACCOUNTABILITY.md — Lockdown Main View.
 // Per WIREFRAMES.md Section 4 — Screen 65.
 // Per UX_COPY_BIBLE.md Section 5 — Accountability strings.
 
 struct LockdownMainView: View {
+    @Bindable
+    var viewModel: AccountabilityViewModel
+    @Binding
+    var showFocusTimer: Bool
+    @Environment(\.modelContext)
+    private var modelContext
+    @Query
+    private var allSettings: [UserSettings]
 
-    @Bindable var viewModel: AccountabilityViewModel
-    @Environment(\.modelContext) private var modelContext
+    private var settings: UserSettings? {
+        allSettings.first
+    }
 
-    @State private var showUnlockCelebration = false
-    @State private var expandedCardID: PersistentIdentifier?
+    private var focusTimerEnabled: Bool {
+        settings?.focusTimerEnabled ?? false
+    }
+
+    @State
+    private var showUnlockCelebration = false
+    @State
+    private var showNonNegotiableSetup = false
+    @State
+    private var expandedCardID: PersistentIdentifier?
+    @State
+    private var showNutriTrackAlert = false
+    @State
+    private var showHistoryAlert = false
+    @State
+    private var editingNonNegotiable: NonNegotiableProgress?
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -26,27 +58,35 @@ struct LockdownMainView: View {
                     // Status banner
                     statusBanner
 
+                    // Progress prediction
+                    progressPredictionSection
+
                     // Drill sergeant bubble
                     drillSergeantSection
 
                     // Non-negotiable cards
-                    if viewModel.progressItems.isEmpty && !viewModel.isLoading {
+                    if viewModel.isLoading, viewModel.progressItems.isEmpty {
+                        loadingState
+                    } else if viewModel.progressItems.isEmpty {
                         emptyState
                     } else {
                         nonNegotiableCards
                     }
 
-                    // Bottom padding for sticky elements
+                    // Bottom padding for sticky elements (tab bar + leisure bar clearance)
                     Spacer()
-                        .frame(height: 160)
+                        .frame(height: TempoSpacing.bottomSafe + 60)
                 }
                 .padding(.horizontal, TempoSpacing.screenEdge)
+            }
+            .refreshable {
+                viewModel.loadToday(modelContext: modelContext)
             }
 
             // Sticky bottom: Quick action + Leisure status
             VStack(spacing: 0) {
-                // Quick action button
-                if hasTimedNonNegotiable {
+                // Quick action button (only when focus timer is enabled)
+                if hasTimedNonNegotiable, focusTimerEnabled {
                     quickActionButton
                         .padding(.horizontal, TempoSpacing.screenEdge)
                         .padding(.bottom, TempoSpacing.md)
@@ -67,6 +107,12 @@ struct LockdownMainView: View {
             }
         }
         .background(Color.tempoBgPrimary)
+        .sheet(isPresented: $showNonNegotiableSetup) {
+            NonNegotiableSetupView()
+                .onDisappear {
+                    viewModel.loadToday(modelContext: modelContext)
+                }
+        }
         .onChange(of: viewModel.isLeisureUnlocked) { _, unlocked in
             if unlocked {
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.5)) {
@@ -78,6 +124,22 @@ struct LockdownMainView: View {
                     withAnimation { showUnlockCelebration = false }
                 }
             }
+        }
+        .alert("NutriTrack", isPresented: $showNutriTrackAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("NutriTrack logging coming soon")
+        }
+        .alert("History", isPresented: $showHistoryAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("History view coming soon")
+        }
+        .sheet(item: $editingNonNegotiable) { _ in
+            NonNegotiableSetupView()
+                .onDisappear {
+                    viewModel.loadToday(modelContext: modelContext)
+                }
         }
     }
 
@@ -92,40 +154,42 @@ struct LockdownMainView: View {
     }
 
     // MARK: - Status Banner
+
     // Per MODULE_ACCOUNTABILITY.md — 80pt status banner with progress ring.
 
     private var statusBanner: some View {
-        HStack(spacing: TempoSpacing.lg) {
+        HStack(spacing: TempoSpacing.md) {
             // Progress ring
             CircularRingView(
                 progress: viewModel.completionPercentage,
                 color: statusRingColor,
-                ringSize: .medium,
+                ringSize: .small,
                 valueText: "\(Int(viewModel.completionPercentage * 100))%"
             )
 
             // Status text
-            VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                HStack(spacing: TempoSpacing.sm) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: TempoSpacing.xs) {
                     Image(systemName: viewModel.isLeisureUnlocked ? "lock.open.fill" : "lock.fill")
-                        .font(.system(size: 20, weight: .bold))
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(viewModel.isLeisureUnlocked ? Color.tempoSuccess : Color.tempoSignal)
                         .symbolEffect(.bounce, value: viewModel.isLeisureUnlocked)
 
                     Text(viewModel.isLeisureUnlocked ? "UNLOCKED" : "LOCKED")
-                        .font(.tempoHeadline)
+                        .font(.tempoCallout)
                         .foregroundStyle(viewModel.isLeisureUnlocked ? Color.tempoSuccess : Color.tempoSignal)
                 }
 
                 Text(statusTimeContext)
-                    .font(.tempoFootnote)
+                    .font(.tempoCaption1)
                     .foregroundStyle(statusTimeColor)
+                    .lineLimit(1)
             }
 
             Spacer()
         }
-        .padding(TempoSpacing.cardPadding)
-        .frame(height: 80)
+        .padding(.horizontal, TempoSpacing.cardPadding)
+        .padding(.vertical, TempoSpacing.sm)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
         .overlay(
@@ -135,19 +199,29 @@ struct LockdownMainView: View {
     }
 
     private var statusRingColor: Color {
-        if viewModel.isLeisureUnlocked { return .tempoSuccess }
-        if viewModel.dailyState == .dayFailed { return .tempoSignal }
+        if viewModel.isLeisureUnlocked {
+            return .tempoSuccess
+        }
+        if viewModel.dailyState == .dayFailed {
+            return .tempoSignal
+        }
         let pct = viewModel.completionPercentage
-        if pct >= 0.8 { return .tempoSuccess }
-        if pct >= 0.5 { return .tempoAmber }
+        if pct >= 0.8 {
+            return .tempoSuccess
+        }
+        if pct >= 0.5 {
+            return .tempoAmber
+        }
         return .tempoElectric
     }
 
-    // Per UX_COPY_BIBLE.md — time context strings
+    /// Per UX_COPY_BIBLE.md — time context strings
     private var statusTimeContext: String {
         if viewModel.isLeisureUnlocked {
             let hour = Calendar.current.component(.hour, from: Date())
-            if hour < 12 { return "All done by noon. Legend." }
+            if hour < 12 {
+                return "All done by noon. Legend."
+            }
             let early = viewModel.timeToPS5
             if early > 0 {
                 return "Unlocked \(viewModel.formattedTimeToPS5) early. Ahead of schedule."
@@ -178,47 +252,146 @@ struct LockdownMainView: View {
     }
 
     private var statusTimeColor: Color {
-        if viewModel.isLeisureUnlocked { return .tempoSuccess }
-        if viewModel.dailyState == .dayFailed { return .tempoSignal }
-        if viewModel.timeToPS5 < 30 * 60 { return .tempoSignal }
+        if viewModel.isLeisureUnlocked {
+            return .tempoSuccess
+        }
+        if viewModel.dailyState == .dayFailed {
+            return .tempoSignal
+        }
+        if viewModel.timeToPS5 < 30 * 60 {
+            return .tempoSignal
+        }
         return .tempoTextSecondary
     }
 
     // MARK: - Drill Sergeant
+
     // Per MODULE_ACCOUNTABILITY.md — contextual drill sergeant message.
+    // Enhanced with dynamic, context-aware message generation.
 
     private var drillSergeantSection: some View {
         Group {
-            if let message = drillSergeantMessage {
-                DrillSergeantBubble(message: message)
+            if let result = drillSergeantResult {
+                DrillSergeantBubble(message: result.message, intensity: result.intensity)
             }
         }
     }
 
-    private var drillSergeantMessage: String? {
-        switch viewModel.dailyState {
-        case .morningSetup:
-            return "New day, new chance to not be mediocre. Set your non-negotiables."
-        case .tracking:
-            let done = viewModel.completedCount
-            let total = viewModel.totalCount
-            if done == 0 {
-                return "Zero progress. The day isn't going to handle itself."
+    private var drillSergeantResult: (message: String, intensity: DrillSergeantIntensity)? {
+        let studyProgress = viewModel.progressItems.first(where: {
+            $0.nonNegotiable?.type == .study
+        })
+        let context = DrillSergeantContext(
+            completedCount: viewModel.completedCount,
+            totalCount: viewModel.totalCount,
+            streakCount: viewModel.streakCount,
+            timeToPS5: viewModel.timeToPS5,
+            totalStudyMinutes: viewModel.totalFocusMinutesToday,
+            studyTargetMinutes: Int(studyProgress?.targetValue ?? 120),
+            recoveryScore: nil, // Will be wired when RecoveryViewModel is connected
+            dailyState: viewModel.dailyState,
+            isWeekend: Calendar.current.isDateInWeekend(Date()),
+            hourOfDay: Calendar.current.component(.hour, from: Date())
+        )
+        return DrillSergeantMessageGenerator.generate(context: context)
+    }
+
+    // MARK: - Progress Prediction
+
+    // Predicts whether user will complete all non-negotiables by PS5 time.
+
+    private var progressPredictionSection: some View {
+        Group {
+            if let prediction = completionPrediction, !viewModel.isLeisureUnlocked {
+                HStack(spacing: TempoSpacing.sm) {
+                    Image(systemName: prediction.onTrack ? "checkmark.shield.fill" : "exclamationmark.triangle.fill")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(prediction.onTrack ? Color.tempoSuccess : Color.tempoSignal)
+
+                    Text(prediction.message)
+                        .font(.tempoCaption1)
+                        .foregroundStyle(prediction.onTrack ? Color.tempoSuccess : Color.tempoSignal)
+                        .lineLimit(2)
+
+                    Spacer()
+                }
+                .padding(TempoSpacing.md)
+                .background(
+                    (prediction.onTrack ? Color.tempoSuccess : Color.tempoSignal)
+                        .opacity(0.08)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous)
+                        .stroke(
+                            (prediction.onTrack ? Color.tempoSuccess : Color.tempoSignal).opacity(0.3),
+                            lineWidth: 1
+                        )
+                )
             }
-            return "\(done)/\(total) done. Keep moving."
-        case .approachingDeadline:
-            return "Clock's ticking. You're running out of daylight."
-        case .finalWarning:
-            return "Last chance. PS5 time is almost here and you're not done."
-        case .dayFailed:
-            return "PS5 time came and went. Tasks still incomplete. No excuses tomorrow."
-        case .unlocked:
-            return nil // No drill sergeant when unlocked — celebrate instead
-        case .overrideActive:
-            return "Rest day active. Recovery is part of the process. Don't make it a habit."
-        case .review:
+        }
+    }
+
+    private var completionPrediction: (message: String, onTrack: Bool)? {
+        guard viewModel.totalCount > 0,
+              viewModel.dailyState != .unlocked,
+              viewModel.dailyState != .morningSetup,
+              viewModel.dailyState != .overrideActive,
+              viewModel.dailyState != .review
+        else {
             return nil
         }
+
+        let done = viewModel.completedCount
+        let total = viewModel.totalCount
+        let remaining = total - done
+        let timeToPS5 = viewModel.timeToPS5
+
+        // Already failed
+        if viewModel.dailyState == .dayFailed {
+            return ("PS5 time has passed. \(remaining) task\(remaining == 1 ? "" : "s") still incomplete.", false)
+        }
+
+        // All done (shouldn't reach here since we filter .unlocked)
+        if remaining == 0 {
+            return nil
+        }
+
+        // Calculate pace: how much time has elapsed and how much is done
+        let totalDaySeconds: TimeInterval = 11.5 * 3600 // 8 AM to 7:30 PM typical
+        let elapsed = max(1, totalDaySeconds - timeToPS5)
+        let pacePerTask = done > 0 ? elapsed / Double(done) : totalDaySeconds / Double(total)
+        let estimatedTimeForRemaining = pacePerTask * Double(remaining)
+
+        // Study-specific prediction
+        let studyProgress = viewModel.progressItems.first(where: { $0.nonNegotiable?.type == .study })
+        let studyRemaining = max(0, (studyProgress?.targetValue ?? 0) - (studyProgress?.currentValue ?? 0))
+
+        if studyRemaining > 0 {
+            let studySecondsNeeded = studyRemaining * 60 // minutes to seconds
+            let totalTimeNeeded = max(estimatedTimeForRemaining, studySecondsNeeded)
+
+            if totalTimeNeeded > timeToPS5 {
+                let deficit = Int((totalTimeNeeded - timeToPS5) / 60)
+                return ("At this pace, you'll be \(deficit)min behind. Pick up the speed.", false)
+            }
+        }
+
+        if estimatedTimeForRemaining > timeToPS5 {
+            return ("WARNING: At current pace, you won't finish in time. Accelerate.", false)
+        }
+
+        // Estimate finish time
+        let estimatedFinish = Date().addingTimeInterval(estimatedTimeForRemaining)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        let finishStr = formatter.string(from: estimatedFinish)
+
+        if estimatedTimeForRemaining < timeToPS5 * 0.5 {
+            return ("On pace to finish by \(finishStr). Ahead of schedule.", true)
+        }
+
+        return ("At this pace, you'll finish by \(finishStr). Stay focused.", true)
     }
 
     // MARK: - Non-Negotiable Cards
@@ -228,6 +401,7 @@ struct LockdownMainView: View {
             NonNegotiableCardView(
                 progress: progress,
                 isExpanded: expandedCardID == progress.persistentModelID,
+                habitStreakCount: viewModel.habitStreakCount(for: progress.nonNegotiable?.type ?? .custom),
                 onTap: {
                     withAnimation(TempoAnimation.springMedium) {
                         expandedCardID = expandedCardID == progress.persistentModelID
@@ -243,43 +417,75 @@ struct LockdownMainView: View {
                 },
                 onUpdateValue: { value in
                     viewModel.updateItemProgress(progress, value: value, modelContext: modelContext)
+                },
+                onStartTimer: focusTimerEnabled ? {
+                    viewModel.configureFocusTimer()
+                    showFocusTimer = true
+                } : nil,
+                onLogNutriTrack: {
+                    showNutriTrackAlert = true
+                },
+                onEditNonNegotiable: {
+                    editingNonNegotiable = progress
+                },
+                onViewHistory: {
+                    showHistoryAlert = true
                 }
             )
         }
     }
 
     // MARK: - Empty State
+
     // Per MODULE_ACCOUNTABILITY.md — empty state when no non-negotiables.
 
     private var emptyState: some View {
         VStack(spacing: 0) {
             Image(systemName: "lock.fill")
-                .font(.system(size: 64, weight: .ultraLight))
+                .font(.system(size: 44, weight: .ultraLight))
                 .foregroundStyle(Color.tempoTextTertiary)
-                .padding(.top, TempoSpacing.xxxxl)
+                .padding(.top, TempoSpacing.xxl)
 
             Text("No non-negotiables set")
-                .font(.tempoTitle2)
+                .font(.tempoHeadline)
                 .foregroundStyle(Color.tempoTextPrimary)
-                .padding(.top, TempoSpacing.lg)
+                .padding(.top, TempoSpacing.md)
 
             Text("Define what you MUST do each day before you earn your downtime.")
-                .font(.tempoBody)
+                .font(.tempoCaption1)
                 .foregroundStyle(Color.tempoTextSecondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 280)
-                .padding(.top, TempoSpacing.sm)
+                .padding(.top, TempoSpacing.xs)
 
             Button("SET UP NON-NEGOTIABLES") {
-                // Navigation to setup flow — will be connected in step 10.5
+                showNonNegotiableSetup = true
             }
             .buttonStyle(.tempoPrimary)
-            .padding(.horizontal, TempoSpacing.xxxxl)
-            .padding(.top, TempoSpacing.xxl)
+            .padding(.horizontal, TempoSpacing.xxxl)
+            .padding(.top, TempoSpacing.lg)
+        }
+    }
+
+    // MARK: - Loading State
+
+    private var loadingState: some View {
+        VStack(spacing: TempoSpacing.md) {
+            ForEach(0 ..< 3, id: \.self) { _ in
+                RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
+                    .fill(Color.tempoSurfaceCard)
+                    .frame(height: 100)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
+                            .stroke(Color.tempoBorder, lineWidth: 1)
+                    )
+                    .shimmer()
+            }
         }
     }
 
     // MARK: - Quick Action Button
+
     // Per MODULE_ACCOUNTABILITY.md — sticky study timer CTA.
 
     private var hasTimedNonNegotiable: Bool {
@@ -290,7 +496,9 @@ struct LockdownMainView: View {
 
     private var studyComplete: Bool {
         viewModel.progressItems.allSatisfy { p in
-            guard p.nonNegotiable?.type == .study else { return true }
+            guard p.nonNegotiable?.type == .study else {
+                return true
+            }
             return p.isCompleted
         }
     }
@@ -299,19 +507,19 @@ struct LockdownMainView: View {
         Button {
             HapticManager.impact(.heavy)
             viewModel.configureFocusTimer()
-            // Navigation to focus timer — will be connected in step 10.4
+            showFocusTimer = true
         } label: {
             HStack(spacing: TempoSpacing.sm) {
                 Image(systemName: "play.fill")
                     .font(.system(size: 18))
 
                 Text(studyComplete ? "START ANOTHER SESSION" : "START STUDY TIMER")
-                    .font(.tempoHeadline)
+                    .font(.tempoCallout)
                     .tracking(1)
             }
             .foregroundStyle(studyComplete ? Color.tempoElectric : .white)
             .frame(maxWidth: .infinity)
-            .frame(height: 56)
+            .frame(height: 46)
             .background {
                 if studyComplete {
                     Color.clear
@@ -339,46 +547,48 @@ struct LockdownMainView: View {
     }
 
     // MARK: - Leisure Status Bar
+
     // Per MODULE_ACCOUNTABILITY.md — pinned above tab bar.
 
     private var leisureStatusBar: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
             Divider()
 
-            HStack(spacing: TempoSpacing.md) {
+            HStack(spacing: TempoSpacing.sm) {
                 // Lock icon
                 Image(systemName: leisureLockIcon)
-                    .font(.system(size: 32, weight: .bold))
+                    .font(.system(size: 22, weight: .bold))
                     .foregroundStyle(leisureLockColor)
                     .symbolEffect(.pulse, isActive: viewModel.dailyState == .dayFailed)
 
-                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text("LEISURE STATUS")
-                        .font(.tempoCaption1)
+                        .font(.tempoCaption2)
                         .tracking(1)
                         .foregroundStyle(Color.tempoTextTertiary)
 
                     Text(leisureStatusText)
-                        .font(.tempoBody)
+                        .font(.tempoCaption1)
                         .foregroundStyle(leisureStatusTextColor)
+                        .lineLimit(1)
                 }
 
                 Spacer()
             }
-            .padding(.horizontal, TempoSpacing.lg)
+            .padding(.horizontal, TempoSpacing.screenEdge)
 
             // Progress bar
             if viewModel.activeOverride == nil {
                 LinearProgressBar(
                     progress: viewModel.completionPercentage,
                     color: leisureProgressColor,
-                    height: 8,
+                    height: 5,
                     showPercentage: false
                 )
-                .padding(.horizontal, TempoSpacing.lg)
+                .padding(.horizontal, TempoSpacing.screenEdge)
             }
         }
-        .padding(.vertical, TempoSpacing.md)
+        .padding(.vertical, TempoSpacing.sm)
         .background(
             leisureBackgroundTint
                 .opacity(0.03)
@@ -394,9 +604,15 @@ struct LockdownMainView: View {
     }
 
     private var leisureLockColor: Color {
-        if viewModel.isLeisureUnlocked { return .tempoSuccess }
-        if viewModel.activeOverride != nil { return .tempoTextTertiary }
-        if viewModel.dailyState == .dayFailed { return .tempoSignal }
+        if viewModel.isLeisureUnlocked {
+            return .tempoSuccess
+        }
+        if viewModel.activeOverride != nil {
+            return .tempoTextTertiary
+        }
+        if viewModel.dailyState == .dayFailed {
+            return .tempoSignal
+        }
         return .tempoSignal
     }
 
@@ -418,39 +634,73 @@ struct LockdownMainView: View {
     }
 
     private var leisureStatusTextColor: Color {
-        if viewModel.isLeisureUnlocked { return .tempoSuccess }
-        if viewModel.dailyState == .dayFailed { return .tempoSignal }
+        if viewModel.isLeisureUnlocked {
+            return .tempoSuccess
+        }
+        if viewModel.dailyState == .dayFailed {
+            return .tempoSignal
+        }
         let remaining = viewModel.totalCount - viewModel.completedCount
-        if remaining == 1 { return .tempoAmber }
+        if remaining == 1 {
+            return .tempoAmber
+        }
         return .tempoTextPrimary
     }
 
     private var leisureProgressColor: Color {
         let pct = viewModel.completionPercentage
-        if pct >= 1.0 { return .tempoSuccess }
-        if pct >= 0.5 { return .tempoAmber }
+        if pct >= 1.0 {
+            return .tempoSuccess
+        }
+        if pct >= 0.5 {
+            return .tempoAmber
+        }
         return .tempoSignal
     }
 
     private var leisureBackgroundTint: Color {
-        if viewModel.isLeisureUnlocked { return .tempoSuccess }
-        if viewModel.dailyState == .dayFailed { return .tempoSignal }
+        if viewModel.isLeisureUnlocked {
+            return .tempoSuccess
+        }
+        if viewModel.dailyState == .dayFailed {
+            return .tempoSignal
+        }
         return .clear
     }
 
     // MARK: - Unlock Celebration
+
     // Per MODULE_ACCOUNTABILITY.md — confetti + glow on leisure unlock.
     // Per SOUND_AND_HAPTICS.md — triple success haptic.
+    // Enhanced with confetti particle animation, score display, and streak update.
 
     private var unlockCelebrationOverlay: some View {
-        VStack {
-            Spacer()
+        ZStack {
+            // Dark background
+            Color.tempoInk.opacity(0.85)
+                .ignoresSafeArea()
 
+            // Confetti particle system
+            ConfettiCanvasView()
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+
+            // Content
             VStack(spacing: TempoSpacing.lg) {
-                Image(systemName: "lock.open.fill")
-                    .font(.system(size: 64, weight: .bold))
+                Spacer()
+
+                // Controller icon
+                Image(systemName: "gamecontroller.fill")
+                    .font(.system(size: 52, weight: .bold))
                     .foregroundStyle(Color.tempoSuccess)
-                    .shadow(color: Color.tempoSuccess.opacity(0.5), radius: 20)
+                    .shadow(color: Color.tempoSuccess.opacity(0.6), radius: 24)
+                    .scaleEffect(showUnlockCelebration ? 1.0 : 0.3)
+                    .animation(.spring(response: 0.5, dampingFraction: 0.5), value: showUnlockCelebration)
+
+                // Lock icon
+                Image(systemName: "lock.open.fill")
+                    .font(.system(size: 32, weight: .bold))
+                    .foregroundStyle(Color.tempoSuccess.opacity(0.7))
 
                 Text("PS5 UNLOCKED")
                     .font(.tempoTitle1)
@@ -459,36 +709,200 @@ struct LockdownMainView: View {
                 Text("You earned it. Enjoy your evening.")
                     .font(.tempoBody)
                     .foregroundStyle(Color.tempoTextSecondary)
+
+                // Score display
+                if let accountability = viewModel.accountability {
+                    let score = AccountabilityEngine().calculateDailyScore(accountability: accountability)
+                    VStack(spacing: TempoSpacing.xs) {
+                        Text("TODAY'S SCORE")
+                            .font(.tempoCaption2)
+                            .tracking(1)
+                            .foregroundStyle(Color.tempoTextTertiary)
+
+                        Text("\(score)")
+                            .font(.system(size: 48, weight: .bold, design: .monospaced))
+                            .foregroundStyle(Color.tempoTextPrimary)
+                    }
+                    .padding(.top, TempoSpacing.md)
+                }
+
+                // Streak badge
+                if viewModel.streakCount > 0 {
+                    HStack(spacing: TempoSpacing.xs) {
+                        Image(systemName: "flame.fill")
+                            .font(.system(size: 18))
+                            .foregroundStyle(Color.tempoAmber)
+
+                        Text("Day \(viewModel.streakCount)!")
+                            .font(.tempoHeadline)
+                            .foregroundStyle(Color.tempoAmber)
+                    }
+                    .padding(.horizontal, TempoSpacing.lg)
+                    .padding(.vertical, TempoSpacing.sm)
+                    .background(Color.tempoAmber.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+                }
+
+                Spacer()
             }
             .transition(.scale.combined(with: .opacity))
-
-            Spacer()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.tempoInk.opacity(0.6))
         .onTapGesture {
             withAnimation { showUnlockCelebration = false }
         }
     }
 }
 
-// MARK: - Non-Negotiable Card View
+// MARK: - ConfettiCanvasView
+
+// Particle-based confetti animation using Canvas for the unlock celebration.
+
+struct ConfettiCanvasView: View {
+    @State
+    private var particles: [ConfettiParticle] = []
+    @State
+    private var animationTimer: Timer?
+
+    struct ConfettiParticle: Identifiable {
+        let id = UUID()
+        var x: CGFloat
+        var y: CGFloat
+        var velocityX: CGFloat
+        var velocityY: CGFloat
+        var rotation: Double
+        var rotationSpeed: Double
+        var scale: CGFloat
+        var color: Color
+        var shape: ConfettiShape
+        var opacity: Double = 1.0
+
+        enum ConfettiShape: CaseIterable {
+            case circle
+            case rectangle
+            case triangle
+        }
+    }
+
+    var body: some View {
+        TimelineView(.animation) { _ in
+            Canvas { context, _ in
+                for particle in particles {
+                    let rect = CGRect(
+                        x: particle.x - particle.scale * 4,
+                        y: particle.y - particle.scale * 4,
+                        width: particle.scale * 8,
+                        height: particle.scale * 8
+                    )
+
+                    context.opacity = particle.opacity
+
+                    switch particle.shape {
+                    case .circle:
+                        context.fill(
+                            Path(ellipseIn: rect),
+                            with: .color(particle.color)
+                        )
+                    case .rectangle:
+                        var transform = CGAffineTransform.identity
+                        transform = transform.translatedBy(x: particle.x, y: particle.y)
+                        transform = transform.rotated(by: particle.rotation)
+                        transform = transform.translatedBy(x: -particle.x, y: -particle.y)
+
+                        var path = Path()
+                        path.addRect(rect)
+                        path = path.applying(transform)
+
+                        context.fill(path, with: .color(particle.color))
+                    case .triangle:
+                        var path = Path()
+                        path.move(to: CGPoint(x: particle.x, y: particle.y - particle.scale * 5))
+                        path.addLine(to: CGPoint(x: particle.x - particle.scale * 4, y: particle.y + particle.scale * 3))
+                        path.addLine(to: CGPoint(x: particle.x + particle.scale * 4, y: particle.y + particle.scale * 3))
+                        path.closeSubpath()
+
+                        context.fill(path, with: .color(particle.color))
+                    }
+                }
+            }
+        }
+        .onAppear { spawnParticles() }
+        .onDisappear {
+            animationTimer?.invalidate()
+            animationTimer = nil
+        }
+    }
+
+    private func spawnParticles() {
+        let screenWidth = UIScreen.main.bounds.width
+        let colors: [Color] = [.tempoSuccess, .tempoElectric, .tempoAmber, .tempoSignal, .tempoViolet, .white]
+
+        // Spawn initial burst
+        for _ in 0 ..< 80 {
+            particles.append(ConfettiParticle(
+                x: CGFloat.random(in: 0 ... screenWidth),
+                y: CGFloat.random(in: -200 ... -20),
+                velocityX: CGFloat.random(in: -3 ... 3),
+                velocityY: CGFloat.random(in: 2 ... 8),
+                rotation: Double.random(in: 0 ... (.pi * 2)),
+                rotationSpeed: Double.random(in: -0.1 ... 0.1),
+                scale: CGFloat.random(in: 0.5 ... 1.5),
+                color: colors.randomElement()!,
+                shape: ConfettiParticle.ConfettiShape.allCases.randomElement()!
+            ))
+        }
+
+        // Animate
+        animationTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { _ in
+            Task { @MainActor in
+                for i in particles.indices {
+                    particles[i].x += particles[i].velocityX
+                    particles[i].y += particles[i].velocityY
+                    particles[i].velocityY += 0.15 // gravity
+                    particles[i].velocityX *= 0.99 // air resistance
+                    particles[i].rotation += particles[i].rotationSpeed
+
+                    // Fade out near bottom
+                    let screenHeight = UIScreen.main.bounds.height
+                    if particles[i].y > screenHeight * 0.7 {
+                        particles[i].opacity = max(0, particles[i].opacity - 0.02)
+                    }
+                }
+
+                // Remove dead particles
+                particles.removeAll { $0.opacity <= 0 || $0.y > UIScreen.main.bounds.height + 50 }
+            }
+        }
+    }
+}
+
+// MARK: - NonNegotiableCardView
+
 // Per MODULE_ACCOUNTABILITY.md — Individual card for each non-negotiable.
 // Per WIREFRAMES.md Section 4 — Card states: notStarted, inProgress, completed, overdue, skipped.
 
 struct NonNegotiableCardView: View {
-
     let progress: NonNegotiableProgress
     let isExpanded: Bool
+    var habitStreakCount: Int = 0
     let onTap: () -> Void
     let onComplete: () -> Void
     let onSkip: () -> Void
     let onUpdateValue: (Double) -> Void
+    var onStartTimer: (() -> Void)?
+    var onLogNutriTrack: () -> Void = {}
+    var onEditNonNegotiable: () -> Void = {}
+    var onViewHistory: () -> Void = {}
 
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.colorScheme)
+    private var colorScheme
 
-    private var nn: NonNegotiable? { progress.nonNegotiable }
-    private var cardState: CardState { resolveCardState() }
+    private var nn: NonNegotiable? {
+        progress.nonNegotiable
+    }
+
+    private var cardState: CardState {
+        resolveCardState()
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: TempoSpacing.sm) {
@@ -540,6 +954,22 @@ struct NonNegotiableCardView: View {
                 .foregroundStyle(Color.tempoTextPrimary)
                 .strikethrough(cardState == .skipped)
 
+            // Mini streak badge
+            if habitStreakCount > 0 {
+                HStack(spacing: 2) {
+                    Image(systemName: "flame.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.tempoAmber)
+                    Text("\(habitStreakCount)")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(Color.tempoAmber)
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.tempoAmber.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.sm, style: .continuous))
+            }
+
             Spacer()
 
             // Status indicator
@@ -549,11 +979,11 @@ struct NonNegotiableCardView: View {
 
     private var iconColor: Color {
         switch cardState {
-        case .notStarted: return .tempoTextTertiary
-        case .inProgress: return .tempoElectric
-        case .completed: return .tempoSuccess
-        case .overdue: return .tempoSignal
-        case .skipped: return .tempoTextTertiary
+        case .notStarted: .tempoTextTertiary
+        case .inProgress: .tempoElectric
+        case .completed: .tempoSuccess
+        case .overdue: .tempoSignal
+        case .skipped: .tempoTextTertiary
         }
     }
 
@@ -589,7 +1019,9 @@ struct NonNegotiableCardView: View {
     }
 
     private var progressText: String {
-        guard let nn else { return "" }
+        guard let nn else {
+            return ""
+        }
         switch nn.trackingMethod {
         case .timer:
             let current = Int(progress.currentValue)
@@ -604,7 +1036,9 @@ struct NonNegotiableCardView: View {
             return "\(currentM)m / \(targetM)m"
         case .manual:
             return "\(Int(progress.currentValue)) / \(Int(progress.targetValue))"
-        case .autoWhoop, .autoNutritrack, .autoHealthkit:
+        case .autoWhoop,
+             .autoNutritrack,
+             .autoHealthkit:
             return "\(Int(progress.currentValue)) / \(Int(progress.targetValue))"
         }
     }
@@ -636,25 +1070,27 @@ struct NonNegotiableCardView: View {
 
     private var progressBarColor: Color {
         let pct = progress.targetValue > 0 ? progress.currentValue / progress.targetValue : 0
-        if pct >= 0.8 { return .tempoSuccess }
-        if pct >= 0.5 { return .tempoAmber }
+        if pct >= 0.8 {
+            return .tempoSuccess
+        }
+        if pct >= 0.5 {
+            return .tempoAmber
+        }
         return .tempoElectric
     }
 
     @ViewBuilder
     private var sourceBadge: some View {
         if let nn {
-            let badgeText: String = {
-                switch nn.type {
-                case .train: return "WHOOP"
-                case .meals: return "NUTRITRACK"
-                case .study: return "MANUAL"
-                case .sleep: return "HEALTHKIT"
-                case .steps: return "HEALTHKIT"
-                case .hydration: return "MANUAL"
-                case .custom: return "MANUAL"
-                }
-            }()
+            let badgeText = switch nn.type {
+            case .train: "WHOOP"
+            case .meals: "NUTRITRACK"
+            case .study: "MANUAL"
+            case .sleep: "HEALTHKIT"
+            case .steps: "HEALTHKIT"
+            case .hydration: "MANUAL"
+            case .custom: "MANUAL"
+            }
 
             Text(badgeText)
                 .font(.system(size: 9, weight: .bold))
@@ -683,10 +1119,12 @@ struct NonNegotiableCardView: View {
     }
 
     private var supportingText: String {
-        guard let nn else { return "" }
+        guard let nn else {
+            return ""
+        }
         switch nn.type {
         case .study:
-            if !progress.isCompleted && progress.currentValue == 0 {
+            if !progress.isCompleted, progress.currentValue == 0 {
                 return "Start a focus session to begin tracking"
             }
             if progress.isCompleted {
@@ -701,27 +1139,41 @@ struct NonNegotiableCardView: View {
         case .meals:
             let logged = Int(progress.currentValue)
             let total = Int(progress.targetValue)
-            if logged == 0 { return "Next: Breakfast" }
-            if logged == 1 { return "Next: Lunch" }
-            if logged < total { return "Next: Dinner before 8pm" }
+            if logged == 0 {
+                return "Next: Breakfast"
+            }
+            if logged == 1 {
+                return "Next: Lunch"
+            }
+            if logged < total {
+                return "Next: Dinner before 8pm"
+            }
             return "All meals logged today"
         case .sleep:
-            if !progress.isCompleted { return "Syncs from HealthKit" }
+            if !progress.isCompleted {
+                return "Syncs from HealthKit"
+            }
             return "Sleep tracked"
         case .steps:
-            if !progress.isCompleted { return "Syncs from HealthKit" }
+            if !progress.isCompleted {
+                return "Syncs from HealthKit"
+            }
             return "Steps goal met"
         case .hydration:
-            if !progress.isCompleted && progress.currentValue == 0 {
+            if !progress.isCompleted, progress.currentValue == 0 {
                 return "Tap to log water intake"
             }
-            if progress.isCompleted { return "Hydration goal met" }
+            if progress.isCompleted {
+                return "Hydration goal met"
+            }
             return "In progress"
         case .custom:
-            if !progress.isCompleted && progress.currentValue == 0 {
+            if !progress.isCompleted, progress.currentValue == 0 {
                 return "Tap to start tracking"
             }
-            if progress.isCompleted { return "Completed" }
+            if progress.isCompleted {
+                return "Completed"
+            }
             return "In progress"
         }
     }
@@ -731,10 +1183,12 @@ struct NonNegotiableCardView: View {
         if let nn {
             switch nn.type {
             case .study:
-                if progress.isCompleted {
-                    pillButton(title: "Add More", style: .outline) {}
-                } else {
-                    pillButton(title: "Start Timer", style: .filled) {}
+                if let onStartTimer {
+                    if progress.isCompleted {
+                        pillButton(title: "Add More", style: .outline) { onStartTimer() }
+                    } else {
+                        pillButton(title: "Start Timer", style: .filled) { onStartTimer() }
+                    }
                 }
             case .train:
                 if !progress.isCompleted {
@@ -744,9 +1198,10 @@ struct NonNegotiableCardView: View {
                 }
             case .meals:
                 if !progress.isCompleted {
-                    pillButton(title: "Log in NutriTrack", style: .filled) {}
+                    pillButton(title: "Log in NutriTrack", style: .filled) { onLogNutriTrack() }
                 }
-            case .sleep, .steps:
+            case .sleep,
+                 .steps:
                 // Auto-tracked from HealthKit — no manual action
                 EmptyView()
             case .hydration:
@@ -758,8 +1213,8 @@ struct NonNegotiableCardView: View {
             case .custom:
                 switch nn.trackingMethod {
                 case .timer:
-                    if !progress.isCompleted {
-                        pillButton(title: "Start Timer", style: .filled) {}
+                    if let onStartTimer, !progress.isCompleted {
+                        pillButton(title: "Start Timer", style: .filled) { onStartTimer() }
                     }
                 case .manual:
                     if !progress.isCompleted {
@@ -767,7 +1222,9 @@ struct NonNegotiableCardView: View {
                             onUpdateValue(progress.currentValue + 1)
                         }
                     }
-                case .autoWhoop, .autoNutritrack, .autoHealthkit:
+                case .autoWhoop,
+                     .autoNutritrack,
+                     .autoHealthkit:
                     EmptyView()
                 }
             }
@@ -788,7 +1245,7 @@ struct NonNegotiableCardView: View {
                 .overlay(
                     style == .outline
                         ? RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous)
-                            .stroke(Color.tempoElectric, lineWidth: 1)
+                        .stroke(Color.tempoElectric, lineWidth: 1)
                         : nil
                 )
         }
@@ -813,6 +1270,7 @@ struct NonNegotiableCardView: View {
                     }
 
                     Button {
+                        HapticManager.notification(.warning)
                         onSkip()
                     } label: {
                         Label("Skip Today", systemImage: "forward.fill")
@@ -829,9 +1287,9 @@ struct NonNegotiableCardView: View {
 
     private var cardBackground: Color {
         switch cardState {
-        case .completed: return Color.tempoSuccess.opacity(0.05)
-        case .overdue: return Color.tempoSignal.opacity(0.03)
-        default: return Color.tempoSurfaceCard
+        case .completed: Color.tempoSuccess.opacity(0.05)
+        case .overdue: Color.tempoSignal.opacity(0.03)
+        default: Color.tempoSurfaceCard
         }
     }
 
@@ -842,14 +1300,16 @@ struct NonNegotiableCardView: View {
 
     private var borderColor: Color {
         switch cardState {
-        case .notStarted, .skipped: return .tempoBorder
-        case .inProgress: return .tempoElectric
-        case .completed: return .tempoSuccess
-        case .overdue: return .tempoSignal
+        case .notStarted,
+             .skipped: .tempoBorder
+        case .inProgress: .tempoElectric
+        case .completed: .tempoSuccess
+        case .overdue: .tempoSignal
         }
     }
 
     // MARK: - Context Menu
+
     // Per UX_COPY_BIBLE.md — context menu strings.
 
     @ViewBuilder
@@ -863,6 +1323,7 @@ struct NonNegotiableCardView: View {
             }
 
             Button {
+                HapticManager.notification(.warning)
                 onSkip()
             } label: {
                 Label("Skip Today", systemImage: "forward.fill")
@@ -870,13 +1331,13 @@ struct NonNegotiableCardView: View {
         }
 
         Button {
-            // Edit — will be connected in step 10.5
+            onEditNonNegotiable()
         } label: {
             Label("Edit Non-Negotiable", systemImage: "pencil")
         }
 
         Button {
-            // History — will be connected in step 10.6
+            onViewHistory()
         } label: {
             Label("View History", systemImage: "clock.arrow.circlepath")
         }
@@ -885,12 +1346,16 @@ struct NonNegotiableCardView: View {
     // MARK: - State Resolution
 
     enum CardState {
-        case notStarted, inProgress, completed, overdue, skipped
+        case notStarted
+        case inProgress
+        case completed
+        case overdue
+        case skipped
     }
 
     private func resolveCardState() -> CardState {
         // Skipped: completed but currentValue < targetValue
-        if progress.isCompleted && progress.currentValue < progress.targetValue {
+        if progress.isCompleted, progress.currentValue < progress.targetValue {
             return .skipped
         }
         if progress.isCompleted {
@@ -899,15 +1364,10 @@ struct NonNegotiableCardView: View {
         if progress.currentValue > 0 {
             return .inProgress
         }
-        // Check if overdue (past PS5 time)
+        // Check if overdue (past PS5 time) — use AccountabilityEngine as source of truth
         let now = Date()
-        let ps5 = Calendar.current.date(
-            bySettingHour: Calendar.current.isDateInWeekend(now) ? 21 : 19,
-            minute: Calendar.current.isDateInWeekend(now) ? 0 : 30,
-            second: 0,
-            of: now
-        ) ?? now
-        if now > ps5 && !progress.isCompleted {
+        let ps5 = AccountabilityEngine().ps5Time(for: now)
+        if now > ps5, !progress.isCompleted {
             return .overdue
         }
         return .notStarted

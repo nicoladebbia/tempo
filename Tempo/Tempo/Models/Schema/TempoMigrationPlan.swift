@@ -1,3 +1,11 @@
+//
+// TempoMigrationPlan.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftData
 
 enum TempoMigrationPlan: SchemaMigrationPlan {
