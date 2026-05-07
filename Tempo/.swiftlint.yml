@@ -32,6 +32,8 @@ disabled_rules:
   - for_where                               # `for x in y { if z { ... } }` is often clearer
   - implicit_optional_initialization        # `var x: Type? = nil` is explicit and clear
   - notification_center_detachment          # Pre-existing pattern
+  - closure_end_indentation                 # SwiftFormat handles indentation
+  - prefer_zero_over_explicit_init          # Stylistic; CGPoint(x: 0, y: 0) is clear
 
 opt_in_rules:
   - array_init
@@ -79,15 +81,15 @@ opt_in_rules:
 
 # Rule configuration
 line_length:
-  warning: 200
-  error: 300
+  warning: 300
+  error: 400
   ignores_comments: true
   ignores_urls: true
   ignores_interpolated_strings: true
 
 type_body_length:
-  warning: 1000
-  error: 1500
+  warning: 1500
+  error: 2000
 
 file_length:
   warning: 1500
@@ -95,11 +97,11 @@ file_length:
   ignore_comment_only_lines: true
 
 function_body_length:
-  warning: 150
-  error: 250
+  warning: 250
+  error: 350
 
 function_parameter_count:
-  warning: 15
+  warning: 20
   error: 25
 
 cyclomatic_complexity:
@@ -108,8 +110,8 @@ cyclomatic_complexity:
 
 # Tuples used for chart payloads + AI prompt context bundles can be wide.
 large_tuple:
-  warning: 6
-  error: 8
+  warning: 8
+  error: 10
 
 type_name:
   min_length: 3

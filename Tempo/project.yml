@@ -62,6 +62,10 @@ targets:
         CURRENT_PROJECT_VERSION: "1"
         GENERATE_INFOPLIST_FILE: true
         SWIFT_EMIT_LOC_STRINGS: true
+        # Disable auto-generated Color/Image symbol extensions: we keep our
+        # own curated extension in Color+Tempo.swift which also defines
+        # programmatic (non-asset) colors. Auto-generation collides with it.
+        ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: NO
         CODE_SIGN_ENTITLEMENTS: Tempo/Tempo.entitlements
         INFOPLIST_KEY_NSHealthShareUsageDescription: "Tempo reads your health data (steps, heart rate, HRV, sleep, workouts) to calculate your daily score, adapt your training plan to your recovery, and track your progress automatically."
         INFOPLIST_KEY_NSHealthUpdateUsageDescription: "Tempo writes your completed workouts and nutrition data to HealthKit so your health record stays complete across all your apps."
