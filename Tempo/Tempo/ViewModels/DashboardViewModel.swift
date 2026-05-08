@@ -789,8 +789,16 @@ final class DashboardViewModel {
             hkSleepData = try await hkSleep
             workouts = try await hkWorkouts
         } catch {
+            // HealthKit error code 11 = "No data available for the specified
+            // predicate" — that's a normal empty-result case (e.g. fresh
+            // Simulator with no health data), not a fetch failure. Other
+            // errors still get logged.
+            let nsErr = error as NSError
+            let isEmptyResult = nsErr.domain == "com.apple.healthkit" && nsErr.code == 11
             #if DEBUG
-                print("[Dashboard] HealthKit fetch failed: \(error) — using defaults")
+                if !isEmptyResult {
+                    print("[Dashboard] HealthKit fetch failed: \(error) — using defaults")
+                }
             #endif
             steps = 0
             energy = 0
