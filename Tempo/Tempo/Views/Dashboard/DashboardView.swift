@@ -226,58 +226,25 @@ struct DashboardView: View {
     // MARK: - Dashboard Content
 
     private func dashboardContent(_ vm: DashboardViewModel) -> some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.lg) {
-                headerRow(vm)
+        // Edge-to-edge layout. Header sits just below the status bar, the
+        // 2x2 grid fills the rest of the screen (extending under the
+        // floating tab bar). No black bars on top or bottom.
+        VStack(spacing: 0) {
+            headerRow(vm)
+                .padding(.horizontal, TempoSpacing.screenEdge)
+                .padding(.top, TempoSpacing.sm)
+                .padding(.bottom, TempoSpacing.md)
 
-                // Welcome banner for first-run experience
-                if !hasCompletedSetup {
-                    let whoopDone = services.whoop.connectionState == .connected
-                    let nnDescriptor = FetchDescriptor<NonNegotiable>()
-                    let nnCount = (try? modelContext.fetchCount(nnDescriptor)) ?? 0
-                    let nnDone = nnCount > 0
-                    let settingsDescriptor = FetchDescriptor<UserSettings>()
-                    let hasSetting = ((try? modelContext.fetchCount(settingsDescriptor)) ?? 0) > 0
-                    let allDone = whoopDone && nnDone && hasSetting
-
-                    if !allDone {
-                        WelcomeBannerView(
-                            isWhoopConnected: whoopDone,
-                            hasTrainingSetup: hasSetting,
-                            hasNonNegotiables: nnDone,
-                            onConnectWhoop: { showWhoopConnect = true },
-                            onSetUpTraining: { showSettings = true },
-                            onDefineNonNegotiables: { showNonNegotiableSetup = true },
-                            onSkip: {
-                                withAnimation { hasCompletedSetup = true }
-                            }
-                        )
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-                }
-
-                scoreTrendSparkline(vm)
-                // Grid fills the available viewport by claiming a generous
-                // height so cards expand to fill (per user's request: "no
-                // limit, leave it to fill up the entire phone").
-                quadrantGrid(vm)
-                    .frame(height: 480)
-                quickActionsRow(vm)
-                nonNegotiablesSection(vm)
-                insightRow(vm)
-                arenaQuickAccessCard()
-            }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, 140)
+            quadrantGrid(vm)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .scrollIndicators(.hidden)
-        .refreshable {
-            await vm.refresh()
-            vm.refreshTrainingStatus(modelContext: modelContext)
-            vm.refreshAccountability(modelContext: modelContext)
-            vm.persistDailyScore(modelContext: modelContext)
-            vm.loadScoreHistory(modelContext: modelContext)
-        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Pull the entire layout up into the nav-bar phantom space iOS 26
+        // reserves but `.toolbar(.hidden)` can't fully reclaim, and down
+        // under the home-indicator safe area so the last row of cards
+        // reaches the bottom edge.
+        .padding(.top, -56)
+        .padding(.bottom, -34)
         .sheet(isPresented: $showScoreBreakdown) {
             ScoreBreakdownSheet(vm: vm)
         }
@@ -418,6 +385,7 @@ struct DashboardView: View {
             }
             .frame(maxHeight: .infinity)
         }
+        .padding(.horizontal, TempoSpacing.screenEdge)
     }
 
     // MARK: - Body Card
