@@ -68,31 +68,31 @@ struct ContentView: View {
         return TabView(selection: $appState.activeTab) {
             DashboardView()
                 .tabItem {
-                    Label(Tab.dashboard.title, systemImage: Tab.dashboard.icon)
+                    Image(systemName: Tab.dashboard.icon)
                 }
                 .tag(Tab.dashboard)
 
             RecoveryTabView()
                 .tabItem {
-                    Label(Tab.recovery.title, systemImage: Tab.recovery.icon)
+                    Image(systemName: Tab.recovery.icon)
                 }
                 .tag(Tab.recovery)
 
             TrainingTabView()
                 .tabItem {
-                    Label(Tab.training.title, systemImage: Tab.training.icon)
+                    Image(systemName: Tab.training.icon)
                 }
                 .tag(Tab.training)
 
             NutritionTabView()
                 .tabItem {
-                    Label(Tab.nutrition.title, systemImage: Tab.nutrition.icon)
+                    Image(systemName: Tab.nutrition.icon)
                 }
                 .tag(Tab.nutrition)
 
             LockdownTabView()
                 .tabItem {
-                    Label(Tab.lockdown.title, systemImage: Tab.lockdown.icon)
+                    Image(systemName: Tab.lockdown.icon)
                 }
                 .tag(Tab.lockdown)
         }
