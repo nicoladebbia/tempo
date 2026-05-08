@@ -2,7 +2,7 @@
 // PhotoAnalysisView.swift
 // Tempo
 //
-// Created by Tempo on 06/05/2026.
+// Created by Tempo on 08/05/2026.
 //
 //
 
@@ -19,6 +19,8 @@ struct PhotoAnalysisView: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(ServiceContainer.self)
+    private var services
 
     @State
     private var capturedImage: UIImage?
@@ -331,32 +333,40 @@ struct PhotoAnalysisView: View {
     // MARK: - Actions
 
     private func analyzePhoto() {
+        guard let image = capturedImage,
+              let imageData = image.jpegData(compressionQuality: 0.8)
+        else {
+            analysisState = .error("Could not read photo data.")
+            return
+        }
+
         analysisState = .analyzing
 
-        // Simulated AI analysis — in production, sends to Claude API
         Task {
-            try? await Task.sleep(for: .seconds(2))
+            do {
+                let result = try await services.nutrition.photoAnalysis
+                    .analyzeMealPhoto(imageData, remainingBudget: nil)
 
-            identifiedItems = [
-                AnalyzedFoodItem(
-                    id: UUID(), name: "Grilled Chicken Breast", estimatedPortion: "~150g",
-                    calories: 248, protein: 46, carbs: 0, fat: 5.4,
-                    confidence: .high, servingMultiplier: 1.0
-                ),
-                AnalyzedFoodItem(
-                    id: UUID(), name: "Steamed Broccoli", estimatedPortion: "~120g",
-                    calories: 40, protein: 4.4, carbs: 6.6, fat: 0.4,
-                    confidence: .high, servingMultiplier: 1.0
-                ),
-                AnalyzedFoodItem(
-                    id: UUID(), name: "White Rice", estimatedPortion: "~180g cooked",
-                    calories: 234, protein: 4.3, carbs: 51.5, fat: 0.4,
-                    confidence: .medium, servingMultiplier: 1.0
-                ),
-            ]
+                identifiedItems = result.items.map { item in
+                    AnalyzedFoodItem(
+                        id: UUID(),
+                        name: item.name,
+                        estimatedPortion: item.estimatedPortion,
+                        calories: Int(item.calories),
+                        protein: item.proteinGrams,
+                        carbs: item.carbsGrams,
+                        fat: item.fatGrams,
+                        confidence: ConfidenceLevel(score: item.confidence),
+                        servingMultiplier: 1.0
+                    )
+                }
 
-            analysisState = .complete
-            HapticManager.notification(.success)
+                analysisState = .complete
+                HapticManager.notification(.success)
+            } catch {
+                analysisState = .error(error.localizedDescription)
+                HapticManager.notification(.error)
+            }
         }
     }
 
@@ -393,6 +403,18 @@ struct AnalyzedFoodItem: Identifiable {
     var fat: Double
     var confidence: ConfidenceLevel
     var servingMultiplier: Double
+}
+
+extension ConfidenceLevel {
+    init(score: Double) {
+        if score >= 0.8 {
+            self = .high
+        } else if score >= 0.5 {
+            self = .medium
+        } else {
+            self = .low
+        }
+    }
 }
 
 // MARK: - CameraPickerView
@@ -450,4 +472,5 @@ struct CameraPickerView: UIViewControllerRepresentable {
 
 #Preview {
     PhotoAnalysisView()
+        .environment(ServiceContainer.mock())
 }
