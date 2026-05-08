@@ -26,7 +26,9 @@ if echo "$COMMAND" | grep -q "git commit"; then
 fi
 
 # 2. Block dangerous commands that slipped through permissions
-if echo "$COMMAND" | grep -qE 'rm\s+-rf\s+/|rm\s+-rf\s+~|format\s+|mkfs'; then
+# Note: `format` must be anchored as the first word so we don't block
+# swiftformat / clang-format / rustfmt --format etc.
+if echo "$COMMAND" | grep -qE 'rm\s+-rf\s+/|rm\s+-rf\s+~|(^|;|&&|\|\|)\s*format\s+|mkfs'; then
     echo "BLOCKED: Dangerous command detected" >&2
     exit 2
 fi

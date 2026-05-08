@@ -2,7 +2,7 @@
 // FoodSearchView.swift
 // Tempo
 //
-// Created by Tempo on 06/05/2026.
+// Created by Tempo on 08/05/2026.
 //
 //
 
@@ -239,19 +239,13 @@ struct FoodSearchView: View {
     private func portionPickerSheet(food: SearchableFoodItem) -> some View {
         NavigationStack {
             VStack(spacing: TempoSpacing.xxl) {
-                // Food info header
-                VStack(spacing: TempoSpacing.sm) {
-                    Text(food.name)
-                        .font(.tempoTitle2)
-                        .foregroundStyle(Color.tempoTextPrimary)
-
-                    if let brand = food.brand {
-                        Text(brand)
-                            .font(.tempoCallout)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    }
+                // Food info header — shown as the inline title via navigationTitle.
+                if let brand = food.brand {
+                    Text(brand)
+                        .font(.tempoCallout)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                        .padding(.top, TempoSpacing.sm)
                 }
-                .padding(.top, TempoSpacing.lg)
 
                 // Serving info
                 VStack(spacing: TempoSpacing.md) {
@@ -292,15 +286,17 @@ struct FoodSearchView: View {
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
             .background(Color.tempoBgPrimary)
-            .navigationTitle("Portion")
+            .navigationTitle(food.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Back") {
+                    Button {
                         selectedFood = nil
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(Color.tempoTextSecondary)
                     }
-                    .font(.tempoCallout)
-                    .foregroundStyle(Color.tempoTextSecondary)
                 }
             }
         }
