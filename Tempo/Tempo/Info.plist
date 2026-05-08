@@ -41,6 +41,11 @@
 	<string>$(TEMPO_API_BASE_URL)</string>
 	<key>TEMPO_ENVIRONMENT</key>
 	<string>$(TEMPO_ENVIRONMENT)</string>
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string></string>
+	</dict>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

@@ -226,19 +226,55 @@ struct DashboardView: View {
     // MARK: - Dashboard Content
 
     private func dashboardContent(_ vm: DashboardViewModel) -> some View {
-        VStack(spacing: 0) {
-            headerRow(vm)
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.bottom, TempoSpacing.md)
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: TempoSpacing.lg) {
+                headerRow(vm)
 
-            quadrantGrid(vm)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                if !hasCompletedSetup {
+                    let whoopDone = services.whoop.connectionState == .connected
+                    let nnDescriptor = FetchDescriptor<NonNegotiable>()
+                    let nnCount = (try? modelContext.fetchCount(nnDescriptor)) ?? 0
+                    let nnDone = nnCount > 0
+                    let settingsDescriptor = FetchDescriptor<UserSettings>()
+                    let hasSetting = ((try? modelContext.fetchCount(settingsDescriptor)) ?? 0) > 0
+                    let allDone = whoopDone && nnDone && hasSetting
+
+                    if !allDone {
+                        WelcomeBannerView(
+                            isWhoopConnected: whoopDone,
+                            hasTrainingSetup: hasSetting,
+                            hasNonNegotiables: nnDone,
+                            onConnectWhoop: { showWhoopConnect = true },
+                            onSetUpTraining: { showSettings = true },
+                            onDefineNonNegotiables: { showNonNegotiableSetup = true },
+                            onSkip: {
+                                withAnimation { hasCompletedSetup = true }
+                            }
+                        )
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+                }
+
+                scoreTrendSparkline(vm)
+                quadrantGrid(vm)
+                quickActionsRow(vm)
+                nonNegotiablesSection(vm)
+                insightRow(vm)
+                arenaQuickAccessCard()
+            }
+            .padding(.horizontal, TempoSpacing.screenEdge)
+            // iOS 26 floating tab bar overlays content; reserve enough space
+            // so the last cards aren't clipped behind it.
+            .padding(.bottom, 140)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // Reclaim the iOS 26 nav-bar phantom space and the bottom safe area
-        // so the dashboard fills the entire phone, not a centered card.
-        .padding(.top, -50)
-        .padding(.bottom, -50)
+        .scrollIndicators(.hidden)
+        .refreshable {
+            await vm.refresh()
+            vm.refreshTrainingStatus(modelContext: modelContext)
+            vm.refreshAccountability(modelContext: modelContext)
+            vm.persistDailyScore(modelContext: modelContext)
+            vm.loadScoreHistory(modelContext: modelContext)
+        }
         .sheet(isPresented: $showScoreBreakdown) {
             ScoreBreakdownSheet(vm: vm)
         }
@@ -347,39 +383,35 @@ struct DashboardView: View {
     // MARK: - Quadrant Grid
 
     private func quadrantGrid(_ vm: DashboardViewModel) -> some View {
-        // Two rows of two equal-size cards. Each row fills half the parent
-        // height; cards inside fill their row. The grid expands to whatever
-        // height the parent gives it.
-        VStack(spacing: TempoSpacing.cardGap) {
-            HStack(spacing: TempoSpacing.cardGap) {
-                NavigationLink(destination: BodyQuadrantDetailView(data: vm.body)) {
-                    bodyCard(vm.body)
-                }
-                .buttonStyle(.plain)
-
-                NavigationLink(destination: MoveQuadrantDetailView(data: vm.move)) {
-                    moveCard(vm.move)
-                }
-                .buttonStyle(.plain)
+        LazyVGrid(
+            columns: [
+                GridItem(.flexible(), spacing: TempoSpacing.cardGap),
+                GridItem(.flexible(), spacing: TempoSpacing.cardGap),
+            ],
+            spacing: TempoSpacing.cardGap
+        ) {
+            NavigationLink(destination: BodyQuadrantDetailView(data: vm.body)) {
+                bodyCard(vm.body)
             }
-            .frame(maxHeight: .infinity)
+            .buttonStyle(.plain)
 
-            HStack(spacing: TempoSpacing.cardGap) {
-                NavigationLink(destination: DailyNutritionSummaryView(fuelData: vm.fuel, onAddHydration: { ml in
-                    vm.addHydration(ml)
-                })) {
-                    fuelCard(vm.fuel)
-                }
-                .buttonStyle(.plain)
-
-                NavigationLink(destination: MindQuadrantDetailView(data: vm.mind)) {
-                    mindCard(vm.mind)
-                }
-                .buttonStyle(.plain)
+            NavigationLink(destination: MoveQuadrantDetailView(data: vm.move)) {
+                moveCard(vm.move)
             }
-            .frame(maxHeight: .infinity)
+            .buttonStyle(.plain)
+
+            NavigationLink(destination: DailyNutritionSummaryView(fuelData: vm.fuel, onAddHydration: { ml in
+                vm.addHydration(ml)
+            })) {
+                fuelCard(vm.fuel)
+            }
+            .buttonStyle(.plain)
+
+            NavigationLink(destination: MindQuadrantDetailView(data: vm.mind)) {
+                mindCard(vm.mind)
+            }
+            .buttonStyle(.plain)
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
     }
 
     // MARK: - Body Card
@@ -1059,7 +1091,7 @@ struct DashboardView: View {
             Spacer(minLength: 0)
         }
         .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: 170, alignment: .topLeading)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
         .overlay(
