@@ -226,22 +226,19 @@ struct DashboardView: View {
     // MARK: - Dashboard Content
 
     private func dashboardContent(_ vm: DashboardViewModel) -> some View {
-        // Edge-to-edge layout. Cards extend from just below the status bar
-        // to the very bottom of the phone, ignoring the home-indicator
-        // safe area. No black bars top or bottom.
         VStack(spacing: 0) {
             headerRow(vm)
                 .padding(.horizontal, TempoSpacing.screenEdge)
-                // Clear the status bar (~50pt on devices with Dynamic Island)
-                // since we ignore the top safe area to extend the BG to the
-                // very edge of the phone.
-                .padding(.top, 50)
                 .padding(.bottom, TempoSpacing.md)
 
             quadrantGrid(vm)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Reclaim the iOS 26 nav-bar phantom space and the bottom safe area
+        // so the dashboard fills the entire phone, not a centered card.
+        .padding(.top, -50)
+        .padding(.bottom, -50)
         .sheet(isPresented: $showScoreBreakdown) {
             ScoreBreakdownSheet(vm: vm)
         }

@@ -68,35 +68,36 @@ struct ContentView: View {
         return TabView(selection: $appState.activeTab) {
             DashboardView()
                 .tabItem {
-                    Image(systemName: Tab.dashboard.icon)
+                    Label(Tab.dashboard.title, systemImage: Tab.dashboard.icon)
                 }
                 .tag(Tab.dashboard)
 
             RecoveryTabView()
                 .tabItem {
-                    Image(systemName: Tab.recovery.icon)
+                    Label(Tab.recovery.title, systemImage: Tab.recovery.icon)
                 }
                 .tag(Tab.recovery)
 
             TrainingTabView()
                 .tabItem {
-                    Image(systemName: Tab.training.icon)
+                    Label(Tab.training.title, systemImage: Tab.training.icon)
                 }
                 .tag(Tab.training)
 
             NutritionTabView()
                 .tabItem {
-                    Image(systemName: Tab.nutrition.icon)
+                    Label(Tab.nutrition.title, systemImage: Tab.nutrition.icon)
                 }
                 .tag(Tab.nutrition)
 
             LockdownTabView()
                 .tabItem {
-                    Image(systemName: Tab.lockdown.icon)
+                    Label(Tab.lockdown.title, systemImage: Tab.lockdown.icon)
                 }
                 .tag(Tab.lockdown)
         }
         .tint(Color.tempoSignal)
+        .toolbarBackground(.hidden, for: .tabBar)
         .onChange(of: appState.activeTab) { _, _ in
             HapticManager.selection()
         }
