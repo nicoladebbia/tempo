@@ -708,7 +708,6 @@ struct DashboardView: View {
                     action: {
                         Task {
                             try? await services.healthKit.requestAuthorization()
-                            healthKitAuthorized = true
                             await viewModel?.refresh()
                         }
                     }

@@ -49,6 +49,10 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
 
             // Check what was actually granted
             authResult = checkWriteAuthorizationStatus()
+            // Single source of truth for the dashboard gating flag. Driven
+            // here on user-initiated request, and from verifyPermissionsOnLaunch
+            // when a prior install's authorization is detected via read probe.
+            UserDefaults.standard.set(true, forKey: "healthKitAuthorized")
             Logger.healthkit.info("HealthKit authorization completed: \(String(describing: self.authResult))")
         } catch {
             authResult = .error(error)
@@ -83,6 +87,9 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
 
         // Attempt a lightweight read query to detect read permission revocation.
         // Per INTEGRATION_SPECS.md: read permission revocation is not directly queryable.
+        // If the probe succeeds, treat the user as authorized for read so the
+        // dashboard doesn't show "Authorize Health" after a reinstall when iOS
+        // already has prior permission for this account.
         do {
             let stepType = HKQuantityType(.stepCount)
             let predicate = HKQuery.predicateForSamples(
@@ -96,6 +103,7 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
                 limit: 1
             )
             _ = try await descriptor.result(for: healthStore)
+            UserDefaults.standard.set(true, forKey: "healthKitAuthorized")
         } catch {
             Logger.healthkit.debug("HealthKit read query failed on launch: \(error.localizedDescription)")
         }
