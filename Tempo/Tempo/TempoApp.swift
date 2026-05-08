@@ -71,6 +71,16 @@ struct TempoApp: App {
         UINavigationBar.appearance().standardAppearance = transparent
         UINavigationBar.appearance().scrollEdgeAppearance = transparent
         UINavigationBar.appearance().compactAppearance = transparent
+
+        // Use a classic opaque tab bar instead of iOS 26's floating Liquid
+        // Glass capsule (which positions selected pill so wide it overlaps
+        // adjacent labels and overlays content).
+        let tabAppearance = UITabBarAppearance()
+        tabAppearance.configureWithOpaqueBackground()
+        tabAppearance.backgroundColor = UIColor.black
+        tabAppearance.shadowColor = .clear
+        UITabBar.appearance().standardAppearance = tabAppearance
+        UITabBar.appearance().scrollEdgeAppearance = tabAppearance
     }
 
     var body: some Scene {
