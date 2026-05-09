@@ -1,11 +1,19 @@
+//
+// OnboardingFlowTests.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import XCTest
 
 // MARK: - Onboarding Flow Tests
+
 // Per BUILD_PLAN Step 19.4, TESTING_STRATEGY.md Section 5.
 // Tests the full onboarding flow using Page Object Model.
 
 final class OnboardingFlowTests: XCTestCase {
-
     private var app: XCUIApplication!
     private var onboarding: OnboardingPage!
 
@@ -34,8 +42,10 @@ final class OnboardingFlowTests: XCTestCase {
             if onboarding.backButton.waitForExistence(timeout: 3) {
                 onboarding.tapBack()
                 // Should be back on previous step
-                XCTAssertTrue(app.buttons["Continue"].exists || app.buttons["Skip"].exists,
-                              "Should navigate back to previous step")
+                XCTAssertTrue(
+                    app.buttons["Continue"].exists || app.buttons["Skip"].exists,
+                    "Should navigate back to previous step"
+                )
             }
         }
     }
@@ -43,7 +53,7 @@ final class OnboardingFlowTests: XCTestCase {
     func testSkipOptionalSteps() {
         app.launchFreshInstall()
         // Navigate through steps, skipping optional integrations
-        for _ in 0..<15 {
+        for _ in 0 ..< 15 {
             if app.buttons["Skip"].waitForExistence(timeout: 2) {
                 onboarding.tapSkip()
             } else if app.buttons["Continue"].waitForExistence(timeout: 2) {

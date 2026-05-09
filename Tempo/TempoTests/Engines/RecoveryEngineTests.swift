@@ -1,11 +1,19 @@
-import XCTest
+//
+// RecoveryEngineTests.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 @testable import Tempo
+import XCTest
 
 // MARK: - Recovery Engine Tests
+
 // Per BUILD_PLAN Step 19.3 — Unit tests for recovery zone classification, sleep debt, trend detection.
 
 final class RecoveryEngineTests: XCTestCase {
-
     private var engine: RecoveryEngine!
 
     override func setUp() {
@@ -14,6 +22,7 @@ final class RecoveryEngineTests: XCTestCase {
     }
 
     // MARK: - Zone Classification
+
     // Per CROSS_DOC_AUDIT.md — RecoveryZone thresholds: green >= 67, yellow 34-66, red < 34
 
     func testClassifyZoneGreen() {
@@ -35,6 +44,7 @@ final class RecoveryEngineTests: XCTestCase {
     }
 
     // MARK: - Sleep Debt Calculation
+
     // Per MODULE_RECOVERY.md Section 8.4
 
     func testSleepDebtNoData() {

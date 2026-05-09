@@ -1,12 +1,20 @@
-import XCTest
+//
+// WhoopServiceTokenTests.swift
+// Tempo
+//
+// Created by Tempo on 06/05/2026.
+//
+//
+
 @testable import Tempo
+import XCTest
 
 // MARK: - Whoop Service Token Lifecycle Tests
+
 // Phase 3 — verifies the offline-scope, atomic Keychain bundle, and
 // refreshIfNeeded() no-op semantics added in this phase.
 
 final class WhoopServiceTokenTests: XCTestCase {
-
     override func setUp() {
         super.setUp()
         // Clean keychain state for every test.
@@ -100,7 +108,8 @@ final class WhoopServiceTokenTests: XCTestCase {
 
         // Token bundle untouched.
         guard let storedData = KeychainService.load(key: "whoop.token_bundle"),
-              let storedJSON = try JSONSerialization.jsonObject(with: storedData) as? [String: Any] else {
+              let storedJSON = try JSONSerialization.jsonObject(with: storedData) as? [String: Any]
+        else {
             return XCTFail("Bundle should exist")
         }
         XCTAssertEqual(storedJSON["accessToken"] as? String, "still_fresh")

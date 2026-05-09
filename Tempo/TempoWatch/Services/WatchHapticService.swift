@@ -1,6 +1,15 @@
+//
+// WatchHapticService.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import WatchKit
 
 // MARK: - Watch Haptic Service
+
 // Per APPLE_WATCH_APP.md Section 4 — Haptic pattern definitions.
 
 enum WatchHapticService {

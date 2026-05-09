@@ -1,6 +1,15 @@
+//
+// GlanceHomeView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Glance Home View
+
 // Per APPLE_WATCH_APP.md Section 3 — Main watch face (daily score, recovery, next task).
 
 struct GlanceHomeView: View {
@@ -78,17 +87,21 @@ struct GlanceHomeView: View {
     }
 
     private func scoreColor(_ score: Int) -> Color {
-        if score >= 80 { return .green }
-        if score >= 50 { return .orange }
+        if score >= 80 {
+            return .green
+        }
+        if score >= 50 {
+            return .orange
+        }
         return .red
     }
 
     private func zoneColor(_ zone: String) -> Color {
         switch zone {
-        case "green": return .green
-        case "yellow": return .yellow
-        case "red": return .red
-        default: return .green
+        case "green": .green
+        case "yellow": .yellow
+        case "red": .red
+        default: .green
         }
     }
 }

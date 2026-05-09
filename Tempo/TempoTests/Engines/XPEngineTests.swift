@@ -1,12 +1,20 @@
-import XCTest
+//
+// XPEngineTests.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 @testable import Tempo
+import XCTest
 
 // MARK: - XP Engine Tests
+
 // Per BUILD_PLAN Step 19.3 — Unit tests for XP calculation, level formula.
 // Updated for new LevelSystem-based level thresholds.
 
 final class XPEngineTests: XCTestCase {
-
     private var engine: XPEngine!
 
     override func setUp() {

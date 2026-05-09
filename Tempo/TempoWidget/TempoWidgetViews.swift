@@ -1,11 +1,19 @@
+//
+// TempoWidgetViews.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 import WidgetKit
 
-// MARK: - Widget Views
+// MARK: - SmallWidgetView
+
 // Per BUILD_PLAN 17.2 — Small, Medium, Large widget views.
 // Per WIREFRAMES.md Screens 49-52.
 
-// MARK: - Small Widget
 // Per WIREFRAMES.md Screen 49 — 158x158pt
 // "TEMPO" header top-left, score ring (52pt dia, 4pt stroke) centered,
 // bottom row: recovery % with dot left, sleep hours right.
@@ -69,7 +77,8 @@ struct SmallWidgetView: View {
     }
 }
 
-// MARK: - Medium Widget
+// MARK: - MediumWidgetView
+
 // Per WIREFRAMES.md Screen 50 — 338x158pt
 // "TEMPO" top-left, date top-right
 // 30/70 split: ring (48pt, 4pt stroke) left, 2x2 quadrant grid right
@@ -201,7 +210,8 @@ struct MediumWidgetView: View {
     }
 }
 
-// MARK: - Large Widget
+// MARK: - LargeWidgetView
+
 // Per WIREFRAMES.md Screen 51 — 338x354pt
 // "TEMPO" top-left, date top-right
 // Score ring (56pt, 5pt stroke) centered
@@ -254,7 +264,7 @@ struct LargeWidgetView: View {
                     lines: [
                         "\(data.zoneIcon) \(data.recoveryScore)% Recovery",
                         "HRV \(String(format: "%.1f", data.hrv))  RHR \(data.rhr)",
-                        "Sleep \(String(format: "%.1fh", data.sleepHours))"
+                        "Sleep \(String(format: "%.1fh", data.sleepHours))",
                     ]
                 )
                 // FUEL card
@@ -263,7 +273,7 @@ struct LargeWidgetView: View {
                     lines: [
                         "\(formatted(data.caloriesConsumed))/\(formatted(data.caloriesTarget)) kcal",
                         "P:\(data.protein) C:\(data.carbs)",
-                        "F:\(data.fat)  \(data.mealsLogged)/\(data.mealsTarget) meals"
+                        "F:\(data.fat)  \(data.mealsLogged)/\(data.mealsTarget) meals",
                     ]
                 )
             }
@@ -275,7 +285,7 @@ struct LargeWidgetView: View {
                     lines: [
                         "\(data.studyTimeFormatted) / \(data.studyTargetFormatted)",
                         data.nextExam,
-                        "🔥 \(data.streakCount)d"
+                        "🔥 \(data.streakCount)d",
                     ]
                 )
                 // MOVE card
@@ -284,7 +294,7 @@ struct LargeWidgetView: View {
                     lines: [
                         data.workoutDone ? "✓ Done" : "Pending",
                         "\(formatted(data.stepCount)) steps",
-                        "\(data.activeCalories) active cal"
+                        "\(data.activeCalories) active cal",
                     ]
                 )
             }
@@ -301,7 +311,10 @@ struct LargeWidgetView: View {
                             .frame(height: 4)
                         RoundedRectangle(cornerRadius: 2)
                             .fill(Color.orange)
-                            .frame(width: data.nnTotal > 0 ? geo.size.width * CGFloat(data.nnCompleted) / CGFloat(data.nnTotal) : 0, height: 4)
+                            .frame(
+                                width: data.nnTotal > 0 ? geo.size.width * CGFloat(data.nnCompleted) / CGFloat(data.nnTotal) : 0,
+                                height: 4
+                            )
                     }
                 }
                 .frame(height: 4)
@@ -342,10 +355,10 @@ struct LargeWidgetView: View {
 extension WidgetData {
     var zoneIcon: String {
         switch recoveryZone {
-        case "green": return "🟢"
-        case "yellow": return "🟡"
-        case "red": return "🔴"
-        default: return "🟢"
+        case "green": "🟢"
+        case "yellow": "🟡"
+        case "red": "🔴"
+        default: "🟢"
         }
     }
 }

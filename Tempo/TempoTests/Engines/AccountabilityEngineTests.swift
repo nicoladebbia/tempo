@@ -1,11 +1,19 @@
-import XCTest
+//
+// AccountabilityEngineTests.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 @testable import Tempo
+import XCTest
 
 // MARK: - Accountability Engine Tests
+
 // Per BUILD_PLAN Step 19.3 — Unit tests for accountability state evaluation, leisure unlock, milestones.
 
 final class AccountabilityEngineTests: XCTestCase {
-
     private var engine: AccountabilityEngine!
 
     override func setUp() {
@@ -40,10 +48,10 @@ final class AccountabilityEngineTests: XCTestCase {
     }
 
     @MainActor
-    func testDayFailedWhenPastPS5Time() {
+    func testDayFailedWhenPastPS5Time() throws {
         let accountability = DailyAccountability(date: Date())
         // PS5 time in the past
-        let pastPS5 = Calendar.current.date(byAdding: .hour, value: -1, to: Date())!
+        let pastPS5 = try XCTUnwrap(Calendar.current.date(byAdding: .hour, value: -1, to: Date()))
         let state = engine.evaluateState(accountability: accountability, override: nil, ps5Time: pastPS5)
         XCTAssertEqual(state, .dayFailed)
     }
@@ -91,35 +99,35 @@ final class AccountabilityEngineTests: XCTestCase {
 
     // MARK: - Weekend Detection
 
-    func testIsWeekendForSunday() {
+    func testIsWeekendForSunday() throws {
         // Create a known Sunday (2026-03-29 is a Sunday)
         var comps = DateComponents()
         comps.year = 2026
         comps.month = 3
         comps.day = 29
-        let sunday = Calendar.current.date(from: comps)!
+        let sunday = try XCTUnwrap(Calendar.current.date(from: comps))
         XCTAssertTrue(engine.isWeekend(date: sunday))
     }
 
-    func testIsWeekdayForMonday() {
+    func testIsWeekdayForMonday() throws {
         // 2026-03-30 is a Monday
         var comps = DateComponents()
         comps.year = 2026
         comps.month = 3
         comps.day = 30
-        let monday = Calendar.current.date(from: comps)!
+        let monday = try XCTUnwrap(Calendar.current.date(from: comps))
         XCTAssertFalse(engine.isWeekend(date: monday))
     }
 
     // MARK: - PS5 Time
 
-    func testPS5TimeWeekday() {
+    func testPS5TimeWeekday() throws {
         // Monday 2026-03-30
         var comps = DateComponents()
         comps.year = 2026
         comps.month = 3
         comps.day = 30
-        let monday = Calendar.current.date(from: comps)!
+        let monday = try XCTUnwrap(Calendar.current.date(from: comps))
         let ps5 = engine.ps5Time(for: monday)
         let hour = Calendar.current.component(.hour, from: ps5)
         let minute = Calendar.current.component(.minute, from: ps5)
@@ -127,13 +135,13 @@ final class AccountabilityEngineTests: XCTestCase {
         XCTAssertEqual(minute, 30)
     }
 
-    func testPS5TimeWeekend() {
+    func testPS5TimeWeekend() throws {
         // Sunday 2026-03-29
         var comps = DateComponents()
         comps.year = 2026
         comps.month = 3
         comps.day = 29
-        let sunday = Calendar.current.date(from: comps)!
+        let sunday = try XCTUnwrap(Calendar.current.date(from: comps))
         let ps5 = engine.ps5Time(for: sunday)
         let hour = Calendar.current.component(.hour, from: ps5)
         let minute = Calendar.current.component(.minute, from: ps5)

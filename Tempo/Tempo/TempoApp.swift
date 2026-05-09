@@ -71,7 +71,6 @@ struct TempoApp: App {
         UINavigationBar.appearance().standardAppearance = transparent
         UINavigationBar.appearance().scrollEdgeAppearance = transparent
         UINavigationBar.appearance().compactAppearance = transparent
-
     }
 
     var body: some Scene {

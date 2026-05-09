@@ -1,7 +1,16 @@
+//
+// WatchConnectivityService.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 import WatchConnectivity
 
-// MARK: - Watch Connectivity Service (Watch Side)
+// MARK: - WatchConnectivityService
+
 // Per APPLE_WATCH_APP.md Section 5 — WCSession management on Watch.
 // Per XCODE_PROJECT_STRUCTURE.md Section 11.4
 
@@ -12,13 +21,15 @@ final class WatchConnectivityService: NSObject, @unchecked Sendable {
     var latestSnapshot: WatchSnapshot = .placeholder
     var isReachable: Bool = false
 
-    private override init() {
+    override private init() {
         super.init()
         activateSession()
     }
 
     private func activateSession() {
-        guard WCSession.isSupported() else { return }
+        guard WCSession.isSupported() else {
+            return
+        }
         WCSession.default.delegate = self
         WCSession.default.activate()
     }
@@ -26,7 +37,10 @@ final class WatchConnectivityService: NSObject, @unchecked Sendable {
     func sendAction(_ action: WatchQuickAction, payload: [String: String] = [:]) {
         let actionPayload = WatchActionPayload(action: action, payload: payload)
         guard let data = try? JSONEncoder().encode(actionPayload),
-              let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+              let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            return
+        }
 
         if WCSession.default.isReachable {
             WCSession.default.sendMessage(dict, replyHandler: nil)
@@ -36,7 +50,7 @@ final class WatchConnectivityService: NSObject, @unchecked Sendable {
     }
 }
 
-// MARK: - WCSessionDelegate
+// MARK: WCSessionDelegate
 
 extension WatchConnectivityService: WCSessionDelegate {
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
@@ -45,7 +59,8 @@ extension WatchConnectivityService: WCSessionDelegate {
         }
         // Load latest context on activation
         if let context = session.receivedApplicationContext as? [String: Any],
-           let snapshot = WatchSnapshot.from(dictionary: context) {
+           let snapshot = WatchSnapshot.from(dictionary: context)
+        {
             DispatchQueue.main.async {
                 self.latestSnapshot = snapshot
             }

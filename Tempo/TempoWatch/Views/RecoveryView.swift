@@ -1,6 +1,15 @@
+//
+// RecoveryView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Recovery View
+
 // Per APPLE_WATCH_APP.md — Recovery summary on Watch.
 // Shows zone, recovery score, HRV, RHR, sleep hours.
 
@@ -57,10 +66,10 @@ struct RecoveryView: View {
 
     private func zoneColor(_ zone: String) -> Color {
         switch zone {
-        case "green": return .green
-        case "yellow": return .yellow
-        case "red": return .red
-        default: return .green
+        case "green": .green
+        case "yellow": .yellow
+        case "red": .red
+        default: .green
         }
     }
 }

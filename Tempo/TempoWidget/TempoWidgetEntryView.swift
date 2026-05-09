@@ -1,7 +1,16 @@
+//
+// TempoWidgetEntryView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 import WidgetKit
 
-// MARK: - Widget Entry View
+// MARK: - TempoWidgetEntryView
+
 // Per XCODE_PROJECT_STRUCTURE.md Section 10.5 — Entry view switching on widget family.
 
 struct TempoWidgetEntryView: View {
@@ -22,7 +31,8 @@ struct TempoWidgetEntryView: View {
     }
 }
 
-// MARK: - Lock Screen Widget Views
+// MARK: - LockScreenWidgetView
+
 // Per WIREFRAMES.md Screen 52
 
 struct LockScreenWidgetView: View {
@@ -33,7 +43,7 @@ struct LockScreenWidgetView: View {
         switch family {
         case .accessoryCircular:
             // Per Screen 52 — 50pt diameter, 3pt stroke, zone color, score centered
-            Gauge(value: Double(entry.data.dailyScore), in: 0...100) {
+            Gauge(value: Double(entry.data.dailyScore), in: 0 ... 100) {
                 Text("T")
             } currentValueLabel: {
                 Text("\(entry.data.dailyScore)")

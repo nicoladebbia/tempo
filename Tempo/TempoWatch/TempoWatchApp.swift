@@ -1,6 +1,15 @@
+//
+// TempoWatchApp.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Tempo Watch App
+
 // Per APPLE_WATCH_APP.md Section 3.1 — NavigationStack with vertically-paging TabView.
 // 5 pages: Glance, Workout, Focus Timer, Quick Log, Recovery.
 

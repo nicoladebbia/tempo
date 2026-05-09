@@ -1,24 +1,53 @@
+//
+// OnboardingPage.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import XCTest
 
 // MARK: - Onboarding Page Object
+
 // Per TESTING_STRATEGY.md — Page object for onboarding flow.
 
 final class OnboardingPage: BasePage {
-
     // MARK: - Elements
 
-    var splashView: XCUIElement { app.staticTexts["TEMPO"] }
-    var continueButton: XCUIElement { app.buttons["Continue"] }
-    var skipButton: XCUIElement { app.buttons["Skip"] }
-    var backButton: XCUIElement { app.buttons["Back"] }
-    var getStartedButton: XCUIElement { app.buttons["LET'S GO"] }
-    var signInButton: XCUIElement { app.buttons["Sign in with Apple"] }
+    var splashView: XCUIElement {
+        app.staticTexts["TEMPO"]
+    }
 
-    // Setup fields
-    var displayNameField: XCUIElement { app.textFields.firstMatch }
+    var continueButton: XCUIElement {
+        app.buttons["Continue"]
+    }
 
-    // Completion
-    var completionTitle: XCUIElement { app.staticTexts["YOU'RE IN."] }
+    var skipButton: XCUIElement {
+        app.buttons["Skip"]
+    }
+
+    var backButton: XCUIElement {
+        app.buttons["Back"]
+    }
+
+    var getStartedButton: XCUIElement {
+        app.buttons["LET'S GO"]
+    }
+
+    var signInButton: XCUIElement {
+        app.buttons["Sign in with Apple"]
+    }
+
+    /// Setup fields
+    var displayNameField: XCUIElement {
+        app.textFields.firstMatch
+    }
+
+    /// Completion
+    var completionTitle: XCUIElement {
+        app.staticTexts["YOU'RE IN."]
+    }
 
     // MARK: - Actions
 

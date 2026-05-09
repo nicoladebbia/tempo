@@ -1,10 +1,18 @@
+//
+// XCUIApplication+Tempo.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import XCTest
 
 // MARK: - XCUIApplication Extension
+
 // Per TESTING_STRATEGY.md Section 5 — Convenience helpers for UI tests.
 
 extension XCUIApplication {
-
     /// Launch with onboarding skipped and mock data injected.
     func launchForTesting(skipOnboarding: Bool = true) {
         launchArguments = [

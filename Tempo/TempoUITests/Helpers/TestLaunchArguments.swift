@@ -1,6 +1,15 @@
+//
+// TestLaunchArguments.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 
 // MARK: - Test Launch Arguments
+
 // Per TESTING_STRATEGY.md Section 5 — Launch arguments to inject mock data.
 
 enum TestLaunchArguments {

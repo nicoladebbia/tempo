@@ -1,11 +1,19 @@
+//
+// DashboardFlowTests.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import XCTest
 
 // MARK: - Dashboard Flow Tests
+
 // Per BUILD_PLAN Step 19.4, TESTING_STRATEGY.md Section 5.
 // Tests dashboard navigation and basic interactions.
 
 final class DashboardFlowTests: XCTestCase {
-
     private var app: XCUIApplication!
     private var dashboard: DashboardPage!
 
@@ -53,8 +61,10 @@ final class DashboardFlowTests: XCTestCase {
         // Navigate through all tabs and verify tab bar stays
         for tab in ["Training", "Lockdown", "Recovery", "Arena", "Dashboard"] {
             app.tabBars.buttons[tab].tap()
-            XCTAssertTrue(dashboard.isTabBarVisible,
-                          "Tab bar should remain visible on \(tab) tab")
+            XCTAssertTrue(
+                dashboard.isTabBarVisible,
+                "Tab bar should remain visible on \(tab) tab"
+            )
         }
     }
 }

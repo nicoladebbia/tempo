@@ -1,7 +1,16 @@
+//
+// TempoComplicationProvider.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 import WidgetKit
 
-// MARK: - Tempo Complication Provider
+// MARK: - TempoComplicationData
+
 // Per APPLE_WATCH_APP.md Section 2 — TimelineProvider for all complication families.
 
 struct TempoComplicationData: Codable {
@@ -30,10 +39,14 @@ struct TempoComplicationData: Codable {
     )
 }
 
+// MARK: - TempoComplicationEntry
+
 struct TempoComplicationEntry: TimelineEntry {
     let date: Date
     let data: TempoComplicationData
 }
+
+// MARK: - TempoComplicationProvider
 
 struct TempoComplicationProvider: TimelineProvider {
     func placeholder(in context: Context) -> TempoComplicationEntry {

@@ -1,10 +1,18 @@
+//
+// TempoUITests.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import XCTest
 
 // MARK: - App Launch Tests
+
 // Per BUILD_PLAN Step 19.4 — Basic app launch and tab navigation tests.
 
 final class AppLaunchTests: XCTestCase {
-
     private var app: XCUIApplication!
 
     override func setUp() {

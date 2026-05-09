@@ -1,6 +1,15 @@
+//
+// WatchSnapshot.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import Foundation
 
 // MARK: - Watch Snapshot
+
 // Per APPLE_WATCH_APP.md Section 1.3 — Lightweight daily data from iPhone.
 // Per XCODE_PROJECT_STRUCTURE.md Section 11.6 — Watch receives lightweight snapshot, no SwiftData.
 
@@ -41,14 +50,17 @@ struct WatchSnapshot: Codable {
 
     func toDictionary() -> [String: Any] {
         guard let data = try? JSONEncoder().encode(self),
-              let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+              let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
             return [:]
         }
         return dict
     }
 
     static func from(dictionary: [String: Any]) -> WatchSnapshot? {
-        guard let data = try? JSONSerialization.data(withJSONObject: dictionary) else { return nil }
+        guard let data = try? JSONSerialization.data(withJSONObject: dictionary) else {
+            return nil
+        }
         return try? JSONDecoder().decode(WatchSnapshot.self, from: data)
     }
 }

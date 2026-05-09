@@ -1,11 +1,19 @@
-import XCTest
+//
+// ScoringEngineTests.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 @testable import Tempo
+import XCTest
 
 // MARK: - Scoring Engine Tests
+
 // Per BUILD_PLAN Step 19.3 — Unit tests for daily score calculation, component scores, quadrant scores.
 
 final class ScoringEngineTests: XCTestCase {
-
     private var engine: ScoringEngine!
 
     override func setUp() {
@@ -14,6 +22,7 @@ final class ScoringEngineTests: XCTestCase {
     }
 
     // MARK: - Daily Score (Weighted Composite)
+
     // Weights: NN 40%, Training 20%, Nutrition 20%, Recovery 10%, Activity 10%
 
     @MainActor

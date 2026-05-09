@@ -1,13 +1,21 @@
-import XCTest
+//
+// NutritionTabViewModelTests.swift
+// Tempo
+//
+// Created by Tempo on 06/05/2026.
+//
+//
+
 import SwiftData
 @testable import Tempo
+import XCTest
 
 // MARK: - Nutrition Tab ViewModel Tests
+
 // Phase 4 — recovery-adjusted targets, macro math sanity, meal-reminder scheduling.
 
 @MainActor
 final class NutritionTabViewModelTests: XCTestCase {
-
     private var viewModel: NutritionTabViewModel!
     private var container: ModelContainer!
 
@@ -76,10 +84,24 @@ final class NutritionTabViewModelTests: XCTestCase {
     func testScheduleMealReminders_skipsAlreadyEaten() {
         let mock = MockNotificationService()
         viewModel._testSetTodayMeals([
-            makePlanned(meal: 1, p: 30, c: 40, f: 10, kcal: 370, status: .eaten,
-                        scheduled: nextTimeString(addingMinutes: 30)),
-            makePlanned(meal: 2, p: 30, c: 40, f: 10, kcal: 370, status: .planned,
-                        scheduled: nextTimeString(addingMinutes: 60)),
+            makePlanned(
+                meal: 1,
+                p: 30,
+                c: 40,
+                f: 10,
+                kcal: 370,
+                status: .eaten,
+                scheduled: nextTimeString(addingMinutes: 30)
+            ),
+            makePlanned(
+                meal: 2,
+                p: 30,
+                c: 40,
+                f: 10,
+                kcal: 370,
+                status: .planned,
+                scheduled: nextTimeString(addingMinutes: 60)
+            ),
         ])
         viewModel.scheduleMealReminders(notifications: mock)
         let reminders = mock.scheduledNotifications.filter { $0.category == "meal_reminder" }
@@ -90,8 +112,15 @@ final class NutritionTabViewModelTests: XCTestCase {
         let mock = MockNotificationService()
         viewModel._testSetTodayMeals([
             // Scheduled 30 minutes ago — skipped because the 5-min-prior fire time is in the past.
-            makePlanned(meal: 1, p: 30, c: 40, f: 10, kcal: 370, status: .planned,
-                        scheduled: nextTimeString(addingMinutes: -30)),
+            makePlanned(
+                meal: 1,
+                p: 30,
+                c: 40,
+                f: 10,
+                kcal: 370,
+                status: .planned,
+                scheduled: nextTimeString(addingMinutes: -30)
+            ),
         ])
         viewModel.scheduleMealReminders(notifications: mock)
         let reminders = mock.scheduledNotifications.filter { $0.category == "meal_reminder" }

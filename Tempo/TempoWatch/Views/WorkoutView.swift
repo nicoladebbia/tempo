@@ -1,6 +1,15 @@
+//
+// WorkoutView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Workout View
+
 // Per APPLE_WATCH_APP.md Section 3.3 — Active workout set logging.
 // Primary Watch use case: log sets/reps from wrist during gym sessions.
 
@@ -23,6 +32,7 @@ struct WorkoutView: View {
     }
 
     // MARK: - Ready State (No Active Workout)
+
     // Per APPLE_WATCH_APP.md Section 3.3.1
 
     private var workoutReadyContent: some View {
@@ -40,8 +50,10 @@ struct WorkoutView: View {
                     Circle()
                         .fill(zoneColor(connectivity.latestSnapshot.recoveryZone))
                         .frame(width: 8, height: 8)
-                    Text("Recovery: \(connectivity.latestSnapshot.recoveryZone == "green" ? "GO" : connectivity.latestSnapshot.recoveryZone == "yellow" ? "MODERATE" : "EASY")")
-                        .font(.system(size: 14, weight: .medium))
+                    Text(
+                        "Recovery: \(connectivity.latestSnapshot.recoveryZone == "green" ? "GO" : connectivity.latestSnapshot.recoveryZone == "yellow" ? "MODERATE" : "EASY")"
+                    )
+                    .font(.system(size: 14, weight: .medium))
                 }
 
                 // Start button — Full width, 50pt, green
@@ -70,6 +82,7 @@ struct WorkoutView: View {
     }
 
     // MARK: - Active Workout
+
     // Per APPLE_WATCH_APP.md Section 3.3.2
 
     private var activeWorkoutContent: some View {
@@ -96,7 +109,7 @@ struct WorkoutView: View {
                     connectivity.sendAction(.logSet, payload: [
                         "set": "\(workoutState.currentSet)",
                         "reps": "\(workoutState.lastReps)",
-                        "weight": "\(workoutState.lastWeight)"
+                        "weight": "\(workoutState.lastWeight)",
                     ])
 
                     if workoutState.currentSet >= workoutState.totalSets {
@@ -155,6 +168,7 @@ struct WorkoutView: View {
     }
 
     // MARK: - Rest Timer
+
     // Per APPLE_WATCH_APP.md Section 3.3.3
 
     private var restTimerContent: some View {
@@ -238,10 +252,10 @@ struct WorkoutView: View {
 
     private func zoneColor(_ zone: String) -> Color {
         switch zone {
-        case "green": return .green
-        case "yellow": return .yellow
-        case "red": return .red
-        default: return .green
+        case "green": .green
+        case "yellow": .yellow
+        case "red": .red
+        default: .green
         }
     }
 }

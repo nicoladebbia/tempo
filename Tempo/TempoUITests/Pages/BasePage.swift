@@ -1,6 +1,15 @@
+//
+// BasePage.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import XCTest
 
 // MARK: - Base Page Object
+
 // Per TESTING_STRATEGY.md Section 5 — Page Object Model for UI tests.
 
 class BasePage {

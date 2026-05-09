@@ -1,6 +1,15 @@
+//
+// ArenaGlanceView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Arena Glance View
+
 // Per APPLE_WATCH_APP.md — XP + leaderboard position on Watch.
 
 struct ArenaGlanceView: View {

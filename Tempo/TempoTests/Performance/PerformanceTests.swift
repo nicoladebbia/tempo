@@ -1,12 +1,20 @@
+//
+// PerformanceTests.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftData
-import XCTest
 @testable import Tempo
+import XCTest
 
 // MARK: - Performance Tests
+
 // Per BUILD_PLAN Step 19.5 — Measures SwiftData fetch performance and view-model operations.
 
 final class PerformanceTests: XCTestCase {
-
     // MARK: - SwiftData Fetch Performance
 
     @MainActor
@@ -17,9 +25,9 @@ final class PerformanceTests: XCTestCase {
         // Seed 365 daily snapshots (1 year)
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
-        for i in 0..<365 {
-            let date = cal.date(byAdding: .day, value: -i, to: today)!
-            let snapshot = makeSnapshot(date: date, recoveryScore: Double.random(in: 30...100))
+        for i in 0 ..< 365 {
+            let date = try XCTUnwrap(cal.date(byAdding: .day, value: -i, to: today))
+            let snapshot = makeSnapshot(date: date, recoveryScore: Double.random(in: 30 ... 100))
             context.insert(snapshot)
         }
         try context.save()
@@ -44,13 +52,13 @@ final class PerformanceTests: XCTestCase {
         // Seed 365 daily accountability records
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
-        for i in 0..<365 {
-            let date = cal.date(byAdding: .day, value: -i, to: today)!
+        for i in 0 ..< 365 {
+            let date = try XCTUnwrap(cal.date(byAdding: .day, value: -i, to: today))
             let acct = makeAccountability(
                 date: date,
                 leisureUnlocked: Bool.random(),
-                totalStudyMinutes: Int.random(in: 0...240),
-                accountabilityScore: Int.random(in: 0...100)
+                totalStudyMinutes: Int.random(in: 0 ... 240),
+                accountabilityScore: Int.random(in: 0 ... 100)
             )
             context.insert(acct)
         }
@@ -76,12 +84,12 @@ final class PerformanceTests: XCTestCase {
         // Seed 1000 XP events
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
-        for i in 0..<1000 {
-            let date = cal.date(byAdding: .hour, value: -i, to: today)!
+        for i in 0 ..< 1000 {
+            let date = try XCTUnwrap(cal.date(byAdding: .hour, value: -i, to: today))
             let event = XPEvent(
                 date: date,
                 source: .workout,
-                amount: Int.random(in: 10...100),
+                amount: Int.random(in: 10 ... 100),
                 description: "Test event \(i)"
             )
             context.insert(event)
@@ -106,7 +114,7 @@ final class PerformanceTests: XCTestCase {
         let snapshot = DailySnapshot(date: Date())
         let accountability = DailyAccountability(date: Date())
         measure {
-            for _ in 0..<100 {
+            for _ in 0 ..< 100 {
                 _ = engine.calculateDailyScore(snapshot: snapshot, accountability: accountability)
             }
         }
@@ -115,7 +123,7 @@ final class PerformanceTests: XCTestCase {
     func testXPEngineLevelCalculationPerformance() {
         let engine = XPEngine()
         measure {
-            for xp in stride(from: 0, to: 100000, by: 100) {
+            for xp in stride(from: 0, to: 100_000, by: 100) {
                 _ = engine.currentLevel(totalXP: xp)
                 _ = engine.xpToNextLevel(totalXP: xp)
                 _ = engine.levelProgress(totalXP: xp)

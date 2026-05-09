@@ -1,9 +1,18 @@
-import XCTest
+//
+// TempoSnapshotTests.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SnapshotTesting
 import SwiftUI
 @testable import Tempo
+import XCTest
 
 // MARK: - Snapshot Test Base
+
 // Per BUILD_PLAN Step 19.4, TESTING_STRATEGY.md Section 6.
 // Uses swift-snapshot-testing to capture reference images.
 //
@@ -12,7 +21,6 @@ import SwiftUI
 
 @MainActor
 class TempoSnapshotTestCase: XCTestCase {
-
     /// Standard test device config: iPhone 15 Pro (393x852 logical points).
     let snapshotConfig = ViewImageConfig.iPhoneX
 
@@ -23,8 +31,8 @@ class TempoSnapshotTestCase: XCTestCase {
     }
 
     /// Snapshot a SwiftUI view wrapped in a hosting controller with dark mode.
-    func assertDarkSnapshot<V: View>(
-        of view: V,
+    func assertDarkSnapshot(
+        of view: some View,
         named name: String? = nil,
         file: StaticString = #filePath,
         testName: String = #function,
@@ -48,8 +56,8 @@ class TempoSnapshotTestCase: XCTestCase {
     }
 
     /// Snapshot a component view at a fixed size.
-    func assertComponentSnapshot<V: View>(
-        of view: V,
+    func assertComponentSnapshot(
+        of view: some View,
         size: CGSize,
         named name: String? = nil,
         file: StaticString = #filePath,

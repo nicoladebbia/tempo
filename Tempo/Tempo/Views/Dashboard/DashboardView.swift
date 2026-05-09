@@ -79,7 +79,32 @@ struct DashboardView: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar(.hidden, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showNotifications = true
+                        HapticManager.lightImpact()
+                    } label: {
+                        Image(systemName: "bell")
+                            .font(.tempoBody)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                            .frame(width: 44, height: 44)
+                    }
+                    .accessibilityLabel("Notifications")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showSettings = true
+                        HapticManager.lightImpact()
+                    } label: {
+                        Image(systemName: TempoSymbols.settings)
+                            .font(.tempoBody)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                            .frame(width: 44, height: 44)
+                    }
+                    .accessibilityLabel("Settings")
+                }
+            }
         }
         .task {
             if viewModel == nil {
@@ -353,28 +378,6 @@ struct DashboardView: View {
                     .background(Color.tempoSurfaceCard)
                     .clipShape(Capsule())
                 }
-            }
-
-            HStack(spacing: 4) {
-                Button {
-                    showSettings = true
-                } label: {
-                    Image(systemName: "gearshape")
-                        .font(.tempoBody)
-                        .fontWeight(.medium)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                }
-                .frame(width: 34, height: 34)
-
-                Button {
-                    showNotifications = true
-                } label: {
-                    Image(systemName: "bell")
-                        .font(.tempoBody)
-                        .fontWeight(.medium)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                }
-                .frame(width: 34, height: 34)
             }
         }
         .padding(.top, TempoSpacing.sm)

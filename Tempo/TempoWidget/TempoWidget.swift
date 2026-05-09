@@ -1,12 +1,19 @@
+//
+// TempoWidget.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 import WidgetKit
 
-// MARK: - Tempo Widget
+// MARK: - WidgetData
+
 // Per XCODE_PROJECT_STRUCTURE.md Section 10 — Main widget with TimelineProvider.
 // Per Section 10.4 — Reads from shared UserDefaults (group.app.tempo).
 // Per Section 10.6 — Refreshes every 15 minutes as fallback; main app triggers on score change.
-
-// MARK: - Shared Data
 
 struct WidgetData {
     let dailyScore: Int
@@ -87,16 +94,20 @@ struct WidgetData {
 
     var zoneColor: Color {
         switch recoveryZone {
-        case "green": return .green
-        case "yellow": return .yellow
-        case "red": return .red
-        default: return .green
+        case "green": .green
+        case "yellow": .yellow
+        case "red": .red
+        default: .green
         }
     }
 
     var scoreColor: Color {
-        if dailyScore >= 80 { return .green }
-        if dailyScore >= 50 { return .orange }
+        if dailyScore >= 80 {
+            return .green
+        }
+        if dailyScore >= 50 {
+            return .orange
+        }
         return .red
     }
 
@@ -112,14 +123,14 @@ struct WidgetData {
     }
 }
 
-// MARK: - Timeline Entry
+// MARK: - TempoWidgetEntry
 
 struct TempoWidgetEntry: TimelineEntry {
     let date: Date
     let data: WidgetData
 }
 
-// MARK: - Timeline Provider
+// MARK: - TempoTimelineProvider
 
 struct TempoTimelineProvider: TimelineProvider {
     func placeholder(in context: Context) -> TempoWidgetEntry {
@@ -143,7 +154,7 @@ struct TempoTimelineProvider: TimelineProvider {
     }
 }
 
-// MARK: - Widget Definition
+// MARK: - TempoWidget
 
 struct TempoWidget: Widget {
     let kind = "TempoWidget"
@@ -159,7 +170,7 @@ struct TempoWidget: Widget {
     }
 }
 
-// MARK: - Lock Screen Widget
+// MARK: - TempoLockScreenWidget
 
 struct TempoLockScreenWidget: Widget {
     let kind = "TempoLockScreenWidget"

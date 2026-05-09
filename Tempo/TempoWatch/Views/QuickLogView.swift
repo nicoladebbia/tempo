@@ -1,6 +1,15 @@
+//
+// QuickLogView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Quick Log View
+
 // Per APPLE_WATCH_APP.md Section 3.5 — Rapid actions from wrist.
 // Tap to check off non-negotiables. No keyboards, no text input.
 
@@ -16,11 +25,11 @@ struct QuickLogView: View {
                     .foregroundStyle(.secondary)
 
                 // Non-negotiable items
-                ForEach(0..<data.nnTotal, id: \.self) { idx in
+                ForEach(0 ..< data.nnTotal, id: \.self) { idx in
                     Button {
                         WatchHapticService.playNonNegotiableComplete()
                         connectivity.sendAction(.markNonNegotiableDone, payload: [
-                            "index": "\(idx)"
+                            "index": "\(idx)",
                         ])
                     } label: {
                         HStack {

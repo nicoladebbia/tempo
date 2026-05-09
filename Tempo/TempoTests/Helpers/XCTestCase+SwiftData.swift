@@ -1,12 +1,20 @@
+//
+// XCTestCase+SwiftData.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftData
-import XCTest
 @testable import Tempo
+import XCTest
 
 // MARK: - SwiftData Test Helper
+
 // Per BUILD_PLAN Step 19.3 — Provides in-memory SwiftData container for unit tests.
 
 extension XCTestCase {
-
     /// Creates an in-memory ModelContainer for testing with all Tempo models.
     @MainActor
     func makeTestContainer() throws -> ModelContainer {

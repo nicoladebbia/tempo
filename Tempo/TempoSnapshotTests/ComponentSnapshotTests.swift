@@ -1,13 +1,21 @@
-import XCTest
+//
+// ComponentSnapshotTests.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SnapshotTesting
 import SwiftUI
 @testable import Tempo
+import XCTest
 
 // MARK: - Component Snapshot Tests
+
 // Per BUILD_PLAN Step 19.4 — Snapshot tests for shared components.
 
 final class ComponentSnapshotTests: TempoSnapshotTestCase {
-
     // MARK: - Score Ring
 
     func testScoreRingEmpty() {
@@ -93,6 +101,7 @@ final class ComponentSnapshotTests: TempoSnapshotTestCase {
     }
 
     // MARK: - Settings Toolbar Icon
+
     // Phase 2 — canonical settings gear icon used by all 5 tab roots.
 
     func testSettingsToolbarIcon() {

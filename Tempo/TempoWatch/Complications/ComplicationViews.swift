@@ -1,10 +1,18 @@
+//
+// ComplicationViews.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 import WidgetKit
 
-// MARK: - Complication Views
+// MARK: - CircularComplicationView
+
 // Per APPLE_WATCH_APP.md Section 2.3 — Circular, Rectangular, Inline, Corner, ExtraLarge views.
 
-// MARK: - Circular Complication
 // Per Section 2.3 — Score ring, 4pt stroke, centered score number
 
 struct CircularComplicationView: View {
@@ -22,7 +30,8 @@ struct CircularComplicationView: View {
     }
 }
 
-// MARK: - Rectangular Complication
+// MARK: - RectangularComplicationView
+
 // Per Section 2.3 — Recovery zone + score top, next task bottom
 
 struct RectangularComplicationView: View {
@@ -54,15 +63,16 @@ struct RectangularComplicationView: View {
 
     private func zoneColor(_ zone: String) -> Color {
         switch zone {
-        case "green": return .green
-        case "yellow": return .yellow
-        case "red": return .red
-        default: return .green
+        case "green": .green
+        case "yellow": .yellow
+        case "red": .red
+        default: .green
         }
     }
 }
 
-// MARK: - Inline Complication
+// MARK: - InlineComplicationView
+
 // Per Section 2.3 — "Score: 78 | Study: 1h23m left"
 
 struct InlineComplicationView: View {

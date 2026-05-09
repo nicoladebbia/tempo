@@ -1,15 +1,24 @@
+//
+// FocusTimerView.swift
+// Tempo
+//
+// Created by Tempo on 25/03/2026.
+//
+//
+
 import SwiftUI
 
 // MARK: - Focus Timer View
+
 // Per APPLE_WATCH_APP.md Section 3.4 — Pomodoro timer on wrist.
 // Start/pause/stop from wrist. Duration: 15/25/45/60 min presets.
 
 struct FocusTimerView: View {
     let connectivity: WatchConnectivityService
     @State private var timerState = WatchTimerState()
-    @State private var selectedDuration = 1500  // 25 min default
+    @State private var selectedDuration = 1500 // 25 min default
 
-    private let durationPresets = [900, 1500, 2700, 3600]  // 15, 25, 45, 60 min
+    private let durationPresets = [900, 1500, 2700, 3600] // 15, 25, 45, 60 min
 
     var body: some View {
         if timerState.isRunning {
@@ -20,6 +29,7 @@ struct FocusTimerView: View {
     }
 
     // MARK: - Ready State
+
     // Per APPLE_WATCH_APP.md Section 3.4.1
 
     private var readyContent: some View {
@@ -46,7 +56,7 @@ struct FocusTimerView: View {
                 timerState.remainingSeconds = selectedDuration
                 WatchHapticService.playWorkoutStart()
                 connectivity.sendAction(.startFocusTimer, payload: [
-                    "duration": "\(selectedDuration)"
+                    "duration": "\(selectedDuration)",
                 ])
                 startCountdown()
             } label: {
@@ -74,6 +84,7 @@ struct FocusTimerView: View {
     }
 
     // MARK: - Running State
+
     // Per APPLE_WATCH_APP.md Section 3.4.2
 
     private var runningContent: some View {
@@ -147,7 +158,7 @@ struct FocusTimerView: View {
 
             // Extend
             Button {
-                timerState.remainingSeconds += 300  // +5 min
+                timerState.remainingSeconds += 300 // +5 min
             } label: {
                 Text("+ 5 MINUTES")
                     .font(.system(size: 13, weight: .semibold))
@@ -175,7 +186,9 @@ struct FocusTimerView: View {
     private func startCountdown() {
         Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { timer in
             guard timerState.isRunning, !timerState.isPaused else {
-                if !timerState.isRunning { timer.invalidate() }
+                if !timerState.isRunning {
+                    timer.invalidate()
+                }
                 return
             }
             if timerState.remainingSeconds > 0 {
@@ -187,7 +200,7 @@ struct FocusTimerView: View {
                 WatchHapticService.playFocusTimerEnd()
                 connectivity.sendAction(.stopFocusTimer, payload: [
                     "completed": "true",
-                    "duration": "\(timerState.totalSeconds)"
+                    "duration": "\(timerState.totalSeconds)",
                 ])
             }
         }

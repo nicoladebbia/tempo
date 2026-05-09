@@ -31,7 +31,7 @@ struct TempoSettingsToolbarModifier: ViewModifier {
                         Image(systemName: TempoSymbols.settings)
                             .font(.tempoBody)
                             .foregroundStyle(Color.tempoTextSecondary)
-                            .frame(width: 44, height: 44, alignment: .trailing)
+                            .frame(width: 44, height: 44)
                     }
                     .accessibilityLabel("Settings")
                 }
