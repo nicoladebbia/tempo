@@ -2,7 +2,7 @@
 // FocusHistoryView.swift
 // Tempo
 //
-// Created by Tempo on 06/05/2026.
+// Created by Tempo on 08/05/2026.
 //
 //
 
@@ -27,6 +27,12 @@ struct FocusHistoryView: View {
                 // Aggregate stats
                 statsSection
 
+                // Subject breakdown (current week)
+                subjectBreakdownSection
+
+                // Time-of-day heatmap (last 30 days)
+                heatmapSection
+
                 // Session list
                 sessionListSection
 
@@ -37,6 +43,157 @@ struct FocusHistoryView: View {
         .background(Color.tempoBgPrimary)
         .navigationTitle("Focus History")
         .navigationBarTitleDisplayMode(.large)
+    }
+
+    // MARK: - Subject Breakdown
+
+    /// Aggregate study minutes by subject for the current calendar week.
+    private var subjectBreakdownData: [(subject: String, minutes: Int)] {
+        let cal = Calendar.current
+        let now = Date()
+        let weekStart = cal.date(
+            from: cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)
+        ) ?? now
+        var bucket = [String: Int]()
+        for session in sessions where session.startTime >= weekStart {
+            let key = (session.subject?.isEmpty ?? true) ? "Untagged" : session.subject!
+            bucket[key, default: 0] += session.durationMinutes
+        }
+        return bucket
+            .map { (subject: $0.key, minutes: $0.value) }
+            .sorted { $0.minutes > $1.minutes }
+    }
+
+    private var subjectBreakdownSection: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            Text("BY SUBJECT (THIS WEEK)")
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextTertiary)
+                .padding(.horizontal, TempoSpacing.screenEdge)
+
+            let data = subjectBreakdownData
+            if data.isEmpty {
+                Text("No subjects logged this week")
+                    .font(.tempoBody)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, TempoSpacing.lg)
+                    .padding(.horizontal, TempoSpacing.screenEdge)
+            } else {
+                VStack(spacing: TempoSpacing.sm) {
+                    let total = max(1, data.reduce(0) { $0 + $1.minutes })
+                    ForEach(data, id: \.subject) { row in
+                        subjectRow(row, total: total)
+                    }
+                }
+                .padding(TempoSpacing.lg)
+                .background(Color.tempoSurfaceCard)
+                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+                .padding(.horizontal, TempoSpacing.screenEdge)
+            }
+        }
+    }
+
+    private func subjectRow(_ row: (subject: String, minutes: Int), total: Int) -> some View {
+        let fraction = Double(row.minutes) / Double(total)
+        return HStack(spacing: TempoSpacing.md) {
+            Text(row.subject)
+                .font(.tempoBody)
+                .foregroundStyle(Color.tempoTextPrimary)
+                .frame(width: 100, alignment: .leading)
+                .lineLimit(1)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.tempoBorder).frame(height: 8)
+                    Capsule()
+                        .fill(Color.tempoElectric.opacity(0.4 + 0.6 * fraction))
+                        .frame(width: geo.size.width * fraction, height: 8)
+                }
+            }
+            .frame(height: 8)
+            Text("\(row.minutes)m")
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoTextSecondary)
+                .frame(width: 50, alignment: .trailing)
+        }
+    }
+
+    // MARK: - Time-of-Day Heatmap
+
+    /// 7 columns (Mon-Sun) × 16 rows (06:00 - 21:00) cumulative minutes
+    /// across the past 30 days.
+    private var heatmapBuckets: [[Int]] {
+        let cal = Calendar.current
+        let now = Date()
+        let thirtyDaysAgo = cal.date(byAdding: .day, value: -30, to: now) ?? now
+        var grid = Array(repeating: Array(repeating: 0, count: 16), count: 7)
+        for session in sessions where session.startTime >= thirtyDaysAgo {
+            let hour = cal.component(.hour, from: session.startTime)
+            let weekday = cal.component(.weekday, from: session.startTime)
+            // Convert weekday (1=Sun ... 7=Sat) to Mon-first column index.
+            let col = (weekday + 5) % 7
+            guard hour >= 6, hour <= 21 else {
+                continue
+            }
+            let row = hour - 6
+            grid[col][row] += session.durationMinutes
+        }
+        return grid
+    }
+
+    private var heatmapSection: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            Text("TIME OF DAY (LAST 30 DAYS)")
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextTertiary)
+                .padding(.horizontal, TempoSpacing.screenEdge)
+
+            let grid = heatmapBuckets
+            let maxValue = max(1, grid.flatMap(\.self).max() ?? 1)
+            VStack(spacing: 2) {
+                // Day-of-week header
+                HStack(spacing: 2) {
+                    Text(" ").font(.tempoCaption2).frame(width: 24)
+                    ForEach(["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"], id: \.self) { d in
+                        Text(d)
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+                ForEach(0 ..< 16, id: \.self) { row in
+                    HStack(spacing: 2) {
+                        Text(hourLabel(row + 6))
+                            .font(.system(size: 9))
+                            .foregroundStyle(Color.tempoTextTertiary)
+                            .frame(width: 24, alignment: .trailing)
+                        ForEach(0 ..< 7, id: \.self) { col in
+                            heatmapCell(value: grid[col][row], max: maxValue)
+                        }
+                    }
+                }
+            }
+            .padding(TempoSpacing.lg)
+            .background(Color.tempoSurfaceCard)
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+            .padding(.horizontal, TempoSpacing.screenEdge)
+        }
+    }
+
+    private func hourLabel(_ hour: Int) -> String {
+        // Show every 3rd hour to keep the column tidy.
+        hour % 3 == 0 ? "\(hour)" : ""
+    }
+
+    private func heatmapCell(value: Int, max: Int) -> some View {
+        let intensity = Double(value) / Double(max)
+        let color = value == 0
+            ? Color.tempoBorder.opacity(0.3)
+            : Color.tempoElectric.opacity(0.15 + 0.85 * intensity)
+        return RoundedRectangle(cornerRadius: 2)
+            .fill(color)
+            .frame(maxWidth: .infinity)
+            .frame(height: 12)
     }
 
     // MARK: - Weekly Chart

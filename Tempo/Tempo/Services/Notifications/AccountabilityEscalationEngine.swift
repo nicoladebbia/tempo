@@ -66,11 +66,13 @@ final class AccountabilityEscalationEngine: @unchecked Sendable {
         userName: String,
         studyDone: String,
         studyTarget: String,
-        tasksRemaining: Int
+        tasksRemaining: Int,
+        notificationIntensity: Int = 3
     ) {
         guard totalCount > 0 else {
             return
         }
+        let intensity = CopyIntensity(notificationIntensity: notificationIntensity)
 
         let completionPercent = Double(completedCount) / Double(totalCount)
         let now = Date()
@@ -82,14 +84,23 @@ final class AccountabilityEscalationEngine: @unchecked Sendable {
 
         var escalations: [(tier: EscalationTier, time: Date, content: String)] = []
 
+        // Build a context once; each tier reuses it with intensity-aware copy
+        // selection from the recency-aware pool (per spec D7).
+        let baseContext = CopyContext(
+            remaining: tasksRemaining,
+            done: completedCount,
+            total: totalCount,
+            studyDone: studyDone,
+            studyTarget: studyTarget,
+            timeRemaining: timeString(from: now, to: eveningStartTime),
+            streakDays: 0
+        )
+
         // Tier 1: Gentle — E - 5.5h
         let gentleTime = eveningStartTime.addingTimeInterval(-5.5 * 3600)
         if gentleTime > now, completionPercent < 0.5 {
-            let content = gentleCopy(
-                name: userName,
-                tasksRemaining: tasksRemaining,
-                totalCount: totalCount,
-                completedCount: completedCount
+            let content = AccountabilityCopyPool.shared.pick(
+                tier: .gentle, intensity: intensity, context: baseContext
             )
             escalations.append((.gentle, gentleTime, content))
         }
@@ -97,11 +108,8 @@ final class AccountabilityEscalationEngine: @unchecked Sendable {
         // Tier 2: Firm — E - 2.5h
         let firmTime = eveningStartTime.addingTimeInterval(-2.5 * 3600)
         if firmTime > now, completionPercent < 0.75 {
-            let content = firmCopy(
-                tasksRemaining: tasksRemaining,
-                studyDone: studyDone,
-                studyTarget: studyTarget,
-                timeUntilEvening: timeString(from: now, to: eveningStartTime)
+            let content = AccountabilityCopyPool.shared.pick(
+                tier: .firm, intensity: intensity, context: baseContext
             )
             escalations.append((.firm, firmTime, content))
         }
@@ -109,10 +117,8 @@ final class AccountabilityEscalationEngine: @unchecked Sendable {
         // Tier 3: Urgent — E - 1h
         let urgentTime = eveningStartTime.addingTimeInterval(-1 * 3600)
         if urgentTime > now, completionPercent < 1.0 {
-            let content = urgentCopy(
-                studyDone: studyDone,
-                studyTarget: studyTarget,
-                timeUntilEvening: timeString(from: now, to: eveningStartTime)
+            let content = AccountabilityCopyPool.shared.pick(
+                tier: .urgent, intensity: intensity, context: baseContext
             )
             escalations.append((.urgent, urgentTime, content))
         }
@@ -120,7 +126,9 @@ final class AccountabilityEscalationEngine: @unchecked Sendable {
         // Tier 4: Critical — E - 30min
         let criticalTime = eveningStartTime.addingTimeInterval(-30 * 60)
         if criticalTime > now, completionPercent < 1.0 {
-            let content = criticalCopy(tasksRemaining: tasksRemaining)
+            let content = AccountabilityCopyPool.shared.pick(
+                tier: .critical, intensity: intensity, context: baseContext
+            )
             escalations.append((.critical, criticalTime, content))
         }
 
@@ -151,7 +159,8 @@ final class AccountabilityEscalationEngine: @unchecked Sendable {
         userName: String,
         totalTasks: Int,
         streakDays: Int,
-        recoveryScore: Double?
+        recoveryScore: Double?,
+        notificationIntensity: Int = 3
     ) {
         // Cancel all pending accountability notifications
         notificationService.cancelCategory("ACCOUNTABILITY_GENTLE")
@@ -160,12 +169,18 @@ final class AccountabilityEscalationEngine: @unchecked Sendable {
         notificationService.cancelCategory("ACCOUNTABILITY_FINAL")
 
         // Fire All Clear immediately
-        let content = allClearCopy(
-            name: userName,
-            totalTasks: totalTasks,
-            streakDays: streakDays,
-            recoveryScore: recoveryScore
+        let intensity = CopyIntensity(notificationIntensity: notificationIntensity)
+        let context = CopyContext(
+            remaining: 0,
+            done: totalTasks,
+            total: totalTasks,
+            streakDays: streakDays
         )
+        let content = AccountabilityCopyPool.shared.pick(
+            tier: .allClear, intensity: intensity, context: context
+        )
+        _ = recoveryScore // reserved for future copy variants
+        _ = userName
         fireImmediateNotification(
             id: "all_clear_\(todayKey())",
             title: "ALL CLEAR",

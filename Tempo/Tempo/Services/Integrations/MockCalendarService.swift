@@ -84,6 +84,11 @@ final class MockCalendarService: CalendarServiceProtocol, @unchecked Sendable {
         ]
     }
 
+    func addExam(name: String, date: Date) async throws -> Bool {
+        // Mock acknowledges the call without persisting.
+        true
+    }
+
     func detectClassSchedule(for date: Date) -> [CalendarClass] {
         let calendar = Calendar.current
         let weekday = calendar.component(.weekday, from: date)

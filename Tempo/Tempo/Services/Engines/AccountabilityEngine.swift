@@ -251,8 +251,7 @@ final class AccountabilityEngine: @unchecked Sendable {
     ) {
         progress.isCompleted = true
         progress.completedAt = Date()
-        // Mark as skip by setting value to a special sentinel
-        // (currentValue stays at current; isCompleted = true signals skip if currentValue < targetValue)
+        progress.wasSkipped = true
         try? modelContext.save()
     }
 
@@ -432,7 +431,17 @@ final class AccountabilityEngine: @unchecked Sendable {
 
     /// The number of days until the next exam. Set by DashboardViewModel from calendar data.
     /// When an exam is within 7 days, study targets increase by 50%.
-    var daysToNextExam: Int?
+    ///
+    /// Stored as a static so freshly-constructed engine instances (used inline at
+    /// several sites) all observe the same value. Will become instance state once
+    /// AccountabilityEngine is injected via ServiceContainer.
+    @MainActor
+    static var daysToNextExam: Int?
+
+    /// Instance accessor used by computations.
+    var daysToNextExam: Int? {
+        MainActor.assumeIsolated { Self.daysToNextExam }
+    }
 
     /// Adjust target for weekend mode and exam proximity.
     /// Per MODULE_ACCOUNTABILITY.md Section 8 — weekend targets configurable per non-negotiable.

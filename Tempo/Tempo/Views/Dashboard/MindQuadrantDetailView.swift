@@ -7,6 +7,7 @@
 //
 
 import Charts
+import SwiftData
 import SwiftUI
 
 // MARK: - MindQuadrantDetailView
@@ -17,27 +18,45 @@ import SwiftUI
 
 struct MindQuadrantDetailView: View {
     let data: MindQuadrantData
+    @Environment(ServiceContainer.self)
+    private var services
     @State
     private var showFocusTimer = false
     @State
     private var showAddExam = false
 
-    /// Stub session data
-    private let sessions: [StudySessionItem] = [
-        StudySessionItem(subject: "Calculus II", durationMinutes: 55, startTime: "9:00 AM", endTime: "9:55 AM"),
-        StudySessionItem(subject: "Physics Lab", durationMinutes: 40, startTime: "2:00 PM", endTime: "2:40 PM"),
-    ]
+    /// Today's completed study sessions, freshest first.
+    @Query(
+        filter: #Predicate<StudySession> { $0.endTime != nil },
+        sort: [SortDescriptor(\StudySession.startTime, order: .reverse)]
+    )
+    private var allCompletedSessions: [StudySession]
 
-    /// Stub 7-day study trend
-    private let studyTrend: [StudyTrendPoint] = {
+    /// Sessions whose startTime falls in today's calendar day.
+    private var todaysSessions: [StudySession] {
+        let start = Calendar.current.startOfDay(for: Date())
+        let end = Calendar.current.date(byAdding: .day, value: 1, to: start) ?? start
+        return allCompletedSessions.filter { $0.startTime >= start && $0.startTime < end }
+    }
+
+    /// 7-day rolling study minutes per day (oldest → today).
+    private var studyTrend: [StudyTrendPoint] {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
-        let values = [130, 90, 110, 120, 80, 150, 95]
-        return (-6 ... 0).map { offset in
-            let date = calendar.date(byAdding: .day, value: offset, to: today)!
-            return StudyTrendPoint(date: date, minutes: values[offset + 6])
+        let weekStart = calendar.date(byAdding: .day, value: -6, to: today) ?? today
+        let recent = allCompletedSessions.filter { $0.startTime >= weekStart }
+        var bucket = [Date: Int]()
+        for session in recent {
+            let day = calendar.startOfDay(for: session.startTime)
+            bucket[day, default: 0] += session.durationMinutes
         }
-    }()
+        return (-6 ... 0).compactMap { offset in
+            guard let day = calendar.date(byAdding: .day, value: offset, to: today) else {
+                return nil
+            }
+            return StudyTrendPoint(date: day, minutes: bucket[day, default: 0])
+        }
+    }
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -123,16 +142,16 @@ struct MindQuadrantDetailView: View {
                 .foregroundStyle(Color.tempoTextSecondary)
                 .padding(.bottom, TempoSpacing.md)
 
-            if sessions.isEmpty {
+            if todaysSessions.isEmpty {
                 Text("No study sessions yet")
                     .font(.tempoBody)
                     .foregroundStyle(Color.tempoTextTertiary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, TempoSpacing.lg)
             } else {
-                ForEach(Array(sessions.enumerated()), id: \.element.id) { index, session in
+                ForEach(Array(todaysSessions.enumerated()), id: \.element.id) { index, session in
                     sessionRow(session)
-                    if index < sessions.count - 1 {
+                    if index < todaysSessions.count - 1 {
                         Divider()
                             .background(Color.tempoDivider)
                     }
@@ -145,17 +164,17 @@ struct MindQuadrantDetailView: View {
         .tempoShadow(.card)
     }
 
-    private func sessionRow(_ session: StudySessionItem) -> some View {
+    private func sessionRow(_ session: StudySession) -> some View {
         HStack(spacing: TempoSpacing.md) {
             Image(systemName: "book.fill")
                 .font(.system(size: 16))
                 .foregroundStyle(Color.tempoElectric)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(session.subject)
+                Text(session.subject ?? "Focus Session")
                     .font(.tempoBody)
                     .foregroundStyle(Color.tempoTextPrimary)
-                Text("\(session.startTime) — \(session.endTime)")
+                Text(rangeText(session))
                     .font(.tempoCaption2)
                     .foregroundStyle(Color.tempoTextTertiary)
             }
@@ -167,6 +186,16 @@ struct MindQuadrantDetailView: View {
                 .foregroundStyle(Color.tempoTextSecondary)
         }
         .frame(minHeight: 52)
+    }
+
+    private func rangeText(_ session: StudySession) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        let start = formatter.string(from: session.startTime)
+        guard let end = session.endTime else {
+            return start
+        }
+        return "\(start) — \(formatter.string(from: end))"
     }
 
     // MARK: - Start Session Button
@@ -191,7 +220,7 @@ struct MindQuadrantDetailView: View {
         }
         .sheet(isPresented: $showFocusTimer) {
             NavigationStack {
-                FocusTimerView(viewModel: AccountabilityViewModel())
+                FocusTimerView(viewModel: AccountabilityViewModel(engine: services.accountabilityEngine))
             }
         }
     }
@@ -235,7 +264,7 @@ struct MindQuadrantDetailView: View {
         .tempoShadow(.card)
         .sheet(isPresented: $showAddExam) {
             NavigationStack {
-                AddExamSheet()
+                AddExamSheet(calendar: services.calendar)
             }
         }
     }
@@ -343,16 +372,6 @@ struct MindQuadrantDetailView: View {
     }
 }
 
-// MARK: - StudySessionItem
-
-struct StudySessionItem: Identifiable {
-    let id = UUID()
-    let subject: String
-    let durationMinutes: Int
-    let startTime: String
-    let endTime: String
-}
-
 // MARK: - StudyTrendPoint
 
 struct StudyTrendPoint: Identifiable {
@@ -364,12 +383,18 @@ struct StudyTrendPoint: Identifiable {
 // MARK: - AddExamSheet
 
 struct AddExamSheet: View {
+    let calendar: any CalendarServiceProtocol
+
     @Environment(\.dismiss)
     private var dismiss
     @State
     private var examName = ""
     @State
     private var examDate = Date().addingTimeInterval(86400 * 7)
+    @State
+    private var isSaving = false
+    @State
+    private var saveError: String?
 
     var body: some View {
         Form {
@@ -377,22 +402,43 @@ struct AddExamSheet: View {
                 TextField("Exam name", text: $examName)
                 DatePicker("Date", selection: $examDate, in: Date()..., displayedComponents: .date)
             }
+            if let error = saveError {
+                Section {
+                    Text(error)
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoError)
+                }
+            }
         }
         .navigationTitle("Add Exam")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button("Cancel") { dismiss() }
+                    .disabled(isSaving)
             }
             ToolbarItem(placement: .topBarTrailing) {
-                Button("Save") {
-                    // TODO: Save exam to calendar/SwiftData
-                    dismiss()
-                }
-                .disabled(examName.isEmpty)
-                .fontWeight(.semibold)
+                Button("Save") { Task { await saveExam() } }
+                    .disabled(examName.isEmpty || isSaving)
+                    .fontWeight(.semibold)
             }
         }
+    }
+
+    private func saveExam() async {
+        isSaving = true
+        saveError = nil
+        do {
+            let saved = try await calendar.addExam(name: examName, date: examDate)
+            if saved {
+                dismiss()
+            } else {
+                saveError = "Calendar access is required to save exams. Enable it in Settings."
+            }
+        } catch {
+            saveError = error.localizedDescription
+        }
+        isSaving = false
     }
 }
 
@@ -411,5 +457,6 @@ struct AddExamSheet: View {
                 ]
             )
         )
+        .environment(ServiceContainer.mock())
     }
 }

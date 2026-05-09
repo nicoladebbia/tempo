@@ -18,5 +18,6 @@ struct TempoWidgetBundle: WidgetBundle {
     var body: some Widget {
         TempoWidget()
         TempoLockScreenWidget()
+        FocusTimerLiveActivity()
     }
 }

@@ -8,8 +8,9 @@
 
 import SwiftData
 import SwiftUI
+import UIKit
 
-// MARK: - Streak Calendar View
+// MARK: - StreakCalendarView
 
 // Per BUILD_PLAN step 10.6.
 // Per MODULE_ACCOUNTABILITY.md — Streaks section.
@@ -23,6 +24,9 @@ struct StreakCalendarView: View {
 
     @Query(sort: \DailyAccountability.date)
     private var allAccountability: [DailyAccountability]
+
+    @State
+    private var shareImage: StreakShareImage?
 
     var body: some View {
         ScrollView {
@@ -54,6 +58,19 @@ struct StreakCalendarView: View {
         .background(Color.tempoBgPrimary)
         .navigationTitle("Streak")
         .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    generateShareImage()
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                .accessibilityLabel("Share streak")
+            }
+        }
+        .sheet(item: $shareImage) { image in
+            StreakShareSheet(items: [image.uiImage])
+        }
     }
 
     // MARK: - Streak Stats Header
@@ -306,5 +323,157 @@ struct StreakCalendarView: View {
         .padding(.horizontal, TempoSpacing.cardPadding)
         .padding(.vertical, TempoSpacing.md)
         .opacity(achieved ? 1.0 : 0.6)
+    }
+
+    // MARK: - Share Image
+
+    /// Render a 1080×1350 PNG of the streak summary and present a share sheet.
+    /// Per MODULE_ACCOUNTABILITY.md §5.7.
+    @MainActor
+    private func generateShareImage() {
+        let view = StreakShareCard(
+            currentStreak: viewModel.streakCount,
+            longestStreak: viewModel.longestStreak,
+            month: monthDays(for: Date()),
+            weeklyConsistency: weeklyConsistencyFraction()
+        )
+        .frame(width: 1080, height: 1350)
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = 1.0
+        if let cg = renderer.cgImage {
+            shareImage = StreakShareImage(uiImage: UIImage(cgImage: cg))
+        }
+    }
+
+    private func weeklyConsistencyFraction() -> Double {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        guard let weekStart = cal.date(byAdding: .day, value: -6, to: today) else {
+            return 0
+        }
+        let recent = allAccountability.filter { $0.date >= weekStart && $0.date <= today }
+        guard !recent.isEmpty else {
+            return 0
+        }
+        let totalCompletion = recent.reduce(0.0) { $0 + $1.completionPercentage }
+        return totalCompletion / Double(recent.count)
+    }
+
+    private func monthDays(for date: Date) -> [(day: Int, completion: Double)] {
+        let cal = Calendar.current
+        guard let monthInterval = cal.dateInterval(of: .month, for: date) else {
+            return []
+        }
+        let dayCount = cal.range(of: .day, in: .month, for: date)?.count ?? 30
+        var rows: [(day: Int, completion: Double)] = []
+        for offset in 0 ..< dayCount {
+            guard let day = cal.date(byAdding: .day, value: offset, to: monthInterval.start) else {
+                continue
+            }
+            let match = allAccountability.first { cal.isDate($0.date, inSameDayAs: day) }
+            rows.append((cal.component(.day, from: day), match?.completionPercentage ?? 0))
+        }
+        return rows
+    }
+}
+
+// MARK: - StreakShareImage
+
+struct StreakShareImage: Identifiable {
+    let id = UUID()
+    let uiImage: UIImage
+}
+
+// MARK: - StreakShareSheet
+
+struct StreakShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context _: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_: UIActivityViewController, context _: Context) {}
+}
+
+// MARK: - StreakShareCard
+
+private struct StreakShareCard: View {
+    let currentStreak: Int
+    let longestStreak: Int
+    let month: [(day: Int, completion: Double)]
+    let weeklyConsistency: Double
+
+    var body: some View {
+        VStack(spacing: 48) {
+            VStack(spacing: 16) {
+                Image(systemName: "flame.fill")
+                    .font(.system(size: 120, weight: .bold))
+                    .foregroundStyle(Color.orange)
+                Text("\(currentStreak)")
+                    .font(.system(size: 200, weight: .black, design: .rounded))
+                    .foregroundStyle(.white)
+                Text("DAY STREAK")
+                    .font(.system(size: 44, weight: .bold))
+                    .tracking(8)
+                    .foregroundStyle(.white.opacity(0.8))
+            }
+
+            VStack(spacing: 12) {
+                HStack(spacing: 24) {
+                    statTile(label: "LONGEST", value: "\(longestStreak)d")
+                    statTile(label: "THIS WEEK", value: "\(Int(weeklyConsistency * 100))%")
+                }
+                monthHeatmap
+            }
+            .padding(40)
+            .background(Color.white.opacity(0.06))
+            .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
+
+            Text("Tracked with Tempo")
+                .font(.system(size: 28, weight: .medium))
+                .foregroundStyle(.white.opacity(0.4))
+        }
+        .padding(64)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black)
+    }
+
+    private func statTile(label: String, value: String) -> some View {
+        VStack(spacing: 8) {
+            Text(label)
+                .font(.system(size: 24, weight: .semibold))
+                .tracking(4)
+                .foregroundStyle(.white.opacity(0.5))
+            Text(value)
+                .font(.system(size: 64, weight: .bold))
+                .foregroundStyle(.white)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 16)
+    }
+
+    private var monthHeatmap: some View {
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 7)
+        return LazyVGrid(columns: columns, spacing: 8) {
+            ForEach(month, id: \.day) { item in
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(cellColor(item.completion))
+                    .frame(height: 56)
+            }
+        }
+    }
+
+    private func cellColor(_ completion: Double) -> Color {
+        if completion >= 0.99 {
+            return Color.green
+        }
+        if completion >= 0.5 {
+            return Color.green.opacity(0.6)
+        }
+        if completion > 0 {
+            return Color.orange.opacity(0.5)
+        }
+        return Color.white.opacity(0.08)
     }
 }

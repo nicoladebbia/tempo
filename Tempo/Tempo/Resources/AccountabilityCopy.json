@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "tiers": {
+    "gentle": {
+      "gentle": [
+        "Hey, {remaining} non-negotiables waiting. {done}/{total} done. No rush, just a nudge.",
+        "Afternoon check-in. You're at {done}/{total}. There's still time, friend.",
+        "{remaining} left today. You've got this — pick the easiest one and start.",
+        "Gentle reminder: {done} of {total} done. Whatever you choose next is a good choice.",
+        "You're {done}/{total} through. Keep moving at your own pace."
+      ],
+      "firm": [
+        "{remaining} tasks left today. {done}/{total} done so far. You've got time — pick one and start.",
+        "Afternoon. You're at {done}/{total}. The day isn't over, but it's moving.",
+        "{remaining} non-negotiables waiting. {done} done. Get back to work.",
+        "Half the day's gone. {done}/{total}. Time to start closing the gap.",
+        "You're tracking at {done}/{total}. Pick the next one and go."
+      ],
+      "savage": [
+        "{remaining} tasks. {done}/{total}. The clock doesn't care about your excuses.",
+        "Half the day. {done}/{total}. This is what mediocre looks like — change it.",
+        "{done} out of {total}. You can do better than this. Start now.",
+        "Stop scrolling. {remaining} non-negotiables. Move.",
+        "{done}/{total} is not finished. Get up and execute."
+      ]
+    },
+    "firm": {
+      "gentle": [
+        "Heads up: {remaining} tasks left, study at {studyDone}/{studyTarget}. {timeRemaining} until evening.",
+        "It's getting later. You're at {done}/{total}. Maybe pick up the pace?",
+        "{timeRemaining} remaining. {remaining} non-negotiables. You can still do this."
+      ],
+      "firm": [
+        "{remaining} tasks incomplete. Study: {studyDone}/{studyTarget}. {timeRemaining} remaining. Time is running.",
+        "Late afternoon. {done}/{total}. Study {studyDone}/{studyTarget}. The evening is coming.",
+        "{timeRemaining} until your time is up. {remaining} tasks. Focus.",
+        "Study sitting at {studyDone}/{studyTarget}. {timeRemaining} left. Sit down and work."
+      ],
+      "savage": [
+        "{remaining} tasks. Study: {studyDone}/{studyTarget}. {timeRemaining} until you've burned the day. Move.",
+        "It's {timeRemaining} from done. {done}/{total}. This is the moment — execute or accept the loss.",
+        "Study {studyDone}/{studyTarget}. {timeRemaining} left. Stop pretending you're going to do it later.",
+        "{remaining} undone. The clock won. Or you did. Decide right now."
+      ]
+    },
+    "urgent": {
+      "gentle": [
+        "Evening's close. Study at {studyDone}/{studyTarget}. {timeRemaining} left. Last push?",
+        "{remaining} tasks. {timeRemaining} until evening. You can finish this if you start now.",
+        "Final stretch. {studyDone}/{studyTarget}. Don't let tonight be a regret."
+      ],
+      "firm": [
+        "Study: {studyDone}/{studyTarget}. {timeRemaining} before evening. DO IT NOW.",
+        "{remaining} tasks. {timeRemaining} left. This is the line.",
+        "Evening is approaching. {done}/{total}. The window is closing.",
+        "{timeRemaining}. {remaining} undone. No more delay."
+      ],
+      "savage": [
+        "{timeRemaining} until you waste another night. Study: {studyDone}/{studyTarget}. MOVE.",
+        "Stop. Look at the clock. {timeRemaining} left. {remaining} tasks. Choose.",
+        "Your friends are about to text. Are you going to lie again about why you can't play?",
+        "{remaining} tasks, {timeRemaining}. Right now. No music, no scrolling, no calling. Sit down."
+      ]
+    },
+    "critical": {
+      "gentle": [
+        "Last call. {remaining} tasks. The day is almost gone — but it isn't yet.",
+        "Final warning, friend. {done}/{total}. You can still salvage tonight.",
+        "{remaining} undone. Tomorrow's version of you is watching."
+      ],
+      "firm": [
+        "You're about to waste another evening. {remaining} tasks undone. This is your last chance today.",
+        "Final warning. {remaining} non-negotiables incomplete. Evening is here.",
+        "Last chance. {done}/{total}. After this, the day is gone."
+      ],
+      "savage": [
+        "You're about to waste another evening. {remaining} tasks undone. Last chance.",
+        "This is exactly the night you said you wouldn't repeat. {remaining} undone.",
+        "You're failing yourself in real time. {remaining} tasks. Final warning.",
+        "If you don't move now, tomorrow you'll lie about why."
+      ]
+    },
+    "allClear": {
+      "gentle": [
+        "ALL CLEAR. {total}/{total} done. You earned tonight.",
+        "Day done. Every non-negotiable handled. Be proud.",
+        "{total}/{total}. The evening is yours. Enjoy it."
+      ],
+      "firm": [
+        "ALL CLEAR. {total}/{total} complete. Day {streakDays} of your streak. You earned your evening.",
+        "Locked in. {total}/{total}. {streakDays}-day streak alive. Go enjoy.",
+        "Cleared. Every non-negotiable done. The evening belongs to you now."
+      ],
+      "savage": [
+        "ALL CLEAR. {total}/{total}. Day {streakDays}. Bare minimum, but you did it. Don't make it harder tomorrow.",
+        "Done. {total}/{total}. The evening is yours — you earned it the only way that counts.",
+        "Cleared. {streakDays} days. Show up tomorrow or this dies."
+      ]
+    }
+  }
+}

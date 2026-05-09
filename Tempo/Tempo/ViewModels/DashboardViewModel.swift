@@ -935,11 +935,19 @@ final class DashboardViewModel {
             ExamData(name: exam.subject, date: exam.date)
         }
 
+        // Per BUILD_PLAN 13.2 — feed soonest-exam distance to AccountabilityEngine
+        // so its adjustedTarget(+50% study within 7 days) actually fires.
+        let resolvedExams = examItems.isEmpty ? mind.exams : examItems
+        AccountabilityEngine.daysToNextExam = resolvedExams
+            .map(\.daysUntil)
+            .filter { $0 >= 0 }
+            .min()
+
         mind = MindQuadrantData(
             studyMinutesToday: mind.studyMinutesToday,
             studyTargetMinutes: mind.studyTargetMinutes,
             currentStreakDays: mind.currentStreakDays,
-            exams: examItems.isEmpty ? mind.exams : examItems
+            exams: resolvedExams
         )
 
         // Build Move quadrant from real HealthKit data

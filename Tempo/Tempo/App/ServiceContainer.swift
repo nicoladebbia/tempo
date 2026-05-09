@@ -21,6 +21,7 @@ final class ServiceContainer {
     let recoveryEngine: any RecoveryEngineProtocol
     let scoringEngine: any ScoringEngineProtocol
     let xpEngine: any XPEngineProtocol
+    let accountabilityEngine: AccountabilityEngine
     let syncCoordinator: any SyncCoordinatorProtocol
     let backgroundSync: BackgroundSyncService
     let networkMonitor: NetworkMonitor
@@ -40,6 +41,7 @@ final class ServiceContainer {
         recoveryEngine: any RecoveryEngineProtocol,
         scoringEngine: any ScoringEngineProtocol,
         xpEngine: any XPEngineProtocol,
+        accountabilityEngine: AccountabilityEngine,
         syncCoordinator: any SyncCoordinatorProtocol,
         backgroundSync: BackgroundSyncService,
         networkMonitor: NetworkMonitor,
@@ -57,6 +59,7 @@ final class ServiceContainer {
         self.recoveryEngine = recoveryEngine
         self.scoringEngine = scoringEngine
         self.xpEngine = xpEngine
+        self.accountabilityEngine = accountabilityEngine
         self.syncCoordinator = syncCoordinator
         self.backgroundSync = backgroundSync
         self.networkMonitor = networkMonitor
@@ -79,6 +82,7 @@ final class ServiceContainer {
             recoveryEngine: MockRecoveryEngine(),
             scoringEngine: MockScoringEngine(),
             xpEngine: MockXPEngine(),
+            accountabilityEngine: AccountabilityEngine(),
             syncCoordinator: MockSyncCoordinator(),
             backgroundSync: BackgroundSyncService(),
             networkMonitor: NetworkMonitor(),
@@ -100,8 +104,9 @@ final class ServiceContainer {
             notifications: NotificationService(),
             trainingEngine: TrainingEngine(),
             recoveryEngine: RecoveryEngine(),
-            scoringEngine: MockScoringEngine(),
-            xpEngine: MockXPEngine(),
+            scoringEngine: ScoringEngine(),
+            xpEngine: XPEngine(),
+            accountabilityEngine: AccountabilityEngine(),
             syncCoordinator: MockSyncCoordinator(),
             backgroundSync: BackgroundSyncService(),
             networkMonitor: NetworkMonitor(),

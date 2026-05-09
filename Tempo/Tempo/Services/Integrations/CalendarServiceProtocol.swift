@@ -16,6 +16,9 @@ protocol CalendarServiceProtocol: Sendable {
     func detectFootballDays(in range: DateInterval) -> [Date]
     func detectExamDates(in range: DateInterval) -> [CalendarExam]
     func detectClassSchedule(for date: Date) -> [CalendarClass]
+    /// Persist an exam-tagged event to the user's default calendar.
+    /// Returns false if calendar access is denied or the event cannot be saved.
+    func addExam(name: String, date: Date) async throws -> Bool
 }
 
 // MARK: - CalendarEvent

@@ -51,6 +51,9 @@ struct TempoApp: App {
             if !ProcessInfo.processInfo.environment.keys.contains("XCTestBundlePath") {
                 try ExerciseLibraryLoader.loadIfNeeded(context: container.mainContext)
                 try AchievementLibrary.loadIfNeeded(context: container.mainContext)
+                // One-shot backfill of NonNegotiableProgress.wasSkipped from
+                // the legacy sentinel encoding. Idempotent.
+                DailyResetCoordinator.backfillWasSkippedIfNeeded(container: container)
             }
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
@@ -61,6 +64,15 @@ struct TempoApp: App {
 
         // Wire push registration service to AppDelegate
         TempoAppDelegate.pushRegistration = serviceContainer.pushRegistration
+
+        // Per BUILD_PLAN — register BG tasks before scene activation per Apple
+        // guidance, then arm the daily reset handler.
+        let containerRef = container
+        serviceContainer.backgroundSync.dailyResetHandler = { @Sendable in
+            await DailyResetCoordinator.runIfNeeded(container: containerRef)
+        }
+        serviceContainer.backgroundSync.registerBackgroundTasks()
+        serviceContainer.backgroundSync.scheduleDailyReset()
 
         // Make NavigationBar fully transparent so .toolbar(.hidden) doesn't
         // leave a phantom inset on iOS 26.
@@ -97,6 +109,11 @@ struct TempoApp: App {
                 // notifications when the user opens the app (anti-spam).
                 if let notifService = services.notifications as? NotificationService {
                     notifService.cancelPendingEscalationsOnForeground()
+                }
+                // Run any missed daily reset (e.g., BG task got starved).
+                let containerRef = container
+                Task {
+                    await DailyResetCoordinator.runIfNeeded(container: containerRef)
                 }
             }
         }

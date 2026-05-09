@@ -8,6 +8,7 @@
 
 import SwiftData
 import SwiftUI
+import UIKit
 
 // MARK: - Focus Timer View
 
@@ -23,6 +24,8 @@ struct FocusTimerView: View {
     private var modelContext
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.scenePhase)
+    private var scenePhase
 
     @State
     private var showStopConfirmation = false
@@ -168,6 +171,18 @@ struct FocusTimerView: View {
         .onChange(of: viewModel.focusState) { _, newState in
             handleStateChange(newState)
         }
+        .onChange(of: scenePhase) { _, newPhase in
+            // Per spec B50 — App Store-safe distraction auto-detection.
+            // Every backgrounding while focusing increments the counter,
+            // catching the "switched to social media" pattern that the
+            // manual "Distracted" button can't.
+            guard newPhase == .background || newPhase == .inactive else {
+                return
+            }
+            if case .focusing = viewModel.focusState {
+                viewModel.distractionCount += 1
+            }
+        }
         .onAppear {
             // Start colon blink timer for paused state
             startColonBlink()
@@ -175,6 +190,8 @@ struct FocusTimerView: View {
         .onDisappear {
             blinkTask?.cancel()
             blinkTask = nil
+            // Always release the screen lock when the timer view leaves.
+            UIApplication.shared.isIdleTimerDisabled = false
         }
     }
 
@@ -1109,6 +1126,8 @@ struct FocusTimerView: View {
     }
 
     private func handleStateChange(_ state: FocusTimerState) {
+        // Per spec B16 — keep the screen lit during active focus/break states.
+        UIApplication.shared.isIdleTimerDisabled = state.isActive
         switch state {
         case .sessionDone:
             HapticManager.notification(.success)

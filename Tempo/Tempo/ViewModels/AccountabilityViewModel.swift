@@ -360,6 +360,22 @@ final class AccountabilityViewModel {
         modelContext.insert(session)
         currentStudySession = session
         focusStartDate = Date()
+        // Per spec B49 — clear focus-score inputs at session start.
+        distractionCount = 0
+        pauseCount = 0
+        totalPauseDuration = 0
+        pauseStartedAt = nil
+
+        // Per spec B37–B40 — start Live Activity for lock screen + Dynamic Island.
+        FocusTimerActivityManager.shared.start(
+            sessionID: session.id.uuidString,
+            phaseEndsAt: Date().addingTimeInterval(focusDuration),
+            phaseLabel: "FOCUS TIME",
+            progress: 0,
+            subject: focusSubject,
+            sessionIndex: currentSessionCount + 1,
+            totalSessions: sessionsBeforeLongBreak
+        )
 
         // Start timer
         // Per STATE_MACHINES.md Section 2: configuring/breakDone → focusing
@@ -372,6 +388,12 @@ final class AccountabilityViewModel {
             return
         }
         focusTimerTask?.cancel()
+
+        // Per spec B49 — track pause frequency and duration for the Focus Score.
+        if case .focusing = focusState {
+            pauseCount += 1
+            pauseStartedAt = Date()
+        }
 
         switch focusState {
         case let .focusing(r):
@@ -388,6 +410,12 @@ final class AccountabilityViewModel {
     func resumeFocus(modelContext: ModelContext) {
         guard case let .paused(previous) = focusState else {
             return
+        }
+
+        // Accumulate the elapsed pause duration before clearing the marker.
+        if let startedAt = pauseStartedAt {
+            totalPauseDuration += Date().timeIntervalSince(startedAt)
+            pauseStartedAt = nil
         }
 
         switch previous {
@@ -424,6 +452,10 @@ final class AccountabilityViewModel {
         currentStudySession = nil
         focusStartDate = nil
         distractionCount = 0
+        pauseCount = 0
+        totalPauseDuration = 0
+        pauseStartedAt = nil
+        FocusTimerActivityManager.shared.endCurrentDetached()
         focusState = .cancelled
         // Return to idle after brief delay
         Task {
@@ -454,7 +486,7 @@ final class AccountabilityViewModel {
         if let session = currentStudySession {
             session.endTime = Date()
             session.distractions = distractionCount
-            session.focusScore = max(0, 100 - (distractionCount * 10))
+            session.focusScore = computeFocusScore(for: session)
 
             // Note: study minutes and progress are saved incrementally
             // after each pomodoro in savePartialSession(). We only finalize
@@ -467,7 +499,62 @@ final class AccountabilityViewModel {
         focusStartDate = nil
         currentSessionCount = 0
         distractionCount = 0
+        pauseCount = 0
+        totalPauseDuration = 0
+        pauseStartedAt = nil
+        FocusTimerActivityManager.shared.endCurrentDetached()
         focusState = .idle
+    }
+
+    // MARK: - Focus Score (spec B49)
+
+    /// Composite 0–100 focus quality score per MODULE_ACCOUNTABILITY.md §3.13:
+    /// 35% distraction + 25% pause-frequency + 20% pause-duration + 20% completion.
+    func computeFocusScore(for session: StudySession) -> Int {
+        // Distractions: 0=100, 1-2=85, 3-4=65, 5+=40
+        let distractionScore: Double = switch distractionCount {
+        case 0: 100
+        case 1 ... 2: 85
+        case 3 ... 4: 65
+        default: 40
+        }
+
+        // Pause frequency normalized to 25-min blocks of focus.
+        let elapsedMinutes = max(1.0, Double(session.durationMinutes))
+        let blocks = max(1.0, elapsedMinutes / 25.0)
+        let pausesPerBlock = Double(pauseCount) / blocks
+        let pauseFreqScore: Double = switch pausesPerBlock {
+        case ..<0.5: 100
+        case ..<1.5: 90
+        case ..<2.5: 70
+        default: 50
+        }
+
+        // Pause duration ratio: pause time vs total focus time.
+        let totalFocusSeconds = max(60.0, elapsedMinutes * 60.0)
+        let pauseRatio = totalPauseDuration / totalFocusSeconds
+        let pauseDurationScore: Double = switch pauseRatio {
+        case ..<0.05: 100
+        case ..<0.15: 80
+        case ..<0.30: 55
+        default: 30
+        }
+
+        // Completion: ratio of completed pomodoros to planned (sessionsBeforeLongBreak).
+        let planned = max(1, sessionsBeforeLongBreak)
+        let completionRatio = Double(currentSessionCount) / Double(planned)
+        let completionScore: Double = switch completionRatio {
+        case 1.0...: 100
+        case 0.75 ..< 1.0: 80
+        case 0.5 ..< 0.75: 50
+        default: 20
+        }
+
+        let composite = (distractionScore * 0.35)
+            + (pauseFreqScore * 0.25)
+            + (pauseDurationScore * 0.20)
+            + (completionScore * 0.20)
+        return Int(min(100, max(0, composite)))
     }
 
     // MARK: - Per-Habit Streaks
@@ -518,6 +605,17 @@ final class AccountabilityViewModel {
     // MARK: - Focus Timer Distraction Count (persisted across view dismiss)
 
     var distractionCount: Int = 0
+
+    // MARK: - Focus Timer Pause Tracking (per spec B49)
+
+    /// Number of times the user paused the timer during the current session.
+    var pauseCount: Int = 0
+
+    /// Cumulative seconds spent in paused state during the current session.
+    var totalPauseDuration: TimeInterval = 0
+
+    /// Timestamp when the most recent pause began. Cleared on resume.
+    private var pauseStartedAt: Date?
 
     // MARK: - Save Partial Focus Session
 

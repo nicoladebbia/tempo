@@ -8,6 +8,8 @@
 		<string>com.tempo.data-sync</string>
 		<string>com.tempo.daily-reset</string>
 	</array>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleExecutable</key>

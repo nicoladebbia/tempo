@@ -144,6 +144,8 @@
 		7007FEDD94A8699687D08EB4 /* TrainingSplit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13B8FFED271B3698DBC73838 /* TrainingSplit.swift */; };
 		7036F81C74FA0DC3CCC3068C /* DrillSergeantBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = E55F74B6AA6A7D4C4AECBDF2 /* DrillSergeantBubble.swift */; };
 		732EA7C8BCD8132855049B28 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECAC95BF0BC02C64647A9FCC /* NotificationService.swift */; };
+		8A4CCA48212DF8473AE9DACE /* AccountabilityCopyPool.swift in Sources */ = {isa = PBXBuildFile; fileRef = D09EE944B1D6783D449744EE /* AccountabilityCopyPool.swift */; };
+		9C059D1FC5FF3EDF7F9F1191 /* AccountabilityCopy.json in Resources */ = {isa = PBXBuildFile; fileRef = FF2584AE491183B2D0A6D5F9 /* AccountabilityCopy.json */; };
 		73836BF239336AE429DC4F6A /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC1E51023C5E4D5C35509B68 /* NotificationSettingsView.swift */; };
 		743657687BC2177D484B3963 /* PrescriptionCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97D8BE75DD80283824788AB8 /* PrescriptionCardView.swift */; };
 		744EB59D8032ACEA191D194E /* Streak.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D4D3D9D1E24B11E4FE31CBA /* Streak.swift */; };
@@ -296,6 +298,11 @@
 		F903E2EF64DF1CE1970EBA2A /* OnboardingContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8457A0C1E5AD157EF2DDE996 /* OnboardingContainerView.swift */; };
 		F906672EB8E20EA8C33A5DA2 /* TempoMigrationPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFDCD75682A5D5E2AA4A581A /* TempoMigrationPlan.swift */; };
 		FA6DC8DFA487FB79718429A7 /* BackgroundSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C0EEE1F7D1B6D39B8F5103E /* BackgroundSyncService.swift */; };
+		EA24F22474F7A0EE2C3D3FFB /* DailyResetCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0B87B364EA5AE2DFCAF8B4 /* DailyResetCoordinator.swift */; };
+		B78D5B5F96CF24B702B848BA /* FocusTimerActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BED85B28ADF099049D687F2 /* FocusTimerActivityAttributes.swift */; };
+		E062278182D72BA1C4283FA0 /* FocusTimerActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BED85B28ADF099049D687F2 /* FocusTimerActivityAttributes.swift */; };
+		17E5BF8DC87103A037FAF873 /* FocusTimerActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A476B52EA6385912174D78D7 /* FocusTimerActivityManager.swift */; };
+		5858745E0EC4FDD336FDFDCA /* FocusTimerLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D2BC59447C506467C534DF8 /* FocusTimerLiveActivity.swift */; };
 		FA7E7514ED95B5A5C738A967 /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B9A3BCA3AB54AD01D0758E3 /* DesignTokens.swift */; };
 		FB9AD9EC9831F3BC29371B34 /* WorkoutCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 434489B67B26E92709DA90A0 /* WorkoutCardView.swift */; };
 		FD4F8D22C88FFFD22D088D8E /* SyncCoordinatorProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8F26E407787FCFF9954F0F0 /* SyncCoordinatorProtocol.swift */; };
@@ -436,6 +443,10 @@
 		395473472C40337A7A1B8A18 /* MockSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockSyncCoordinator.swift; sourceTree = "<group>"; };
 		3ADCEE1F4F6CB8F36072EF9B /* NutritionCoachPrompts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NutritionCoachPrompts.swift; sourceTree = "<group>"; };
 		3C0EEE1F7D1B6D39B8F5103E /* BackgroundSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundSyncService.swift; sourceTree = "<group>"; };
+		CB0B87B364EA5AE2DFCAF8B4 /* DailyResetCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyResetCoordinator.swift; sourceTree = "<group>"; };
+		6BED85B28ADF099049D687F2 /* FocusTimerActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTimerActivityAttributes.swift; sourceTree = "<group>"; };
+		A476B52EA6385912174D78D7 /* FocusTimerActivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTimerActivityManager.swift; sourceTree = "<group>"; };
+		9D2BC59447C506467C534DF8 /* FocusTimerLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTimerLiveActivity.swift; sourceTree = "<group>"; };
 		3C45C46FA2A2369C89483AF2 /* SignInWithAppleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInWithAppleView.swift; sourceTree = "<group>"; };
 		3ED1546739FA6FE300F85A98 /* WatchConnectivityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchConnectivityService.swift; sourceTree = "<group>"; };
 		3FAF1EA16142A7D5B1CCD340 /* RecoveryTodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryTodayView.swift; sourceTree = "<group>"; };
@@ -665,6 +676,8 @@
 		EC8FF130C410702CD4EB3ECC /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		EC9A70C2440A13E5AA0C550C /* RecoveryEngineProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryEngineProtocol.swift; sourceTree = "<group>"; };
 		ECAC95BF0BC02C64647A9FCC /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
+		D09EE944B1D6783D449744EE /* AccountabilityCopyPool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountabilityCopyPool.swift; sourceTree = "<group>"; };
+		FF2584AE491183B2D0A6D5F9 /* AccountabilityCopy.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = AccountabilityCopy.json; sourceTree = "<group>"; };
 		ECD7848589231E4C0912FF88 /* AuthInterceptor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthInterceptor.swift; sourceTree = "<group>"; };
 		ECE95B9726C51F6F2B096E82 /* RecoveryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryViewModel.swift; sourceTree = "<group>"; };
 		EDE277CDEFE92824736D57A9 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
@@ -721,6 +734,7 @@
 				CC04A5022FD7321D543B4460 /* Engines */,
 				FA54DF6F53F9C10BE1962D50 /* Health */,
 				4CAB1E2B452DD0C7276C12A4 /* Integrations */,
+				A3E57B3D142CE3398D839CAA /* LiveActivity */,
 				439CA9F607270E0399D7E979 /* Network */,
 				3E9652389F9D3A3F6DCD4526 /* Notifications */,
 				0507482A320CCF57C02F4F77 /* Sync */,
@@ -730,6 +744,15 @@
 				6E1DEA811B4D56559178D2F5 /* Subscriptions */,
 			);
 			path = Services;
+			sourceTree = "<group>";
+		};
+		A3E57B3D142CE3398D839CAA /* LiveActivity */ = {
+			isa = PBXGroup;
+			children = (
+				6BED85B28ADF099049D687F2 /* FocusTimerActivityAttributes.swift */,
+				A476B52EA6385912174D78D7 /* FocusTimerActivityManager.swift */,
+			);
+			path = LiveActivity;
 			sourceTree = "<group>";
 		};
 		04499B50E1A57E80057DCCD0 /* Extensions */ = {
@@ -752,6 +775,7 @@
 			children = (
 				D0D41E880144A54E4F98100F /* .gitkeep */,
 				3C0EEE1F7D1B6D39B8F5103E /* BackgroundSyncService.swift */,
+				CB0B87B364EA5AE2DFCAF8B4 /* DailyResetCoordinator.swift */,
 				395473472C40337A7A1B8A18 /* MockSyncCoordinator.swift */,
 				A8F26E407787FCFF9954F0F0 /* SyncCoordinatorProtocol.swift */,
 			);
@@ -908,6 +932,7 @@
 			children = (
 				1B3C392B77F5DB78F4E43ADA /* .gitkeep */,
 				C0E3A144A95A6F8B142352EE /* AccountabilityEscalationEngine.swift */,
+				D09EE944B1D6783D449744EE /* AccountabilityCopyPool.swift */,
 				E29E85F814651278AAAEB037 /* MockNotificationService.swift */,
 				ECAC95BF0BC02C64647A9FCC /* NotificationService.swift */,
 				6CF7502E4ED9AA423089206D /* NotificationServiceProtocol.swift */,
@@ -1293,6 +1318,7 @@
 			isa = PBXGroup;
 			children = (
 				F2CB8C49552BF12ADD83590E /* Assets.xcassets */,
+				9D2BC59447C506467C534DF8 /* FocusTimerLiveActivity.swift */,
 				7C61F010FAE13F4945D1221F /* TempoWidget.swift */,
 				C5F0FE779EB5CA8BDAAA6B98 /* TempoWidgetBundle.swift */,
 				DE7BDA5C36C3762695DDD533 /* TempoWidgetEntryView.swift */,
@@ -1454,6 +1480,7 @@
 			children = (
 				ADE5044FB977DE22691B7A9B /* Sounds */,
 				9284B1CA6F61A72512C3CB18 /* Assets.xcassets */,
+				FF2584AE491183B2D0A6D5F9 /* AccountabilityCopy.json */,
 				0296CB64B525F8E5AC6C8A55 /* Exercises.json */,
 			);
 			path = Resources;
@@ -1819,6 +1846,7 @@
 				78D431FC734932DC2397F4AB /* Assets.xcassets in Resources */,
 				6E31DC3FD1E53D9CD7142969 /* Assets.xcassets in Resources */,
 				B7538C58C97145FFEDC98F6F /* Exercises.json in Resources */,
+				9C059D1FC5FF3EDF7F9F1191 /* AccountabilityCopy.json in Resources */,
 				AAA3DFCFB482F225B2312138 /* Preview Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1900,6 +1928,8 @@
 				A6459590C12AA2D01E1F36D4 /* TempoWidgetBundle.swift in Sources */,
 				1F11E5940ED036979CF059D8 /* TempoWidgetEntryView.swift in Sources */,
 				76164B1D0E2D53A48D4A5CD7 /* TempoWidgetViews.swift in Sources */,
+				E062278182D72BA1C4283FA0 /* FocusTimerActivityAttributes.swift in Sources */,
+				5858745E0EC4FDD336FDFDCA /* FocusTimerLiveActivity.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1989,6 +2019,9 @@
 				04D027E5CDD12706EF271FC5 /* AuthInterceptor.swift in Sources */,
 				0684CA89812F5749095D2787 /* AuthService.swift in Sources */,
 				FA6DC8DFA487FB79718429A7 /* BackgroundSyncService.swift in Sources */,
+				EA24F22474F7A0EE2C3D3FFB /* DailyResetCoordinator.swift in Sources */,
+				B78D5B5F96CF24B702B848BA /* FocusTimerActivityAttributes.swift in Sources */,
+				17E5BF8DC87103A037FAF873 /* FocusTimerActivityManager.swift in Sources */,
 				E83225D21A9DD622D2814483 /* BodyQuadrantDetailView.swift in Sources */,
 				50F77068D556F5168D6C6AF1 /* CalendarService.swift in Sources */,
 				B69242063A760BE21AF37048 /* CalendarServiceProtocol.swift in Sources */,
@@ -2054,6 +2087,7 @@
 				BD32786A1DCA19DF961E20D0 /* NonNegotiableProgress.swift in Sources */,
 				EE35F37B13C2A29B026CC87D /* NonNegotiableSetupView.swift in Sources */,
 				732EA7C8BCD8132855049B28 /* NotificationService.swift in Sources */,
+				8A4CCA48212DF8473AE9DACE /* AccountabilityCopyPool.swift in Sources */,
 				4E928626A30DE4A9E17E1E51 /* NotificationServiceProtocol.swift in Sources */,
 				73836BF239336AE429DC4F6A /* NotificationSettingsView.swift in Sources */,
 				22307C63DC7074A53D186F72 /* NotificationSetupView.swift in Sources */,

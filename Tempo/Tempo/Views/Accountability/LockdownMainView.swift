@@ -23,6 +23,8 @@ struct LockdownMainView: View {
     var showFocusTimer: Bool
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(ServiceContainer.self)
+    private var services
     @Query
     private var allSettings: [UserSettings]
 
@@ -81,6 +83,13 @@ struct LockdownMainView: View {
             }
             .refreshable {
                 viewModel.loadToday(modelContext: modelContext)
+                // Re-evaluate smart notifications now that progress is fresh.
+                if let notifService = services.notifications as? NotificationService {
+                    viewModel.scheduleSmartNotifications(
+                        notificationService: notifService,
+                        modelContext: modelContext
+                    )
+                }
             }
 
             // Sticky bottom: Quick action + Leisure status
@@ -712,7 +721,7 @@ struct LockdownMainView: View {
 
                 // Score display
                 if let accountability = viewModel.accountability {
-                    let score = AccountabilityEngine().calculateDailyScore(accountability: accountability)
+                    let score = services.accountabilityEngine.calculateDailyScore(accountability: accountability)
                     VStack(spacing: TempoSpacing.xs) {
                         Text("TODAY'S SCORE")
                             .font(.tempoCaption2)
@@ -895,6 +904,8 @@ struct NonNegotiableCardView: View {
 
     @Environment(\.colorScheme)
     private var colorScheme
+    @Environment(ServiceContainer.self)
+    private var services
 
     private var nn: NonNegotiable? {
         progress.nonNegotiable
@@ -1366,7 +1377,7 @@ struct NonNegotiableCardView: View {
         }
         // Check if overdue (past PS5 time) — use AccountabilityEngine as source of truth
         let now = Date()
-        let ps5 = AccountabilityEngine().ps5Time(for: now)
+        let ps5 = services.accountabilityEngine.ps5Time(for: now)
         if now > ps5, !progress.isCompleted {
             return .overdue
         }

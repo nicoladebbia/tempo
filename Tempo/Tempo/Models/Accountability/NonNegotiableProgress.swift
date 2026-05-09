@@ -26,6 +26,13 @@ final class NonNegotiableProgress {
 
     var completedAt: Date?
 
+    /// True when the user explicitly skipped this non-negotiable for the day.
+    /// Skipped items still count as "complete" for streak purposes
+    /// (`isCompleted == true`) but should be reported separately so Tier-5
+    /// celebration copy and weekly grading can distinguish a clean day from a
+    /// skipped day. Default `false` for new and migrated rows.
+    var wasSkipped: Bool = false
+
     var sourceDataJSON: Data?
 
     // MARK: - Relationships
@@ -89,6 +96,7 @@ extension NonNegotiableProgress {
         let current_value: Double
         let target_value: Double
         let is_completed: Bool
+        let was_skipped: Bool
         let completed_at: Date?
         let source_data: String?
     }
@@ -102,6 +110,7 @@ extension NonNegotiableProgress {
             current_value: currentValue,
             target_value: targetValue,
             is_completed: isCompleted,
+            was_skipped: wasSkipped,
             completed_at: completedAt,
             source_data: sourceString
         )

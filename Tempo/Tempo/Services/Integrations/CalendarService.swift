@@ -125,6 +125,36 @@ final class CalendarService: CalendarServiceProtocol, @unchecked Sendable {
             .sorted { $0.date < $1.date }
     }
 
+    // MARK: - Exam Persistence
+
+    /// Persist an exam-tagged event to the user's default calendar so the
+    /// detectExamDates query picks it up on the next refresh.
+    func addExam(name: String, date: Date) async throws -> Bool {
+        if !isAuthorized {
+            try await requestAuthorization()
+        }
+        guard isAuthorized, let defaultCalendar = eventStore.defaultCalendarForNewEvents else {
+            return false
+        }
+        let event = EKEvent(eventStore: eventStore)
+        // Title prefixed with "Exam:" so isExamEvent classifies it on read-back.
+        event.title = "Exam: \(name)"
+        event.calendar = defaultCalendar
+
+        // Anchor to the noon hour of the chosen day; users picking a date
+        // typically don't supply a time, and noon avoids day-boundary surprises.
+        let cal = Calendar.current
+        let day = cal.startOfDay(for: date)
+        event.startDate = cal.date(bySettingHour: 12, minute: 0, second: 0, of: day) ?? date
+        event.endDate = event.startDate.addingTimeInterval(2 * 3600)
+
+        try eventStore.save(event, span: .thisEvent)
+        // Invalidate cache so detectExamDates re-reads.
+        cachedEvents = []
+        lastFetchRange = nil
+        return true
+    }
+
     // MARK: - Class Detection
 
     func detectClassSchedule(for date: Date) -> [CalendarClass] {
