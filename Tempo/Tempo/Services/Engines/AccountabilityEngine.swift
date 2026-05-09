@@ -100,6 +100,13 @@ final class AccountabilityEngine: @unchecked Sendable {
             return .dayFailed
         }
 
+        // No tasks defined yet → morningSetup, regardless of time of day
+        // remaining in the active window. Deadline-pressure states (final
+        // warning, approaching deadline) only apply once the user has work.
+        guard accountability.totalCount > 0 else {
+            return .morningSetup
+        }
+
         // Within 30 minutes of PS5 time → finalWarning
         // Per STATE_MACHINES.md Section 3: approachingDeadline → finalWarning (timeToPS5 < 30 min)
         let timeToPS5 = ps5Time.timeIntervalSince(now)
@@ -114,11 +121,7 @@ final class AccountabilityEngine: @unchecked Sendable {
         }
 
         // Normal tracking
-        if accountability.totalCount > 0 {
-            return .tracking
-        }
-
-        return .morningSetup
+        return .tracking
     }
 
     // MARK: - Leisure Unlock
