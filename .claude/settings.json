@@ -64,8 +64,8 @@
       "Bash(rm -rf /*)",
       "Bash(rm -rf ~*)",
       "Bash(sudo:*)",
-      "Bash(curl:*POST*password*)",
-      "Bash(curl:*DELETE*)"
+      "Bash(curl *POST*password*)",
+      "Bash(curl *DELETE*)"
     ]
   },
   "model": "opus",
