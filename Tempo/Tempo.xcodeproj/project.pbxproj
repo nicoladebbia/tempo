@@ -309,6 +309,26 @@
 		2FABD429FF8A4E6E84B778D4 /* MockPantryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DFE333405141C396D3C4B0 /* MockPantryService.swift */; };
 		B9947F11BCDE4D42B3A647F1 /* FoodCanonicalizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74747A1CFCB047B294FB6085 /* FoodCanonicalizerTests.swift */; };
 		C44C7CEEFCBF4A07B1B2556D /* PantryServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF89DB31E3764B358F320D90 /* PantryServiceTests.swift */; };
+		8F8825C8D9804A29917FECD1 /* Receipt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BF53966D14349C08D8CC1D0 /* Receipt.swift */; };
+		7F28513DFA48424CB70523EF /* ReceiptLineItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DD38FA6740C414BB47B3216 /* ReceiptLineItem.swift */; };
+		3A372E8A3B844EDE84F942EF /* VisionReceiptOCR.swift in Sources */ = {isa = PBXBuildFile; fileRef = 159E98378754409EB6D8786B /* VisionReceiptOCR.swift */; };
+		A29F992655784B96996B96E4 /* ReceiptStructuringDTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84F74507A1CD406CB2C3BD37 /* ReceiptStructuringDTOs.swift */; };
+		6295F32915D64F7690C8CE25 /* ReceiptServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 458D70103BB04CC8A0952622 /* ReceiptServiceProtocol.swift */; };
+		1A8B9E2FF7F54E108167D8D0 /* LiveReceiptService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A56A4D280C35409BAA328818 /* LiveReceiptService.swift */; };
+		C5D6E37C73584AC8A05AD88A /* MockReceiptService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6C2654907164ABAB910B591 /* MockReceiptService.swift */; };
+		9D1ACFB6D8F74C8DBAC3DF14 /* ReceiptCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EF55C0327284AD2B68C6A3D /* ReceiptCaptureView.swift */; };
+		7B3FA6F742F840FE86ABC455 /* ReceiptReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7054D986AFE644D6BADEBB00 /* ReceiptReviewView.swift */; };
+		7CB5FD5131C543A8A0407D5E /* Recipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82F89205F97A4C0387F8FD01 /* Recipe.swift */; };
+		855C939407494E199E54D575 /* RecipeSuggestionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6D5AE24A3BF451DA06E8BFD /* RecipeSuggestionEngine.swift */; };
+		36A87D8B7D7040F8AFE5F8E0 /* RecipeServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4541EB98CA0249FF8EAF9F73 /* RecipeServiceProtocol.swift */; };
+		E3E9933F3FC7457BADFA1541 /* LocalRecipeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 659D487BA9574240813A0119 /* LocalRecipeService.swift */; };
+		4EB13A938E384D19BD047F14 /* RecipeSuggestionEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4123E245257F4DD5954C05EC /* RecipeSuggestionEngineTests.swift */; };
+		AB754B47621643E3A8F8536C /* GroceryList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DF571EBE360477D84C43432 /* GroceryList.swift */; };
+		D890534F82794259A1A45B66 /* GroceryListGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE3802CF6F3E4C9B8A167966 /* GroceryListGenerator.swift */; };
+		CF55D85ACB734E05BFE6DD79 /* GroceryListServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C58509A437543A1A2D89D2A /* GroceryListServiceProtocol.swift */; };
+		48BA31198FD547E8BD026189 /* LocalGroceryListService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD3B88BE3A074B7FA320F195 /* LocalGroceryListService.swift */; };
+		6C303E965AAA4A1985C29CEF /* NutritionIntelligenceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18C9555BEC8B46C0885A0957 /* NutritionIntelligenceService.swift */; };
+		B9CD9BFA44E54B54901DD1E1 /* GroceryListGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2117949272747C3B83168A0 /* GroceryListGeneratorTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -705,6 +725,26 @@
 		C7DFE333405141C396D3C4B0 /* MockPantryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tempo/Services/Nutrition/MockPantryService.swift; sourceTree = SOURCE_ROOT; };
 		74747A1CFCB047B294FB6085 /* FoodCanonicalizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoTests/Services/FoodCanonicalizerTests.swift; sourceTree = SOURCE_ROOT; };
 		BF89DB31E3764B358F320D90 /* PantryServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoTests/Services/PantryServiceTests.swift; sourceTree = SOURCE_ROOT; };
+		9BF53966D14349C08D8CC1D0 /* Receipt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tempo/Models/Nutrition/Receipt.swift; sourceTree = SOURCE_ROOT; };
+		9DD38FA6740C414BB47B3216 /* ReceiptLineItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tempo/Models/Nutrition/ReceiptLineItem.swift; sourceTree = SOURCE_ROOT; };
+		159E98378754409EB6D8786B /* VisionReceiptOCR.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tempo/Services/Nutrition/VisionReceiptOCR.swift; sourceTree = SOURCE_ROOT; };
+		84F74507A1CD406CB2C3BD37 /* ReceiptStructuringDTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tempo/Services/Nutrition/ReceiptStructuringDTOs.swift; sourceTree = SOURCE_ROOT; };
+		458D70103BB04CC8A0952622 /* ReceiptServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tempo/Services/Nutrition/ReceiptServiceProtocol.swift; sourceTree = SOURCE_ROOT; };
+		A56A4D280C35409BAA328818 /* LiveReceiptService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tempo/Services/Nutrition/LiveReceiptService.swift; sourceTree = SOURCE_ROOT; };
+		D6C2654907164ABAB910B591 /* MockReceiptService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tempo/Services/Nutrition/MockReceiptService.swift; sourceTree = SOURCE_ROOT; };
+		6EF55C0327284AD2B68C6A3D /* ReceiptCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tempo/Views/Nutrition/ReceiptCaptureView.swift; sourceTree = SOURCE_ROOT; };
+		7054D986AFE644D6BADEBB00 /* ReceiptReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tempo/Views/Nutrition/ReceiptReviewView.swift; sourceTree = SOURCE_ROOT; };
+		82F89205F97A4C0387F8FD01 /* Recipe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tempo/Models/Nutrition/Recipe.swift; sourceTree = SOURCE_ROOT; };
+		A6D5AE24A3BF451DA06E8BFD /* RecipeSuggestionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tempo/Services/Engines/RecipeSuggestionEngine.swift; sourceTree = SOURCE_ROOT; };
+		4541EB98CA0249FF8EAF9F73 /* RecipeServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tempo/Services/Nutrition/RecipeServiceProtocol.swift; sourceTree = SOURCE_ROOT; };
+		659D487BA9574240813A0119 /* LocalRecipeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tempo/Services/Nutrition/LocalRecipeService.swift; sourceTree = SOURCE_ROOT; };
+		4123E245257F4DD5954C05EC /* RecipeSuggestionEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoTests/Services/RecipeSuggestionEngineTests.swift; sourceTree = SOURCE_ROOT; };
+		4DF571EBE360477D84C43432 /* GroceryList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tempo/Models/Nutrition/GroceryList.swift; sourceTree = SOURCE_ROOT; };
+		AE3802CF6F3E4C9B8A167966 /* GroceryListGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tempo/Services/Nutrition/GroceryListGenerator.swift; sourceTree = SOURCE_ROOT; };
+		3C58509A437543A1A2D89D2A /* GroceryListServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tempo/Services/Nutrition/GroceryListServiceProtocol.swift; sourceTree = SOURCE_ROOT; };
+		CD3B88BE3A074B7FA320F195 /* LocalGroceryListService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tempo/Services/Nutrition/LocalGroceryListService.swift; sourceTree = SOURCE_ROOT; };
+		18C9555BEC8B46C0885A0957 /* NutritionIntelligenceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tempo/Services/Nutrition/NutritionIntelligenceService.swift; sourceTree = SOURCE_ROOT; };
+		A2117949272747C3B83168A0 /* GroceryListGeneratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoTests/Services/GroceryListGeneratorTests.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1941,7 +1981,9 @@
 				F0640427B7B39D962D0E5BD4 /* XPEngineTests.swift in Sources */,
 			
 				B9947F11BCDE4D42B3A647F1 /* FoodCanonicalizerTests.swift in Sources */,
-				C44C7CEEFCBF4A07B1B2556D /* PantryServiceTests.swift in Sources */,);
+				C44C7CEEFCBF4A07B1B2556D /* PantryServiceTests.swift in Sources */,
+				4EB13A938E384D19BD047F14 /* RecipeSuggestionEngineTests.swift in Sources */,
+				B9CD9BFA44E54B54901DD1E1 /* GroceryListGeneratorTests.swift in Sources */,);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		337EF2AF92A43E042FC02B83 /* Sources */ = {
@@ -2245,7 +2287,25 @@
 				18A5656E035F485B9492FB37 /* PantryItem.swift in Sources */,
 				700959EC3E1A4E9A8AF69E24 /* PantryServiceProtocol.swift in Sources */,
 				6E55D7388D454DBA9635401D /* LocalPantryService.swift in Sources */,
-				2FABD429FF8A4E6E84B778D4 /* MockPantryService.swift in Sources */,);
+				2FABD429FF8A4E6E84B778D4 /* MockPantryService.swift in Sources */,
+				8F8825C8D9804A29917FECD1 /* Receipt.swift in Sources */,
+				7F28513DFA48424CB70523EF /* ReceiptLineItem.swift in Sources */,
+				3A372E8A3B844EDE84F942EF /* VisionReceiptOCR.swift in Sources */,
+				A29F992655784B96996B96E4 /* ReceiptStructuringDTOs.swift in Sources */,
+				6295F32915D64F7690C8CE25 /* ReceiptServiceProtocol.swift in Sources */,
+				1A8B9E2FF7F54E108167D8D0 /* LiveReceiptService.swift in Sources */,
+				C5D6E37C73584AC8A05AD88A /* MockReceiptService.swift in Sources */,
+				9D1ACFB6D8F74C8DBAC3DF14 /* ReceiptCaptureView.swift in Sources */,
+				7B3FA6F742F840FE86ABC455 /* ReceiptReviewView.swift in Sources */,
+				7CB5FD5131C543A8A0407D5E /* Recipe.swift in Sources */,
+				855C939407494E199E54D575 /* RecipeSuggestionEngine.swift in Sources */,
+				36A87D8B7D7040F8AFE5F8E0 /* RecipeServiceProtocol.swift in Sources */,
+				E3E9933F3FC7457BADFA1541 /* LocalRecipeService.swift in Sources */,
+				AB754B47621643E3A8F8536C /* GroceryList.swift in Sources */,
+				D890534F82794259A1A45B66 /* GroceryListGenerator.swift in Sources */,
+				CF55D85ACB734E05BFE6DD79 /* GroceryListServiceProtocol.swift in Sources */,
+				48BA31198FD547E8BD026189 /* LocalGroceryListService.swift in Sources */,
+				6C303E965AAA4A1985C29CEF /* NutritionIntelligenceService.swift in Sources */,);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */

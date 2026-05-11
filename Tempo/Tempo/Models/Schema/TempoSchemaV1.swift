@@ -51,6 +51,13 @@ enum TempoSchemaV1: VersionedSchema {
             PlannedMeal.self,
             MealPreset.self,
             PantryItem.self,
+            Receipt.self,
+            ReceiptLineItem.self,
+            Recipe.self,
+            RecipeIngredient.self,
+            RecipeStep.self,
+            GroceryList.self,
+            GroceryListItem.self,
         ]
     }
 }

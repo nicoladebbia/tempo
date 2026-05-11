@@ -46,6 +46,16 @@ func routes(_ app: Application) throws {
         .grouped(RateLimitMiddleware(limit: 10, window: .minutes(1), scope: .user))
         .register(collection: DeviceController())
 
+    // Receipt scan pipeline — Phase 3 of nutrition rebuild.
+    // POST /v1/nutrition/receipts/structure — Claude Haiku Vision structuring (AI rate budget)
+    // POST /v1/nutrition/receipts — persist a scanned receipt
+    // GET  /v1/nutrition/receipts, /:id — list / fetch
+    // PATCH /v1/nutrition/receipts/:id/line-items/:lineID — edit + confirm a line
+    // DELETE /v1/nutrition/receipts/:id — remove a receipt
+    try protected.grouped("nutrition", "receipts")
+        .grouped(RateLimitMiddleware(limit: 30, window: .minutes(1), scope: .user))
+        .register(collection: ReceiptController())
+
     // ─────────────────────────────────────────────────
     // Arena endpoints — per BACKEND_API.md Section 10
     // ─────────────────────────────────────────────────

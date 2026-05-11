@@ -30,6 +30,10 @@ final class ServiceContainer {
     /// Set by the View layer after the SwiftData ModelContext is available.
     /// Read by pantry-aware ViewModels (NutritionTabViewModel etc).
     var pantry: (any PantryServiceProtocol)?
+    var receipts: (any ReceiptServiceProtocol)?
+    var recipes: (any RecipeServiceProtocol)?
+    var groceryList: (any GroceryListServiceProtocol)?
+    let nutritionIntelligence: NutritionIntelligenceService
     let appState: AppState
 
     init(
@@ -66,6 +70,7 @@ final class ServiceContainer {
         self.pushRegistration = pushRegistration
         self.subscriptions = subscriptions
         self.nutrition = nutrition
+        self.nutritionIntelligence = NutritionIntelligenceService()
         appState = AppState(authService: authService)
     }
 

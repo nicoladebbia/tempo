@@ -126,6 +126,8 @@ func configure(_ app: Application) async throws {
     app.migrations.add(CreateWhoopCycles())
     app.migrations.add(CreateNutriTrackIntegrations())
     app.migrations.add(DropNutriTrackIntegrations())
+    app.migrations.add(CreateReceipts())
+    app.migrations.add(CreateReceiptLineItems())
     app.migrations.add(CreateDeviceTokens())
 
     // Arena module — per BUILD_PLAN step 14.1
