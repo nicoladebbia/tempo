@@ -27,6 +27,9 @@ final class ServiceContainer {
     let pushRegistration: PushRegistrationService
     let subscriptions: any SubscriptionServiceProtocol
     let nutrition: any NutritionServiceProtocol
+    /// Set by the View layer after the SwiftData ModelContext is available.
+    /// Read by pantry-aware ViewModels (NutritionTabViewModel etc).
+    var pantry: (any PantryServiceProtocol)?
     let appState: AppState
 
     init(

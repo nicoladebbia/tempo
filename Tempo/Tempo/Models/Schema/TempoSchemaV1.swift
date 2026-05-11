@@ -50,6 +50,7 @@ enum TempoSchemaV1: VersionedSchema {
             WeeklyMealPlan.self,
             PlannedMeal.self,
             MealPreset.self,
+            PantryItem.self,
         ]
     }
 }
