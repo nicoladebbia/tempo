@@ -2,7 +2,7 @@
 // MealPlanGeneratorService.swift
 // Tempo
 //
-// Created by Tempo on 06/05/2026.
+// Created by Tempo on 08/05/2026.
 //
 //
 
@@ -66,7 +66,8 @@ final class MealPlanGeneratorService: @unchecked Sendable {
     func generateWeeklyPlan(
         profile: DietaryProfile,
         whoopTDEE: Double?,
-        modelContext: ModelContext
+        modelContext: ModelContext,
+        intake: MealPlanIntake? = nil
     ) async throws -> WeeklyMealPlan {
         state = .calculating
 

@@ -2,7 +2,7 @@
 // NutritionWeeklyPlanView.swift
 // Tempo
 //
-// Created by Tempo on 06/05/2026.
+// Created by Tempo on 08/05/2026.
 //
 //
 
@@ -25,6 +25,10 @@ struct NutritionWeeklyPlanView: View {
     private var expandedDay: Int?
     @State
     private var showDisclaimerAlert = false
+    @State
+    private var wizardSnapshot: WizardLaunchSnapshot?
+    @State
+    private var isPreparingWizard = false
     @AppStorage("tempo.nutrition.disclaimerAccepted")
     private var disclaimerAccepted = false
 
@@ -72,12 +76,24 @@ struct NutritionWeeklyPlanView: View {
         .alert("AI-Generated Meal Plan", isPresented: $showDisclaimerAlert) {
             Button("I Understand") {
                 disclaimerAccepted = true
-                generatePlan()
+                launchWizard()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text(
                 "Meal plans are created by AI for general wellness guidance. They are not a substitute for professional dietary advice. If you have medical conditions, allergies, or eating disorders, consult a healthcare professional before following any meal plan."
+            )
+        }
+        .sheet(item: $wizardSnapshot) { snapshot in
+            MealPlanIntakeWizardView(
+                snapshot: snapshot,
+                onComplete: { intake in
+                    wizardSnapshot = nil
+                    viewModel.generatePlan(modelContext: modelContext, whoop: services.whoop, intake: intake)
+                },
+                onCancel: {
+                    wizardSnapshot = nil
+                }
             )
         }
     }
@@ -310,13 +326,13 @@ struct NutritionWeeklyPlanView: View {
     private var generateButton: some View {
         Button {
             if disclaimerAccepted {
-                generatePlan()
+                launchWizard()
             } else {
                 showDisclaimerAlert = true
             }
         } label: {
             HStack(spacing: 8) {
-                if viewModel.isGeneratingPlan {
+                if viewModel.isGeneratingPlan || isPreparingWizard {
                     ProgressView()
                         .tint(Color.tempoTextInverse)
                         .scaleEffect(0.8)
@@ -331,19 +347,30 @@ struct NutritionWeeklyPlanView: View {
             .frame(maxWidth: .infinity)
             .frame(height: 50)
             .background(
-                viewModel.isGeneratingPlan
+                (viewModel.isGeneratingPlan || isPreparingWizard)
                     ? Color.tempoSignal.opacity(0.6)
                     : Color.tempoSignal
             )
             .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
         }
-        .disabled(viewModel.isGeneratingPlan || !viewModel.hasProfile)
+        .disabled(viewModel.isGeneratingPlan || isPreparingWizard || !viewModel.hasProfile)
     }
 
     // MARK: - Actions
 
-    private func generatePlan() {
-        viewModel.generatePlan(modelContext: modelContext, whoop: services.whoop)
+    private func launchWizard() {
+        guard !isPreparingWizard else {
+            return
+        }
+        isPreparingWizard = true
+        Task {
+            let snapshot = await viewModel.buildWizardSnapshot(
+                modelContext: modelContext,
+                whoop: services.whoop
+            )
+            isPreparingWizard = false
+            wizardSnapshot = snapshot
+        }
     }
 
     // MARK: - Helpers

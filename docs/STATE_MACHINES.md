@@ -2531,6 +2531,51 @@ None. Exercise sets are entirely in-app interactions. The parent Workout Session
 
 ---
 
+## MealPlanIntakeWizard
+
+Session-scoped wizard surfaced when the user taps "Generate New Plan" in the Plan tab. Collects intake fields that DietaryProfile + HealthKit + pantry cannot answer (cookable days this week, leftover tolerance, eating window, optional grocery/recovery overrides). Discards on dismiss; on submit, payload flows into `NutritionTabViewModel.generatePlan(modelContext:whoop:intake:)`.
+
+### States
+
+| State | Always shown? | Skip predicate |
+|-------|---------------|----------------|
+| `cookingCapacity` | Yes | n/a |
+| `leftoverTolerance` | Yes | n/a |
+| `eatingWindow` | Yes (v1) | Future: skip when `UserSettings.eatingWindow` exists |
+| `pantryGap` | Conditional | Skip when `pantry.itemCount > 0 AND daysSince(maxUpdatedAt) <= 7` |
+| `groceryIntent` | Conditional | Skip when `pantryGap` did not fire OR user chose "from pantry" |
+| `recoveryOverride` | Conditional | Skip when `whoop.fetchRecovery(yesterday)` throws or returns nil |
+| `temporaryExclusions` | Yes | n/a (Skip button available within the step) |
+| `review` | Yes | n/a |
+
+### Transitions
+
+- `advance()` — recomputes visibleSteps from current intake snapshot, moves to next visible step.
+- `goBack()` — moves to previous visible step. No-op at first.
+- `cancel()` — discards intake draft, dismisses sheet.
+- `submit()` — emits final `MealPlanIntake` via onComplete callback, dismisses sheet.
+
+### Invariants
+
+- `visibleSteps[0] == .cookingCapacity` (always).
+- `visibleSteps.last == .review` (always).
+- `currentStep` ∈ `visibleSteps` after every transition.
+- `intake.eatingWindow.isValid` must be true to advance from `eatingWindow`.
+- `intake.groceryIntent != nil` required to advance from `pantryGap`.
+
+### Analytics
+
+| Event | Properties |
+|-------|------------|
+| `meal_plan_wizard.opened` | `pantryCount`, `whoopConnected`, `disclaimerAcceptedPriorToOpen` |
+| `meal_plan_wizard.step_advanced` | `from`, `to` |
+| `meal_plan_wizard.cancelled` | `lastStep` |
+| `meal_plan_wizard.completed` | `cookableDays`, `leftoverTolerance`, `hasGroceryIntent`, `recoveryAdjusted`, `exclusionsCount` |
+
+Analytics emit is deferred to integration with PostHog — not blocked by wizard build, will land in a follow-up.
+
+---
+
 ## Appendix A: Cross-Machine Interaction Map
 
 These interactions are MANDATORY -- when a state machine transition fires, it MUST trigger the corresponding cross-machine events. Missing any of these creates inconsistent state.

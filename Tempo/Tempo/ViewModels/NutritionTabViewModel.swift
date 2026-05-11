@@ -329,7 +329,11 @@ final class NutritionTabViewModel {
 
     // MARK: - Generate Plan
 
-    func generatePlan(modelContext: ModelContext, whoop: any WhoopServiceProtocol) {
+    func generatePlan(
+        modelContext: ModelContext,
+        whoop: any WhoopServiceProtocol,
+        intake: MealPlanIntake? = nil
+    ) {
         guard let profile = dietaryProfile else {
             return
         }
@@ -351,7 +355,8 @@ final class NutritionTabViewModel {
                 let plan = try await generator.generateWeeklyPlan(
                     profile: profile,
                     whoopTDEE: whoopTDEE,
-                    modelContext: modelContext
+                    modelContext: modelContext,
+                    intake: intake
                 )
 
                 weeklyPlan = plan
@@ -364,6 +369,38 @@ final class NutritionTabViewModel {
                 HapticManager.notification(.error)
             }
         }
+    }
+
+    // MARK: - Wizard Snapshot Builder
+
+    /// Builds the launch snapshot the intake wizard needs to decide which steps to surface.
+    /// Pantry state, Whoop yesterday's recovery, and basic profile reference. Never throws —
+    /// any failure degrades to a "missing" field rather than blocking the wizard.
+    func buildWizardSnapshot(
+        modelContext: ModelContext,
+        whoop: any WhoopServiceProtocol
+    ) async -> WizardLaunchSnapshot {
+        // Pantry snapshot
+        let pantrySnapshot: PantrySnapshot
+        let service = pantryService ?? LocalPantryService(modelContext: modelContext)
+        if let items = try? service.fetchAll() {
+            let mostRecent = items.map(\.updatedAt).max()
+            pantrySnapshot = PantrySnapshot(itemCount: items.count, mostRecentUpdate: mostRecent)
+        } else {
+            pantrySnapshot = PantrySnapshot(itemCount: 0, mostRecentUpdate: nil)
+        }
+
+        // Whoop snapshot — non-throw == connected
+        var whoopSnapshot: WhoopSnapshot?
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()
+        if let recovery = try? await whoop.fetchRecovery(for: yesterday) {
+            whoopSnapshot = WhoopSnapshot(recoveryScore: recovery.score)
+        }
+
+        return WizardLaunchSnapshot(
+            pantry: pantrySnapshot,
+            whoop: whoopSnapshot
+        )
     }
 
     // MARK: - Meal Suggestions

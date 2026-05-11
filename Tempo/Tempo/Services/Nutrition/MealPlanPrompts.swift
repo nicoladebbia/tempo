@@ -2,7 +2,7 @@
 // MealPlanPrompts.swift
 // Tempo
 //
-// Created by Tempo on 06/05/2026.
+// Created by Tempo on 08/05/2026.
 //
 //
 
@@ -121,6 +121,40 @@ enum MealPlanPrompts {
         }
     }
 
+    // MARK: - Weekly Intake Block
+
+    /// Format a `MealPlanIntake` as a prompt block. Returns an empty string when intake is nil
+    /// so callers can interpolate unconditionally.
+    static func weeklyIntakeBlock(_ intake: MealPlanIntake?) -> String {
+        guard let intake else {
+            return ""
+        }
+
+        var lines: [String] = []
+        lines.append("- Cookable days this week: \(intake.cookableDaysThisWeek). Concentrate prep there.")
+        lines.append("- Leftover tolerance: \(intake.leftoverTolerance.promptDescriptor)")
+        lines.append("- Eating window: \(intake.eatingWindow.formattedForPrompt)")
+        if let grocery = intake.groceryIntent {
+            lines.append("- Grocery context: \(grocery.formattedForPrompt)")
+        }
+        if intake.recoveryAdjusted {
+            lines.append("- Adjust calorie distribution to skew toward training-day fuel and lighter rest-day intake. User opted in.")
+        }
+        if !intake.temporaryExclusions.isEmpty {
+            lines
+                .append(
+                    "- Off-limits this week (temporary, not allergies): \(intake.temporaryExclusions.joined(separator: ", ")). Do not include."
+                )
+        }
+
+        return """
+
+        <weekly_intake>
+        \(lines.joined(separator: "\n"))
+        </weekly_intake>
+        """
+    }
+
     // MARK: - Weekly Plan Prompt
 
     /// Generate a full weekly meal plan with exact macros per day type.
@@ -128,7 +162,8 @@ enum MealPlanPrompts {
     static func weeklyPlanPrompt(
         targets: [DayType: MacroTargets],
         restrictions: DietaryRestrictions,
-        preferences: String
+        preferences: String,
+        intake: MealPlanIntake? = nil
     ) -> (system: String, user: String) {
         let system = """
         You are the nutrition arm of Tempo, a drill-sergeant life operating system for student-athletes. \
@@ -178,6 +213,7 @@ enum MealPlanPrompts {
         <preferences>
         \(preferences.isEmpty ? "No specific preferences." : preferences)
         </preferences>
+        \(weeklyIntakeBlock(intake))
 
         <meal_structure>
         - 4 meals per day: Breakfast, Lunch, Dinner, Snack

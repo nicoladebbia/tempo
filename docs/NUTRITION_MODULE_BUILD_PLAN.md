@@ -1075,6 +1075,42 @@ Update the scoring engine to use native nutrition data for the Fuel component of
 
 ---
 
+## Phase N7.5: Meal-Plan Intake Wizard
+
+**Prerequisites:** Phase N4 (Plan tab exists), Phase 7 (pantry service available), MealPlanGeneratorService landed
+**Docs to reference:** `docs/UX_COPY_BIBLE.md` §17, `docs/STATE_MACHINES.md` MealPlanIntakeWizard, `docs/AI_INTELLIGENCE_ENGINE.md` (prompt structure)
+
+**Goal:** Insert a multi-step intake wizard between the "Generate New Plan" tap in the Plan tab and the existing `MealPlanGeneratorService.generateWeeklyPlan`. Pre-populates from `DietaryProfile` (which mirrors HealthKit weight/height via `HealthKitService`), pantry, and Whoop. Only surfaces fields whose values are session-scoped or genuinely unknown.
+
+**Scope:**
+- 8 step views with forward/back navigation and conditional skip predicates.
+- Coordinator state machine (`WizardCoordinator`) owns visibility computation and intake draft.
+- New `MealPlanIntake` value type forwarded into the generator (and thence into the Sonnet prompt as a `<weekly_intake>` block).
+- Wizard answers do NOT mutate `DietaryProfile`. Draft is discarded on dismiss.
+
+**Files added:**
+- `Tempo/Tempo/Models/Nutrition/MealPlanIntake.swift`
+- `Tempo/Tempo/Models/Nutrition/WizardLaunchSnapshot.swift`
+- `Tempo/Tempo/Views/Nutrition/Wizard/WizardCoordinator.swift`
+- `Tempo/Tempo/Views/Nutrition/Wizard/MealPlanIntakeWizardView.swift`
+- `Tempo/Tempo/Views/Nutrition/Wizard/Shared/WizardStepScaffold.swift`
+- `Tempo/Tempo/Views/Nutrition/Wizard/Steps/{CookingCapacity,LeftoverTolerance,EatingWindow,PantryGap,GroceryIntent,RecoveryOverride,TemporaryExclusions,Review}StepView.swift`
+- `Tempo/TempoTests/Services/MealPlanPromptsTests.swift`
+
+**Files modified:**
+- `Tempo/Tempo/Services/Nutrition/MealPlanPrompts.swift` (add `weeklyIntakeBlock` + intake param on `weeklyPlanPrompt`)
+- `Tempo/Tempo/Services/Nutrition/MealPlanGeneratorService.swift` (add `intake:` param on `generateWeeklyPlan`)
+- `Tempo/Tempo/ViewModels/NutritionTabViewModel.swift` (extend `generatePlan` signature, add `buildWizardSnapshot`)
+- `Tempo/Tempo/Views/Nutrition/NutritionWeeklyPlanView.swift` (wire button → wizard → generator)
+
+**Acceptance:**
+- Tap "Generate New Plan" → wizard sheet presents.
+- Pre-population: pantry/Whoop steps only fire when their predicates evaluate true (empty/stale pantry, Whoop recovery available).
+- Final step → `viewModel.generatePlan(modelContext:, whoop:, intake:)`.
+- Pre-existing flow without wizard (e.g. auto-generate from DietaryProfile setup callback in `NutritionTabView`) is unaffected — `intake` defaults to `nil`.
+
+---
+
 ## Phase N8: Migration & Polish (3-4 hours)
 
 **Prerequisites:** All previous phases

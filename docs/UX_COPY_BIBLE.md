@@ -1929,4 +1929,64 @@ Questions? Feedback? Let us know at tempo@support.com.
 
 ---
 
+## 17. Nutrition · Intake Wizard
+
+Drill-sergeant tone throughout. Wizard is invoked from "Generate New Plan" in the Plan tab; collects session-scoped intake before the meal-plan generator runs.
+
+| Key | Text | Context | Limit |
+|-----|------|---------|-------|
+| `nutrition.wizard.header` | `PLAN INTAKE` | Header label | 12 |
+| `nutrition.wizard.cancel` | `Cancel` | Header cancel button | 8 |
+| `nutrition.wizard.step.next` | `Next` | Primary footer (mid-flow) | 8 |
+| `nutrition.wizard.step.back` | `Back` | Secondary footer | 8 |
+| `nutrition.wizard.cookingCapacity.title` | `Real cook count.` | Step title | 24 |
+| `nutrition.wizard.cookingCapacity.subtitle` | `How many days this week can you actually cook? Not optimistic — real.` | Question | 120 |
+| `nutrition.wizard.cookingCapacity.footer.0` | `Zero cooking days. Plan will lean on no-cook foods + leftovers.` | Footer hint | 100 |
+| `nutrition.wizard.cookingCapacity.footer.1to2` | `Light cooking week. Batches and quick assemblies.` | Footer hint | 100 |
+| `nutrition.wizard.cookingCapacity.footer.3to4` | `Standard. Most plans land here.` | Footer hint | 100 |
+| `nutrition.wizard.cookingCapacity.footer.5to6` | `Heavy cook week. Variety will be high.` | Footer hint | 100 |
+| `nutrition.wizard.cookingCapacity.footer.7` | `Cooking every day. Solid commitment.` | Footer hint | 100 |
+| `nutrition.wizard.leftoverTolerance.title` | `Same meal, two days in a row?` | Step title | 36 |
+| `nutrition.wizard.leftoverTolerance.subtitle` | `Tells me how aggressive I can be with batch prep.` | Question | 80 |
+| `nutrition.wizard.leftoverTolerance.fresh` | `Fresh every day` | Option | 20 |
+| `nutrition.wizard.leftoverTolerance.batches` | `2-3 day batches` | Option | 20 |
+| `nutrition.wizard.leftoverTolerance.fullWeek` | `Full-week prep` | Option | 20 |
+| `nutrition.wizard.eatingWindow.title` | `First meal, last meal.` | Step title | 28 |
+| `nutrition.wizard.eatingWindow.subtitle` | `I anchor the plan around your eating window. Honesty pays off here.` | Question | 100 |
+| `nutrition.wizard.eatingWindow.first` | `First meal` | Row label | 16 |
+| `nutrition.wizard.eatingWindow.last` | `Last meal` | Row label | 16 |
+| `nutrition.wizard.pantryGap.title` | `Pantry status.` | Step title | 20 |
+| `nutrition.wizard.pantryGap.subtitle.empty` | `Your pantry shows zero items. Need a grocery run, or working from elsewhere?` | When pantry count == 0 | 120 |
+| `nutrition.wizard.pantryGap.subtitle.stale` | `Pantry shows {N} items but hasn't been updated lately. Still accurate?` | When pantry stale | 120 |
+| `nutrition.wizard.pantryGap.shop.title` | `I'm doing a grocery run.` | Option | 32 |
+| `nutrition.wizard.pantryGap.shop.subtitle` | `Plan can include fresh purchases.` | Option detail | 60 |
+| `nutrition.wizard.pantryGap.fromPantry.title` | `Work from what I already have.` | Option | 36 |
+| `nutrition.wizard.pantryGap.fromPantry.subtitle` | `Plan stays within current pantry + small additions.` | Option detail | 80 |
+| `nutrition.wizard.groceryIntent.title` | `Grocery limits.` | Step title | 24 |
+| `nutrition.wizard.groceryIntent.subtitle` | `Budget cap and preferred stores. Skip what doesn't apply.` | Question | 80 |
+| `nutrition.wizard.groceryIntent.budget.label` | `BUDGET CAP (USD)` | Field label | 24 |
+| `nutrition.wizard.groceryIntent.budget.placeholder` | `e.g. 75` | Field placeholder | 12 |
+| `nutrition.wizard.groceryIntent.stores.label` | `PREFERRED STORES` | Field label | 24 |
+| `nutrition.wizard.groceryIntent.stores.placeholder` | `e.g. Publix, Trader Joe's` | Field placeholder | 32 |
+| `nutrition.wizard.recoveryOverride.title` | `Adjust around training?` | Step title | 28 |
+| `nutrition.wizard.recoveryOverride.subtitle.score` | `Yesterday's recovery: {score}. Want the plan to lean into that?` | Question (Whoop) | 100 |
+| `nutrition.wizard.recoveryOverride.subtitle.noScore` | `Adjust calorie distribution based on training intensity this week?` | Question (fallback) | 100 |
+| `nutrition.wizard.recoveryOverride.toggle.title` | `Skew fueling to training load` | Toggle label | 36 |
+| `nutrition.wizard.recoveryOverride.toggle.subtitle` | `More fuel on training days, lighter on rest days.` | Toggle detail | 80 |
+| `nutrition.wizard.recoveryOverride.badge` | `Whoop recovery yesterday` | Badge | 28 |
+| `nutrition.wizard.temporaryExclusions.title` | `Off the table this week.` | Step title | 28 |
+| `nutrition.wizard.temporaryExclusions.subtitle` | `Not allergies — just things you're not in the mood for. Skip if nothing.` | Question | 100 |
+| `nutrition.wizard.temporaryExclusions.placeholder` | `e.g. broccoli` | Input placeholder | 16 |
+| `nutrition.wizard.review.title` | `Lock it in.` | Step title | 16 |
+| `nutrition.wizard.review.subtitle` | `Final read. Tap Generate when ready.` | Subtitle | 60 |
+| `nutrition.wizard.review.cta` | `Generate Plan` | Primary CTA | 16 |
+| `nutrition.wizard.review.row.cookable` | `Cookable days` | Summary label | 20 |
+| `nutrition.wizard.review.row.leftovers` | `Leftovers` | Summary label | 12 |
+| `nutrition.wizard.review.row.window` | `Eating window` | Summary label | 16 |
+| `nutrition.wizard.review.row.grocery` | `Grocery` | Summary label | 10 |
+| `nutrition.wizard.review.row.recovery` | `Recovery skew` | Summary label | 16 |
+| `nutrition.wizard.review.row.excluding` | `Excluding` | Summary label | 12 |
+
+---
+
 *End of UX Copy Bible. Total unique string keys: ~950+. This document is the single source of truth for all text in the Tempo app.*

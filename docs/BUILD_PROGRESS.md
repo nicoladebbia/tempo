@@ -217,6 +217,17 @@
 
 ---
 
+## Phase 7.5: Nutrition · Meal-Plan Intake Wizard
+**Goal:** Multi-step wizard between "Generate New Plan" tap and the existing generator. Pre-populates from DietaryProfile / HealthKit-mirrored fields / pantry / Whoop; surfaces only genuinely unknown intent for the upcoming week.
+
+- [x] 7.5.1: `MealPlanIntake` value type + prompt extension ✅ 2026-05-11
+- [x] 7.5.2: ViewModel signature + `buildWizardSnapshot` async helper ✅ 2026-05-11
+- [x] 7.5.3: `WizardCoordinator` state machine + step scaffold ✅ 2026-05-11
+- [x] 7.5.4: 8 step views (cooking capacity, leftover tolerance, eating window, pantry gap, grocery intent, recovery override, temporary exclusions, review) ✅ 2026-05-11
+- [x] 7.5.5: Wired into `NutritionWeeklyPlanView` button + disclaimer flow ✅ 2026-05-11
+- [x] 7.5.6: Docs (UX_COPY_BIBLE §17, STATE_MACHINES MealPlanIntakeWizard) ✅ 2026-05-11
+- [x] 7.5.7: Unit tests green via `xcodebuild test` ✅ 2026-05-11 (9/9 MealPlanPrompts tests + 43/43 related Nutrition tests passing; repo-wide SwiftFormat cleanup landed as part of this phase)
+
 ## Blockers
 (none)
 
