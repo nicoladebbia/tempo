@@ -288,9 +288,9 @@ enum ClaudeModel: String {
     /// Per AI_INTELLIGENCE_ENGINE.md Section 2.1
     case haiku = "claude-haiku-4-5-20251001"
 
-    /// Sonnet 4.5 -- deep analysis, weekly reviews.
+    /// Sonnet 4.6 -- deep analysis, weekly reviews.
     /// Per AI_INTELLIGENCE_ENGINE.md Section 2.1
-    case sonnet = "claude-sonnet-4-5-20250514"
+    case sonnet = "claude-sonnet-4-6"
 
     var timeout: TimeInterval {
         switch self {
