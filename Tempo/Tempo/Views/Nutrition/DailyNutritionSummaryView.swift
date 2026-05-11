@@ -2,7 +2,7 @@
 // DailyNutritionSummaryView.swift
 // Tempo
 //
-// Created by Tempo on 06/05/2026.
+// Created by Tempo on 08/05/2026.
 //
 //
 
@@ -242,7 +242,7 @@ struct DailyNutritionSummaryView: View {
                 .font(.tempoTitle2)
                 .foregroundStyle(Color.tempoTextPrimary)
 
-            Text("Log a meal or connect NutriTrack to see your daily nutrition breakdown.")
+            Text("Log a meal to start tracking your daily nutrition.")
                 .font(.tempoBody)
                 .foregroundStyle(Color.tempoTextSecondary)
                 .multilineTextAlignment(.center)

@@ -36,7 +36,6 @@ enum NonNegotiableType: String, Codable, CaseIterable {
 
 enum TrackingMethod: String, Codable, CaseIterable {
     case autoWhoop = "auto_whoop"
-    case autoNutritrack = "auto_nutritrack"
     case autoHealthkit = "auto_healthkit"
     case manual
     case timer

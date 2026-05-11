@@ -687,18 +687,25 @@ final class DashboardViewModel {
 
     private let healthKit: any HealthKitServiceProtocol
     private let whoop: any WhoopServiceProtocol
-    private let nutriTrack: any NutriTrackServiceProtocol
     private let calendar: any CalendarServiceProtocol
     private var userName: String?
+
+    /// SwiftData model context for reading today's MealLog records.
+    /// Set externally by the View layer (DashboardView injects via modelContext).
+    private var fuelContext: ModelContext?
 
     // MARK: - Init
 
     init(services: ServiceContainer) {
         healthKit = services.healthKit
         whoop = services.whoop
-        nutriTrack = services.nutriTrack
         calendar = services.calendar
         userName = nil
+    }
+
+    /// Inject the SwiftData context used to read native nutrition logs.
+    func setFuelContext(_ context: ModelContext) {
+        fuelContext = context
     }
 
     /// Set the user's display name (called from view layer after querying SwiftData).
@@ -709,7 +716,7 @@ final class DashboardViewModel {
     // MARK: - Refresh
 
     // Per DATA_FLOW_ARCHITECTURE.md Section 2.1 — fetch from all sources concurrently.
-    // HealthKit data is real; Whoop/NutriTrack via their service protocols.
+    // HealthKit data is real; Whoop via service protocol; nutrition from native MealLog SwiftData.
     // Body quadrant: Whoop primary, HealthKit fallback for sleep/HRV/RHR.
     // Move quadrant: real steps, energy, workouts, HR from HealthKit.
 
@@ -813,12 +820,8 @@ final class DashboardViewModel {
             workouts = []
         }
 
-        // Fetch NutriTrack data only when connected (skip if backend unreachable)
-        let meals: NutriTrackDayData? = if case .connected = nutriTrack.connectionState {
-            try? await nutriTrack.fetchTodayMeals()
-        } else {
-            nil
-        }
+        // Aggregate today's MealLog records from SwiftData (native nutrition).
+        let nutritionTotals = fetchNutritionTotalsForToday()
 
         let now = Date()
         let healthKitConnected = steps > 0 || !heartRates.isEmpty || hrv != nil
@@ -868,11 +871,12 @@ final class DashboardViewModel {
             )
         #endif
 
-        // Build Fuel quadrant with recovery-adjusted targets
-        let baseCalTarget = Int(meals?.calorieTarget ?? 0)
-        let baseProtTarget = Int(meals?.proteinTarget ?? 0)
-        let baseCarbTarget = Int(meals?.carbsTarget ?? 0)
-        let baseFatTarget = Int(meals?.fatTarget ?? 0)
+        // Build Fuel quadrant with recovery-adjusted targets.
+        // Targets come from NutritionTarget if present; defaults are used otherwise.
+        let baseCalTarget = nutritionTotals.calorieTarget
+        let baseProtTarget = nutritionTotals.proteinTarget
+        let baseCarbTarget = nutritionTotals.carbsTarget
+        let baseFatTarget = nutritionTotals.fatTarget
         let recoveryZone = recovery.map { RecoveryZone(score: $0.score) }
         let isRestDay = false // Will be enriched by refreshTrainingStatus
 
@@ -887,11 +891,11 @@ final class DashboardViewModel {
             isRestDay: isRestDay
         )
 
-        let consumedCal = Int(meals?.totalCalories ?? 0)
-        let consumedProt = Int(meals?.proteinGrams ?? 0)
-        let consumedCarbs = Int(meals?.carbsGrams ?? 0)
-        let consumedFat = Int(meals?.fatGrams ?? 0)
-        let mealsLoggedCount = meals?.mealsLogged ?? 0
+        let consumedCal = nutritionTotals.calories
+        let consumedProt = nutritionTotals.protein
+        let consumedCarbs = nutritionTotals.carbs
+        let consumedFat = nutritionTotals.fat
+        let mealsLoggedCount = nutritionTotals.mealsLogged
 
         // Generate AI coaching message
         let coaching = NutritionEngine.coachingMessage(
@@ -913,9 +917,9 @@ final class DashboardViewModel {
             carbsTarget: adjusted.carbsTarget,
             fatGrams: consumedFat,
             fatTarget: adjusted.fatTarget,
-            mealsLogged: meals?.mealsLogged,
-            mealsPlanned: meals?.mealsPlanned,
-            isConnected: meals != nil,
+            mealsLogged: mealsLoggedCount > 0 ? mealsLoggedCount : nil,
+            mealsPlanned: nutritionTotals.mealsPlanned,
+            isConnected: mealsLoggedCount > 0,
             lastSync: now
         )
         fuelData.adjustedTargets = adjusted
@@ -1155,8 +1159,8 @@ final class DashboardViewModel {
             exams: mind.exams // Preserve existing exam data
         )
 
-        // Per BUILD_PLAN step 11.3 — Auto-track meal non-negotiable from NutriTrack data.
-        // When NutriTrack reports meals logged, update the meals non-negotiable progress.
+        // Per BUILD_PLAN step 11.3 — Auto-track meal non-negotiable from native MealLog data.
+        // When MealLog records are present today, update the meals non-negotiable progress.
         if let mealsLogged = fuel.mealsLogged, mealsLogged > 0 {
             if let mealProgress = accountabilityRecord.nonNegotiableProgress?.first(where: {
                 $0.nonNegotiable?.type == .meals
@@ -1901,5 +1905,53 @@ final class DashboardViewModel {
             NonNegotiableItem(id: UUID(), title: "8h sleep", isCompleted: true, category: .body),
         ]
         return vm
+    }
+
+    // MARK: - Native Nutrition Fetch
+
+    struct NutritionTotalsToday {
+        var calories: Int = 0
+        var protein: Int = 0
+        var carbs: Int = 0
+        var fat: Int = 0
+        var mealsLogged: Int = 0
+        var mealsPlanned: Int?
+        var calorieTarget: Int = 0
+        var proteinTarget: Int = 0
+        var carbsTarget: Int = 0
+        var fatTarget: Int = 0
+    }
+
+    private func fetchNutritionTotalsForToday() -> NutritionTotalsToday {
+        guard let context = fuelContext else {
+            return NutritionTotalsToday()
+        }
+        var totals = NutritionTotalsToday()
+        let todayStart = Calendar.current.startOfDay(for: Date())
+        let tomorrowStart = Calendar.current.date(byAdding: .day, value: 1, to: todayStart) ?? todayStart
+        let mealDescriptor = FetchDescriptor<MealLog>(
+            predicate: #Predicate<MealLog> { log in
+                log.dayDate >= todayStart && log.dayDate < tomorrowStart
+            }
+        )
+        if let logs = try? context.fetch(mealDescriptor) {
+            totals.mealsLogged = logs.count
+            totals.calories = Int(logs.reduce(0.0) { $0 + $1.totalCalories })
+            totals.protein = Int(logs.reduce(0.0) { $0 + $1.totalProtein })
+            totals.carbs = Int(logs.reduce(0.0) { $0 + $1.totalCarbs })
+            totals.fat = Int(logs.reduce(0.0) { $0 + $1.totalFat })
+        }
+        let targetDescriptor = FetchDescriptor<NutritionTarget>(
+            predicate: #Predicate<NutritionTarget> { t in t.isActive == true },
+            sortBy: [SortDescriptor(\.effectiveFrom, order: .reverse)]
+        )
+        if let target = (try? context.fetch(targetDescriptor))?.first {
+            totals.calorieTarget = target.calorieTarget
+            totals.proteinTarget = target.proteinTargetGrams
+            totals.carbsTarget = target.carbsTargetGrams
+            totals.fatTarget = target.fatTargetGrams
+            totals.mealsPlanned = target.mealsPerDay
+        }
+        return totals
     }
 }

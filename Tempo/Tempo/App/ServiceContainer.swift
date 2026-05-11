@@ -14,7 +14,6 @@ final class ServiceContainer {
     let authService: AuthService
     let healthKit: any HealthKitServiceProtocol
     let whoop: any WhoopServiceProtocol
-    let nutriTrack: any NutriTrackServiceProtocol
     let calendar: any CalendarServiceProtocol
     let notifications: any NotificationServiceProtocol
     let trainingEngine: any TrainingEngineProtocol
@@ -34,7 +33,6 @@ final class ServiceContainer {
         authService: AuthService,
         healthKit: any HealthKitServiceProtocol,
         whoop: any WhoopServiceProtocol,
-        nutriTrack: any NutriTrackServiceProtocol,
         calendar: any CalendarServiceProtocol,
         notifications: any NotificationServiceProtocol,
         trainingEngine: any TrainingEngineProtocol,
@@ -52,7 +50,6 @@ final class ServiceContainer {
         self.authService = authService
         self.healthKit = healthKit
         self.whoop = whoop
-        self.nutriTrack = nutriTrack
         self.calendar = calendar
         self.notifications = notifications
         self.trainingEngine = trainingEngine
@@ -75,7 +72,6 @@ final class ServiceContainer {
             authService: auth,
             healthKit: MockHealthKitService(),
             whoop: MockWhoopService(),
-            nutriTrack: MockNutriTrackService(),
             calendar: MockCalendarService(),
             notifications: MockNotificationService(),
             trainingEngine: MockTrainingEngine(),
@@ -99,7 +95,6 @@ final class ServiceContainer {
             authService: auth,
             healthKit: healthKit,
             whoop: WhoopService(),
-            nutriTrack: NutriTrackService(apiClient: apiClient),
             calendar: CalendarService(),
             notifications: NotificationService(),
             trainingEngine: TrainingEngine(),

@@ -280,25 +280,6 @@ struct DashboardSettingsView: View {
         return count > 0 ? .tempoSuccess : .tempoTextTertiary
     }
 
-    private var nutriTrackStatusText: String {
-        switch services.nutriTrack.connectionState {
-        case .connected: "Connected"
-        case .connecting: "Connecting..."
-        case .error: "Error"
-        case .disconnected: "Not Connected"
-        }
-    }
-
-    private var nutriTrackStatusColor: Color {
-        if case .connected = services.nutriTrack.connectionState {
-            return .tempoSuccess
-        }
-        if case .error = services.nutriTrack.connectionState {
-            return .tempoError
-        }
-        return .tempoTextTertiary
-    }
-
     private var healthKitStatusText: String {
         healthKitAuthorized ? "Authorized" : "Not Authorized"
     }

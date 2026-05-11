@@ -68,7 +68,6 @@ final class NonNegotiable {
     var integrationSourceName: String? {
         switch trackingMethod {
         case .autoWhoop: "WHOOP"
-        case .autoNutritrack: "NUTRITRACK"
         case .autoHealthkit: "HEALTHKIT"
         case .timer: "TIMER"
         case .manual: nil

@@ -750,7 +750,7 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
             start: nutrition.date,
             end: nutrition.date,
             objects: Set(samples),
-            metadata: ["TempoSource": "NutriTrack"]
+            metadata: ["TempoSource": "Tempo"]
         )
 
         try await healthStore.save(correlation)

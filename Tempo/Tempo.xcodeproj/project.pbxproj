@@ -33,7 +33,6 @@
 		0C6541CB0CE5DC97217FB089 /* TempoSettingsToolbarModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C3DCB5FC9388F4BC68F0766 /* TempoSettingsToolbarModifier.swift */; };
 		0DEBFA97489A367AC1B1B94C /* ArenaTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EAFD46CD590E4AC787B1793 /* ArenaTabView.swift */; };
 		0EA572A725FAE3DB8642C2C8 /* FocusTimerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F48839C443BCBDA42149F6F /* FocusTimerView.swift */; };
-		0F81D4B01E7DE07C229FF22C /* NutriTrackService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE2EAC5F036264302095F4A3 /* NutriTrackService.swift */; };
 		1215D07238466508127C1825 /* ExerciseHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A6A75F38AE95E8314B0CEDB /* ExerciseHistory.swift */; };
 		1285EE1BEFD65B42AA9102E0 /* WeightUnit.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E2FDC5477DFA6A01602A6B /* WeightUnit.swift */; };
 		12E9DB6AB156F492B1576C57 /* PhotoAnalysisService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C07D565835FD8614E718026 /* PhotoAnalysisService.swift */; };
@@ -92,7 +91,6 @@
 		4FF9DB0FFF3B9E71B518C41E /* LockdownMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF94240FFEB657EBD81947D5 /* LockdownMainView.swift */; };
 		50A75BA9CE93F5206404B28B /* HeatmapCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06B7EACC3C573749065D6F24 /* HeatmapCalendarView.swift */; };
 		50F77068D556F5168D6C6AF1 /* CalendarService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 214BEF6F7BDB24D37AAB7F8A /* CalendarService.swift */; };
-		51A9957FD467FD254F79A730 /* NutriTrackConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25FB0613731C029167B5BBD4 /* NutriTrackConnection.swift */; };
 		520F1D1BC2D5D449DFDEA0CE /* RecoveryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13C0C3D400A03FC5177BECC8 /* RecoveryView.swift */; };
 		52BCFF9BEE7A293C5010B966 /* XCUIApplication+Tempo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F23FEAF81689F4ECAC8D940 /* XCUIApplication+Tempo.swift */; };
 		540456695C0117EA540838F7 /* TempoWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20150327692ED9710E1335EC /* TempoWatchApp.swift */; };
@@ -126,7 +124,6 @@
 		64E272D3C1E005B212AC4874 /* TempoToggleStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D3FC2199480AA920ACA87B0 /* TempoToggleStyle.swift */; };
 		65A3E7DFED76639FEA1EB7A1 /* AchievementLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2BC2C866C82AE725711F51 /* AchievementLibrary.swift */; };
 		66B96EACA18DB2E637B3037A /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6631C5AF683ED649E1C7D40 /* HapticManager.swift */; };
-		66D93300BD9F4AECB072BBA9 /* MockNutriTrackService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E51950525CAB6A78236E3869 /* MockNutriTrackService.swift */; };
 		66DE301F17D066346B41EFE9 /* MockSubscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00A4414548FCA0E490CBE1D0 /* MockSubscriptionService.swift */; };
 		66E8AF839E1258B95683DC1A /* TempoCardModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE6AD43928676FF103558F6A /* TempoCardModifier.swift */; };
 		6752401DCEC7A9E842EB336B /* MockHealthKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4F2471D9C79224E98478194 /* MockHealthKitService.swift */; };
@@ -191,7 +188,6 @@
 		9FECAB7DFA08585ADB49896C /* MoveQuadrantDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFBB22EB2A96D0E5BE372E11 /* MoveQuadrantDetailView.swift */; };
 		A0CB9EFB42027EF8C7BEE188 /* WorkoutPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF7A70F4976A041F87B6FB15 /* WorkoutPlan.swift */; };
 		A129BCE268A7C4CA06D533A7 /* SyncEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE3A2335BEAF9420CA3826BB /* SyncEnums.swift */; };
-		A198496E21E9A22BA2E49EEB /* NutriTrackConnectStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8A598DEFA2FF15D79D7C77 /* NutriTrackConnectStepView.swift */; };
 		A1C67999688B13C310FEEEEA /* OnboardingCompleteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EAAFFEBE1DE9A7E669FA531 /* OnboardingCompleteView.swift */; };
 		A276D3110227B7B13E65F0DE /* CachedFood.swift in Sources */ = {isa = PBXBuildFile; fileRef = 335476245FA2EFAB595D0CFD /* CachedFood.swift */; };
 		A2C4F9D5799D59350B3C7725 /* RecoveryEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5D716D5E3223A9FA8FE3D40 /* RecoveryEngineTests.swift */; };
@@ -226,7 +222,6 @@
 		B72AF4ACCCEE1BB0AB8B8B33 /* MockScoringEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C99BB0D626905E95A30B510 /* MockScoringEngine.swift */; };
 		B7538C58C97145FFEDC98F6F /* Exercises.json in Resources */ = {isa = PBXBuildFile; fileRef = 0296CB64B525F8E5AC6C8A55 /* Exercises.json */; };
 		B7C17482392D54F9CA3D7F02 /* LockdownTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACF191DA19FC6A7DB89BDD14 /* LockdownTabView.swift */; };
-		BA32236538C0D45944B5D9AF /* NutriTrackConnectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DA5BAFAE035C7142A212D81 /* NutriTrackConnectView.swift */; };
 		BC999C64F652B7287CF8CCF1 /* XCTestCase+SwiftData.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDC8E015BB46594942034849 /* XCTestCase+SwiftData.swift */; };
 		BCBF242F7492F1E8B25CD2CD /* WeightConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAAD8D5690BA86C227809771 /* WeightConverter.swift */; };
 		BD21CDEFCDFA0879ACA01300 /* PlannedMeal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200FF9087A40E5296797B9DA /* PlannedMeal.swift */; };
@@ -244,7 +239,6 @@
 		C874B21E5EE8D6B7F123131D /* WorkoutEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = 469FC2487718168792E5A414 /* WorkoutEnums.swift */; };
 		C90C94C01BDE52801C7AFB78 /* OnboardingSplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B14DDAE49F98AC24F57EF735 /* OnboardingSplashView.swift */; };
 		C96FA2ED52AE087F0246EFDD /* OnboardingAuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F50D2B9EA007E3D56328A9A /* OnboardingAuthView.swift */; };
-		C973682415E1744CB86D059D /* NutriTrackServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9C1B698C394744CC219E5F7 /* NutriTrackServiceProtocol.swift */; };
 		CAB0CB4636F63637C7C94FCD /* DietaryProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CBBF0F88C4083388E060BDA /* DietaryProfile.swift */; };
 		CBA2D73A9FB323AA9797EBE9 /* AppConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = F929FBE6C861B744690D364F /* AppConstants.swift */; };
 		CCCA4087D078EBB7EB0BDEDC /* ErrorStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B020D95D451799ABAD44B5D /* ErrorStateView.swift */; };
@@ -412,7 +406,6 @@
 		20C31DF00A41EB9664F8E4CA /* TempoSnapshotTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TempoSnapshotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		2149CE481641E8287288817C /* PlannedSet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlannedSet.swift; sourceTree = "<group>"; };
 		214BEF6F7BDB24D37AAB7F8A /* CalendarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarService.swift; sourceTree = "<group>"; };
-		25FB0613731C029167B5BBD4 /* NutriTrackConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutriTrackConnection.swift; sourceTree = "<group>"; };
 		26A76FF8D3624374201E7540 /* ProfileSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileSetupView.swift; sourceTree = "<group>"; };
 		270B87214C8958180521CF6C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		274D7758A804F6FB2864F717 /* MealPlanPrompts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MealPlanPrompts.swift; sourceTree = "<group>"; };
@@ -479,7 +472,6 @@
 		57A29732567D92CFDB580382 /* ServiceContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceContainer.swift; sourceTree = "<group>"; };
 		57A2FF2DEF8D7E795DC9A975 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		58171801D58D93DEFFEDE96B /* TempoSectionHeader.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TempoSectionHeader.swift; sourceTree = "<group>"; };
-		5A8A598DEFA2FF15D79D7C77 /* NutriTrackConnectStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutriTrackConnectStepView.swift; sourceTree = "<group>"; };
 		5B047C28F4BB69DD74ED5784 /* AnalyticsEvents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnalyticsEvents.swift; sourceTree = "<group>"; };
 		5B1BD6649FE3F5F144BBFBA5 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
 		5E368192371339FC19E3FAEE /* TrainingSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingSetupView.swift; sourceTree = "<group>"; };
@@ -554,7 +546,6 @@
 		9CA4005283DF7B9B262A9840 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		9D48DD7160B7A6B14420A77F /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		9DA208BC33B6C4D4AA38FD49 /* AccountabilityEnums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountabilityEnums.swift; sourceTree = "<group>"; };
-		9DA5BAFAE035C7142A212D81 /* NutriTrackConnectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutriTrackConnectView.swift; sourceTree = "<group>"; };
 		9F3502DA359604CB50C1901F /* NutritionTodayView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NutritionTodayView.swift; sourceTree = "<group>"; };
 		9F48839C443BCBDA42149F6F /* FocusTimerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTimerView.swift; sourceTree = "<group>"; };
 		9F50D2B9EA007E3D56328A9A /* OnboardingAuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingAuthView.swift; sourceTree = "<group>"; };
@@ -598,7 +589,6 @@
 		B7D0F9235509EC71072E0542 /* ProgressReportView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProgressReportView.swift; sourceTree = "<group>"; };
 		B857A8239D3BCEAEB026B68A /* UserSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserSettings.swift; sourceTree = "<group>"; };
 		B94FF608576C7C015A2227E6 /* WorkoutSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutSummaryView.swift; sourceTree = "<group>"; };
-		B9C1B698C394744CC219E5F7 /* NutriTrackServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutriTrackServiceProtocol.swift; sourceTree = "<group>"; };
 		B9E59CCE5787473C56E7EC58 /* LoadingStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingStateView.swift; sourceTree = "<group>"; };
 		BA1B364BC6CF319DE06221BA /* MockXPEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockXPEngine.swift; sourceTree = "<group>"; };
 		BA3DDBC6CFD2FBCEC8AD4DBF /* TempoWidgetViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoWidgetViews.swift; sourceTree = "<group>"; };
@@ -623,7 +613,6 @@
 		CCCAA5FD38E1FF7B66DC69DF /* RunSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunSession.swift; sourceTree = "<group>"; };
 		CD039DD68BF3923C5C24288F /* ScoringEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoringEngine.swift; sourceTree = "<group>"; };
 		CD191C86896AC25A34A139AA /* WelcomeBannerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WelcomeBannerView.swift; sourceTree = "<group>"; };
-		CE2EAC5F036264302095F4A3 /* NutriTrackService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutriTrackService.swift; sourceTree = "<group>"; };
 		CE9FAE44451978C5D190654B /* TempoWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TempoWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D0D41E880144A54E4F98100F /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		D206DD1243E14C6F3788BF27 /* WhoopConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhoopConnection.swift; sourceTree = "<group>"; };
@@ -668,7 +657,6 @@
 		E29E85F814651278AAAEB037 /* MockNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockNotificationService.swift; sourceTree = "<group>"; };
 		E362BE5C475B6354C827C7CE /* ExerciseDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExerciseDetailView.swift; sourceTree = "<group>"; };
 		E48EFB1AFEE4717EC2A91B77 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
-		E51950525CAB6A78236E3869 /* MockNutriTrackService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockNutriTrackService.swift; sourceTree = "<group>"; };
 		E55F74B6AA6A7D4C4AECBDF2 /* DrillSergeantBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrillSergeantBubble.swift; sourceTree = "<group>"; };
 		E5B5A520F2F5D39EEA65C809 /* OfflineBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineBannerView.swift; sourceTree = "<group>"; };
 		EBACF78684EF42013E744E6C /* AcademicSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcademicSetupView.swift; sourceTree = "<group>"; };
@@ -960,10 +948,7 @@
 				214BEF6F7BDB24D37AAB7F8A /* CalendarService.swift */,
 				015BC25A2789414F87DA7B24 /* CalendarServiceProtocol.swift */,
 				A16EC0F22D503CB01821342D /* MockCalendarService.swift */,
-				E51950525CAB6A78236E3869 /* MockNutriTrackService.swift */,
 				9492EE850B765197321370E3 /* MockWhoopService.swift */,
-				CE2EAC5F036264302095F4A3 /* NutriTrackService.swift */,
-				B9C1B698C394744CC219E5F7 /* NutriTrackServiceProtocol.swift */,
 				D7D589689C5451EE86CAFCEB /* PhoneWatchConnectivityService.swift */,
 				A9DA903B98B64A76F00531DD /* WhoopService.swift */,
 				5277163BE577CEBD3272EF24 /* WhoopServiceProtocol.swift */,
@@ -1439,7 +1424,6 @@
 			children = (
 				03A6CC1D4170A8584FAA5ED4 /* .gitkeep */,
 				9C8D40CF30AC1F6BA6A1CC4B /* HealthKitState.swift */,
-				25FB0613731C029167B5BBD4 /* NutriTrackConnection.swift */,
 				D206DD1243E14C6F3788BF27 /* WhoopConnection.swift */,
 			);
 			path = Integrations;
@@ -1599,8 +1583,6 @@
 				A4E3490179FC169FBA2AABD6 /* GoalSetupView.swift */,
 				D9C99E0F6FA7B6FD8D843712 /* HealthKitPermissionView.swift */,
 				FD97FCDDA933BD424B4D829D /* NotificationSetupView.swift */,
-				5A8A598DEFA2FF15D79D7C77 /* NutriTrackConnectStepView.swift */,
-				9DA5BAFAE035C7142A212D81 /* NutriTrackConnectView.swift */,
 				9F50D2B9EA007E3D56328A9A /* OnboardingAuthView.swift */,
 				5EAAFFEBE1DE9A7E669FA531 /* OnboardingCompleteView.swift */,
 				8457A0C1E5AD157EF2DDE996 /* OnboardingContainerView.swift */,
@@ -2074,7 +2056,6 @@
 				DCED9BB91B053164284F1E13 /* MockCalendarService.swift in Sources */,
 				6752401DCEC7A9E842EB336B /* MockHealthKitService.swift in Sources */,
 				3DFAF446D442A8AF34184607 /* MockNotificationService.swift in Sources */,
-				66D93300BD9F4AECB072BBA9 /* MockNutriTrackService.swift in Sources */,
 				A3B9023C69690CC5E306ED3D /* MockRecoveryEngine.swift in Sources */,
 				B72AF4ACCCEE1BB0AB8B8B33 /* MockScoringEngine.swift in Sources */,
 				96751995B5027A1C69DE7FD8 /* MockSyncCoordinator.swift in Sources */,
@@ -2092,11 +2073,6 @@
 				73836BF239336AE429DC4F6A /* NotificationSettingsView.swift in Sources */,
 				22307C63DC7074A53D186F72 /* NotificationSetupView.swift in Sources */,
 				0AE3279D7BDC4A612125390F /* NumberStepperView.swift in Sources */,
-				A198496E21E9A22BA2E49EEB /* NutriTrackConnectStepView.swift in Sources */,
-				BA32236538C0D45944B5D9AF /* NutriTrackConnectView.swift in Sources */,
-				51A9957FD467FD254F79A730 /* NutriTrackConnection.swift in Sources */,
-				0F81D4B01E7DE07C229FF22C /* NutriTrackService.swift in Sources */,
-				C973682415E1744CB86D059D /* NutriTrackServiceProtocol.swift in Sources */,
 				60D31C32C859BAFC60A9DCCC /* OfflineBannerView.swift in Sources */,
 				C96FA2ED52AE087F0246EFDD /* OnboardingAuthView.swift in Sources */,
 				A1C67999688B13C310FEEEEA /* OnboardingCompleteView.swift in Sources */,

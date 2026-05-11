@@ -21,8 +21,6 @@ struct DashboardView: View {
     @State
     private var hasAppeared = false
     @State
-    private var showNutriTrackConnect = false
-    @State
     private var showMealLogging = false
     @State
     private var showWhoopConnect = false
@@ -109,6 +107,7 @@ struct DashboardView: View {
         .task {
             if viewModel == nil {
                 let vm = DashboardViewModel(services: services)
+                vm.setFuelContext(modelContext)
                 // Query UserProfile and populate userName
                 let descriptor = FetchDescriptor<UserProfile>()
                 if let profile = try? modelContext.fetch(descriptor).first {
@@ -179,16 +178,6 @@ struct DashboardView: View {
         .sheet(isPresented: $showProgressReport) {
             ProgressReportView()
         }
-        .sheet(isPresented: $showNutriTrackConnect) {
-            NutriTrackConnectView(
-                nutriTrackService: services.nutriTrack,
-                onConnected: {
-                    Task {
-                        await viewModel?.refresh()
-                    }
-                }
-            )
-        }
         .sheet(isPresented: $showMealLogging) {
             MealLoggingView()
         }
@@ -233,13 +222,10 @@ struct DashboardView: View {
 
     // MARK: - Setup Tracking
 
-    /// True when at least 2 data sources are connected (Whoop, NutriTrack, HealthKit).
+    /// True when at least 2 data sources are connected (Whoop, HealthKit).
     private var hasConnectedSources: Bool {
         var count = 0
         if services.whoop.connectionState == .connected {
-            count += 1
-        }
-        if case .connected = services.nutriTrack.connectionState {
             count += 1
         }
         if healthKitAuthorized {

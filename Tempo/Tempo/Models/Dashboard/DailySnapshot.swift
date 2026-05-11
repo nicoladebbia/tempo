@@ -39,7 +39,7 @@ final class DailySnapshot {
 
     var strain: Double?
 
-    // MARK: - Fuel (NutriTrack)
+    // MARK: - Fuel (native nutrition)
 
     var caloriesConsumed: Int?
 

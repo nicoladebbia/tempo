@@ -38,7 +38,6 @@ enum TempoSchemaV1: VersionedSchema {
             SyncState.self,
             PendingSync.self,
             WhoopConnection.self,
-            NutriTrackConnection.self,
             HealthKitState.self,
             // Dashboard
             DailyScoreEntry.self,

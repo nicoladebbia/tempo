@@ -286,11 +286,11 @@ struct AchievementController: RouteCollection {
             // Simplified: count days where all core XP types were earned
             return false // Full implementation in Phase 15 with AI engine
 
-        // Meals logged
+        // Meals logged (native MealLog source)
         case "meals_logged":
             let count = try await XPEvent.query(on: db)
                 .filter(\.$user.$id == userID)
-                .filter(\.$source == "nutritrack")
+                .filter(\.$source == "meal")
                 .count()
             return count >= def.criteriaThreshold
 

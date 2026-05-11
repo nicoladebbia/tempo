@@ -10,9 +10,9 @@ import SwiftUI
 
 // MARK: - OnboardingViewModel
 
-// Per STATE_MACHINES.md Section 10 — 11-step "show then ask" flow with persistence.
+// Per STATE_MACHINES.md Section 10 — "show then ask" flow with persistence.
 // Per BUILD_PLAN step 16.1 — State machine with UserDefaults persistence.
-// Reordered: splash→valueDemo→goals→healthKit→auth→profile→training→academic→whoop→nutritrack→notifications→complete
+// Reordered: splash→valueDemo→goals→healthKit→auth→profile→training→academic→whoop→notifications→complete
 
 @Observable
 @MainActor
@@ -57,7 +57,6 @@ final class OnboardingViewModel {
 
     // Integration states
     var whoopConnected: Bool = false
-    var nutritrackConnected: Bool = false
     var healthkitGranted: Bool = false
     var notificationsGranted: Bool = false
 
@@ -97,7 +96,6 @@ final class OnboardingViewModel {
         case .goals:
             primaryGoal != nil
         case .whoopConnect,
-             .nutritrackConnect,
              .healthkit,
              .notifications:
             true // Optional steps
@@ -207,7 +205,7 @@ final class OnboardingViewModel {
 // MARK: - OnboardingStep
 
 // "Show then ask" flow — demonstrate value before collecting data.
-// splash→valueDemo→goals→healthKit→auth→profile→training→academic→whoop→nutritrack→notifications→complete
+// splash→valueDemo→goals→healthKit→auth→profile→training→academic→whoop→notifications→complete
 
 enum OnboardingStep: String, Codable, CaseIterable {
     case splash
@@ -219,7 +217,6 @@ enum OnboardingStep: String, Codable, CaseIterable {
     case trainingSetup
     case academicSetup
     case whoopConnect
-    case nutritrackConnect
     case notifications
     case complete
 
@@ -234,9 +231,8 @@ enum OnboardingStep: String, Codable, CaseIterable {
         case .trainingSetup: 6
         case .academicSetup: 7
         case .whoopConnect: 8
-        case .nutritrackConnect: 9
-        case .notifications: 10
-        case .complete: 11
+        case .notifications: 9
+        case .complete: 10
         }
     }
 
@@ -255,7 +251,6 @@ enum OnboardingStep: String, Codable, CaseIterable {
              .trainingSetup,
              .academicSetup,
              .whoopConnect,
-             .nutritrackConnect,
              .notifications:
             true
         default:

@@ -59,12 +59,12 @@ enum HealthKitConstants {
     // MARK: - Write Types
 
     /// Types we WRITE to HealthKit.
-    /// Per INTEGRATION_SPECS.md Section 2.1 — workouts from RepForge, nutrition from NutriTrack.
+    /// Per INTEGRATION_SPECS.md Section 2.1 — workouts from RepForge, nutrition from native logging.
     static let writeTypes: Set<HKSampleType> = [
         // Workouts logged in RepForge
         HKWorkoutType.workoutType(),
 
-        // Nutrition from NutriTrack
+        // Nutrition from native meal logging
         HKQuantityType(.dietaryEnergyConsumed),
         HKQuantityType(.dietaryProtein),
         HKQuantityType(.dietaryCarbohydrates),

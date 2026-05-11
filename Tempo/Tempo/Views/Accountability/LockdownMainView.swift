@@ -43,7 +43,7 @@ struct LockdownMainView: View {
     @State
     private var expandedCardID: PersistentIdentifier?
     @State
-    private var showNutriTrackAlert = false
+    private var showMealLogging = false
     @State
     private var showHistoryAlert = false
     @State
@@ -134,10 +134,11 @@ struct LockdownMainView: View {
                 }
             }
         }
-        .alert("NutriTrack", isPresented: $showNutriTrackAlert) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("NutriTrack logging coming soon")
+        .sheet(isPresented: $showMealLogging) {
+            MealLoggingView()
+                .onDisappear {
+                    viewModel.loadToday(modelContext: modelContext)
+                }
         }
         .alert("History", isPresented: $showHistoryAlert) {
             Button("OK", role: .cancel) {}
@@ -431,8 +432,8 @@ struct LockdownMainView: View {
                     viewModel.configureFocusTimer()
                     showFocusTimer = true
                 } : nil,
-                onLogNutriTrack: {
-                    showNutriTrackAlert = true
+                onLogMeal: {
+                    showMealLogging = true
                 },
                 onEditNonNegotiable: {
                     editingNonNegotiable = progress
@@ -898,7 +899,7 @@ struct NonNegotiableCardView: View {
     let onSkip: () -> Void
     let onUpdateValue: (Double) -> Void
     var onStartTimer: (() -> Void)?
-    var onLogNutriTrack: () -> Void = {}
+    var onLogMeal: () -> Void = {}
     var onEditNonNegotiable: () -> Void = {}
     var onViewHistory: () -> Void = {}
 
@@ -1048,7 +1049,6 @@ struct NonNegotiableCardView: View {
         case .manual:
             return "\(Int(progress.currentValue)) / \(Int(progress.targetValue))"
         case .autoWhoop,
-             .autoNutritrack,
              .autoHealthkit:
             return "\(Int(progress.currentValue)) / \(Int(progress.targetValue))"
         }
@@ -1209,7 +1209,7 @@ struct NonNegotiableCardView: View {
                 }
             case .meals:
                 if !progress.isCompleted {
-                    pillButton(title: "Log in NutriTrack", style: .filled) { onLogNutriTrack() }
+                    pillButton(title: "Log Meal", style: .filled) { onLogMeal() }
                 }
             case .sleep,
                  .steps:
@@ -1234,7 +1234,6 @@ struct NonNegotiableCardView: View {
                         }
                     }
                 case .autoWhoop,
-                     .autoNutritrack,
                      .autoHealthkit:
                     EmptyView()
                 }

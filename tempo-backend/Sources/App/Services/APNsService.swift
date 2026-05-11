@@ -28,7 +28,6 @@ struct APNsService {
         case challengeUpdate = "challenge_update"
         case achievementUnlock = "achievement_unlock"
         case weeklySummary = "weekly_summary"
-        case nutritrackReauth = "nutritrack_reauth"
         case general = "general"
 
         /// APNs category identifier for actionable notifications.

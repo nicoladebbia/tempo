@@ -348,7 +348,7 @@ struct NonNegotiableSetupView: View {
         let templates: [(String, NonNegotiableType, String, Double, TrackingMethod)] = [
             ("Study", .study, "book.fill", 120, .timer),
             ("Training", .train, "dumbbell.fill", 1, .autoWhoop),
-            ("Meals", .meals, "fork.knife", 3, .autoNutritrack),
+            ("Meals", .meals, "fork.knife", 3, .manual),
             ("Sleep", .sleep, "moon.fill", 7, .autoHealthkit),
         ]
 
@@ -494,7 +494,6 @@ struct NonNegotiableEditSheet: View {
                         Text("Manual").tag(TrackingMethod.manual)
                         Text("Timer").tag(TrackingMethod.timer)
                         Text("Whoop (Auto)").tag(TrackingMethod.autoWhoop)
-                        Text("NutriTrack (Auto)").tag(TrackingMethod.autoNutritrack)
                         Text("HealthKit (Auto)").tag(TrackingMethod.autoHealthkit)
                     }
                     .font(.tempoBody)
@@ -666,7 +665,7 @@ struct NonNegotiableEditSheet: View {
             trackingMethod = .autoWhoop
         case .meals:
             targetValue = 3
-            trackingMethod = .autoNutritrack
+            trackingMethod = .manual
         case .sleep:
             targetValue = 7
             trackingMethod = .autoHealthkit

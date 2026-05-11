@@ -16,11 +16,8 @@ import SwiftUI
 
 struct FuelQuadrantDetailView: View {
     let data: FuelQuadrantData
-    var nutriTrackService: (any NutriTrackServiceProtocol)?
     var onRefreshNeeded: (() -> Void)?
 
-    @State
-    private var showNutriTrackConnect = false
     @State
     private var showNativeNutrition = false
 
@@ -58,7 +55,7 @@ struct FuelQuadrantDetailView: View {
                     calorieTrendSection
                     weeklyAverageSection
                 } else {
-                    // Native nutrition mode — log meals directly without NutriTrack
+                    // Native nutrition empty state — log meals directly.
                     VStack(spacing: TempoSpacing.xl) {
                         Image(systemName: "fork.knife.circle.fill")
                             .font(.system(size: 48))
@@ -68,7 +65,7 @@ struct FuelQuadrantDetailView: View {
                             .font(.tempoTitle3)
                             .foregroundStyle(Color.tempoTextPrimary)
 
-                        Text("Log meals manually, or connect NutriTrack for automatic tracking.")
+                        Text("Log your first meal to start tracking macros, hydration, and meal timing.")
                             .font(.tempoBody)
                             .foregroundStyle(Color.tempoTextSecondary)
                             .multilineTextAlignment(.center)
@@ -78,26 +75,13 @@ struct FuelQuadrantDetailView: View {
                             NavigationLink {
                                 DailyNutritionSummaryView()
                             } label: {
-                                Text("Log Meals Manually")
+                                Text("Log a Meal")
                             }
                             .buttonStyle(.tempoPrimary)
-
-                            Button("Connect NutriTrack") {
-                                showNutriTrackConnect = true
-                            }
-                            .buttonStyle(.tempoSecondary)
                         }
                         .padding(.horizontal, TempoSpacing.screenEdge)
                     }
                     .padding(.top, TempoSpacing.xxxxl)
-                    .sheet(isPresented: $showNutriTrackConnect) {
-                        if let service = nutriTrackService {
-                            NutriTrackConnectView(
-                                nutriTrackService: service,
-                                onConnected: onRefreshNeeded
-                            )
-                        }
-                    }
                 }
             }
             .padding(.horizontal, TempoSpacing.screenEdge)

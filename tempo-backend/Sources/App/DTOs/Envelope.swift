@@ -54,3 +54,9 @@ struct PaginationQuery: Content {
     var limit: Int?
     var direction: String?
 }
+
+// MARK: - Empty Response
+
+/// Standard empty payload for endpoints that confirm success without a body.
+/// Used as `Envelope<EmptyResponse>` so the response shape remains consistent.
+struct EmptyResponse: Content {}

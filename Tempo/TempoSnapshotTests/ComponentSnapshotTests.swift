@@ -111,4 +111,23 @@ final class ComponentSnapshotTests: TempoSnapshotTestCase {
             .frame(width: 44, height: 44, alignment: .trailing)
         assertComponentSnapshot(of: view, size: CGSize(width: 44, height: 44))
     }
+
+    // MARK: - Body Quadrant Metric Cards (Bug #3 regression)
+
+    /// Pins HRV/RHR/Sleep/SpO2 cards at identical dimensions. If a future change
+    /// re-introduces unit suffixes inside the value or removes the minHeight,
+    /// this snapshot will fail.
+    func testBodyQuadrantDetailMetricRow() {
+        let view = NavigationStack {
+            BodyQuadrantDetailView(
+                data: BodyQuadrantData(
+                    recoveryScore: 72, hrv: 48, rhr: 62, sleepHours: 7.2,
+                    sleepPerformance: 78, strain: 12.4, spo2: 97.5,
+                    isConnected: true, lastSync: Date(),
+                    dataSource: .whoop
+                )
+            )
+        }
+        assertComponentSnapshot(of: view, size: CGSize(width: 393, height: 360))
+    }
 }

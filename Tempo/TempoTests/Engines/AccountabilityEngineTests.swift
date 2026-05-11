@@ -6,6 +6,7 @@
 //
 //
 
+import SwiftData
 @testable import Tempo
 import XCTest
 
@@ -14,7 +15,7 @@ import XCTest
 // Per BUILD_PLAN Step 19.3 — Unit tests for accountability state evaluation, leisure unlock, milestones.
 
 final class AccountabilityEngineTests: XCTestCase {
-    private var engine: AccountabilityEngine!
+    // MARK: Internal
 
     override func setUp() {
         super.setUp()
@@ -163,4 +164,87 @@ final class AccountabilityEngineTests: XCTestCase {
         XCTAssertFalse(StreakMilestone.threeDay.grantsBonusHour)
         XCTAssertFalse(StreakMilestone.oneWeek.grantsBonusHour)
     }
+
+    // MARK: - Non-Negotiable Loading (regression: defaults sheet → empty Lockdown)
+
+    /// Regression test: when a DailyAccountability already exists for today (e.g.
+    /// auto-created on first Lockdown open) but has no progress entries, the
+    /// next call to loadTodayNonNegotiables must populate progress for the
+    /// non-negotiables that were added afterward through the setup sheet.
+    @MainActor
+    func testLoadTodayPopulatesProgressForExistingAccountability() throws {
+        let container = try makeTestContainer()
+        let context = ModelContext(container)
+
+        // 1. First load — no NNs exist yet, so accountability is created empty.
+        let first = engine.loadTodayNonNegotiables(modelContext: context)
+        XCTAssertEqual(first.totalCount, 0, "Empty accountability expected when no NNs are configured")
+
+        // 2. User opens setup sheet and adds defaults.
+        struct Template {
+            let name: String
+            let type: NonNegotiableType
+            let target: Double
+            let tracking: TrackingMethod
+        }
+        let templates: [Template] = [
+            Template(name: "Study", type: .study, target: 120, tracking: .timer),
+            Template(name: "Training", type: .train, target: 1, tracking: .autoWhoop),
+            Template(name: "Meals", type: .meals, target: 3, tracking: .manual),
+            Template(name: "Sleep", type: .sleep, target: 7, tracking: .autoHealthkit),
+        ]
+        for (i, t) in templates.enumerated() {
+            context.insert(NonNegotiable(
+                name: t.name,
+                type: t.type,
+                targetValue: t.target,
+                trackingMethod: t.tracking,
+                order: i
+            ))
+        }
+        try context.save()
+
+        // 3. Lockdown reloads on sheet dismiss — must hydrate progress entries.
+        let second = engine.loadTodayNonNegotiables(modelContext: context)
+        XCTAssertEqual(second.totalCount, 4, "Defaults must populate after sheet dismissal")
+        XCTAssertEqual(second.id, first.id, "Should reuse the same DailyAccountability row")
+
+        let types = Set((second.nonNegotiableProgress ?? []).compactMap { $0.nonNegotiable?.type })
+        XCTAssertEqual(types, [.study, .train, .meals, .sleep])
+
+        // 4. Repeated load is idempotent — no duplicate progress entries.
+        let third = engine.loadTodayNonNegotiables(modelContext: context)
+        XCTAssertEqual(third.totalCount, 4, "Repeated loads must not duplicate progress")
+    }
+
+    /// Adding a new non-negotiable mid-day must inject a progress row for it
+    /// without disturbing rows that already exist (and may have progress on them).
+    @MainActor
+    func testLoadTodayAddsProgressForNewlyAddedNonNegotiable() throws {
+        let container = try makeTestContainer()
+        let context = ModelContext(container)
+
+        context.insert(NonNegotiable(
+            name: "Study", type: .study, targetValue: 120,
+            trackingMethod: .timer, order: 0
+        ))
+        try context.save()
+
+        let acc = engine.loadTodayNonNegotiables(modelContext: context)
+        XCTAssertEqual(acc.totalCount, 1)
+
+        // User adds a second NN later in the day.
+        context.insert(NonNegotiable(
+            name: "Sleep", type: .sleep, targetValue: 7,
+            trackingMethod: .autoHealthkit, order: 1
+        ))
+        try context.save()
+
+        let updated = engine.loadTodayNonNegotiables(modelContext: context)
+        XCTAssertEqual(updated.totalCount, 2)
+    }
+
+    // MARK: Private
+
+    private var engine: AccountabilityEngine!
 }

@@ -44,28 +44,27 @@ enum AccountabilityOverrideType: String, Codable {
 // Per MODULE_ACCOUNTABILITY.md Sections 8, 9, 13, 15.
 
 final class AccountabilityEngine: @unchecked Sendable {
-    // MARK: - Configuration
+    // MARK: Internal
 
-    /// Default PS5 unlock time (weekdays)
-    private let defaultPS5TimeWeekday: DateComponents = {
-        var c = DateComponents()
-        c.hour = 19
-        c.minute = 30
-        return c
-    }()
+    // MARK: - Target Adjustments
 
-    /// Default PS5 unlock time (weekends)
-    /// Per MODULE_ACCOUNTABILITY.md Section 8 — Weekend mode defaults to 9:00 PM.
-    private let defaultPS5TimeWeekend: DateComponents = {
-        var c = DateComponents()
-        c.hour = 21
-        c.minute = 0
-        return c
-    }()
+    // MARK: - Exam-Aware Study Target
 
-    /// Max rest days per month before streak is affected
-    /// Per MODULE_ACCOUNTABILITY.md Section 13
-    private let maxRestDaysPerMonth = 4
+    // Per BUILD_PLAN step 13.2 — Exam within 7 days → study target increased by 50%.
+
+    /// The number of days until the next exam. Set by DashboardViewModel from calendar data.
+    /// When an exam is within 7 days, study targets increase by 50%.
+    ///
+    /// Stored as a static so freshly-constructed engine instances (used inline at
+    /// several sites) all observe the same value. Will become instance state once
+    /// AccountabilityEngine is injected via ServiceContainer.
+    @MainActor
+    static var daysToNextExam: Int?
+
+    /// Instance accessor used by computations.
+    var daysToNextExam: Int? {
+        MainActor.assumeIsolated { Self.daysToNextExam }
+    }
 
     // MARK: - State Evaluation
 
@@ -192,32 +191,19 @@ final class AccountabilityEngine: @unchecked Sendable {
             }
         )
 
+        let accountability: DailyAccountability
         if let existing = try? modelContext.fetch(descriptor).first {
-            return existing
+            accountability = existing
+        } else {
+            accountability = DailyAccountability(date: today)
+            modelContext.insert(accountability)
         }
 
-        // Create new
-        let accountability = DailyAccountability(date: today)
-        modelContext.insert(accountability)
-
-        // Fetch active non-negotiables for today's day of week
-        let weekday = Calendar.current.component(.weekday, from: today)
-        let allNonNegs = (try? modelContext.fetch(FetchDescriptor<NonNegotiable>())) ?? []
-
-        let activeToday = allNonNegs.filter { nn in
-            nn.isActive && nn.activeDays.isActive(on: weekday)
-        }
-
-        // Create progress entries
-        for nn in activeToday.sorted(by: { $0.order < $1.order }) {
-            let progress = NonNegotiableProgress(
-                date: today,
-                targetValue: adjustedTarget(for: nn, date: today),
-                nonNegotiable: nn,
-                dailyAccountability: accountability
-            )
-            modelContext.insert(progress)
-        }
+        // Populate any missing progress entries — covers both fresh
+        // accountability rows AND existing rows that predate the user
+        // adding their non-negotiables (e.g., the empty row created
+        // before the setup sheet was used).
+        populateMissingProgress(accountability: accountability, on: today, modelContext: modelContext)
 
         try? modelContext.save()
         return accountability
@@ -426,24 +412,56 @@ final class AccountabilityEngine: @unchecked Sendable {
         ) ?? date
     }
 
-    // MARK: - Target Adjustments
+    // MARK: Private
 
-    // MARK: - Exam-Aware Study Target
+    // MARK: - Configuration
 
-    // Per BUILD_PLAN step 13.2 — Exam within 7 days → study target increased by 50%.
+    /// Default PS5 unlock time (weekdays)
+    private let defaultPS5TimeWeekday: DateComponents = {
+        var c = DateComponents()
+        c.hour = 19
+        c.minute = 30
+        return c
+    }()
 
-    /// The number of days until the next exam. Set by DashboardViewModel from calendar data.
-    /// When an exam is within 7 days, study targets increase by 50%.
-    ///
-    /// Stored as a static so freshly-constructed engine instances (used inline at
-    /// several sites) all observe the same value. Will become instance state once
-    /// AccountabilityEngine is injected via ServiceContainer.
-    @MainActor
-    static var daysToNextExam: Int?
+    /// Default PS5 unlock time (weekends)
+    /// Per MODULE_ACCOUNTABILITY.md Section 8 — Weekend mode defaults to 9:00 PM.
+    private let defaultPS5TimeWeekend: DateComponents = {
+        var c = DateComponents()
+        c.hour = 21
+        c.minute = 0
+        return c
+    }()
 
-    /// Instance accessor used by computations.
-    var daysToNextExam: Int? {
-        MainActor.assumeIsolated { Self.daysToNextExam }
+    /// Max rest days per month before streak is affected
+    /// Per MODULE_ACCOUNTABILITY.md Section 13
+    private let maxRestDaysPerMonth = 4
+
+    /// Insert progress entries for any active non-negotiables that don't
+    /// yet have a row attached to this accountability. Idempotent — safe
+    /// to call repeatedly.
+    private func populateMissingProgress(
+        accountability: DailyAccountability,
+        on date: Date,
+        modelContext: ModelContext
+    ) {
+        let weekday = Calendar.current.component(.weekday, from: date)
+        let allNonNegs = (try? modelContext.fetch(FetchDescriptor<NonNegotiable>())) ?? []
+        let activeToday = allNonNegs.filter { nn in
+            nn.isActive && nn.activeDays.isActive(on: weekday)
+        }
+
+        let existingIDs = Set((accountability.nonNegotiableProgress ?? []).compactMap { $0.nonNegotiable?.id })
+
+        for nn in activeToday.sorted(by: { $0.order < $1.order }) where !existingIDs.contains(nn.id) {
+            let progress = NonNegotiableProgress(
+                date: date,
+                targetValue: adjustedTarget(for: nn, date: date),
+                nonNegotiable: nn,
+                dailyAccountability: accountability
+            )
+            modelContext.insert(progress)
+        }
     }
 
     /// Adjust target for weekend mode and exam proximity.
@@ -487,6 +505,8 @@ enum StreakMilestone: Int, CaseIterable {
     case oneMonth = 30
     case elite = 50
     case century = 100
+
+    // MARK: Internal
 
     var title: String {
         switch self {

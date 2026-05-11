@@ -115,8 +115,6 @@ struct OnboardingContainerView: View {
             AcademicSetupView(viewModel: viewModel)
         case .whoopConnect:
             WhoopConnectView(viewModel: viewModel)
-        case .nutritrackConnect:
-            NutriTrackConnectStepView(viewModel: viewModel)
         case .notifications:
             NotificationSetupView(viewModel: viewModel)
         case .complete:

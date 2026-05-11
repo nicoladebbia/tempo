@@ -32,9 +32,6 @@ extension Logger {
     /// StoreKit subscriptions, entitlement checks.
     static let subscription = Logger(subsystem: subsystem, category: "subscription")
 
-    /// NutriTrack integration, meal logging.
-    static let nutritrack = Logger(subsystem: subsystem, category: "nutritrack")
-
     /// Calendar/EventKit integration.
     static let calendar = Logger(subsystem: subsystem, category: "calendar")
 
