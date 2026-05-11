@@ -30,7 +30,7 @@ struct NutritionWeeklyPlanView: View {
     @State
     private var isPreparingWizard = false
     @State
-    private var showNoProfileAlert = false
+    private var showProfileSetup = false
     @AppStorage("tempo.nutrition.disclaimerAccepted")
     private var disclaimerAccepted = false
 
@@ -86,12 +86,18 @@ struct NutritionWeeklyPlanView: View {
                 "Meal plans are created by AI for general wellness guidance. They are not a substitute for professional dietary advice. If you have medical conditions, allergies, or eating disorders, consult a healthcare professional before following any meal plan."
             )
         }
-        .alert("Set Up Your Profile First", isPresented: $showNoProfileAlert) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(
-                "No dietary profile on file. Set up your goals, weight, and training frequency before I can plan meals for you. Tap the Fuel tab settings to start."
-            )
+        .sheet(isPresented: $showProfileSetup) {
+            DietaryProfileSetupView(onSaveAndGenerate: { _ in
+                showProfileSetup = false
+                viewModel.loadToday(modelContext: modelContext)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    if disclaimerAccepted {
+                        launchWizard()
+                    } else {
+                        showDisclaimerAlert = true
+                    }
+                }
+            })
         }
         .sheet(item: $wizardSnapshot) { snapshot in
             MealPlanIntakeWizardView(
@@ -335,7 +341,7 @@ struct NutritionWeeklyPlanView: View {
     private var generateButton: some View {
         Button {
             guard viewModel.hasProfile else {
-                showNoProfileAlert = true
+                showProfileSetup = true
                 return
             }
             if disclaimerAccepted {
