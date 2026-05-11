@@ -56,6 +56,12 @@ func routes(_ app: Application) throws {
         .grouped(RateLimitMiddleware(limit: 30, window: .minutes(1), scope: .user))
         .register(collection: ReceiptController())
 
+    // Nutrition AI endpoints — Phase 7 of nutrition rebuild.
+    // POST /v1/nutrition/ai/explain-adjustment, /v1/nutrition/ai/suggest-meal
+    try protected.grouped("nutrition", "ai")
+        .grouped(RateLimitMiddleware(limit: 20, window: .minutes(1), scope: .user))
+        .register(collection: NutritionAIController())
+
     // ─────────────────────────────────────────────────
     // Arena endpoints — per BACKEND_API.md Section 10
     // ─────────────────────────────────────────────────

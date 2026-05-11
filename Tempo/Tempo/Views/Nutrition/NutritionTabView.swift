@@ -101,12 +101,47 @@ struct NutritionTabView: View {
         case .today:
             NutritionTodayView(viewModel: viewModel, showMealLogging: $showMealLogging)
         case .plan:
-            NutritionWeeklyPlanView(viewModel: viewModel)
+            VStack(spacing: 0) {
+                planQuickLinks
+                NutritionWeeklyPlanView(viewModel: viewModel)
+            }
         case .log:
             NutritionLogView(viewModel: viewModel, showMealLogging: $showMealLogging)
         case .coach:
             NutritionCoachView(viewModel: viewModel)
+        case .pantry:
+            PantryView(viewModel: viewModel)
         }
+    }
+
+    /// Quick-link strip shown above the meal-plan tab — entry points to
+    /// recipe suggestions and the grocery list. These are short workflows
+    /// that don't need their own segmented-control slots.
+    private var planQuickLinks: some View {
+        HStack(spacing: TempoSpacing.sm) {
+            NavigationLink {
+                RecipeSuggestionsView(viewModel: viewModel)
+            } label: {
+                Label("Recipes", systemImage: "fork.knife.circle.fill")
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(Color.tempoSurfaceCard)
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            NavigationLink {
+                GroceryListView(viewModel: viewModel)
+            } label: {
+                Label("Grocery", systemImage: "cart.fill")
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(Color.tempoSurfaceCard)
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, TempoSpacing.screenEdge)
+        .padding(.bottom, TempoSpacing.sm)
     }
 
     // MARK: - Error State

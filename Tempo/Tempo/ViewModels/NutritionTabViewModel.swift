@@ -17,6 +17,7 @@ enum NutritionSection: String, CaseIterable, Identifiable {
     case plan = "Plan"
     case log = "Log"
     case coach = "Coach"
+    case pantry = "Pantry"
 
     var id: String {
         rawValue

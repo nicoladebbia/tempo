@@ -329,6 +329,11 @@
 		48BA31198FD547E8BD026189 /* LocalGroceryListService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD3B88BE3A074B7FA320F195 /* LocalGroceryListService.swift */; };
 		6C303E965AAA4A1985C29CEF /* NutritionIntelligenceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18C9555BEC8B46C0885A0957 /* NutritionIntelligenceService.swift */; };
 		B9CD9BFA44E54B54901DD1E1 /* GroceryListGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2117949272747C3B83168A0 /* GroceryListGeneratorTests.swift */; };
+		AA01000001000000A0000001 /* NutritionTabViewModel+Phase7.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01000001000000A1000001 /* NutritionTabViewModel+Phase7.swift */; };
+		AA01000001000000A0000002 /* PantryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01000001000000A1000002 /* PantryView.swift */; };
+		AA01000001000000A0000003 /* RecipeSuggestionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01000001000000A1000003 /* RecipeSuggestionsView.swift */; };
+		AA01000001000000A0000004 /* GroceryListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01000001000000A1000004 /* GroceryListView.swift */; };
+		AA01000001000000A0000005 /* NutritionTabViewModelPhase7Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01000001000000A1000005 /* NutritionTabViewModelPhase7Tests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -745,6 +750,11 @@
 		CD3B88BE3A074B7FA320F195 /* LocalGroceryListService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tempo/Services/Nutrition/LocalGroceryListService.swift; sourceTree = SOURCE_ROOT; };
 		18C9555BEC8B46C0885A0957 /* NutritionIntelligenceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tempo/Services/Nutrition/NutritionIntelligenceService.swift; sourceTree = SOURCE_ROOT; };
 		A2117949272747C3B83168A0 /* GroceryListGeneratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoTests/Services/GroceryListGeneratorTests.swift; sourceTree = SOURCE_ROOT; };
+		AA01000001000000A1000001 /* NutritionTabViewModel+Phase7.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "NutritionTabViewModel+Phase7.swift"; path = "Tempo/ViewModels/NutritionTabViewModel+Phase7.swift"; sourceTree = SOURCE_ROOT; };
+		AA01000001000000A1000002 /* PantryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tempo/Views/Nutrition/PantryView.swift; sourceTree = SOURCE_ROOT; };
+		AA01000001000000A1000003 /* RecipeSuggestionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tempo/Views/Nutrition/RecipeSuggestionsView.swift; sourceTree = SOURCE_ROOT; };
+		AA01000001000000A1000004 /* GroceryListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tempo/Views/Nutrition/GroceryListView.swift; sourceTree = SOURCE_ROOT; };
+		AA01000001000000A1000005 /* NutritionTabViewModelPhase7Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoTests/ViewModels/NutritionTabViewModelPhase7Tests.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1983,7 +1993,8 @@
 				B9947F11BCDE4D42B3A647F1 /* FoodCanonicalizerTests.swift in Sources */,
 				C44C7CEEFCBF4A07B1B2556D /* PantryServiceTests.swift in Sources */,
 				4EB13A938E384D19BD047F14 /* RecipeSuggestionEngineTests.swift in Sources */,
-				B9CD9BFA44E54B54901DD1E1 /* GroceryListGeneratorTests.swift in Sources */,);
+				B9CD9BFA44E54B54901DD1E1 /* GroceryListGeneratorTests.swift in Sources */,
+				AA01000001000000A0000005 /* NutritionTabViewModelPhase7Tests.swift in Sources */,);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		337EF2AF92A43E042FC02B83 /* Sources */ = {
@@ -2305,7 +2316,11 @@
 				D890534F82794259A1A45B66 /* GroceryListGenerator.swift in Sources */,
 				CF55D85ACB734E05BFE6DD79 /* GroceryListServiceProtocol.swift in Sources */,
 				48BA31198FD547E8BD026189 /* LocalGroceryListService.swift in Sources */,
-				6C303E965AAA4A1985C29CEF /* NutritionIntelligenceService.swift in Sources */,);
+				6C303E965AAA4A1985C29CEF /* NutritionIntelligenceService.swift in Sources */,
+				AA01000001000000A0000001 /* NutritionTabViewModel+Phase7.swift in Sources */,
+				AA01000001000000A0000002 /* PantryView.swift in Sources */,
+				AA01000001000000A0000003 /* RecipeSuggestionsView.swift in Sources */,
+				AA01000001000000A0000004 /* GroceryListView.swift in Sources */,);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */

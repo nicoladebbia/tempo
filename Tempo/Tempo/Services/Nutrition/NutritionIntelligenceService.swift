@@ -28,6 +28,8 @@
 import Foundation
 import os
 
+// MARK: - NutritionIntelligenceService
+
 @MainActor
 @Observable
 final class NutritionIntelligenceService {
@@ -55,10 +57,32 @@ final class NutritionIntelligenceService {
         if let cached = cache[key], cached.expiry > Date() {
             return cached.response
         }
-        // Fallback (always available): the engine already provides a
-        // hand-written explanation string. We surface it as-is until the
-        // Vapor explain endpoint is wired.
+
         let fallback = adjustment.modeExplanation
+
+        if let apiClient {
+            let request = NutritionAIExplainRequest(
+                mode: adjustment.mode.rawValue,
+                recoveryZone: recoveryZone?.rawValue,
+                isTrainingDay: isTrainingDay,
+                baseCalories: adjustment.baseCalorieTarget,
+                adjustedCalories: adjustment.calorieTarget,
+                baseProtein: adjustment.baseProteinTarget,
+                adjustedProtein: adjustment.proteinTarget,
+                modeExplanation: adjustment.modeExplanation
+            )
+            do {
+                let resp = try await apiClient.request(
+                    APIEndpoint<NutritionAIExplainResponse>.nutritionAIExplain(),
+                    body: request
+                )
+                cache[key] = (resp.message, Date().addingTimeInterval(cacheTTL))
+                return resp.message
+            } catch {
+                logger.warning("Nutrition AI explain failed, falling back: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+
         cache[key] = (fallback, Date().addingTimeInterval(cacheTTL))
         return fallback
     }
@@ -78,7 +102,6 @@ final class NutritionIntelligenceService {
             return cached.response
         }
 
-        // Deterministic fallback when no AI is available.
         let fallback = Self.templatedSuggestion(
             pantry: pantryCanonicalNames,
             remainingCalories: remainingCalories,
@@ -86,6 +109,27 @@ final class NutritionIntelligenceService {
             recoveryZone: recoveryZone,
             isTrainingDay: isTrainingDay
         )
+
+        if let apiClient {
+            let request = NutritionAISuggestRequest(
+                pantryCanonicalNames: pantryCanonicalNames,
+                remainingCalories: remainingCalories,
+                remainingProtein: remainingProtein,
+                recoveryZone: recoveryZone?.rawValue,
+                isTrainingDay: isTrainingDay
+            )
+            do {
+                let resp = try await apiClient.request(
+                    APIEndpoint<NutritionAISuggestResponse>.nutritionAISuggest(),
+                    body: request
+                )
+                cache[key] = (resp.message, Date().addingTimeInterval(cacheTTL))
+                return resp.message
+            } catch {
+                logger.warning("Nutrition AI suggest failed, falling back: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+
         cache[key] = (fallback, Date().addingTimeInterval(cacheTTL))
         return fallback
     }
@@ -122,5 +166,71 @@ final class NutritionIntelligenceService {
             return "You're nearly capped on calories. Greek yogurt or a protein shake closes the day."
         }
         return "Combine what you've got: aim for ~\(remainingProtein)g protein and \(remainingCalories) kcal across your next meal."
+    }
+}
+
+// MARK: - NutritionAIExplainRequest
+
+struct NutritionAIExplainRequest: Codable, Sendable {
+    let mode: String
+    let recoveryZone: String?
+    let isTrainingDay: Bool
+    let baseCalories: Int
+    let adjustedCalories: Int
+    let baseProtein: Int
+    let adjustedProtein: Int
+    let modeExplanation: String
+
+    enum CodingKeys: String, CodingKey {
+        case mode
+        case recoveryZone = "recovery_zone"
+        case isTrainingDay = "is_training_day"
+        case baseCalories = "base_calories"
+        case adjustedCalories = "adjusted_calories"
+        case baseProtein = "base_protein"
+        case adjustedProtein = "adjusted_protein"
+        case modeExplanation = "mode_explanation"
+    }
+}
+
+// MARK: - NutritionAIExplainResponse
+
+struct NutritionAIExplainResponse: Codable, Sendable {
+    let message: String
+}
+
+// MARK: - NutritionAISuggestRequest
+
+struct NutritionAISuggestRequest: Codable, Sendable {
+    let pantryCanonicalNames: [String]
+    let remainingCalories: Int
+    let remainingProtein: Int
+    let recoveryZone: String?
+    let isTrainingDay: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case pantryCanonicalNames = "pantry_canonical_names"
+        case remainingCalories = "remaining_calories"
+        case remainingProtein = "remaining_protein"
+        case recoveryZone = "recovery_zone"
+        case isTrainingDay = "is_training_day"
+    }
+}
+
+// MARK: - NutritionAISuggestResponse
+
+struct NutritionAISuggestResponse: Codable, Sendable {
+    let message: String
+}
+
+extension APIEndpoint where Response == NutritionAIExplainResponse {
+    static func nutritionAIExplain() -> Self {
+        APIEndpoint(path: "/v1/nutrition/ai/explain-adjustment", method: .post)
+    }
+}
+
+extension APIEndpoint where Response == NutritionAISuggestResponse {
+    static func nutritionAISuggest() -> Self {
+        APIEndpoint(path: "/v1/nutrition/ai/suggest-meal", method: .post)
     }
 }
