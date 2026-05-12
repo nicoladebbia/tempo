@@ -244,17 +244,29 @@ final class NutritionTabViewModel {
 
     // MARK: - Meal Actions
 
-    func markMealEaten(_ meal: PlannedMeal, modelContext: ModelContext) {
+    func markMealEaten(
+        _ meal: PlannedMeal,
+        modelContext: ModelContext,
+        notifications: (any NotificationServiceProtocol)? = nil
+    ) {
+        let mealID = meal.id
         meal.status = .eaten
         try? modelContext.save()
         HapticManager.notification(.success)
+        notifications?.cancelDefrostReminders(forMealID: mealID)
         refreshTodayMeals(modelContext: modelContext)
     }
 
-    func markMealSkipped(_ meal: PlannedMeal, modelContext: ModelContext) {
+    func markMealSkipped(
+        _ meal: PlannedMeal,
+        modelContext: ModelContext,
+        notifications: (any NotificationServiceProtocol)? = nil
+    ) {
+        let mealID = meal.id
         meal.status = .skipped
         try? modelContext.save()
         HapticManager.lightImpact()
+        notifications?.cancelDefrostReminders(forMealID: mealID)
         refreshTodayMeals(modelContext: modelContext)
     }
 
@@ -332,6 +344,7 @@ final class NutritionTabViewModel {
     func generatePlan(
         modelContext: ModelContext,
         whoop: any WhoopServiceProtocol,
+        notifications: (any NotificationServiceProtocol)? = nil,
         intake: MealPlanIntake? = nil
     ) {
         guard let profile = dietaryProfile else {
@@ -360,6 +373,9 @@ final class NutritionTabViewModel {
                 )
 
                 weeklyPlan = plan
+                if let notifications {
+                    scheduleDefrostReminders(for: plan, notifications: notifications)
+                }
                 isGeneratingPlan = false
                 HapticManager.notification(.success)
                 loadToday(modelContext: modelContext)
@@ -367,6 +383,41 @@ final class NutritionTabViewModel {
                 isGeneratingPlan = false
                 planGenerationError = error.localizedDescription
                 HapticManager.notification(.error)
+            }
+        }
+    }
+
+    /// Walk every PlannedMeal in `plan`, find ingredients that require a defrost
+    /// reminder, and schedule a Time Sensitive notification at `mealTime − leadTime`.
+    /// Stale reminders from a prior plan are cleared per-meal first.
+    private func scheduleDefrostReminders(
+        for plan: WeeklyMealPlan,
+        notifications: any NotificationServiceProtocol
+    ) {
+        let calendar = Calendar.current
+        for meal in plan.meals ?? [] {
+            notifications.cancelDefrostReminders(forMealID: meal.id)
+            guard let ingredients = meal.recipe?.ingredients else {
+                continue
+            }
+            let mealTime = MealScheduleHelpers.scheduledDate(for: meal, calendar: calendar)
+            for ingredient in ingredients where ingredient.requiresDefrostReminder {
+                let lead = ingredient.defrostLeadTimeHours
+                guard let fireDate = calendar.date(byAdding: .hour, value: -lead, to: mealTime) else {
+                    continue
+                }
+                // Skip reminders that would fire in the past (meal in <leadTime).
+                guard fireDate > Date() else {
+                    continue
+                }
+                notifications.scheduleDefrostReminder(
+                    mealID: meal.id,
+                    ingredientID: ingredient.id,
+                    ingredientName: ingredient.displayName,
+                    mealName: meal.mealName,
+                    leadTimeHours: lead,
+                    fireDate: fireDate
+                )
             }
         }
     }

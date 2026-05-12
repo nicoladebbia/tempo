@@ -123,6 +123,14 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
                     UNNotificationAction(identifier: "WIND_DOWN", title: "Wind Down", options: .foreground),
                 ]
             ),
+            // Defrost Reminder (Phase C)
+            makeCategory(
+                id: "DEFROST_REMINDER",
+                actions: [
+                    UNNotificationAction(identifier: "VIEW_MEAL", title: "View Meal", options: .foreground),
+                    UNNotificationAction(identifier: "DONE", title: "Done"),
+                ]
+            ),
             // Arena Social
             makeCategory(
                 id: "ARENA_SOCIAL",
@@ -248,6 +256,53 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
             budgetCost: 0.5,
             priority: 5
         )
+    }
+
+    // MARK: - Defrost Reminder (Phase C)
+
+    /// Identifier convention for defrost notifications. Stable so cancellations
+    /// on meal eat/skip/reschedule can target the exact pending request.
+    static func defrostReminderID(mealID: UUID, ingredientID: UUID) -> String {
+        "defrost_\(mealID.uuidString)_\(ingredientID.uuidString)"
+    }
+
+    func scheduleDefrostReminder(
+        mealID: UUID,
+        ingredientID: UUID,
+        ingredientName: String,
+        mealName: String,
+        leadTimeHours: Int,
+        fireDate: Date
+    ) {
+        guard isWithinPreScheduleWindow(fireDate) else {
+            return
+        }
+        let leadDescriptor = leadTimeHours == 1 ? "an hour" : "\(leadTimeHours) hours"
+        scheduleNotification(
+            id: Self.defrostReminderID(mealID: mealID, ingredientID: ingredientID),
+            title: "Move \(ingredientName) out of the freezer.",
+            body: "\(mealName) is in \(leadDescriptor). Defrost it now or skip the meal — your call.",
+            date: fireDate,
+            categoryID: "DEFROST_REMINDER",
+            threadID: "tempo.defrost.\(mealID.uuidString)",
+            interruptionLevel: .timeSensitive,
+            budgetCost: 0.5,
+            priority: 4
+        )
+    }
+
+    func cancelDefrostReminders(forMealID mealID: UUID) {
+        let prefix = "defrost_\(mealID.uuidString)_"
+        center.getPendingNotificationRequests { [weak self] requests in
+            let idsToCancel = requests
+                .map(\.identifier)
+                .filter { $0.hasPrefix(prefix) }
+            guard !idsToCancel.isEmpty else {
+                return
+            }
+            self?.center.removePendingNotificationRequests(withIdentifiers: idsToCancel)
+            self?.logger.info("Cancelled \(idsToCancel.count) defrost reminders for meal \(mealID.uuidString)")
+        }
     }
 
     // MARK: - Recovery Notification

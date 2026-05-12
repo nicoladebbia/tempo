@@ -104,7 +104,12 @@ struct NutritionWeeklyPlanView: View {
                 snapshot: snapshot,
                 onComplete: { intake in
                     wizardSnapshot = nil
-                    viewModel.generatePlan(modelContext: modelContext, whoop: services.whoop, intake: intake)
+                    viewModel.generatePlan(
+                        modelContext: modelContext,
+                        whoop: services.whoop,
+                        notifications: services.notifications,
+                        intake: intake
+                    )
                 },
                 onCancel: {
                     wizardSnapshot = nil

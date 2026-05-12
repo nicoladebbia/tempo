@@ -43,6 +43,24 @@ protocol NotificationServiceProtocol: Sendable {
     func scheduleAccountabilityEscalation(tier: EscalationTier, time: Date, content: String)
     func scheduleMealReminder(mealName: String, time: Date)
     func scheduleBedtimeReminder(time: Date)
+
+    /// Time Sensitive APNs reminder to move a frozen ingredient out of the freezer
+    /// so it defrosts in time for mealtime. Identifier scheme is deterministic
+    /// (`defrost_<mealID>_<ingredientID>`) so reschedules + cancels can target
+    /// the exact pending request.
+    func scheduleDefrostReminder(
+        mealID: UUID,
+        ingredientID: UUID,
+        ingredientName: String,
+        mealName: String,
+        leadTimeHours: Int,
+        fireDate: Date
+    )
+
+    /// Cancel every pending defrost reminder scheduled for `mealID`. Called when
+    /// a meal is eaten, skipped, deleted, or rescheduled.
+    func cancelDefrostReminders(forMealID mealID: UUID)
+
     func cancelAll()
     func cancelCategory(_ category: String)
 }

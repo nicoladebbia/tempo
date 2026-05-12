@@ -66,7 +66,11 @@ struct NutritionTabView: View {
                     viewModel.loadToday(modelContext: modelContext)
                     viewModel.selectedTab = .plan
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        viewModel.generatePlan(modelContext: modelContext, whoop: services.whoop)
+                        viewModel.generatePlan(
+                            modelContext: modelContext,
+                            whoop: services.whoop,
+                            notifications: services.notifications
+                        )
                     }
                 })
             }

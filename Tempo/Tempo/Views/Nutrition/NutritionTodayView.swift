@@ -21,6 +21,8 @@ struct NutritionTodayView: View {
     var showMealLogging: Bool
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(ServiceContainer.self)
+    private var services
 
     // Macro colors per MODULE_DASHBOARD.md
     private let proteinColor = Color.tempoMacroProtein
@@ -217,10 +219,18 @@ struct NutritionTodayView: View {
                     PlannedMealCardView(
                         meal: meal,
                         onMarkEaten: {
-                            viewModel.markMealEaten(meal, modelContext: modelContext)
+                            viewModel.markMealEaten(
+                                meal,
+                                modelContext: modelContext,
+                                notifications: services.notifications
+                            )
                         },
                         onMarkSkipped: {
-                            viewModel.markMealSkipped(meal, modelContext: modelContext)
+                            viewModel.markMealSkipped(
+                                meal,
+                                modelContext: modelContext,
+                                notifications: services.notifications
+                            )
                         }
                     )
                 }

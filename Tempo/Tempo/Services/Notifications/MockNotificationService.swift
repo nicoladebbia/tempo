@@ -63,6 +63,34 @@ final class MockNotificationService: NotificationServiceProtocol, @unchecked Sen
         logger.debug("Mock: scheduled bedtime reminder at \(time)")
     }
 
+    func scheduleDefrostReminder(
+        mealID: UUID,
+        ingredientID: UUID,
+        ingredientName: String,
+        mealName: String,
+        leadTimeHours: Int,
+        fireDate: Date
+    ) {
+        let notification = ScheduledNotification(
+            category: "defrost_\(mealID.uuidString)_\(ingredientID.uuidString)",
+            title: "Move \(ingredientName) out of the freezer.",
+            body: "\(mealName) is in \(leadTimeHours) hours. Defrost it now.",
+            triggerDate: fireDate
+        )
+        scheduledNotifications.append(notification)
+        logger.debug("Mock: scheduled defrost reminder \(ingredientName) for \(mealName) at \(fireDate)")
+    }
+
+    func cancelDefrostReminders(forMealID mealID: UUID) {
+        let prefix = "defrost_\(mealID.uuidString)_"
+        let before = scheduledNotifications.count
+        scheduledNotifications.removeAll { $0.category.hasPrefix(prefix) }
+        let removed = before - scheduledNotifications.count
+        if removed > 0 {
+            logger.debug("Mock: cancelled \(removed) defrost reminders for meal \(mealID.uuidString)")
+        }
+    }
+
     func cancelAll() {
         scheduledNotifications.removeAll()
         logger.debug("Mock: cancelled all notifications")
