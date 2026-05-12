@@ -187,6 +187,13 @@ struct FuelQuadrantData {
 
     var coachingMessage: String?
 
+    // MARK: - Next Meal (Phase B)
+
+    /// The upcoming `PlannedMeal` to surface in the Fuel quadrant. Nil when
+    /// no plan exists, all meals already eaten/skipped, or the day's meals
+    /// have all elapsed.
+    var nextMeal: PlannedMeal?
+
     // MARK: - Macro Status
 
     var proteinStatus: NutritionEngine.MacroStatus {
@@ -273,7 +280,10 @@ struct FuelQuadrantData {
         "\(hydrationGlasses)/\(hydrationTargetGlasses) glasses"
     }
 
-    static let empty = FuelQuadrantData(
+    /// Empty placeholder used before the first refresh completes.
+    /// `nonisolated(unsafe)` because `FuelQuadrantData` now contains a SwiftData
+    /// `PlannedMeal?` (non-Sendable). All real access is main-actor-isolated.
+    nonisolated(unsafe) static let empty = FuelQuadrantData(
         isConnected: false
     )
 
@@ -926,6 +936,7 @@ final class DashboardViewModel {
         fuelData.coachingMessage = coaching
         fuelData.activeCaloriesBurned = Int(energy)
         fuelData.estimatedBMR = 1800 // Will use real BMR when UserProfile is available
+        fuelData.nextMeal = nutritionTotals.nextMeal
         fuel = fuelData
 
         // Build Mind quadrant — exams from calendar, study data local
@@ -1920,6 +1931,8 @@ final class DashboardViewModel {
         var proteinTarget: Int = 0
         var carbsTarget: Int = 0
         var fatTarget: Int = 0
+        /// Next upcoming planned meal for today — drives the dashboard Fuel card.
+        var nextMeal: PlannedMeal?
     }
 
     private func fetchNutritionTotalsForToday() -> NutritionTotalsToday {
@@ -1952,6 +1965,18 @@ final class DashboardViewModel {
             totals.fatTarget = target.fatTargetGrams
             totals.mealsPlanned = target.mealsPerDay
         }
+
+        // Find today's next upcoming PlannedMeal (for the Fuel-quadrant card).
+        let plannedDescriptor = FetchDescriptor<PlannedMeal>(
+            predicate: #Predicate<PlannedMeal> { meal in
+                meal.dayDate >= todayStart && meal.dayDate < tomorrowStart
+            },
+            sortBy: [SortDescriptor(\.mealNumber)]
+        )
+        if let plannedMeals = try? context.fetch(plannedDescriptor) {
+            totals.nextMeal = MealScheduleHelpers.nextUpcomingMeal(in: plannedMeals)
+        }
+
         return totals
     }
 }

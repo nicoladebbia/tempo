@@ -389,12 +389,21 @@ struct DashboardView: View {
             }
             .buttonStyle(.plain)
 
-            NavigationLink(destination: DailyNutritionSummaryView(fuelData: vm.fuel, onAddHydration: { ml in
-                vm.addHydration(ml)
-            })) {
-                fuelCard(vm.fuel)
+            // Fuel tile routes to MealDetailView when a next meal exists;
+            // otherwise falls back to the macro-summary view as before.
+            if let nextMeal = vm.fuel.nextMeal {
+                NavigationLink(destination: MealDetailView(meal: nextMeal)) {
+                    fuelCard(vm.fuel)
+                }
+                .buttonStyle(.plain)
+            } else {
+                NavigationLink(destination: DailyNutritionSummaryView(fuelData: vm.fuel, onAddHydration: { ml in
+                    vm.addHydration(ml)
+                })) {
+                    fuelCard(vm.fuel)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
 
             NavigationLink(destination: MindQuadrantDetailView(data: vm.mind)) {
                 mindCard(vm.mind)
@@ -446,7 +455,30 @@ struct DashboardView: View {
 
     private func fuelCard(_ data: FuelQuadrantData) -> some View {
         cardShell(label: "FUEL") {
-            if data.isConnected {
+            // Per spec: when a next meal is available, the Fuel tile shows the
+            // NextMealCardView instead of the calorie/macro summary. Fallback
+            // path keeps the original detail view for plan-less users.
+            if let nextMeal = data.nextMeal {
+                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+                    NextMealCardView(meal: nextMeal, style: .compact)
+
+                    Divider().opacity(0.3)
+
+                    // Slim calorie progress strip so the macro context isn't lost.
+                    HStack(spacing: 6) {
+                        Text(data.formattedCalories)
+                            .font(.tempoCaption1)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                        Text("/ \(data.formattedCalorieTarget) kcal")
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                        Spacer()
+                    }
+                    progressBar(progress: data.calorieProgress, color: Color.tempoViolet)
+                        .frame(height: 4)
+                }
+            } else if data.isConnected {
                 VStack(alignment: .leading, spacing: TempoSpacing.sm) {
                     HStack(alignment: .firstTextBaseline, spacing: 2) {
                         Text(data.formattedCalories)
