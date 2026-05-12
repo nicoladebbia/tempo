@@ -262,7 +262,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
                 model: .haiku,
                 system: systemPrompt,
                 userMessage: userPrompt,
-                maxTokens: 2048,
+                maxTokens: 4096,
                 temperature: 0.4
             )
             return try parseRecipeJSON(response)
