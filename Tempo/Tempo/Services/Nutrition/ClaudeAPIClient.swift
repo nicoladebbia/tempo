@@ -46,8 +46,15 @@ actor ClaudeAPIClient {
 
     // MARK: - Init
 
-    init(session: URLSession = .shared) {
-        self.session = session
+    init(session: URLSession? = nil) {
+        if let session {
+            self.session = session
+        } else {
+            let config = URLSessionConfiguration.default
+            config.timeoutIntervalForRequest = 120
+            config.timeoutIntervalForResource = 180
+            self.session = URLSession(configuration: config)
+        }
         decoder = JSONDecoder()
         encoder = JSONEncoder()
 
@@ -294,8 +301,8 @@ enum ClaudeModel: String {
 
     var timeout: TimeInterval {
         switch self {
-        case .haiku: 10
-        case .sonnet: 30
+        case .haiku: 30
+        case .sonnet: 120
         }
     }
 }
