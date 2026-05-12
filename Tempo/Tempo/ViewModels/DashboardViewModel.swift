@@ -702,7 +702,9 @@ final class DashboardViewModel {
 
     /// SwiftData model context for reading today's MealLog records.
     /// Set externally by the View layer (DashboardView injects via modelContext).
-    private var fuelContext: ModelContext?
+    /// `internal` (not `private`) so the `DashboardViewModel+NutritionFetch`
+    /// extension in another file can read it.
+    var fuelContext: ModelContext?
 
     // MARK: - Init
 
@@ -1918,65 +1920,5 @@ final class DashboardViewModel {
         return vm
     }
 
-    // MARK: - Native Nutrition Fetch
-
-    struct NutritionTotalsToday {
-        var calories: Int = 0
-        var protein: Int = 0
-        var carbs: Int = 0
-        var fat: Int = 0
-        var mealsLogged: Int = 0
-        var mealsPlanned: Int?
-        var calorieTarget: Int = 0
-        var proteinTarget: Int = 0
-        var carbsTarget: Int = 0
-        var fatTarget: Int = 0
-        /// Next upcoming planned meal for today — drives the dashboard Fuel card.
-        var nextMeal: PlannedMeal?
-    }
-
-    private func fetchNutritionTotalsForToday() -> NutritionTotalsToday {
-        guard let context = fuelContext else {
-            return NutritionTotalsToday()
-        }
-        var totals = NutritionTotalsToday()
-        let todayStart = Calendar.current.startOfDay(for: Date())
-        let tomorrowStart = Calendar.current.date(byAdding: .day, value: 1, to: todayStart) ?? todayStart
-        let mealDescriptor = FetchDescriptor<MealLog>(
-            predicate: #Predicate<MealLog> { log in
-                log.dayDate >= todayStart && log.dayDate < tomorrowStart
-            }
-        )
-        if let logs = try? context.fetch(mealDescriptor) {
-            totals.mealsLogged = logs.count
-            totals.calories = Int(logs.reduce(0.0) { $0 + $1.totalCalories })
-            totals.protein = Int(logs.reduce(0.0) { $0 + $1.totalProtein })
-            totals.carbs = Int(logs.reduce(0.0) { $0 + $1.totalCarbs })
-            totals.fat = Int(logs.reduce(0.0) { $0 + $1.totalFat })
-        }
-        let targetDescriptor = FetchDescriptor<NutritionTarget>(
-            predicate: #Predicate<NutritionTarget> { t in t.isActive == true },
-            sortBy: [SortDescriptor(\.effectiveFrom, order: .reverse)]
-        )
-        if let target = (try? context.fetch(targetDescriptor))?.first {
-            totals.calorieTarget = target.calorieTarget
-            totals.proteinTarget = target.proteinTargetGrams
-            totals.carbsTarget = target.carbsTargetGrams
-            totals.fatTarget = target.fatTargetGrams
-            totals.mealsPlanned = target.mealsPerDay
-        }
-
-        // Find today's next upcoming PlannedMeal (for the Fuel-quadrant card).
-        let plannedDescriptor = FetchDescriptor<PlannedMeal>(
-            predicate: #Predicate<PlannedMeal> { meal in
-                meal.dayDate >= todayStart && meal.dayDate < tomorrowStart
-            },
-            sortBy: [SortDescriptor(\.mealNumber)]
-        )
-        if let plannedMeals = try? context.fetch(plannedDescriptor) {
-            totals.nextMeal = MealScheduleHelpers.nextUpcomingMeal(in: plannedMeals)
-        }
-
-        return totals
-    }
+    // Native nutrition fetch lives in DashboardViewModel+NutritionFetch.swift.
 }

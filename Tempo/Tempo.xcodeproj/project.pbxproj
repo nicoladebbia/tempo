@@ -169,6 +169,7 @@
 		742A0F4D66DB8B6713C6A4C9 /* MealPlanPrompts.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF5717AF297C5078BD098368 /* MealPlanPrompts.swift */; };
 		743657687BC2177D484B3963 /* PrescriptionCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97D8BE75DD80283824788AB8 /* PrescriptionCardView.swift */; };
 		744EB59D8032ACEA191D194E /* Streak.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D4D3D9D1E24B11E4FE31CBA /* Streak.swift */; };
+		74B53B7349F24ECAA1F853BF /* DashboardViewModel+NutritionFetch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35D4E78FE175BDD66AD2A497 /* DashboardViewModel+NutritionFetch.swift */; };
 		74DF97B8FD164EFE97C5A15C /* TrainingEngineProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BFD1188BC22138417622DC7 /* TrainingEngineProtocol.swift */; };
 		752FF2D6D510F1A39DF2D2D4 /* ScoringEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD039DD68BF3923C5C24288F /* ScoringEngine.swift */; };
 		759FD80405D57E1896BE2DEE /* testScoreRingEmpty.1.png in Resources */ = {isa = PBXBuildFile; fileRef = 1E356D7A09971080F781E42A /* testScoreRingEmpty.1.png */; };
@@ -502,6 +503,7 @@
 		2F23FEAF81689F4ECAC8D940 /* XCUIApplication+Tempo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "XCUIApplication+Tempo.swift"; sourceTree = "<group>"; };
 		30BAAE5E8871F724400475AB /* ReceiptStructuringDTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiptStructuringDTOs.swift; sourceTree = "<group>"; };
 		32F48D53A60B60CAF9DB43D5 /* NutritionTargetSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionTargetSetupView.swift; sourceTree = "<group>"; };
+		35D4E78FE175BDD66AD2A497 /* DashboardViewModel+NutritionFetch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DashboardViewModel+NutritionFetch.swift"; sourceTree = "<group>"; };
 		37772590FDF7609BE7A5D5A0 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		38E8DFFF4236E16FF0099BF8 /* WatchHapticService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchHapticService.swift; sourceTree = "<group>"; };
 		394DC42C91B8B3C74CD5AB11 /* RecoveryInsight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryInsight.swift; sourceTree = "<group>"; };
@@ -1360,6 +1362,7 @@
 				496CF146E908D191F82FD2D4 /* AccountabilityViewModel.swift */,
 				54949B90A73092BDE0933B7F /* ArenaViewModel.swift */,
 				FBF3D155993E4A01D42C6249 /* DashboardViewModel.swift */,
+				35D4E78FE175BDD66AD2A497 /* DashboardViewModel+NutritionFetch.swift */,
 				7CB222AEB7AA80175A74F4F9 /* NutritionTabViewModel.swift */,
 				F56136E3F6418EA68B56A8B2 /* NutritionTabViewModel+Phase7.swift */,
 				C909FFC6923D5E47A1EA29F5 /* OnboardingViewModel.swift */,
@@ -2312,6 +2315,7 @@
 				D9E4C7EF26D3D7C363D56ED5 /* DashboardLoadingView.swift in Sources */,
 				325C8C2C6263920E5CCB395C /* DashboardSettingsView.swift in Sources */,
 				06286645E143397C57EE6187 /* DashboardView.swift in Sources */,
+				74B53B7349F24ECAA1F853BF /* DashboardViewModel+NutritionFetch.swift in Sources */,
 				8746D607726D826AFA57751F /* DashboardViewModel.swift in Sources */,
 				D60FA8FC64FB0F9BD5D528D1 /* DataExportView.swift in Sources */,
 				C78632CCF5B0678A04652C54 /* Date+Tempo.swift in Sources */,

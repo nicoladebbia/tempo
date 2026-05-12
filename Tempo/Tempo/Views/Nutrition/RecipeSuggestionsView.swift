@@ -152,7 +152,7 @@ struct RecipeDetailLoader: View {
             }
         }
         .task {
-            recipe = try? viewModel.recipeService?.fetch(byID: recipeID) ?? nil
+            recipe = try? viewModel.recipeService?.fetch(byID: recipeID)
         }
     }
 }

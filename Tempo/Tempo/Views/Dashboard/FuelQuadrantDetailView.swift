@@ -16,18 +16,43 @@ import SwiftUI
 
 struct FuelQuadrantDetailView: View {
     let data: FuelQuadrantData
+    /// Real `PlannedMeal`s for today. Empty in previews; populated by callers
+    /// that route here with the day's meal list.
+    var plannedMeals: [PlannedMeal] = []
     var onRefreshNeeded: (() -> Void)?
 
     @State
     private var showNativeNutrition = false
 
-    /// Stub meal data for detail view
-    private let meals: [MealDisplayItem] = [
-        MealDisplayItem(name: "Breakfast", time: "7:30 AM", calories: 650, status: .logged),
-        MealDisplayItem(name: "Lunch", time: "12:30 PM", calories: 780, status: .logged),
-        MealDisplayItem(name: "Snack", time: "4:00 PM", calories: 670, status: .logged),
-        MealDisplayItem(name: "Dinner", time: "(planned)", calories: nil, status: .planned),
-    ]
+    /// Derived display rows. Maps real planned meals into the table model the
+    /// section already knows how to render; falls back to a single "no plan" row
+    /// when no meals are available so the section never renders empty.
+    private var meals: [MealDisplayItem] {
+        guard !plannedMeals.isEmpty else {
+            return [
+                MealDisplayItem(name: "No plan yet", time: "—", calories: nil, status: .planned),
+            ]
+        }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        let inFmt = DateFormatter()
+        inFmt.dateFormat = "HH:mm"
+        return plannedMeals.map { meal in
+            let displayTime: String = inFmt.date(from: meal.scheduledTime).map { formatter.string(from: $0) }
+                ?? meal.scheduledTime
+            let displayStatus: MealDisplayStatus = switch meal.status {
+            case .eaten: .logged
+            case .skipped: .skipped
+            default: .planned
+            }
+            return MealDisplayItem(
+                name: meal.mealName,
+                time: displayTime,
+                calories: meal.totalCalories > 0 ? Int(meal.totalCalories) : nil,
+                status: displayStatus
+            )
+        }
+    }
 
     /// Stub 7-day calorie trend
     private let calorieTrend: [CalorieTrendPoint] = {

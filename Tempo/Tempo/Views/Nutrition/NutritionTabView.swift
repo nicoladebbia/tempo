@@ -80,6 +80,30 @@ struct NutritionTabView: View {
                         viewModel.loadToday(modelContext: modelContext)
                     }
             }
+            // Pantry-gap alert (Phase D) — same surface used by NutritionWeeklyPlanView,
+            // wired here so generation triggered from profile setup also surfaces gaps.
+            .alert(
+                "Pantry Gap",
+                isPresented: Binding(
+                    get: { viewModel.pantryGapAlert != nil },
+                    set: { isPresented in
+                        if !isPresented {
+                            viewModel.pantryGapAlert = nil
+                        }
+                    }
+                ),
+                presenting: viewModel.pantryGapAlert
+            ) { _ in
+                Button("Open Pantry") {
+                    viewModel.selectedTab = .pantry
+                    viewModel.pantryGapAlert = nil
+                }
+                Button("Dismiss", role: .cancel) {
+                    viewModel.pantryGapAlert = nil
+                }
+            } message: { alert in
+                Text(alert.summary)
+            }
         }
     }
 
