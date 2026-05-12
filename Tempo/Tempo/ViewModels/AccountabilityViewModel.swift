@@ -816,7 +816,7 @@ final class AccountabilityViewModel {
 
         // Urgent at 10% time remaining
         if completionPct < 1.0, tenPercentPoint > now.addingTimeInterval(60) {
-            var body = if streakDays > 3 {
+            let body = if streakDays > 3 {
                 "Your \(streakDays)-day streak dies in \(formatTimeInterval(timeToPS5 * 0.1)). \(remaining) task\(remaining == 1 ? "" : "s") left. DO IT NOW."
             } else {
                 "\(formatTimeInterval(timeToPS5 * 0.1)) until PS5 time. \(remaining) task\(remaining == 1 ? "" : "s") undone. This is it."

@@ -37,22 +37,23 @@ struct ReceiptCaptureView: View {
         NavigationStack {
             ZStack {
                 Color.tempoBgPrimary.ignoresSafeArea()
-                if let receipt = scannedReceipt {
-                    NavigationLink(
-                        destination: ReceiptReviewView(
-                            receipt: receipt,
-                            receiptService: receiptService,
-                            pantryService: pantryService
-                        ).onDisappear { dismiss() },
-                        isActive: .constant(true)
-                    ) {
-                        EmptyView()
-                    }
-                    .hidden()
-                } else if isScanning {
+                if isScanning {
                     scanningOverlay
                 } else {
                     captureOptions
+                }
+            }
+            .navigationDestination(isPresented: Binding(
+                get: { scannedReceipt != nil },
+                set: { if !$0 { scannedReceipt = nil } }
+            )) {
+                if let receipt = scannedReceipt {
+                    ReceiptReviewView(
+                        receipt: receipt,
+                        receiptService: receiptService,
+                        pantryService: pantryService
+                    )
+                    .onDisappear { dismiss() }
                 }
             }
             .navigationTitle("Scan Receipt")
