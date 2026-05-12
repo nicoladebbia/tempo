@@ -30,7 +30,7 @@ struct OnboardingContainerView: View {
                 // Progress bar — hidden during splash, valueDemo, and complete
                 if viewModel.currentStep != .splash, viewModel.currentStep != .valueDemo, viewModel.currentStep != .complete {
                     progressBar
-                        .padding(.top, TempoSpacing.sm)
+                        .padding(.top, TempoSpacing.md)
                 }
 
                 // Step content — fills remaining space, top-anchored so
@@ -41,7 +41,6 @@ struct OnboardingContainerView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .transition(.opacity.combined(with: .scale(scale: 0.98)))
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .preferredColorScheme(.dark)
         .onAppear {
