@@ -63,10 +63,20 @@ final class PlannedMeal {
 
     var linkedMealLogID: UUID?
 
+    /// How long the user expects to spend eating. Drives the "eat-finish" time
+    /// surfaced in `MealDetailView`. Default 30 minutes.
+    var eatDurationMinutes: Int
+
     // MARK: - Relationships
 
     @Relationship(deleteRule: .nullify)
     var mealPlan: WeeklyMealPlan?
+
+    /// AI-generated recipe attached to this planned meal. Created at plan-generation
+    /// time by `MealPlanGeneratorService` via Claude Haiku. Cascade-deleted so an
+    /// orphan PlannedMeal never points at a stale Recipe.
+    @Relationship(deleteRule: .cascade)
+    var recipe: Recipe?
 
     // MARK: - Computed Properties
 
@@ -114,7 +124,9 @@ final class PlannedMeal {
         totalFat: Double = 0,
         status: MealStatus = .planned,
         linkedMealLogID: UUID? = nil,
-        mealPlan: WeeklyMealPlan? = nil
+        eatDurationMinutes: Int = 30,
+        mealPlan: WeeklyMealPlan? = nil,
+        recipe: Recipe? = nil
     ) {
         self.id = id
         self.dayDate = Calendar.current.startOfDay(for: dayDate)
@@ -128,7 +140,9 @@ final class PlannedMeal {
         self.totalFat = totalFat
         statusRaw = status.rawValue
         self.linkedMealLogID = linkedMealLogID
+        self.eatDurationMinutes = max(0, eatDurationMinutes)
         self.mealPlan = mealPlan
+        self.recipe = recipe
     }
 
     /// Recalculate totals from current foods.

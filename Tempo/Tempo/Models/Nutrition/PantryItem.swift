@@ -41,12 +41,14 @@ enum PantryStorageLocation: String, Codable, CaseIterable, Sendable {
     case fridge
     case freezer
     case pantry
+    case cupboard
 
     var displayName: String {
         switch self {
         case .fridge: "Fridge"
         case .freezer: "Freezer"
         case .pantry: "Pantry"
+        case .cupboard: "Cupboard"
         }
     }
 
@@ -55,7 +57,13 @@ enum PantryStorageLocation: String, Codable, CaseIterable, Sendable {
         case .fridge: "refrigerator"
         case .freezer: "snowflake"
         case .pantry: "cabinet"
+        case .cupboard: "archivebox"
         }
+    }
+
+    /// Frozen storage needs defrost lead time when used in a recipe.
+    var requiresDefrost: Bool {
+        self == .freezer
     }
 }
 

@@ -8,8 +8,6 @@
 		<string>com.tempo.data-sync</string>
 		<string>com.tempo.daily-reset</string>
 	</array>
-	<key>NSSupportsLiveActivities</key>
-	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleExecutable</key>
@@ -39,25 +37,10 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<key>ANTHROPIC_API_KEY</key>
-	<string>$(ANTHROPIC_API_KEY)</string>
 	<key>TEMPO_API_BASE_URL</key>
 	<string>$(TEMPO_API_BASE_URL)</string>
 	<key>TEMPO_ENVIRONMENT</key>
 	<string>$(TEMPO_ENVIRONMENT)</string>
-	<key>NSCameraUsageDescription</key>
-	<string>Tempo uses the camera to scan grocery receipts so it can fill your pantry and price-track items automatically.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Tempo reads receipts from your photo library to import them into your pantry.</string>
-	<key>NSRemindersFullAccessUsageDescription</key>
-	<string>Tempo can save your weekly grocery list to Reminders so you can check items off while shopping.</string>
-	<key>NSRemindersUsageDescription</key>
-	<string>Tempo can save your weekly grocery list to Reminders so you can check items off while shopping.</string>
-	<key>UILaunchScreen</key>
-	<dict>
-		<key>UIColorName</key>
-		<string></string>
-	</dict>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

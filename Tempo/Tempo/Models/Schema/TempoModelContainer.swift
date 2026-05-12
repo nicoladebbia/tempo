@@ -12,6 +12,13 @@ import SwiftData
 @MainActor
 struct TempoModelContainer {
     static func create(inMemory: Bool = false) throws -> ModelContainer {
+        // V1 is the live schema. The new recipe fields
+        // (RecipeIngredient.storageLocation/defrostLeadTimeHours/expiryDate,
+        // PlannedMeal.eatDurationMinutes + recipe relationship) evolve V1 rather
+        // than spinning up V2: SwiftData's `VersionedSchema` requires V2 to
+        // declare its OWN model classes (RecipeIngredientV2 etc), and the
+        // app hasn't shipped to production yet — there's nothing to migrate.
+        // A real V2 will be introduced post-launch when a breaking change lands.
         let schema = Schema(TempoSchemaV1.models)
 
         let groupURL = FileManager.default.containerURL(

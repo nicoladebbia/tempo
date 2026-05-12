@@ -297,6 +297,19 @@ final class RecipeIngredient {
     /// JSON array of substitute canonical names ("turkey breast", "tofu").
     var substitutesJSON: Data?
 
+    /// Where the ingredient is expected to be stored. Drives defrost scheduling and
+    /// pantry-match grouping in `MealDetailView`. Raw string of `PantryStorageLocation`.
+    /// Nil for items where storage is irrelevant (e.g. dry spices on the counter).
+    var storageLocationRaw: String?
+
+    /// Hours before mealtime the ingredient needs to be taken out of storage
+    /// to defrost / temper. 0 for shelf-stable items. Drives APNs Time Sensitive
+    /// notifications scheduled by `MealDetailView`.
+    var defrostLeadTimeHours: Int
+
+    /// Best-before/use-by hint for this ingredient as used in this recipe. Optional.
+    var expiryDate: Date?
+
     @Transient
     var substitutes: [String] {
         get {
@@ -308,6 +321,22 @@ final class RecipeIngredient {
         set {
             substitutesJSON = try? JSONEncoder().encode(newValue)
         }
+    }
+
+    @Transient
+    var storageLocation: PantryStorageLocation? {
+        get {
+            storageLocationRaw.flatMap { PantryStorageLocation(rawValue: $0) }
+        }
+        set {
+            storageLocationRaw = newValue?.rawValue
+        }
+    }
+
+    /// True when this ingredient requires a defrost reminder before mealtime.
+    @Transient
+    var requiresDefrostReminder: Bool {
+        defrostLeadTimeHours > 0 && (storageLocation?.requiresDefrost ?? false)
     }
 
     init(
@@ -324,7 +353,10 @@ final class RecipeIngredient {
         fatGrams: Double? = nil,
         fiberGrams: Double? = nil,
         isOptional: Bool = false,
-        substitutes: [String] = []
+        substitutes: [String] = [],
+        storageLocation: PantryStorageLocation? = nil,
+        defrostLeadTimeHours: Int = 0,
+        expiryDate: Date? = nil
     ) {
         self.id = id
         self.recipe = recipe
@@ -340,6 +372,9 @@ final class RecipeIngredient {
         self.fiberGrams = fiberGrams
         self.isOptional = isOptional
         self.substitutesJSON = try? JSONEncoder().encode(substitutes)
+        self.storageLocationRaw = storageLocation?.rawValue
+        self.defrostLeadTimeHours = max(0, defrostLeadTimeHours)
+        self.expiryDate = expiryDate
     }
 }
 

@@ -183,6 +183,10 @@ targets:
         excludes:
           - "**/*.entitlements"
           - Info.plist
+      # Shared with the Tempo app target — the LiveActivity Attributes type
+      # is referenced by both `FocusTimerLiveActivity` (widget) and the
+      # app's `FocusTimerActivityManager`.
+      - path: Tempo/Services/LiveActivity/FocusTimerActivityAttributes.swift
     dependencies: []
     info:
       path: TempoWidget/Info.plist

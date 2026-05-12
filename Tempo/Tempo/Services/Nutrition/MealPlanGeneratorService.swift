@@ -124,10 +124,200 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             modelContext: modelContext
         )
 
+        // Step 7: Generate per-meal recipes via Haiku (fan-out, attach in main actor)
+        await attachRecipes(
+            to: weeklyPlan,
+            profile: profile,
+            modelContext: modelContext
+        )
+
         state = .complete
         logger.info("Weekly meal plan generated: \(weeklyPlan.id) with \(weeklyPlan.meals?.count ?? 0) meals")
 
         return weeklyPlan
+    }
+
+    // MARK: - Recipe Generation (Haiku)
+
+    /// Generate one Recipe per PlannedMeal via Claude Haiku in parallel, then attach
+    /// them to their meals. Recipe failures are logged but do not abort the plan —
+    /// the user still gets a usable plan with the flat food list.
+    @MainActor
+    private func attachRecipes(
+        to plan: WeeklyMealPlan,
+        profile: DietaryProfile,
+        modelContext: ModelContext
+    ) async {
+        let meals = plan.meals ?? []
+        guard !meals.isEmpty else {
+            return
+        }
+
+        // Snapshot the data Haiku needs OUTSIDE the concurrency boundary — SwiftData
+        // models are main-actor-isolated and can't cross into a TaskGroup body.
+        struct MealRequest: Sendable {
+            let mealID: UUID
+            let mealName: String
+            let foods: [PlannedFood]
+        }
+        let skillLevel = profile.cookingSkill.displayName
+        let requests: [MealRequest] = meals.map { meal in
+            MealRequest(mealID: meal.id, mealName: meal.mealName, foods: meal.foods)
+        }
+
+        // Fan out — capped concurrency would be safer for rate limits, but
+        // 21 parallel Haiku requests are well within Anthropic's per-key limit.
+        let results = await withTaskGroup(of: (UUID, ParsedRecipe?).self) { group in
+            for request in requests {
+                group.addTask { [weak self] in
+                    guard let self else {
+                        return (request.mealID, nil)
+                    }
+                    let parsed = await self.generateRecipeJSON(
+                        mealName: request.mealName,
+                        foods: request.foods,
+                        skillLevel: skillLevel
+                    )
+                    return (request.mealID, parsed)
+                }
+            }
+            var collected: [UUID: ParsedRecipe] = [:]
+            for await (id, parsed) in group {
+                if let parsed {
+                    collected[id] = parsed
+                }
+            }
+            return collected
+        }
+
+        // Attach recipes to meals on the main actor.
+        var attached = 0
+        for meal in meals {
+            guard let parsed = results[meal.id] else {
+                continue
+            }
+            let recipe = makeRecipe(from: parsed, mealServings: 1)
+            modelContext.insert(recipe)
+            for ingredient in recipe.ingredients ?? [] {
+                modelContext.insert(ingredient)
+            }
+            for step in recipe.steps ?? [] {
+                modelContext.insert(step)
+            }
+            meal.recipe = recipe
+            attached += 1
+        }
+        do {
+            try modelContext.save()
+            logger.info("Attached \(attached)/\(meals.count) recipes to meal plan \(plan.id)")
+        } catch {
+            logger.error("Failed to save recipes for plan \(plan.id): \(error.localizedDescription)")
+        }
+    }
+
+    /// Single Haiku call for one meal. Returns nil on failure (logged) so the
+    /// fan-out can finish without aborting the whole plan.
+    private nonisolated func generateRecipeJSON(
+        mealName: String,
+        foods: [PlannedFood],
+        skillLevel: String
+    ) async -> ParsedRecipe? {
+        let systemPrompt = MealRecipePrompts.systemPrompt
+        let userPrompt = MealRecipePrompts.userPrompt(
+            mealName: mealName,
+            servings: 1,
+            foods: foods,
+            skillLevel: skillLevel
+        )
+
+        do {
+            let response = try await claude.sendMessage(
+                model: .haiku,
+                system: systemPrompt,
+                userMessage: userPrompt,
+                maxTokens: 2048,
+                temperature: 0.4
+            )
+            return try parseRecipeJSON(response)
+        } catch {
+            logger.warning("Recipe generation failed for '\(mealName)': \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    /// Decode the Haiku JSON envelope. Tolerates markdown/text wrap by extracting
+    /// the first `{...}` block.
+    private nonisolated func parseRecipeJSON(_ response: String) throws -> ParsedRecipe {
+        let decoder = JSONDecoder()
+        if let data = response.data(using: .utf8),
+           let direct = try? decoder.decode(ParsedRecipe.self, from: data)
+        {
+            return direct
+        }
+        if let startIndex = response.firstIndex(of: "{"),
+           let endIndex = response.lastIndex(of: "}")
+        {
+            let jsonString = String(response[startIndex ... endIndex])
+            if let data = jsonString.data(using: .utf8) {
+                return try decoder.decode(ParsedRecipe.self, from: data)
+            }
+        }
+        throw MealPlanGeneratorError.parsingFailed("Could not parse recipe JSON")
+    }
+
+    /// Convert the decoded JSON into SwiftData entities. Caps step count and
+    /// guards against negative defrost values. Called on the main actor by
+    /// `attachRecipes` since SwiftData models share the context's actor.
+    @MainActor
+    private func makeRecipe(from parsed: ParsedRecipe, mealServings: Int) -> Recipe {
+        let recipe = Recipe(
+            name: parsed.name,
+            recipeDescription: parsed.description,
+            cuisine: parsed.cuisine?.isEmpty == false ? parsed.cuisine : nil,
+            servings: parsed.servings > 0 ? parsed.servings : max(mealServings, 1),
+            prepMinutes: max(0, parsed.prepTimeMinutes),
+            cookMinutes: max(0, parsed.cookTimeMinutes),
+            difficulty: RecipeDifficulty(rawValue: parsed.difficulty.lowercased()) ?? .easy,
+            equipment: parsed.equipment ?? [],
+            dietaryTags: parsed.dietaryTags ?? [],
+            totalCalories: parsed.macrosPerServing.calories,
+            totalProteinGrams: parsed.macrosPerServing.protein,
+            totalCarbsGrams: parsed.macrosPerServing.carbs,
+            totalFatGrams: parsed.macrosPerServing.fat,
+            source: .aiGenerated
+        )
+
+        let ingredients: [RecipeIngredient] = parsed.ingredients.enumerated().map { idx, raw in
+            let location = PantryStorageLocation(rawValue: raw.storageLocation.lowercased())
+            let defrostHours: Int = location == .freezer ? max(0, raw.defrostLeadTimeHours) : 0
+            return RecipeIngredient(
+                recipe: recipe,
+                orderIndex: idx,
+                canonicalFoodName: raw.name.lowercased(),
+                displayName: raw.displayName.isEmpty ? raw.name : raw.displayName,
+                quantityGrams: max(0, raw.quantityGrams),
+                displayQuantity: raw.displayQuantity?.isEmpty == false ? raw.displayQuantity : nil,
+                calories: raw.calories,
+                proteinGrams: raw.proteinGrams,
+                carbsGrams: raw.carbsGrams,
+                fatGrams: raw.fatGrams,
+                storageLocation: location,
+                defrostLeadTimeHours: defrostHours
+            )
+        }
+        recipe.ingredients = ingredients
+
+        let cappedSteps = parsed.steps.prefix(MealRecipePrompts.maxSteps)
+        let steps: [RecipeStep] = cappedSteps.enumerated().map { idx, raw in
+            RecipeStep(
+                recipe: recipe,
+                orderIndex: idx,
+                instruction: raw.instruction,
+                durationMinutes: raw.durationMinutes.map { max(0, $0) }
+            )
+        }
+        recipe.steps = steps
+        return recipe
     }
 
     // MARK: - Private Helpers
@@ -462,6 +652,55 @@ private struct ParsedFoodData: Codable {
     let proteinG: Double
     let carbsG: Double
     let fatG: Double
+}
+
+// MARK: - ParsedRecipe
+
+struct ParsedRecipe: Codable, Sendable {
+    let name: String
+    let description: String?
+    let cuisine: String?
+    let servings: Int
+    let prepTimeMinutes: Int
+    let cookTimeMinutes: Int
+    let difficulty: String
+    let equipment: [String]?
+    let dietaryTags: [String]?
+    let ingredients: [ParsedRecipeIngredient]
+    let steps: [ParsedRecipeStep]
+    let macrosPerServing: ParsedMacros
+}
+
+// MARK: - ParsedRecipeIngredient
+
+struct ParsedRecipeIngredient: Codable, Sendable {
+    let name: String
+    let displayName: String
+    let quantityGrams: Double
+    let displayQuantity: String?
+    let calories: Double
+    let proteinGrams: Double
+    let carbsGrams: Double
+    let fatGrams: Double
+    let storageLocation: String
+    let defrostLeadTimeHours: Int
+}
+
+// MARK: - ParsedRecipeStep
+
+struct ParsedRecipeStep: Codable, Sendable {
+    let order: Int
+    let instruction: String
+    let durationMinutes: Int?
+}
+
+// MARK: - ParsedMacros
+
+struct ParsedMacros: Codable, Sendable {
+    let calories: Double
+    let protein: Double
+    let carbs: Double
+    let fat: Double
 }
 
 // MARK: - MealPlanGeneratorError
