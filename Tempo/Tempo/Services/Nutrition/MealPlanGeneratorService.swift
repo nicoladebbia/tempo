@@ -156,7 +156,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
                     model: .sonnet,
                     system: system,
                     userMessage: prompt,
-                    maxTokens: 4096,
+                    maxTokens: 8192,
                     temperature: 0.3
                 )
                 logger.info("[\(feature)] Claude response received (attempt \(attempt))")
@@ -194,28 +194,39 @@ final class MealPlanGeneratorService: @unchecked Sendable {
     /// Parse Claude's JSON response into structured day/meal data.
     private func parseWeeklyPlanJSON(_ response: String) throws -> ParsedWeeklyPlan {
         let decoder = JSONDecoder()
+        var lastDecodeError: Error?
 
-        // Try direct parse first
-        if let data = response.data(using: .utf8),
-           let result = try? decoder.decode(ParsedWeeklyPlan.self, from: data)
-        {
-            return result
+        if let data = response.data(using: .utf8) {
+            do {
+                return try decoder.decode(ParsedWeeklyPlan.self, from: data)
+            } catch {
+                lastDecodeError = error
+            }
         }
 
-        // Extract JSON between { and }
         if let startIndex = response.firstIndex(of: "{"),
            let endIndex = response.lastIndex(of: "}")
         {
             let jsonString = String(response[startIndex ... endIndex])
-            if let data = jsonString.data(using: .utf8),
-               let result = try? decoder.decode(ParsedWeeklyPlan.self, from: data)
-            {
-                logger.info("[meal_plan_generation] JSON extracted from wrapped response")
-                return result
+            if let data = jsonString.data(using: .utf8) {
+                do {
+                    let result = try decoder.decode(ParsedWeeklyPlan.self, from: data)
+                    logger.info("[meal_plan_generation] JSON extracted from wrapped response")
+                    return result
+                } catch {
+                    lastDecodeError = error
+                }
             }
         }
 
-        logger.error("[meal_plan_generation] Failed to parse JSON: \(response.prefix(300))")
+        let length = response.count
+        let endsCleanly = response.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("}")
+        logger
+            .error(
+                "[meal_plan_generation] JSON parse failed | length=\(length) endsCleanly=\(endsCleanly) error=\(String(describing: lastDecodeError))"
+            )
+        logger.error("[meal_plan_generation] Response prefix: \(response.prefix(300))")
+        logger.error("[meal_plan_generation] Response suffix: \(response.suffix(300))")
         state = .failed("Could not parse meal plan response")
         throw MealPlanGeneratorError.parsingFailed("Could not parse meal plan JSON")
     }
