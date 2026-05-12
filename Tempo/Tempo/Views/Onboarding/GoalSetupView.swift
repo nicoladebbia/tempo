@@ -30,13 +30,11 @@ struct GoalSetupView: View {
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: TempoSpacing.xxl) {
-                Spacer().frame(height: TempoSpacing.lg)
-
                 // Per WIREFRAMES.md Screen 46 — "WHAT ARE YOU FIGHTING FOR?"
                 Text("WHAT ARE YOU\nFIGHTING FOR?")
                     .font(.system(size: 24, weight: .bold))
                     .foregroundStyle(.white)
-                    .padding(.horizontal, TempoSpacing.lg)
+                    .padding(.top, TempoSpacing.lg)
 
                 // Primary goal
                 VStack(alignment: .leading, spacing: TempoSpacing.md) {
@@ -74,7 +72,6 @@ struct GoalSetupView: View {
                     }
                 }
                 .onboardingCard()
-                .padding(.horizontal, TempoSpacing.lg)
 
                 // Time-waster
                 VStack(alignment: .leading, spacing: TempoSpacing.md) {
@@ -103,36 +100,39 @@ struct GoalSetupView: View {
                     }
                 }
                 .onboardingCard()
-                .padding(.horizontal, TempoSpacing.lg)
 
                 // Evening start time
-                // Per WIREFRAMES.md Screen 46 — Time picker, 15min increments
+                // Per WIREFRAMES.md Screen 46 — Time picker, 15min increments.
+                // `.compact` style instead of `.wheel` because the wheel picker
+                // has a fixed minimum intrinsic width (~320pt) that forces the
+                // parent VStack to expand past the screen width, dragging every
+                // sibling card off the left edge inside the vertical ScrollView.
+                // (Diagnosed via border-frame visualization on 2026-05-12.)
                 VStack(alignment: .leading, spacing: TempoSpacing.md) {
                     Text("When does your evening start?")
                         .font(.system(size: 16, weight: .medium))
                         .foregroundStyle(.white)
 
                     DatePicker("", selection: $viewModel.eveningStartTime, displayedComponents: .hourAndMinute)
-                        .datePickerStyle(.wheel)
+                        .datePickerStyle(.compact)
                         .labelsHidden()
                         .colorScheme(.dark)
-                        .frame(height: 120)
 
                     Text("This is when the drill sergeant gets serious.")
                         .font(.system(size: 13))
                         .foregroundStyle(.white.opacity(0.5))
                 }
                 .onboardingCard()
-                .padding(.horizontal, TempoSpacing.lg)
-
-                Spacer()
 
                 OnboardingPrimaryButton(title: "CONTINUE", enabled: viewModel.canContinue) {
                     viewModel.advance()
                 }
+                .padding(.top, TempoSpacing.md)
 
                 Spacer().frame(height: TempoSpacing.lg)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, TempoSpacing.screenEdge)
         }
     }
 }
@@ -142,6 +142,6 @@ struct GoalSetupView: View {
     var vm = OnboardingViewModel()
 
     GoalSetupView(viewModel: vm)
-        .background(Color.black)
+        .background(Color.tempoBgPrimary)
         .preferredColorScheme(.dark)
 }

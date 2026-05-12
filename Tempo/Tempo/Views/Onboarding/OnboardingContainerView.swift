@@ -22,24 +22,23 @@ struct OnboardingContainerView: View {
 
     var body: some View {
         ZStack {
-            // Per WIREFRAMES.md Screen 44 — BG: true black during onboarding
-            Color.black.ignoresSafeArea()
+            // Onboarding follows the main app's bg token so the transition into
+            // the dashboard isn't a visual jump from pure black to grey-black.
+            Color.tempoBgPrimary.ignoresSafeArea()
 
             VStack(spacing: 0) {
                 // Progress bar — hidden during splash, valueDemo, and complete
-                // Per WIREFRAMES.md Screen 44 — 3pt height, full width - 32pt, white fill
                 if viewModel.currentStep != .splash, viewModel.currentStep != .valueDemo, viewModel.currentStep != .complete {
                     progressBar
                         .padding(.top, TempoSpacing.md)
                 }
 
-                // Step content - fills remaining space
+                // Step content — fills remaining space. Opacity-only transition
+                // avoids the mid-animation clipping artifact that `.move(edge:)`
+                // produces inside a constrained safe-area frame.
                 stepContent
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .transition(.asymmetric(
-                        insertion: .move(edge: .trailing).combined(with: .opacity),
-                        removal: .move(edge: .leading).combined(with: .opacity)
-                    ))
+                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
             }
         }
         .preferredColorScheme(.dark)
@@ -88,7 +87,7 @@ struct OnboardingContainerView: View {
             }
             .frame(height: 3)
         }
-        .padding(.horizontal, TempoSpacing.lg)
+        .padding(.horizontal, TempoSpacing.screenEdge)
         .padding(.top, TempoSpacing.sm)
     }
 

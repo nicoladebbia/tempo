@@ -27,7 +27,7 @@ struct AcademicSetupView: View {
                 Text("YOUR ACADEMICS.")
                     .font(.system(size: 20, weight: .bold))
                     .foregroundStyle(.white)
-                    .padding(.horizontal, TempoSpacing.lg)
+                    .padding(.horizontal, TempoSpacing.screenEdge)
 
                 // University
                 VStack(alignment: .leading, spacing: TempoSpacing.sm) {
@@ -46,7 +46,7 @@ struct AcademicSetupView: View {
                                 .stroke(Color.white.opacity(0.15), lineWidth: 1)
                         )
                 }
-                .padding(.horizontal, TempoSpacing.lg)
+                .padding(.horizontal, TempoSpacing.screenEdge)
 
                 // Year of study
                 VStack(alignment: .leading, spacing: TempoSpacing.md) {
@@ -82,7 +82,7 @@ struct AcademicSetupView: View {
                     }
                 }
                 .onboardingCard()
-                .padding(.horizontal, TempoSpacing.lg)
+                .padding(.horizontal, TempoSpacing.screenEdge)
 
                 Spacer()
 
@@ -90,7 +90,7 @@ struct AcademicSetupView: View {
                     OnboardingSkipButton { viewModel.skip() }
                     Spacer()
                 }
-                .padding(.horizontal, TempoSpacing.lg)
+                .padding(.horizontal, TempoSpacing.screenEdge)
 
                 OnboardingPrimaryButton(title: "CONTINUE", enabled: true) {
                     viewModel.advance()

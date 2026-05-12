@@ -34,7 +34,7 @@ struct TrainingSetupView: View {
                 Text("LET'S BUILD YOUR\nTRAINING PROFILE.")
                     .font(.system(size: 20, weight: .bold))
                     .foregroundStyle(.white)
-                    .padding(.horizontal, TempoSpacing.lg)
+                    .padding(.horizontal, TempoSpacing.screenEdge)
 
                 // Do you train?
                 VStack(alignment: .leading, spacing: TempoSpacing.sm) {
@@ -52,7 +52,7 @@ struct TrainingSetupView: View {
                     }
                 }
                 .onboardingCard()
-                .padding(.horizontal, TempoSpacing.lg)
+                .padding(.horizontal, TempoSpacing.screenEdge)
 
                 if viewModel.doesTrain == true {
                     // What do you do?
@@ -74,7 +74,7 @@ struct TrainingSetupView: View {
                         }
                     }
                     .onboardingCard()
-                    .padding(.horizontal, TempoSpacing.lg)
+                    .padding(.horizontal, TempoSpacing.screenEdge)
 
                     // Days per week
                     VStack(alignment: .leading, spacing: TempoSpacing.sm) {
@@ -98,7 +98,7 @@ struct TrainingSetupView: View {
                         }
                     }
                     .onboardingCard()
-                    .padding(.horizontal, TempoSpacing.lg)
+                    .padding(.horizontal, TempoSpacing.screenEdge)
 
                     // Preferred split
                     VStack(alignment: .leading, spacing: TempoSpacing.sm) {
@@ -115,7 +115,7 @@ struct TrainingSetupView: View {
                         }
                     }
                     .onboardingCard()
-                    .padding(.horizontal, TempoSpacing.lg)
+                    .padding(.horizontal, TempoSpacing.screenEdge)
 
                     // Experience level
                     VStack(alignment: .leading, spacing: TempoSpacing.sm) {
@@ -152,7 +152,7 @@ struct TrainingSetupView: View {
                         }
                     }
                     .onboardingCard()
-                    .padding(.horizontal, TempoSpacing.lg)
+                    .padding(.horizontal, TempoSpacing.screenEdge)
                 }
 
                 Spacer()
@@ -161,7 +161,7 @@ struct TrainingSetupView: View {
                     OnboardingSkipButton { viewModel.skip() }
                     Spacer()
                 }
-                .padding(.horizontal, TempoSpacing.lg)
+                .padding(.horizontal, TempoSpacing.screenEdge)
 
                 OnboardingPrimaryButton(title: "CONTINUE", enabled: true) {
                     viewModel.advance()

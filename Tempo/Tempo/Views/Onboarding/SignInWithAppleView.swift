@@ -46,7 +46,7 @@ struct SignInWithAppleView: View {
                     .font(.tempoCaption1)
                     .foregroundStyle(Color.tempoError)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, TempoSpacing.lg)
+                    .padding(.horizontal, TempoSpacing.screenEdge)
             }
 
             // Sign in button
