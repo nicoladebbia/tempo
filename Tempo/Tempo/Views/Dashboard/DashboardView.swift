@@ -274,9 +274,6 @@ struct DashboardView: View {
                 arenaQuickAccessCard()
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
-            // iOS 26 floating tab bar overlays content; reserve enough space
-            // so the last cards aren't clipped behind it.
-            .padding(.bottom, 140)
         }
         .scrollIndicators(.hidden)
         .refreshable {
