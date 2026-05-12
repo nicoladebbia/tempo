@@ -7,10 +7,18 @@ PRODUCT_NAME = Tempo Dev
 // Keep the Swift module name stable across configurations so tests can
 // `@testable import Tempo` regardless of which build config is active.
 PRODUCT_MODULE_NAME = Tempo
-ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon-Dev
+ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon
 
 TEMPO_API_BASE_URL = http:/$()/localhost:8080
 TEMPO_ENVIRONMENT = development
+
+// Enable Info.plist preprocessing so xcconfig values reach Bundle.main at runtime.
+// Without this, custom user-defined keys land as empty strings in the bundled
+// Info.plist. Tokens are wrapped in `__VAR__` to avoid colliding with their own
+// <key> elements during macro expansion.
+INFOPLIST_PREPROCESS = YES
+INFOPLIST_PREPROCESSOR_DEFINITIONS = __ANTHROPIC_API_KEY__=$(ANTHROPIC_API_KEY) __TEMPO_API_BASE_URL__=$(TEMPO_API_BASE_URL) __TEMPO_ENVIRONMENT__=$(TEMPO_ENVIRONMENT)
+INFOPLIST_OTHER_PREPROCESSOR_FLAGS = -traditional
 
 // Debug-only flags
 SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG DEVELOPMENT

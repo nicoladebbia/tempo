@@ -19,6 +19,9 @@ settings:
     SWIFT_STRICT_CONCURRENCY: complete
     DEVELOPMENT_TEAM: ""
     ENABLE_USER_SCRIPT_SANDBOXING: NO
+    INFOPLIST_PREPROCESS: YES
+    INFOPLIST_PREPROCESSOR_DEFINITIONS: __ANTHROPIC_API_KEY__=$(ANTHROPIC_API_KEY) __TEMPO_API_BASE_URL__=$(TEMPO_API_BASE_URL) __TEMPO_ENVIRONMENT__=$(TEMPO_ENVIRONMENT)
+    INFOPLIST_OTHER_PREPROCESSOR_FLAGS: -traditional
   configs:
     Debug:
       xcconfig: Tempo/Configuration/Development.xcconfig
@@ -81,13 +84,18 @@ targets:
           PRODUCT_BUNDLE_IDENTIFIER: app.tempo.Tempo.staging
         Release:
           PRODUCT_BUNDLE_IDENTIFIER: app.tempo.Tempo
+    configFiles:
+      Debug: Tempo/Configuration/Development.xcconfig
+      Staging: Tempo/Configuration/Staging.xcconfig
+      Release: Tempo/Configuration/Production.xcconfig
     info:
       path: Tempo/Info.plist
       properties:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
-        TEMPO_API_BASE_URL: $(TEMPO_API_BASE_URL)
-        TEMPO_ENVIRONMENT: $(TEMPO_ENVIRONMENT)
+        ANTHROPIC_API_KEY: __ANTHROPIC_API_KEY__
+        TEMPO_API_BASE_URL: __TEMPO_API_BASE_URL__
+        TEMPO_ENVIRONMENT: __TEMPO_ENVIRONMENT__
         BGTaskSchedulerPermittedIdentifiers:
           - com.tempo.healthkit-sync
           - com.tempo.data-sync
@@ -99,6 +107,14 @@ targets:
               - tempo
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+        UIUserInterfaceStyle: Dark
+        UILaunchScreen:
+          UIColorName: tempo-bg-primary
+        NSSupportsLiveActivities: true
+        NSCameraUsageDescription: Tempo uses the camera to scan grocery receipts so it can fill your pantry and price-track items automatically.
+        NSPhotoLibraryUsageDescription: Tempo reads receipts from your photo library to import them into your pantry.
+        NSRemindersFullAccessUsageDescription: Tempo can save your weekly grocery list to Reminders so you can check items off while shopping.
+        NSRemindersUsageDescription: Tempo can save your weekly grocery list to Reminders so you can check items off while shopping.
     preBuildScripts:
       - name: SwiftLint
         shell: /bin/zsh
