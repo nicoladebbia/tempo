@@ -36,6 +36,7 @@ Native iOS app (Swift/SwiftUI) that unifies fitness, nutrition, recovery, academ
 - All colors/tokens from `docs/DESIGN_SYSTEM.md` — use canonical values
 - All strings from `docs/UX_COPY_BIBLE.md`
 - All state machines from `docs/STATE_MACHINES.md`
+- **One asset catalog per target.** Tempo target = `Tempo/Tempo/Assets.xcassets` only. New colors go in `Tempo/Tempo/Assets.xcassets/Colors/`. Multiple `.xcassets` in the same target generates duplicate symbols in `GeneratedAssetSymbols.swift`. Every catalog folder needs a `Contents.json` at its root.
 
 ## Critical References (Read Before Coding)
 - `docs/CROSS_DOC_AUDIT.md` — 47 known inconsistencies across docs. Always check canonical values here.
