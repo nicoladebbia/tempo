@@ -32,6 +32,23 @@ enum NutritionLoadState {
     case error(String)
 }
 
+// MARK: - PantryGapAlert
+
+/// Surfaced when a freshly-generated meal plan references ingredients the user
+/// doesn't have in pantry. Includes the canonical names so the view can decide
+/// whether to inline the list or just say "N items missing."
+struct PantryGapAlert: Identifiable, Equatable {
+    let id = UUID()
+    let missingIngredients: [String]
+
+    var summary: String {
+        if missingIngredients.count == 1 {
+            return "You're missing \(missingIngredients[0]). Add it to pantry?"
+        }
+        return "You're missing \(missingIngredients.count) ingredients for this plan. Add them to pantry?"
+    }
+}
+
 // MARK: - NutritionTabViewModel
 
 @Observable
@@ -53,6 +70,11 @@ final class NutritionTabViewModel {
 
     var isGeneratingPlan: Bool = false
     var planGenerationError: String?
+
+    /// Surfaced after `generatePlan` completes when the just-generated plan has
+    /// ingredients not present in the user's pantry. Views observe this and
+    /// present an alert/banner that deep-links to the Pantry tab.
+    var pantryGapAlert: PantryGapAlert?
 
     // MARK: - Coaching
 
@@ -376,6 +398,7 @@ final class NutritionTabViewModel {
                 if let notifications {
                     scheduleDefrostReminders(for: plan, notifications: notifications)
                 }
+                pantryGapAlert = computePantryGap(for: plan, modelContext: modelContext)
                 isGeneratingPlan = false
                 HapticManager.notification(.success)
                 loadToday(modelContext: modelContext)
@@ -385,6 +408,40 @@ final class NutritionTabViewModel {
                 HapticManager.notification(.error)
             }
         }
+    }
+
+    /// Compute the set of canonical ingredient names referenced by the plan that
+    /// aren't present in the user's pantry. Returns nil when there's nothing
+    /// missing — the view should suppress the alert in that case.
+    private func computePantryGap(
+        for plan: WeeklyMealPlan,
+        modelContext: ModelContext
+    ) -> PantryGapAlert? {
+        // Snapshot pantry canonical names (in-stock items only).
+        let descriptor = FetchDescriptor<PantryItem>(
+            predicate: #Predicate<PantryItem> { item in
+                item.isArchived == false && item.quantity > 0
+            }
+        )
+        let pantryNames: Set<String> = ((try? modelContext.fetch(descriptor)) ?? [])
+            .map(\.canonicalName)
+            .reduce(into: Set<String>()) { acc, name in
+                acc.insert(name.lowercased())
+            }
+
+        // Collect every distinct ingredient referenced by the plan's recipes.
+        var needed: Set<String> = []
+        for meal in plan.meals ?? [] {
+            for ingredient in meal.recipe?.ingredients ?? [] {
+                needed.insert(ingredient.canonicalFoodName.lowercased())
+            }
+        }
+
+        let missing = needed.subtracting(pantryNames).sorted()
+        guard !missing.isEmpty else {
+            return nil
+        }
+        return PantryGapAlert(missingIngredients: missing)
     }
 
     /// Walk every PlannedMeal in `plan`, find ingredients that require a defrost

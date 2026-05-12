@@ -86,6 +86,29 @@ struct NutritionWeeklyPlanView: View {
                 "Meal plans are created by AI for general wellness guidance. They are not a substitute for professional dietary advice. If you have medical conditions, allergies, or eating disorders, consult a healthcare professional before following any meal plan."
             )
         }
+        // Phase D — surface pantry gaps the just-generated plan exposed.
+        .alert(
+            "Pantry Gap",
+            isPresented: Binding(
+                get: { viewModel.pantryGapAlert != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        viewModel.pantryGapAlert = nil
+                    }
+                }
+            ),
+            presenting: viewModel.pantryGapAlert
+        ) { _ in
+            Button("Open Pantry") {
+                viewModel.selectedTab = .pantry
+                viewModel.pantryGapAlert = nil
+            }
+            Button("Dismiss", role: .cancel) {
+                viewModel.pantryGapAlert = nil
+            }
+        } message: { alert in
+            Text(alert.summary)
+        }
         .sheet(isPresented: $showProfileSetup) {
             DietaryProfileSetupView(onSaveAndGenerate: { _ in
                 showProfileSetup = false

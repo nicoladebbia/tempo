@@ -230,12 +230,26 @@ private struct PantryManualAddSheet: View {
     private var unit: PantryUnit = .grams
     @State
     private var location: PantryStorageLocation = .pantry
+    @State
+    private var transcriber = VoiceTranscriber()
 
     var body: some View {
         NavigationStack {
             Form {
                 Section("Item") {
-                    TextField("Name (e.g. Chicken Breast)", text: $name)
+                    HStack(spacing: 8) {
+                        TextField("Name (e.g. Chicken Breast)", text: $name)
+                        micButton
+                    }
+                    if transcriber.isListening {
+                        Text("Listening… speak the item name.")
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                    } else if let error = transcriber.error {
+                        Text(error)
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoError)
+                    }
                     TextField("Quantity", text: $quantityText)
                         .keyboardType(.decimalPad)
                     Picker("Unit", selection: $unit) {
@@ -254,7 +268,10 @@ private struct PantryManualAddSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        transcriber.stop()
+                        dismiss()
+                    }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Add") {
@@ -262,12 +279,44 @@ private struct PantryManualAddSheet: View {
                         guard !name.isEmpty, qty > 0 else {
                             return
                         }
+                        transcriber.stop()
                         onAdd(name, qty, unit, location)
                         dismiss()
                     }
                     .disabled(name.isEmpty || Double(quantityText) ?? 0 <= 0)
                 }
             }
+            .onChange(of: transcriber.transcribedText) { _, newText in
+                // Stream partial results into the name field while listening.
+                if transcriber.isListening, !newText.isEmpty {
+                    name = newText
+                }
+            }
+            .onDisappear {
+                transcriber.stop()
+            }
         }
+    }
+
+    private var micButton: some View {
+        Button {
+            if transcriber.isListening {
+                transcriber.stop()
+            } else {
+                Task { await transcriber.start() }
+            }
+            HapticManager.lightImpact()
+        } label: {
+            Image(systemName: transcriber.isListening ? "mic.fill" : "mic")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(transcriber.isListening ? Color.tempoSignal : Color.tempoTextSecondary)
+                .frame(width: 32, height: 32)
+                .background(
+                    Circle()
+                        .fill(transcriber.isListening ? Color.tempoSignal.opacity(0.15) : Color.clear)
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(transcriber.isListening ? "Stop listening" : "Start voice input")
     }
 }

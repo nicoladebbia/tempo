@@ -130,6 +130,7 @@
 		59B55B650427B1CE16AAA849 /* LocalGroceryListService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0AA5EB7B8C54BB429B02FAA /* LocalGroceryListService.swift */; };
 		5A28BC6295F232321704867F /* APIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = D776F3170DC7A629AF2B023D /* APIError.swift */; };
 		5B3BDD7D765685A95B9FAD85 /* MealFoodItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95440962533954510637504A /* MealFoodItem.swift */; };
+		5CA09781637DC079E3C7DDD4 /* VoiceTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DA192F7676E95F697C1600D /* VoiceTranscriber.swift */; };
 		5D6542CECBDD3F3E7E986F2D /* QuickLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB851B96C9D1AA1E5E76164F /* QuickLogView.swift */; };
 		5DA1533F4B4E5557C0888C6A /* CircularRingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A8D5FA6B4F4E523C088A285 /* CircularRingView.swift */; };
 		5DD9C86E03350342ACE2E19E /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C909FFC6923D5E47A1EA29F5 /* OnboardingViewModel.swift */; };
@@ -491,6 +492,7 @@
 		2C81692E352CAC4BABD99F32 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		2D4D3D9D1E24B11E4FE31CBA /* Streak.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Streak.swift; sourceTree = "<group>"; };
 		2D780C49C98461A9DA9D8DF8 /* AccountabilityCopyPool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountabilityCopyPool.swift; sourceTree = "<group>"; };
+		2DA192F7676E95F697C1600D /* VoiceTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceTranscriber.swift; sourceTree = "<group>"; };
 		2DFD38718076016374454F67 /* UserProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfile.swift; sourceTree = "<group>"; };
 		2E12F8C9AD532F04BF678536 /* StreakCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreakCalendarView.swift; sourceTree = "<group>"; };
 		2EAFD46CD590E4AC787B1793 /* ArenaTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArenaTabView.swift; sourceTree = "<group>"; };
@@ -852,6 +854,7 @@
 				439CA9F607270E0399D7E979 /* Network */,
 				3E9652389F9D3A3F6DCD4526 /* Notifications */,
 				A34B36F8B8659F9D879E2EE2 /* Nutrition */,
+				5653FB0DDC60372846ABAB78 /* Speech */,
 				9FDFC902159D1DA0FB9B9ABD /* Subscriptions */,
 				0507482A320CCF57C02F4F77 /* Sync */,
 			);
@@ -1103,6 +1106,14 @@
 				2133EB5FA48633966F9D3F1A /* TemporaryExclusionsStepView.swift */,
 			);
 			path = Steps;
+			sourceTree = "<group>";
+		};
+		5653FB0DDC60372846ABAB78 /* Speech */ = {
+			isa = PBXGroup;
+			children = (
+				2DA192F7676E95F697C1600D /* VoiceTranscriber.swift */,
+			);
+			path = Speech;
 			sourceTree = "<group>";
 		};
 		58C974B8052C892FE255A8ED /* Arena */ = {
@@ -2512,6 +2523,7 @@
 				41B2AAA4DACA68D65D3FCFF2 /* View+Accessibility.swift in Sources */,
 				BE6E5BBDF282E873FE5E2040 /* View+Tempo.swift in Sources */,
 				8FE1BFEED81972855CE9D421 /* VisionReceiptOCR.swift in Sources */,
+				5CA09781637DC079E3C7DDD4 /* VoiceTranscriber.swift in Sources */,
 				D37A6FD57E7714B9FC29C9B7 /* WeekPlanView.swift in Sources */,
 				82B27CA05AC1B3CB435B7F98 /* WeeklyAccountabilityView.swift in Sources */,
 				0F476B684E87618D138EA5C2 /* WeeklyMealPlan.swift in Sources */,
@@ -2579,6 +2591,8 @@
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Tempo reads your health data (steps, heart rate, HRV, sleep, workouts) to calculate your daily score, adapt your training plan to your recovery, and track your progress automatically.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Tempo writes your completed workouts and nutrition data to HealthKit so your health record stays complete across all your apps.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Tempo uses your location to provide weather-aware hydration targets and workout recommendations.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Tempo uses your microphone so you can dictate pantry items hands-free instead of typing each ingredient.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Tempo converts what you say into pantry item names on-device, so you can add ingredients without typing.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -2703,6 +2717,8 @@
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Tempo reads your health data (steps, heart rate, HRV, sleep, workouts) to calculate your daily score, adapt your training plan to your recovery, and track your progress automatically.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Tempo writes your completed workouts and nutrition data to HealthKit so your health record stays complete across all your apps.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Tempo uses your location to provide weather-aware hydration targets and workout recommendations.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Tempo uses your microphone so you can dictate pantry items hands-free instead of typing each ingredient.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Tempo converts what you say into pantry item names on-device, so you can add ingredients without typing.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -3003,6 +3019,8 @@
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Tempo reads your health data (steps, heart rate, HRV, sleep, workouts) to calculate your daily score, adapt your training plan to your recovery, and track your progress automatically.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Tempo writes your completed workouts and nutrition data to HealthKit so your health record stays complete across all your apps.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Tempo uses your location to provide weather-aware hydration targets and workout recommendations.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Tempo uses your microphone so you can dictate pantry items hands-free instead of typing each ingredient.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Tempo converts what you say into pantry item names on-device, so you can add ingredients without typing.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
