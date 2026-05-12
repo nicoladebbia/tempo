@@ -373,7 +373,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
                     model: .sonnet,
                     system: system,
                     userMessage: prompt,
-                    maxTokens: 8192,
+                    maxTokens: 32768,
                     temperature: 0.3
                 )
                 logger.info("[\(feature)] Claude response received (attempt \(attempt))")
