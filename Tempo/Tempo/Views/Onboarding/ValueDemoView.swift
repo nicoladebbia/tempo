@@ -20,17 +20,19 @@ struct ValueDemoView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: TempoSpacing.lg) {
-                // Header
-                VStack(spacing: TempoSpacing.sm) {
+                // Header — leading-aligned to match the rest of the onboarding
+                // step pages so the hero feels like a continuation, not a
+                // centered marketing splash.
+                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
                     Text("THIS IS TEMPO")
-                        .font(.tempoTitle2)
+                        .font(.system(size: 28, weight: .bold))
                         .foregroundStyle(Color.tempoTextPrimary)
                     Text("Your entire life — training, nutrition, recovery, accountability — in one app.")
                         .font(.tempoBody)
                         .foregroundStyle(Color.tempoTextSecondary)
-                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(.top, TempoSpacing.xl)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 // Sample dashboard preview cards
 
