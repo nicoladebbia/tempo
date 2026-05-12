@@ -128,6 +128,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         await attachRecipes(
             to: weeklyPlan,
             profile: profile,
+            intake: intake,
             modelContext: modelContext
         )
 
@@ -146,6 +147,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
     private func attachRecipes(
         to plan: WeeklyMealPlan,
         profile: DietaryProfile,
+        intake: MealPlanIntake?,
         modelContext: ModelContext
     ) async {
         let meals = plan.meals ?? []
@@ -161,6 +163,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             let foods: [PlannedFood]
         }
         let skillLevel = profile.cookingSkill.displayName
+        let exclusions = intake?.temporaryExclusions ?? []
         let requests: [MealRequest] = meals.map { meal in
             MealRequest(mealID: meal.id, mealName: meal.mealName, foods: meal.foods)
         }
@@ -176,7 +179,8 @@ final class MealPlanGeneratorService: @unchecked Sendable {
                     let parsed = await self.generateRecipeJSON(
                         mealName: request.mealName,
                         foods: request.foods,
-                        skillLevel: skillLevel
+                        skillLevel: skillLevel,
+                        exclusions: exclusions
                     )
                     return (request.mealID, parsed)
                 }
@@ -220,14 +224,16 @@ final class MealPlanGeneratorService: @unchecked Sendable {
     private nonisolated func generateRecipeJSON(
         mealName: String,
         foods: [PlannedFood],
-        skillLevel: String
+        skillLevel: String,
+        exclusions: [String]
     ) async -> ParsedRecipe? {
         let systemPrompt = MealRecipePrompts.systemPrompt
         let userPrompt = MealRecipePrompts.userPrompt(
             mealName: mealName,
             servings: 1,
             foods: foods,
-            skillLevel: skillLevel
+            skillLevel: skillLevel,
+            exclusions: exclusions
         )
 
         do {

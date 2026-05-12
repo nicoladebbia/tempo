@@ -446,14 +446,19 @@ final class NutritionTabViewModel {
 
     /// Walk every PlannedMeal in `plan`, find ingredients that require a defrost
     /// reminder, and schedule a Time Sensitive notification at `mealTime − leadTime`.
-    /// Stale reminders from a prior plan are cleared per-meal first.
+    ///
+    /// Clears EVERY pending defrost reminder first via `cancelCategory` so that
+    /// a regenerated plan doesn't leak stale reminders from prior plans whose
+    /// meals were deactivated but kept around as historical records (their
+    /// PlannedMeal.id values are not in the new plan, so per-meal cancellation
+    /// would miss them).
     private func scheduleDefrostReminders(
         for plan: WeeklyMealPlan,
         notifications: any NotificationServiceProtocol
     ) {
+        notifications.cancelCategory("DEFROST_REMINDER")
         let calendar = Calendar.current
         for meal in plan.meals ?? [] {
-            notifications.cancelDefrostReminders(forMealID: meal.id)
             guard let ingredients = meal.recipe?.ingredients else {
                 continue
             }

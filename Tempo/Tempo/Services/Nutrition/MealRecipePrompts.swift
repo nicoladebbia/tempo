@@ -80,11 +80,15 @@ enum MealRecipePrompts {
     """
 
     /// Build the user prompt for a single planned meal.
+    /// `exclusions` should be the user's `temporaryExclusions` from the intake
+    /// wizard (e.g. ["dairy", "shellfish"]) — Haiku will avoid recipes that
+    /// rely on them as primary ingredients.
     static func userPrompt(
         mealName: String,
         servings: Int,
         foods: [PlannedFood],
-        skillLevel: String
+        skillLevel: String,
+        exclusions: [String] = []
     ) -> String {
         let foodLines = foods.map { f in
             let kcal = Int(f.calories.rounded())
@@ -99,10 +103,14 @@ enum MealRecipePrompts {
         let totalCarbs = Int(foods.reduce(0.0) { $0 + $1.carbsG }.rounded())
         let totalFat = Int(foods.reduce(0.0) { $0 + $1.fatG }.rounded())
 
+        let exclusionBlock = exclusions.isEmpty
+            ? ""
+            : "\nTemporary exclusions (avoid as primary ingredients): \(exclusions.joined(separator: ", "))."
+
         return """
         Meal: \(mealName)
         Servings: \(servings)
-        User cooking skill: \(skillLevel)
+        User cooking skill: \(skillLevel)\(exclusionBlock)
 
         Target macros for ONE serving:
         - Calories: \(totalCal) kcal

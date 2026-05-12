@@ -287,7 +287,10 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
             threadID: "tempo.defrost.\(mealID.uuidString)",
             interruptionLevel: .timeSensitive,
             budgetCost: 0.5,
-            priority: 4
+            priority: 4,
+            // Defrost reminders are discrete, time-critical events tied to food
+            // physically spoiling — never skip them due to daily-budget pressure.
+            bypassBudget: true
         )
     }
 
@@ -508,13 +511,17 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         threadID: String,
         interruptionLevel: UNNotificationInterruptionLevel,
         budgetCost: Double,
-        priority: Int
+        priority: Int,
+        bypassBudget: Bool = false
     ) {
-        // Budget check
+        // Budget check — bypassable for time-critical, discrete-event notifications
+        // (e.g. defrost reminders) whose suppression would cause real-world harm.
         refreshBudgetDateIfNeeded()
-        guard canSpendBudget(cost: budgetCost) else {
-            logger.info("Budget exhausted (\(self.budgetSpentToday)/\(Self.dailyBudgetCap)), skipping \(id)")
-            return
+        if !bypassBudget {
+            guard canSpendBudget(cost: budgetCost) else {
+                logger.info("Budget exhausted (\(self.budgetSpentToday)/\(Self.dailyBudgetCap)), skipping \(id)")
+                return
+            }
         }
 
         // Anti-spam: min 30 min between notifications (unless Time Sensitive or All Clear)
@@ -565,7 +572,9 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
                 if let error {
                     self.logger.error("Failed to schedule notification \(id): \(error.localizedDescription)")
                 } else {
-                    self.spendBudget(cost: budgetCost)
+                    if !bypassBudget {
+                        self.spendBudget(cost: budgetCost)
+                    }
                     self.lastNotificationTime = date
                     self.logger.debug("Scheduled \(categoryID) at \(date) (budget: \(self.budgetSpentToday)/\(Self.dailyBudgetCap))")
                 }
