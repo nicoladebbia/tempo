@@ -33,12 +33,11 @@ struct OnboardingContainerView: View {
                         .padding(.top, TempoSpacing.md)
                 }
 
-                // Step content — fills remaining space, top-anchored so
-                // headers sit just below the progress bar rather than getting
-                // centered in the available height (which created a big void
-                // above the title on screens with short content).
+                // Step content — fills remaining space. Opacity-only transition
+                // avoids the mid-animation clipping artifact that `.move(edge:)`
+                // produces inside a constrained safe-area frame.
                 stepContent
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .transition(.opacity.combined(with: .scale(scale: 0.98)))
             }
         }
