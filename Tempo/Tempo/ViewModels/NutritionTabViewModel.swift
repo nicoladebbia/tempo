@@ -71,6 +71,11 @@ final class NutritionTabViewModel {
     var isGeneratingPlan: Bool = false
     var planGenerationError: String?
 
+    /// Drill-sergeant phase label shown under the spinner ("Drafting the week…",
+    /// "Writing recipes for every meal…", etc). Mirrors
+    /// `MealPlanGeneratorService.state.statusLabel` via the onStatus callback.
+    var planGenerationStatusLabel: String = ""
+
     /// Surfaced after `generatePlan` completes when the just-generated plan has
     /// ingredients not present in the user's pantry. Views observe this and
     /// present an alert/banner that deep-links to the Pantry tab.
@@ -276,6 +281,7 @@ final class NutritionTabViewModel {
         try? modelContext.save()
         HapticManager.notification(.success)
         notifications?.cancelDefrostReminders(forMealID: mealID)
+        notifications?.cancelPrepStartReminder(forMealID: mealID)
         refreshTodayMeals(modelContext: modelContext)
     }
 
@@ -289,6 +295,7 @@ final class NutritionTabViewModel {
         try? modelContext.save()
         HapticManager.lightImpact()
         notifications?.cancelDefrostReminders(forMealID: mealID)
+        notifications?.cancelPrepStartReminder(forMealID: mealID)
         refreshTodayMeals(modelContext: modelContext)
     }
 
@@ -391,7 +398,10 @@ final class NutritionTabViewModel {
                     profile: profile,
                     whoopTDEE: whoopTDEE,
                     modelContext: modelContext,
-                    intake: intake
+                    intake: intake,
+                    onStatus: { [weak self] state in
+                        self?.planGenerationStatusLabel = state.statusLabel
+                    }
                 )
 
                 weeklyPlan = plan
@@ -400,10 +410,12 @@ final class NutritionTabViewModel {
                 }
                 pantryGapAlert = computePantryGap(for: plan, modelContext: modelContext)
                 isGeneratingPlan = false
+                planGenerationStatusLabel = ""
                 HapticManager.notification(.success)
                 loadToday(modelContext: modelContext)
             } catch {
                 isGeneratingPlan = false
+                planGenerationStatusLabel = ""
                 planGenerationError = error.localizedDescription
                 HapticManager.notification(.error)
             }
@@ -457,19 +469,33 @@ final class NutritionTabViewModel {
         notifications: any NotificationServiceProtocol
     ) {
         notifications.cancelCategory("DEFROST_REMINDER")
+        notifications.cancelCategory("PREP_START_REMINDER")
         let calendar = Calendar.current
+        let now = Date()
         for meal in plan.meals ?? [] {
+            let mealTime = MealScheduleHelpers.scheduledDate(for: meal, calendar: calendar)
+
+            // Prep-start reminder — fires when it's time to start cooking.
+            let prepStart = MealScheduleHelpers.prepStartDate(for: meal, calendar: calendar)
+            if prepStart > now, prepStart != mealTime {
+                notifications.schedulePrepStartReminder(
+                    mealID: meal.id,
+                    mealName: meal.mealName,
+                    prepStartDate: prepStart
+                )
+            }
+
+            // Defrost reminders — one per freezer ingredient.
             guard let ingredients = meal.recipe?.ingredients else {
                 continue
             }
-            let mealTime = MealScheduleHelpers.scheduledDate(for: meal, calendar: calendar)
             for ingredient in ingredients where ingredient.requiresDefrostReminder {
                 let lead = ingredient.defrostLeadTimeHours
                 guard let fireDate = calendar.date(byAdding: .hour, value: -lead, to: mealTime) else {
                     continue
                 }
                 // Skip reminders that would fire in the past (meal in <leadTime).
-                guard fireDate > Date() else {
+                guard fireDate > now else {
                     continue
                 }
                 notifications.scheduleDefrostReminder(

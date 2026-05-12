@@ -131,6 +131,14 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
                     UNNotificationAction(identifier: "DONE", title: "Done"),
                 ]
             ),
+            // Prep-Start Reminder (Phase polish)
+            makeCategory(
+                id: "PREP_START_REMINDER",
+                actions: [
+                    UNNotificationAction(identifier: "VIEW_MEAL", title: "View Meal", options: .foreground),
+                    UNNotificationAction(identifier: "DELAY_15MIN", title: "Delay 15 min"),
+                ]
+            ),
             // Arena Social
             makeCategory(
                 id: "ARENA_SOCIAL",
@@ -306,6 +314,41 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
             self?.center.removePendingNotificationRequests(withIdentifiers: idsToCancel)
             self?.logger.info("Cancelled \(idsToCancel.count) defrost reminders for meal \(mealID.uuidString)")
         }
+    }
+
+    // MARK: - Prep-Start Reminder
+
+    static func prepStartReminderID(mealID: UUID) -> String {
+        "prepstart_\(mealID.uuidString)"
+    }
+
+    func schedulePrepStartReminder(
+        mealID: UUID,
+        mealName: String,
+        prepStartDate: Date
+    ) {
+        guard isWithinPreScheduleWindow(prepStartDate) else {
+            return
+        }
+        scheduleNotification(
+            id: Self.prepStartReminderID(mealID: mealID),
+            title: "Start prepping \(mealName).",
+            body: "It's go time. Knife down the phone first, soldier.",
+            date: prepStartDate,
+            categoryID: "PREP_START_REMINDER",
+            threadID: "tempo.prepstart.\(mealID.uuidString)",
+            interruptionLevel: .timeSensitive,
+            budgetCost: 0.5,
+            priority: 4,
+            // Same rationale as defrost — discrete, time-critical, food-physical.
+            bypassBudget: true
+        )
+    }
+
+    func cancelPrepStartReminder(forMealID mealID: UUID) {
+        center.removePendingNotificationRequests(
+            withIdentifiers: [Self.prepStartReminderID(mealID: mealID)]
+        )
     }
 
     // MARK: - Recovery Notification

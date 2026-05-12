@@ -347,6 +347,19 @@ struct NutritionWeeklyPlanView: View {
     // MARK: - Generate Button
 
     private var generateButton: some View {
+        VStack(spacing: 6) {
+            if viewModel.isGeneratingPlan, !viewModel.planGenerationStatusLabel.isEmpty {
+                Text(viewModel.planGenerationStatusLabel)
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                    .transition(.opacity)
+            }
+            generateButtonInner
+        }
+        .animation(.easeInOut(duration: 0.2), value: viewModel.planGenerationStatusLabel)
+    }
+
+    private var generateButtonInner: some View {
         Button {
             guard viewModel.hasProfile else {
                 showProfileSetup = true

@@ -91,6 +91,27 @@ final class MockNotificationService: NotificationServiceProtocol, @unchecked Sen
         }
     }
 
+    func schedulePrepStartReminder(
+        mealID: UUID,
+        mealName: String,
+        prepStartDate: Date
+    ) {
+        let notification = ScheduledNotification(
+            category: "prepstart_\(mealID.uuidString)",
+            title: "Start prepping \(mealName).",
+            body: "It's go time.",
+            triggerDate: prepStartDate
+        )
+        scheduledNotifications.append(notification)
+        logger.debug("Mock: scheduled prep-start reminder for \(mealName) at \(prepStartDate)")
+    }
+
+    func cancelPrepStartReminder(forMealID mealID: UUID) {
+        let category = "prepstart_\(mealID.uuidString)"
+        scheduledNotifications.removeAll { $0.category == category }
+        logger.debug("Mock: cancelled prep-start reminder for meal \(mealID.uuidString)")
+    }
+
     func cancelAll() {
         scheduledNotifications.removeAll()
         logger.debug("Mock: cancelled all notifications")

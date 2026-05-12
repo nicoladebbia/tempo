@@ -80,7 +80,13 @@ final class Recipe {
     /// Flat array of dietary tags (e.g. ["high_protein","gluten_free"]).
     var dietaryTagsJSON: Data?
 
-    /// Denormalized macro totals — computed at save time from ingredients.
+    /// Denormalized macros for ONE serving — recomputed at save time from the
+    /// ingredient list (which itself carries whole-recipe quantities). Despite
+    /// the `total*` prefix, the values here are PER serving, not whole-recipe.
+    /// `MealDetailView` displays them under the "MACROS PER SERVING" label.
+    /// The Haiku recipe-generation prompt also fills these fields from its
+    /// `macrosPerServing` JSON block. Renaming would ripple through too many
+    /// callers; the field names are stuck.
     var totalCalories: Double
 
     var totalProteinGrams: Double
@@ -294,6 +300,10 @@ final class RecipeIngredient {
 
     var isOptional: Bool
 
+    /// True once the user has ticked the ingredient off in `MealDetailView`.
+    /// Persisted so progress survives backgrounding mid-cook.
+    var isCollected: Bool = false
+
     /// JSON array of substitute canonical names ("turkey breast", "tofu").
     var substitutesJSON: Data?
 
@@ -397,6 +407,10 @@ final class RecipeStep {
     var temperature: String?
 
     var equipment: String?
+
+    /// True once the user has ticked the step off in `MealDetailView`.
+    /// Persisted so progress survives backgrounding mid-cook.
+    var isComplete: Bool = false
 
     init(
         id: UUID = UUID(),

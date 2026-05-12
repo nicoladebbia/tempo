@@ -20,12 +20,12 @@ struct MealDetailView: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.modelContext)
+    private var modelContext
 
-    /// Local checklist state — keyed by ingredient / step / prep-item id.
-    @State
-    private var checkedIngredients: Set<UUID> = []
-    @State
-    private var checkedSteps: Set<UUID> = []
+    /// Prep-checklist state is in-memory only (defrost items are derived from
+    /// ingredients, not first-class persisted entities). Ingredient/step state
+    /// lives on the SwiftData models themselves so it survives backgrounding.
     @State
     private var checkedPrepItems: Set<UUID> = []
 
@@ -237,8 +237,8 @@ struct MealDetailView: View {
                     title: ingredient.displayName,
                     subtitle: ingredientSubtitle(ingredient),
                     iconName: nil,
-                    isChecked: checkedIngredients.contains(ingredient.id),
-                    toggle: { toggleIngredient(ingredient.id) }
+                    isChecked: ingredient.isCollected,
+                    toggle: { toggleIngredient(ingredient) }
                 )
             }
         }
@@ -279,9 +279,9 @@ struct MealDetailView: View {
     }
 
     private func stepRow(_ step: RecipeStep) -> some View {
-        let checked = checkedSteps.contains(step.id)
+        let checked = step.isComplete
         return Button {
-            toggleStep(step.id)
+            toggleStep(step)
             HapticManager.lightImpact()
         } label: {
             HStack(alignment: .top, spacing: TempoSpacing.md) {
@@ -394,20 +394,14 @@ struct MealDetailView: View {
 
     // MARK: - Mutation helpers
 
-    private func toggleIngredient(_ id: UUID) {
-        if checkedIngredients.contains(id) {
-            checkedIngredients.remove(id)
-        } else {
-            checkedIngredients.insert(id)
-        }
+    private func toggleIngredient(_ ingredient: RecipeIngredient) {
+        ingredient.isCollected.toggle()
+        try? modelContext.save()
     }
 
-    private func toggleStep(_ id: UUID) {
-        if checkedSteps.contains(id) {
-            checkedSteps.remove(id)
-        } else {
-            checkedSteps.insert(id)
-        }
+    private func toggleStep(_ step: RecipeStep) {
+        step.isComplete.toggle()
+        try? modelContext.save()
     }
 
     private func togglePrep(_ id: UUID) {

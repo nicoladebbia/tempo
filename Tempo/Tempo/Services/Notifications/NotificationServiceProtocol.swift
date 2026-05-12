@@ -61,6 +61,18 @@ protocol NotificationServiceProtocol: Sendable {
     /// a meal is eaten, skipped, deleted, or rescheduled.
     func cancelDefrostReminders(forMealID mealID: UUID)
 
+    /// "Start prepping now" reminder fired at the meal's prep-start time
+    /// (meal − prepMinutes − cookMinutes). Identifier `prepstart_<mealID>`.
+    func schedulePrepStartReminder(
+        mealID: UUID,
+        mealName: String,
+        prepStartDate: Date
+    )
+
+    /// Cancel the prep-start reminder for `mealID`. Called alongside defrost
+    /// cancellation when a meal is eaten / skipped / rescheduled.
+    func cancelPrepStartReminder(forMealID mealID: UUID)
+
     func cancelAll()
     func cancelCategory(_ category: String)
 }

@@ -29,8 +29,23 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         case generating
         case validating
         case saving
+        case attachingRecipes
         case failed(String)
         case complete
+
+        /// User-facing copy for the long-running spinner. Drill-sergeant tone.
+        var statusLabel: String {
+            switch self {
+            case .idle: ""
+            case .calculating: "Crunching your numbers…"
+            case .generating: "Drafting the week…"
+            case .validating: "Double-checking macros…"
+            case .saving: "Locking it in…"
+            case .attachingRecipes: "Writing recipes for every meal…"
+            case let .failed(msg): msg
+            case .complete: "Done."
+            }
+        }
     }
 
     private(set) var state: GenerationState = .idle
@@ -67,9 +82,14 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         profile: DietaryProfile,
         whoopTDEE: Double?,
         modelContext: ModelContext,
-        intake: MealPlanIntake? = nil
+        intake: MealPlanIntake? = nil,
+        onStatus: ((GenerationState) -> Void)? = nil
     ) async throws -> WeeklyMealPlan {
-        state = .calculating
+        let setState: (GenerationState) -> Void = { newState in
+            self.state = newState
+            onStatus?(newState)
+        }
+        setState(.calculating)
 
         // Step 1: Calculate TDEE and macro targets per day type
         let tdeeResult = TDEECalculator.calculate(
@@ -89,7 +109,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         let restrictions = MealPlanPrompts.DietaryRestrictions(from: profile)
 
         // Step 3: Build prompt and call Claude Sonnet
-        state = .generating
+        setState(.generating)
 
         let preferences = buildPreferences(from: profile)
         let (systemPrompt, userPrompt) = MealPlanPrompts.weeklyPlanPrompt(
@@ -105,7 +125,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         )
 
         // Step 4: Parse JSON response
-        state = .validating
+        setState(.validating)
 
         let parsedPlan = try parseWeeklyPlanJSON(response)
 
@@ -116,7 +136,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         )
 
         // Step 6: Persist to SwiftData
-        state = .saving
+        setState(.saving)
 
         let weeklyPlan = try persistPlan(
             validatedPlan,
@@ -125,6 +145,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         )
 
         // Step 7: Generate per-meal recipes via Haiku (fan-out, attach in main actor)
+        setState(.attachingRecipes)
         await attachRecipes(
             to: weeklyPlan,
             profile: profile,
@@ -132,7 +153,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             modelContext: modelContext
         )
 
-        state = .complete
+        setState(.complete)
         logger.info("Weekly meal plan generated: \(weeklyPlan.id) with \(weeklyPlan.meals?.count ?? 0) meals")
 
         return weeklyPlan

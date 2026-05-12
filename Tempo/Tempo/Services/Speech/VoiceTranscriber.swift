@@ -39,7 +39,16 @@ final class VoiceTranscriber {
     var silenceTimeout: TimeInterval = 1.5
 
     private let logger = Logger(subsystem: "app.tempo", category: "VoiceTranscriber")
-    private let recognizer: SFSpeechRecognizer? = SFSpeechRecognizer(locale: Locale(identifier: "en_US"))
+    /// Prefer the user's current locale (so an Italian user gets Italian
+    /// recognition out of the box). Fall back to en_US when the system locale
+    /// doesn't have a recognizer model available.
+    private let recognizer: SFSpeechRecognizer? = {
+        if let current = SFSpeechRecognizer(locale: Locale.current), current.isAvailable {
+            return current
+        }
+        return SFSpeechRecognizer(locale: Locale(identifier: "en_US"))
+    }()
+
     private let audioEngine = AVAudioEngine()
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
