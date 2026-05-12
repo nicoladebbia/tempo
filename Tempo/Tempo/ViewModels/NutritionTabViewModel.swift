@@ -409,6 +409,10 @@ final class NutritionTabViewModel {
                     scheduleDefrostReminders(for: plan, notifications: notifications)
                 }
                 pantryGapAlert = computePantryGap(for: plan, modelContext: modelContext)
+                // Auto-build the grocery list now so the user doesn't have to
+                // hunt for a Generate button after the plan lands. Non-fatal:
+                // failures surface via groceryState.lastError, not the plan UI.
+                generateGroceryList()
                 isGeneratingPlan = false
                 planGenerationStatusLabel = ""
                 HapticManager.notification(.success)

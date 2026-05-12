@@ -570,17 +570,19 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
 
-        // Find next Monday as start date
-        let weekday = calendar.component(.weekday, from: today)
-        let daysUntilMonday = weekday == 2 ? 0 : (9 - weekday) % 7
-        let startDate = calendar.date(byAdding: .day, value: daysUntilMonday, to: today)!
+        // Plans start today and run for the next 7 days so the dashboard's
+        // "today's meal" query immediately resolves. Calendar-week alignment
+        // turned out to dark the Fuel quadrant for any plan generated mid-week.
+        let startDate = today
         let endDate = calendar.date(byAdding: .day, value: 6, to: startDate)!
 
-        // Build day type assignments (weekday number -> day type)
+        // Build day type assignments keyed by the real weekday of each plan day
+        // so RecoverIQ / training-day logic still sees Mon/Tue/Wed mapping.
         var dayTypeAssignments: [Int: String] = [:]
+        let todayWeekday = calendar.component(.weekday, from: today)
         for day in plan.days {
-            // dayIndex 0 = Monday -> weekday 2, dayIndex 6 = Sunday -> weekday 1
-            let weekdayNumber = day.dayIndex == 6 ? 1 : day.dayIndex + 2
+            // dayIndex 0 = today, walk forward; wrap Sunday(7)→Sunday(1) etc.
+            let weekdayNumber = ((todayWeekday - 1 + day.dayIndex) % 7) + 1
             dayTypeAssignments[weekdayNumber] = day.dayType
         }
 
