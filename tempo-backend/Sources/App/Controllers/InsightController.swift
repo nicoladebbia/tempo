@@ -13,6 +13,14 @@ struct InsightController: RouteCollection {
         routes.get("weekly-report", use: weeklyReport)
         routes.get("patterns", use: patterns)
         routes.get("drill-sergeant", use: drillSergeant)
+        // §7 features per INTELLIGENCE_REMEDIATION_PLAN.md
+        routes.post("recovery-prescription", use: recoveryPrescription)
+        routes.get("morning-briefing", use: morningBriefing)
+        routes.post("training-adjustment", use: trainingAdjustment)
+        routes.post("dashboard", use: dashboardInsights)
+        routes.post("training-program", use: trainingProgram)
+        routes.post("study-schedule", use: studySchedule)
+        routes.post("achievement-copy", use: achievementCopy)
     }
 
     // MARK: - GET /v1/insights/weekly-report
@@ -25,18 +33,17 @@ struct InsightController: RouteCollection {
         // Check daily AI rate limit
         try await checkDailyAILimit(userID: userID, on: req)
 
-        // Check Redis cache first
-        // Per AI_INTELLIGENCE_ENGINE.md Section 6.1 — cache key: insight:weekly:{user_id}:{week_start}
+        // Cache lookup via the typed AICache (Postgres-backed for weekly report
+        // per spec §6.1: 7-day TTL, inspectable, survives a Redis flush).
         let weekStart = currentWeekStart()
-        let cacheKey = RedisKey("insight:weekly:\(userID):\(weekStart)")
+        let key = AICacheKey.weeklyReport(userId: userID, weekStart: weekStart)
+        let bypass = (try? req.query.get(Bool.self, at: "force_regenerate")) ?? false
 
-        if let cached = try? await req.redis.get(cacheKey, as: String.self).get(),
-           let jsonData = cached.data(using: .utf8) {
-            let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
-            if let report = try? decoder.decode(WeeklyReportResponse.self, from: jsonData) {
-                return Envelope(data: report, requestID: req.requestID)
-            }
+        if !bypass,
+           case let .fresh(cached) = try await AICache.shared.lookup(key: key, on: req) as AICacheLookup<WeeklyReportResponse>
+        {
+            req.logger.info("[ai_cache:weekly_report] HIT key=\(key.value)")
+            return Envelope(data: cached, requestID: req.requestID)
         }
 
         // Build input from user's data
@@ -45,15 +52,8 @@ struct InsightController: RouteCollection {
         // Generate report via InsightService
         let report = try await InsightService.shared.generateWeeklyReport(weekData: input, on: req)
 
-        // Cache for 7 days
-        // Per AI_INTELLIGENCE_ENGINE.md Section 6.1 — TTL 7 days
-        let encoder = JSONEncoder()
-        encoder.keyEncodingStrategy = .convertToSnakeCase
-        if let data = try? encoder.encode(report),
-           let jsonString = String(data: data, encoding: .utf8) {
-            _ = try? await req.redis.set(cacheKey, to: jsonString).get()
-            _ = try? await req.redis.expire(cacheKey, after: .seconds(7 * 24 * 3600)).get()
-        }
+        // Store in cache (7-day TTL configured in AICacheKey).
+        try? await AICache.shared.store(key: key, value: report, on: req)
 
         // Increment daily AI counter
         await incrementDailyAICount(userID: userID, on: req)
@@ -69,30 +69,20 @@ struct InsightController: RouteCollection {
 
         try await checkDailyAILimit(userID: userID, on: req)
 
-        // Check cache — 24h TTL per AI_INTELLIGENCE_ENGINE.md Section 6.1
-        let cacheKey = RedisKey("insight:pattern:\(userID)")
-
-        if let cached = try? await req.redis.get(cacheKey, as: String.self).get(),
-           let jsonData = cached.data(using: .utf8) {
-            let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
-            if let result = try? decoder.decode(PatternDetectionResponse.self, from: jsonData) {
-                return Envelope(data: result, requestID: req.requestID)
-            }
-        }
-
         let input = try await buildPatternDetectionInput(userID: userID, on: req)
+        let key = AICacheKey.patternDetection(userId: userID, totalDays: input.totalDays)
+        let bypass = (try? req.query.get(Bool.self, at: "force_regenerate")) ?? false
+
+        if !bypass,
+           case let .fresh(cached) = try await AICache.shared.lookup(key: key, on: req) as AICacheLookup<PatternDetectionResponse>
+        {
+            req.logger.info("[ai_cache:pattern_detection] HIT key=\(key.value)")
+            return Envelope(data: cached, requestID: req.requestID)
+        }
 
         let result = try await InsightService.shared.detectPatterns(input: input, on: req)
 
-        // Cache for 24h
-        let encoder = JSONEncoder()
-        encoder.keyEncodingStrategy = .convertToSnakeCase
-        if let data = try? encoder.encode(result),
-           let jsonString = String(data: data, encoding: .utf8) {
-            _ = try? await req.redis.set(cacheKey, to: jsonString).get()
-            _ = try? await req.redis.expire(cacheKey, after: .seconds(24 * 3600)).get()
-        }
+        try? await AICache.shared.store(key: key, value: result, on: req)
 
         await incrementDailyAICount(userID: userID, on: req)
 
@@ -122,7 +112,7 @@ struct InsightController: RouteCollection {
     // MARK: - Rate Limiting
     // Per AI_INTELLIGENCE_ENGINE.md Section 2.5 — 12 AI calls per user per day.
 
-    private func checkDailyAILimit(userID: String, on req: Request) async throws {
+    func checkDailyAILimit(userID: String, on req: Request) async throws {
         let key = RedisKey("ai_limit:\(userID):\(todayString())")
         let count = (try? await req.redis.get(key, as: Int.self).get()) ?? 0
         guard count < AIConfig.dailyPerUserLimit else {
@@ -130,7 +120,7 @@ struct InsightController: RouteCollection {
         }
     }
 
-    private func incrementDailyAICount(userID: String, on req: Request) async {
+    func incrementDailyAICount(userID: String, on req: Request) async {
         let key = RedisKey("ai_limit:\(userID):\(todayString())")
         _ = try? await req.redis.increment(key).get()
         _ = try? await req.redis.expire(key, after: .seconds(24 * 3600)).get()
