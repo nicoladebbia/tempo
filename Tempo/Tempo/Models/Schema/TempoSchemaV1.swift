@@ -18,6 +18,8 @@ enum TempoSchemaV1: VersionedSchema {
             UserDailyPlanProfile.self,
             ClassBlock.self,
             WorkBlock.self,
+            DayPlan.self,
+            TimeBlock.self,
             DailySnapshot.self,
             WorkoutPlan.self,
             PlannedExercise.self,

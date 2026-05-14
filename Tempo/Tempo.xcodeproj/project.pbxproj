@@ -369,6 +369,7 @@
 		F5A2583BD09094413C46723D /* StaleDataIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1353B00F4473DE6881FB5B97 /* StaleDataIndicator.swift */; };
 		F76FED9FA3501D94EDEE6BF7 /* UserSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B857A8239D3BCEAEB026B68A /* UserSettings.swift */; };
 		A95D5613549303FBDE82C9A4 /* UserDailyPlanProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 062D53FB4225C4FBC42A7B27 /* UserDailyPlanProfile.swift */; };
+		0EEAB07EACEE6E6D6C7CEBDE /* DayPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = D82DBD9242D96EAF85714DD4 /* DayPlan.swift */; };
 		D5838FB14B7AE058A27662BF /* DailyPlanProfileViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A08DD4250DDB84A27DD6110A /* DailyPlanProfileViews.swift */; };
 		F83C15852D2C6DFFD4A5E7AF /* TempoWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C61F010FAE13F4945D1221F /* TempoWidget.swift */; };
 		F8E473B91AB7528573E5B26D /* PantryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6F33E41210967370677ACBE /* PantryView.swift */; };
@@ -717,6 +718,7 @@
 		B6F33E41210967370677ACBE /* PantryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PantryView.swift; sourceTree = "<group>"; };
 		B857A8239D3BCEAEB026B68A /* UserSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserSettings.swift; sourceTree = "<group>"; };
 		062D53FB4225C4FBC42A7B27 /* UserDailyPlanProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserDailyPlanProfile.swift; sourceTree = "<group>"; };
+		D82DBD9242D96EAF85714DD4 /* DayPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tempo/Models/Schedule/DayPlan.swift; sourceTree = SOURCE_ROOT; };
 		A08DD4250DDB84A27DD6110A /* DailyPlanProfileViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyPlanProfileViews.swift; sourceTree = "<group>"; };
 		B94FF608576C7C015A2227E6 /* WorkoutSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutSummaryView.swift; sourceTree = "<group>"; };
 		B9E59CCE5787473C56E7EC58 /* LoadingStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingStateView.swift; sourceTree = "<group>"; };
@@ -2584,6 +2586,7 @@
 				063B238786B9E91632A534A0 /* UserProfile.swift in Sources */,
 				F76FED9FA3501D94EDEE6BF7 /* UserSettings.swift in Sources */,
 				A95D5613549303FBDE82C9A4 /* UserDailyPlanProfile.swift in Sources */,
+				0EEAB07EACEE6E6D6C7CEBDE /* DayPlan.swift in Sources */,
 				D5838FB14B7AE058A27662BF /* DailyPlanProfileViews.swift in Sources */,
 				422B52FE216E4216E3CDC128 /* ValueDemoView.swift in Sources */,
 				41B2AAA4DACA68D65D3FCFF2 /* View+Accessibility.swift in Sources */,
