@@ -16,43 +16,18 @@ import SwiftUI
 
 struct FuelQuadrantDetailView: View {
     let data: FuelQuadrantData
-    /// Real `PlannedMeal`s for today. Empty in previews; populated by callers
-    /// that route here with the day's meal list.
-    var plannedMeals: [PlannedMeal] = []
+    /// Annotated meal rows for today. Empty in previews unless the caller
+    /// passes a `FuelDayScheduleViewModel`-populated list. Each row carries
+    /// the post-shift `displayedTime`, the conflict flag, and the underlying
+    /// `PlannedMeal` used for navigation.
+    var mealRows: [FuelMealRow] = []
+    /// Minutes by which the day's meals have been shifted forward due to a
+    /// late actual wake. Zero means no shift was applied.
+    var shiftMinutes: Int = 0
     var onRefreshNeeded: (() -> Void)?
 
     @State
     private var showNativeNutrition = false
-
-    /// Derived display rows. Maps real planned meals into the table model the
-    /// section already knows how to render; falls back to a single "no plan" row
-    /// when no meals are available so the section never renders empty.
-    private var meals: [MealDisplayItem] {
-        guard !plannedMeals.isEmpty else {
-            return [
-                MealDisplayItem(name: "No plan yet", time: "—", calories: nil, status: .planned),
-            ]
-        }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
-        let inFmt = DateFormatter()
-        inFmt.dateFormat = "HH:mm"
-        return plannedMeals.map { meal in
-            let displayTime: String = inFmt.date(from: meal.scheduledTime).map { formatter.string(from: $0) }
-                ?? meal.scheduledTime
-            let displayStatus: MealDisplayStatus = switch meal.status {
-            case .eaten: .logged
-            case .skipped: .skipped
-            default: .planned
-            }
-            return MealDisplayItem(
-                name: meal.mealName,
-                time: displayTime,
-                calories: meal.totalCalories > 0 ? Int(meal.totalCalories) : nil,
-                status: displayStatus
-            )
-        }
-    }
 
     /// Stub 7-day calorie trend
     private let calorieTrend: [CalorieTrendPoint] = {
@@ -74,6 +49,7 @@ struct FuelQuadrantDetailView: View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: TempoSpacing.xl) {
                 if data.isConnected {
+                    todayHeader
                     calorieHeroSection
                     macroSection
                     mealsSection
@@ -233,42 +209,103 @@ struct FuelQuadrantDetailView: View {
         }
     }
 
+    // MARK: - Today Header
+
+    /// Header strip showing the calendar date and live wall-clock time.
+    /// Ticks every minute via `TimelineView`. Also exposes the day's shift
+    /// when meal times have been pushed forward due to a late wake.
+    private var todayHeader: some View {
+        TimelineView(.everyMinute) { context in
+            HStack(alignment: .firstTextBaseline, spacing: TempoSpacing.sm) {
+                Text(TempoDateFormatters.dateOnly.string(from: context.date))
+                    .font(.tempoTitle3)
+                    .foregroundStyle(Color.tempoTextPrimary)
+
+                Text("·")
+                    .font(.tempoTitle3)
+                    .foregroundStyle(Color.tempoTextTertiary)
+
+                Text(TempoDateFormatters.timeOnly.string(from: context.date))
+                    .font(.tempoTitle3)
+                    .fontWeight(.medium)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+
+                Spacer()
+
+                if shiftMinutes != 0 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "moon.zzz.fill")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Color.tempoElectric)
+                        Text(shiftLabel(minutes: shiftMinutes))
+                            .font(.tempoCaption1)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.tempoElectric)
+                    }
+                    .padding(.horizontal, TempoSpacing.sm)
+                    .padding(.vertical, 4)
+                    .background(Color.tempoElectric.opacity(0.12))
+                    .clipShape(Capsule())
+                    .accessibilityLabel("Meals shifted \(abs(shiftMinutes)) minutes \(shiftMinutes > 0 ? "later" : "earlier") due to wake time")
+                }
+            }
+            .padding(.top, TempoSpacing.md)
+        }
+    }
+
+    private func shiftLabel(minutes: Int) -> String {
+        let sign = minutes > 0 ? "+" : "−"
+        let absMin = abs(minutes)
+        if absMin < 60 {
+            return "\(sign)\(absMin)m"
+        }
+        let h = absMin / 60
+        let m = absMin % 60
+        return m == 0 ? "\(sign)\(h)h" : "\(sign)\(h)h \(m)m"
+    }
+
     // MARK: - Meals Section
 
-    // Per MODULE_DASHBOARD.md Section 4.3 — Meals Section
+    // Per MODULE_DASHBOARD.md Section 4.3 — Meals Section.
+    // Renders today's `PlannedMeal`s with post-shift times and EventKit
+    // "portable only" conflict badges. Tapping a row routes to
+    // `MealDetailView` for the full recipe + prep flow.
 
     private var mealsSection: some View {
         VStack(spacing: 0) {
-            Text("MEALS")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.bottom, TempoSpacing.md)
-
-            ForEach(Array(meals.enumerated()), id: \.element.id) { index, meal in
-                mealRow(meal)
-                if index < meals.count - 1 {
-                    Divider()
-                        .background(Color.tempoDivider)
+            HStack {
+                Text("MEALS")
+                    .font(.tempoModuleTag)
+                    .tracking(TempoTracking.drillLabel)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                Spacer()
+                if !mealRows.isEmpty {
+                    Text("\(mealRows.count) planned")
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoTextTertiary)
                 }
             }
+            .padding(.bottom, TempoSpacing.md)
 
-            // Log meal button
-            Button {} label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 14))
-                    Text("Log Meal")
-                        .font(.tempoCallout)
+            if mealRows.isEmpty {
+                emptyMealsRow
+            } else {
+                ForEach(Array(mealRows.enumerated()), id: \.element.id) { index, row in
+                    NavigationLink {
+                        MealDetailView(meal: row.meal)
+                    } label: {
+                        plannedMealRow(row)
+                    }
+                    .buttonStyle(.plain)
+
+                    if index < mealRows.count - 1 {
+                        Divider()
+                            .background(Color.tempoDivider)
+                    }
                 }
-                .foregroundStyle(Color.tempoTextInverse)
-                .frame(maxWidth: .infinity)
-                .frame(height: 44)
-                .background(Color.tempoSignal)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
             }
-            .padding(.top, TempoSpacing.md)
         }
         .padding(TempoSpacing.buttonPaddingV)
         .background(Color.tempoSurfaceCard)
@@ -276,28 +313,95 @@ struct FuelQuadrantDetailView: View {
         .tempoShadow(.card)
     }
 
-    private func mealRow(_ meal: MealDisplayItem) -> some View {
+    private var emptyMealsRow: some View {
         HStack(spacing: TempoSpacing.md) {
-            Image(systemName: meal.statusIcon)
+            Image(systemName: "calendar.badge.exclamationmark")
                 .font(.system(size: 16))
-                .foregroundStyle(meal.statusColor)
+                .foregroundStyle(Color.tempoTextTertiary)
+            Text("No meals planned for today.")
+                .font(.tempoBody)
+                .foregroundStyle(Color.tempoTextSecondary)
+            Spacer()
+        }
+        .frame(height: 48)
+    }
+
+    private func plannedMealRow(_ row: FuelMealRow) -> some View {
+        HStack(spacing: TempoSpacing.md) {
+            Image(systemName: statusIcon(for: row.meal.status))
+                .font(.system(size: 16))
+                .foregroundStyle(statusColor(for: row.meal.status))
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(meal.name)
+                Text(row.meal.mealName)
                     .font(.tempoBody)
                     .foregroundStyle(Color.tempoTextPrimary)
-                Text(meal.time)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .lineLimit(1)
+
+                HStack(spacing: 6) {
+                    Text(TempoDateFormatters.timeOnly.string(from: row.displayedTime))
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                        .monospacedDigit()
+
+                    if row.shiftMinutes != 0 {
+                        Text("(was \(TempoDateFormatters.timeOnly.string(from: row.originalTime)))")
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                    }
+                }
+
+                if row.isPortableOnly {
+                    portableOnlyBadge(eventTitle: row.conflictingEventTitle)
+                }
             }
 
             Spacer()
 
-            Text(meal.calories.map { "\($0) kcal" } ?? "--")
-                .font(.tempoCallout)
-                .foregroundStyle(Color.tempoTextPrimary)
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(row.meal.totalCalories > 0 ? "\(Int(row.meal.totalCalories)) kcal" : "—")
+                    .font(.tempoCallout)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                    .monospacedDigit()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Color.tempoTextTertiary)
+            }
         }
-        .frame(height: 48)
+        .frame(minHeight: 56)
+        .contentShape(Rectangle())
+    }
+
+    private func portableOnlyBadge(eventTitle: String?) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: "takeoutbag.and.cup.and.straw.fill")
+                .font(.system(size: 9, weight: .semibold))
+            Text(eventTitle.map { "Portable only · \($0)" } ?? "Portable only")
+                .font(.system(size: 10, weight: .bold))
+                .tracking(0.4)
+                .lineLimit(1)
+        }
+        .foregroundStyle(Color.tempoAmber)
+        .padding(.horizontal, TempoSpacing.sm)
+        .padding(.vertical, 3)
+        .background(Color.tempoAmber.opacity(0.15))
+        .clipShape(Capsule())
+    }
+
+    private func statusIcon(for status: MealStatus) -> String {
+        switch status {
+        case .eaten: "checkmark.circle.fill"
+        case .skipped: "xmark.circle.fill"
+        default: "circle"
+        }
+    }
+
+    private func statusColor(for status: MealStatus) -> Color {
+        switch status {
+        case .eaten: .tempoSuccess
+        case .skipped: .tempoError
+        default: .tempoTextTertiary
+        }
     }
 
     // MARK: - Calorie Trend Chart
@@ -375,6 +479,7 @@ struct FuelQuadrantDetailView: View {
                     .foregroundStyle(Color.tempoSuccess) // >= 80% = green
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(TempoSpacing.buttonPaddingV)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
@@ -415,40 +520,6 @@ struct FuelQuadrantDetailView: View {
         }
         return Int(round(Double(grams * calPerGram) / Double(totalCal) * 100))
     }
-}
-
-// MARK: - MealDisplayItem
-
-struct MealDisplayItem: Identifiable {
-    let id = UUID()
-    let name: String
-    let time: String
-    let calories: Int?
-    let status: MealDisplayStatus
-
-    var statusIcon: String {
-        switch status {
-        case .logged: "checkmark.circle.fill"
-        case .planned: "circle"
-        case .skipped: "xmark.circle.fill"
-        }
-    }
-
-    var statusColor: Color {
-        switch status {
-        case .logged: .tempoSuccess
-        case .planned: .tempoTextTertiary
-        case .skipped: .tempoError
-        }
-    }
-}
-
-// MARK: - MealDisplayStatus
-
-enum MealDisplayStatus {
-    case logged
-    case planned
-    case skipped
 }
 
 // MARK: - CalorieTrendPoint

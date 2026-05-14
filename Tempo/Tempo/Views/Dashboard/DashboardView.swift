@@ -300,39 +300,56 @@ struct DashboardView: View {
                     .minimumScaleFactor(0.85)
                     .fixedSize(horizontal: false, vertical: true)
 
-                HStack(spacing: 6) {
-                    Text(vm.formattedDate.uppercased())
-                        .font(.tempoCaption1)
-                        .fontWeight(.medium)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                        .tracking(0.5)
+                // Wrapped in TimelineView so the date/time/last-sync line stays
+                // current without a manual refresh. `vm.formattedDate`,
+                // `vm.formattedTimeNow`, and `vm.formattedLastSync` all
+                // re-evaluate `Date()` on each access; TimelineView pings
+                // SwiftUI once a minute so those getters get re-read.
+                TimelineView(.everyMinute) { _ in
+                    HStack(spacing: 6) {
+                        Text(vm.formattedDate.uppercased())
+                            .font(.tempoCaption1)
+                            .fontWeight(.medium)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                            .tracking(0.5)
 
-                    // Weather indicator
-                    if let weather = vm.weather {
                         Text("\u{00B7}")
                             .font(.tempoCaption1)
                             .fontWeight(.medium)
                             .foregroundStyle(Color.tempoTextTertiary)
-                        HStack(spacing: 3) {
-                            Image(systemName: weather.conditionSymbol)
-                                .font(.system(size: 10))
-                                .foregroundStyle(Color.tempoTextSecondary)
-                            Text(weather.formattedTemperature)
+
+                        Text(vm.formattedTimeNow)
+                            .font(.tempoCaption1)
+                            .fontWeight(.medium)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                            .monospacedDigit()
+
+                        if let weather = vm.weather {
+                            Text("\u{00B7}")
+                                .font(.tempoCaption1)
+                                .fontWeight(.medium)
+                                .foregroundStyle(Color.tempoTextTertiary)
+                            HStack(spacing: 3) {
+                                Image(systemName: weather.conditionSymbol)
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(Color.tempoTextSecondary)
+                                Text(weather.formattedTemperature)
+                                    .font(.tempoCaption2)
+                                    .fontWeight(.medium)
+                                    .foregroundStyle(Color.tempoTextSecondary)
+                            }
+                        }
+
+                        if !vm.formattedLastSync.isEmpty {
+                            Text("\u{00B7}")
+                                .font(.tempoCaption1)
+                                .fontWeight(.medium)
+                                .foregroundStyle(Color.tempoTextTertiary)
+                            Text(vm.formattedLastSync)
                                 .font(.tempoCaption2)
                                 .fontWeight(.medium)
-                                .foregroundStyle(Color.tempoTextSecondary)
+                                .foregroundStyle(Color.tempoTextTertiary)
                         }
-                    }
-
-                    if !vm.formattedLastSync.isEmpty {
-                        Text("\u{00B7}")
-                            .font(.tempoCaption1)
-                            .fontWeight(.medium)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                        Text(vm.formattedLastSync)
-                            .font(.tempoCaption2)
-                            .fontWeight(.medium)
-                            .foregroundStyle(Color.tempoTextTertiary)
                     }
                 }
             }
@@ -386,17 +403,19 @@ struct DashboardView: View {
             }
             .buttonStyle(.plain)
 
-            // Fuel tile routes to MealDetailView when a next meal exists;
-            // otherwise falls back to the macro-summary view as before.
-            if let nextMeal = vm.fuel.nextMeal {
-                NavigationLink(destination: MealDetailView(meal: nextMeal)) {
-                    fuelCard(vm.fuel)
-                }
-                .buttonStyle(.plain)
-            } else {
-                NavigationLink(destination: DailyNutritionSummaryView(fuelData: vm.fuel, onAddHydration: { ml in
-                    vm.addHydration(ml)
-                })) {
+            // Fuel tile is context-aware:
+            //   - within the next meal's prep window (prepStart−30min through
+            //     eatFinish) → go straight to its recipe so the user can start
+            //     cooking immediately.
+            //   - otherwise, with a plan → day-list overview with conflict
+            //     badges and shifted times.
+            //   - no plan at all → macro-summary entry point.
+            // TimelineView ticks once a minute so the destination updates as
+            // the user crosses the prep-window boundary.
+            TimelineView(.everyMinute) { context in
+                NavigationLink {
+                    fuelDestination(vm: vm, now: context.date)
+                } label: {
                     fuelCard(vm.fuel)
                 }
                 .buttonStyle(.plain)
@@ -449,6 +468,23 @@ struct DashboardView: View {
     }
 
     // MARK: - Fuel Card
+
+    /// Chooses the Fuel-tile destination based on whether the next meal is
+    /// imminent (within its prep window). See `MealScheduleHelpers.isImminent`.
+    @ViewBuilder
+    private func fuelDestination(vm: DashboardViewModel, now: Date) -> some View {
+        if let nextMeal = vm.fuel.nextMeal {
+            if MealScheduleHelpers.isImminent(meal: nextMeal, now: now) {
+                MealDetailView(meal: nextMeal)
+            } else {
+                FuelQuadrantDetailContainer(fuelData: vm.fuel)
+            }
+        } else {
+            DailyNutritionSummaryView(fuelData: vm.fuel, onAddHydration: { ml in
+                vm.addHydration(ml)
+            })
+        }
+    }
 
     private func fuelCard(_ data: FuelQuadrantData) -> some View {
         cardShell(label: "FUEL") {
