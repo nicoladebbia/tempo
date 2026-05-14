@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import os
 import SwiftData
 import SwiftUI
 
@@ -54,6 +55,54 @@ struct PantryGapAlert: Identifiable, Equatable {
 @Observable
 @MainActor
 final class NutritionTabViewModel {
+    // MARK: - Phase 7 (pantry/grocery/recipe/receipt) — stored directly so
+    // the lifetimes match `self`. Previously these lived in a static
+    // `ObjectIdentifier`-keyed dictionary which leaked the state objects
+    // and their services for every ViewModel instance.
+
+    let pantryState = NutritionPantryState()
+    let receiptState = NutritionReceiptState()
+    let recipeState = NutritionRecipeState()
+    let groceryState = NutritionGroceryState()
+
+    var pantryService: (any PantryServiceProtocol)?
+    var receiptService: (any ReceiptServiceProtocol)?
+    var recipeService: (any RecipeServiceProtocol)?
+    var groceryService: (any GroceryListServiceProtocol)?
+    var intelligence: NutritionIntelligenceService?
+
+    // MARK: - Service instances
+
+    /// Held as stored properties so tests can replace them (and so each
+    /// call doesn't construct a fresh service object with its own logger
+    /// and URLSession underneath). `@ObservationIgnored` is required
+    /// because @Observable rejects `lazy`; these aren't view-bindable.
+    @ObservationIgnored
+    /// Lazily constructed on first use because we need an APIClient (passed
+    /// from the View layer) to proxy Claude calls through the backend.
+    /// Per INTELLIGENCE_REMEDIATION_PLAN.md §3.
+    private var coachService: NutritionCoachService?
+    @ObservationIgnored
+    /// Lazily constructed on first use because we need an APIClient (passed
+    /// from the View layer) to proxy Claude calls through the backend.
+    /// Per INTELLIGENCE_REMEDIATION_PLAN.md §3.
+    private var redistributionService: MealRedistributionService?
+
+    // MARK: - Task lifecycle
+
+    /// Stored handles for in-flight async work. Replacing a task cancels the
+    /// prior one so a fast tab-switch or retry doesn't race two writes onto
+    /// the same @Observable state.
+    private var planGenerationTask: Task<Void, Never>?
+    private var mealSuggestionsTask: Task<Void, Never>?
+    private var recoveryLoadTask: Task<Void, Never>?
+
+    // No deinit cancel: @MainActor properties can't be touched from a
+    // nonisolated deinit. Replacement-cancel inside each launch site
+    // covers the practical re-entry case (tab switch / refresh); the
+    // remaining edge case (deallocation while a task is in flight) is
+    // bounded by the [weak self] capture inside each Task.
+
     // MARK: - State
 
     private(set) var loadState: NutritionLoadState = .loading
@@ -62,6 +111,10 @@ final class NutritionTabViewModel {
     // MARK: - Data
 
     private(set) var todayMeals: [PlannedMeal] = []
+    /// Maps `PlannedMeal.id` → true when at least one `MealFeedback` row
+    /// exists for it. Drives the "review pending" badge on past meal cards
+    /// and the inline edit affordance in the end-of-week review screen.
+    private(set) var feedbackPresence: [UUID: Bool] = [:]
     private(set) var weeklyPlan: WeeklyMealPlan?
     private(set) var presets: [MealPreset] = []
     private(set) var dietaryProfile: DietaryProfile?
@@ -237,6 +290,7 @@ final class NutritionTabViewModel {
                 sortBy: [SortDescriptor(\.mealNumber)]
             )
             todayMeals = try modelContext.fetch(mealDescriptor)
+            refreshFeedbackPresence(modelContext: modelContext)
 
             // Fetch active WeeklyMealPlan
             let planDescriptor = FetchDescriptor<WeeklyMealPlan>(
@@ -273,16 +327,96 @@ final class NutritionTabViewModel {
 
     func markMealEaten(
         _ meal: PlannedMeal,
+        at eatenAt: Date = Date(),
         modelContext: ModelContext,
         notifications: (any NotificationServiceProtocol)? = nil
     ) {
         let mealID = meal.id
         meal.status = .eaten
+        meal.actualEatenAt = eatenAt
+
+        // Shift any subsequent planned meals to maintain their original
+        // gaps. Pure function — see `MealShiftPlanner` for the math and the
+        // bedtime-cap compression rule.
+        applyMealShift(
+            eatenMealID: mealID,
+            actualEatTime: eatenAt,
+            modelContext: modelContext,
+            notifications: notifications
+        )
+
         try? modelContext.save()
         HapticManager.notification(.success)
         notifications?.cancelDefrostReminders(forMealID: mealID)
         notifications?.cancelPrepStartReminder(forMealID: mealID)
+        notifications?.cancelOverdueMealReminder(forMealID: mealID)
         refreshTodayMeals(modelContext: modelContext)
+    }
+
+    /// Recompute and persist shifted scheduled times for the remaining meals
+    /// of the day, then reschedule prep-start / defrost / meal-reminder
+    /// notifications for the shifted meals so the user gets accurate pings.
+    private func applyMealShift(
+        eatenMealID: UUID,
+        actualEatTime: Date,
+        modelContext: ModelContext,
+        notifications: (any NotificationServiceProtocol)?
+    ) {
+        let results = MealShiftPlanner.computeShift(
+            todaysMeals: todayMeals,
+            eatenMealID: eatenMealID,
+            actualEatTime: actualEatTime
+        )
+        guard !results.isEmpty else {
+            return
+        }
+
+        // Apply new scheduledTime and reschedule notifications for each shifted meal.
+        let resultsByID = Dictionary(uniqueKeysWithValues: results.map { ($0.mealID, $0) })
+        for meal in todayMeals {
+            guard let r = resultsByID[meal.id] else {
+                continue
+            }
+            meal.scheduledTime = r.newScheduledTime
+
+            // Reschedule the per-meal reminder at the new time. Defrost,
+            // prep-start, and overdue reminders are all tied to the meal
+            // time; cancel + reschedule.
+            notifications?.cancelDefrostReminders(forMealID: meal.id)
+            notifications?.cancelPrepStartReminder(forMealID: meal.id)
+            notifications?.cancelOverdueMealReminder(forMealID: meal.id)
+
+            if r.newScheduledDate > Date() {
+                notifications?.scheduleMealReminder(
+                    mealName: meal.mealName,
+                    time: r.newScheduledDate.addingTimeInterval(-5 * 60)
+                )
+                notifications?.scheduleOverdueMealReminder(
+                    mealID: meal.id,
+                    mealName: meal.mealName,
+                    scheduledTime: r.newScheduledDate,
+                    lateMinutes: 15
+                )
+                // Prep-start reminder uses the new meal time minus recipe lead.
+                let prep = meal.recipe?.prepMinutes ?? 0
+                let cook = meal.recipe?.cookMinutes ?? 0
+                let leadMinutes = prep + cook
+                if leadMinutes > 0,
+                   let prepStart = Calendar.current.date(
+                       byAdding: .minute,
+                       value: -leadMinutes,
+                       to: r.newScheduledDate
+                   ),
+                   prepStart > Date()
+                {
+                    notifications?.schedulePrepStartReminder(
+                        mealID: meal.id,
+                        mealName: meal.mealName,
+                        prepStartDate: prepStart
+                    )
+                }
+            }
+        }
     }
 
     func markMealSkipped(
@@ -296,7 +430,69 @@ final class NutritionTabViewModel {
         HapticManager.lightImpact()
         notifications?.cancelDefrostReminders(forMealID: mealID)
         notifications?.cancelPrepStartReminder(forMealID: mealID)
+        notifications?.cancelOverdueMealReminder(forMealID: mealID)
         refreshTodayMeals(modelContext: modelContext)
+    }
+
+    // MARK: - Skip Redistribution (AI)
+
+    /// Banner copy surfaced after a successful AI redistribution. Cleared
+    /// by the view when dismissed. One sentence summarising the model's
+    /// reasoning ("snack +200 kcal, dinner +150g protein — recovery is
+    /// green, dinner alone can't absorb it").
+    var lastRedistributionBanner: String?
+
+    /// True while the redistribution call is in-flight. View shows a small
+    /// spinner on the skipped card.
+    var isRedistributing: Bool = false
+
+    /// Run the AI redistribution for a just-skipped meal. Applies the
+    /// per-meal additive deltas to the remaining `PlannedMeal`s in
+    /// `todayMeals`, saves, and surfaces the model's reasoning via
+    /// `lastRedistributionBanner`. Falls back to a deterministic
+    /// proportional split when Claude is unreachable.
+    func redistributeSkippedMacros(
+        _ skipped: PlannedMeal,
+        modelContext: ModelContext,
+        apiClient: APIClient,
+        recoveryScore: Double?,
+        sleepHours: Double?,
+        strain: Double?,
+        dayType: String
+    ) async {
+        isRedistributing = true
+        defer { isRedistributing = false }
+
+        if redistributionService == nil {
+            redistributionService = MealRedistributionService(apiClient: apiClient)
+        }
+        guard let redistribution = redistributionService else { return }
+
+        let remaining = todayMeals.filter { $0.id != skipped.id }
+        let result = await redistribution.redistribute(
+            skipped: skipped,
+            remaining: remaining,
+            recoveryScore: recoveryScore,
+            sleepHours: sleepHours,
+            strain: strain,
+            dayType: dayType
+        )
+
+        // Apply per-meal additive deltas.
+        let byNumber = Dictionary(uniqueKeysWithValues: result.perMeal.map { ($0.mealNumber, $0) })
+        for meal in todayMeals where meal.status == .planned {
+            guard let delta = byNumber[meal.mealNumber] else { continue }
+            meal.totalCalories += delta.addCalories
+            meal.totalProtein += delta.addProtein
+            meal.totalCarbs += delta.addCarbs
+            meal.totalFat += delta.addFat
+        }
+        try? modelContext.save()
+        refreshTodayMeals(modelContext: modelContext)
+
+        let sourceTag = result.source == .ai ? "Coach" : "Fallback"
+        lastRedistributionBanner = "\(sourceTag): \(result.reasoning)"
+        HapticManager.notification(.success)
     }
 
     // MARK: - Presets
@@ -373,6 +569,7 @@ final class NutritionTabViewModel {
     func generatePlan(
         modelContext: ModelContext,
         whoop: any WhoopServiceProtocol,
+        apiClient: APIClient,
         notifications: (any NotificationServiceProtocol)? = nil,
         intake: MealPlanIntake? = nil
     ) {
@@ -384,9 +581,13 @@ final class NutritionTabViewModel {
         planGenerationError = nil
         HapticManager.lightImpact()
 
-        Task {
+        planGenerationTask?.cancel()
+        planGenerationTask = Task {
             do {
-                let generator = MealPlanGeneratorService()
+                // Per INTELLIGENCE_REMEDIATION_PLAN.md §3 — Claude calls proxy
+                // through the backend; the generator needs the auth-attaching
+                // APIClient instead of the deleted ClaudeAPIClient.
+                let generator = MealPlanGeneratorService(apiClient: apiClient)
 
                 // Fetch Whoop TDEE if available
                 var whoopTDEE: Double?
@@ -474,6 +675,7 @@ final class NutritionTabViewModel {
     ) {
         notifications.cancelCategory("DEFROST_REMINDER")
         notifications.cancelCategory("PREP_START_REMINDER")
+        notifications.cancelCategory("OVERDUE_MEAL_REMINDER")
         let calendar = Calendar.current
         let now = Date()
         for meal in plan.meals ?? [] {
@@ -486,6 +688,17 @@ final class NutritionTabViewModel {
                     mealID: meal.id,
                     mealName: meal.mealName,
                     prepStartDate: prepStart
+                )
+            }
+
+            // Overdue check-in — fires 15min past mealTime if the meal is still
+            // unmarked. Cancelled by markMealEaten/markMealSkipped.
+            if mealTime > now {
+                notifications.scheduleOverdueMealReminder(
+                    mealID: meal.id,
+                    mealName: meal.mealName,
+                    scheduledTime: mealTime,
+                    lateMinutes: 15
                 )
             }
 
@@ -548,10 +761,14 @@ final class NutritionTabViewModel {
 
     // MARK: - Meal Suggestions
 
-    func getMealSuggestions() {
+    func getMealSuggestions(apiClient: APIClient) {
         isLoadingMealSuggestions = true
         mealSuggestionError = nil
         HapticManager.lightImpact()
+
+        if coachService == nil {
+            coachService = NutritionCoachService(apiClient: apiClient)
+        }
 
         let remainingCal = Double(max(0, todayCalorieTarget - todayCaloriesConsumed))
         let remainingProtein = Double(max(0, todayProteinTarget - todayProteinConsumed))
@@ -583,10 +800,15 @@ final class NutritionTabViewModel {
         // Determine if training day based on today's plan meals count
         let isTrainingDay = !todayMeals.isEmpty
 
-        Task {
+        mealSuggestionsTask?.cancel()
+        guard let coach = coachService else {
+            isLoadingMealSuggestions = false
+            mealSuggestionError = "Coach unavailable"
+            return
+        }
+        mealSuggestionsTask = Task { [coach] in
             do {
-                let coachService = NutritionCoachService()
-                let suggestions = try await coachService.mealSuggestions(
+                let suggestions = try await coach.mealSuggestions(
                     remainingBudget: budget,
                     timeOfDay: timeOfDay,
                     isTrainingDay: isTrainingDay
@@ -639,19 +861,30 @@ final class NutritionTabViewModel {
     func loadRecoveryData(whoop: any WhoopServiceProtocol) {
         isLoadingRecovery = true
 
-        Task {
+        recoveryLoadTask?.cancel()
+        recoveryLoadTask = Task {
+            // Fetch recovery and sleep independently so a sleep failure
+            // doesn't blank the recovery quadrant. Errors on either path
+            // are logged rather than silently mapped to nil.
             do {
-                let recovery = try await whoop.fetchRecovery(for: Date())
-                todayRecovery = recovery
-
-                let sleep = try? await whoop.fetchSleep(for: Date())
-                todaySleep = sleep
-
+                todayRecovery = try await whoop.fetchRecovery(for: Date())
+            } catch is CancellationError {
                 isLoadingRecovery = false
+                return
             } catch {
-                // Whoop not connected or no data — silent failure
-                isLoadingRecovery = false
+                Logger.nutrition.warning("Whoop recovery fetch failed: \(error.localizedDescription, privacy: .public)")
+                todayRecovery = nil
             }
+            do {
+                todaySleep = try await whoop.fetchSleep(for: Date())
+            } catch is CancellationError {
+                isLoadingRecovery = false
+                return
+            } catch {
+                Logger.nutrition.warning("Whoop sleep fetch failed: \(error.localizedDescription, privacy: .public)")
+                todaySleep = nil
+            }
+            isLoadingRecovery = false
         }
     }
 
@@ -687,9 +920,35 @@ final class NutritionTabViewModel {
                 sortBy: [SortDescriptor(\.mealNumber)]
             )
             todayMeals = try modelContext.fetch(descriptor)
+            refreshFeedbackPresence(modelContext: modelContext)
         } catch {
             // Silent refresh failure
         }
+    }
+
+    /// Rebuild `feedbackPresence` against the current `todayMeals`. Cheap
+    /// (one fetch + dictionary build) and called from both `loadToday` and
+    /// `refreshTodayMeals` so the UI always reflects the latest review
+    /// state. Internal because the feedback sheet calls it via its
+    /// onDismiss to clear the "review pending" badge immediately.
+    func refreshFeedbackPresence(modelContext: ModelContext) {
+        let mealIDs = Set(todayMeals.map(\.id))
+        guard !mealIDs.isEmpty else {
+            feedbackPresence = [:]
+            return
+        }
+        // Predicate body can only hold a single expression and can't unwrap
+        // optionals inline. Fetching all rows and filtering in-memory is
+        // fine here — feedback volume is bounded by meals-per-week.
+        let descriptor = FetchDescriptor<MealFeedback>()
+        let rows = (try? modelContext.fetch(descriptor)) ?? []
+        var presence: [UUID: Bool] = [:]
+        for row in rows {
+            if let pid = row.plannedMeal?.id, mealIDs.contains(pid) {
+                presence[pid] = true
+            }
+        }
+        feedbackPresence = presence
     }
 
     // MARK: - Test Hooks (Phase 4)

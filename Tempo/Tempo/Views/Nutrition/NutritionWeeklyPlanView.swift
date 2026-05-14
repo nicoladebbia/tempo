@@ -37,6 +37,12 @@ struct NutritionWeeklyPlanView: View {
     private let calendar = Calendar.current
     private let weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
+    private static let rangeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MMM d"
+        return f
+    }()
+
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: TempoSpacing.lg) {
@@ -110,6 +116,7 @@ struct NutritionWeeklyPlanView: View {
                     viewModel.generatePlan(
                         modelContext: modelContext,
                         whoop: services.whoop,
+                        apiClient: services.apiClient,
                         notifications: services.notifications,
                         intake: intake
                     )
@@ -147,13 +154,7 @@ struct NutritionWeeklyPlanView: View {
                     .clipShape(Capsule())
             }
 
-            let dateFormatter: DateFormatter = {
-                let f = DateFormatter()
-                f.dateFormat = "MMM d"
-                return f
-            }()
-
-            Text("\(dateFormatter.string(from: plan.startDate)) - \(dateFormatter.string(from: plan.endDate))")
+            Text("\(Self.rangeFormatter.string(from: plan.startDate)) - \(Self.rangeFormatter.string(from: plan.endDate))")
                 .font(.tempoBody)
                 .foregroundStyle(Color.tempoTextPrimary)
 

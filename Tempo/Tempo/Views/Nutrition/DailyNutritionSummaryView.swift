@@ -609,7 +609,7 @@ struct DailyNutritionSummaryView: View {
                     .tracking(TempoTracking.drillLabel)
                     .foregroundStyle(Color.tempoTextSecondary)
 
-                ForEach(Array(suggestions.prefix(3).enumerated()), id: \.offset) { _, suggestion in
+                ForEach(Array(suggestions.prefix(3).enumerated()), id: \.element.text) { _, suggestion in
                     HStack(alignment: .top, spacing: TempoSpacing.sm) {
                         Image(systemName: suggestion.icon)
                             .font(.system(size: 13))

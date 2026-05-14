@@ -138,7 +138,16 @@ extension NutritionTabViewModel {
         guard let service = pantryService else {
             return
         }
-        try? service.archive(item)
+        do {
+            try service.archive(item)
+            // Don't clear loadError here — archive ≠ fetch; if a prior load
+            // failed, hiding that during a successful archive masks the
+            // root cause. reloadPantry() below will overwrite either way.
+        } catch {
+            // Surface via the load error channel since it's the existing
+            // user-visible field; renaming the field is a follow-up.
+            pantryState.loadError = "Couldn't archive item: \(error.localizedDescription)"
+        }
         reloadPantry()
     }
 
@@ -245,7 +254,12 @@ extension NutritionTabViewModel {
         guard let service = groceryService else {
             return
         }
-        try? service.toggleChecked(item)
+        do {
+            try service.toggleChecked(item)
+            groceryState.lastError = nil
+        } catch {
+            groceryState.lastError = error.localizedDescription
+        }
     }
 
     func exportGroceryListToReminders() async {
@@ -298,95 +312,6 @@ extension NutritionTabViewModel {
     }
 }
 
-// MARK: - Storage hooks on the base class
-
-extension NutritionTabViewModel {
-    /// Backing store for the four Phase 7 state objects. Stored as associated
-    /// objects via Storage keyed by ObjectIdentifier so the base class file
-    /// stays untouched.
-    private enum Phase7Storage {
-        @MainActor
-        static var pantryState: [ObjectIdentifier: NutritionPantryState] = [:]
-        @MainActor
-        static var receiptState: [ObjectIdentifier: NutritionReceiptState] = [:]
-        @MainActor
-        static var recipeState: [ObjectIdentifier: NutritionRecipeState] = [:]
-        @MainActor
-        static var groceryState: [ObjectIdentifier: NutritionGroceryState] = [:]
-        @MainActor
-        static var pantryService: [ObjectIdentifier: any PantryServiceProtocol] = [:]
-        @MainActor
-        static var receiptService: [ObjectIdentifier: any ReceiptServiceProtocol] = [:]
-        @MainActor
-        static var recipeService: [ObjectIdentifier: any RecipeServiceProtocol] = [:]
-        @MainActor
-        static var groceryService: [ObjectIdentifier: any GroceryListServiceProtocol] = [:]
-        @MainActor
-        static var intelligence: [ObjectIdentifier: NutritionIntelligenceService] = [:]
-    }
-
-    var pantryState: NutritionPantryState {
-        let key = ObjectIdentifier(self)
-        if let existing = Phase7Storage.pantryState[key] {
-            return existing
-        }
-        let new = NutritionPantryState()
-        Phase7Storage.pantryState[key] = new
-        return new
-    }
-
-    var receiptState: NutritionReceiptState {
-        let key = ObjectIdentifier(self)
-        if let existing = Phase7Storage.receiptState[key] {
-            return existing
-        }
-        let new = NutritionReceiptState()
-        Phase7Storage.receiptState[key] = new
-        return new
-    }
-
-    var recipeState: NutritionRecipeState {
-        let key = ObjectIdentifier(self)
-        if let existing = Phase7Storage.recipeState[key] {
-            return existing
-        }
-        let new = NutritionRecipeState()
-        Phase7Storage.recipeState[key] = new
-        return new
-    }
-
-    var groceryState: NutritionGroceryState {
-        let key = ObjectIdentifier(self)
-        if let existing = Phase7Storage.groceryState[key] {
-            return existing
-        }
-        let new = NutritionGroceryState()
-        Phase7Storage.groceryState[key] = new
-        return new
-    }
-
-    var pantryService: (any PantryServiceProtocol)? {
-        get { Phase7Storage.pantryService[ObjectIdentifier(self)] }
-        set { Phase7Storage.pantryService[ObjectIdentifier(self)] = newValue }
-    }
-
-    var receiptService: (any ReceiptServiceProtocol)? {
-        get { Phase7Storage.receiptService[ObjectIdentifier(self)] }
-        set { Phase7Storage.receiptService[ObjectIdentifier(self)] = newValue }
-    }
-
-    var recipeService: (any RecipeServiceProtocol)? {
-        get { Phase7Storage.recipeService[ObjectIdentifier(self)] }
-        set { Phase7Storage.recipeService[ObjectIdentifier(self)] = newValue }
-    }
-
-    var groceryService: (any GroceryListServiceProtocol)? {
-        get { Phase7Storage.groceryService[ObjectIdentifier(self)] }
-        set { Phase7Storage.groceryService[ObjectIdentifier(self)] = newValue }
-    }
-
-    var intelligence: NutritionIntelligenceService? {
-        get { Phase7Storage.intelligence[ObjectIdentifier(self)] }
-        set { Phase7Storage.intelligence[ObjectIdentifier(self)] = newValue }
-    }
-}
+// Storage hooks removed: Phase 7 state/services are now stored directly on
+// the base class so they share the ViewModel's lifetime. The previous
+// `ObjectIdentifier`-keyed static dictionaries leaked every instance forever.

@@ -69,6 +69,7 @@ struct NutritionTabView: View {
                         viewModel.generatePlan(
                             modelContext: modelContext,
                             whoop: services.whoop,
+                            apiClient: services.apiClient,
                             notifications: services.notifications
                         )
                     }
@@ -161,6 +162,16 @@ struct NutritionTabView: View {
                 GroceryListView(viewModel: viewModel)
             } label: {
                 Label("Grocery", systemImage: "cart.fill")
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(Color.tempoSurfaceCard)
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            NavigationLink {
+                WeeklyMealReviewView()
+            } label: {
+                Label("Review", systemImage: "text.bubble.fill")
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
                     .background(Color.tempoSurfaceCard)
