@@ -17,11 +17,9 @@ actor InsightService {
     private var sonnetCircuitBreaker = CircuitBreaker()
     private var opusCircuitBreaker = CircuitBreaker()
 
-    // MARK: - Budget Tracking
-    // Per AI_INTELLIGENCE_ENGINE.md Section 5 — Monthly budget in cents.
-
-    private var currentMonthSpendCents: Int = 0
-    private var currentMonth: Int = 0
+    // Budget tracking now lives in `AIBudgetTracker.shared` — a Postgres-backed
+    // actor that survives restarts and is shared across replicas. Per
+    // INTELLIGENCE_REMEDIATION_PLAN.md §5.
 
     // MARK: - Public API
 
@@ -37,7 +35,9 @@ actor InsightService {
             return generateFallbackWeeklyReport(weekData)
         }
 
-        guard !isBudgetExhausted else {
+        // Pre-flight budget gate. Per AI_INTELLIGENCE_ENGINE.md §5.4.
+        let estimate = AIBudgetEstimate.sonnet(maxTokens: 2_000, estimatedInputTokens: 4_000)
+        guard await AIBudgetTracker.shared.canMakeCall(estimatedCostCents: estimate, on: req) else {
             req.logger.warning("AI budget exhausted — using fallback for weekly report")
             return generateFallbackWeeklyReport(weekData)
         }
@@ -113,9 +113,18 @@ actor InsightService {
             return PatternDetectionResponse.fallback(totalDays: input.totalDays)
         }
 
-        guard !isBudgetExhausted else {
+        // Pattern detection is the most expensive feature (Opus). Use a
+        // tighter estimate so this is the FIRST thing the budget gate
+        // disables when funds run low.
+        let estimate = AIBudgetEstimate.opus(maxTokens: 1_500, estimatedInputTokens: 6_000)
+        guard await AIBudgetTracker.shared.canMakeCall(estimatedCostCents: estimate, on: req) else {
+            req.logger.warning("AI budget exhausted — using fallback for pattern detection")
             return PatternDetectionResponse.fallback(totalDays: input.totalDays)
         }
+
+        // Threshold ladder: at caution (80%+), downgrade Opus to Sonnet.
+        // Per AI_INTELLIGENCE_ENGINE.md §5.4 + §5.5 #8.
+        let throttle = await AIBudgetTracker.shared.currentThrottleLevel(on: req)
 
         guard input.totalDays >= 14 else {
             return PatternDetectionResponse(
@@ -134,14 +143,23 @@ actor InsightService {
         let systemPrompt = PatternDetectionPrompts.system
         let userPrompt = PatternDetectionPrompts.buildUserPrompt(from: input)
 
+        // Threshold ladder: at caution+ (80%+), downgrade Opus to Sonnet to
+        // cut cost by ~5x while preserving the feature. Per spec §5.5 #8.
+        let useDowngraded = throttle.rawValue >= AIBudgetTracker.ThrottleLevel.caution.rawValue
+        let chosenModel = useDowngraded ? AIConfig.sonnetModel : AIConfig.opusModel
+        let chosenTimeout = useDowngraded ? AIConfig.sonnetTimeout : AIConfig.opusTimeout
+        if useDowngraded {
+            req.logger.warning("Pattern detection: budget caution — downgrading Opus to Sonnet")
+        }
+
         do {
             let response = try await callClaude(
-                model: AIConfig.opusModel,
+                model: chosenModel,
                 systemPrompt: systemPrompt,
                 userPrompt: userPrompt,
                 temperature: 0.3,
                 maxTokens: 1500,
-                timeout: AIConfig.opusTimeout,
+                timeout: chosenTimeout,
                 on: req
             )
 
@@ -152,10 +170,10 @@ actor InsightService {
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase
             let result = try decoder.decode(PatternDetectionResponse.self, from: data)
-            recordSuccess(for: AIConfig.opusModel)
+            recordSuccess(for: chosenModel)
             return result
         } catch {
-            recordFailure(for: AIConfig.opusModel)
+            recordFailure(for: chosenModel)
             req.logger.error("Pattern detection failed: \(error) — using fallback")
             return PatternDetectionResponse.fallback(totalDays: input.totalDays)
         }
@@ -172,7 +190,10 @@ actor InsightService {
             return generateFallbackDrillSergeant(context)
         }
 
-        guard !isBudgetExhausted else {
+        // Pre-flight budget gate.
+        let estimate = AIBudgetEstimate.haiku(maxTokens: 200, estimatedInputTokens: 1_500)
+        guard await AIBudgetTracker.shared.canMakeCall(estimatedCostCents: estimate, on: req) else {
+            req.logger.warning("AI budget exhausted — using fallback for drill sergeant")
             return generateFallbackDrillSergeant(context)
         }
 
@@ -277,8 +298,9 @@ actor InsightService {
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         let apiResponse = try response.content.decode(ClaudeAPIRawResponse.self, using: decoder)
 
-        // Track token usage for budget
-        trackTokenUsage(
+        // Track token usage against the persistent monthly budget.
+        // Per AI_INTELLIGENCE_ENGINE.md §5.4 + INTELLIGENCE_REMEDIATION_PLAN.md §5.
+        await AIBudgetTracker.shared.recordSpend(
             model: model,
             inputTokens: apiResponse.usage.inputTokens,
             outputTokens: apiResponse.usage.outputTokens,
@@ -321,45 +343,8 @@ actor InsightService {
         return trimmed
     }
 
-    // MARK: - Token Usage & Budget
-    // Per AI_INTELLIGENCE_ENGINE.md Section 5 — Cost tracking.
-
-    private func trackTokenUsage(
-        model: String,
-        inputTokens: Int,
-        outputTokens: Int,
-        on req: Request
-    ) {
-        let calendar = Calendar.current
-        let month = calendar.component(.month, from: Date())
-        if month != currentMonth {
-            currentMonthSpendCents = 0
-            currentMonth = month
-        }
-
-        // Per AI_INTELLIGENCE_ENGINE.md Section 5.4 — Cost per model in microdollars
-        let costMicrodollars: Int
-        switch model {
-        case AIConfig.haikuModel:
-            costMicrodollars = inputTokens * 1 + outputTokens * 5
-        case AIConfig.sonnetModel:
-            costMicrodollars = inputTokens * 3 + outputTokens * 15
-        case AIConfig.opusModel:
-            costMicrodollars = inputTokens * 15 + outputTokens * 75
-        default:
-            costMicrodollars = 0
-        }
-
-        currentMonthSpendCents += max(1, costMicrodollars / 10_000)
-
-        req.logger.info(
-            "AI usage: model=\(model) in=\(inputTokens) out=\(outputTokens) cost_micro=\(costMicrodollars) budget=\(currentMonthSpendCents)/\(AIConfig.monthlyBudgetCents)c"
-        )
-    }
-
-    private var isBudgetExhausted: Bool {
-        currentMonthSpendCents >= AIConfig.monthlyBudgetCents
-    }
+    // Budget tracking moved to AIBudgetTracker.shared — see file header.
+    // Per INTELLIGENCE_REMEDIATION_PLAN.md §5.
 
     // MARK: - Circuit Breaker
     // Per AI_INTELLIGENCE_ENGINE.md Section 2.4 — Independent per-model breakers.
@@ -498,6 +483,43 @@ actor InsightService {
 
         return parts.joined(separator: " ")
     }
+
+    // MARK: - Exposed helpers for AIFeatureRunner
+    //
+    // Per INTELLIGENCE_REMEDIATION_PLAN.md §7. These let AIFeatureRunner
+    // share InsightService's circuit breaker and HTTP pipeline without
+    // duplicating them. They wrap private methods declared above.
+
+    func circuitBreakerState(for model: String) -> CircuitBreaker.State {
+        circuitBreaker(for: model).state
+    }
+
+    func callClaudeRaw(
+        model: String,
+        systemPrompt: String,
+        userPrompt: String,
+        temperature: Double,
+        maxTokens: Int,
+        timeout: TimeInterval,
+        on req: Request
+    ) async throws -> ClaudeAPIResponse {
+        do {
+            let response = try await callClaude(
+                model: model,
+                systemPrompt: systemPrompt,
+                userPrompt: userPrompt,
+                temperature: temperature,
+                maxTokens: maxTokens,
+                timeout: timeout,
+                on: req
+            )
+            recordSuccess(for: model)
+            return response
+        } catch {
+            recordFailure(for: model)
+            throw error
+        }
+    }
 }
 
 // MARK: - AI Configuration
@@ -508,7 +530,12 @@ struct AIConfig {
     static let sonnetModel = "claude-sonnet-4-6-20250514"
     static let opusModel = "claude-opus-4-6-20250901"
 
-    static let monthlyBudgetCents = 5000  // $50.00
+    /// Monthly Claude spend cap in cents. Default $50. Override at runtime via
+    /// CLAUDE_MONTHLY_BUDGET_CENTS env var (used by AIBudgetTracker pre-flight
+    /// gate). Per AI_INTELLIGENCE_ENGINE.md §5.4 + INTELLIGENCE_REMEDIATION_PLAN.md §5.
+    static var monthlyBudgetCents: Int {
+        Environment.get("CLAUDE_MONTHLY_BUDGET_CENTS").flatMap(Int.init) ?? 5000
+    }
     static let dailyPerUserLimit = 12
     static let weeklyReportLimit = 3
     static let patternAnalysisLimit = 2

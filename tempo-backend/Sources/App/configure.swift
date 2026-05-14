@@ -66,6 +66,22 @@ func configure(_ app: Application) async throws {
     try app.queues.use(.redis(url: redisURL))
 
     // ─────────────────────────────────────────────────
+    // 4.5. JWT signers
+    // Per ADR-008 + INTELLIGENCE_REMEDIATION_PLAN.md §4.
+    //
+    // Production should use ES256 with a P-256 private key (per
+    // VAPOR_PROJECT_STRUCTURE.md §8). For local dev we accept an HS256
+    // shared secret via JWT_SECRET so devs can boot without generating a
+    // P-256 keypair. Without this, every authenticated request 500s with
+    // "no JWT signers configured".
+    // ─────────────────────────────────────────────────
+    let jwtSecret = Environment.get("JWT_SECRET") ?? "tempo-dev-only-change-me"
+    if app.environment == .production, Environment.get("JWT_SECRET") == nil {
+        fatalError("JWT_SECRET must be set in production")
+    }
+    await app.jwt.keys.add(hmac: .init(stringLiteral: jwtSecret), digestAlgorithm: .sha256)
+
+    // ─────────────────────────────────────────────────
     // 5. APNs push notifications
     // Per BUILD_PLAN step 12.1 — P8 token-based authentication
     // Per ADR-019 — Direct APNs, no third-party push service
@@ -112,12 +128,17 @@ func configure(_ app: Application) async throws {
 
     // File serving and error handling
     app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
-    app.middleware.use(ErrorMiddleware.default(environment: app.environment))
+    // TempoErrorMiddleware preserves `Abort.identifier` as a `code` field so
+    // iOS can distinguish error kinds (e.g. subscription_required vs
+    // ai_consent_required) without parsing free-text reason strings.
+    // Per INTELLIGENCE_REMEDIATION_PLAN.md §4.
+    app.middleware.use(TempoErrorMiddleware(environment: app.environment))
 
     // ─────────────────────────────────────────────────
     // 7. Migrations (order matters: parent tables first)
     // ─────────────────────────────────────────────────
     app.migrations.add(CreateUsers())
+    app.migrations.add(AddAIConsentToUsers())
     app.migrations.add(CreateRefreshTokens())
     app.migrations.add(CreateWhoopIntegrations())
     app.migrations.add(CreateWhoopRecovery())
@@ -129,6 +150,9 @@ func configure(_ app: Application) async throws {
     app.migrations.add(CreateReceipts())
     app.migrations.add(CreateReceiptLineItems())
     app.migrations.add(CreateDeviceTokens())
+    app.migrations.add(CreateUserSubscriptions())
+    app.migrations.add(CreateAIMonthlySpend())
+    app.migrations.add(CreateAIResponseCache())
 
     // Arena module — per BUILD_PLAN step 14.1
     app.migrations.add(CreateXPEvents())
@@ -164,6 +188,15 @@ func configure(_ app: Application) async throws {
     // Per BACKEND_API.md Section 26.1 — Refreshes materialized view every 5 min.
     app.queues.schedule(LeaderboardRefreshJob())
         .every(minutes: 5)
+
+    // Per AI_INTELLIGENCE_ENGINE.md §3.4 + INTELLIGENCE_REMEDIATION_PLAN.md §7.4.
+    // Drill-sergeant 3-day batch generation. Runs Sun 20:00 (Mon-Wed coverage)
+    // and Wed 20:00 (Thu-Sat coverage). Notification scheduler reads the cache
+    // when firing pushes, eliminating live Claude calls in the hot path.
+    app.queues.schedule(DrillSergeantBatchJob())
+        .weekly().on(.sunday).at(.init(integerLiteral: 20), .init(integerLiteral: 0))
+    app.queues.schedule(DrillSergeantBatchJob())
+        .weekly().on(.wednesday).at(.init(integerLiteral: 20), .init(integerLiteral: 0))
 
     // ─────────────────────────────────────────────────
     // 9. Routes

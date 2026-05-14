@@ -13,7 +13,9 @@ import Vapor
 
 struct ReceiptController: RouteCollection {
     func boot(routes: RoutesBuilder) throws {
-        routes.post("structure", use: structure)
+        // /structure invokes Claude Haiku Vision and is Pro-only.
+        // Per MONETIZATION_STRATEGY.md §3 + INTELLIGENCE_REMEDIATION_PLAN.md §4.
+        routes.grouped(SubscriptionMiddleware()).post("structure", use: structure)
         routes.post(use: create)
         routes.get(use: list)
         routes.group(":receiptID") { receipt in

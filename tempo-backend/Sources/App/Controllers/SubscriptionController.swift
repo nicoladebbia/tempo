@@ -20,7 +20,7 @@ struct SubscriptionController: RouteCollection {
     // Verifies a StoreKit 2 transaction and records it server-side.
 
     func verifyReceipt(_ req: Request) async throws -> SubscriptionStatusResponse {
-        let authUser = try req.auth.require(AuthenticatedUser.self)
+        let userID = try req.auth.requireUserID()
         let body = try req.content.decode(VerifyReceiptRequest.self)
 
         // In production: verify JWS signed transaction with Apple's public key
@@ -28,7 +28,7 @@ struct SubscriptionController: RouteCollection {
 
         // Upsert subscription record
         if let existing = try await UserSubscription.query(on: req.db)
-            .filter(\.$user.$id == authUser.userID)
+            .filter(\.$user.$id == userID)
             .filter(\.$originalTransactionId == body.originalTransactionId)
             .first() {
             existing.expirationDate = body.expirationDate
@@ -38,7 +38,7 @@ struct SubscriptionController: RouteCollection {
             try await existing.save(on: req.db)
         } else {
             let subscription = UserSubscription(
-                userID: authUser.userID,
+                userID: userID,
                 productId: body.productId,
                 originalTransactionId: body.originalTransactionId,
                 purchaseDate: body.purchaseDate,
@@ -48,6 +48,10 @@ struct SubscriptionController: RouteCollection {
             )
             try await subscription.save(on: req.db)
         }
+
+        // Invalidate the SubscriptionMiddleware cache so the next AI request
+        // sees the new state immediately. Per INTELLIGENCE_REMEDIATION_PLAN.md §4.
+        await req.invalidateSubscriptionCache(userID: userID)
 
         return SubscriptionStatusResponse(
             isActive: body.expirationDate > Date(),
@@ -60,10 +64,10 @@ struct SubscriptionController: RouteCollection {
     // MARK: - GET /v1/subscription/status
 
     func subscriptionStatus(_ req: Request) async throws -> SubscriptionStatusResponse {
-        let authUser = try req.auth.require(AuthenticatedUser.self)
+        let userID = try req.auth.requireUserID()
 
         guard let subscription = try await UserSubscription.query(on: req.db)
-            .filter(\.$user.$id == authUser.userID)
+            .filter(\.$user.$id == userID)
             .filter(\.$isActive == true)
             .sort(\.$expirationDate, .descending)
             .first() else {
@@ -247,7 +251,7 @@ final class UserSubscription: Model, Content, @unchecked Sendable {
 
     init(
         id: UUID? = nil,
-        userID: UUID,
+        userID: String,
         productId: String,
         originalTransactionId: String,
         purchaseDate: Date,

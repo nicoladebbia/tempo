@@ -66,6 +66,14 @@ actor NutritionAIService {
             throw NutritionAIError.missingAPIKey
         }
 
+        // Pre-flight budget gate. Per AI_INTELLIGENCE_ENGINE.md §5.4 +
+        // INTELLIGENCE_REMEDIATION_PLAN.md §5.
+        let estimate = AIBudgetEstimate.haiku(maxTokens: maxTokens, estimatedInputTokens: 1_000)
+        guard await AIBudgetTracker.shared.canMakeCall(estimatedCostCents: estimate, on: req) else {
+            req.logger.warning("Nutrition AI \(caller): budget exhausted")
+            throw NutritionAIError.budgetExhausted
+        }
+
         let body = NutritionClaudeRequest(
             model: AIConfig.haikuModel,
             maxTokens: maxTokens,
@@ -100,7 +108,15 @@ actor NutritionAIService {
         guard let textBlock = raw.content.first(where: { $0.type == "text" }) else {
             throw NutritionAIError.malformedResponse
         }
-        req.logger.info("Nutrition AI \(caller) ok in=\(raw.usage.inputTokens) out=\(raw.usage.outputTokens)")
+
+        // Persistent post-call accounting. Per INTELLIGENCE_REMEDIATION_PLAN.md §5.
+        await AIBudgetTracker.shared.recordSpend(
+            model: AIConfig.haikuModel,
+            inputTokens: raw.usage.inputTokens,
+            outputTokens: raw.usage.outputTokens,
+            on: req
+        )
+
         return textBlock.text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
@@ -124,6 +140,8 @@ enum NutritionAIError: AbortError {
     case missingAPIKey
     case apiError(Int)
     case malformedResponse
+    /// Monthly AI spend cap reached. Per AI_INTELLIGENCE_ENGINE.md §5.4.
+    case budgetExhausted
 
     var status: HTTPResponseStatus {
         switch self {
@@ -131,6 +149,7 @@ enum NutritionAIError: AbortError {
         case let .apiError(code) where code == 429: .tooManyRequests
         case .apiError: .badGateway
         case .malformedResponse: .badGateway
+        case .budgetExhausted: .serviceUnavailable
         }
     }
 
@@ -139,6 +158,7 @@ enum NutritionAIError: AbortError {
         case .missingAPIKey: "Anthropic API key not configured."
         case let .apiError(code): "Claude API error (HTTP \(code))."
         case .malformedResponse: "Claude returned a malformed response."
+        case .budgetExhausted: "AI budget exhausted for this month."
         }
     }
 }

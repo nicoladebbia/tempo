@@ -5,6 +5,12 @@
 *.xcuserstate
 DerivedData/
 *.xcworkspace/xcuserdata/
+xcuserdata/
+Tempo/build/
+
+# Claude harness
+.claude/last-session-context.md
+.claude/scheduled_tasks.lock
 
 # Swift Package Manager
 .build/

@@ -56,6 +56,13 @@ final class User: Model, Content, @unchecked Sendable {
     @OptionalField(key: "last_active_at")
     var lastActiveAt: Date?
 
+    /// Set when the user explicitly consents to having their health data sent
+    /// to Anthropic for AI-powered insights. Null = no consent (AI features
+    /// return 402). Per AI_INTELLIGENCE_ENGINE.md §11.3 +
+    /// INTELLIGENCE_REMEDIATION_PLAN.md §4.6.
+    @OptionalField(key: "ai_consent_at")
+    var aiConsentAt: Date?
+
     // ── Relationships ──────────────────────────
     @Children(for: \.$user)
     var refreshTokens: [RefreshToken]

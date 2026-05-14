@@ -47,19 +47,21 @@ func routes(_ app: Application) throws {
         .register(collection: DeviceController())
 
     // Receipt scan pipeline — Phase 3 of nutrition rebuild.
-    // POST /v1/nutrition/receipts/structure — Claude Haiku Vision structuring (AI rate budget)
-    // POST /v1/nutrition/receipts — persist a scanned receipt
-    // GET  /v1/nutrition/receipts, /:id — list / fetch
-    // PATCH /v1/nutrition/receipts/:id/line-items/:lineID — edit + confirm a line
-    // DELETE /v1/nutrition/receipts/:id — remove a receipt
+    // Receipt CRUD is free; /structure uses Claude Haiku Vision and is Pro-only.
+    // The Pro gate is enforced inside ReceiptController on the /structure handler
+    // (not on the whole group) so free users can still list/fetch their existing
+    // receipts after a downgrade.
     try protected.grouped("nutrition", "receipts")
         .grouped(RateLimitMiddleware(limit: 30, window: .minutes(1), scope: .user))
         .register(collection: ReceiptController())
 
     // Nutrition AI endpoints — Phase 7 of nutrition rebuild.
-    // POST /v1/nutrition/ai/explain-adjustment, /v1/nutrition/ai/suggest-meal
+    // POST /v1/nutrition/ai/explain-adjustment, /v1/nutrition/ai/suggest-meal,
+    // /v1/nutrition/ai/proxy/text, /v1/nutrition/ai/proxy/vision.
+    // All Pro-only per MONETIZATION_STRATEGY.md §3 + INTELLIGENCE_REMEDIATION_PLAN.md §4.
     try protected.grouped("nutrition", "ai")
         .grouped(RateLimitMiddleware(limit: 20, window: .minutes(1), scope: .user))
+        .grouped(SubscriptionMiddleware())
         .register(collection: NutritionAIController())
 
     // ─────────────────────────────────────────────────
@@ -96,10 +98,31 @@ func routes(_ app: Application) throws {
     // Per AI_INTELLIGENCE_ENGINE.md — 10 AI requests per user per day (enforced in controller)
     // ─────────────────────────────────────────────────
 
-    // Insights — GET /v1/insights/weekly-report, /patterns, /drill-sergeant
+    // Insights — GET /v1/insights/weekly-report, /patterns, /drill-sergeant.
+    // Pro-only per MONETIZATION_STRATEGY.md §3.1.
     try protected.grouped("insights")
         .grouped(RateLimitMiddleware(limit: 20, window: .minutes(1), scope: .user))
+        .grouped(SubscriptionMiddleware())
         .register(collection: InsightController())
+
+    // ─────────────────────────────────────────────────
+    // Subscriptions — per BUILD_PLAN Step 20.1 + INTELLIGENCE_REMEDIATION_PLAN.md §4
+    // POST /v1/subscription/verify  (JWT) — submit a signed StoreKit transaction
+    // GET  /v1/subscription/status  (JWT) — current Pro tier + expiry
+    // POST /v1/subscription/webhook (no JWT, JWS-verified by Apple)
+    // ─────────────────────────────────────────────────
+    try v1.grouped("subscription")
+        .grouped(RateLimitMiddleware(limit: 30, window: .minutes(1), scope: .user))
+        .register(collection: SubscriptionController())
+
+    // ─────────────────────────────────────────────────
+    // User profile + AI consent — per AI_INTELLIGENCE_ENGINE.md §11.3
+    // GET  /v1/user/me         — current user (tier, consent, displayName)
+    // POST /v1/user/ai-consent — record AI consent timestamp
+    // ─────────────────────────────────────────────────
+    try protected.grouped("user")
+        .grouped(RateLimitMiddleware(limit: 20, window: .minutes(1), scope: .user))
+        .register(collection: UserController())
 
     // ─────────────────────────────────────────────────
     // Webhooks (no JWT — verified via HMAC)
