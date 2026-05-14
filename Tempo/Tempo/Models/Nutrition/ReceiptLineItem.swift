@@ -108,6 +108,44 @@ final class ReceiptLineItem {
         linkedPantryItemID != nil
     }
 
+    // MARK: - Pantry unit resolution
+
+    /// Resolves the right `PantryUnit` to use when ingesting this line into
+    /// the pantry. Receipt OCR units (`each` / `unit` / `lb` / `oz` / `kg`
+    /// / `g`) are coarse — `1 EA` of black beans is almost certainly a can,
+    /// not "a piece." This method upgrades `.pieces` rows to the
+    /// container-shaped `PantryUnit` (`.cans`, `.bottles`, `.jars`,
+    /// `.packs`) when the canonical name has a container `purchaseUnit`
+    /// in `FoodMacroDatabase.naturalPortions`.
+    ///
+    /// Conservative on purpose: only upgrades when the natural portion's
+    /// `purchaseUnit` is a container word. Piece-like purchase units
+    /// (egg, banana, breast, slice) stay as `.pieces` — that's already
+    /// the honest semantic for those foods.
+    var resolvedPantryUnit: PantryUnit {
+        let base = unit.asPantryUnit
+        guard base == .pieces else { return base }
+        guard let portion = FoodMacroDatabase.naturalPortions[canonicalFoodName.lowercased()] else {
+            return base
+        }
+        return Self.containerPantryUnit(for: portion.purchaseUnit) ?? base
+    }
+
+    /// Map a natural-portion `purchaseUnit` string → the matching
+    /// container `PantryUnit`. Returns nil for piece-like words so the
+    /// caller knows the receipt line genuinely is a "piece" (one egg,
+    /// one banana, one breast).
+    private static func containerPantryUnit(for purchaseUnit: String) -> PantryUnit? {
+        let word = purchaseUnit.lowercased()
+        if word.contains("can") { return .cans }
+        if word.contains("bottle") { return .bottles }
+        if word.contains("jar") { return .jars }
+        if word.contains("pack") || word.contains("box") || word.contains("bag") || word.contains("tub") || word.contains("tube") || word.contains("tin") {
+            return .packs
+        }
+        return nil
+    }
+
     // MARK: - Init
 
     init(
@@ -133,7 +171,8 @@ final class ReceiptLineItem {
         self.rawText = rawText
         self.canonicalFoodName = canonicalFoodName
         self.displayName = displayName
-        self.quantity = quantity
+        // Receipts can't have negative quantities; clamp to keep pantry math sound.
+        self.quantity = max(0, quantity)
         self.unitRaw = unit.rawValue
         self.quantityGrams = quantityGrams
         self.unitPrice = unitPrice

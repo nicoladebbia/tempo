@@ -96,7 +96,7 @@ final class MockReceiptService: ReceiptServiceProtocol {
             let item = try pantry.mergeOrCreate(
                 rawName: line.displayName.isEmpty ? line.canonicalFoodName : line.displayName,
                 quantity: line.quantity,
-                unit: line.unit.asPantryUnit,
+                unit: line.resolvedPantryUnit,
                 storageLocation: .pantry,
                 purchaseDate: receipt.purchaseDate,
                 purchaseSource: .receiptScan,

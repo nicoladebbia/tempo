@@ -151,7 +151,7 @@ final class LiveReceiptService: ReceiptServiceProtocol {
             let pantryItem = try pantry.mergeOrCreate(
                 rawName: line.displayName.isEmpty ? line.canonicalFoodName : line.displayName,
                 quantity: line.quantity,
-                unit: line.unit.asPantryUnit,
+                unit: line.resolvedPantryUnit,
                 storageLocation: defaultLocation(for: line.canonicalFoodName),
                 purchaseDate: receipt.purchaseDate,
                 purchaseSource: .receiptScan,
