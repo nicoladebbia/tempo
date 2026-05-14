@@ -11,6 +11,11 @@ import Foundation
 @Observable
 @MainActor
 final class ServiceContainer {
+    /// Shared HTTP client for all backend calls (auth, sync, nutrition AI proxy,
+    /// insights, etc.). Per INTELLIGENCE_REMEDIATION_PLAN.md §3 — all Claude
+    /// calls flow through this client to the Vapor backend; iOS no longer
+    /// embeds the Anthropic key.
+    let apiClient: APIClient
     let authService: AuthService
     let healthKit: any HealthKitServiceProtocol
     let whoop: any WhoopServiceProtocol
@@ -37,6 +42,7 @@ final class ServiceContainer {
     let appState: AppState
 
     init(
+        apiClient: APIClient,
         authService: AuthService,
         healthKit: any HealthKitServiceProtocol,
         whoop: any WhoopServiceProtocol,
@@ -54,6 +60,7 @@ final class ServiceContainer {
         subscriptions: any SubscriptionServiceProtocol,
         nutrition: any NutritionServiceProtocol
     ) {
+        self.apiClient = apiClient
         self.authService = authService
         self.healthKit = healthKit
         self.whoop = whoop
@@ -76,7 +83,9 @@ final class ServiceContainer {
 
     static func mock() -> ServiceContainer {
         let auth = AuthService()
+        let api = APIClient()
         return ServiceContainer(
+            apiClient: api,
             authService: auth,
             healthKit: MockHealthKitService(),
             whoop: MockWhoopService(),
@@ -90,7 +99,7 @@ final class ServiceContainer {
             syncCoordinator: MockSyncCoordinator(),
             backgroundSync: BackgroundSyncService(),
             networkMonitor: NetworkMonitor(),
-            pushRegistration: PushRegistrationService(apiClient: APIClient()),
+            pushRegistration: PushRegistrationService(apiClient: api),
             subscriptions: MockSubscriptionService(),
             nutrition: MockNutritionService()
         )
@@ -100,6 +109,7 @@ final class ServiceContainer {
         let auth = AuthService()
         let healthKit = HealthKitService()
         return ServiceContainer(
+            apiClient: apiClient,
             authService: auth,
             healthKit: healthKit,
             whoop: WhoopService(),
@@ -115,7 +125,7 @@ final class ServiceContainer {
             networkMonitor: NetworkMonitor(),
             pushRegistration: PushRegistrationService(apiClient: apiClient),
             subscriptions: SubscriptionService(),
-            nutrition: NutritionService.live(healthKit: healthKit)
+            nutrition: NutritionService.live(healthKit: healthKit, apiClient: apiClient)
         )
     }
 }

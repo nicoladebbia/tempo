@@ -116,6 +116,8 @@ struct OnboardingContainerView: View {
             WhoopConnectView(viewModel: viewModel)
         case .notifications:
             NotificationSetupView(viewModel: viewModel)
+        case .aiConsent:
+            AIConsentView(viewModel: viewModel)
         case .complete:
             OnboardingCompleteView(viewModel: viewModel)
         }

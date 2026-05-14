@@ -140,7 +140,12 @@ actor APIClient {
                     return EmptyResponse() as! T
                 }
                 do {
-                    return try decoder.decode(T.self, from: data)
+                    if endpoint.expectsEnvelope {
+                        let envelope = try decoder.decode(APIEnvelope<T>.self, from: data)
+                        return envelope.data
+                    } else {
+                        return try decoder.decode(T.self, from: data)
+                    }
                 } catch {
                     throw APIError.decodingFailed(error.localizedDescription)
                 }
@@ -158,6 +163,18 @@ actor APIClient {
                     return try await executeWithRetry(retryRequest, endpoint: endpoint, attempt: 0, didRefreshToken: true)
                 }
                 throw APIError.unauthorized
+
+            case 402:
+                // Payment Required — backend `TempoErrorMiddleware` emits a
+                // body like `{ "error": true, "reason": "...", "code": "..." }`.
+                // Map `code` to the typed APIError so calling views can branch
+                // on subscription vs consent without parsing free text.
+                // Per INTELLIGENCE_REMEDIATION_PLAN.md §4.
+                let errBody = try? self.decoder.decode(APIError.TempoErrorBody.self, from: data)
+                if errBody?.code == "ai_consent_required" {
+                    throw APIError.aiConsentRequired
+                }
+                throw APIError.subscriptionRequired
 
             case 403:
                 throw APIError.forbidden

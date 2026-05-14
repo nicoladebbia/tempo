@@ -23,6 +23,13 @@ enum APIError: Error {
     case notModified
     case timeout
     case unknown(statusCode: Int)
+    /// Backend returned 402 with `code: "subscription_required"` — user needs Pro.
+    /// Per INTELLIGENCE_REMEDIATION_PLAN.md §4.
+    case subscriptionRequired
+    /// Backend returned 402 with `code: "ai_consent_required"` — user has Pro
+    /// but hasn't enabled AI data sharing in onboarding/settings.
+    /// Per AI_INTELLIGENCE_ENGINE.md §11.3.
+    case aiConsentRequired
 
     var userMessage: String {
         switch self {
@@ -54,7 +61,20 @@ enum APIError: Error {
             "Request timed out. Please try again."
         case .unknown:
             "Something went wrong. Please try again."
+        case .subscriptionRequired:
+            "Pro subscription required to use AI features."
+        case .aiConsentRequired:
+            "Enable AI features in Settings to use this."
         }
+    }
+
+    /// Decodable wire shape for backend error responses produced by
+    /// `TempoErrorMiddleware`. `code` is the typed identifier
+    /// (e.g. "subscription_required", "ai_consent_required").
+    struct TempoErrorBody: Decodable {
+        let error: Bool?
+        let reason: String?
+        let code: String?
     }
 
     var isRetryable: Bool {

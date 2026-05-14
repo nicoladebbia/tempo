@@ -59,6 +59,10 @@ final class OnboardingViewModel {
     var whoopConnected: Bool = false
     var healthkitGranted: Bool = false
     var notificationsGranted: Bool = false
+    /// User chose to enable AI features in the onboarding aiConsent step.
+    /// Per AI_INTELLIGENCE_ENGINE.md §11.3.
+    var aiConsentGranted: Bool = false
+    var aiConsentError: String?
 
     var onComplete: (() -> Void)?
 
@@ -97,7 +101,8 @@ final class OnboardingViewModel {
             primaryGoal != nil
         case .whoopConnect,
              .healthkit,
-             .notifications:
+             .notifications,
+             .aiConsent:
             true // Optional steps
         case .complete:
             true
@@ -154,6 +159,27 @@ final class OnboardingViewModel {
         UserDefaults.standard.removeObject(forKey: "tempo.onboarding.step")
         UserDefaults.standard.removeObject(forKey: "tempo.onboarding.data")
         onComplete?()
+    }
+
+    // MARK: - AI Consent (AI_INTELLIGENCE_ENGINE.md §11.3)
+
+    /// Record the user's AI-data-sharing decision on the backend. Called from
+    /// the `.aiConsent` onboarding step. On success, advances the step.
+    /// On failure, sets `aiConsentError` so the View can surface a retry.
+    @MainActor
+    func setAIConsent(_ granted: Bool, apiClient: APIClient) async {
+        aiConsentError = nil
+        do {
+            let body = AIConsentRequestDTO(consented: granted)
+            let _: AIConsentResponseDTO = try await apiClient.request(
+                APIEndpoint<AIConsentResponseDTO>.setAIConsent(),
+                body: body
+            )
+            aiConsentGranted = granted
+            advance()
+        } catch {
+            aiConsentError = error.localizedDescription
+        }
     }
 
     // MARK: - Persistence
@@ -218,6 +244,11 @@ enum OnboardingStep: String, Codable, CaseIterable {
     case academicSetup
     case whoopConnect
     case notifications
+    /// AI data-sharing consent. Required by AI_INTELLIGENCE_ENGINE.md §11.3 and
+    /// gated by SubscriptionMiddleware on the backend — without consent every
+    /// AI route returns 402 ai_consent_required.
+    /// Per INTELLIGENCE_REMEDIATION_PLAN.md §4.6.
+    case aiConsent
     case complete
 
     var stepNumber: Int {
@@ -232,7 +263,8 @@ enum OnboardingStep: String, Codable, CaseIterable {
         case .academicSetup: 7
         case .whoopConnect: 8
         case .notifications: 9
-        case .complete: 10
+        case .aiConsent: 10
+        case .complete: 11
         }
     }
 
@@ -251,7 +283,8 @@ enum OnboardingStep: String, Codable, CaseIterable {
              .trainingSetup,
              .academicSetup,
              .whoopConnect,
-             .notifications:
+             .notifications,
+             .aiConsent:
             true
         default:
             false
