@@ -19,15 +19,18 @@ final class DayPlannerService {
     private let modelContext: ModelContext
     private let calendar: any CalendarServiceProtocol
     private let recoveryEngine: any RecoveryEngineProtocol
+    private let apiClient: APIClient?
 
     init(
         modelContext: ModelContext,
         calendar: any CalendarServiceProtocol,
-        recoveryEngine: any RecoveryEngineProtocol
+        recoveryEngine: any RecoveryEngineProtocol,
+        apiClient: APIClient? = nil
     ) {
         self.modelContext = modelContext
         self.calendar = calendar
         self.recoveryEngine = recoveryEngine
+        self.apiClient = apiClient
     }
 
     // MARK: - Public API
@@ -83,6 +86,15 @@ final class DayPlannerService {
             modelContext.insert(block)
         }
         try? modelContext.save()
+
+        // AI hydration runs after the persisted skeleton is visible.
+        // Failure is non-fatal — caller gets the saved DayPlan either
+        // way, and the view shows titles even when copy is nil.
+        if let apiClient {
+            let context = buildHydrationContext(day: day, input: input)
+            let hydrator = DayPlannerAIHydrator(modelContext: modelContext, apiClient: apiClient)
+            await hydrator.hydrate(plan: plan, context: context)
+        }
 
         return plan
     }
@@ -284,5 +296,53 @@ final class DayPlannerService {
     private static func minuteOfDay(_ date: Date, in dayStart: Date) -> Int {
         let secs = date.timeIntervalSince(dayStart)
         return max(0, min(1440, Int(secs / 60)))
+    }
+
+    // MARK: - Hydration context
+
+    private func buildHydrationContext(day: Date, input: DayPlannerInput) -> HydrationContext {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+
+        let weekStart: Date = {
+            let cal = Calendar.current
+            let comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: day)
+            return cal.date(from: comps) ?? day
+        }()
+
+        let trainingTime = input.workoutBlock.map { block -> String in
+            String(format: "%02d:%02d", block.startMinuteOfDay / 60, block.startMinuteOfDay % 60)
+        }
+
+        let footballDays = input.fixedBlocks
+            .filter { $0.kind == .football }
+            .map { _ in
+                Calendar.current.weekdaySymbols[
+                    (Calendar.current.component(.weekday, from: day) - 1) % 7
+                ].lowercased()
+            }
+
+        let studyMinutes = input.studyBlocks
+            .map { $0.endMinuteOfDay - $0.startMinuteOfDay }
+            .reduce(0, +)
+
+        return HydrationContext(
+            dateString: formatter.string(from: day),
+            weekStartString: formatter.string(from: weekStart),
+            hasTrainingBlock: input.workoutBlock != nil,
+            hasStudyBlock: !input.studyBlocks.isEmpty,
+            footballDays: footballDays,
+            // TODO: Pull from DailyRecovery rows once the Whoop pipeline
+            //       feeds them; v1 sends zeros which the backend's
+            //       fallback handles cleanly.
+            recentRecovery7Day: Array(repeating: 0, count: 7),
+            recentSessions: [],
+            trainingGoal: "hypertrophy",
+            recoveryZone: "yellow",
+            trainingTimeString: trainingTime,
+            studyAvailabilityMinutes: studyMinutes,
+            nextExam: nil  // wired once exam state is available in the planner inputs
+        )
     }
 }

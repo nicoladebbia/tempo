@@ -248,3 +248,105 @@ extension APIEndpoint where Response == EmptyResponse {
         APIEndpoint(path: "/v1/user/daily-plan-profile", method: .put)
     }
 }
+
+// MARK: - §7 AI route DTOs (hydration only)
+//
+// Only the fields the DayPlannerAIHydrator actually consumes. The
+// backend's input structs have many more fields — anything we don't
+// pass falls through to fallback values on the server, which is fine
+// for v1 hydration since AI failure is non-fatal.
+
+struct DayPlanTrainingProgramRequest: Codable, Sendable {
+    let weekStart: String
+    let footballDays: [String]
+    let recentRecovery7Day: [Int]
+    let recentSessions: [String]
+    let goal: String
+
+    enum CodingKeys: String, CodingKey {
+        case weekStart = "week_start"
+        case footballDays = "football_days"
+        case recentRecovery7Day = "recent_recovery_7day"
+        case recentSessions = "recent_sessions"
+        case goal
+    }
+}
+
+struct DayPlanTrainingProgramResponse: Codable, Sendable {
+    let rationale: String
+    /// Per-day entries from the backend. We only consume `rationale` for
+    /// v1 hydration — the per-day breakdown is the source for the
+    /// weekly planner, not the daily-plan view.
+}
+
+extension APIEndpoint where Response == DayPlanTrainingProgramResponse {
+    static func dayPlanTrainingProgram() -> Self {
+        APIEndpoint(path: "/v1/insights/training-program", method: .post)
+    }
+}
+
+struct DayPlanMealTimingRequest: Codable, Sendable {
+    let date: String
+    let mealIndex: Int
+    let mealName: String
+    let plannedCalories: Int
+    let plannedProteinGrams: Int
+    let trainingTimeToday: String?
+    let lastMealTime: String?
+    let recoveryZone: String
+
+    enum CodingKeys: String, CodingKey {
+        case date
+        case mealIndex = "meal_index"
+        case mealName = "meal_name"
+        case plannedCalories = "planned_calories"
+        case plannedProteinGrams = "planned_protein_grams"
+        case trainingTimeToday = "training_time_today"
+        case lastMealTime = "last_meal_time"
+        case recoveryZone = "recovery_zone"
+    }
+}
+
+struct DayPlanMealTimingResponse: Codable, Sendable {
+    let suggestedTime: String
+    let note: String
+
+    enum CodingKeys: String, CodingKey {
+        case suggestedTime = "suggested_time"
+        case note
+    }
+}
+
+extension APIEndpoint where Response == DayPlanMealTimingResponse {
+    static func dayPlanMealTiming() -> Self {
+        APIEndpoint(path: "/v1/nutrition/ai/meal-timing", method: .post)
+    }
+}
+
+struct DayPlanStudyScheduleRequest: Codable, Sendable {
+    let examId: String
+    let examName: String
+    let daysUntilExam: Int
+    let topics: [String]
+    let topicProgress: [String: Int]
+    let dailyAvailabilityMinutes: Int
+
+    enum CodingKeys: String, CodingKey {
+        case examId = "exam_id"
+        case examName = "exam_name"
+        case daysUntilExam = "days_until_exam"
+        case topics
+        case topicProgress = "topic_progress"
+        case dailyAvailabilityMinutes = "daily_availability_minutes"
+    }
+}
+
+struct DayPlanStudyScheduleResponse: Codable, Sendable {
+    let rationale: String
+}
+
+extension APIEndpoint where Response == DayPlanStudyScheduleResponse {
+    static func dayPlanStudySchedule() -> Self {
+        APIEndpoint(path: "/v1/insights/study-schedule", method: .post)
+    }
+}

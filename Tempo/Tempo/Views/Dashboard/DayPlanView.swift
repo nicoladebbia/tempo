@@ -183,7 +183,8 @@ struct DayPlanView: View {
         let planner = DayPlannerService(
             modelContext: modelContext,
             calendar: services.calendar,
-            recoveryEngine: services.recoveryEngine
+            recoveryEngine: services.recoveryEngine,
+            apiClient: services.apiClient
         )
         _ = await planner.replan(for: Date(), reason: .userRequested)
     }
