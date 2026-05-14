@@ -66,7 +66,10 @@ protocol NutritionCoachServiceProtocol: Sendable {
 final class NutritionCoachService: NutritionCoachServiceProtocol, @unchecked Sendable {
     // MARK: - Dependencies
 
-    private let claude: ClaudeAPIClient
+    /// All Claude calls proxy through the Tempo backend per
+    /// INTELLIGENCE_REMEDIATION_PLAN.md §3 — the Anthropic key never ships in
+    /// the app binary.
+    private let apiClient: APIClient
     private let logger = Logger.nutrition
 
     // MARK: - Retry Configuration
@@ -78,8 +81,8 @@ final class NutritionCoachService: NutritionCoachServiceProtocol, @unchecked Sen
 
     // MARK: - Init
 
-    init(claude: ClaudeAPIClient = ClaudeAPIClient()) {
-        self.claude = claude
+    init(apiClient: APIClient) {
+        self.apiClient = apiClient
     }
 
     // MARK: - Meal Feedback
@@ -118,7 +121,7 @@ final class NutritionCoachService: NutritionCoachServiceProtocol, @unchecked Sen
         )
 
         let response = try await sendWithRetry(
-            model: .haiku,
+            model: "haiku",
             prompt: prompt,
             maxTokens: 150,
             temperature: 0.4,
@@ -173,7 +176,7 @@ final class NutritionCoachService: NutritionCoachServiceProtocol, @unchecked Sen
         )
 
         let response = try await sendWithRetry(
-            model: .haiku,
+            model: "haiku",
             prompt: prompt,
             maxTokens: 300,
             temperature: 0.4,
@@ -219,7 +222,7 @@ final class NutritionCoachService: NutritionCoachServiceProtocol, @unchecked Sen
         )
 
         let response = try await sendWithRetry(
-            model: .sonnet,
+            model: "sonnet",
             prompt: prompt,
             maxTokens: 500,
             temperature: 0.3,
@@ -258,7 +261,7 @@ final class NutritionCoachService: NutritionCoachServiceProtocol, @unchecked Sen
         )
 
         let response = try await sendWithRetry(
-            model: .haiku,
+            model: "haiku",
             prompt: prompt,
             maxTokens: 200,
             temperature: 0.3,
@@ -296,7 +299,7 @@ final class NutritionCoachService: NutritionCoachServiceProtocol, @unchecked Sen
         )
 
         let response = try await sendWithRetry(
-            model: .haiku,
+            model: "haiku",
             prompt: prompt,
             maxTokens: 150,
             temperature: 0.3,
@@ -329,7 +332,7 @@ final class NutritionCoachService: NutritionCoachServiceProtocol, @unchecked Sen
         )
 
         let response = try await sendWithRetry(
-            model: .haiku,
+            model: "haiku",
             prompt: prompt,
             maxTokens: 500,
             temperature: 0.5,
@@ -342,10 +345,11 @@ final class NutritionCoachService: NutritionCoachServiceProtocol, @unchecked Sen
 
     // MARK: - Private Helpers
 
-    /// Send a Claude API request with retry logic.
-    /// Per AI_INTELLIGENCE_ENGINE.md Section 2.3: max 2 retries, exponential backoff.
+    /// Send a Claude API request via the backend proxy with retry logic.
+    /// Per AI_INTELLIGENCE_ENGINE.md §2.3 + INTELLIGENCE_REMEDIATION_PLAN.md §3.
+    /// `model` is the proxy model id — "haiku" or "sonnet".
     private func sendWithRetry(
-        model: ClaudeModel,
+        model: String,
         prompt: String,
         maxTokens: Int,
         temperature: Double,
@@ -355,31 +359,29 @@ final class NutritionCoachService: NutritionCoachServiceProtocol, @unchecked Sen
 
         for attempt in 0 ... maxRetries {
             do {
-                let response = try await claude.sendMessage(
+                let body = NutritionProxyTextRequest(
                     model: model,
                     system: NutritionCoachPrompts.systemPrompt,
                     userMessage: prompt,
                     maxTokens: maxTokens,
-                    temperature: temperature
+                    temperature: temperature,
+                    caller: feature
                 )
-                logger.info("[\(feature)] Claude response received (attempt \(attempt))")
-                return response
-            } catch let error as ClaudeAPIError {
+                let response: NutritionProxyTextResponse = try await apiClient.request(
+                    APIEndpoint<NutritionProxyTextResponse>.nutritionProxyText(),
+                    body: body
+                )
+                logger.info("[\(feature)] Claude response received via backend (attempt \(attempt))")
+                return response.text
+            } catch let error as APIError {
                 lastError = error
-                logger.warning("[\(feature)] Claude API error (attempt \(attempt)): \(String(describing: error))")
+                logger.warning("[\(feature)] Backend proxy error (attempt \(attempt)): \(String(describing: error))")
 
-                // Per AI_INTELLIGENCE_ENGINE.md: do NOT retry bad requests or auth errors
                 guard error.isRetryable, attempt < maxRetries else {
                     break
                 }
 
-                // Respect Retry-After header for rate limits
-                let delay: TimeInterval = if case let .rateLimited(retryAfter) = error, let after = retryAfter {
-                    min(after, 8.0)
-                } else {
-                    baseRetryDelay * pow(2.0, Double(attempt))
-                }
-
+                let delay = baseRetryDelay * pow(2.0, Double(attempt))
                 try await Task.sleep(for: .seconds(delay))
             } catch {
                 lastError = error
@@ -388,18 +390,23 @@ final class NutritionCoachService: NutritionCoachServiceProtocol, @unchecked Sen
             }
         }
 
-        throw NutritionCoachError.apiFailed(lastError as? ClaudeAPIError ?? .networkError("Unknown error"))
+        throw NutritionCoachError.apiFailed(lastError ?? APIError.unknown(statusCode: -1))
     }
 
     /// Parse a JSON response from Claude, with extraction fallback.
     /// Per AI_INTELLIGENCE_ENGINE.md Section 2.3: try to extract JSON between { and }.
+    /// Preserves the first decode error so the log captures *why* the parse
+    /// failed (missing key, type mismatch) instead of a generic message.
     private func parseJSON<T: Decodable>(_ response: String, as type: T.Type, feature: String) throws -> T {
         let decoder = JSONDecoder()
+        var firstDecodeError: Error?
 
         // First attempt: parse directly
         if let data = response.data(using: .utf8) {
-            if let result = try? decoder.decode(T.self, from: data) {
-                return result
+            do {
+                return try decoder.decode(T.self, from: data)
+            } catch {
+                firstDecodeError = error
             }
         }
 
@@ -430,8 +437,9 @@ final class NutritionCoachService: NutritionCoachServiceProtocol, @unchecked Sen
             }
         }
 
-        logger.error("[\(feature)] Failed to parse JSON response: \(response.prefix(200))")
-        throw NutritionCoachError.jsonParsingFailed("Could not parse \(feature) response as \(T.self)")
+        let errDetail = firstDecodeError.map { String(describing: $0) } ?? "no decode attempt produced an error"
+        logger.error("[\(feature)] Failed to parse JSON response: \(response.prefix(200)) | underlying: \(errDetail, privacy: .public)")
+        throw NutritionCoachError.jsonParsingFailed("Could not parse \(feature) response as \(T.self): \(errDetail)")
     }
 
     /// Validate and clean a text response.

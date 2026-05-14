@@ -8,6 +8,15 @@
 
 import Foundation
 import os
+#if canImport(UIKit)
+import UIKit
+#endif
+
+/// Maximum dimension (long edge) of an image sent to Claude Vision. Per
+/// Anthropic's vision guidance, images larger than ~1568px on the long
+/// edge are downsampled server-side; we do it client-side too so the
+/// uploaded payload stays small and memory doesn't spike on a 12MP photo.
+private let maxClaudeVisionPixelEdge: CGFloat = 1568
 
 // MARK: - PhotoAnalysisServiceProtocol
 
@@ -20,21 +29,15 @@ protocol PhotoAnalysisServiceProtocol: Sendable {
 @Observable
 final class PhotoAnalysisService: PhotoAnalysisServiceProtocol, @unchecked Sendable {
     private let foodSearch: any FoodSearchServiceProtocol
-    private let session: URLSession
-    private let encoder: JSONEncoder
-    private let decoder: JSONDecoder
+    /// Backend proxy for Claude calls. Per INTELLIGENCE_REMEDIATION_PLAN.md §3:
+    /// the Anthropic key never ships in the app binary; image bytes are
+    /// uploaded to /v1/nutrition/ai/proxy/vision instead of straight to Claude.
+    private let apiClient: APIClient
     private let logger = Logger.nutrition
 
-    /// Claude API key. Reads from Info.plist key ANTHROPIC_API_KEY.
-    private let anthropicAPIKey: String?
-
-    init(foodSearch: any FoodSearchServiceProtocol, session: URLSession = .shared) {
+    init(foodSearch: any FoodSearchServiceProtocol, apiClient: APIClient) {
         self.foodSearch = foodSearch
-        self.session = session
-        encoder = JSONEncoder()
-        decoder = JSONDecoder()
-
-        anthropicAPIKey = Bundle.main.infoDictionary?["ANTHROPIC_API_KEY"] as? String
+        self.apiClient = apiClient
     }
 
     // MARK: - Analyze Meal Photo
@@ -46,12 +49,8 @@ final class PhotoAnalysisService: PhotoAnalysisServiceProtocol, @unchecked Senda
         _ imageData: Data,
         remainingBudget: MacroBudget?
     ) async throws -> PhotoAnalysisResult {
-        guard let apiKey = anthropicAPIKey, !apiKey.isEmpty else {
-            throw NutritionError.apiKeyMissing
-        }
-
-        // Step 1: Call Claude Vision with the image
-        let analysisJSON = try await callClaudeVision(imageData: imageData, budget: remainingBudget, apiKey: apiKey)
+        // Step 1: Call Claude Vision via the backend proxy.
+        let analysisJSON = try await callClaudeVision(imageData: imageData, budget: remainingBudget)
 
         // Step 2: Parse the structured response
         let analysis = try parseAnalysis(analysisJSON)
@@ -82,67 +81,42 @@ final class PhotoAnalysisService: PhotoAnalysisServiceProtocol, @unchecked Senda
         return result
     }
 
-    // MARK: - Claude Vision API Call
+    // MARK: - Claude Vision API Call (via backend proxy)
 
     private func callClaudeVision(
         imageData: Data,
-        budget: MacroBudget?,
-        apiKey: String
+        budget: MacroBudget?
     ) async throws -> String {
-        let url = URL(string: "https://api.anthropic.com/v1/messages")!
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-        request.timeoutInterval = 30
-
-        let base64Image = imageData.base64EncodedString()
+        let base64Image = Self.downsampledBase64(imageData)
         let prompt = buildPrompt(budget: budget)
 
-        let requestBody = ClaudeMessagesRequest(
-            model: "claude-haiku-4-5-20251001",
+        let body = NutritionProxyVisionRequest(
+            model: "haiku",
+            system: "",
+            userMessage: prompt,
+            imageMediaType: "image/jpeg",
+            imageBase64: base64Image,
             maxTokens: 1024,
-            messages: [
-                ClaudeMessage(
-                    role: "user",
-                    content: [
-                        .image(mediaType: "image/jpeg", data: base64Image),
-                        .text(prompt),
-                    ]
-                ),
-            ]
+            temperature: 0.2,
+            caller: "photo_analysis"
         )
 
-        request.httpBody = try encoder.encode(requestBody)
-
-        let (data, response) = try await session.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw NutritionError.photoAnalysisFailed("No HTTP response")
+        do {
+            let response: NutritionProxyTextResponse = try await apiClient.request(
+                APIEndpoint<NutritionProxyTextResponse>.nutritionProxyVision(),
+                body: body
+            )
+            return response.text
+        } catch let error as APIError {
+            switch error {
+            case let .rateLimited(retryAfter):
+                throw NutritionError.rateLimited(retryAfter: retryAfter)
+            case let .serverError(statusCode):
+                throw NutritionError.photoAnalysisFailed("Backend proxy returned status \(statusCode)")
+            default:
+                throw NutritionError.photoAnalysisFailed(error.localizedDescription)
+            }
         }
-
-        switch httpResponse.statusCode {
-        case 200 ... 299:
-            break
-        case 429:
-            let retryAfter = httpResponse.value(forHTTPHeaderField: "Retry-After")
-                .flatMap { TimeInterval($0) }
-            throw NutritionError.rateLimited(retryAfter: retryAfter)
-        default:
-            throw NutritionError.photoAnalysisFailed("Claude API returned status \(httpResponse.statusCode)")
-        }
-
-        let claudeResponse = try decoder.decode(ClaudeMessagesResponse.self, from: data)
-
-        guard let textContent = claudeResponse.content.first(where: { $0.type == "text" }),
-              let text = textContent.text
-        else {
-            throw NutritionError.invalidResponse
-        }
-
-        return text
     }
 
     // MARK: - Build Prompt
@@ -212,7 +186,7 @@ final class PhotoAnalysisService: PhotoAnalysisServiceProtocol, @unchecked Senda
         }
 
         do {
-            return try decoder.decode(ClaudeFoodAnalysis.self, from: data)
+            return try JSONDecoder().decode(ClaudeFoodAnalysis.self, from: data)
         } catch {
             logger.error("Failed to parse Claude analysis: \(error.localizedDescription)")
             throw NutritionError.photoAnalysisFailed("Failed to parse analysis response")
@@ -271,5 +245,38 @@ final class PhotoAnalysisService: PhotoAnalysisServiceProtocol, @unchecked Senda
         }
 
         return verifiedItems
+    }
+
+    /// Decode → resize-to-fit → re-encode as 0.8 quality JPEG → base64.
+    /// Falls back to the raw bytes if UIImage decode fails (vector PDFs,
+    /// HEIC variants without the right decoder). Capping at
+    /// `maxClaudeVisionPixelEdge` keeps memory + uploaded payload bounded
+    /// regardless of camera resolution.
+    private static func downsampledBase64(_ original: Data) -> String {
+        #if canImport(UIKit)
+        guard let image = UIImage(data: original) else {
+            return original.base64EncodedString()
+        }
+        let longEdge = max(image.size.width, image.size.height)
+        guard longEdge > maxClaudeVisionPixelEdge else {
+            // Already small enough; only re-encode if not JPEG-friendly.
+            return original.base64EncodedString()
+        }
+        let scale = maxClaudeVisionPixelEdge / longEdge
+        let newSize = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1.0
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: newSize, format: format)
+        let resized = renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: newSize))
+        }
+        guard let jpeg = resized.jpegData(compressionQuality: 0.8) else {
+            return original.base64EncodedString()
+        }
+        return jpeg.base64EncodedString()
+        #else
+        return original.base64EncodedString()
+        #endif
     }
 }

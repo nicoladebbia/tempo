@@ -15,9 +15,9 @@ import SwiftData
 /// Generates weekly meal plans via Claude Sonnet, validates macros against FoodMacroDatabase,
 /// and persists plans + meals to SwiftData.
 ///
-/// Per AI_INTELLIGENCE_ENGINE.md:
+/// Per AI_INTELLIGENCE_ENGINE.md + INTELLIGENCE_REMEDIATION_PLAN.md §3:
 /// - Sonnet for deep analysis (meal plan generation)
-/// - Circuit breaker via ClaudeAPIClient
+/// - All Claude calls proxied through the Vapor backend (no embedded API key)
 /// - JSON extraction fallback for parsing
 @Observable
 final class MealPlanGeneratorService: @unchecked Sendable {
@@ -52,7 +52,10 @@ final class MealPlanGeneratorService: @unchecked Sendable {
 
     // MARK: - Dependencies
 
-    private let claude: ClaudeAPIClient
+    /// All Claude calls are now proxied through the Tempo backend so the
+    /// Anthropic API key never ships in the app binary.
+    /// Per INTELLIGENCE_REMEDIATION_PLAN.md §3 + ADR-018.
+    private let apiClient: APIClient
     private let logger = Logger.nutrition
 
     // MARK: - Retry Configuration
@@ -62,8 +65,8 @@ final class MealPlanGeneratorService: @unchecked Sendable {
 
     // MARK: - Init
 
-    init(claude: ClaudeAPIClient = ClaudeAPIClient()) {
-        self.claude = claude
+    init(apiClient: APIClient) {
+        self.apiClient = apiClient
     }
 
     // MARK: - Generate Weekly Plan
@@ -112,10 +115,20 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         setState(.generating)
 
         let preferences = buildPreferences(from: profile)
+
+        // Pull the user's rolling 14-day actual eat-times per mealNumber so
+        // the AI anchors the new plan to their real rhythm rather than the
+        // 07:30/12:30/19:30/16:00 schema defaults.
+        let observed = observedMealTimes(modelContext: modelContext)
+        let feedback = recentFeedbackDigest(modelContext: modelContext)
+
         let (systemPrompt, userPrompt) = MealPlanPrompts.weeklyPlanPrompt(
             targets: tdeeResult.dayTypeTargets,
             restrictions: restrictions,
-            preferences: preferences
+            preferences: preferences,
+            intake: intake,
+            observedMealTimes: observed,
+            feedbackDigest: feedback
         )
 
         let response = try await sendWithRetry(
@@ -240,8 +253,9 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         }
     }
 
-    /// Single Haiku call for one meal. Returns nil on failure (logged) so the
-    /// fan-out can finish without aborting the whole plan.
+    /// Single Haiku call for one meal via the backend proxy. Returns nil on
+    /// failure (logged) so the fan-out can finish without aborting the whole
+    /// plan. Per INTELLIGENCE_REMEDIATION_PLAN.md §3.
     private nonisolated func generateRecipeJSON(
         mealName: String,
         foods: [PlannedFood],
@@ -258,14 +272,19 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         )
 
         do {
-            let response = try await claude.sendMessage(
-                model: .haiku,
+            let body = NutritionProxyTextRequest(
+                model: "haiku",
                 system: systemPrompt,
                 userMessage: userPrompt,
                 maxTokens: 4096,
-                temperature: 0.4
+                temperature: 0.4,
+                caller: "meal_recipe"
             )
-            return try parseRecipeJSON(response)
+            let response: NutritionProxyTextResponse = try await apiClient.request(
+                APIEndpoint<NutritionProxyTextResponse>.nutritionProxyText(),
+                body: body
+            )
+            return try parseRecipeJSON(response.text)
         } catch {
             logger.warning("Recipe generation failed for '\(mealName)': \(error.localizedDescription)")
             return nil
@@ -273,13 +292,18 @@ final class MealPlanGeneratorService: @unchecked Sendable {
     }
 
     /// Decode the Haiku JSON envelope. Tolerates markdown/text wrap by extracting
-    /// the first `{...}` block.
+    /// the first `{...}` block. Captures the underlying decode error so the
+    /// caller's log shows *why* the parse failed — silent decode-or-nil hid
+    /// missing-key bugs (e.g. recipe steps without `instruction`).
     private nonisolated func parseRecipeJSON(_ response: String) throws -> ParsedRecipe {
         let decoder = JSONDecoder()
-        if let data = response.data(using: .utf8),
-           let direct = try? decoder.decode(ParsedRecipe.self, from: data)
-        {
-            return direct
+        var firstError: Error?
+        if let data = response.data(using: .utf8) {
+            do {
+                return try decoder.decode(ParsedRecipe.self, from: data)
+            } catch {
+                firstError = error
+            }
         }
         if let startIndex = response.firstIndex(of: "{"),
            let endIndex = response.lastIndex(of: "}")
@@ -289,7 +313,8 @@ final class MealPlanGeneratorService: @unchecked Sendable {
                 return try decoder.decode(ParsedRecipe.self, from: data)
             }
         }
-        throw MealPlanGeneratorError.parsingFailed("Could not parse recipe JSON")
+        let detail = firstError.map { String(describing: $0) } ?? "no '{...}' block found"
+        throw MealPlanGeneratorError.parsingFailed("Could not parse recipe JSON: \(detail)")
     }
 
     /// Convert the decoded JSON into SwiftData entities. Caps step count and
@@ -350,6 +375,149 @@ final class MealPlanGeneratorService: @unchecked Sendable {
     // MARK: - Private Helpers
 
     /// Build user preferences string from profile.
+    /// Rolling 14-day average of the user's actual eat times, grouped by
+    /// `mealNumber`. Reads `PlannedMeal.actualEatenAt` (set by `markMealEaten`).
+    /// Returns nil/empty when there's no signal yet so the prompt falls back
+    /// to the schema defaults (07:30 / 12:30 / 19:30 / 16:00).
+    private func observedMealTimes(
+        modelContext: ModelContext,
+        windowDays: Int = 14
+    ) -> MealPlanPrompts.ObservedMealTimes? {
+        let calendar = Calendar.current
+        guard let windowStart = calendar.date(
+            byAdding: .day,
+            value: -windowDays,
+            to: calendar.startOfDay(for: Date())
+        ) else {
+            return nil
+        }
+        let descriptor = FetchDescriptor<PlannedMeal>(
+            predicate: #Predicate<PlannedMeal> { meal in
+                meal.dayDate >= windowStart
+            }
+        )
+        let candidates = (try? modelContext.fetch(descriptor)) ?? []
+        let meals = candidates.filter { $0.actualEatenAt != nil }
+        guard !meals.isEmpty else {
+            return nil
+        }
+
+        // Group by mealNumber, average the minutes-from-midnight of each
+        // actualEatenAt. Need ≥2 observations per slot before we treat it as
+        // signal — one late breakfast shouldn't move tomorrow's anchor.
+        var minutesByMealNumber: [Int: [Int]] = [:]
+        for meal in meals {
+            guard let eaten = meal.actualEatenAt else {
+                continue
+            }
+            let comps = calendar.dateComponents([.hour, .minute], from: eaten)
+            let total = (comps.hour ?? 0) * 60 + (comps.minute ?? 0)
+            minutesByMealNumber[meal.mealNumber, default: []].append(total)
+        }
+        var result: [Int: String] = [:]
+        for (number, mins) in minutesByMealNumber where mins.count >= 2 {
+            let avg = mins.reduce(0, +) / mins.count
+            let h = avg / 60
+            let m = avg % 60
+            result[number] = String(format: "%02d:%02d", h, m)
+        }
+        return result.isEmpty ? nil : result
+    }
+
+    /// Aggregate the last `windowDays` of `MealFeedback` rows into a digest
+    /// the prompt can act on. Groups by recipe and by ingredient. Filters
+    /// out empty / signal-less rows so the prompt stays lean.
+    private func recentFeedbackDigest(
+        modelContext: ModelContext,
+        windowDays: Int = 28
+    ) -> MealPlanPrompts.FeedbackDigest? {
+        let calendar = Calendar.current
+        guard let windowStart = calendar.date(
+            byAdding: .day,
+            value: -windowDays,
+            to: calendar.startOfDay(for: Date())
+        ) else {
+            return nil
+        }
+        let descriptor = FetchDescriptor<MealFeedback>(
+            predicate: #Predicate<MealFeedback> { feedback in
+                feedback.createdAt >= windowStart
+            }
+        )
+        let rows = ((try? modelContext.fetch(descriptor)) ?? []).filter(\.hasSignal)
+        guard !rows.isEmpty else {
+            return nil
+        }
+
+        // Group by recipe (denormalized recipeID survives meal deletion).
+        var recipeBuckets: [UUID: [MealFeedback]] = [:]
+        for row in rows {
+            guard let recipeID = row.recipeID else { continue }
+            recipeBuckets[recipeID, default: []].append(row)
+        }
+        let recipes: [MealPlanPrompts.FeedbackDigest.RecipeSignal] = recipeBuckets.compactMap { _, bucket in
+            guard let first = bucket.first else { return nil }
+            let ratings = bucket.compactMap(\.rating).map(Double.init)
+            let avg = ratings.isEmpty ? nil : ratings.reduce(0, +) / Double(ratings.count)
+            // Aggregate post-meal feel chips by raw value so the prompt
+            // surface ("sluggish 4×, heavy 1×") matches the enum vocabulary.
+            var feelCounts: [String: Int] = [:]
+            for row in bucket {
+                guard let feel = row.mealFeel else { continue }
+                feelCounts[feel.rawValue, default: 0] += 1
+            }
+            return MealPlanPrompts.FeedbackDigest.RecipeSignal(
+                recipeName: first.recipeName ?? "(unknown recipe)",
+                averageRating: avg,
+                mentionCount: bucket.count,
+                notes: bucket.compactMap(\.overallNote).filter { !$0.isEmpty },
+                portionNotes: bucket.compactMap(\.portionNote).filter { !$0.isEmpty },
+                suggestedChanges: bucket.compactMap(\.suggestedChange).filter { !$0.isEmpty },
+                feelCounts: feelCounts,
+                substituteNotes: bucket.compactMap(\.substituteNote).filter { !$0.isEmpty }
+            )
+        }
+
+        // Aggregate ingredient sentiment across all feedback rows.
+        struct IngredientAccumulator {
+            var liked = 0
+            var disliked = 0
+            var notes: [String] = []
+        }
+        var ingredientBuckets: [String: IngredientAccumulator] = [:]
+        for row in rows {
+            for note in row.ingredientNotes {
+                var acc = ingredientBuckets[note.ingredientName, default: IngredientAccumulator()]
+                switch note.sentiment {
+                case .liked: acc.liked += 1
+                case .disliked, .wrongForm, .portionTooBig, .portionTooSmall: acc.disliked += 1
+                case .neutral: break
+                }
+                if let text = note.note, !text.isEmpty {
+                    // Tag with recipe context so the model can disambiguate.
+                    let ctx = row.recipeName.map { "[\($0)] " } ?? ""
+                    acc.notes.append(ctx + text)
+                }
+                ingredientBuckets[note.ingredientName] = acc
+            }
+        }
+        let ingredients: [MealPlanPrompts.FeedbackDigest.IngredientSignal] = ingredientBuckets
+            .compactMap { name, acc in
+                guard acc.liked + acc.disliked + acc.notes.count > 0 else { return nil }
+                return MealPlanPrompts.FeedbackDigest.IngredientSignal(
+                    ingredientName: name,
+                    perRecipeNotes: acc.notes,
+                    likedCount: acc.liked,
+                    dislikedCount: acc.disliked
+                )
+            }
+
+        guard !recipes.isEmpty || !ingredients.isEmpty else {
+            return nil
+        }
+        return MealPlanPrompts.FeedbackDigest(recipes: recipes, ingredients: ingredients)
+    }
+
     private func buildPreferences(from profile: DietaryProfile) -> String {
         var prefs: [String] = []
         prefs.append("Training frequency: \(profile.trainingFrequency)x/week")
@@ -359,7 +527,9 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         return prefs.joined(separator: ". ")
     }
 
-    /// Send a Claude Sonnet request with retry logic.
+    /// Send a Claude Sonnet request through the backend proxy with retry logic.
+    /// Per INTELLIGENCE_REMEDIATION_PLAN.md §3 — the Anthropic key lives only
+    /// on the Vapor backend now; iOS calls /v1/nutrition/ai/proxy/text.
     private func sendWithRetry(
         system: String,
         prompt: String,
@@ -369,29 +539,29 @@ final class MealPlanGeneratorService: @unchecked Sendable {
 
         for attempt in 0 ... maxRetries {
             do {
-                let response = try await claude.sendMessage(
-                    model: .sonnet,
+                let body = NutritionProxyTextRequest(
+                    model: "sonnet",
                     system: system,
                     userMessage: prompt,
-                    maxTokens: 32768,
-                    temperature: 0.3
+                    maxTokens: 32_768,
+                    temperature: 0.3,
+                    caller: feature
                 )
-                logger.info("[\(feature)] Claude response received (attempt \(attempt))")
-                return response
-            } catch let error as ClaudeAPIError {
+                let response: NutritionProxyTextResponse = try await apiClient.request(
+                    APIEndpoint<NutritionProxyTextResponse>.nutritionProxyText(),
+                    body: body
+                )
+                logger.info("[\(feature)] Claude response received via backend (attempt \(attempt))")
+                return response.text
+            } catch let error as APIError {
                 lastError = error
-                logger.warning("[\(feature)] Claude API error (attempt \(attempt)): \(String(describing: error))")
+                logger.warning("[\(feature)] Backend proxy error (attempt \(attempt)): \(String(describing: error))")
 
                 guard error.isRetryable, attempt < maxRetries else {
                     break
                 }
 
-                let delay: TimeInterval = if case let .rateLimited(retryAfter) = error, let after = retryAfter {
-                    min(after, 8.0)
-                } else {
-                    baseRetryDelay * pow(2.0, Double(attempt))
-                }
-
+                let delay: TimeInterval = baseRetryDelay * pow(2.0, Double(attempt))
                 try await Task.sleep(for: .seconds(delay))
             } catch {
                 lastError = error
@@ -401,9 +571,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         }
 
         state = .failed("AI generation failed")
-        throw MealPlanGeneratorError.generationFailed(
-            lastError as? ClaudeAPIError ?? .networkError("Unknown error")
-        )
+        throw MealPlanGeneratorError.generationFailed(lastError ?? APIError.unknown(statusCode: -1))
     }
 
     // MARK: - JSON Parsing
@@ -524,11 +692,13 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         target: MacroTargets
     ) -> [ParsedMealData] {
         let totalCal = meals.flatMap(\.foods).reduce(0.0) { $0 + $1.calories }
-        guard totalCal > 0 else {
+        let targetCal = Double(target.calories)
+        // Both sides must be positive; a zero target would otherwise scale
+        // every meal to zero calories silently.
+        guard totalCal > 0, targetCal > 0 else {
             return meals
         }
 
-        let targetCal = Double(target.calories)
         let ratio = targetCal / totalCal
 
         // Only scale if off by more than 5%
@@ -735,26 +905,30 @@ struct ParsedMacros: Codable, Sendable {
 // MARK: - MealPlanGeneratorError
 
 enum MealPlanGeneratorError: Error, LocalizedError {
-    case generationFailed(ClaudeAPIError)
+    case generationFailed(Error)
     case parsingFailed(String)
     case validationFailed(String)
     case persistenceFailed(String)
 
     var errorDescription: String? {
         switch self {
-        case let .generationFailed(apiError):
-            switch apiError {
-            case .authError:
-                "API key not configured. Add your Anthropic API key in Secrets.xcconfig."
-            case .circuitOpen:
-                "AI service temporarily unavailable. Too many recent failures — try again in 30 minutes."
-            case .rateLimited:
-                "AI rate limit reached. Wait a moment and try again."
-            case .timeout:
-                "AI request timed out. Check your internet connection and try again."
-            case let .networkError(msg):
-                "Network error: \(msg)"
-            default:
+        case let .generationFailed(error):
+            if let apiError = error as? APIError {
+                switch apiError {
+                case .unauthorized:
+                    "Sign-in expired. Please log in again."
+                case .rateLimited:
+                    "AI rate limit reached. Wait a moment and try again."
+                case .timeout:
+                    "AI request timed out. Check your internet connection and try again."
+                case let .networkError(msg):
+                    "Network error: \(msg)"
+                case .serverError, .unknown:
+                    "AI service temporarily unavailable. Try again in a moment."
+                default:
+                    "AI generation failed. Please try again."
+                }
+            } else {
                 "AI generation failed. Please try again."
             }
         case .parsingFailed:
