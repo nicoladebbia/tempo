@@ -41,11 +41,6 @@ final class OnboardingViewModel {
     // Academic data
     var university: String = ""
     var yearOfStudy: String?
-    /// Legacy free-text exam schedule. Kept for backward-compatibility with users
-    /// onboarded before the structured `classBlocks` schema landed; new users
-    /// fill out classBlocks instead. The daily-plan engine flips
-    /// `examScheduleMigratedAt` on the profile when this has been resolved.
-    var examSchedule: String = ""
 
     // MARK: - Daily plan profile (per INTELLIGENCE_REMEDIATION_PLAN.md §8)
 
@@ -245,10 +240,10 @@ final class OnboardingViewModel {
             postWorkoutMandatory: postWorkoutMandatory,
             studySessionLengthMinutes: studySessionLengthMinutes,
             weekendDifferential: weekendDifferential,
-            // Stamp the migration sentinel — a user who finished the structured
-            // schedule step has by definition resolved the legacy examSchedule
-            // free-text (even if they left classBlocks empty).
-            examScheduleMigratedAt: classBlocks.isEmpty && examSchedule.isEmpty ? nil : Date()
+            // Stamp the migration sentinel — onboarding has captured the
+            // structured class schedule (even if empty), so the legacy
+            // free-text examSchedule path no longer applies.
+            examScheduleMigratedAt: Date()
         )
     }
 
@@ -258,34 +253,34 @@ final class OnboardingViewModel {
     @MainActor
     func syncDailyPlanProfile(apiClient: APIClient) async {
         let dto = OnboardingDailyPlanProfileDTO(
-            wake_time_minutes: wakeTimeMinutes,
-            sleep_target_hours: sleepTargetHours,
+            wakeTimeMinutes: wakeTimeMinutes,
+            sleepTargetHours: sleepTargetHours,
             chronotype: chronotype.rawValue,
-            training_time_preference: trainingTimePreference.rawValue,
-            eating_window_preset: eatingWindowPreset.rawValue,
-            eating_window_start_minutes: eatingWindowStartMinutes,
-            eating_window_end_minutes: eatingWindowEndMinutes,
-            breakfast_skipped: breakfastSkipped,
-            post_workout_mandatory: postWorkoutMandatory,
-            study_session_length_minutes: studySessionLengthMinutes,
-            weekend_differential: weekendDifferential.rawValue,
-            term_start_date: termStartDate,
-            term_end_date: termEndDate,
-            class_blocks: classBlocks.map {
+            trainingTimePreference: trainingTimePreference.rawValue,
+            eatingWindowPreset: eatingWindowPreset.rawValue,
+            eatingWindowStartMinutes: eatingWindowStartMinutes,
+            eatingWindowEndMinutes: eatingWindowEndMinutes,
+            breakfastSkipped: breakfastSkipped,
+            postWorkoutMandatory: postWorkoutMandatory,
+            studySessionLengthMinutes: studySessionLengthMinutes,
+            weekendDifferential: weekendDifferential.rawValue,
+            termStartDate: termStartDate,
+            termEndDate: termEndDate,
+            classBlocks: classBlocks.map {
                 OnboardingDailyPlanProfileDTO.ClassBlock(
                     weekday: $0.weekday,
-                    start_minute_of_day: $0.startMinuteOfDay,
-                    end_minute_of_day: $0.endMinuteOfDay,
-                    course_code: $0.courseCode,
-                    course_name: $0.courseName,
+                    startMinuteOfDay: $0.startMinuteOfDay,
+                    endMinuteOfDay: $0.endMinuteOfDay,
+                    courseCode: $0.courseCode,
+                    courseName: $0.courseName,
                     location: $0.location
                 )
             },
-            work_blocks: workBlocks.map {
+            workBlocks: workBlocks.map {
                 OnboardingDailyPlanProfileDTO.WorkBlock(
                     weekday: $0.weekday,
-                    start_minute_of_day: $0.startMinuteOfDay,
-                    end_minute_of_day: $0.endMinuteOfDay,
+                    startMinuteOfDay: $0.startMinuteOfDay,
+                    endMinuteOfDay: $0.endMinuteOfDay,
                     label: $0.label
                 )
             }

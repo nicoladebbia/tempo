@@ -170,37 +170,76 @@ extension APIEndpoint where Response == UserMeResponseDTO {
 // MARK: - Daily plan profile
 
 /// Mirrors backend SetDailyPlanProfileRequest. Per INTELLIGENCE_REMEDIATION_PLAN.md §8.
+///
+/// Property names are camelCase to match the rest of the iOS DTO surface;
+/// CodingKeys map them to snake_case on the wire. The backend's
+/// `convertFromSnakeCase` strategy then maps the wire keys back to its own
+/// camelCase struct fields.
 struct OnboardingDailyPlanProfileDTO: Codable, Sendable {
-    let wake_time_minutes: Int
-    let sleep_target_hours: Double
+    let wakeTimeMinutes: Int
+    let sleepTargetHours: Double
     let chronotype: String
-    let training_time_preference: String
-    let eating_window_preset: String
-    let eating_window_start_minutes: Int
-    let eating_window_end_minutes: Int
-    let breakfast_skipped: Bool
-    let post_workout_mandatory: Bool
-    let study_session_length_minutes: Int
-    let weekend_differential: String
-    let term_start_date: Date?
-    let term_end_date: Date?
-    let class_blocks: [ClassBlock]
-    let work_blocks: [WorkBlock]
+    let trainingTimePreference: String
+    let eatingWindowPreset: String
+    let eatingWindowStartMinutes: Int
+    let eatingWindowEndMinutes: Int
+    let breakfastSkipped: Bool
+    let postWorkoutMandatory: Bool
+    let studySessionLengthMinutes: Int
+    let weekendDifferential: String
+    let termStartDate: Date?
+    let termEndDate: Date?
+    let classBlocks: [ClassBlock]
+    let workBlocks: [WorkBlock]
+
+    enum CodingKeys: String, CodingKey {
+        case wakeTimeMinutes = "wake_time_minutes"
+        case sleepTargetHours = "sleep_target_hours"
+        case chronotype
+        case trainingTimePreference = "training_time_preference"
+        case eatingWindowPreset = "eating_window_preset"
+        case eatingWindowStartMinutes = "eating_window_start_minutes"
+        case eatingWindowEndMinutes = "eating_window_end_minutes"
+        case breakfastSkipped = "breakfast_skipped"
+        case postWorkoutMandatory = "post_workout_mandatory"
+        case studySessionLengthMinutes = "study_session_length_minutes"
+        case weekendDifferential = "weekend_differential"
+        case termStartDate = "term_start_date"
+        case termEndDate = "term_end_date"
+        case classBlocks = "class_blocks"
+        case workBlocks = "work_blocks"
+    }
 
     struct ClassBlock: Codable, Sendable {
         let weekday: Int
-        let start_minute_of_day: Int
-        let end_minute_of_day: Int
-        let course_code: String
-        let course_name: String?
+        let startMinuteOfDay: Int
+        let endMinuteOfDay: Int
+        let courseCode: String
+        let courseName: String?
         let location: String?
+
+        enum CodingKeys: String, CodingKey {
+            case weekday
+            case startMinuteOfDay = "start_minute_of_day"
+            case endMinuteOfDay = "end_minute_of_day"
+            case courseCode = "course_code"
+            case courseName = "course_name"
+            case location
+        }
     }
 
     struct WorkBlock: Codable, Sendable {
         let weekday: Int
-        let start_minute_of_day: Int
-        let end_minute_of_day: Int
+        let startMinuteOfDay: Int
+        let endMinuteOfDay: Int
         let label: String
+
+        enum CodingKeys: String, CodingKey {
+            case weekday
+            case startMinuteOfDay = "start_minute_of_day"
+            case endMinuteOfDay = "end_minute_of_day"
+            case label
+        }
     }
 }
 
