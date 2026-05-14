@@ -6,19 +6,28 @@
 //
 //
 
+import SwiftData
 import SwiftUI
 
 // MARK: - Onboarding Complete View
 
 // Per STATE_MACHINES.md Section 10 — "Welcome to Tempo" with first day briefing. Terminal.
 // Per BUILD_PLAN step 16.1 — Sets isOnboardingComplete = true, shows main tab view.
+//
+// On appear, materialises the captured daily-plan profile into SwiftData and
+// fires a non-blocking sync to the backend. Per INTELLIGENCE_REMEDIATION_PLAN.md §8.
 
 struct OnboardingCompleteView: View {
     let viewModel: OnboardingViewModel
-    @State
-    private var opacity: Double = 0
-    @State
-    private var scale: Double = 0.9
+
+    @Environment(ServiceContainer.self)
+    private var services
+    @Environment(\.modelContext)
+    private var modelContext
+
+    @State private var opacity: Double = 0
+    @State private var scale: Double = 0.9
+    @State private var didPersist = false
 
     var body: some View {
         VStack(spacing: TempoSpacing.xxl) {
@@ -54,6 +63,29 @@ struct OnboardingCompleteView: View {
                 opacity = 1
                 scale = 1
             }
+            persistDailyPlanProfileIfNeeded()
+        }
+    }
+
+    /// Materialise the captured daily-plan profile into SwiftData and push to
+    /// the backend. Idempotent — guarded by `didPersist` so re-entering this
+    /// view (e.g. via state restoration) doesn't insert duplicate rows.
+    private func persistDailyPlanProfileIfNeeded() {
+        guard !didPersist else { return }
+        didPersist = true
+
+        // Local SwiftData first — survives offline.
+        let profile = viewModel.buildDailyPlanProfile()
+        modelContext.insert(profile)
+        do {
+            try modelContext.save()
+        } catch {
+            print("[onboarding] persistDailyPlanProfile local save failed: \(error.localizedDescription)")
+        }
+
+        // Backend sync — non-blocking. Failures are logged in the VM helper.
+        Task {
+            await viewModel.syncDailyPlanProfile(apiClient: services.apiClient)
         }
     }
 }
