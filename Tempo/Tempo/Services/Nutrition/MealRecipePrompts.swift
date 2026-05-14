@@ -37,6 +37,21 @@ enum MealRecipePrompts {
        the calorie target provided.
     7. No optional or ambiguous ingredients ("a splash of", "to taste") — give
        concrete quantities in grams for solids, millilitres for liquids.
+    8. `displayQuantity` is REQUIRED and must be a human shopping/cooking unit
+       paired with the gram amount. Examples:
+       - 180g carrots         → "3 medium carrots"
+       - 240g black beans     → "1 can black beans (drained)"
+       - 100g rolled oats     → "1 cup rolled oats"
+       - 50g eggs             → "1 large egg"
+       - 14g olive oil        → "1 tbsp olive oil"
+       - 5g salt              → "1 tsp salt"
+       - 110g chicken breast  → "1 small chicken breast"
+       - 30g cheddar          → "1 slice cheddar"
+       - 240g whole milk      → "1 cup whole milk"
+       - 120g banana          → "1 medium banana"
+       Use cups / tbsp / tsp for liquids and dry goods; pieces (egg, breast,
+       carrot, banana) where the natural unit is a whole item; cans for
+       canned legumes/tomatoes. NEVER output an empty string here.
 
     JSON SCHEMA (strict):
     {
@@ -54,7 +69,7 @@ enum MealRecipePrompts {
           "name": "<canonical food name, lowercase>",
           "displayName": "<user-facing label>",
           "quantityGrams": <number>,
-          "displayQuantity": "<freeform, e.g. '1 cup' or empty>",
+          "displayQuantity": "<REQUIRED human unit string, see rule 8>",
           "calories": <number>,
           "proteinGrams": <number>,
           "carbsGrams": <number>,

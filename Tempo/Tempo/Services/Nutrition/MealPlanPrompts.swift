@@ -15,6 +15,17 @@ import Foundation
 /// reference exact numbers, and include safety rails.
 /// Voice follows UX_COPY_BIBLE.md Section 1.1: Drill Sergeant default.
 enum MealPlanPrompts {
+    /// Strip characters that could close a surrounding prompt block
+    /// (newlines, angle brackets, quotes) so user-supplied dietary text
+    /// can't inject instructions into the generation prompt.
+    static func sanitizeForPrompt(_ input: String) -> String {
+        var s = input
+        for ch in ["\n", "\r", "<", ">", "\"", "`"] {
+            s = s.replacingOccurrences(of: ch, with: " ")
+        }
+        return String(s.prefix(120))
+    }
+
     // MARK: - Dietary Restrictions
 
     struct DietaryRestrictions {
@@ -109,10 +120,14 @@ enum MealPlanPrompts {
                     )
             }
             if !allergies.isEmpty {
-                lines.append("- ALLERGIES (STRICT EXCLUSION): \(allergies.joined(separator: ", "))")
+                // Strip newlines and angle brackets so a wizard paste can't
+                // close the surrounding XML-style block in the larger prompt.
+                let safe = allergies.map(MealPlanPrompts.sanitizeForPrompt).joined(separator: ", ")
+                lines.append("- ALLERGIES (STRICT EXCLUSION): \(safe)")
             }
             if !dislikedFoods.isEmpty {
-                lines.append("- DISLIKED FOODS (avoid): \(dislikedFoods.joined(separator: ", "))")
+                let safe = dislikedFoods.map(MealPlanPrompts.sanitizeForPrompt).joined(separator: ", ")
+                lines.append("- DISLIKED FOODS (avoid): \(safe)")
             }
             if lines.isEmpty {
                 return "None."
@@ -155,15 +170,166 @@ enum MealPlanPrompts {
         """
     }
 
+    /// Format the rolling 4-week meal feedback digest as a prompt block.
+    /// Empty when no rows are present. Instructs the model to use the
+    /// signal nuanced-ly — drop recipes the user clearly disliked, apply
+    /// specific suggested changes, respect portion preferences, but NOT
+    /// over-react to a single mention.
+    static func feedbackBlock(_ digest: FeedbackDigest?) -> String {
+        guard let digest, !digest.recipes.isEmpty || !digest.ingredients.isEmpty else {
+            return ""
+        }
+
+        var sections: [String] = []
+
+        if !digest.recipes.isEmpty {
+            let lines = digest.recipes.map { recipe -> String in
+                var parts: [String] = ["• \(recipe.recipeName) (\(recipe.mentionCount)×)"]
+                if let avg = recipe.averageRating {
+                    parts.append(String(format: "avg %.1f★", avg))
+                }
+                if !recipe.feelCounts.isEmpty {
+                    let feelStr = recipe.feelCounts
+                        .sorted { $0.value > $1.value }
+                        .map { "\($0.key) \($0.value)×" }
+                        .joined(separator: ", ")
+                    parts.append("feel: \(feelStr)")
+                }
+                if !recipe.notes.isEmpty {
+                    parts.append("notes: " + recipe.notes.joined(separator: " / "))
+                }
+                if !recipe.portionNotes.isEmpty {
+                    parts.append("portion: " + recipe.portionNotes.joined(separator: " / "))
+                }
+                if !recipe.suggestedChanges.isEmpty {
+                    parts.append("change: " + recipe.suggestedChanges.joined(separator: " / "))
+                }
+                if !recipe.substituteNotes.isEmpty {
+                    parts.append("swapped \(recipe.substituteNotes.count)× for: " + recipe.substituteNotes.joined(separator: " / "))
+                }
+                return parts.joined(separator: " | ")
+            }
+            sections.append("Recipes (last 4 weeks):\n" + lines.joined(separator: "\n"))
+        }
+
+        if !digest.ingredients.isEmpty {
+            let lines = digest.ingredients.map { ing -> String in
+                var parts: [String] = ["• \(ing.ingredientName) (👍 \(ing.likedCount), 👎 \(ing.dislikedCount))"]
+                if !ing.perRecipeNotes.isEmpty {
+                    parts.append("ctx: " + ing.perRecipeNotes.joined(separator: " / "))
+                }
+                return parts.joined(separator: " | ")
+            }
+            sections.append("Ingredient sentiment:\n" + lines.joined(separator: "\n"))
+        }
+
+        return """
+
+        <user_feedback>
+        \(sections.joined(separator: "\n\n"))
+
+        Apply this signal nuanced-ly:
+        - Drop recipes the user clearly disliked (avg rating ≤ 2 or explicit negative notes).
+        - APPLY specific suggested changes when they generate a similar dish ("add lemon", "100g not 300g").
+        - For an ingredient, distinguish dish-context: "rice was mushy in dish X" doesn't ban rice — try a different prep.
+        - Do NOT over-react to a single mention; require ≥ 2 mentions before treating it as a hard preference.
+        - 'feel:' counts come from a post-meal one-word tag (light / clean / energising / heavy / sluggish). \
+        When a recipe is 'sluggish' ≥ 2× more than 'energising', DROP it on training days (strength/soccer/double) \
+        and keep it only for rest days. When 'energising' dominates, prefer it for training-day breakfasts and lunches.
+        - 'swapped Nx for:' means the user marked the planned meal eaten but logged a DIFFERENT meal instead. \
+        ≥ 2 swaps for the same recipe = DROP it from the new plan entirely; the user is voting with their behavior. \
+        Read the swap descriptions to learn what dishes they prefer in that slot and surface similar options.
+        </user_feedback>
+        """
+    }
+
+    /// Format the user's rolling 14-day actual eat-times by mealNumber as a
+    /// prompt block. Empty when no observations exist so callers can
+    /// interpolate unconditionally. Tells the model to anchor scheduledTime
+    /// to these observations rather than the schema defaults.
+    static func observedTimesBlock(_ observed: ObservedMealTimes?) -> String {
+        guard let observed, !observed.isEmpty else {
+            return ""
+        }
+        let labelFor: (Int) -> String = { number in
+            switch number {
+            case 1: "Breakfast"
+            case 2: "Lunch"
+            case 3: "Dinner"
+            case 4: "Snack"
+            default: "Meal \(number)"
+            }
+        }
+        let lines = observed
+            .sorted { $0.key < $1.key }
+            .map { "- \(labelFor($0.key)) (mealNumber \($0.key)): user actually eats around \($0.value)." }
+            .joined(separator: "\n")
+
+        return """
+
+        <observed_meal_times>
+        \(lines)
+
+        Use these as the scheduledTime defaults for the matching mealNumber. \
+        Override the 07:30 / 12:30 / 19:30 / 16:00 hints when an observation exists.
+        </observed_meal_times>
+        """
+    }
+
     // MARK: - Weekly Plan Prompt
 
     /// Generate a full weekly meal plan with exact macros per day type.
     /// Model: Sonnet | Temp: 0.3 | Max tokens: 4096 | Timeout: 30s
+    /// Rolling average actual eat-times by `mealNumber` (1=Breakfast … 4=Snack).
+    /// Computed by `MealPlanGeneratorService` from the last 14 days of
+    /// `PlannedMeal.actualEatenAt`. When present, the prompt anchors each
+    /// meal to the user's real rhythm rather than the default 07:30/12:30/etc.
+    typealias ObservedMealTimes = [Int: String]
+
+    /// Aggregated feedback signal pulled from the last 4 weeks of
+    /// `MealFeedback`. The plan generator uses this to bias the new plan
+    /// toward liked recipes, drop disliked ones, apply suggested changes,
+    /// and respect portion preferences.
+    struct FeedbackDigest: Sendable {
+        struct RecipeSignal: Sendable {
+            let recipeName: String
+            /// Average rating across all feedback rows that gave a rating.
+            /// Nil when no row provided a rating.
+            let averageRating: Double?
+            let mentionCount: Int
+            /// Verbatim freeform notes the model should read directly.
+            let notes: [String]
+            let portionNotes: [String]
+            let suggestedChanges: [String]
+            /// Counts of post-meal feel chips for this recipe. Keys are
+            /// `MealFeel.rawValue`. Surfaces patterns like "this dish
+            /// makes them sluggish 4/5 times" to the planner.
+            let feelCounts: [String: Int]
+            /// Free-text descriptions of what the user ate INSTEAD of the
+            /// planned recipe. Each entry is a "I swapped this dish" event.
+            /// Heavy signal — repeated substitution means the dish should
+            /// be dropped, period.
+            let substituteNotes: [String]
+        }
+        struct IngredientSignal: Sendable {
+            let ingredientName: String
+            /// Per-recipe sentiment so the model can see "user dislikes rice
+            /// in stir-fries but is fine with it in burrito bowls."
+            let perRecipeNotes: [String]
+            let likedCount: Int
+            let dislikedCount: Int
+        }
+        let recipes: [RecipeSignal]
+        let ingredients: [IngredientSignal]
+    }
+
     static func weeklyPlanPrompt(
         targets: [DayType: MacroTargets],
         restrictions: DietaryRestrictions,
         preferences: String,
-        intake: MealPlanIntake? = nil
+        intake: MealPlanIntake? = nil,
+        observedMealTimes: ObservedMealTimes? = nil,
+        feedbackDigest: FeedbackDigest? = nil
     ) -> (system: String, user: String) {
         let system = """
         You are the nutrition arm of Tempo, a drill-sergeant life operating system for student-athletes. \
@@ -214,6 +380,8 @@ enum MealPlanPrompts {
         \(preferences.isEmpty ? "No specific preferences." : preferences)
         </preferences>
         \(weeklyIntakeBlock(intake))
+        \(observedTimesBlock(observedMealTimes))
+        \(feedbackBlock(feedbackDigest))
 
         <meal_structure>
         - 4 meals per day: Breakfast, Lunch, Dinner, Snack

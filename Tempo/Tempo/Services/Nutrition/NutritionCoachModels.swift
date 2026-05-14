@@ -65,8 +65,10 @@ struct MealSuggestionsResponse: Codable {
 // MARK: - NutritionCoachError
 
 enum NutritionCoachError: Error {
-    /// Claude API call failed.
-    case apiFailed(ClaudeAPIError)
+    /// Backend Claude proxy call failed (network, auth, rate limit, upstream API).
+    /// Per INTELLIGENCE_REMEDIATION_PLAN.md §3 — Claude is reached via
+    /// /v1/nutrition/ai/proxy/text, not directly from iOS.
+    case apiFailed(Error)
     /// Response was empty or could not be parsed.
     case invalidResponse(String)
     /// JSON parsing failed after extraction attempt.

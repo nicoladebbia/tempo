@@ -30,7 +30,12 @@ struct RecipeSuggestionInputs: Sendable {
     let requireCompletePantry: Bool
 
     /// Cap on missing ingredients per recipe when `requireCompletePantry` is false.
-    let maxMissingIngredients: Int
+    /// When `nil` (the new default), the cap is computed per-recipe as
+    /// `max(2, ceil(required * 0.6))` so a 10-ingredient recipe tolerates 6
+    /// missing items while a 4-ingredient one still caps at 2. Tight pantries
+    /// were silently producing zero suggestions because every candidate
+    /// breached the old hard cap of 2.
+    let maxMissingIngredients: Int?
 
     init(
         pantryCanonicalNames: Set<String>,
@@ -40,7 +45,7 @@ struct RecipeSuggestionInputs: Sendable {
         remainingFat: Int? = nil,
         mealTypeFilter: RecipeMealType? = nil,
         requireCompletePantry: Bool = false,
-        maxMissingIngredients: Int = 2
+        maxMissingIngredients: Int? = nil
     ) {
         self.pantryCanonicalNames = pantryCanonicalNames
         self.remainingCalories = remainingCalories
@@ -130,11 +135,15 @@ enum RecipeSuggestionEngine {
             if inputs.requireCompletePantry, !missing.isEmpty {
                 continue
             }
-            if !inputs.requireCompletePantry, missing.count > inputs.maxMissingIngredients {
-                continue
+            if !inputs.requireCompletePantry {
+                let cap = inputs.maxMissingIngredients
+                    ?? max(2, Int(ceil(Double(required.count) * 0.6)))
+                if missing.count > cap {
+                    continue
+                }
             }
 
-            let coverage = required.isEmpty ? 0 : Double(present.count) / Double(required.count)
+            let coverage = Double(present.count) / Double(required.count)
             let macroScore = macroAlignmentScore(for: recipe, inputs: inputs)
 
             suggestions.append(.init(

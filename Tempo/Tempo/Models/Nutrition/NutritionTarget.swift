@@ -88,11 +88,13 @@ final class NutritionTarget {
         isActive: Bool = true
     ) {
         self.id = id
-        self.calorieTarget = calorieTarget
-        self.proteinTargetGrams = proteinTargetGrams
-        self.carbsTargetGrams = carbsTargetGrams
-        self.fatTargetGrams = fatTargetGrams
-        self.mealsPerDay = mealsPerDay
+        // Zero/negative targets render macro percentage as 0% silently;
+        // clamp to non-negative so downstream math is well-defined.
+        self.calorieTarget = max(0, calorieTarget)
+        self.proteinTargetGrams = max(0, proteinTargetGrams)
+        self.carbsTargetGrams = max(0, carbsTargetGrams)
+        self.fatTargetGrams = max(0, fatTargetGrams)
+        self.mealsPerDay = max(1, mealsPerDay)
         self.effectiveFrom = Calendar.current.startOfDay(for: effectiveFrom)
         self.isActive = isActive
     }

@@ -95,10 +95,12 @@ final class NutritionService: NutritionServiceProtocol, @unchecked Sendable {
 
     // MARK: - Factory
 
-    static func live(healthKit: any HealthKitServiceProtocol) -> NutritionService {
+    static func live(healthKit: any HealthKitServiceProtocol, apiClient: APIClient) -> NutritionService {
         let foodSearch = FoodSearchService()
         let mealLogging = MealLoggingService(healthKit: healthKit)
-        let photoAnalysis = PhotoAnalysisService(foodSearch: foodSearch)
+        // Per INTELLIGENCE_REMEDIATION_PLAN.md §3 — photo analysis now proxies
+        // through the backend instead of calling Anthropic directly.
+        let photoAnalysis = PhotoAnalysisService(foodSearch: foodSearch, apiClient: apiClient)
         return NutritionService(
             foodSearch: foodSearch,
             mealLogging: mealLogging,

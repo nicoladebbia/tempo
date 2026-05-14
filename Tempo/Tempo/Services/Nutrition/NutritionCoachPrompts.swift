@@ -362,9 +362,17 @@ enum NutritionCoachPrompts {
 
         <nutrition_status>
         - Carbs consumed: \(Int(carbsConsumed))g / \(Int(carbTarget))g daily target
-        - Protein consumed: \(Int(proteinConsumed))g / \(Int(proteinTarget))g daily target
-        - Calories consumed: \(Int(caloriesConsumed)) kcal / \(Int(calorieTarget)) target
         """
+
+        // Protein/calorie rows are optional: callers that only track carbs
+        // pass zeros, which would otherwise render as "0 / 0 target" and
+        // mislead the model into spurious deficit prescriptions.
+        if proteinTarget > 0 {
+            prompt += "\n        - Protein consumed: \(Int(proteinConsumed))g / \(Int(proteinTarget))g daily target"
+        }
+        if calorieTarget > 0 {
+            prompt += "\n        - Calories consumed: \(Int(caloriesConsumed)) kcal / \(Int(calorieTarget)) target"
+        }
 
         if let lastMeal = lastMealTime {
             prompt += "\n- Last meal: \(lastMeal)"

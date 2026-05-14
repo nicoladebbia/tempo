@@ -143,7 +143,8 @@ final class MealFoodItem {
         self.barcode = barcode
         self.servingSizeGrams = servingSizeGrams
         self.servingSizeLabel = servingSizeLabel
-        self.quantity = quantity
+        // Negative quantities silently propagate as negative calories downstream.
+        self.quantity = max(0, quantity)
         self.caloriesPerServing = caloriesPerServing
         self.proteinPerServing = proteinPerServing
         self.carbsPerServing = carbsPerServing

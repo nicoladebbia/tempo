@@ -212,7 +212,7 @@ final class MockNutritionCoachService: NutritionCoachServiceProtocol, @unchecked
         callLog.append(method)
 
         if shouldFail {
-            throw NutritionCoachError.apiFailed(.serverError(statusCode: 500))
+            throw NutritionCoachError.apiFailed(APIError.serverError(statusCode: 500))
         }
 
         if simulatedDelay > 0 {

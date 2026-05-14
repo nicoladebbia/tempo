@@ -74,8 +74,17 @@ final class WeeklyMealPlan {
         generatedAt: Date = Date()
     ) {
         self.id = id
-        self.startDate = Calendar.current.startOfDay(for: startDate)
-        self.endDate = Calendar.current.startOfDay(for: endDate)
+        let normalizedStart = Calendar.current.startOfDay(for: startDate)
+        let normalizedEnd = Calendar.current.startOfDay(for: endDate)
+        // If caller swaps arguments, swap them back so we never store a
+        // negative-width week (which downstream day iterators would skip).
+        if normalizedEnd < normalizedStart {
+            self.startDate = normalizedEnd
+            self.endDate = normalizedStart
+        } else {
+            self.startDate = normalizedStart
+            self.endDate = normalizedEnd
+        }
         dayTypeAssignmentsJSON = dayTypeAssignments.isEmpty
             ? nil
             : try? JSONEncoder().encode(dayTypeAssignments)

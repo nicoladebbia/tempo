@@ -1,0 +1,15 @@
+# Xcode build artifacts (3.4GB)
+Tempo/build/
+build/
+DerivedData/
+
+# Swift Package Manager
+SourcePackages/
+.build/
+
+# OS
+.DS_Store
+
+# Xcode user state
+*.xcuserstate
+*.xcuserdatad

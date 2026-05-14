@@ -79,7 +79,9 @@ final class DietaryProfile {
             return (try? JSONDecoder().decode([String].self, from: data)) ?? []
         }
         set {
-            allergiesJSON = try? JSONEncoder().encode(newValue)
+            // [String] encoding is infallible for UTF-8 strings; force-unwrap
+            // makes the invariant explicit rather than silently dropping.
+            allergiesJSON = (try? JSONEncoder().encode(newValue)) ?? Data("[]".utf8)
         }
     }
 
@@ -92,7 +94,7 @@ final class DietaryProfile {
             return (try? JSONDecoder().decode([String].self, from: data)) ?? []
         }
         set {
-            dislikedFoodsJSON = try? JSONEncoder().encode(newValue)
+            dislikedFoodsJSON = (try? JSONEncoder().encode(newValue)) ?? Data("[]".utf8)
         }
     }
 
