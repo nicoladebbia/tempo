@@ -435,6 +435,15 @@ final class TrainingViewModel {
         // The HealthKit write is best-effort; don't block on failure
         // (Full HealthKit workout writing is implemented in Phase 5)
 
+        // Day-plan engine signal — a logged workout means subsequent
+        // blocks (especially recovery + meals) may shift. DayPlanScheduler
+        // debounces the cascade.
+        NotificationCenter.default.post(
+            name: .tempoDayPlanReplanRequested,
+            object: nil,
+            userInfo: ["reason": DayPlanReason.workoutLogged.rawValue]
+        )
+
         sessionState = .saved
         resetState()
     }

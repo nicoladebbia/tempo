@@ -22,6 +22,7 @@ struct DayPlanView: View {
 
     @State private var selectedBlock: TimeBlock?
     @State private var isRegenerating = false
+    @State private var scheduler: DayPlanScheduler?
 
     // 60 pixels per hour → a full day = 1440 pixels. Wide enough that
     // 15-min blocks (15 px) are still legible.
@@ -37,6 +38,24 @@ struct DayPlanView: View {
         .background(Color.tempoBgPrimary)
         .sheet(item: $selectedBlock) { block in
             BlockDetailSheet(block: block)
+        }
+        .task {
+            // Lazy-init the scheduler on first appearance — it observes
+            // foreground / EventKit change / replan-request notifications
+            // for the lifetime of the view. Per
+            // INTELLIGENCE_REMEDIATION_PLAN.md §9.3.
+            if scheduler == nil {
+                let service = DayPlannerService(
+                    modelContext: modelContext,
+                    calendar: services.calendar,
+                    recoveryEngine: services.recoveryEngine,
+                    apiClient: services.apiClient
+                )
+                scheduler = DayPlanScheduler(service: service)
+                if currentPlan == nil {
+                    await scheduler?.replanNow(reason: .initial)
+                }
+            }
         }
     }
 

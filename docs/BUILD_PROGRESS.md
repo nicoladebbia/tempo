@@ -185,7 +185,7 @@
 - [x] 15.6: Response caching layer (AICache: Redis + Postgres, typed cache keys, SWR API) ✅ 2026-05-14
 - [x] 15.7: Build missing AI features (recovery prescription, morning briefing, training adjustment, drill sergeant batch, dashboard insights, training program, meal timing, study schedule, achievement copy) ✅ 2026-05-14
 - [x] 15.8: Capture daily-plan onboarding fields (UserDailyPlanProfile model, 6 new onboarding steps, /v1/user/daily-plan-profile endpoint) ✅ 2026-05-14
-- [ ] 15.9: Build daily time-blocked plan engine (see `docs/INTELLIGENCE_REMEDIATION_PLAN.md §9`)
+- [x] 15.9: Build daily time-blocked plan engine (DayPlan/TimeBlock models, rule-based DayPlanner solver, DayPlannerService I/O glue, DayPlanView read-only timeline, parallel AI copy hydration, re-plan triggers via DayPlanScheduler) ✅ 2026-05-14 — drag-to-reflow deferred to v1.1
 
 ## Phase 16: Onboarding
 **Goal:** Build the full onboarding flow container with all step views and state persistence.

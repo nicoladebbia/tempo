@@ -374,6 +374,7 @@
 		57ECBA89ED10A2B3E871EAA6 /* DayPlannerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CE77DEBE0AD20B0A8D49459 /* DayPlannerService.swift */; };
 		E0BC757FB5D62CB40A9D0B09 /* DayPlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AC5410757AF8A801F428BEC /* DayPlanView.swift */; };
 		352BC874BE097D3D3D922732 /* DayPlannerAIHydrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 687935968D81DA61ABA057E7 /* DayPlannerAIHydrator.swift */; };
+		37337CAE4902FCE3DE4A666E /* DayPlanScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 332B8EF7A0B6FAE2919C0E94 /* DayPlanScheduler.swift */; };
 		D5838FB14B7AE058A27662BF /* DailyPlanProfileViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A08DD4250DDB84A27DD6110A /* DailyPlanProfileViews.swift */; };
 		F83C15852D2C6DFFD4A5E7AF /* TempoWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C61F010FAE13F4945D1221F /* TempoWidget.swift */; };
 		F8E473B91AB7528573E5B26D /* PantryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6F33E41210967370677ACBE /* PantryView.swift */; };
@@ -727,6 +728,7 @@
 		9CE77DEBE0AD20B0A8D49459 /* DayPlannerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tempo/Services/Engines/DayPlannerService.swift; sourceTree = SOURCE_ROOT; };
 		4AC5410757AF8A801F428BEC /* DayPlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tempo/Views/Dashboard/DayPlanView.swift; sourceTree = SOURCE_ROOT; };
 		687935968D81DA61ABA057E7 /* DayPlannerAIHydrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tempo/Services/Engines/DayPlannerAIHydrator.swift; sourceTree = SOURCE_ROOT; };
+		332B8EF7A0B6FAE2919C0E94 /* DayPlanScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tempo/Services/Engines/DayPlanScheduler.swift; sourceTree = SOURCE_ROOT; };
 		A08DD4250DDB84A27DD6110A /* DailyPlanProfileViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyPlanProfileViews.swift; sourceTree = "<group>"; };
 		B94FF608576C7C015A2227E6 /* WorkoutSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutSummaryView.swift; sourceTree = "<group>"; };
 		B9E59CCE5787473C56E7EC58 /* LoadingStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingStateView.swift; sourceTree = "<group>"; };
@@ -2599,6 +2601,7 @@
 				57ECBA89ED10A2B3E871EAA6 /* DayPlannerService.swift in Sources */,
 				E0BC757FB5D62CB40A9D0B09 /* DayPlanView.swift in Sources */,
 				352BC874BE097D3D3D922732 /* DayPlannerAIHydrator.swift in Sources */,
+				37337CAE4902FCE3DE4A666E /* DayPlanScheduler.swift in Sources */,
 				D5838FB14B7AE058A27662BF /* DailyPlanProfileViews.swift in Sources */,
 				422B52FE216E4216E3CDC128 /* ValueDemoView.swift in Sources */,
 				41B2AAA4DACA68D65D3FCFF2 /* View+Accessibility.swift in Sources */,

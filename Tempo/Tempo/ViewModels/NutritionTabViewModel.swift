@@ -351,6 +351,15 @@ final class NutritionTabViewModel {
         notifications?.cancelPrepStartReminder(forMealID: mealID)
         notifications?.cancelOverdueMealReminder(forMealID: mealID)
         refreshTodayMeals(modelContext: modelContext)
+
+        // Notify the day-plan engine: a meal eaten off its scheduled time
+        // means subsequent free windows shifted, so the timeline copy
+        // (especially meal-timing) is stale. DayPlanScheduler debounces.
+        NotificationCenter.default.post(
+            name: .tempoDayPlanReplanRequested,
+            object: nil,
+            userInfo: ["reason": DayPlanReason.mealEatenOffSchedule.rawValue]
+        )
     }
 
     /// Recompute and persist shifted scheduled times for the remaining meals

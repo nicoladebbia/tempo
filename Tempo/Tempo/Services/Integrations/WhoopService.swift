@@ -628,6 +628,17 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
         _ = try? await fetchCycle(for: today)
         lastSyncDate = Date()
         logger.info("Whoop sync all completed")
+
+        // Day-plan engine signal — fresh recovery score may shift the
+        // bedtime fence and training-program rationale. DayPlanScheduler
+        // debounces; safe to post even when no plan exists yet.
+        await MainActor.run {
+            NotificationCenter.default.post(
+                name: .tempoDayPlanReplanRequested,
+                object: nil,
+                userInfo: ["reason": DayPlanReason.whoopSynced.rawValue]
+            )
+        }
     }
 
     // MARK: - Check Connection on Launch
