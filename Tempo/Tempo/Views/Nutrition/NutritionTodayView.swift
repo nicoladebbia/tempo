@@ -24,6 +24,20 @@ struct NutritionTodayView: View {
     @Environment(ServiceContainer.self)
     private var services
 
+    /// When set, presents `MealFeedbackSheet` for this meal. Used by the
+    /// review-pending chip on past eaten meals and the long-form review
+    /// flow. NOT the path taken by a fresh mark-eaten tap — that goes
+    /// through `markEatenMeal` below.
+    @State
+    private var feedbackMeal: PlannedMeal?
+
+    /// When set, presents `MarkEatenSheet` for this meal. Combines the
+    /// backward-fill time scrubber and the meal-feel chip. Replaces the
+    /// previous "tap = commits at .now" behavior — every Mark Eaten tap
+    /// now opens this sheet first.
+    @State
+    private var markEatenMeal: PlannedMeal?
+
     // Macro colors per MODULE_DASHBOARD.md
     private let proteinColor = Color.tempoMacroProtein
     private let carbsColor = Color.tempoMacroCarbs
@@ -33,6 +47,9 @@ struct NutritionTodayView: View {
         ZStack(alignment: .bottomTrailing) {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: TempoSpacing.xl) {
+                    if let banner = viewModel.lastRedistributionBanner {
+                        redistributionBanner(banner)
+                    }
                     macroRingsSection
                     calorieProgressSection
                     mealsListSection
@@ -56,6 +73,18 @@ struct NutritionTodayView: View {
             floatingLogButton
                 .padding(.trailing, TempoSpacing.screenEdge)
                 .padding(.bottom, TempoSpacing.bottomSafe)
+        }
+        .sheet(item: $feedbackMeal, onDismiss: {
+            viewModel.refreshFeedbackPresence(modelContext: modelContext)
+        }) { meal in
+            MealFeedbackSheet(meal: meal)
+                .presentationDetents([.medium, .large])
+        }
+        .sheet(item: $markEatenMeal) { meal in
+            MarkEatenSheet(meal: meal) { eatTime, feel, substitute in
+                commitMarkEaten(meal: meal, at: eatTime, feel: feel, substitute: substitute)
+            }
+            .presentationDetents([.medium, .large])
         }
     }
 
@@ -213,17 +242,24 @@ struct NutritionTodayView: View {
             }
 
             if viewModel.todayMeals.isEmpty {
-                emptyMealsState
+                if let plan = viewModel.weeklyPlan,
+                   Calendar.current.startOfDay(for: plan.startDate) > Calendar.current.startOfDay(for: Date())
+                {
+                    stalePlanState(plan: plan)
+                } else {
+                    emptyMealsState
+                }
             } else {
                 ForEach(viewModel.todayMeals, id: \.id) { meal in
                     PlannedMealCardView(
                         meal: meal,
                         onMarkEaten: {
-                            viewModel.markMealEaten(
-                                meal,
-                                modelContext: modelContext,
-                                notifications: services.notifications
-                            )
+                            // Present the unified MarkEatenSheet — user
+                            // confirms when they actually ate and
+                            // optionally picks a meal-feel chip. The
+                            // sheet's onCommit calls markMealEaten with
+                            // the chosen time + writes the feedback row.
+                            markEatenMeal = meal
                         },
                         onMarkSkipped: {
                             viewModel.markMealSkipped(
@@ -231,11 +267,66 @@ struct NutritionTodayView: View {
                                 modelContext: modelContext,
                                 notifications: services.notifications
                             )
-                        }
+                            // Fire-and-forget AI redistribution. UX
+                            // stays snappy; banner appears when the call
+                            // returns (sub-second on Haiku, ~2s on retry).
+                            Task {
+                                let recovery = viewModel.todayRecovery?.score
+                                let sleep = viewModel.todaySleep?.totalHours
+                                let strain = viewModel.todayRecovery.flatMap { _ in nil as Double? }
+                                await viewModel.redistributeSkippedMacros(
+                                    meal,
+                                    modelContext: modelContext,
+                                    apiClient: services.apiClient,
+                                    recoveryScore: recovery,
+                                    sleepHours: sleep,
+                                    strain: strain,
+                                    dayType: "unknown"
+                                )
+                            }
+                        },
+                        onReviewTap: { feedbackMeal = meal },
+                        needsReview: meal.status == .eaten
+                            && !(viewModel.feedbackPresence[meal.id] ?? false)
                     )
                 }
             }
         }
+    }
+
+    /// Banner shown right after an AI skip-redistribution lands. One sentence
+    /// of reasoning + a dismiss button. Cleared by the user; not auto-hidden
+    /// so they have time to read it.
+    private func redistributionBanner(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: TempoSpacing.sm) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Color.tempoElectric)
+                .padding(.top, 2)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Macros redistributed")
+                    .font(.tempoCaption1)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                Text(text)
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+            Button {
+                viewModel.lastRedistributionBanner = nil
+                HapticManager.lightImpact()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(Color.tempoTextTertiary)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(TempoSpacing.md)
+        .background(Color.tempoElectric.opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
     }
 
     private var emptyMealsState: some View {
@@ -256,6 +347,102 @@ struct NutritionTodayView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, TempoSpacing.xxl)
         .tempoCard()
+    }
+
+    /// Shown when a `WeeklyMealPlan` exists but its `startDate` is in the
+    /// future — typically because it was generated by a pre-2026-05-12
+    /// version of `MealPlanGeneratorService` that anchored plans to the
+    /// next Monday. We surface the actual range and offer a regenerate
+    /// path; we don't mutate the existing plan silently.
+    private func stalePlanState(plan: WeeklyMealPlan) -> some View {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE, MMM d"
+        let startStr = formatter.string(from: plan.startDate)
+        let endStr = formatter.string(from: plan.endDate)
+
+        return VStack(spacing: TempoSpacing.md) {
+            Image(systemName: "calendar.badge.clock")
+                .font(.system(size: 32))
+                .foregroundStyle(Color.tempoAmber)
+
+            Text("Your plan starts \(startStr).")
+                .font(.tempoBody)
+                .fontWeight(.semibold)
+                .foregroundStyle(Color.tempoTextPrimary)
+                .multilineTextAlignment(.center)
+
+            Text("Covers \(startStr) – \(endStr). Regenerate to anchor it to today.")
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoTextSecondary)
+                .multilineTextAlignment(.center)
+
+            Button {
+                HapticManager.lightImpact()
+                viewModel.generatePlan(
+                    modelContext: modelContext,
+                    whoop: services.whoop,
+                    apiClient: services.apiClient,
+                    notifications: services.notifications
+                )
+            } label: {
+                Text(viewModel.isGeneratingPlan ? "Regenerating…" : "Regenerate for Today")
+                    .font(.tempoCallout)
+            }
+            .buttonStyle(.tempoPrimary)
+            .disabled(viewModel.isGeneratingPlan)
+            .padding(.top, TempoSpacing.xs)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, TempoSpacing.xxl)
+        .padding(.horizontal, TempoSpacing.lg)
+        .tempoCard()
+    }
+
+    // MARK: - Mark Eaten Commit
+
+    /// Sheet's onCommit handler. Routes the user-chosen time into the
+    /// existing `markMealEaten(at:)` flow and, when a meal-feel chip or
+    /// substitute was provided, persists a `MealFeedback` row.
+    /// When a substitute is present, the planned meal's macros are
+    /// zeroed (the user didn't eat the planned dish) and the substitute
+    /// kcal estimate, if any, replaces them.
+    private func commitMarkEaten(
+        meal: PlannedMeal,
+        at eatTime: Date,
+        feel: MealFeel?,
+        substitute: MarkEatenSheet.Substitute?
+    ) {
+        if let substitute {
+            meal.totalCalories = substitute.calories ?? 0
+            // No per-macro estimate — only the calorie field exists in
+            // the quick-swap lane. Protein/carbs/fat are unknown.
+            meal.totalProtein = 0
+            meal.totalCarbs = 0
+            meal.totalFat = 0
+        }
+        viewModel.markMealEaten(
+            meal,
+            at: eatTime,
+            modelContext: modelContext,
+            notifications: services.notifications
+        )
+        // Pantry decrement runs only when the user actually ate the
+        // planned dish. A substitute means the planned ingredients are
+        // still on the shelf.
+        if substitute == nil {
+            PantryDecrementService.decrement(for: meal, modelContext: modelContext)
+        }
+        if feel != nil || substitute != nil {
+            let feedback = MealFeedback(
+                plannedMeal: meal,
+                mealFeel: feel,
+                substituteNote: substitute?.note,
+                substituteCalories: substitute?.calories
+            )
+            modelContext.insert(feedback)
+            try? modelContext.save()
+        }
+        viewModel.refreshFeedbackPresence(modelContext: modelContext)
     }
 
     // MARK: - Floating Log Button

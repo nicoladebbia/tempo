@@ -17,6 +17,13 @@ struct PlannedMealCardView: View {
     let meal: PlannedMeal
     var onMarkEaten: (() -> Void)?
     var onMarkSkipped: (() -> Void)?
+    /// Tap handler for the "review pending" affordance shown on eaten meals
+    /// that don't yet have a `MealFeedback` row. Caller decides what to
+    /// present (typically `MealFeedbackSheet`).
+    var onReviewTap: (() -> Void)?
+    /// When true, surface the small "review" dot next to the status badge.
+    /// The day list computes this from the VM's `feedbackPresence` map.
+    var needsReview: Bool = false
 
     @State
     private var isExpanded: Bool = false
@@ -107,6 +114,25 @@ struct PlannedMealCardView: View {
 
             Spacer()
 
+            // Review-pending dot — tap to leave feedback. Only visible for
+            // eaten meals that don't yet have a `MealFeedback` row.
+            if needsReview {
+                Button {
+                    HapticManager.lightImpact()
+                    onReviewTap?()
+                } label: {
+                    Image(systemName: "text.bubble")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.tempoAmber)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(Color.tempoAmber.opacity(0.15))
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Leave feedback for \(meal.mealName)")
+            }
+
             // Status badge
             statusBadge
 
@@ -152,7 +178,7 @@ struct PlannedMealCardView: View {
                     .foregroundStyle(Color.tempoTextTertiary)
                     .padding(.vertical, TempoSpacing.sm)
             } else {
-                ForEach(Array(foods.enumerated()), id: \.offset) { _, food in
+                ForEach(Array(foods.enumerated()), id: \.element.name) { _, food in
                     HStack(spacing: TempoSpacing.sm) {
                         Circle()
                             .fill(Color.tempoViolet.opacity(0.4))

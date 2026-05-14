@@ -6,6 +6,7 @@
 //
 //
 
+import SwiftData
 import SwiftUI
 
 /// Full-screen detail for a single `PlannedMeal`. Three blocks, top to bottom:
@@ -22,12 +23,32 @@ struct MealDetailView: View {
     private var dismiss
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(ServiceContainer.self)
+    private var services
 
     /// Prep-checklist state is in-memory only (defrost items are derived from
     /// ingredients, not first-class persisted entities). Ingredient/step state
     /// lives on the SwiftData models themselves so it survives backgrounding.
     @State
     private var checkedPrepItems: Set<UUID> = []
+
+    /// True while the MarkEatenSheet is presented. Tapping the overdue
+    /// "Mark Eaten" button flips this on; the sheet routes the chosen
+    /// time + feel back through `commitMarkEaten`.
+    @State
+    private var presentMarkEatenSheet: Bool = false
+
+    /// User's planned wake time in minutes-from-midnight, read from
+    /// `UserSettings`. Defaults to 07:00 when no settings row exists.
+    /// Combined with `actualWakeTime` to compute the schedule shift the
+    /// detail view applies (display-only — `scheduledTime` is never
+    /// mutated by this screen).
+    @State
+    private var plannedWakeMinutes: Int = 420
+    /// HealthKit/Whoop wake time for today, used as the "actual" anchor
+    /// against `plannedWakeMinutes`. Nil until the async fetch lands.
+    @State
+    private var actualWakeTime: Date?
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -52,6 +73,38 @@ struct MealDetailView: View {
         .background(Color.tempoBgPrimary)
         .navigationTitle(meal.mealName)
         .navigationBarTitleDisplayMode(.inline)
+        .task { await loadWakeSignal() }
+        .sheet(isPresented: $presentMarkEatenSheet) {
+            MarkEatenSheet(meal: meal) { eatTime, feel, substitute in
+                commitMarkEaten(at: eatTime, feel: feel, substitute: substitute)
+            }
+            .presentationDetents([.medium, .large])
+        }
+    }
+
+    /// Pull the user's planned wake from `UserSettings` and today's actual
+    /// wake from HealthKit so the schedule block reflects the same
+    /// Whoop-adaptive shift the Fuel day list uses. Both fetches are
+    /// non-fatal — failure leaves the block showing stored times.
+    private func loadWakeSignal() async {
+        let settingsDescriptor = FetchDescriptor<UserSettings>()
+        if let settings = try? modelContext.fetch(settingsDescriptor).first {
+            plannedWakeMinutes = settings.wakeTimeMinutes
+        }
+        do {
+            let sleep = try await services.healthKit.fetchSleepAnalysis(for: Date())
+            actualWakeTime = sleep.wakeTime
+        } catch {
+            actualWakeTime = nil
+        }
+    }
+
+    private var scheduleDisplay: MealScheduleDisplay {
+        FuelMealScheduleAnnotator.display(
+            for: meal,
+            plannedWakeMinutes: plannedWakeMinutes,
+            actualWakeTime: actualWakeTime
+        )
     }
 
     // MARK: - Header
@@ -72,23 +125,33 @@ struct MealDetailView: View {
 
     // MARK: - Schedule
 
-    private var scheduleSection: some View {
-        let prepStart = MealScheduleHelpers.prepStartDate(for: meal)
-        let mealTime = MealScheduleHelpers.scheduledDate(for: meal)
-        let eatFinish = MealScheduleHelpers.eatFinishDate(for: meal)
+    // Single timeline block. Drives every displayed time off the
+    // Whoop/HealthKit-aware annotator, so wake-time shifts surface here just
+    // like they do in the Fuel day list. AI-redistribution and
+    // eating-time shifts are already persisted to `scheduledTime`, so
+    // they ride along for free.
 
+    private var scheduleSection: some View {
+        let display = scheduleDisplay
         return VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            sectionLabel("SCHEDULE")
-            TimelineView(.periodic(from: .now, by: 30)) { context in
-                Text(NextMealCardView.countdownLabel(target: prepStart, now: context.date))
-                    .font(.tempoBody)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(prepStart <= context.date ? Color.tempoSignal : Color.tempoTextPrimary)
+            HStack(alignment: .firstTextBaseline) {
+                sectionLabel("SCHEDULE")
+                Spacer()
+                if display.hasShift {
+                    shiftChip(minutes: display.shiftMinutes)
+                }
             }
-            HStack(spacing: TempoSpacing.lg) {
-                scheduleChip(label: "PREP START", time: prepStart)
-                scheduleChip(label: "EAT AT", time: mealTime)
-                scheduleChip(label: "FINISH BY", time: eatFinish)
+
+            TimelineView(.everyMinute) { context in
+                let now = context.date
+                let phase = SchedulePhase(meal: meal, now: now, display: display)
+                VStack(alignment: .leading, spacing: TempoSpacing.md) {
+                    statusLine(phase: phase, now: now, display: display)
+                    timelineTrack(now: now, display: display, phase: phase)
+                    if case .overdue = phase {
+                        overdueActions
+                    }
+                }
             }
         }
         .padding(TempoSpacing.buttonPaddingV)
@@ -97,17 +160,293 @@ struct MealDetailView: View {
         .tempoShadow(.card)
     }
 
-    private func scheduleChip(label: String, time: Date) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label)
-                .font(.system(size: 10, weight: .bold))
-                .tracking(0.5)
-                .foregroundStyle(Color.tempoTextTertiary)
-            Text(Self.clockFormatter.string(from: time))
-                .font(.tempoCallout)
+    // MARK: - Schedule sub-components
+
+    /// Single-line status: the *one* thing the user needs to know right
+    /// now. Replaces the redundant "Start prepping…" header that paired
+    /// with a "PREP START 7:15" chip saying the same thing.
+    @ViewBuilder
+    private func statusLine(phase: SchedulePhase, now: Date, display: MealScheduleDisplay) -> some View {
+        switch phase {
+        case .beforePrep:
+            let minutes = max(0, Int(display.prepStart.timeIntervalSince(now) / 60))
+            Text("Start prepping in \(formatDuration(minutes: minutes)).")
+                .font(.tempoBody)
                 .fontWeight(.semibold)
                 .foregroundStyle(Color.tempoTextPrimary)
+        case .prepping:
+            Text("Prep now — eat at \(Self.clockFormatter.string(from: display.mealTime)).")
+                .font(.tempoBody)
+                .fontWeight(.semibold)
+                .foregroundStyle(Color.tempoSignal)
+        case .eating:
+            let minutes = max(0, Int(display.eatFinish.timeIntervalSince(now) / 60))
+            Text("Eat now — \(formatDuration(minutes: minutes)) left.")
+                .font(.tempoBody)
+                .fontWeight(.semibold)
+                .foregroundStyle(Color.tempoSuccess)
+        case .overdue:
+            let minutes = max(1, Int(now.timeIntervalSince(display.eatFinish) / 60))
+            Text("Past \(Self.clockFormatter.string(from: display.eatFinish)) — did you eat it? (\(formatDuration(minutes: minutes)) overdue)")
+                .font(.tempoBody)
+                .fontWeight(.semibold)
+                .foregroundStyle(Color.tempoAmber)
+        case let .eaten(at):
+            if let at {
+                Text("Eaten at \(Self.clockFormatter.string(from: at)).")
+                    .font(.tempoBody)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.tempoSuccess)
+            } else {
+                Text("Eaten.")
+                    .font(.tempoBody)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.tempoSuccess)
+            }
+        case .skipped:
+            Text("Skipped — macros redistributed.")
+                .font(.tempoBody)
+                .fontWeight(.semibold)
+                .foregroundStyle(Color.tempoTextSecondary)
         }
+    }
+
+    /// Inline Eat / Skip buttons shown only in the `.overdue` phase. Both
+    /// write directly to SwiftData here — the richer redistribution +
+    /// shift flow happens upstream when actions originate from the day
+    /// list. From this screen we do the minimum honest thing: record the
+    /// status, cancel pending notifications, save.
+    private var overdueActions: some View {
+        HStack(spacing: TempoSpacing.sm) {
+            Button {
+                resolveAsEaten()
+            } label: {
+                Label("Mark Eaten", systemImage: "checkmark.circle.fill")
+                    .font(.tempoCallout)
+                    .fontWeight(.semibold)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(Color.tempoSuccess.opacity(0.18))
+                    .foregroundStyle(Color.tempoSuccess)
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            Button {
+                resolveAsSkipped()
+            } label: {
+                Label("Skip", systemImage: "xmark.circle.fill")
+                    .font(.tempoCallout)
+                    .fontWeight(.semibold)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(Color.tempoError.opacity(0.15))
+                    .foregroundStyle(Color.tempoError)
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    /// Triggers the MarkEatenSheet rather than committing immediately.
+    /// Sheet's onCommit calls `commitMarkEaten` below with the chosen
+    /// time + optional meal-feel chip.
+    private func resolveAsEaten() {
+        presentMarkEatenSheet = true
+    }
+
+    /// Sheet's onCommit handler. Writes the chosen eat time, feel, and
+    /// substitute (if any), cancels pending notifications, saves.
+    /// When a substitute is present the planned macros are zeroed so the
+    /// day's totals stop counting a meal the user didn't eat.
+    private func commitMarkEaten(
+        at eatTime: Date,
+        feel: MealFeel?,
+        substitute: MarkEatenSheet.Substitute?
+    ) {
+        if let substitute {
+            meal.totalCalories = substitute.calories ?? 0
+            meal.totalProtein = 0
+            meal.totalCarbs = 0
+            meal.totalFat = 0
+        }
+        meal.status = .eaten
+        meal.actualEatenAt = eatTime
+        try? modelContext.save()
+        services.notifications.cancelDefrostReminders(forMealID: meal.id)
+        services.notifications.cancelPrepStartReminder(forMealID: meal.id)
+        services.notifications.cancelOverdueMealReminder(forMealID: meal.id)
+        // Pantry decrement runs only when the user actually ate the
+        // planned dish — substitute means planned ingredients weren't used.
+        if substitute == nil {
+            PantryDecrementService.decrement(for: meal, modelContext: modelContext)
+        }
+        if feel != nil || substitute != nil {
+            let feedback = MealFeedback(
+                plannedMeal: meal,
+                mealFeel: feel,
+                substituteNote: substitute?.note,
+                substituteCalories: substitute?.calories
+            )
+            modelContext.insert(feedback)
+            try? modelContext.save()
+        }
+        HapticManager.notification(.success)
+    }
+
+    private func resolveAsSkipped() {
+        meal.status = .skipped
+        try? modelContext.save()
+        services.notifications.cancelDefrostReminders(forMealID: meal.id)
+        services.notifications.cancelPrepStartReminder(forMealID: meal.id)
+        services.notifications.cancelOverdueMealReminder(forMealID: meal.id)
+        HapticManager.lightImpact()
+    }
+
+    /// Horizontal track laid out via HStack so end-node labels can't clip
+    /// off-screen. Prep / Eat / Finish anchor to leading / centre /
+    /// trailing of the container. The progress fill grows from leading
+    /// using `GeometryReader` for the width only — never for absolute
+    /// node positioning. Track colour adapts to phase: amber when
+    /// overdue, dimmed when resolved.
+    private func timelineTrack(now: Date, display: MealScheduleDisplay, phase: SchedulePhase) -> some View {
+        let progress = markerProgress(now: now, display: display, phase: phase)
+        let trackColor = trackColorFor(phase: phase)
+        return VStack(spacing: 8) {
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.tempoBorder)
+                    .frame(height: 4)
+                GeometryReader { geo in
+                    Capsule()
+                        .fill(trackColor)
+                        .frame(width: geo.size.width * progress, height: 4)
+                        .overlay(alignment: .trailing) {
+                            Circle()
+                                .fill(Color.tempoTextPrimary)
+                                .frame(width: 12, height: 12)
+                                .overlay(Circle().stroke(Color.tempoSurfaceCard, lineWidth: 3))
+                                .offset(x: 6)
+                                .opacity(progress > 0 && progress < 1 ? 1 : 0)
+                        }
+                }
+                .frame(height: 12)
+
+                HStack(spacing: 0) {
+                    ForEach(timelinePoints(display: display)) { point in
+                        timelineNode(point: point, phase: phase)
+                            .frame(maxWidth: .infinity, alignment: alignmentFor(point: point))
+                    }
+                }
+            }
+            .frame(height: 12)
+
+            HStack(spacing: 0) {
+                ForEach(timelinePoints(display: display)) { point in
+                    timelineNodeLabel(point: point, phase: phase)
+                        .frame(maxWidth: .infinity, alignment: alignmentFor(point: point))
+                }
+            }
+        }
+        .padding(.top, TempoSpacing.xs)
+    }
+
+    private func timelineNode(point: TimelinePoint, phase: SchedulePhase) -> some View {
+        let isNext = point.id == phase.nextPointID
+        let size: CGFloat = isNext ? 14 : 10
+        let dotColor: Color = {
+            if case .overdue = phase, point.id == .finish { return Color.tempoAmber }
+            return isNext ? Color.tempoSignal : Color.tempoTextTertiary
+        }()
+        return Circle()
+            .fill(dotColor)
+            .frame(width: size, height: size)
+            .overlay(Circle().stroke(Color.tempoSurfaceCard, lineWidth: 2))
+    }
+
+    private func timelineNodeLabel(point: TimelinePoint, phase: SchedulePhase) -> some View {
+        let isNext = point.id == phase.nextPointID
+        return VStack(spacing: 1) {
+            Text(point.label.uppercased())
+                .font(.system(size: 9, weight: .bold))
+                .tracking(0.4)
+                .foregroundStyle(isNext ? Color.tempoTextPrimary : Color.tempoTextTertiary)
+            Text(Self.clockFormatter.string(from: point.date))
+                .font(isNext ? .tempoCallout : .tempoCaption2)
+                .fontWeight(isNext ? .semibold : .medium)
+                .foregroundStyle(isNext ? Color.tempoTextPrimary : Color.tempoTextSecondary)
+                .monospacedDigit()
+        }
+        .fixedSize(horizontal: true, vertical: true)
+    }
+
+    private func alignmentFor(point: TimelinePoint) -> Alignment {
+        switch point.id {
+        case .prep: .leading
+        case .eat: .center
+        case .finish: .trailing
+        }
+    }
+
+    private func trackColorFor(phase: SchedulePhase) -> Color {
+        switch phase {
+        case .overdue: Color.tempoAmber
+        case .skipped: Color.tempoTextTertiary
+        case .eaten: Color.tempoSuccess
+        default: Color.tempoSignal
+        }
+    }
+
+    private func shiftChip(minutes: Int) -> some View {
+        let sign = minutes > 0 ? "+" : "−"
+        return HStack(spacing: 4) {
+            Image(systemName: "moon.zzz.fill")
+                .font(.system(size: 10, weight: .semibold))
+            Text("\(sign)\(formatDuration(minutes: abs(minutes))) wake shift")
+                .font(.tempoCaption2)
+                .fontWeight(.semibold)
+        }
+        .foregroundStyle(Color.tempoElectric)
+        .padding(.horizontal, TempoSpacing.sm)
+        .padding(.vertical, 4)
+        .background(Color.tempoElectric.opacity(0.12))
+        .clipShape(Capsule())
+        .accessibilityLabel("Schedule shifted by \(abs(minutes)) minutes due to wake time")
+    }
+
+    // MARK: - Schedule helpers
+
+    private func timelinePoints(display: MealScheduleDisplay) -> [TimelinePoint] {
+        [
+            TimelinePoint(id: .prep, label: "Prep", date: display.prepStart),
+            TimelinePoint(id: .eat, label: "Eat", date: display.mealTime),
+            TimelinePoint(id: .finish, label: "Finish", date: display.eatFinish),
+        ]
+    }
+
+    /// Returns 0…1 progress for the fill bar and "you are here" marker.
+    /// Resolved phases (eaten/skipped/overdue) fill the bar fully so the
+    /// track reads as complete and the now-marker is hidden by the
+    /// overlay opacity check. In-window phases linearly interpolate.
+    private func markerProgress(now: Date, display: MealScheduleDisplay, phase: SchedulePhase) -> CGFloat {
+        switch phase {
+        case .eaten, .skipped, .overdue:
+            return 1.0
+        case .beforePrep:
+            return 0
+        case .prepping, .eating:
+            let total = display.eatFinish.timeIntervalSince(display.prepStart)
+            guard total > 0 else { return 0 }
+            let elapsed = now.timeIntervalSince(display.prepStart)
+            let clamped = max(0, min(elapsed, total))
+            return CGFloat(clamped / total)
+        }
+    }
+
+    private func formatDuration(minutes: Int) -> String {
+        if minutes < 60 { return "\(minutes) min" }
+        let h = minutes / 60
+        let m = minutes % 60
+        return m == 0 ? "\(h) h" : "\(h) h \(m) min"
     }
 
     // MARK: - Prep Checklist
@@ -246,10 +585,19 @@ struct MealDetailView: View {
 
     private func ingredientSubtitle(_ ingredient: RecipeIngredient) -> String? {
         var parts: [String] = []
+        // 1. AI-provided household label wins when present.
+        // 2. Otherwise fall back to a deterministic best-guess via
+        //    FoodMacroDatabase.formatPortion — handles legacy recipes
+        //    where displayQuantity was never populated. Falls all the
+        //    way back to "Xg <food>" when the canonical name isn't in
+        //    the portions table.
         if let qty = ingredient.displayQuantity, !qty.isEmpty {
             parts.append(qty)
         } else if ingredient.quantityGrams > 0 {
-            parts.append("\(Int(ingredient.quantityGrams))g")
+            parts.append(FoodMacroDatabase.formatPortion(
+                food: ingredient.canonicalFoodName,
+                grams: ingredient.quantityGrams
+            ))
         }
         if let cal = ingredient.calories, cal > 0 {
             parts.append("\(Int(cal)) kcal")
@@ -459,4 +807,68 @@ struct MealDetailView: View {
         f.dateFormat = "h:mm a"
         return f
     }()
+
+    // MARK: - Schedule nested types
+
+    /// Phases the schedule block surfaces. Honors `meal.status` — the
+    /// previous version only looked at the clock and so labelled a
+    /// still-planned meal "Done" once the eat-finish time passed. Now:
+    ///   - `.eaten` / `.skipped` short-circuit any clock-based phase,
+    ///     because the user resolved the meal explicitly.
+    ///   - `.overdue` is the unresolved case: clock past eatFinish AND
+    ///     status still `.planned`. Drives the amber track + inline
+    ///     Eat/Skip buttons.
+    private enum SchedulePhase: Equatable {
+        case beforePrep
+        case prepping
+        case eating
+        case overdue
+        case eaten(at: Date?)
+        case skipped
+
+        /// Which timeline node should be visually emphasised as "next up."
+        /// Eaten/skipped/overdue all collapse onto Finish — the rest of the
+        /// track is past.
+        var nextPointID: TimelinePointID {
+            switch self {
+            case .beforePrep: .prep
+            case .prepping: .eat
+            case .eating, .overdue, .eaten, .skipped: .finish
+            }
+        }
+
+        var isResolved: Bool {
+            switch self {
+            case .eaten, .skipped: true
+            default: false
+            }
+        }
+
+        init(meal: PlannedMeal, now: Date, display: MealScheduleDisplay) {
+            switch meal.status {
+            case .eaten:
+                self = .eaten(at: meal.actualEatenAt)
+                return
+            case .skipped:
+                self = .skipped
+                return
+            default:
+                break
+            }
+            if now < display.prepStart { self = .beforePrep }
+            else if now < display.mealTime { self = .prepping }
+            else if now < display.eatFinish { self = .eating }
+            else { self = .overdue }
+        }
+    }
+
+    private enum TimelinePointID: Hashable {
+        case prep, eat, finish
+    }
+
+    private struct TimelinePoint: Identifiable {
+        let id: TimelinePointID
+        let label: String
+        let date: Date
+    }
 }

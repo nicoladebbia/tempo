@@ -23,7 +23,7 @@ struct PlannedFood: Codable {
 // MARK: - PlannedMeal
 
 @Model
-final class PlannedMeal {
+final class PlannedMeal: Identifiable {
     // MARK: - Identity
 
     @Attribute(.unique)
@@ -62,6 +62,13 @@ final class PlannedMeal {
     var statusRaw: String
 
     var linkedMealLogID: UUID?
+
+    /// Wall-clock time the user actually ate this meal. Set by
+    /// `NutritionTabViewModel.markMealEaten`. Drives the deterministic
+    /// shift of subsequent meals (`MealShiftPlanner`) and feeds into
+    /// future plan generation as the user's real rhythm signal.
+    /// Nil for `.planned` / `.skipped` meals.
+    var actualEatenAt: Date?
 
     /// How long the user expects to spend eating. Drives the "eat-finish" time
     /// surfaced in `MealDetailView`. Default 30 minutes.
@@ -124,6 +131,7 @@ final class PlannedMeal {
         totalFat: Double = 0,
         status: MealStatus = .planned,
         linkedMealLogID: UUID? = nil,
+        actualEatenAt: Date? = nil,
         eatDurationMinutes: Int = 30,
         mealPlan: WeeklyMealPlan? = nil,
         recipe: Recipe? = nil
@@ -140,6 +148,7 @@ final class PlannedMeal {
         self.totalFat = totalFat
         statusRaw = status.rawValue
         self.linkedMealLogID = linkedMealLogID
+        self.actualEatenAt = actualEatenAt
         self.eatDurationMinutes = max(0, eatDurationMinutes)
         self.mealPlan = mealPlan
         self.recipe = recipe
