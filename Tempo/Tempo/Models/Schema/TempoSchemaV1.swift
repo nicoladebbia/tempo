@@ -15,6 +15,9 @@ enum TempoSchemaV1: VersionedSchema {
         [
             UserProfile.self,
             UserSettings.self,
+            UserDailyPlanProfile.self,
+            ClassBlock.self,
+            WorkBlock.self,
             DailySnapshot.self,
             WorkoutPlan.self,
             PlannedExercise.self,
@@ -50,6 +53,7 @@ enum TempoSchemaV1: VersionedSchema {
             WeeklyMealPlan.self,
             PlannedMeal.self,
             MealPreset.self,
+            MealFeedback.self,
             PantryItem.self,
             Receipt.self,
             ReceiptLineItem.self,

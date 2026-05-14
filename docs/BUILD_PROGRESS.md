@@ -184,7 +184,7 @@
 - [x] 15.5: Enforce AIBudgetTracker hard ceiling (Postgres-backed actor, 50/80/95/100% thresholds) ✅ 2026-05-14
 - [x] 15.6: Response caching layer (AICache: Redis + Postgres, typed cache keys, SWR API) ✅ 2026-05-14
 - [x] 15.7: Build missing AI features (recovery prescription, morning briefing, training adjustment, drill sergeant batch, dashboard insights, training program, meal timing, study schedule, achievement copy) ✅ 2026-05-14
-- [ ] 15.8: Capture daily-plan onboarding fields (see `docs/INTELLIGENCE_REMEDIATION_PLAN.md §8`)
+- [x] 15.8: Capture daily-plan onboarding fields (UserDailyPlanProfile model, 6 new onboarding steps, /v1/user/daily-plan-profile endpoint) ✅ 2026-05-14
 - [ ] 15.9: Build daily time-blocked plan engine (see `docs/INTELLIGENCE_REMEDIATION_PLAN.md §9`)
 
 ## Phase 16: Onboarding

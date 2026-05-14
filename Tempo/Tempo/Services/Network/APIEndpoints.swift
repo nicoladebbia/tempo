@@ -166,3 +166,46 @@ extension APIEndpoint where Response == UserMeResponseDTO {
         APIEndpoint(path: "/v1/user/me", method: .get)
     }
 }
+
+// MARK: - Daily plan profile
+
+/// Mirrors backend SetDailyPlanProfileRequest. Per INTELLIGENCE_REMEDIATION_PLAN.md §8.
+struct OnboardingDailyPlanProfileDTO: Codable, Sendable {
+    let wake_time_minutes: Int
+    let sleep_target_hours: Double
+    let chronotype: String
+    let training_time_preference: String
+    let eating_window_preset: String
+    let eating_window_start_minutes: Int
+    let eating_window_end_minutes: Int
+    let breakfast_skipped: Bool
+    let post_workout_mandatory: Bool
+    let study_session_length_minutes: Int
+    let weekend_differential: String
+    let term_start_date: Date?
+    let term_end_date: Date?
+    let class_blocks: [ClassBlock]
+    let work_blocks: [WorkBlock]
+
+    struct ClassBlock: Codable, Sendable {
+        let weekday: Int
+        let start_minute_of_day: Int
+        let end_minute_of_day: Int
+        let course_code: String
+        let course_name: String?
+        let location: String?
+    }
+
+    struct WorkBlock: Codable, Sendable {
+        let weekday: Int
+        let start_minute_of_day: Int
+        let end_minute_of_day: Int
+        let label: String
+    }
+}
+
+extension APIEndpoint where Response == EmptyResponse {
+    static func setDailyPlanProfile() -> Self {
+        APIEndpoint(path: "/v1/user/daily-plan-profile", method: .put)
+    }
+}

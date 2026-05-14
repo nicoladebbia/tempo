@@ -153,6 +153,7 @@ func configure(_ app: Application) async throws {
     app.migrations.add(CreateUserSubscriptions())
     app.migrations.add(CreateAIMonthlySpend())
     app.migrations.add(CreateAIResponseCache())
+    app.migrations.add(CreateUserDailyPlanProfiles())
 
     // Arena module — per BUILD_PLAN step 14.1
     app.migrations.add(CreateXPEvents())

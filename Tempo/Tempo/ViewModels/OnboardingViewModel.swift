@@ -41,7 +41,44 @@ final class OnboardingViewModel {
     // Academic data
     var university: String = ""
     var yearOfStudy: String?
+    /// Legacy free-text exam schedule. Kept for backward-compatibility with users
+    /// onboarded before the structured `classBlocks` schema landed; new users
+    /// fill out classBlocks instead. The daily-plan engine flips
+    /// `examScheduleMigratedAt` on the profile when this has been resolved.
     var examSchedule: String = ""
+
+    // MARK: - Daily plan profile (per INTELLIGENCE_REMEDIATION_PLAN.md §8)
+
+    /// Wake time as minutes-from-midnight. Default 07:00. Captured in the
+    /// `.dailyRhythm` step.
+    var wakeTimeMinutes: Int = 7 * 60
+
+    /// Target nightly sleep duration in hours. Default 8.0.
+    var sleepTargetHours: Double = 8.0
+
+    var chronotype: Chronotype = .neutral
+
+    /// Term-bounded weekly class schedule. Empty by default.
+    var classBlocks: [OnboardingClassBlock] = []
+
+    /// Optional weekly work shifts.
+    var workBlocks: [OnboardingWorkBlock] = []
+
+    var termStartDate: Date?
+    var termEndDate: Date?
+
+    var trainingTimePreference: TrainingTimePreference = .anyFree
+
+    var eatingWindowPreset: EatingWindowPreset = .twelveTwelve
+    var eatingWindowStartMinutes: Int = 8 * 60
+    var eatingWindowEndMinutes: Int = 20 * 60
+    var breakfastSkipped: Bool = false
+    var postWorkoutMandatory: Bool = true
+
+    /// Pomodoro length in minutes (25 / 50 / 90 standard; 5..120 allowed).
+    var studySessionLengthMinutes: Int = 50
+
+    var weekendDifferential: WeekendDifferential = .lateWake
 
     // Goals data
     var primaryGoal: String?
@@ -93,10 +130,15 @@ final class OnboardingViewModel {
         case .profile:
             !displayName.trimmingCharacters(in: .whitespaces).isEmpty &&
                 !username.trimmingCharacters(in: .whitespaces).isEmpty
-        case .trainingSetup:
-            true // Optional step
-        case .academicSetup:
-            true // Optional step
+        case .trainingSetup,
+             .academicSetup,
+             .dailyRhythm,
+             .classSchedule,
+             .eatingWindow,
+             .studyPreferences,
+             .trainingPreferences,
+             .weekendMode:
+            true // Optional steps
         case .goals:
             primaryGoal != nil
         case .whoopConnect,
@@ -161,6 +203,104 @@ final class OnboardingViewModel {
         onComplete?()
     }
 
+    // MARK: - Daily plan profile
+
+    /// Build a `UserDailyPlanProfile` SwiftData row from the in-memory
+    /// onboarding state. Caller is responsible for inserting it into the
+    /// model context. Per INTELLIGENCE_REMEDIATION_PLAN.md §8.
+    func buildDailyPlanProfile() -> UserDailyPlanProfile {
+        let classes = classBlocks.map {
+            ClassBlock(
+                id: $0.id,
+                weekday: $0.weekday,
+                startMinuteOfDay: $0.startMinuteOfDay,
+                endMinuteOfDay: $0.endMinuteOfDay,
+                courseCode: $0.courseCode,
+                courseName: $0.courseName,
+                location: $0.location
+            )
+        }
+        let works = workBlocks.map {
+            WorkBlock(
+                id: $0.id,
+                weekday: $0.weekday,
+                startMinuteOfDay: $0.startMinuteOfDay,
+                endMinuteOfDay: $0.endMinuteOfDay,
+                label: $0.label
+            )
+        }
+        return UserDailyPlanProfile(
+            wakeTimeMinutes: wakeTimeMinutes,
+            sleepTargetHours: sleepTargetHours,
+            chronotype: chronotype,
+            classBlocks: classes,
+            workBlocks: works,
+            termStartDate: termStartDate,
+            termEndDate: termEndDate,
+            trainingTimePreference: trainingTimePreference,
+            eatingWindowPreset: eatingWindowPreset,
+            eatingWindowStartMinutes: eatingWindowStartMinutes,
+            eatingWindowEndMinutes: eatingWindowEndMinutes,
+            breakfastSkipped: breakfastSkipped,
+            postWorkoutMandatory: postWorkoutMandatory,
+            studySessionLengthMinutes: studySessionLengthMinutes,
+            weekendDifferential: weekendDifferential,
+            // Stamp the migration sentinel — a user who finished the structured
+            // schedule step has by definition resolved the legacy examSchedule
+            // free-text (even if they left classBlocks empty).
+            examScheduleMigratedAt: classBlocks.isEmpty && examSchedule.isEmpty ? nil : Date()
+        )
+    }
+
+    /// Push the captured daily-plan profile to the backend. Failures don't
+    /// block onboarding — the local SwiftData copy survives and a later
+    /// background sync will retry. Per ADR-014 (offline-first).
+    @MainActor
+    func syncDailyPlanProfile(apiClient: APIClient) async {
+        let dto = OnboardingDailyPlanProfileDTO(
+            wake_time_minutes: wakeTimeMinutes,
+            sleep_target_hours: sleepTargetHours,
+            chronotype: chronotype.rawValue,
+            training_time_preference: trainingTimePreference.rawValue,
+            eating_window_preset: eatingWindowPreset.rawValue,
+            eating_window_start_minutes: eatingWindowStartMinutes,
+            eating_window_end_minutes: eatingWindowEndMinutes,
+            breakfast_skipped: breakfastSkipped,
+            post_workout_mandatory: postWorkoutMandatory,
+            study_session_length_minutes: studySessionLengthMinutes,
+            weekend_differential: weekendDifferential.rawValue,
+            term_start_date: termStartDate,
+            term_end_date: termEndDate,
+            class_blocks: classBlocks.map {
+                OnboardingDailyPlanProfileDTO.ClassBlock(
+                    weekday: $0.weekday,
+                    start_minute_of_day: $0.startMinuteOfDay,
+                    end_minute_of_day: $0.endMinuteOfDay,
+                    course_code: $0.courseCode,
+                    course_name: $0.courseName,
+                    location: $0.location
+                )
+            },
+            work_blocks: workBlocks.map {
+                OnboardingDailyPlanProfileDTO.WorkBlock(
+                    weekday: $0.weekday,
+                    start_minute_of_day: $0.startMinuteOfDay,
+                    end_minute_of_day: $0.endMinuteOfDay,
+                    label: $0.label
+                )
+            }
+        )
+        do {
+            let _: EmptyResponse = try await apiClient.request(
+                APIEndpoint<EmptyResponse>.setDailyPlanProfile(),
+                body: dto
+            )
+        } catch {
+            // Non-fatal — surface in logs for diagnosis but keep onboarding flowing.
+            print("[onboarding] syncDailyPlanProfile failed: \(error.localizedDescription)")
+        }
+    }
+
     // MARK: - AI Consent (AI_INTELLIGENCE_ENGINE.md §11.3)
 
     /// Record the user's AI-data-sharing decision on the backend. Called from
@@ -192,6 +332,10 @@ final class OnboardingViewModel {
     }
 
     private func persistData() {
+        // Encode class/work blocks as JSON so UserDefaults can store them.
+        let classBlocksData = (try? JSONEncoder().encode(classBlocks)) ?? Data()
+        let workBlocksData = (try? JSONEncoder().encode(workBlocks)) ?? Data()
+
         let data: [String: Any] = [
             "displayName": displayName,
             "username": username,
@@ -205,6 +349,22 @@ final class OnboardingViewModel {
             "studyTarget": studyTarget,
             "mealTarget": mealTarget,
             "timeWasters": Array(timeWasters),
+            // Daily plan profile fields.
+            "wakeTimeMinutes": wakeTimeMinutes,
+            "sleepTargetHours": sleepTargetHours,
+            "chronotype": chronotype.rawValue,
+            "classBlocks": classBlocksData,
+            "workBlocks": workBlocksData,
+            "termStartDate": termStartDate as Any,
+            "termEndDate": termEndDate as Any,
+            "trainingTimePreference": trainingTimePreference.rawValue,
+            "eatingWindowPreset": eatingWindowPreset.rawValue,
+            "eatingWindowStartMinutes": eatingWindowStartMinutes,
+            "eatingWindowEndMinutes": eatingWindowEndMinutes,
+            "breakfastSkipped": breakfastSkipped,
+            "postWorkoutMandatory": postWorkoutMandatory,
+            "studySessionLengthMinutes": studySessionLengthMinutes,
+            "weekendDifferential": weekendDifferential.rawValue,
         ]
         UserDefaults.standard.set(data, forKey: "tempo.onboarding.data")
     }
@@ -225,7 +385,62 @@ final class OnboardingViewModel {
         studyTarget = data["studyTarget"] as? Int ?? 120
         mealTarget = data["mealTarget"] as? Int ?? 4
         timeWasters = Set(data["timeWasters"] as? [String] ?? [])
+        // Daily plan profile.
+        wakeTimeMinutes = data["wakeTimeMinutes"] as? Int ?? wakeTimeMinutes
+        sleepTargetHours = data["sleepTargetHours"] as? Double ?? sleepTargetHours
+        if let raw = data["chronotype"] as? String, let v = Chronotype(rawValue: raw) {
+            chronotype = v
+        }
+        if let blob = data["classBlocks"] as? Data,
+           let decoded = try? JSONDecoder().decode([OnboardingClassBlock].self, from: blob)
+        {
+            classBlocks = decoded
+        }
+        if let blob = data["workBlocks"] as? Data,
+           let decoded = try? JSONDecoder().decode([OnboardingWorkBlock].self, from: blob)
+        {
+            workBlocks = decoded
+        }
+        termStartDate = data["termStartDate"] as? Date
+        termEndDate = data["termEndDate"] as? Date
+        if let raw = data["trainingTimePreference"] as? String, let v = TrainingTimePreference(rawValue: raw) {
+            trainingTimePreference = v
+        }
+        if let raw = data["eatingWindowPreset"] as? String, let v = EatingWindowPreset(rawValue: raw) {
+            eatingWindowPreset = v
+        }
+        eatingWindowStartMinutes = data["eatingWindowStartMinutes"] as? Int ?? eatingWindowStartMinutes
+        eatingWindowEndMinutes = data["eatingWindowEndMinutes"] as? Int ?? eatingWindowEndMinutes
+        breakfastSkipped = data["breakfastSkipped"] as? Bool ?? false
+        postWorkoutMandatory = data["postWorkoutMandatory"] as? Bool ?? true
+        studySessionLengthMinutes = data["studySessionLengthMinutes"] as? Int ?? studySessionLengthMinutes
+        if let raw = data["weekendDifferential"] as? String, let v = WeekendDifferential(rawValue: raw) {
+            weekendDifferential = v
+        }
     }
+}
+
+// MARK: - In-memory value types for class/work blocks
+
+/// View-model representation of `ClassBlock`. Stays a value type so onboarding
+/// can edit it freely without touching SwiftData mid-flow; the final commit
+/// step materialises these into `ClassBlock` model rows.
+struct OnboardingClassBlock: Codable, Identifiable, Hashable {
+    var id: UUID = UUID()
+    var weekday: Int          // 1 = Sunday … 7 = Saturday
+    var startMinuteOfDay: Int
+    var endMinuteOfDay: Int
+    var courseCode: String
+    var courseName: String?
+    var location: String?
+}
+
+struct OnboardingWorkBlock: Codable, Identifiable, Hashable {
+    var id: UUID = UUID()
+    var weekday: Int
+    var startMinuteOfDay: Int
+    var endMinuteOfDay: Int
+    var label: String
 }
 
 // MARK: - OnboardingStep
@@ -242,6 +457,20 @@ enum OnboardingStep: String, Codable, CaseIterable {
     case profile
     case trainingSetup
     case academicSetup
+    // ── Daily plan profile (INTELLIGENCE_REMEDIATION_PLAN.md §8) ──
+    /// Wake time + sleep target + chronotype.
+    case dailyRhythm
+    /// Term-bounded weekly class schedule + optional work shifts.
+    case classSchedule
+    /// Intermittent-fasting / eating-window preferences.
+    case eatingWindow
+    /// Pomodoro length + study session preferences.
+    case studyPreferences
+    /// Preferred training time of day.
+    case trainingPreferences
+    /// Weekend differential.
+    case weekendMode
+    // ──────────────────────────────────────────────
     case whoopConnect
     case notifications
     /// AI data-sharing consent. Required by AI_INTELLIGENCE_ENGINE.md §11.3 and
@@ -252,20 +481,9 @@ enum OnboardingStep: String, Codable, CaseIterable {
     case complete
 
     var stepNumber: Int {
-        switch self {
-        case .splash: 0
-        case .valueDemo: 1
-        case .goals: 2
-        case .healthkit: 3
-        case .auth: 4
-        case .profile: 5
-        case .trainingSetup: 6
-        case .academicSetup: 7
-        case .whoopConnect: 8
-        case .notifications: 9
-        case .aiConsent: 10
-        case .complete: 11
-        }
+        // Derived from declaration order so adding/reordering steps doesn't
+        // require touching this switch.
+        Self.allCases.firstIndex(of: self) ?? 0
     }
 
     var isRequired: Bool {
@@ -282,6 +500,12 @@ enum OnboardingStep: String, Codable, CaseIterable {
         case .healthkit,
              .trainingSetup,
              .academicSetup,
+             .dailyRhythm,
+             .classSchedule,
+             .eatingWindow,
+             .studyPreferences,
+             .trainingPreferences,
+             .weekendMode,
              .whoopConnect,
              .notifications,
              .aiConsent:

@@ -112,6 +112,18 @@ struct OnboardingContainerView: View {
             TrainingSetupView(viewModel: viewModel)
         case .academicSetup:
             AcademicSetupView(viewModel: viewModel)
+        case .dailyRhythm:
+            DailyRhythmView(viewModel: viewModel)
+        case .classSchedule:
+            ClassScheduleView(viewModel: viewModel)
+        case .eatingWindow:
+            EatingWindowView(viewModel: viewModel)
+        case .studyPreferences:
+            StudyPreferencesView(viewModel: viewModel)
+        case .trainingPreferences:
+            TrainingPreferencesView(viewModel: viewModel)
+        case .weekendMode:
+            WeekendModeView(viewModel: viewModel)
         case .whoopConnect:
             WhoopConnectView(viewModel: viewModel)
         case .notifications:
