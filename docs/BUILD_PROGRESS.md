@@ -175,10 +175,17 @@
 - [x] 14.3: Arena ViewModel + iOS Views ✅ 2026-03-25
 
 ## Phase 15: AI Intelligence Engine
-**Goal:** Build Claude API backend service and weekly report generation with drill-sergeant copy.
+**Goal:** Build a Claude-backed intelligence layer that ships behind a subscription + consent gate, with budget + cache + circuit-breaker controls and the 12 features listed in `docs/AI_INTELLIGENCE_ENGINE.md §1`. Tracked in detail in `docs/INTELLIGENCE_REMEDIATION_PLAN.md`.
 
 - [x] 15.1: Claude API Backend Service ✅ 2026-03-25
 - [x] 15.2: Weekly Report + Drill Sergeant Copy ✅ 2026-03-25
+- [x] 15.3: Migrate nutrition AI off iOS direct calls (eliminate embedded Anthropic key) ✅ 2026-05-14
+- [x] 15.4: Wire SubscriptionController + SubscriptionMiddleware + AI consent gate ✅ 2026-05-14
+- [x] 15.5: Enforce AIBudgetTracker hard ceiling (Postgres-backed actor, 50/80/95/100% thresholds) ✅ 2026-05-14
+- [x] 15.6: Response caching layer (AICache: Redis + Postgres, typed cache keys, SWR API) ✅ 2026-05-14
+- [x] 15.7: Build missing AI features (recovery prescription, morning briefing, training adjustment, drill sergeant batch, dashboard insights, training program, meal timing, study schedule, achievement copy) ✅ 2026-05-14
+- [ ] 15.8: Capture daily-plan onboarding fields (see `docs/INTELLIGENCE_REMEDIATION_PLAN.md §8`)
+- [ ] 15.9: Build daily time-blocked plan engine (see `docs/INTELLIGENCE_REMEDIATION_PLAN.md §9`)
 
 ## Phase 16: Onboarding
 **Goal:** Build the full onboarding flow container with all step views and state persistence.
