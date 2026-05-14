@@ -249,7 +249,9 @@ final class Recipe {
     // MARK: - Helpers
 
     static func makeSlug(from name: String) -> String {
-        let lower = name.lowercased()
+        // Fold diacritics first so "café" becomes "cafe" instead of "caf".
+        let folded = name.folding(options: .diacriticInsensitive, locale: Locale(identifier: "en_US_POSIX"))
+        let lower = folded.lowercased()
         let allowed = CharacterSet.alphanumerics
         let parts = lower.unicodeScalars.split { !allowed.contains($0) }
         return parts.map(String.init).joined(separator: "-")

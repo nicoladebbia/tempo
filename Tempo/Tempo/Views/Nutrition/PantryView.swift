@@ -189,6 +189,7 @@ struct PantryView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(Color.tempoTextTertiary)
+            .accessibilityLabel("Archive \(item.canonicalName)")
         }
         .padding(.vertical, 6)
     }

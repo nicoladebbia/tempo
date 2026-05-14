@@ -20,6 +20,14 @@ enum PantryUnit: String, Codable, CaseIterable, Sendable {
     case servings
     case ounces = "oz"
     case pounds = "lb"
+    // Container units — added once the grocery flow started using
+    // FoodMacroDatabase.naturalPortions purchase units. Pantry rows now
+    // speak the same language as the grocery list ("1 can of black beans"
+    // stays "1 can" everywhere instead of being flattened to `.pieces`).
+    case cans
+    case bottles
+    case jars
+    case packs
 
     var displayName: String {
         switch self {
@@ -31,6 +39,20 @@ enum PantryUnit: String, Codable, CaseIterable, Sendable {
         case .servings: "servings"
         case .ounces: "oz"
         case .pounds: "lb"
+        case .cans: "cans"
+        case .bottles: "bottles"
+        case .jars: "jars"
+        case .packs: "packs"
+        }
+    }
+
+    /// True when the unit counts whole containers / pieces (no fractional
+    /// grams). Used by callers that need to round up gram totals into
+    /// whole purchase units (grocery list, pantry decrement).
+    var isCountable: Bool {
+        switch self {
+        case .pieces, .servings, .cans, .bottles, .jars, .packs: true
+        default: false
         }
     }
 }
@@ -166,22 +188,28 @@ final class PantryItem {
         set { purchaseSourceRaw = newValue.rawValue }
     }
 
-    /// Days until `useBy`. Negative when expired. Nil when no use-by set.
+    /// Days until `useBy`, computed on calendar-day boundaries (not sub-day
+    /// precision) so it agrees with `isExpired`. Negative when expired.
+    /// Nil when no use-by set.
     @Transient
     var daysUntilUseBy: Int? {
         guard let useBy else {
             return nil
         }
-        return Calendar.current.dateComponents([.day], from: Date(), to: useBy).day
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let target = calendar.startOfDay(for: useBy)
+        return calendar.dateComponents([.day], from: today, to: target).day
     }
 
-    /// `true` when `useBy` is in the past.
+    /// `true` when `useBy`'s calendar day is strictly before today.
+    /// Matches `daysUntilUseBy` precision so the two flags can't disagree.
     @Transient
     var isExpired: Bool {
-        guard let useBy else {
+        guard let days = daysUntilUseBy else {
             return false
         }
-        return useBy < Date()
+        return days < 0
     }
 
     /// `true` when item expires within the next 3 days.

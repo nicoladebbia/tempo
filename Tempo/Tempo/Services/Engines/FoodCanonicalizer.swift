@@ -32,13 +32,17 @@ enum FoodCanonicalizer {
     ]
 
     /// Single-word brand tokens and qualifiers that appear in receipts.
+    /// NOTE: `salt` was previously included but removed — it's a real
+    /// ingredient (and a staple in `FoodMacroDatabase.naturalPortions`).
+    /// `unsalted` / `salted` are kept as descriptors (e.g. "salted butter"
+    /// → "butter").
     private static let brandWords: Set<String> = [
         "publix", "kroger", "walmart", "trader", "joes", "kirkland",
         "vigo", "laytons", "layton", "great", "value", "market", "pantry",
         "bnls", "boneless", "skinless", "bnls/skls", "usda",
         "atlantic", "pacific", "premium", "select", "choice",
         "qt", "qk", "lt", "oz",
-        "lightly", "unsalted", "salted", "plain", "salt",
+        "lightly", "unsalted", "salted", "plain",
         "dry", "uncooked", "natural",
     ]
 
@@ -46,6 +50,50 @@ enum FoodCanonicalizer {
     private static let multiWordBrands: [String] = [
         "great value", "trader joes", "whole foods",
         "lightly salted", "market pantry",
+    ]
+
+    /// Per-token OCR shorthand → English. Applied BEFORE alias lookup so
+    /// shrunk receipt strings (`CHKN BRST 1.32LB`) resolve through the
+    /// regular pipeline. Keys are lowercase ASCII; the substitution is
+    /// whole-token (split-on-space then replace), so we don't accidentally
+    /// inflate `chkns` into `chickenns`.
+    private static let ocrAbbreviations: [String: String] = [
+        "chkn": "chicken",
+        "chk": "chicken",
+        "brst": "breast",
+        "bf": "beef",
+        "bns": "beans",
+        "blk": "black",
+        "wht": "white",
+        "wh": "whole",
+        "yog": "yogurt",
+        "ygrt": "yogurt",
+        "mlk": "milk",
+        "evo": "evoo",
+        "olv": "olive",
+        "tom": "tomato",
+        "veg": "vegetable",
+        "pwdr": "powder",
+        "swt": "sweet",
+        "pot": "potato",
+        "strawb": "strawberries",
+        "blueb": "blueberries",
+        "rasp": "raspberries",
+        "bnna": "banana",
+        "fzt": "frozen",
+        "frz": "frozen",
+        "pk": "pack",
+        "pkg": "package",
+        "vit": "vitamin",
+    ]
+
+    /// Multi-word packing-medium phrases stripped early (e.g. `tuna in
+    /// olive oil` → `tuna`). Kept distinct from cooking prefix/suffix
+    /// because they can appear ANYWHERE in the string.
+    private static let packingMediumPhrases: [String] = [
+        " in olive oil", " in oil", " in water", " in syrup",
+        " in brine", " packed in oil", " packed in water",
+        ", drained", " drained",
     ]
 
     /// Words stripped only for display formatting — keep cooking methods (grilled/baked/etc).
@@ -170,6 +218,60 @@ enum FoodCanonicalizer {
         "miele": "honey",
         "acqua di cocco": "coconut water",
         "coconut water": "coconut water",
+        // Italian extras
+        "aglio": "garlic clove",
+        "cipolla": "onion",
+        "cipolle": "onion",
+        "prezzemolo": "fresh parsley",
+        "pomodoro": "tomato",
+        "pomodori": "tomato",
+        "pomodorini": "cherry tomato",
+        "carota": "carrot",
+        "carote": "carrot",
+        "uova": "eggs",
+        "uovo": "eggs",
+        "latte": "whole milk",
+        "burro": "butter",
+        "formaggio": "cheddar",
+        "tonno": "tuna canned",
+        "tonno in scatola": "tuna canned",
+        "fagioli neri": "black beans canned",
+        "ceci": "chickpeas canned",
+        "lenticchie": "lentils dry",
+        "basilico": "fresh basil",
+        "limone": "lemon",
+        "limoni": "lemon",
+        "zucchine": "zucchini",
+        "funghi": "mushrooms",
+        "spinacio": "spinach",
+        // English synonyms / variants
+        "yoghurt greek": "greek yogurt",
+        "cilantro": "fresh cilantro",
+        "coriander leaves": "fresh cilantro",
+        "spring onion": "scallion",
+        "green onion": "scallion",
+        "scallion": "scallion",
+        "scallions": "scallion",
+        "tomatoes": "tomato",
+        "onions": "onion",
+        "carrots": "carrot",
+        "mushrooms": "mushrooms",
+        "zucchinis": "zucchini",
+        "cucumbers": "cucumber",
+        "potatoes": "potato",
+        "shallots": "shallot",
+        "leeks": "leek",
+        "jalapenos": "jalapeno",
+        "jalapeño": "jalapeno",
+        "jalapeños": "jalapeno",
+        "mangos": "mango",
+        "mangoes": "mango",
+        "grilled chicken breast": "chicken breast",
+        "pb": "peanut butter",
+        "ab": "almond butter",
+        "sea salt": "salt",
+        "kosher salt": "salt",
+        "table salt": "salt",
     ]
 
     // MARK: - Public API
@@ -178,12 +280,15 @@ enum FoodCanonicalizer {
     ///
     /// Steps:
     /// 1. Lowercase + trim
-    /// 2. Direct alias lookup (catches multi-word exact matches first)
-    /// 3. Strip parenthetical notes
-    /// 4. Strip cooking prefix (at most one)
-    /// 5. Strip cooking suffix (at most one)
-    /// 6. Strip brand tokens
-    /// 7. Return the cleaned name (or alias-resolved canonical)
+    /// 2. Strip noisy punctuation (periods, slashes-with-spaces, commas)
+    /// 3. Expand OCR token abbreviations (chkn → chicken, brst → breast)
+    /// 4. Strip packing-medium phrases (`in oil`, `in water`, `drained`)
+    /// 5. Direct alias lookup (catches multi-word exact matches first)
+    /// 6. Strip parenthetical notes
+    /// 7. Strip cooking prefix (at most one)
+    /// 8. Strip cooking suffix (at most one)
+    /// 9. Strip brand tokens
+    /// 10. Return the cleaned name (or alias-resolved canonical)
     ///
     /// Returns an empty string when the input is empty.
     static func canonicalize(_ raw: String) -> String {
@@ -192,11 +297,18 @@ enum FoodCanonicalizer {
             return ""
         }
 
-        if let direct = canonicalMap[trimmed] {
+        // Pre-passes the original pipeline didn't have. Punctuation +
+        // OCR expansion + packing-medium strip all turn ugly receipt
+        // strings into something the alias map can match.
+        let punctClean = stripNoisyPunctuation(trimmed)
+        let ocrExpanded = expandOCRAbbreviations(punctClean)
+        let packStripped = stripPackingMedium(ocrExpanded)
+
+        if let direct = canonicalMap[packStripped] {
             return direct
         }
 
-        var name = stripParentheticals(trimmed)
+        var name = stripParentheticals(packStripped)
         if let aliased = canonicalMap[name] {
             return aliased
         }
@@ -274,6 +386,55 @@ enum FoodCanonicalizer {
     }
 
     // MARK: - Internal helpers
+
+    /// Strip noisy punctuation that appears in receipt OCR strings —
+    /// periods, slashes (when surrounded by letters they're typically
+    /// abbreviation markers like `BNLS/SKLS`), commas, hyphens
+    /// (so `ground-beef` matches `ground beef`). Apostrophes are kept
+    /// for Italian / French aliases (`olio d'oliva`).
+    private static func stripNoisyPunctuation(_ input: String) -> String {
+        var result = input
+        // Slashes between letters → space (BNLS/SKLS → bnls skls).
+        result = result.replacingOccurrences(
+            of: #"(?<=\w)/(?=\w)"#,
+            with: " ",
+            options: .regularExpression
+        )
+        // Periods are usually abbreviation dots; comma is a separator.
+        // Hyphens between words flatten to spaces.
+        result = result
+            .replacingOccurrences(of: ".", with: "")
+            .replacingOccurrences(of: ",", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
+        return result
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespaces)
+    }
+
+    /// Expand OCR-shorthand tokens (`chkn` → `chicken`). Splits on
+    /// whitespace, replaces matches token-by-token, rejoins. Tokens
+    /// without a match pass through unchanged.
+    private static func expandOCRAbbreviations(_ input: String) -> String {
+        let tokens = input.split(separator: " ").map(String.init)
+        let expanded = tokens.map { ocrAbbreviations[$0] ?? $0 }
+        return expanded.joined(separator: " ")
+    }
+
+    /// Strip packing-medium phrases like `in olive oil`, `in water`,
+    /// `drained`. Done after OCR expansion so `tonno in scatola`
+    /// resolves via the alias map (intentional — that's an Italian
+    /// idiom for "canned tuna," not a packing medium).
+    private static func stripPackingMedium(_ input: String) -> String {
+        var result = input
+        for phrase in packingMediumPhrases {
+            if let range = result.range(of: phrase) {
+                result.removeSubrange(range)
+            }
+        }
+        return result
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespaces)
+    }
 
     /// Remove parenthetical notes such as "(cooked)", "(1L bottle)", "(pre-cut)".
     /// Collapses repeated whitespace.

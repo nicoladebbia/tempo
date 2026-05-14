@@ -177,24 +177,328 @@ enum FoodMacroDatabase {
         "sweet potato": 0.90,
         "potato": 0.90,
         "edamame": 1.0,
+        // Common vegetables (raw → cooked); water loss dominates.
+        "broccoli": 0.85,
+        "cauliflower": 0.85,
+        "asparagus": 0.85,
+        "spinach": 0.30,
+        "kale": 0.65,
+        "zucchini": 0.80,
+        "bell pepper": 0.85,
+        "carrot": 0.90,
+        "mushroom": 0.65,
+        "green beans": 0.85,
     ]
 
     // MARK: - Natural Portions
 
-    static let naturalPortions: [String: (grams: Double, unit: String, plural: String)] = [
-        "eggs": (grams: 50, unit: "egg", plural: "eggs"),
-        "egg whites": (grams: 33, unit: "white", plural: "whites"),
-        "banana": (grams: 120, unit: "banana", plural: "bananas"),
-        "apple": (grams: 182, unit: "apple", plural: "apples"),
-        "orange": (grams: 131, unit: "orange", plural: "oranges"),
-        "avocado": (grams: 150, unit: "avocado", plural: "avocados"),
-        "white bread": (grams: 30, unit: "slice", plural: "slices"),
-        "whole wheat bread": (grams: 30, unit: "slice", plural: "slices"),
-        "tortilla wrap": (grams: 65, unit: "wrap", plural: "wraps"),
-        "rice cakes": (grams: 9, unit: "cake", plural: "cakes"),
-        "protein shake": (grams: 100, unit: "shake", plural: "shakes"),
-        "protein bar": (grams: 60, unit: "bar", plural: "bars"),
-        "energy bar": (grams: 40, unit: "bar", plural: "bars"),
+    /// Structured portion record. Replaces the prior tuple shape so callers
+    /// can read `.isStaple` and `.purchaseUnit` without spreading lookup
+    /// logic everywhere. Two units coexist:
+    ///   - `unit` / `plural`: the *recipe-side* natural portion (1 egg, 1
+    ///     banana). Used by `formatPortion` for ingredient display.
+    ///   - `purchaseUnit` / `purchaseUnitPlural` / `purchaseGrams`: the
+    ///     *grocery-side* shopping unit (1 can of black beans = 400g
+    ///     drained; 3 medium carrots from a recipe of 180g). The
+    ///     grocery list rounds gram totals up to whole `purchaseUnit`s.
+    /// Staples are pantry items that you buy once and use across many
+    /// meals (salt, oil, garlic powder). Their `quantityGrams` deductions
+    /// are skipped by the pantry decrement, and the grocery list only
+    /// surfaces them when the pantry shows 0.
+    struct NaturalPortion: Sendable {
+        let grams: Double
+        let unit: String
+        let plural: String
+        let purchaseUnit: String
+        let purchaseUnitPlural: String
+        let purchaseGrams: Double
+        let isStaple: Bool
+
+        /// Convenience for entries where recipe-side and grocery-side
+        /// portions coincide (e.g. an egg — you buy 1, you cook with 1).
+        static func simple(grams: Double, unit: String, plural: String) -> NaturalPortion {
+            NaturalPortion(
+                grams: grams,
+                unit: unit,
+                plural: plural,
+                purchaseUnit: unit,
+                purchaseUnitPlural: plural,
+                purchaseGrams: grams,
+                isStaple: false
+            )
+        }
+
+        static func staple(grams: Double = 1, unit: String = "jar", plural: String = "jars") -> NaturalPortion {
+            NaturalPortion(
+                grams: grams,
+                unit: unit,
+                plural: plural,
+                purchaseUnit: unit,
+                purchaseUnitPlural: plural,
+                purchaseGrams: grams,
+                isStaple: true
+            )
+        }
+    }
+
+    static let naturalPortions: [String: NaturalPortion] = [
+        // Proteins ───────────────────────────────────────────────────
+        "eggs": .simple(grams: 50, unit: "egg", plural: "eggs"),
+        "egg": .simple(grams: 50, unit: "egg", plural: "eggs"),
+        "egg whites": .simple(grams: 33, unit: "white", plural: "whites"),
+        "chicken breast": NaturalPortion(grams: 170, unit: "breast", plural: "breasts", purchaseUnit: "breast", purchaseUnitPlural: "breasts", purchaseGrams: 170, isStaple: false),
+        "chicken thigh": NaturalPortion(grams: 110, unit: "thigh", plural: "thighs", purchaseUnit: "thigh", purchaseUnitPlural: "thighs", purchaseGrams: 110, isStaple: false),
+        "ground beef": NaturalPortion(grams: 450, unit: "g", plural: "g", purchaseUnit: "pack", purchaseUnitPlural: "packs", purchaseGrams: 450, isStaple: false),
+        "ground turkey": NaturalPortion(grams: 450, unit: "g", plural: "g", purchaseUnit: "pack", purchaseUnitPlural: "packs", purchaseGrams: 450, isStaple: false),
+        "salmon": NaturalPortion(grams: 150, unit: "fillet", plural: "fillets", purchaseUnit: "fillet", purchaseUnitPlural: "fillets", purchaseGrams: 150, isStaple: false),
+        "tuna canned": NaturalPortion(grams: 120, unit: "can", plural: "cans", purchaseUnit: "can", purchaseUnitPlural: "cans", purchaseGrams: 120, isStaple: false),
+        "tofu": NaturalPortion(grams: 400, unit: "g", plural: "g", purchaseUnit: "block", purchaseUnitPlural: "blocks", purchaseGrams: 400, isStaple: false),
+        "greek yogurt": NaturalPortion(grams: 170, unit: "container", plural: "containers", purchaseUnit: "container", purchaseUnitPlural: "containers", purchaseGrams: 170, isStaple: false),
+        "cottage cheese": NaturalPortion(grams: 226, unit: "tub", plural: "tubs", purchaseUnit: "tub", purchaseUnitPlural: "tubs", purchaseGrams: 226, isStaple: false),
+
+        // Grains & starches ────────────────────────────────────────
+        "rice": NaturalPortion(grams: 185, unit: "cup", plural: "cups", purchaseUnit: "kg bag", purchaseUnitPlural: "kg bags", purchaseGrams: 1000, isStaple: false),
+        "white rice": NaturalPortion(grams: 185, unit: "cup", plural: "cups", purchaseUnit: "kg bag", purchaseUnitPlural: "kg bags", purchaseGrams: 1000, isStaple: false),
+        "brown rice": NaturalPortion(grams: 195, unit: "cup", plural: "cups", purchaseUnit: "kg bag", purchaseUnitPlural: "kg bags", purchaseGrams: 1000, isStaple: false),
+        "rolled oats": NaturalPortion(grams: 80, unit: "cup", plural: "cups", purchaseUnit: "kg bag", purchaseUnitPlural: "kg bags", purchaseGrams: 1000, isStaple: false),
+        "oatmeal": NaturalPortion(grams: 80, unit: "cup", plural: "cups", purchaseUnit: "kg bag", purchaseUnitPlural: "kg bags", purchaseGrams: 1000, isStaple: false),
+        "pasta": NaturalPortion(grams: 100, unit: "g", plural: "g", purchaseUnit: "500g box", purchaseUnitPlural: "500g boxes", purchaseGrams: 500, isStaple: false),
+        "quinoa": NaturalPortion(grams: 185, unit: "cup", plural: "cups", purchaseUnit: "500g bag", purchaseUnitPlural: "500g bags", purchaseGrams: 500, isStaple: false),
+        "sweet potato": NaturalPortion(grams: 130, unit: "potato", plural: "potatoes", purchaseUnit: "potato", purchaseUnitPlural: "potatoes", purchaseGrams: 130, isStaple: false),
+        "potato": NaturalPortion(grams: 170, unit: "potato", plural: "potatoes", purchaseUnit: "potato", purchaseUnitPlural: "potatoes", purchaseGrams: 170, isStaple: false),
+        "white bread": .simple(grams: 30, unit: "slice", plural: "slices"),
+        "whole wheat bread": .simple(grams: 30, unit: "slice", plural: "slices"),
+        "tortilla wrap": .simple(grams: 65, unit: "wrap", plural: "wraps"),
+        "rice cakes": .simple(grams: 9, unit: "cake", plural: "cakes"),
+        "bagel": .simple(grams: 100, unit: "bagel", plural: "bagels"),
+
+        // Legumes ──────────────────────────────────────────────────
+        "black beans canned": NaturalPortion(grams: 240, unit: "can", plural: "cans", purchaseUnit: "can", purchaseUnitPlural: "cans", purchaseGrams: 400, isStaple: false),
+        "chickpeas canned": NaturalPortion(grams: 240, unit: "can", plural: "cans", purchaseUnit: "can", purchaseUnitPlural: "cans", purchaseGrams: 400, isStaple: false),
+        "kidney beans canned": NaturalPortion(grams: 240, unit: "can", plural: "cans", purchaseUnit: "can", purchaseUnitPlural: "cans", purchaseGrams: 400, isStaple: false),
+        "lentils dry": NaturalPortion(grams: 200, unit: "cup", plural: "cups", purchaseUnit: "500g bag", purchaseUnitPlural: "500g bags", purchaseGrams: 500, isStaple: false),
+
+        // Produce — fruits ─────────────────────────────────────────
+        "banana": .simple(grams: 120, unit: "banana", plural: "bananas"),
+        "apple": .simple(grams: 182, unit: "apple", plural: "apples"),
+        "orange": .simple(grams: 131, unit: "orange", plural: "oranges"),
+        "avocado": .simple(grams: 150, unit: "avocado", plural: "avocados"),
+        "lemon": .simple(grams: 65, unit: "lemon", plural: "lemons"),
+        "lime": .simple(grams: 45, unit: "lime", plural: "limes"),
+        "blueberries": NaturalPortion(grams: 140, unit: "cup", plural: "cups", purchaseUnit: "punnet", purchaseUnitPlural: "punnets", purchaseGrams: 170, isStaple: false),
+        "strawberries": NaturalPortion(grams: 150, unit: "cup", plural: "cups", purchaseUnit: "punnet", purchaseUnitPlural: "punnets", purchaseGrams: 250, isStaple: false),
+
+        // Produce — vegetables ────────────────────────────────────
+        "carrot": .simple(grams: 65, unit: "medium carrot", plural: "medium carrots"),
+        "carrots": .simple(grams: 65, unit: "medium carrot", plural: "medium carrots"),
+        "onion": .simple(grams: 110, unit: "onion", plural: "onions"),
+        "garlic clove": .simple(grams: 3, unit: "clove", plural: "cloves"),
+        "tomato": .simple(grams: 120, unit: "tomato", plural: "tomatoes"),
+        "cherry tomato": NaturalPortion(grams: 17, unit: "tomato", plural: "tomatoes", purchaseUnit: "punnet", purchaseUnitPlural: "punnets", purchaseGrams: 250, isStaple: false),
+        "bell pepper": .simple(grams: 120, unit: "pepper", plural: "peppers"),
+        "cucumber": .simple(grams: 300, unit: "cucumber", plural: "cucumbers"),
+        "zucchini": .simple(grams: 200, unit: "zucchini", plural: "zucchinis"),
+        "broccoli": NaturalPortion(grams: 90, unit: "cup", plural: "cups", purchaseUnit: "head", purchaseUnitPlural: "heads", purchaseGrams: 350, isStaple: false),
+        "spinach": NaturalPortion(grams: 30, unit: "cup", plural: "cups", purchaseUnit: "bag", purchaseUnitPlural: "bags", purchaseGrams: 200, isStaple: false),
+        "kale": NaturalPortion(grams: 30, unit: "cup", plural: "cups", purchaseUnit: "bunch", purchaseUnitPlural: "bunches", purchaseGrams: 200, isStaple: false),
+        "lettuce": NaturalPortion(grams: 50, unit: "cup", plural: "cups", purchaseUnit: "head", purchaseUnitPlural: "heads", purchaseGrams: 350, isStaple: false),
+        "mushrooms": NaturalPortion(grams: 70, unit: "cup", plural: "cups", purchaseUnit: "pack", purchaseUnitPlural: "packs", purchaseGrams: 250, isStaple: false),
+
+        // Dairy ────────────────────────────────────────────────────
+        "whole milk": NaturalPortion(grams: 240, unit: "cup", plural: "cups", purchaseUnit: "liter", purchaseUnitPlural: "liters", purchaseGrams: 1030, isStaple: false),
+        "skim milk": NaturalPortion(grams: 240, unit: "cup", plural: "cups", purchaseUnit: "liter", purchaseUnitPlural: "liters", purchaseGrams: 1030, isStaple: false),
+        "almond milk": NaturalPortion(grams: 240, unit: "cup", plural: "cups", purchaseUnit: "liter", purchaseUnitPlural: "liters", purchaseGrams: 1000, isStaple: false),
+        "butter": NaturalPortion(grams: 14, unit: "tbsp", plural: "tbsp", purchaseUnit: "stick", purchaseUnitPlural: "sticks", purchaseGrams: 113, isStaple: false),
+        "cheddar": NaturalPortion(grams: 28, unit: "slice", plural: "slices", purchaseUnit: "block", purchaseUnitPlural: "blocks", purchaseGrams: 220, isStaple: false),
+        "mozzarella": NaturalPortion(grams: 28, unit: "slice", plural: "slices", purchaseUnit: "ball", purchaseUnitPlural: "balls", purchaseGrams: 125, isStaple: false),
+        "parmesan": NaturalPortion(grams: 5, unit: "tbsp", plural: "tbsp", purchaseUnit: "wedge", purchaseUnitPlural: "wedges", purchaseGrams: 200, isStaple: false),
+        "feta": NaturalPortion(grams: 30, unit: "g", plural: "g", purchaseUnit: "pack", purchaseUnitPlural: "packs", purchaseGrams: 200, isStaple: false),
+
+        // Fats & oils (staples) ───────────────────────────────────
+        "olive oil": .staple(unit: "bottle", plural: "bottles"),
+        "extra virgin oil": .staple(unit: "bottle", plural: "bottles"),
+        "extra virgin olive oil": .staple(unit: "bottle", plural: "bottles"),
+        "vegetable oil": .staple(unit: "bottle", plural: "bottles"),
+        "coconut oil": .staple(unit: "jar", plural: "jars"),
+        "peanut butter": NaturalPortion(grams: 16, unit: "tbsp", plural: "tbsp", purchaseUnit: "jar", purchaseUnitPlural: "jars", purchaseGrams: 500, isStaple: false),
+        "almond butter": NaturalPortion(grams: 16, unit: "tbsp", plural: "tbsp", purchaseUnit: "jar", purchaseUnitPlural: "jars", purchaseGrams: 340, isStaple: false),
+        "almonds": NaturalPortion(grams: 28, unit: "handful", plural: "handfuls", purchaseUnit: "bag", purchaseUnitPlural: "bags", purchaseGrams: 250, isStaple: false),
+        "walnuts": NaturalPortion(grams: 28, unit: "handful", plural: "handfuls", purchaseUnit: "bag", purchaseUnitPlural: "bags", purchaseGrams: 250, isStaple: false),
+
+        // Condiments & spices (staples) ───────────────────────────
+        "salt": .staple(),
+        "black pepper": .staple(),
+        "pepper": .staple(),
+        "garlic powder": .staple(),
+        "onion powder": .staple(),
+        "paprika": .staple(),
+        "cumin": .staple(),
+        "oregano": .staple(),
+        "basil": .staple(),
+        "thyme": .staple(),
+        "rosemary": .staple(),
+        "chili powder": .staple(),
+        "cinnamon": .staple(),
+        "vanilla extract": .staple(unit: "bottle", plural: "bottles"),
+        "soy sauce": .staple(unit: "bottle", plural: "bottles"),
+        "balsamic vinegar": .staple(unit: "bottle", plural: "bottles"),
+        "honey": .staple(unit: "jar", plural: "jars"),
+        "mustard": .staple(unit: "jar", plural: "jars"),
+        "hot sauce": .staple(unit: "bottle", plural: "bottles"),
+
+        // Snacks / shakes ─────────────────────────────────────────
+        "protein shake": .simple(grams: 100, unit: "shake", plural: "shakes"),
+        "protein bar": .simple(grams: 60, unit: "bar", plural: "bars"),
+        "energy bar": .simple(grams: 40, unit: "bar", plural: "bars"),
+        "protein powder": NaturalPortion(grams: 30, unit: "scoop", plural: "scoops", purchaseUnit: "tub", purchaseUnitPlural: "tubs", purchaseGrams: 900, isStaple: false),
+
+        // Mediterranean / Italian ────────────────────────────────
+        "pesto": NaturalPortion(grams: 15, unit: "tbsp", plural: "tbsp", purchaseUnit: "jar", purchaseUnitPlural: "jars", purchaseGrams: 190, isStaple: false),
+        "sun dried tomatoes": NaturalPortion(grams: 28, unit: "tbsp", plural: "tbsp", purchaseUnit: "jar", purchaseUnitPlural: "jars", purchaseGrams: 200, isStaple: false),
+        "olives": NaturalPortion(grams: 28, unit: "handful", plural: "handfuls", purchaseUnit: "jar", purchaseUnitPlural: "jars", purchaseGrams: 200, isStaple: false),
+        "capers": .staple(unit: "jar", plural: "jars"),
+        "anchovies": NaturalPortion(grams: 25, unit: "can", plural: "cans", purchaseUnit: "can", purchaseUnitPlural: "cans", purchaseGrams: 50, isStaple: false),
+        "ricotta": NaturalPortion(grams: 30, unit: "tbsp", plural: "tbsp", purchaseUnit: "tub", purchaseUnitPlural: "tubs", purchaseGrams: 425, isStaple: false),
+        "burrata": NaturalPortion(grams: 125, unit: "ball", plural: "balls", purchaseUnit: "ball", purchaseUnitPlural: "balls", purchaseGrams: 125, isStaple: false),
+        "prosciutto": NaturalPortion(grams: 30, unit: "pack", plural: "packs", purchaseUnit: "pack", purchaseUnitPlural: "packs", purchaseGrams: 90, isStaple: false),
+
+        // Asian pantry ────────────────────────────────────────────
+        "fish sauce": .staple(unit: "bottle", plural: "bottles"),
+        "rice vinegar": .staple(unit: "bottle", plural: "bottles"),
+        "sesame oil": .staple(unit: "bottle", plural: "bottles"),
+        "sriracha": .staple(unit: "bottle", plural: "bottles"),
+        "miso paste": .staple(unit: "tub", plural: "tubs"),
+        "kimchi": NaturalPortion(grams: 30, unit: "tbsp", plural: "tbsp", purchaseUnit: "jar", purchaseUnitPlural: "jars", purchaseGrams: 500, isStaple: false),
+        "edamame": NaturalPortion(grams: 75, unit: "cup", plural: "cups", purchaseUnit: "bag", purchaseUnitPlural: "bags", purchaseGrams: 500, isStaple: false),
+        "tahini": NaturalPortion(grams: 15, unit: "tbsp", plural: "tbsp", purchaseUnit: "jar", purchaseUnitPlural: "jars", purchaseGrams: 350, isStaple: false),
+        "hummus": NaturalPortion(grams: 30, unit: "tbsp", plural: "tbsp", purchaseUnit: "tub", purchaseUnitPlural: "tubs", purchaseGrams: 250, isStaple: false),
+
+        // Herbs & spices (more staples) ──────────────────────────
+        "fresh parsley": NaturalPortion(grams: 5, unit: "tbsp", plural: "tbsp", purchaseUnit: "bunch", purchaseUnitPlural: "bunches", purchaseGrams: 30, isStaple: false),
+        "fresh basil": NaturalPortion(grams: 3, unit: "tbsp", plural: "tbsp", purchaseUnit: "bunch", purchaseUnitPlural: "bunches", purchaseGrams: 25, isStaple: false),
+        "fresh cilantro": NaturalPortion(grams: 4, unit: "tbsp", plural: "tbsp", purchaseUnit: "bunch", purchaseUnitPlural: "bunches", purchaseGrams: 30, isStaple: false),
+        "fresh mint": NaturalPortion(grams: 3, unit: "tbsp", plural: "tbsp", purchaseUnit: "bunch", purchaseUnitPlural: "bunches", purchaseGrams: 20, isStaple: false),
+        "fresh dill": NaturalPortion(grams: 3, unit: "tbsp", plural: "tbsp", purchaseUnit: "bunch", purchaseUnitPlural: "bunches", purchaseGrams: 25, isStaple: false),
+        "ginger": NaturalPortion(grams: 5, unit: "tsp", plural: "tsp", purchaseUnit: "knob", purchaseUnitPlural: "knobs", purchaseGrams: 60, isStaple: false),
+        "sumac": .staple(),
+        "turmeric": .staple(),
+        "smoked paprika": .staple(),
+        "red pepper flakes": .staple(),
+        "bay leaves": .staple(),
+        "curry powder": .staple(),
+        "cayenne": .staple(),
+        "nutmeg": .staple(),
+        "ginger powder": .staple(),
+
+        // Sweeteners / baking (staples) ─────────────────────────
+        "maple syrup": .staple(unit: "bottle", plural: "bottles"),
+        "sugar": .staple(unit: "bag", plural: "bags"),
+        "brown sugar": .staple(unit: "bag", plural: "bags"),
+        "flour": .staple(unit: "bag", plural: "bags"),
+        "baking soda": .staple(unit: "box", plural: "boxes"),
+        "baking powder": .staple(unit: "tin", plural: "tins"),
+        "cocoa powder": .staple(unit: "tin", plural: "tins"),
+
+        // Produce — more ──────────────────────────────────────────
+        "ginger root": NaturalPortion(grams: 5, unit: "tsp", plural: "tsp", purchaseUnit: "knob", purchaseUnitPlural: "knobs", purchaseGrams: 60, isStaple: false),
+        "jalapeno": .simple(grams: 14, unit: "jalapeno", plural: "jalapenos"),
+        "shallot": .simple(grams: 25, unit: "shallot", plural: "shallots"),
+        "leek": .simple(grams: 90, unit: "leek", plural: "leeks"),
+        "celery": NaturalPortion(grams: 40, unit: "stalk", plural: "stalks", purchaseUnit: "head", purchaseUnitPlural: "heads", purchaseGrams: 600, isStaple: false),
+        "asparagus": NaturalPortion(grams: 80, unit: "cup", plural: "cups", purchaseUnit: "bunch", purchaseUnitPlural: "bunches", purchaseGrams: 500, isStaple: false),
+        "raspberries": NaturalPortion(grams: 125, unit: "cup", plural: "cups", purchaseUnit: "punnet", purchaseUnitPlural: "punnets", purchaseGrams: 170, isStaple: false),
+        "grapes": NaturalPortion(grams: 150, unit: "cup", plural: "cups", purchaseUnit: "bag", purchaseUnitPlural: "bags", purchaseGrams: 500, isStaple: false),
+        "pineapple": NaturalPortion(grams: 165, unit: "cup", plural: "cups", purchaseUnit: "pineapple", purchaseUnitPlural: "pineapples", purchaseGrams: 900, isStaple: false),
+        "mango": .simple(grams: 200, unit: "mango", plural: "mangos"),
+        "kiwi": .simple(grams: 70, unit: "kiwi", plural: "kiwis"),
+
+        // Canned / jarred ─────────────────────────────────────────
+        "diced tomatoes canned": NaturalPortion(grams: 240, unit: "can", plural: "cans", purchaseUnit: "can", purchaseUnitPlural: "cans", purchaseGrams: 400, isStaple: false),
+        "tomato paste": NaturalPortion(grams: 16, unit: "tbsp", plural: "tbsp", purchaseUnit: "tube", purchaseUnitPlural: "tubes", purchaseGrams: 150, isStaple: false),
+        "coconut milk canned": NaturalPortion(grams: 240, unit: "cup", plural: "cups", purchaseUnit: "can", purchaseUnitPlural: "cans", purchaseGrams: 400, isStaple: false),
+
+        // Cheeses (expanded) ─────────────────────────────────────
+        "gouda": NaturalPortion(grams: 28, unit: "slice", plural: "slices", purchaseUnit: "block", purchaseUnitPlural: "blocks", purchaseGrams: 200, isStaple: false),
+        "brie": NaturalPortion(grams: 30, unit: "slice", plural: "slices", purchaseUnit: "wheel", purchaseUnitPlural: "wheels", purchaseGrams: 200, isStaple: false),
+        "camembert": NaturalPortion(grams: 30, unit: "slice", plural: "slices", purchaseUnit: "wheel", purchaseUnitPlural: "wheels", purchaseGrams: 250, isStaple: false),
+        "blue cheese": NaturalPortion(grams: 28, unit: "tbsp", plural: "tbsp", purchaseUnit: "wedge", purchaseUnitPlural: "wedges", purchaseGrams: 150, isStaple: false),
+        "gorgonzola": NaturalPortion(grams: 28, unit: "tbsp", plural: "tbsp", purchaseUnit: "wedge", purchaseUnitPlural: "wedges", purchaseGrams: 150, isStaple: false),
+        "goat cheese": NaturalPortion(grams: 28, unit: "slice", plural: "slices", purchaseUnit: "log", purchaseUnitPlural: "logs", purchaseGrams: 120, isStaple: false),
+        "halloumi": NaturalPortion(grams: 30, unit: "slice", plural: "slices", purchaseUnit: "block", purchaseUnitPlural: "blocks", purchaseGrams: 225, isStaple: false),
+        "manchego": NaturalPortion(grams: 28, unit: "slice", plural: "slices", purchaseUnit: "wedge", purchaseUnitPlural: "wedges", purchaseGrams: 200, isStaple: false),
+        "swiss cheese": NaturalPortion(grams: 28, unit: "slice", plural: "slices", purchaseUnit: "block", purchaseUnitPlural: "blocks", purchaseGrams: 200, isStaple: false),
+        "provolone": NaturalPortion(grams: 28, unit: "slice", plural: "slices", purchaseUnit: "block", purchaseUnitPlural: "blocks", purchaseGrams: 200, isStaple: false),
+        "pecorino": NaturalPortion(grams: 5, unit: "tbsp", plural: "tbsp", purchaseUnit: "wedge", purchaseUnitPlural: "wedges", purchaseGrams: 200, isStaple: false),
+        "mascarpone": NaturalPortion(grams: 30, unit: "tbsp", plural: "tbsp", purchaseUnit: "tub", purchaseUnitPlural: "tubs", purchaseGrams: 250, isStaple: false),
+        "cream cheese": NaturalPortion(grams: 30, unit: "tbsp", plural: "tbsp", purchaseUnit: "tub", purchaseUnitPlural: "tubs", purchaseGrams: 225, isStaple: false),
+
+        // Nuts / seeds (expanded) ────────────────────────────────
+        "pistachios": NaturalPortion(grams: 28, unit: "handful", plural: "handfuls", purchaseUnit: "bag", purchaseUnitPlural: "bags", purchaseGrams: 250, isStaple: false),
+        "cashews": NaturalPortion(grams: 28, unit: "handful", plural: "handfuls", purchaseUnit: "bag", purchaseUnitPlural: "bags", purchaseGrams: 250, isStaple: false),
+        "pecans": NaturalPortion(grams: 28, unit: "handful", plural: "handfuls", purchaseUnit: "bag", purchaseUnitPlural: "bags", purchaseGrams: 250, isStaple: false),
+        "hazelnuts": NaturalPortion(grams: 28, unit: "handful", plural: "handfuls", purchaseUnit: "bag", purchaseUnitPlural: "bags", purchaseGrams: 250, isStaple: false),
+        "macadamia nuts": NaturalPortion(grams: 28, unit: "handful", plural: "handfuls", purchaseUnit: "bag", purchaseUnitPlural: "bags", purchaseGrams: 200, isStaple: false),
+        "pine nuts": NaturalPortion(grams: 14, unit: "tbsp", plural: "tbsp", purchaseUnit: "bag", purchaseUnitPlural: "bags", purchaseGrams: 100, isStaple: false),
+        "chia seeds": NaturalPortion(grams: 12, unit: "tbsp", plural: "tbsp", purchaseUnit: "bag", purchaseUnitPlural: "bags", purchaseGrams: 250, isStaple: false),
+        "flax seeds": NaturalPortion(grams: 10, unit: "tbsp", plural: "tbsp", purchaseUnit: "bag", purchaseUnitPlural: "bags", purchaseGrams: 250, isStaple: false),
+        "pumpkin seeds": NaturalPortion(grams: 28, unit: "handful", plural: "handfuls", purchaseUnit: "bag", purchaseUnitPlural: "bags", purchaseGrams: 250, isStaple: false),
+        "sunflower seeds": NaturalPortion(grams: 28, unit: "handful", plural: "handfuls", purchaseUnit: "bag", purchaseUnitPlural: "bags", purchaseGrams: 250, isStaple: false),
+        "sesame seeds": NaturalPortion(grams: 9, unit: "tbsp", plural: "tbsp", purchaseUnit: "bag", purchaseUnitPlural: "bags", purchaseGrams: 200, isStaple: false),
+
+        // Prepared sauces / dressings / spreads ──────────────────
+        "pasta sauce": NaturalPortion(grams: 125, unit: "cup", plural: "cups", purchaseUnit: "jar", purchaseUnitPlural: "jars", purchaseGrams: 680, isStaple: false),
+        "marinara sauce": NaturalPortion(grams: 125, unit: "cup", plural: "cups", purchaseUnit: "jar", purchaseUnitPlural: "jars", purchaseGrams: 680, isStaple: false),
+        "salsa": NaturalPortion(grams: 30, unit: "tbsp", plural: "tbsp", purchaseUnit: "jar", purchaseUnitPlural: "jars", purchaseGrams: 450, isStaple: false),
+        "guacamole": NaturalPortion(grams: 30, unit: "tbsp", plural: "tbsp", purchaseUnit: "tub", purchaseUnitPlural: "tubs", purchaseGrams: 200, isStaple: false),
+        "mayonnaise": .staple(unit: "jar", plural: "jars"),
+        "ketchup": .staple(unit: "bottle", plural: "bottles"),
+        "bbq sauce": .staple(unit: "bottle", plural: "bottles"),
+        "ranch dressing": .staple(unit: "bottle", plural: "bottles"),
+        "italian dressing": .staple(unit: "bottle", plural: "bottles"),
+        "vinaigrette": .staple(unit: "bottle", plural: "bottles"),
+        "worcestershire sauce": .staple(unit: "bottle", plural: "bottles"),
+        "jam": .staple(unit: "jar", plural: "jars"),
+        "marmalade": .staple(unit: "jar", plural: "jars"),
+        "nutella": NaturalPortion(grams: 19, unit: "tbsp", plural: "tbsp", purchaseUnit: "jar", purchaseUnitPlural: "jars", purchaseGrams: 350, isStaple: false),
+
+        // More cuts of meat / fish ───────────────────────────────
+        "pork chop": NaturalPortion(grams: 170, unit: "chop", plural: "chops", purchaseUnit: "chop", purchaseUnitPlural: "chops", purchaseGrams: 170, isStaple: false),
+        "bacon": NaturalPortion(grams: 8, unit: "slice", plural: "slices", purchaseUnit: "pack", purchaseUnitPlural: "packs", purchaseGrams: 340, isStaple: false),
+        "sausage": NaturalPortion(grams: 75, unit: "link", plural: "links", purchaseUnit: "pack", purchaseUnitPlural: "packs", purchaseGrams: 450, isStaple: false),
+        "lamb chop": NaturalPortion(grams: 100, unit: "chop", plural: "chops", purchaseUnit: "chop", purchaseUnitPlural: "chops", purchaseGrams: 100, isStaple: false),
+        "ribeye": NaturalPortion(grams: 230, unit: "steak", plural: "steaks", purchaseUnit: "steak", purchaseUnitPlural: "steaks", purchaseGrams: 230, isStaple: false),
+        "sirloin steak": NaturalPortion(grams: 200, unit: "steak", plural: "steaks", purchaseUnit: "steak", purchaseUnitPlural: "steaks", purchaseGrams: 200, isStaple: false),
+        "white fish": NaturalPortion(grams: 150, unit: "fillet", plural: "fillets", purchaseUnit: "fillet", purchaseUnitPlural: "fillets", purchaseGrams: 150, isStaple: false),
+        "cod fillet": NaturalPortion(grams: 150, unit: "fillet", plural: "fillets", purchaseUnit: "fillet", purchaseUnitPlural: "fillets", purchaseGrams: 150, isStaple: false),
+        "shrimp": NaturalPortion(grams: 85, unit: "handful", plural: "handfuls", purchaseUnit: "bag", purchaseUnitPlural: "bags", purchaseGrams: 450, isStaple: false),
+
+        // Drinks / pantry beverages ──────────────────────────────
+        "coconut water": NaturalPortion(grams: 240, unit: "cup", plural: "cups", purchaseUnit: "carton", purchaseUnitPlural: "cartons", purchaseGrams: 500, isStaple: false),
+        "oat milk": NaturalPortion(grams: 240, unit: "cup", plural: "cups", purchaseUnit: "liter", purchaseUnitPlural: "liters", purchaseGrams: 1000, isStaple: false),
+        "soy milk": NaturalPortion(grams: 240, unit: "cup", plural: "cups", purchaseUnit: "liter", purchaseUnitPlural: "liters", purchaseGrams: 1000, isStaple: false),
+        "orange juice": NaturalPortion(grams: 240, unit: "cup", plural: "cups", purchaseUnit: "carton", purchaseUnitPlural: "cartons", purchaseGrams: 1750, isStaple: false),
+        "apple juice": NaturalPortion(grams: 240, unit: "cup", plural: "cups", purchaseUnit: "carton", purchaseUnitPlural: "cartons", purchaseGrams: 1750, isStaple: false),
+        "espresso": NaturalPortion(grams: 30, unit: "shot", plural: "shots", purchaseUnit: "bag", purchaseUnitPlural: "bags", purchaseGrams: 250, isStaple: false),
+        "ground coffee": .staple(unit: "bag", plural: "bags"),
+        "tea bags": .staple(unit: "box", plural: "boxes"),
+
+        // Baking / dessert ───────────────────────────────────────
+        "dark chocolate": NaturalPortion(grams: 10, unit: "square", plural: "squares", purchaseUnit: "bar", purchaseUnitPlural: "bars", purchaseGrams: 100, isStaple: false),
+        "milk chocolate": NaturalPortion(grams: 10, unit: "square", plural: "squares", purchaseUnit: "bar", purchaseUnitPlural: "bars", purchaseGrams: 100, isStaple: false),
+        "chocolate chips": NaturalPortion(grams: 30, unit: "tbsp", plural: "tbsp", purchaseUnit: "bag", purchaseUnitPlural: "bags", purchaseGrams: 340, isStaple: false),
+        "raisins": NaturalPortion(grams: 30, unit: "handful", plural: "handfuls", purchaseUnit: "box", purchaseUnitPlural: "boxes", purchaseGrams: 425, isStaple: false),
+        "dates": .simple(grams: 8, unit: "date", plural: "dates"),
+
+        // More produce ───────────────────────────────────────────
+        "scallion": NaturalPortion(grams: 15, unit: "stalk", plural: "stalks", purchaseUnit: "bunch", purchaseUnitPlural: "bunches", purchaseGrams: 120, isStaple: false),
+        "arugula": NaturalPortion(grams: 20, unit: "cup", plural: "cups", purchaseUnit: "bag", purchaseUnitPlural: "bags", purchaseGrams: 150, isStaple: false),
+        "radish": NaturalPortion(grams: 15, unit: "radish", plural: "radishes", purchaseUnit: "bunch", purchaseUnitPlural: "bunches", purchaseGrams: 200, isStaple: false),
+        "cabbage": NaturalPortion(grams: 90, unit: "cup", plural: "cups", purchaseUnit: "head", purchaseUnitPlural: "heads", purchaseGrams: 900, isStaple: false),
+        "brussels sprouts": NaturalPortion(grams: 88, unit: "cup", plural: "cups", purchaseUnit: "bag", purchaseUnitPlural: "bags", purchaseGrams: 450, isStaple: false),
+        "corn": NaturalPortion(grams: 75, unit: "cup", plural: "cups", purchaseUnit: "can", purchaseUnitPlural: "cans", purchaseGrams: 425, isStaple: false),
+
+        // Water — ubiquitous, no need to track ────────────────────
+        "water": .staple(unit: "tap", plural: "tap"),
     ]
 
     // MARK: - Lookup
