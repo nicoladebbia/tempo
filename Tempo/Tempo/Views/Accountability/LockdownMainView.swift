@@ -156,11 +156,13 @@ struct LockdownMainView: View {
     // MARK: - Date Header
 
     private var dateHeader: some View {
-        Text(Date(), format: .dateTime.weekday(.wide).month(.wide).day())
-            .font(.tempoSubheadline)
-            .foregroundStyle(Color.tempoTextSecondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.top, TempoSpacing.sm)
+        TimelineView(.everyMinute) { context in
+            Text(context.date, format: .dateTime.weekday(.wide).month(.wide).day())
+                .font(.tempoSubheadline)
+                .foregroundStyle(Color.tempoTextSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, TempoSpacing.sm)
+        }
     }
 
     // MARK: - Status Banner

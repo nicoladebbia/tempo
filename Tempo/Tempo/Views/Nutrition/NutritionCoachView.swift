@@ -132,7 +132,15 @@ struct NutritionCoachView: View {
                     .foregroundStyle(Color.tempoTextSecondary)
             }
 
-            if !viewModel.mealSuggestions.isEmpty {
+            if viewModel.isLoadingMealSuggestions {
+                HStack(spacing: TempoSpacing.sm) {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                    Text("Finding meals for your remaining macros…")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                }
+            } else if !viewModel.mealSuggestions.isEmpty {
                 ForEach(viewModel.mealSuggestions) { suggestion in
                     VStack(alignment: .leading, spacing: TempoSpacing.xs) {
                         HStack {
@@ -176,7 +184,7 @@ struct NutritionCoachView: View {
             }
 
             Button {
-                viewModel.getMealSuggestions()
+                viewModel.getMealSuggestions(apiClient: services.apiClient)
             } label: {
                 HStack(spacing: 8) {
                     if viewModel.isLoadingMealSuggestions {

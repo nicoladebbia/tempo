@@ -688,9 +688,14 @@ final class DashboardViewModel {
     }
 
     var formattedDate: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEE, MMM d"
-        return formatter.string(from: Date())
+        TempoDateFormatters.dashboardHeader.string(from: Date())
+    }
+
+    /// Current wall-clock time formatted "h:mm a" (e.g. "2:30 PM"). Re-reads
+    /// `Date()` on every access; views wrap the consuming text in a
+    /// `TimelineView(.everyMinute)` so it ticks without a manual refresh.
+    var formattedTimeNow: String {
+        TempoDateFormatters.timeOnly.string(from: Date())
     }
 
     // MARK: - Dependencies
@@ -920,6 +925,11 @@ final class DashboardViewModel {
             mealsLogged: mealsLoggedCount
         )
 
+        // `isConnected` drives the Fuel tile's render path: when false, the
+        // card shows the "Add Meal" connect prompt. We're connected if the
+        // user has either logged a meal OR has a planned meal for today —
+        // both mean nutrition is actively in use.
+        let nutritionConnected = mealsLoggedCount > 0 || nutritionTotals.nextMeal != nil
         var fuelData = FuelQuadrantData(
             caloriesConsumed: consumedCal,
             calorieTarget: adjusted.calorieTarget,
@@ -931,7 +941,7 @@ final class DashboardViewModel {
             fatTarget: adjusted.fatTarget,
             mealsLogged: mealsLoggedCount > 0 ? mealsLoggedCount : nil,
             mealsPlanned: nutritionTotals.mealsPlanned,
-            isConnected: mealsLoggedCount > 0,
+            isConnected: nutritionConnected,
             lastSync: now
         )
         fuelData.adjustedTargets = adjusted

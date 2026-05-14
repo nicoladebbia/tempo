@@ -96,9 +96,11 @@ struct TodayWorkoutView: View {
 
     private func workoutHeader(plan: WorkoutPlan) -> some View {
         VStack(spacing: TempoSpacing.xs) {
-            Text(Date(), format: .dateTime.weekday(.wide).month(.wide).day())
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+            TimelineView(.everyMinute) { context in
+                Text(context.date, format: .dateTime.weekday(.wide).month(.wide).day())
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextTertiary)
+            }
 
             Text(plan.type.displayName.uppercased() + " DAY")
                 .font(.tempoTitle1)
@@ -471,9 +473,11 @@ struct TodayWorkoutView: View {
         VStack(spacing: TempoSpacing.xxl) {
             Spacer().frame(height: TempoSpacing.xxxl)
 
-            Text(Date(), format: .dateTime.weekday(.wide).month(.wide).day())
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+            TimelineView(.everyMinute) { context in
+                Text(context.date, format: .dateTime.weekday(.wide).month(.wide).day())
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextTertiary)
+            }
 
             Text("REST DAY")
                 .font(.tempoTitle1)

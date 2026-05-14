@@ -26,6 +26,10 @@ struct NutritionTotalsToday {
     var carbsTarget: Int = 0
     var fatTarget: Int = 0
     var nextMeal: PlannedMeal?
+    /// `false` when no `ModelContext` has been bound yet (zeros are
+    /// "not connected", not "no consumption"). Views can use this to
+    /// differentiate empty-state UI from "0 consumed" UI.
+    var isConnected: Bool = false
 }
 
 // MARK: - DashboardViewModel fetch helper
@@ -39,6 +43,7 @@ extension DashboardViewModel {
             return NutritionTotalsToday()
         }
         var totals = NutritionTotalsToday()
+        totals.isConnected = true
         let todayStart = Calendar.current.startOfDay(for: Date())
         let tomorrowStart = Calendar.current.date(byAdding: .day, value: 1, to: todayStart) ?? todayStart
 

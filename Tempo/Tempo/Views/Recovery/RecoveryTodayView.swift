@@ -107,10 +107,12 @@ struct RecoveryTodayView: View {
                         : Color.tempoRecoveryRed
                 )
 
-            // Date label
-            Text(Date(), format: .dateTime.weekday(.wide).month(.wide).day())
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+            // Date label — ticks via TimelineView so it survives midnight rollover.
+            TimelineView(.everyMinute) { context in
+                Text(context.date, format: .dateTime.weekday(.wide).month(.wide).day())
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextTertiary)
+            }
         }
         .padding(.top, TempoSpacing.lg)
         .onAppear {
