@@ -177,7 +177,8 @@ final class DayPlannerService {
         let free = Self.freeWindows(start: dayStartMin, end: dayEndMin, blockedRanges: merged)
         // Pick the two largest, place a session at the start of each.
         let top = free.sorted(by: { ($0.1 - $0.0) > ($1.1 - $1.0) }).prefix(2)
-        return top.compactMap { (start, end) -> PlannedBlock? in
+        return top.compactMap { window -> PlannedBlock? in
+            let (start, end) = window
             guard end - start >= length else { return nil }
             return PlannedBlock(
                 startMinuteOfDay: start,

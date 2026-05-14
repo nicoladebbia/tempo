@@ -66,13 +66,15 @@ struct PantryView: View {
             }
         }
         .sheet(isPresented: $showManualAddSheet) {
-            PantryManualAddSheet { rawName, qty, unit, location in
-                viewModel.addPantryItem(
-                    rawName: rawName,
-                    quantity: qty,
-                    unit: unit,
-                    storageLocation: location
-                )
+            PantryManualAddSheet { stagedItems in
+                for item in stagedItems {
+                    viewModel.addPantryItem(
+                        rawName: item.name,
+                        quantity: item.quantity,
+                        unit: item.unit,
+                        storageLocation: item.location
+                    )
+                }
             }
         }
         .refreshable {
@@ -216,56 +218,52 @@ struct PantryView: View {
     }
 }
 
+// MARK: - StagedPantryItem
+
+/// In-flight pantry row inside `PantryManualAddSheet`. Stays a value type
+/// so the staging list can render in a ForEach without SwiftData reach;
+/// the parent view's batch callback materialises these into real
+/// `PantryItem` rows on Save.
+struct StagedPantryItem: Identifiable, Hashable {
+    let id = UUID()
+    var name: String
+    var quantity: Double
+    var unit: PantryUnit
+    var location: PantryStorageLocation
+}
+
 // MARK: - PantryManualAddSheet
 
 private struct PantryManualAddSheet: View {
-    let onAdd: (String, Double, PantryUnit, PantryStorageLocation) -> Void
+    /// Called once with every staged item when the user taps Save.
+    let onAdd: ([StagedPantryItem]) -> Void
 
     @Environment(\.dismiss)
     private var dismiss
-    @State
-    private var name = ""
-    @State
-    private var quantityText = ""
-    @State
-    private var unit: PantryUnit = .grams
-    @State
-    private var location: PantryStorageLocation = .pantry
-    @State
-    private var transcriber = VoiceTranscriber()
+
+    // Current form row.
+    @State private var name = ""
+    @State private var quantityText = ""
+    @State private var unit: PantryUnit = .grams
+    @State private var location: PantryStorageLocation = .pantry
+    @State private var transcriber = VoiceTranscriber()
+
+    // Staging list — items the user has queued but not yet committed.
+    @State private var staged: [StagedPantryItem] = []
+
+    private var canAddCurrent: Bool {
+        !name.trimmingCharacters(in: .whitespaces).isEmpty && (Double(quantityText) ?? 0) > 0
+    }
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("Item") {
-                    HStack(spacing: 8) {
-                        TextField("Name (e.g. Chicken Breast)", text: $name)
-                        micButton
-                    }
-                    if transcriber.isListening {
-                        Text("Listening… speak the item name.")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                    } else if let error = transcriber.error {
-                        Text(error)
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoError)
-                    }
-                    TextField("Quantity", text: $quantityText)
-                        .keyboardType(.decimalPad)
-                    Picker("Unit", selection: $unit) {
-                        ForEach(PantryUnit.allCases, id: \.rawValue) { u in
-                            Text(u.displayName).tag(u)
-                        }
-                    }
-                    Picker("Storage", selection: $location) {
-                        ForEach(PantryStorageLocation.allCases, id: \.rawValue) { loc in
-                            Text(loc.displayName).tag(loc)
-                        }
-                    }
+                currentRowSection
+                if !staged.isEmpty {
+                    stagedSection
                 }
             }
-            .navigationTitle("Add to Pantry")
+            .navigationTitle(stagedTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -275,20 +273,14 @@ private struct PantryManualAddSheet: View {
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Add") {
-                        let qty = Double(quantityText) ?? 0
-                        guard !name.isEmpty, qty > 0 else {
-                            return
-                        }
-                        transcriber.stop()
-                        onAdd(name, qty, unit, location)
-                        dismiss()
+                    Button(saveButtonTitle) {
+                        commitAndClose()
                     }
-                    .disabled(name.isEmpty || Double(quantityText) ?? 0 <= 0)
+                    .disabled(staged.isEmpty && !canAddCurrent)
+                    .fontWeight(.semibold)
                 }
             }
             .onChange(of: transcriber.transcribedText) { _, newText in
-                // Stream partial results into the name field while listening.
                 if transcriber.isListening, !newText.isEmpty {
                     name = newText
                 }
@@ -297,6 +289,123 @@ private struct PantryManualAddSheet: View {
                 transcriber.stop()
             }
         }
+    }
+
+    // MARK: - Sections
+
+    private var currentRowSection: some View {
+        Section("New item") {
+            HStack(spacing: 8) {
+                TextField("Name (e.g. Chicken Breast)", text: $name)
+                    .submitLabel(.next)
+                micButton
+            }
+            if transcriber.isListening {
+                Text("Listening… speak the item name.")
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextTertiary)
+            } else if let error = transcriber.error {
+                Text(error)
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoError)
+            }
+            TextField("Quantity", text: $quantityText)
+                .keyboardType(.decimalPad)
+            Picker("Unit", selection: $unit) {
+                ForEach(PantryUnit.allCases, id: \.rawValue) { u in
+                    Text(u.displayName).tag(u)
+                }
+            }
+            Picker("Storage", selection: $location) {
+                ForEach(PantryStorageLocation.allCases, id: \.rawValue) { loc in
+                    Text(loc.displayName).tag(loc)
+                }
+            }
+            Button {
+                stageCurrentRow()
+            } label: {
+                HStack {
+                    Image(systemName: "plus.circle.fill")
+                    Text("Add to list")
+                        .fontWeight(.semibold)
+                }
+                .foregroundStyle(canAddCurrent ? Color.tempoAmber : Color.tempoTextTertiary)
+            }
+            .disabled(!canAddCurrent)
+        }
+    }
+
+    private var stagedSection: some View {
+        Section("Staged (\(staged.count))") {
+            ForEach(staged) { item in
+                stagedRow(item)
+            }
+            .onDelete { offsets in
+                staged.remove(atOffsets: offsets)
+                HapticManager.lightImpact()
+            }
+        }
+    }
+
+    private func stagedRow(_ item: StagedPantryItem) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.name)
+                    .font(.tempoBody)
+                Text("\(Self.formatQuantity(item.quantity)) \(item.unit.displayName) · \(item.location.displayName)")
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextTertiary)
+            }
+            Spacer()
+        }
+    }
+
+    // MARK: - Computed labels
+
+    private var stagedTitle: String {
+        staged.isEmpty ? "Add to Pantry" : "Add to Pantry · \(staged.count)"
+    }
+
+    private var saveButtonTitle: String {
+        let pending = canAddCurrent ? staged.count + 1 : staged.count
+        return pending <= 1 ? "Save" : "Save \(pending)"
+    }
+
+    // MARK: - Actions
+
+    private func stageCurrentRow() {
+        guard canAddCurrent, let qty = Double(quantityText) else { return }
+        staged.append(StagedPantryItem(
+            name: name.trimmingCharacters(in: .whitespaces),
+            quantity: qty,
+            unit: unit,
+            location: location
+        ))
+        HapticManager.lightImpact()
+        // Clear the form for the next row. Keep unit + location sticky so
+        // adding a batch of "grams / pantry" items doesn't re-pick every
+        // time. Stop the transcriber so the next row starts clean.
+        name = ""
+        quantityText = ""
+        transcriber.stop()
+    }
+
+    private func commitAndClose() {
+        // If the user filled the form but didn't tap "Add to list", treat
+        // Save as an implicit stage-then-commit.
+        if canAddCurrent {
+            stageCurrentRow()
+        }
+        guard !staged.isEmpty else { return }
+        transcriber.stop()
+        onAdd(staged)
+        dismiss()
+    }
+
+    private static func formatQuantity(_ value: Double) -> String {
+        value.truncatingRemainder(dividingBy: 1) == 0
+            ? String(Int(value))
+            : String(format: "%.2f", value)
     }
 
     private var micButton: some View {

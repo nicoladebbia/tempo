@@ -421,7 +421,7 @@ final class OnboardingViewModel {
 /// can edit it freely without touching SwiftData mid-flow; the final commit
 /// step materialises these into `ClassBlock` model rows.
 struct OnboardingClassBlock: Codable, Identifiable, Hashable {
-    var id: UUID = UUID()
+    var id = UUID()
     var weekday: Int          // 1 = Sunday … 7 = Saturday
     var startMinuteOfDay: Int
     var endMinuteOfDay: Int
@@ -431,7 +431,7 @@ struct OnboardingClassBlock: Codable, Identifiable, Hashable {
 }
 
 struct OnboardingWorkBlock: Codable, Identifiable, Hashable {
-    var id: UUID = UUID()
+    var id = UUID()
     var weekday: Int
     var startMinuteOfDay: Int
     var endMinuteOfDay: Int
