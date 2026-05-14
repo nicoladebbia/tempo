@@ -112,6 +112,29 @@ final class MockNotificationService: NotificationServiceProtocol, @unchecked Sen
         logger.debug("Mock: cancelled prep-start reminder for meal \(mealID.uuidString)")
     }
 
+    func scheduleOverdueMealReminder(
+        mealID: UUID,
+        mealName: String,
+        scheduledTime: Date,
+        lateMinutes: Int
+    ) {
+        let fireDate = scheduledTime.addingTimeInterval(Double(lateMinutes) * 60)
+        let notification = ScheduledNotification(
+            category: "overdue_\(mealID.uuidString)",
+            title: "Hey, have you done your \(mealName.lowercased())?",
+            body: "It was scheduled \(lateMinutes) min ago. Tap to mark it eaten or skip.",
+            triggerDate: fireDate
+        )
+        scheduledNotifications.append(notification)
+        logger.debug("Mock: scheduled overdue reminder for \(mealName) at \(fireDate)")
+    }
+
+    func cancelOverdueMealReminder(forMealID mealID: UUID) {
+        let category = "overdue_\(mealID.uuidString)"
+        scheduledNotifications.removeAll { $0.category == category }
+        logger.debug("Mock: cancelled overdue reminder for meal \(mealID.uuidString)")
+    }
+
     func cancelAll() {
         scheduledNotifications.removeAll()
         logger.debug("Mock: cancelled all notifications")

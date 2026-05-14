@@ -63,6 +63,13 @@ enum TempoDateFormatters {
         return formatter
     }()
 
+    /// Header date: "Wed, May 13"
+    static let dashboardHeader: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE, MMM d"
+        return formatter
+    }()
+
     /// Relative: "5 minutes ago", "Yesterday", "2 days ago"
     nonisolated(unsafe) static let relative: RelativeDateTimeFormatter = {
         let formatter = RelativeDateTimeFormatter()

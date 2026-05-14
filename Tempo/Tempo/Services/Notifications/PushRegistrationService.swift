@@ -84,7 +84,7 @@ final class PushRegistrationService: @unchecked Sendable {
         )
 
         do {
-            let _: DeviceTokenEnvelope<DeviceTokenRegisterResponseDTO> = try await apiClient.request(
+            let _: DeviceTokenRegisterResponseDTO = try await apiClient.request(
                 .registerDeviceToken(),
                 body: body
             )
@@ -100,7 +100,7 @@ final class PushRegistrationService: @unchecked Sendable {
         let deviceID = await UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
 
         do {
-            let _: DeviceTokenEnvelope<EmptyResponse> = try await apiClient.request(
+            let _: EmptyResponse = try await apiClient.request(
                 .removeDeviceToken(deviceID: deviceID)
             )
             await MainActor.run { isRegistered = false }
@@ -123,13 +123,13 @@ final class PushRegistrationService: @unchecked Sendable {
 
 // MARK: - API Endpoints
 
-extension APIEndpoint where Response == DeviceTokenEnvelope<DeviceTokenRegisterResponseDTO> {
+extension APIEndpoint where Response == DeviceTokenRegisterResponseDTO {
     static func registerDeviceToken() -> Self {
         APIEndpoint(path: "/v1/devices/register", method: .post)
     }
 }
 
-extension APIEndpoint where Response == DeviceTokenEnvelope<EmptyResponse> {
+extension APIEndpoint where Response == EmptyResponse {
     static func removeDeviceToken(deviceID: String) -> Self {
         APIEndpoint(path: "/v1/devices/\(deviceID)", method: .delete)
     }
@@ -158,10 +158,6 @@ struct DeviceTokenRegisterResponseDTO: Codable {
     let registered: Bool
 }
 
-// MARK: - DeviceTokenEnvelope
-
-/// Envelope DTO matching backend Envelope<T>.
-struct DeviceTokenEnvelope<T: Codable & Sendable>: Codable {
-    let ok: Bool
-    let data: T
-}
+// DeviceTokenEnvelope removed — APIClient now unwraps the backend Envelope
+// automatically via APIEnvelope<T> in APIEndpoints.swift. Per
+// INTELLIGENCE_REMEDIATION_PLAN.md §3.

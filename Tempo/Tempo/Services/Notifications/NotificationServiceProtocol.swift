@@ -73,6 +73,21 @@ protocol NotificationServiceProtocol: Sendable {
     /// cancellation when a meal is eaten / skipped / rescheduled.
     func cancelPrepStartReminder(forMealID mealID: UUID)
 
+    /// "Have you done your breakfast?" check-in. Fires `lateMinutes` after
+    /// the meal's scheduled time if the user hasn't marked it eaten/skipped.
+    /// Identifier `overdue_<mealID>` so reschedules + cancels target the
+    /// exact pending request. Called every time a meal is created or its
+    /// scheduled time shifts; cancelled on eaten / skipped / deleted.
+    func scheduleOverdueMealReminder(
+        mealID: UUID,
+        mealName: String,
+        scheduledTime: Date,
+        lateMinutes: Int
+    )
+
+    /// Cancel the overdue reminder for `mealID`.
+    func cancelOverdueMealReminder(forMealID mealID: UUID)
+
     func cancelAll()
     func cancelCategory(_ category: String)
 }

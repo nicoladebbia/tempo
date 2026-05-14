@@ -351,6 +351,48 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         )
     }
 
+    // MARK: - Overdue Meal Reminder
+
+    static func overdueMealReminderID(mealID: UUID) -> String {
+        "overdue_\(mealID.uuidString)"
+    }
+
+    func scheduleOverdueMealReminder(
+        mealID: UUID,
+        mealName: String,
+        scheduledTime: Date,
+        lateMinutes: Int
+    ) {
+        let fireDate = scheduledTime.addingTimeInterval(Double(lateMinutes) * 60)
+        guard isWithinPreScheduleWindow(fireDate) else {
+            // Caller (e.g. refresh-on-launch) needs to know the reminder was
+            // never queued — otherwise overdue tracking silently lapses for
+            // meals whose late-fire time has already passed.
+            logger.info("Overdue reminder for \(mealName, privacy: .public) skipped — fireDate \(fireDate) is outside pre-schedule window.")
+            return
+        }
+        scheduleNotification(
+            id: Self.overdueMealReminderID(mealID: mealID),
+            title: "Hey, have you done your \(mealName.lowercased())?",
+            body: "It was scheduled \(lateMinutes) min ago. Tap to mark it eaten or skip.",
+            date: fireDate,
+            categoryID: "OVERDUE_MEAL_REMINDER",
+            threadID: "tempo.overdue.\(mealID.uuidString)",
+            interruptionLevel: .active,
+            budgetCost: 0.3,
+            priority: 3,
+            // Discrete check-in tied to a specific meal; exempt from the
+            // generic-notification budget for the same reason as prep-start.
+            bypassBudget: true
+        )
+    }
+
+    func cancelOverdueMealReminder(forMealID mealID: UUID) {
+        center.removePendingNotificationRequests(
+            withIdentifiers: [Self.overdueMealReminderID(mealID: mealID)]
+        )
+    }
+
     // MARK: - Recovery Notification
 
     // Per BUILD_PLAN step 12.4 — Fires for red/yellow recovery zones.
@@ -658,9 +700,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
     }
 
     private func dateKey(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
+        TempoDateFormatters.isoDate.string(from: date)
     }
 
     private func makeCategory(id: String, actions: [UNNotificationAction]) -> UNNotificationCategory {
