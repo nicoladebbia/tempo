@@ -3,11 +3,15 @@
 // Tempo
 //
 // Vertical 24h timeline rendering today's DayPlan. Per
-// docs/INTELLIGENCE_REMEDIATION_PLAN.md §9.
+// docs/INTELLIGENCE_REMEDIATION_PLAN.md §9 + LAUNCH_PUNCH_LIST.md §3.4.
 //
-// Read-only first pass — drag-to-reflow is deferred to a later commit.
 // Tapping a block opens a detail sheet with the AI copy (or the title,
-// when copy is nil).
+// when copy is nil). Non-fixed blocks (training/study/meal/recovery/free)
+// can be dragged vertically; the drop snaps to 15-min cells, the block
+// is clamped between wake (the first non-sleep boundary) and the sleep
+// fence, and subsequent non-fixed blocks shift forward to make room.
+// Fixed blocks (class/exam/work/football) and sleep are not draggable
+// and cannot be displaced.
 //
 
 import SwiftData
@@ -24,9 +28,15 @@ struct DayPlanView: View {
     @State private var isRegenerating = false
     @State private var scheduler: DayPlanScheduler?
 
+    /// Live drag preview: which block is being dragged, and the cumulative
+    /// translation in minutes (already snapped to 15-min cells). Nil when
+    /// no drag is in flight.
+    @State private var dragState: (id: UUID, deltaMinutes: Int)?
+
     // 60 pixels per hour → a full day = 1440 pixels. Wide enough that
     // 15-min blocks (15 px) are still legible.
     private let pixelsPerMinute: CGFloat = 1.0
+    private let snapMinutes: Int = 15
 
     var body: some View {
         ScrollView {
@@ -128,7 +138,7 @@ struct DayPlanView: View {
             // Blocks.
             ForEach(currentPlan?.blocks.sorted(by: { $0.startMinuteOfDay < $1.startMinuteOfDay }) ?? []) { block in
                 blockCard(block)
-                    .offset(y: CGFloat(block.startMinuteOfDay) * pixelsPerMinute)
+                    .offset(y: CGFloat(renderedStart(for: block)) * pixelsPerMinute)
             }
             // Now marker.
             if currentPlan != nil {
@@ -142,38 +152,151 @@ struct DayPlanView: View {
     }
 
     private func blockCard(_ block: TimeBlock) -> some View {
-        Button {
-            selectedBlock = block
-        } label: {
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: block.kind.symbolName)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.7))
-                    .frame(width: 14)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(block.title)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.white)
-                    Text("\(formatMinute(block.startMinuteOfDay))–\(formatMinute(block.endMinuteOfDay))")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.white.opacity(0.5))
-                }
-                Spacer()
+        let isDraggable = isDraggable(block)
+        let isActiveDrag = dragState?.id == block.id
+        let displayStart = renderedStart(for: block)
+        let displayEnd = displayStart + block.durationMinutes
+
+        return HStack(alignment: .top, spacing: 8) {
+            Image(systemName: block.kind.symbolName)
+                .font(.system(size: 11))
+                .foregroundStyle(.white.opacity(0.7))
+                .frame(width: 14)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(block.title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white)
+                Text("\(formatMinute(displayStart))–\(formatMinute(displayEnd))")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.white.opacity(0.5))
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(height: max(20, CGFloat(block.durationMinutes) * pixelsPerMinute - 2), alignment: .top)
-            .background(colorFor(kind: block.kind).opacity(0.18))
-            .overlay(
-                Rectangle()
-                    .fill(colorFor(kind: block.kind))
-                    .frame(width: 3)
-                    .frame(maxHeight: .infinity),
-                alignment: .leading
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            Spacer()
+            if isDraggable {
+                Image(systemName: "line.3.horizontal")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.white.opacity(0.35))
+            }
         }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: max(20, CGFloat(block.durationMinutes) * pixelsPerMinute - 2), alignment: .top)
+        .background(colorFor(kind: block.kind).opacity(isActiveDrag ? 0.32 : 0.18))
+        .overlay(
+            Rectangle()
+                .fill(colorFor(kind: block.kind))
+                .frame(width: 3)
+                .frame(maxHeight: .infinity),
+            alignment: .leading
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .scaleEffect(isActiveDrag ? 1.02 : 1.0)
+        .shadow(color: isActiveDrag ? .black.opacity(0.35) : .clear, radius: 6, y: 2)
+        .contentShape(Rectangle())
+        .onTapGesture { selectedBlock = block }
+        .gesture(isDraggable ? dragGesture(for: block) : nil)
+        .animation(.interactiveSpring(response: 0.25, dampingFraction: 0.85), value: dragState?.id)
+    }
+
+    // MARK: - Drag interaction
+
+    /// Class / exam / work / football come from the calendar; sleep is the
+    /// fence at end-of-day. Neither is reflowable.
+    private func isDraggable(_ block: TimeBlock) -> Bool {
+        !block.kind.isFixed && block.kind != .sleep
+    }
+
+    /// Y position of a block accounting for the in-flight drag preview.
+    private func renderedStart(for block: TimeBlock) -> Int {
+        guard let drag = dragState, drag.id == block.id else {
+            return block.startMinuteOfDay
+        }
+        return block.startMinuteOfDay + drag.deltaMinutes
+    }
+
+    private func dragGesture(for block: TimeBlock) -> some Gesture {
+        DragGesture(minimumDistance: 4)
+            .onChanged { value in
+                let snapped = snap(minutes: Int(value.translation.height / pixelsPerMinute))
+                dragState = (block.id, snapped)
+            }
+            .onEnded { value in
+                let snapped = snap(minutes: Int(value.translation.height / pixelsPerMinute))
+                dragState = nil
+                commitMove(block, deltaMinutes: snapped)
+            }
+    }
+
+    private func snap(minutes: Int) -> Int {
+        let rounded = Int((Double(minutes) / Double(snapMinutes)).rounded()) * snapMinutes
+        return rounded
+    }
+
+    /// Apply a drag-end translation to `block` and cascade-shift subsequent
+    /// non-fixed, non-sleep blocks forward to avoid overlaps. Fixed blocks
+    /// and the sleep fence act as hard barriers: if the moved block can't
+    /// fit before them, the move is clamped or refused.
+    private func commitMove(_ block: TimeBlock, deltaMinutes delta: Int) {
+        guard delta != 0, let plan = currentPlan else { return }
+        let duration = block.durationMinutes
+        let sorted = plan.blocks.sorted(by: { $0.startMinuteOfDay < $1.startMinuteOfDay })
+
+        // Sleep fence: the earliest sleep block boundary in the day (the
+        // morning sleep tail ends at wake; the evening fence starts at
+        // bedtime). We use the latest sleep block whose start is > noon
+        // as the bedtime fence; fall back to 1440 if there isn't one.
+        let bedtime = sorted
+            .filter { $0.kind == .sleep && $0.startMinuteOfDay >= 12 * 60 }
+            .map(\.startMinuteOfDay)
+            .min() ?? (24 * 60)
+
+        // Earliest legal start: the end of the morning sleep block, or 0.
+        let wake = sorted
+            .filter { $0.kind == .sleep && $0.endMinuteOfDay <= 12 * 60 }
+            .map(\.endMinuteOfDay)
+            .max() ?? 0
+
+        let proposedStart = max(wake, min(block.startMinuteOfDay + delta, bedtime - duration))
+        let proposedEnd = proposedStart + duration
+        if proposedStart == block.startMinuteOfDay { return }
+
+        // Snapshot original starts so we can roll back if reflow fails.
+        let snapshot: [(TimeBlock, Int, Int)] = sorted.map { ($0, $0.startMinuteOfDay, $0.endMinuteOfDay) }
+
+        // Apply the move first.
+        block.startMinuteOfDay = proposedStart
+        block.endMinuteOfDay = proposedEnd
+
+        // Cascade-shift any subsequent non-fixed block that now overlaps.
+        // We walk in order; each shift can in turn push the next one.
+        var cursorEnd = proposedEnd
+        for other in sorted where other.id != block.id {
+            guard other.startMinuteOfDay < cursorEnd else { continue }
+            if other.kind.isFixed || other.kind == .sleep {
+                // Hard barrier — roll back the whole operation.
+                for (b, s, e) in snapshot {
+                    b.startMinuteOfDay = s
+                    b.endMinuteOfDay = e
+                }
+                return
+            }
+            let dur = other.durationMinutes
+            let newStart = cursorEnd
+            let newEnd = newStart + dur
+            if newEnd > bedtime {
+                // Can't fit before the sleep fence — roll back.
+                for (b, s, e) in snapshot {
+                    b.startMinuteOfDay = s
+                    b.endMinuteOfDay = e
+                }
+                return
+            }
+            other.startMinuteOfDay = newStart
+            other.endMinuteOfDay = newEnd
+            cursorEnd = newEnd
+        }
+
+        try? modelContext.save()
     }
 
     // MARK: - Helpers
