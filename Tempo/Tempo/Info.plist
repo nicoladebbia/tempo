@@ -8,6 +8,12 @@
 		<string>com.tempo.data-sync</string>
 		<string>com.tempo.daily-reset</string>
 	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+		<string>processing</string>
+	</array>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
