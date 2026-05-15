@@ -97,9 +97,15 @@ func configure(_ app: Application) async throws {
     // Per ADR-019 — Direct APNs, no third-party push service
     // Per TECHNICAL_FEASIBILITY_AUDIT.md Section 5.4 — apnswift is production-ready
     // ─────────────────────────────────────────────────
-    if let apnsKeyP8 = Environment.get("APNS_KEY_P8"),
+    if let rawP8 = Environment.get("APNS_KEY_P8"),
        let keyID = Environment.get("APNS_KEY_ID"),
        let teamID = Environment.get("APNS_TEAM_ID") {
+
+        // Some env-var setters (Railway, Heroku CLI, docker-compose) require
+        // multi-line values to be encoded with literal `\n` escape sequences.
+        // The PEM parser wants real newlines. Normalize both forms so either
+        // works — saves a 2am debugging session on launch night.
+        let apnsKeyP8 = rawP8.replacingOccurrences(of: "\\n", with: "\n")
 
         // Registers both .production and .development containers
         // so debug builds (sandbox) and release builds (production) both work.
