@@ -38,7 +38,8 @@ WORKDIR /app
 # Copy binary from build stage
 COPY --from=build /build/app .
 COPY --from=build /build/Resources ./Resources
-COPY --from=build /build/Public ./Public
+# Public/ omitted — directory is empty and not tracked in git; Vapor
+# serves static assets from there only if the dir exists at runtime.
 
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash vapor

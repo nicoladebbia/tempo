@@ -1,0 +1,18 @@
+# Railway build + deploy config.
+# Per docs/INTELLIGENCE_REMEDIATION_PLAN.md (production deployment).
+#
+# Tells Railway to build via the existing Dockerfile (not nixpacks), expose
+# port 8080, and restart on failure. The Docker HEALTHCHECK in the
+# Dockerfile pings /health every 30s — Railway uses it to decide when the
+# new revision is live and to route traffic.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "./app serve --hostname 0.0.0.0 --port 8080"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+healthcheckPath = "/health"
+healthcheckTimeout = 30

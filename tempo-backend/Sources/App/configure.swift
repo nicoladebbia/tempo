@@ -1,6 +1,7 @@
 import Vapor
 import Fluent
 import FluentPostgresDriver
+import NIOSSL
 import Redis
 import Queues
 import QueuesRedisDriver
@@ -32,9 +33,18 @@ func configure(_ app: Application) async throws {
     // ─────────────────────────────────────────────────
     // 2. Database — PostgreSQL
     // ─────────────────────────────────────────────────
-    let dbConfig: SQLPostgresConfiguration
+    var dbConfig: SQLPostgresConfiguration
     if let databaseURL = Environment.get("DATABASE_URL") {
         dbConfig = try SQLPostgresConfiguration(url: databaseURL)
+        // Railway (and most managed Postgres providers) ship a self-signed
+        // server certificate, so strict cert verification fails the TLS
+        // handshake. Switch to encrypted-without-verification when the
+        // URL was supplied — the local dev path uses `tls: .disable` and
+        // doesn't hit this branch.
+        var tlsConfig = TLSConfiguration.makeClientConfiguration()
+        tlsConfig.certificateVerification = .none
+        let sslContext = try NIOSSLContext(configuration: tlsConfig)
+        dbConfig.coreConfiguration.tls = .require(sslContext)
     } else {
         dbConfig = SQLPostgresConfiguration(
             hostname: Environment.get("DB_HOST") ?? "localhost",
