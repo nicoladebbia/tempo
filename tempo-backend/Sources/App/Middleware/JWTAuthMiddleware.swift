@@ -36,7 +36,18 @@ struct JWTAuthMiddleware: AsyncMiddleware {
             }
         }
 
-        // 5. Attach authenticated user info to request
+        // 5. Refuse tokens for soft-deleted accounts. The User row is kept
+        //    for the 30-day recovery window (User.isRecoverable), but the
+        //    user must not be able to act until they re-sign-in fresh. This
+        //    is what makes "delete account then sign in again" produce a
+        //    clean new user — the old refresh tokens are already wiped at
+        //    delete time, and any straggler access token gets rejected here.
+        if let deletedUser = try? await User.find(payload.subject.value, on: request.db),
+           deletedUser.deletedAt != nil {
+            throw Abort(.unauthorized, reason: "Account has been deleted.")
+        }
+
+        // 6. Attach authenticated user info to request
         let authInfo = AuthenticatedUser(
             userID: payload.subject.value,
             scopes: payload.scopes,
@@ -44,7 +55,7 @@ struct JWTAuthMiddleware: AsyncMiddleware {
         )
         request.storage[AuthenticatedUserKey.self] = authInfo
 
-        // 6. Update last_active_at (fire and forget)
+        // 7. Update last_active_at (fire and forget)
         Task {
             if let user = try? await User.find(payload.subject.value, on: request.db) {
                 user.lastActiveAt = Date()

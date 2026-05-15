@@ -161,6 +161,30 @@ final class AuthService: NSObject {
         authState = .unauthenticated
     }
 
+    // MARK: - Account Deletion
+    //
+    // Apple-required (App Store Review Guideline 5.1.1(v)): an in-app
+    // deletion path. Server soft-deletes the account (30-day recovery
+    // window via /v1/auth/recover) and wipes owned per-user data
+    // synchronously. On success we drop local tokens just like signOut.
+    //
+    // If the backend call fails we surface the error and leave the local
+    // session intact — better to retry than to land the user in a state
+    // where their server account still exists but the device thinks it
+    // was deleted.
+
+    func deleteAccount() async throws {
+        guard let apiClient else {
+            throw AuthError.notAuthenticated
+        }
+        _ = try await apiClient.request(
+            APIEndpoint<AccountDeletionResponseDTO>.deleteAccount()
+        )
+
+        try? KeychainService.deleteAll()
+        authState = .unauthenticated
+    }
+
     // MARK: - Token Access
 
     var accessToken: String? {

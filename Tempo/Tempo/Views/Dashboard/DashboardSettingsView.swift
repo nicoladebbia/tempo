@@ -35,6 +35,17 @@ struct DashboardSettingsView: View {
         allProfiles.first
     }
 
+    // MARK: - Account deletion state
+    //
+    // Apple-required per App Store Review Guideline 5.1.1(v): users must be
+    // able to initiate account deletion from within the app. Backend wipes
+    // owned data and soft-deletes the user row; iOS then drops local
+    // credentials.
+
+    @State private var showDeleteConfirm = false
+    @State private var isDeletingAccount = false
+    @State private var deleteAccountError: String?
+
     var body: some View {
         List {
             // MARK: - Profile Header
@@ -179,6 +190,28 @@ struct DashboardSettingsView: View {
             }
             .listRowBackground(Color.tempoSurfaceCard)
 
+            // MARK: - Account
+            //
+            // Apple Guideline 5.1.1(v): account deletion must be initiated
+            // in-app. The warning copy is the canonical
+            // `settings_delete_warning` string in UX_COPY_BIBLE.md §28.
+
+            Section("Account") {
+                Button {
+                    showDeleteConfirm = true
+                } label: {
+                    Label("Delete Account", systemImage: "trash")
+                        .font(.tempoSubheadline)
+                        .foregroundStyle(Color.tempoSignal)
+                }
+                .disabled(isDeletingAccount)
+
+                Text("This permanently deletes all your data, including XP, achievements, streaks, and workout history. You'll be removed from all leaderboards and active challenges. This cannot be undone.")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextTertiary)
+            }
+            .listRowBackground(Color.tempoSurfaceCard)
+
             // MARK: - About
 
             Section("About") {
@@ -219,6 +252,44 @@ struct DashboardSettingsView: View {
                     .fontWeight(.semibold)
                     .foregroundStyle(Color.tempoSignal)
             }
+        }
+        .alert("Delete your account?", isPresented: $showDeleteConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete Account", role: .destructive) {
+                Task { await performAccountDeletion() }
+            }
+        } message: {
+            Text("This permanently deletes all your data. This cannot be undone.")
+        }
+        .alert(
+            "Could not delete account",
+            isPresented: Binding(
+                get: { deleteAccountError != nil },
+                set: { if !$0 { deleteAccountError = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { deleteAccountError = nil }
+        } message: {
+            Text(deleteAccountError ?? "")
+        }
+    }
+
+    // MARK: - Account deletion action
+
+    @MainActor
+    private func performAccountDeletion() async {
+        guard !isDeletingAccount else { return }
+        isDeletingAccount = true
+        defer { isDeletingAccount = false }
+
+        do {
+            try await services.authService.deleteAccount()
+            // AuthService flips authState to .unauthenticated; the app root
+            // observes that and routes back to the sign-in screen, so no
+            // explicit navigation is needed here.
+            dismiss()
+        } catch {
+            deleteAccountError = error.localizedDescription
         }
     }
 

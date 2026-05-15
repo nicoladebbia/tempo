@@ -14,6 +14,7 @@ import Vapor
 struct UserController: RouteCollection {
     func boot(routes: RoutesBuilder) throws {
         routes.get("me", use: me)
+        routes.delete("me", use: deleteMe)
         routes.post("ai-consent", use: setAIConsent)
         // Per INTELLIGENCE_REMEDIATION_PLAN.md §8.
         routes.put("daily-plan-profile", use: setDailyPlanProfile)
@@ -52,6 +53,121 @@ struct UserController: RouteCollection {
             aiConsentAt: user.aiConsentAt
         )
         return Envelope(data: response, requestID: req.requestID)
+    }
+
+    // MARK: - DELETE /v1/user/me
+    //
+    // Apple-required since 2022 (App Store Review Guideline 5.1.1(v)): users
+    // must be able to initiate account deletion in-app. Also satisfies GDPR
+    // Article 17 (right to erasure).
+    //
+    // Behavior:
+    //   1. Mark active subscription rows inactive (Apple-side cancellation
+    //      happens via the user's Apple ID settings; we just stop honoring
+    //      Pro locally and unsubscribe from future renewals via the receipt
+    //      webhook).
+    //   2. Hard-delete all owned per-user data so the user disappears from
+    //      friends' leaderboards, friend requests, etc. immediately. All FKs
+    //      have ON DELETE CASCADE — but we wipe explicitly because the User
+    //      row itself is soft-deleted (30-day recovery window per
+    //      User.isRecoverable), and we don't want stale recovery/XP data
+    //      hanging on the cascade fence.
+    //   3. Wipe AI cache rows whose key embeds this user ID.
+    //   4. Revoke every refresh token (cuts all device sessions).
+    //   5. Soft-delete the User row: zero PII, set deleted_at.
+    //
+    // Idempotent: calling twice on the same user is a no-op the second time.
+
+    @Sendable
+    func deleteMe(_ req: Request) async throws -> Envelope<AccountDeletionResponse> {
+        let userID = try req.auth.requireUserID()
+
+        guard let user = try await User.find(userID, on: req.db) else {
+            // Already gone — treat as success for idempotency.
+            return Envelope(
+                data: AccountDeletionResponse(deletedAt: Date()),
+                requestID: req.requestID
+            )
+        }
+
+        if user.deletedAt != nil {
+            // Already soft-deleted; return the original timestamp.
+            return Envelope(
+                data: AccountDeletionResponse(deletedAt: user.deletedAt!),
+                requestID: req.requestID
+            )
+        }
+
+        let now = Date()
+
+        try await req.db.transaction { db in
+            // 1. Subscriptions — mark inactive (don't delete; receipts are
+            //    immutable for audit). Apple-side cancel is user-initiated
+            //    via their Apple ID; we just stop granting Pro here.
+            try await UserSubscription.query(on: db)
+                .filter(\.$user.$id == userID)
+                .set(\.$isActive, to: false)
+                .update()
+
+            // 2. Owned per-user data. Cascades would handle these if we
+            //    hard-deleted the User row, but soft delete preserves the
+            //    User row for the recovery window, so we wipe explicitly.
+            try await RefreshToken.query(on: db).filter(\.$user.$id == userID).delete()
+            try await DeviceToken.query(on: db).filter(\.$userID == userID).delete()
+            try await Friendship.query(on: db)
+                .group(.or) { or in
+                    or.filter(\.$userAID == userID)
+                    or.filter(\.$userBID == userID)
+                }
+                .delete()
+            try await FriendRequest.query(on: db)
+                .group(.or) { or in
+                    or.filter(\.$fromUserID == userID)
+                    or.filter(\.$toUserID == userID)
+                }
+                .delete()
+            try await WhoopIntegration.query(on: db).filter(\.$user.$id == userID).delete()
+            try await WhoopRecovery.query(on: db).filter(\.$user.$id == userID).delete()
+            try await WhoopSleep.query(on: db).filter(\.$user.$id == userID).delete()
+            try await WhoopCycle.query(on: db).filter(\.$user.$id == userID).delete()
+            try await WhoopWorkout.query(on: db).filter(\.$user.$id == userID).delete()
+            try await XPEvent.query(on: db).filter(\.$user.$id == userID).delete()
+            try await UserAchievement.query(on: db).filter(\.$userID == userID).delete()
+            try await ChallengeMember.query(on: db).filter(\.$userID == userID).delete()
+            try await Challenge.query(on: db).filter(\.$creatorID == userID).delete()
+            try await UserDailyPlanProfile.query(on: db).filter(\.$user.$id == userID).delete()
+
+            // 3. AI cache rows. Postgres-backed entries embed the user ID
+            //    inside cache_key (see AICacheKey.* in AICache.swift). Redis
+            //    entries fall off their natural TTLs (max 30d for study
+            //    schedules), so we don't fan out a SCAN here.
+            try await CachedAIResponse.query(on: db)
+                .filter(\.$cacheKey ~~ ":\(userID):")
+                .delete()
+
+            // 4. Soft-delete the User row. Keep the row for the 30-day
+            //    recovery window (User.isRecoverable) but null out anything
+            //    that identifies the user. apple_user_id stays so a re-sign-
+            //    in within 30 days can restore; after 30d a maintenance job
+            //    should hard-delete (out of scope for this commit).
+            user.deletedAt = now
+            user.displayName = ""
+            user.username = "deleted_\(userID.suffix(8))"
+            user.bio = nil
+            user.avatarURL = nil
+            user.aiConsentAt = nil
+            user.lastActiveAt = nil
+            try await user.save(on: db)
+        }
+
+        // 5. Bust the SubscriptionMiddleware cache so any in-flight requests
+        //    don't see Pro for the next 5 minutes.
+        await req.invalidateSubscriptionCache(userID: userID)
+
+        return Envelope(
+            data: AccountDeletionResponse(deletedAt: now),
+            requestID: req.requestID
+        )
     }
 
     // MARK: - POST /v1/user/ai-consent
@@ -234,4 +350,8 @@ struct AIConsentRequest: Content {
 
 struct AIConsentResponse: Content {
     let aiConsentAt: Date?
+}
+
+struct AccountDeletionResponse: Content {
+    let deletedAt: Date
 }

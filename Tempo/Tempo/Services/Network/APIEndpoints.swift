@@ -167,6 +167,22 @@ extension APIEndpoint where Response == UserMeResponseDTO {
     }
 }
 
+// MARK: - Account deletion (Apple-required per App Store Guideline 5.1.1(v))
+
+struct AccountDeletionResponseDTO: Decodable, Sendable {
+    let deletedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case deletedAt = "deleted_at"
+    }
+}
+
+extension APIEndpoint where Response == AccountDeletionResponseDTO {
+    static func deleteAccount() -> Self {
+        APIEndpoint(path: "/v1/user/me", method: .delete)
+    }
+}
+
 // MARK: - Daily plan profile
 
 /// Mirrors backend SetDailyPlanProfileRequest. Per INTELLIGENCE_REMEDIATION_PLAN.md §8.
