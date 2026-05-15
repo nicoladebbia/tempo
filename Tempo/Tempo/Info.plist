@@ -65,6 +65,8 @@
 	<string>Tempo can save your weekly grocery list to Reminders so you can check items off while shopping.</string>
 	<key>NSRemindersUsageDescription</key>
 	<string>Tempo can save your weekly grocery list to Reminders so you can check items off while shopping.</string>
+	<key>UIRequiresFullScreen</key>
+	<true/>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

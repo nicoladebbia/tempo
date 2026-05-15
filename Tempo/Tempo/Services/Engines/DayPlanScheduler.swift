@@ -59,7 +59,10 @@ final class DayPlanScheduler {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.requestReplan(reason: .userRequested)
+            // The closure is a nonisolated @Sendable context even though
+            // queue: .main guarantees main-thread delivery at runtime.
+            // Hop explicitly so Swift 6 can prove the actor boundary.
+            Task { @MainActor in self?.requestReplan(reason: .userRequested) }
         })
 
         observers.append(center.addObserver(
@@ -67,7 +70,7 @@ final class DayPlanScheduler {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.requestReplan(reason: .calendarChanged)
+            Task { @MainActor in self?.requestReplan(reason: .calendarChanged) }
         })
 
         observers.append(center.addObserver(
@@ -83,7 +86,7 @@ final class DayPlanScheduler {
                 }
                 return .userRequested
             }()
-            self?.requestReplan(reason: reason)
+            Task { @MainActor in self?.requestReplan(reason: reason) }
         })
     }
 
