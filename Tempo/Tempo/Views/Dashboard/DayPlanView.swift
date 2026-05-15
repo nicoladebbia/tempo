@@ -90,6 +90,7 @@ struct DayPlanView: View {
                         }
                         Image(systemName: "arrow.clockwise")
                             .font(.system(size: 11, weight: .semibold))
+                            .accessibilityHidden(true)
                         Text("RE-PLAN")
                             .font(.system(size: 11, weight: .semibold))
                             .tracking(0.5)
@@ -97,6 +98,8 @@ struct DayPlanView: View {
                     .foregroundStyle(Color.tempoAmber)
                 }
                 .disabled(isRegenerating)
+                .accessibilityLabel("Re-plan day")
+                .accessibilityHint("Regenerates today's plan from your latest workouts, meals, and calendar.")
             }
         }
         .padding(.horizontal, 20)
@@ -175,6 +178,7 @@ struct DayPlanView: View {
                 Image(systemName: "line.3.horizontal")
                     .font(.system(size: 10))
                     .foregroundStyle(.white.opacity(0.35))
+                    .accessibilityHidden(true)
             }
         }
         .padding(.horizontal, 10)
@@ -196,6 +200,9 @@ struct DayPlanView: View {
         .onTapGesture { selectedBlock = block }
         .gesture(isDraggable ? dragGesture(for: block) : nil)
         .animation(.interactiveSpring(response: 0.25, dampingFraction: 0.85), value: dragState?.id)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(block.title), \(formatMinute(displayStart)) to \(formatMinute(displayEnd))")
+        .accessibilityHint(isDraggable ? "Double-tap for details. Drag to reschedule." : "Double-tap for details.")
     }
 
     // MARK: - Drag interaction

@@ -77,6 +77,8 @@ struct TrainingTabView: View {
                             .font(.tempoBody)
                             .foregroundStyle(Color.tempoTextSecondary)
                     }
+                    .accessibilityLabel("More")
+                    .accessibilityHint("Open week plan, exercise library, progress, or history.")
                 }
             }
             .fullScreenCover(isPresented: $showActiveWorkout) {

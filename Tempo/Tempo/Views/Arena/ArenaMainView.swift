@@ -353,17 +353,19 @@ struct ArenaMainView: View {
                     .background(Color.tempoDivider)
 
                 // Rank change
+                let rankChange = viewModel?.weeklyRankChange ?? 0
                 VStack(spacing: 4) {
-                    let rankChange = viewModel?.weeklyRankChange ?? 0
                     HStack(spacing: 2) {
                         if rankChange > 0 {
                             Image(systemName: "arrow.up")
                                 .font(.system(size: 12, weight: .bold))
                                 .foregroundStyle(Color.tempoSuccess)
+                                .accessibilityHidden(true)
                         } else if rankChange < 0 {
                             Image(systemName: "arrow.down")
                                 .font(.system(size: 12, weight: .bold))
                                 .foregroundStyle(Color.tempoError)
+                                .accessibilityHidden(true)
                         }
                         Text("\(abs(rankChange))")
                             .font(.system(size: 22, weight: .bold, design: .monospaced))
@@ -373,6 +375,12 @@ struct ArenaMainView: View {
                         .font(.system(size: 11))
                         .foregroundStyle(Color.tempoTextTertiary)
                 }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(rankChange > 0
+                    ? "Rank up \(abs(rankChange))"
+                    : rankChange < 0
+                        ? "Rank down \(abs(rankChange))"
+                        : "Rank unchanged")
 
                 Divider()
                     .frame(height: 36)

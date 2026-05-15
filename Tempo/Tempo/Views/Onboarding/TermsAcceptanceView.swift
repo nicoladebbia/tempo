@@ -41,6 +41,7 @@ struct TermsAcceptanceView: View {
             Image(systemName: "doc.text.fill")
                 .font(.system(size: 60))
                 .foregroundStyle(Color.tempoAmber)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: TempoSpacing.md) {
                 Link(destination: termsURL) {

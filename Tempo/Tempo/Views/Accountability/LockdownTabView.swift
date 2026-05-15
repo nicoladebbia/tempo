@@ -93,6 +93,7 @@ struct LockdownTabView: View {
                                 .font(.system(size: 18))
                                 .foregroundStyle(Color.tempoTextSecondary)
                         }
+                        .accessibilityLabel("More options")
                     }
                 }
                 .fullScreenCover(isPresented: $showFocusTimer) {
@@ -159,6 +160,7 @@ private struct OverrideSelectionView: View {
                                 .font(.system(size: 20))
                                 .foregroundStyle(isActive ? Color.tempoSuccess : Color.tempoElectric)
                                 .frame(width: 32)
+                                .accessibilityHidden(true)
 
                             VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
                                 Text(option.title)
@@ -177,10 +179,13 @@ private struct OverrideSelectionView: View {
                                     .font(.system(size: 22))
                                     .foregroundStyle(Color.tempoSuccess)
                                     .transition(.scale.combined(with: .opacity))
+                                    .accessibilityHidden(true)
                             }
                         }
                     }
                     .disabled(isActive)
+                    .accessibilityLabel("\(option.title)\(isActive ? ", active" : "")")
+                    .accessibilityHint(option.description)
                 }
             } header: {
                 Text("OVERRIDE TYPE")
