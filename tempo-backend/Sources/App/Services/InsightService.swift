@@ -526,9 +526,12 @@ actor InsightService {
 // Per AI_INTELLIGENCE_ENGINE.md Section 2.5
 
 struct AIConfig {
-    static let haikuModel = "claude-haiku-4-5-20250901"
-    static let sonnetModel = "claude-sonnet-4-6-20250514"
-    static let opusModel = "claude-opus-4-6-20250901"
+    // Anthropic model IDs (current as of 2026-05-15). The previous values
+    // had invented date suffixes that returned 404 from Anthropic, causing
+    // every Claude call to silently fall back to the rule-based path.
+    static let haikuModel = "claude-haiku-4-5-20251001"
+    static let sonnetModel = "claude-sonnet-4-6"
+    static let opusModel = "claude-opus-4-7"
 
     /// Monthly Claude spend cap in cents. Default $50. Override at runtime via
     /// CLAUDE_MONTHLY_BUDGET_CENTS env var (used by AIBudgetTracker pre-flight
