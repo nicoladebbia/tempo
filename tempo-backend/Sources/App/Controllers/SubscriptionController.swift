@@ -207,16 +207,31 @@ struct SubscriptionController: RouteCollection {
             .filter(\.$environment == txn.environment)
             .first()
 
+        // Initial purchase + DID_RENEW for an unknown originalTransactionId.
+        // Expected when (a) App Review's sandbox tester purchases without
+        // the iOS verify-receipt flow being reachable, or (b) a network
+        // failure dropped /v1/subscription/verify-receipt before it
+        // succeeded. We can't auto-create the row because we have no
+        // userId to attach it to: Apple's V2 payload doesn't carry
+        // appAccountToken in the JWS by default. The recovery path is
+        // self-healing — when the user next opens the app, iOS calls
+        // verify-receipt, the row is created, and any future
+        // notification finds it. Until then: log loudly so we notice if
+        // it persists past one app-open cycle.
+        //
+        // Long-term upgrade: have iOS set appAccountToken to the user.id
+        // UUID on purchase. The webhook would then auto-create the row.
+        // That's deferred — needs a StoreKit-side change + sandbox test.
+        if sub == nil {
+            Self.logOrphanNotification(type: type, txn: txn)
+            return
+        }
+
         let now = Date()
         let expires = Self.date(fromMs: txn.expiresDate)
 
         switch type {
         // Initial purchase / restart of a previously expired subscription.
-        // The iOS-side ReceiptController flow normally creates the row; if
-        // for some reason it didn't (e.g. user purchased in Apple's
-        // sandbox without ever opening the app), we'd still want to
-        // record the active state — but we can't without a userId mapping.
-        // For now: only update an existing row.
         case "SUBSCRIBED":
             guard let sub else { return }
             sub.isActive = true
@@ -328,6 +343,26 @@ struct SubscriptionController: RouteCollection {
     private static func date(fromMs ms: Double?) -> Date? {
         guard let ms else { return nil }
         return Date(timeIntervalSince1970: ms / 1000.0)
+    }
+
+    /// Log a SUBSCRIBED / DID_RENEW for an originalTransactionId we don't
+    /// have a row for. This SHOULD self-heal on the user's next app open
+    /// — verify-receipt will create the row, and subsequent notifications
+    /// will hit the normal path. If we keep seeing the same
+    /// originalTransactionId orphaned across multiple notifications, that's
+    /// a real bug (probably a userId-mapping miss) and the on-call should
+    /// dig in.
+    ///
+    /// Uses print so it surfaces in Railway logs regardless of logger
+    /// config; tag with `[orphan_appstore_notification]` so a future
+    /// alerting rule can match it.
+    private static func logOrphanNotification(type: String, txn: AppStoreTransactionInfoPayload) {
+        print("""
+            [orphan_appstore_notification] type=\(type) \
+            originalTransactionId=\(txn.originalTransactionId) \
+            env=\(txn.environment) productId=\(txn.productId) \
+            — no UserSubscription row found; expected to self-heal on user's next app open
+            """)
     }
 }
 

@@ -211,6 +211,11 @@ func configure(_ app: Application) async throws {
     app.queues.schedule(DrillSergeantBatchJob())
         .weekly().on(.wednesday).at(.init(integerLiteral: 20), .init(integerLiteral: 0))
 
+    // Per LAUNCH_PUNCH_LIST.md §3.2 follow-up — drop processed App Store
+    // notification UUIDs older than 90 days. Daily at 04:00 UTC.
+    app.queues.schedule(ProcessedNotificationsCleanupJob())
+        .daily().at(.init(integerLiteral: 4), .init(integerLiteral: 0))
+
     // ─────────────────────────────────────────────────
     // 9. Routes
     // ─────────────────────────────────────────────────
