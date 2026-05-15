@@ -33,30 +33,33 @@ struct InsightController: RouteCollection {
         // Check daily AI rate limit
         try await checkDailyAILimit(userID: userID, on: req)
 
-        // Cache lookup via the typed AICache (Postgres-backed for weekly report
-        // per spec §6.1: 7-day TTL, inspectable, survives a Redis flush).
+        // Stale-while-revalidate (Postgres-backed for weekly report per spec
+        // §6.1: 7-day TTL, inspectable, survives a Redis flush). Per
+        // LAUNCH_PUNCH_LIST.md §3.6 — at 7-day cache age a stale return is
+        // still completely usable, while a synchronous regenerate burns 2–4s
+        // of foreground time. On a stale hit the user sees the existing
+        // report immediately and the next call sees the refreshed one.
         let weekStart = currentWeekStart()
         let key = AICacheKey.weeklyReport(userId: userID, weekStart: weekStart)
         let bypass = (try? req.query.get(Bool.self, at: "force_regenerate")) ?? false
 
-        if !bypass,
-           case let .fresh(cached) = try await AICache.shared.lookup(key: key, on: req) as AICacheLookup<WeeklyReportResponse>
-        {
-            req.logger.info("[ai_cache:weekly_report] HIT key=\(key.value)")
-            return Envelope(data: cached, requestID: req.requestID)
+        let (report, fromCache) = try await AICache.shared.withSWR(
+            key: key,
+            on: req,
+            bypass: bypass
+        ) {
+            let input = try await self.buildWeeklyReportInput(userID: userID, weekStart: weekStart, on: req)
+            return try await InsightService.shared.generateWeeklyReport(weekData: input, on: req)
         }
 
-        // Build input from user's data
-        let input = try await buildWeeklyReportInput(userID: userID, weekStart: weekStart, on: req)
-
-        // Generate report via InsightService
-        let report = try await InsightService.shared.generateWeeklyReport(weekData: input, on: req)
-
-        // Store in cache (7-day TTL configured in AICacheKey).
-        try? await AICache.shared.store(key: key, value: report, on: req)
-
-        // Increment daily AI counter
-        await incrementDailyAICount(userID: userID, on: req)
+        if fromCache {
+            req.logger.info("[ai_cache:weekly_report] HIT (SWR) key=\(key.value)")
+        } else {
+            // Only bill the daily counter when we actually called Claude
+            // in the foreground. Background SWR refreshes never reach
+            // this branch.
+            await incrementDailyAICount(userID: userID, on: req)
+        }
 
         return Envelope(data: report, requestID: req.requestID)
     }

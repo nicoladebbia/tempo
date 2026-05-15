@@ -34,10 +34,16 @@ struct DashboardInsightsService {
             estimatedInputTokens: 1_500,
             cacheKey: .dashboardInsights(userId: input.userId ?? "", dataHash: hash)
         )
+        // Per LAUNCH_PUNCH_LIST.md §3.6 — dashboard insights are a prime
+        // SWR target: the data-hashed key already ensures the cache busts
+        // when inputs change, so a stale return only happens when the
+        // payload is identical anyway. Foreground latency drops from
+        // ~1-3s (Claude) to ~50ms (cache) on warm calls.
         let (value, _) = try await AIFeatureRunner.run(
             spec: spec,
             on: req,
             bypassCache: bypassCache,
+            useSWR: true,
             buildPrompts: {
                 (DashboardInsightsPrompts.system, DashboardInsightsPrompts.buildUserPrompt(from: input))
             },

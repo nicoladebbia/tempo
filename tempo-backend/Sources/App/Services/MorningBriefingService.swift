@@ -45,15 +45,28 @@ struct MorningBriefingService {
     }
 
     func generate(input: MorningBriefingInput, on req: Request) async throws -> MorningBriefingResponse {
-        // Cache check (24h Redis per spec §6.1).
+        // Stale-while-revalidate (24h Redis per spec §6.1, 2x TTL stale
+        // window). Per LAUNCH_PUNCH_LIST.md §3.6 — morning briefing is a
+        // perfect SWR candidate: the cost of a slightly stale briefing
+        // is near-zero, the cost of blocking a foreground request on a
+        // Haiku call is meaningful. Stale hits return immediately and
+        // fire a background refresh that updates the cache for next call.
         let key = AICacheKey.morningBriefing(userId: input.userId, date: input.date)
-        if case let .fresh(hit) = try await AICache.shared.lookup(key: key, on: req) as AICacheLookup<MorningBriefingResponse> {
-            req.logger.info("[ai_runner:morning_briefing] HIT")
-            return hit
+        let (value, fromCache) = try await AICache.shared.withSWR(key: key, on: req) {
+            try await Self.computeFresh(input: input, on: req)
         }
+        if fromCache {
+            req.logger.info("[ai_runner:morning_briefing] HIT (SWR)")
+        }
+        return value
+    }
 
-        // Count competing priorities. Spec §3.1: template only handles <3 at once.
-        let priorities = countCompetingPriorities(input)
+    /// The pure compute path — template first, Haiku fallback on
+    /// high-priority days. Extracted out of `generate` so `withSWR` can
+    /// call it from a detached background Task on stale hits.
+    private static func computeFresh(input: MorningBriefingInput, on req: Request) async throws -> MorningBriefingResponse {
+        let service = MorningBriefingService.shared
+        let priorities = service.countCompetingPriorities(input)
         let copy: String
         let source: String
 
@@ -77,25 +90,23 @@ struct MorningBriefingService {
                         outputTokens: response.outputTokens,
                         on: req
                     )
-                    copy = sanitize(response.content)
+                    copy = service.sanitize(response.content)
                     source = "haiku"
                 } catch {
                     req.logger.warning("Morning briefing Haiku fallback failed — using template")
-                    copy = renderTemplate(input)
+                    copy = service.renderTemplate(input)
                     source = "template"
                 }
             } else {
-                copy = renderTemplate(input)
+                copy = service.renderTemplate(input)
                 source = "template"
             }
         } else {
-            copy = renderTemplate(input)
+            copy = service.renderTemplate(input)
             source = "template"
         }
 
-        let result = MorningBriefingResponse(copy: copy, source: source)
-        try? await AICache.shared.store(key: key, value: result, on: req)
-        return result
+        return MorningBriefingResponse(copy: copy, source: source)
     }
 
     // MARK: - Template renderer (spec §8.1)

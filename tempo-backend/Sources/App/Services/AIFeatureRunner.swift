@@ -44,18 +44,67 @@ enum AIFeatureRunner {
         spec: AIFeatureSpec<Output>,
         on req: Request,
         bypassCache: Bool = false,
-        buildPrompts: () async throws -> (system: String, user: String),
-        parse: (String) throws -> Output,
-        fallback: () -> Output
+        useSWR: Bool = false,
+        buildPrompts: @escaping @Sendable () async throws -> (system: String, user: String),
+        parse: @escaping @Sendable (String) throws -> Output,
+        fallback: @escaping @Sendable () -> Output
     ) async throws -> (value: Output, fromCache: Bool) {
 
-        // 1. Cache lookup
+        // 1a. Stale-while-revalidate fast path. When the caller opts in and
+        //     this feature has a cache key, delegate the lookup-vs-store
+        //     dance to AICache.withSWR. Stale hits return the cached value
+        //     immediately and trigger a background refresh; misses fall
+        //     through to the synchronous compute path. Per
+        //     LAUNCH_PUNCH_LIST.md §3.6.
+        if useSWR, let key = spec.cacheKey, !bypassCache {
+            return try await AICache.shared.withSWR(key: key, on: req) {
+                let result = try await Self.compute(
+                    spec: spec,
+                    on: req,
+                    buildPrompts: buildPrompts,
+                    parse: parse,
+                    fallback: fallback
+                )
+                return result.value
+            }
+        }
+
+        // 1. Cache lookup (sync path)
         if !bypassCache, let key = spec.cacheKey,
            case let .fresh(hit) = try await AICache.shared.lookup(key: key, on: req) as AICacheLookup<Output>
         {
             req.logger.info("[ai_runner:\(key.feature)] HIT key=\(key.value)")
             return (hit, true)
         }
+
+        let result = try await compute(
+            spec: spec,
+            on: req,
+            buildPrompts: buildPrompts,
+            parse: parse,
+            fallback: fallback
+        )
+        // Cache the fresh result for the sync path. The SWR path stores
+        // its own copy via withSWR — when this method is called from
+        // inside the withSWR generator we skip the cache key (handled
+        // above), so we never end up double-storing.
+        if let key = spec.cacheKey {
+            try? await AICache.shared.store(key: key, value: result.value, on: req)
+        }
+        return result
+    }
+
+    /// The cache-less compute path: circuit breaker → budget → prompts →
+    /// Claude → parse → optional malformed-JSON retry. Returns the parsed
+    /// Output paired with `fromCache: false`. Used by `run` directly and
+    /// by the SWR fast-path (where caching is handled by `AICache.withSWR`).
+    private static func compute<Output: Codable & Sendable>(
+        spec: AIFeatureSpec<Output>,
+        on req: Request,
+        buildPrompts: () async throws -> (system: String, user: String),
+        parse: (String) throws -> Output,
+        fallback: () -> Output
+    ) async throws -> (value: Output, fromCache: Bool) {
 
         // 2. Circuit breaker
         let breaker = await InsightService.shared.circuitBreakerState(for: spec.model)
@@ -100,7 +149,6 @@ enum AIFeatureRunner {
             do {
                 parsed = try parse(response.content)
             } catch {
-                // Retry once with a stricter prompt suffix per spec §2.3.
                 req.logger.warning("[ai_runner] malformed response — retrying with stricter prompt")
                 let strictUser = prompts.user + "\n\nCRITICAL: Return ONLY valid JSON. No markdown, no code blocks, no explanatory text. Start with { and end with }."
                 let retry = try await InsightService.shared.callClaudeRaw(
@@ -113,11 +161,6 @@ enum AIFeatureRunner {
                     on: req
                 )
                 parsed = try parse(retry.content)
-            }
-
-            // 7. Store in cache
-            if let key = spec.cacheKey {
-                try? await AICache.shared.store(key: key, value: parsed, on: req)
             }
 
             return (parsed, false)
