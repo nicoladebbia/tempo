@@ -4,6 +4,7 @@
 
 PRODUCT_BUNDLE_IDENTIFIER = app.tempo.Tempo.dev
 PRODUCT_NAME = Tempo Dev
+BUNDLE_DISPLAY_NAME = Tempo Dev
 // Keep the Swift module name stable across configurations so tests can
 // `@testable import Tempo` regardless of which build config is active.
 PRODUCT_MODULE_NAME = Tempo

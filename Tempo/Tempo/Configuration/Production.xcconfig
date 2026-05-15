@@ -4,6 +4,10 @@
 
 PRODUCT_BUNDLE_IDENTIFIER = app.tempo.Tempo
 PRODUCT_NAME = Tempo
+// Home-screen / Settings label. PRODUCT_NAME stays "Tempo" (executable
+// name); the user-facing string is "Tempo OS" because the bare "Tempo"
+// is taken on the App Store. Per LAUNCH_PUNCH_LIST.md §1.2 follow-up.
+BUNDLE_DISPLAY_NAME = Tempo OS
 ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon
 
 // Railway-hosted Vapor backend. Auto-generated subdomain — swap for a
