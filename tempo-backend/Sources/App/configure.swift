@@ -150,6 +150,7 @@ func configure(_ app: Application) async throws {
     app.migrations.add(CreateUsers())
     app.migrations.add(AddAIConsentToUsers())
     app.migrations.add(AddToSAcceptedToUsers())
+    app.migrations.add(CreateProcessedAppStoreNotifications())
     app.migrations.add(CreateRefreshTokens())
     app.migrations.add(CreateWhoopIntegrations())
     app.migrations.add(CreateWhoopRecovery())

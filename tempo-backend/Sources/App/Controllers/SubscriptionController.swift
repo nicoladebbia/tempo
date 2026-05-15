@@ -94,84 +94,240 @@ struct SubscriptionController: RouteCollection {
     }
 
     // MARK: - POST /v1/subscription/webhook
-    // Per APP_STORE_COMPLIANCE.md — App Store Server Notifications v2.
+    //
+    // Apple App Store Server Notifications V2.
+    // Per LAUNCH_PUNCH_LIST.md §3.2 + Apple's "Receiving App Store Server
+    // Notifications" guide.
+    //
+    // Pipeline:
+    //   1. Decode the outer envelope: { "signedPayload": "<JWS>" }
+    //   2. Verify the JWS against Apple Root CA - G3 (X5CVerifier).
+    //   3. Check the notificationUUID against processed_appstore_notifications
+    //      — Apple retries until they see a 200, so we must dedup.
+    //   4. Verify the inner signedTransactionInfo (separate JWS).
+    //   5. Switch on notificationType × subtype and update the matching
+    //      UserSubscription row (matched on originalTransactionId AND
+    //      environment so a Sandbox notification can't overwrite a
+    //      Production row, or vice versa).
+    //   6. Record the notificationUUID in the dedup table.
+    //   7. ALWAYS return 200 if we got far enough to decode the envelope —
+    //      returning 4xx tells Apple to stop retrying, which is the wrong
+    //      response to a transient downstream error. 401 is the right
+    //      response to an invalid signature (so Apple knows the URL is
+    //      misconfigured or the message is forged).
 
     func handleWebhook(_ req: Request) async throws -> HTTPStatus {
-        // In production: verify the JWS signature of the notification payload
-        // using Apple's root certificate chain
-        let notification = try req.content.decode(AppStoreNotification.self)
-
-        req.logger.info("App Store notification: \(notification.notificationType)")
-
-        switch notification.notificationType {
-        case "DID_RENEW":
-            if let txn = notification.transactionInfo {
-                try await activateSubscription(txn, on: req.db)
-            }
-
-        case "DID_FAIL_TO_RENEW":
-            if let txn = notification.transactionInfo {
-                try await markGracePeriod(txn, on: req.db)
-            }
-
-        case "EXPIRED":
-            if let txn = notification.transactionInfo {
-                try await expireSubscription(txn, on: req.db)
-            }
-
-        case "REFUND":
-            if let txn = notification.transactionInfo {
-                try await revokeSubscription(txn, on: req.db)
-            }
-
-        default:
-            req.logger.info("Unhandled notification type: \(notification.notificationType)")
+        // 1. Outer envelope
+        let envelope: AppStoreSignedPayloadEnvelope
+        do {
+            envelope = try req.content.decode(AppStoreSignedPayloadEnvelope.self)
+        } catch {
+            req.logger.error("[appstore_webhook] malformed envelope: \(error)")
+            return .badRequest
         }
+
+        // 2. Verify outer JWS
+        let payload: ResponseBodyV2DecodedPayload
+        do {
+            payload = try await AppStoreNotificationVerifier.shared.verifyEnvelope(envelope.signedPayload)
+        } catch {
+            req.logger.error("[appstore_webhook] JWS verification failed: \(error)")
+            return .unauthorized
+        }
+
+        req.logger.info("""
+            [appstore_webhook] verified notification=\(payload.notificationType) \
+            subtype=\(payload.subtype ?? "-") uuid=\(payload.notificationUUID) \
+            env=\(payload.data?.environment ?? "-")
+            """)
+
+        // 3. Idempotency — Apple retries; we process once.
+        if try await ProcessedAppStoreNotification.find(payload.notificationUUID, on: req.db) != nil {
+            req.logger.info("[appstore_webhook] duplicate uuid=\(payload.notificationUUID) — already processed")
+            return .ok
+        }
+
+        // 4. Inner transaction info
+        let txn: AppStoreTransactionInfoPayload?
+        if let signedTxn = payload.data?.signedTransactionInfo {
+            do {
+                txn = try await AppStoreNotificationVerifier.shared.verifyTransaction(signedTxn)
+            } catch {
+                req.logger.error("[appstore_webhook] inner transaction JWS failed: \(error)")
+                return .unauthorized
+            }
+        } else {
+            txn = nil
+        }
+
+        // 5. Apply the state change
+        if let txn {
+            do {
+                try await applyNotification(
+                    type: payload.notificationType,
+                    subtype: payload.subtype,
+                    txn: txn,
+                    on: req.db
+                )
+            } catch {
+                // Database error — let Apple retry by NOT recording the
+                // notification UUID. Return 500 so they retry.
+                req.logger.error("[appstore_webhook] db apply failed: \(error)")
+                return .internalServerError
+            }
+        }
+
+        // 6. Record so retries no-op.
+        let record = ProcessedAppStoreNotification(
+            uuid: payload.notificationUUID,
+            type: payload.notificationType,
+            subtype: payload.subtype,
+            environment: payload.data?.environment ?? "unknown"
+        )
+        // If two retries land in the same instant, one will lose the race
+        // on the PK and throw — that's fine, the other call wins and we
+        // still return 200.
+        try? await record.create(on: req.db)
 
         return .ok
     }
 
-    // MARK: - Helpers
+    // MARK: - Apply notification to UserSubscription
 
-    private func activateSubscription(_ txn: TransactionInfo, on db: Database) async throws {
-        guard let sub = try await UserSubscription.query(on: db)
+    private func applyNotification(
+        type: String,
+        subtype: String?,
+        txn: AppStoreTransactionInfoPayload,
+        on db: Database
+    ) async throws {
+        // Match on (originalTransactionId, environment) so a Sandbox
+        // notification can never overwrite a Production row.
+        let sub = try await UserSubscription.query(on: db)
             .filter(\.$originalTransactionId == txn.originalTransactionId)
-            .first() else { return }
+            .filter(\.$environment == txn.environment)
+            .first()
 
-        sub.isActive = true
-        sub.expirationDate = txn.expiresDate ?? sub.expirationDate
-        sub.updatedAt = Date()
-        try await sub.save(on: db)
+        let now = Date()
+        let expires = Self.date(fromMs: txn.expiresDate)
+
+        switch type {
+        // Initial purchase / restart of a previously expired subscription.
+        // The iOS-side ReceiptController flow normally creates the row; if
+        // for some reason it didn't (e.g. user purchased in Apple's
+        // sandbox without ever opening the app), we'd still want to
+        // record the active state — but we can't without a userId mapping.
+        // For now: only update an existing row.
+        case "SUBSCRIBED":
+            guard let sub else { return }
+            sub.isActive = true
+            sub.expirationDate = expires ?? sub.expirationDate
+            sub.updatedAt = now
+            try await sub.save(on: db)
+
+        // Auto-renew succeeded.
+        case "DID_RENEW":
+            guard let sub else { return }
+            sub.isActive = true
+            sub.expirationDate = expires ?? sub.expirationDate
+            sub.updatedAt = now
+            try await sub.save(on: db)
+
+        // Auto-renew failed (billing problem, expired card). Apple
+        // distinguishes GRACE_PERIOD (still active for ~16 days) from
+        // BILLING_RETRY (already inactive) via the subtype. Spec §3.2.
+        case "DID_FAIL_TO_RENEW":
+            guard let sub else { return }
+            if subtype == "GRACE_PERIOD" {
+                // Keep active during grace period — Apple is still trying.
+                sub.updatedAt = now
+            } else {
+                sub.isActive = false
+                sub.updatedAt = now
+            }
+            try await sub.save(on: db)
+
+        // Subscription has fully expired (grace period ended, billing
+        // retry exhausted, or user cancelled and the period ran out).
+        case "EXPIRED":
+            guard let sub else { return }
+            sub.isActive = false
+            sub.updatedAt = now
+            try await sub.save(on: db)
+
+        // User contacted Apple Support and got a refund. Revoke
+        // immediately regardless of expiration.
+        case "REFUND":
+            guard let sub else { return }
+            sub.isActive = false
+            sub.updatedAt = now
+            try await sub.save(on: db)
+
+        // Apple revoked access (family-sharing removal, fraud, etc).
+        case "REVOKE":
+            guard let sub else { return }
+            sub.isActive = false
+            sub.updatedAt = now
+            try await sub.save(on: db)
+
+        // Grace period ended without successful billing retry — same
+        // outcome as EXPIRED.
+        case "GRACE_PERIOD_EXPIRED":
+            guard let sub else { return }
+            sub.isActive = false
+            sub.updatedAt = now
+            try await sub.save(on: db)
+
+        // User changed auto-renew status (turned off in Settings → Apple
+        // ID → Subscriptions). Doesn't affect current period — they keep
+        // Pro until expirationDate. We still record the new status by
+        // bumping updatedAt so a downstream observer (e.g. churn-risk
+        // mailer) can react.
+        case "DID_CHANGE_RENEWAL_STATUS":
+            guard let sub else { return }
+            sub.updatedAt = now
+            try await sub.save(on: db)
+
+        // User opted into / out of a renewal-extension (Apple PR-1
+        // outage credit, etc). No row change needed.
+        case "RENEWAL_EXTENDED":
+            guard let sub else { return }
+            sub.expirationDate = expires ?? sub.expirationDate
+            sub.updatedAt = now
+            try await sub.save(on: db)
+
+        // Plan change (monthly → annual etc). Apple sends this with a
+        // new productId; the existing originalTransactionId stays the
+        // same. We update productId so /v1/user/me reflects the change.
+        case "DID_CHANGE_RENEWAL_PREF":
+            guard let sub else { return }
+            sub.productId = txn.productId
+            sub.updatedAt = now
+            try await sub.save(on: db)
+
+        // Promotional offer redeemed (Apple's "Offer Codes"). Treat as
+        // a renewal — productId may change and expirationDate definitely
+        // moves out.
+        case "OFFER_REDEEMED":
+            guard let sub else { return }
+            sub.isActive = true
+            sub.productId = txn.productId
+            sub.expirationDate = expires ?? sub.expirationDate
+            sub.updatedAt = now
+            try await sub.save(on: db)
+
+        // CONSUMPTION_REQUEST, PRICE_INCREASE, TEST: nothing to do
+        // on the subscription row itself. Log at debug level.
+        default:
+            // Verified, ignored. Still return 200 from the caller.
+            break
+        }
     }
 
-    private func markGracePeriod(_ txn: TransactionInfo, on db: Database) async throws {
-        guard let sub = try await UserSubscription.query(on: db)
-            .filter(\.$originalTransactionId == txn.originalTransactionId)
-            .first() else { return }
-
-        // Keep active during grace period
-        sub.updatedAt = Date()
-        try await sub.save(on: db)
-    }
-
-    private func expireSubscription(_ txn: TransactionInfo, on db: Database) async throws {
-        guard let sub = try await UserSubscription.query(on: db)
-            .filter(\.$originalTransactionId == txn.originalTransactionId)
-            .first() else { return }
-
-        sub.isActive = false
-        sub.updatedAt = Date()
-        try await sub.save(on: db)
-    }
-
-    private func revokeSubscription(_ txn: TransactionInfo, on db: Database) async throws {
-        guard let sub = try await UserSubscription.query(on: db)
-            .filter(\.$originalTransactionId == txn.originalTransactionId)
-            .first() else { return }
-
-        sub.isActive = false
-        sub.updatedAt = Date()
-        try await sub.save(on: db)
+    /// Apple sends timestamps as milliseconds since epoch (Double). Convert
+    /// to a Date.
+    private static func date(fromMs ms: Double?) -> Date? {
+        guard let ms else { return nil }
+        return Date(timeIntervalSince1970: ms / 1000.0)
     }
 }
 
@@ -193,16 +349,10 @@ struct SubscriptionStatusResponse: Content {
     let isTrial: Bool
 }
 
-struct AppStoreNotification: Content {
-    let notificationType: String
-    let subtype: String?
-    let transactionInfo: TransactionInfo?
-}
-
-struct TransactionInfo: Content {
-    let originalTransactionId: String
-    let expiresDate: Date?
-}
+// (AppStoreNotification / TransactionInfo previously defined here have
+// been removed — they were a flat-shape stub that did not match Apple's
+// V2 envelope. See AppStoreNotificationVerifier.swift for the real
+// JWS-verified payload types.)
 
 // MARK: - UserSubscription Model (Fluent)
 // Per STATE_MACHINES.md Section 15 — Backend persistence.
