@@ -91,6 +91,13 @@ final class OnboardingViewModel {
     var whoopConnected: Bool = false
     var healthkitGranted: Bool = false
     var notificationsGranted: Bool = false
+    /// User has ticked the "I agree to the Terms of Service and Privacy
+    /// Policy" checkbox in the `.tosAccept` onboarding step. The Continue
+    /// button stays disabled until this is true. Per
+    /// LAUNCH_PUNCH_LIST.md §3.5.
+    var tosAccepted: Bool = false
+    var tosAcceptError: String?
+
     /// User chose to enable AI features in the onboarding aiConsent step.
     /// Per AI_INTELLIGENCE_ENGINE.md §11.3.
     var aiConsentGranted: Bool = false
@@ -141,6 +148,8 @@ final class OnboardingViewModel {
              .notifications,
              .aiConsent:
             true // Optional steps
+        case .tosAccept:
+            tosAccepted
         case .complete:
             true
         }
@@ -293,6 +302,26 @@ final class OnboardingViewModel {
         } catch {
             // Non-fatal — surface in logs for diagnosis but keep onboarding flowing.
             print("[onboarding] syncDailyPlanProfile failed: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - ToS Acceptance (LAUNCH_PUNCH_LIST.md §3.5)
+
+    /// Record the user's ToS+Privacy acceptance on the backend. Called from
+    /// the `.tosAccept` onboarding step. On success, advances the step.
+    /// On failure, sets `tosAcceptError` so the View can surface a retry.
+    @MainActor
+    func submitToSAcceptance(apiClient: APIClient) async {
+        tosAcceptError = nil
+        do {
+            let body = AcceptToSRequestDTO(documentVersion: nil)
+            let _: AcceptToSResponseDTO = try await apiClient.request(
+                APIEndpoint<AcceptToSResponseDTO>.acceptToS(),
+                body: body
+            )
+            advance()
+        } catch {
+            tosAcceptError = error.localizedDescription
         }
     }
 
@@ -468,6 +497,11 @@ enum OnboardingStep: String, Codable, CaseIterable {
     // ──────────────────────────────────────────────
     case whoopConnect
     case notifications
+    /// Terms of Service + Privacy Policy acceptance. Required by Apple
+    /// Guideline 5.1.1 and GDPR Article 7. Backend gates all non-auth /
+    /// non-tos routes behind ToSGateMiddleware which returns 451 until
+    /// the user accepts. Per LAUNCH_PUNCH_LIST.md §3.5.
+    case tosAccept
     /// AI data-sharing consent. Required by AI_INTELLIGENCE_ENGINE.md §11.3 and
     /// gated by SubscriptionMiddleware on the backend — without consent every
     /// AI route returns 402 ai_consent_required.

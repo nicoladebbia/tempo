@@ -27,7 +27,10 @@ func routes(_ app: Application) throws {
     // ─────────────────────────────────────────────────
     // Protected endpoints (JWT required)
     // ─────────────────────────────────────────────────
-    let protected = v1.grouped(JWTAuthMiddleware())
+    // JWT auth → ToS gate (451 until tos_accepted_at is set, with carve-outs
+    // for /v1/user/me, /v1/user/accept-tos, DELETE /v1/user/me, and
+    // /v1/auth/logout). Per LAUNCH_PUNCH_LIST.md §3.5.
+    let protected = v1.grouped(JWTAuthMiddleware()).grouped(ToSGateMiddleware())
 
     // Whoop integration management — per INTEGRATION_SPECS.md Section 1
     try protected.grouped("integrations", "whoop")

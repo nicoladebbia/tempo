@@ -16,6 +16,8 @@ struct UserController: RouteCollection {
         routes.get("me", use: me)
         routes.delete("me", use: deleteMe)
         routes.post("ai-consent", use: setAIConsent)
+        // Per LAUNCH_PUNCH_LIST.md §3.5 — ToS acceptance.
+        routes.post("accept-tos", use: acceptToS)
         // Per INTELLIGENCE_REMEDIATION_PLAN.md §8.
         routes.put("daily-plan-profile", use: setDailyPlanProfile)
         routes.get("daily-plan-profile", use: getDailyPlanProfile)
@@ -50,7 +52,8 @@ struct UserController: RouteCollection {
             isPro: activeSub != nil,
             productId: activeSub?.productId,
             subscriptionExpiresAt: activeSub?.expirationDate,
-            aiConsentAt: user.aiConsentAt
+            aiConsentAt: user.aiConsentAt,
+            tosAcceptedAt: user.tosAcceptedAt
         )
         return Envelope(data: response, requestID: req.requestID)
     }
@@ -156,6 +159,7 @@ struct UserController: RouteCollection {
             user.bio = nil
             user.avatarURL = nil
             user.aiConsentAt = nil
+            user.tosAcceptedAt = nil
             user.lastActiveAt = nil
             try await user.save(on: db)
         }
@@ -199,6 +203,32 @@ struct UserController: RouteCollection {
 
         return Envelope(
             data: AIConsentResponse(aiConsentAt: user.aiConsentAt),
+            requestID: req.requestID
+        )
+    }
+
+    // MARK: - POST /v1/user/accept-tos
+    //
+    // Records that the authenticated user accepted the Terms of Service +
+    // Privacy Policy. Idempotent — re-accepting does not overwrite the
+    // existing timestamp (audit trail). Per LAUNCH_PUNCH_LIST.md §3.5.
+
+    @Sendable
+    func acceptToS(_ req: Request) async throws -> Envelope<AcceptToSResponse> {
+        let userID = try req.auth.requireUserID()
+        _ = try? req.content.decode(AcceptToSRequest.self) // optional; not yet persisted
+
+        guard let user = try await User.find(userID, on: req.db) else {
+            throw Abort(.notFound, reason: "User not found.")
+        }
+
+        if user.tosAcceptedAt == nil {
+            user.tosAcceptedAt = Date()
+            try await user.save(on: req.db)
+        }
+
+        return Envelope(
+            data: AcceptToSResponse(tosAcceptedAt: user.tosAcceptedAt ?? Date()),
             requestID: req.requestID
         )
     }
@@ -342,6 +372,19 @@ struct UserMeResponse: Content {
     let productId: String?
     let subscriptionExpiresAt: Date?
     let aiConsentAt: Date?
+    let tosAcceptedAt: Date?
+}
+
+struct AcceptToSRequest: Content {
+    /// SHA-256 (or any stable hash) of the ToS+PrivacyPolicy text the user
+    /// accepted. Optional in v1 — preserved for future audit when we want
+    /// to know which version of the docs was signed off. Per
+    /// LAUNCH_PUNCH_LIST.md §3.5.
+    let documentVersion: String?
+}
+
+struct AcceptToSResponse: Content {
+    let tosAcceptedAt: Date
 }
 
 struct AIConsentRequest: Content {

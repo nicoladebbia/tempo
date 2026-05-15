@@ -131,6 +131,30 @@ extension APIEndpoint where Response == AIConsentResponseDTO {
     }
 }
 
+// MARK: - ToS Acceptance (LAUNCH_PUNCH_LIST.md §3.5)
+
+struct AcceptToSRequestDTO: Codable, Sendable {
+    let documentVersion: String?
+
+    enum CodingKeys: String, CodingKey {
+        case documentVersion = "document_version"
+    }
+}
+
+struct AcceptToSResponseDTO: Codable, Sendable {
+    let tosAcceptedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case tosAcceptedAt = "tos_accepted_at"
+    }
+}
+
+extension APIEndpoint where Response == AcceptToSResponseDTO {
+    static func acceptToS() -> Self {
+        APIEndpoint(path: "/v1/user/accept-tos", method: .post)
+    }
+}
+
 /// Mirrors backend UserMeResponse. Used to hydrate Pro tier + AI consent state
 /// after sign-in. Per INTELLIGENCE_REMEDIATION_PLAN.md §4.
 struct UserMeResponseDTO: Codable, Sendable {
@@ -145,6 +169,7 @@ struct UserMeResponseDTO: Codable, Sendable {
     let productId: String?
     let subscriptionExpiresAt: Date?
     let aiConsentAt: Date?
+    let tosAcceptedAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -158,6 +183,7 @@ struct UserMeResponseDTO: Codable, Sendable {
         case productId = "product_id"
         case subscriptionExpiresAt = "subscription_expires_at"
         case aiConsentAt = "ai_consent_at"
+        case tosAcceptedAt = "tos_accepted_at"
     }
 }
 

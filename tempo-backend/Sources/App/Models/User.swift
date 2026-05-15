@@ -63,6 +63,13 @@ final class User: Model, Content, @unchecked Sendable {
     @OptionalField(key: "ai_consent_at")
     var aiConsentAt: Date?
 
+    /// When the user explicitly accepted the Terms of Service + Privacy
+    /// Policy. Required by Apple Guideline 5.1.1 and GDPR; the
+    /// ToSGateMiddleware refuses non-auth, non-tos requests with 451 when
+    /// this is null. Per LAUNCH_PUNCH_LIST.md §3.5.
+    @OptionalField(key: "tos_accepted_at")
+    var tosAcceptedAt: Date?
+
     // ── Relationships ──────────────────────────
     @Children(for: \.$user)
     var refreshTokens: [RefreshToken]

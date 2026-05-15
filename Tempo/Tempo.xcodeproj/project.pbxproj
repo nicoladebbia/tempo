@@ -347,6 +347,7 @@
 		DE437C2704840F200B89050D /* MockXPEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA1B364BC6CF319DE06221BA /* MockXPEngine.swift */; };
 		E0FED20E736DCAC210A5494E /* HealthKitPermissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9C99E0F6FA7B6FD8D843712 /* HealthKitPermissionView.swift */; };
 		274AEABFD78F4DC79CC80A2B /* AIConsentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E8628C851AF4505A3EA9270 /* AIConsentView.swift */; };
+		3FA4E942E6D8CB131C836A7C /* TermsAcceptanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10E6492152F4665F6D8CFBE /* TermsAcceptanceView.swift */; };
 		E102EEDE150B8CF28D190F3B /* DietaryProfileSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C39A3BB5D217FC9262C150F0 /* DietaryProfileSetupView.swift */; };
 		E1537082E051102F7805B549 /* XPEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48A0B2AA8376AFDDEEC633B1 /* XPEngine.swift */; };
 		E412B0782E9640A744820174 /* RecoveryEngineProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC9A70C2440A13E5AA0C550C /* RecoveryEngineProtocol.swift */; };
@@ -784,6 +785,7 @@
 		D802A031AF15B9CC7D9C33BA /* ActiveDays.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveDays.swift; sourceTree = "<group>"; };
 		D9C99E0F6FA7B6FD8D843712 /* HealthKitPermissionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitPermissionView.swift; sourceTree = "<group>"; };
 		3E8628C851AF4505A3EA9270 /* AIConsentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIConsentView.swift; sourceTree = "<group>"; };
+		A10E6492152F4665F6D8CFBE /* TermsAcceptanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsAcceptanceView.swift; sourceTree = "<group>"; };
 		DA1901F386AB08ED4344950F /* WhoopConnectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhoopConnectionView.swift; sourceTree = "<group>"; };
 		DA4C93C8A577191E2114B0A7 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		DA66F2F1806E039D46642569 /* SubscriptionServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionServiceProtocol.swift; sourceTree = "<group>"; };
@@ -1877,6 +1879,7 @@
 				A4E3490179FC169FBA2AABD6 /* GoalSetupView.swift */,
 				D9C99E0F6FA7B6FD8D843712 /* HealthKitPermissionView.swift */,
 				3E8628C851AF4505A3EA9270 /* AIConsentView.swift */,
+				A10E6492152F4665F6D8CFBE /* TermsAcceptanceView.swift */,
 				A08DD4250DDB84A27DD6110A /* DailyPlanProfileViews.swift */,
 				FD97FCDDA933BD424B4D829D /* NotificationSetupView.swift */,
 				9F50D2B9EA007E3D56328A9A /* OnboardingAuthView.swift */,
@@ -2417,6 +2420,7 @@
 				7628D368C74FABDCB9A0B476 /* HealthKitConstants.swift in Sources */,
 				E0FED20E736DCAC210A5494E /* HealthKitPermissionView.swift in Sources */,
 				274AEABFD78F4DC79CC80A2B /* AIConsentView.swift in Sources */,
+				3FA4E942E6D8CB131C836A7C /* TermsAcceptanceView.swift in Sources */,
 				54E2CA8F4A17695C07B82D03 /* HealthKitService.swift in Sources */,
 				41D6349A78D360C1AC16A4BD /* HealthKitServiceProtocol.swift in Sources */,
 				82232592A48A929CC215CBB6 /* HealthKitState.swift in Sources */,
