@@ -24,7 +24,11 @@ struct WhoopOAuthService {
     }
 
     private static var redirectURI: String {
-        Environment.get("WHOOP_REDIRECT_URI") ?? "https://api.tempo.app/v1/integrations/whoop/callback"
+        // Default to the Railway public URL because api.tempo.app doesn't
+        // exist yet (LAUNCH_PUNCH_LIST.md §3.11 — custom domain is deferred).
+        // Overridable via env so swapping hosts doesn't require a code change.
+        Environment.get("WHOOP_REDIRECT_URI")
+            ?? "https://tempo-backend-production-39dc.up.railway.app/v1/integrations/whoop/callback"
     }
 
     // MARK: - Build Authorization URL
