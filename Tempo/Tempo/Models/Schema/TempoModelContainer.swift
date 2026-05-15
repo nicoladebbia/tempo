@@ -22,7 +22,7 @@ struct TempoModelContainer {
         let schema = Schema(TempoSchemaV1.models)
 
         let groupURL = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: "group.app.tempo"
+            forSecurityApplicationGroupIdentifier: "group.app.tempo.Tempo"
         )
 
         if let groupURL, !inMemory {
@@ -31,7 +31,7 @@ struct TempoModelContainer {
         }
 
         let groupContainer: ModelConfiguration.GroupContainer =
-            (!inMemory && groupURL != nil) ? .identifier("group.app.tempo") : .none
+            (!inMemory && groupURL != nil) ? .identifier("group.app.tempo.Tempo") : .none
 
         let config = ModelConfiguration(
             "Tempo",

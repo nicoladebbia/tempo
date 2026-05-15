@@ -12,7 +12,7 @@ import WidgetKit
 // MARK: - WidgetData
 
 // Per XCODE_PROJECT_STRUCTURE.md Section 10 — Main widget with TimelineProvider.
-// Per Section 10.4 — Reads from shared UserDefaults (group.app.tempo).
+// Per Section 10.4 — Reads from shared UserDefaults (group.app.tempo.Tempo).
 // Per Section 10.6 — Refreshes every 15 minutes as fallback; main app triggers on score change.
 
 struct WidgetData {
@@ -65,7 +65,7 @@ struct WidgetData {
     )
 
     static func fromDefaults() -> WidgetData {
-        let d = UserDefaults(suiteName: "group.app.tempo")
+        let d = UserDefaults(suiteName: "group.app.tempo.Tempo")
         return WidgetData(
             dailyScore: d?.integer(forKey: "widget.dailyScore") ?? 0,
             recoveryZone: d?.string(forKey: "widget.recoveryZone") ?? "green",
