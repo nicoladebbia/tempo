@@ -2028,7 +2028,6 @@
 				371C6A217D51BEC336A54F86 /* SwiftLint */,
 				CAB5CC7D3C0398C73D25BB8A /* SwiftFormat */,
 				F8BECD3B83F1BDE402E1832A /* Sources */,
-				FF41245B5DC48B2AC0EB209E /* Increment Build Number */,
 				99E67F85FA1E5FB50DAA3ABA /* Resources */,
 				01D67FA7CD498405BE72BD2D /* Frameworks */,
 				C0738F21FD2851271A4A395F /* Embed Foundation Extensions */,
@@ -2093,21 +2092,8 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 2650;
 				TargetAttributes = {
-					171477D088F977794132BBDC = {
-						DevelopmentTeam = "";
-					};
 					905B84C3A1A3AD8641726070 = {
-						DevelopmentTeam = "";
 						TestTargetID = B4B1ABCA42D941961C207402;
-					};
-					9856BC18AE4C176CFD6790B5 = {
-						DevelopmentTeam = "";
-					};
-					C337B61AC76E84E27EF729D6 = {
-						DevelopmentTeam = "";
-					};
-					F219732599432203A89A8372 = {
-						DevelopmentTeam = "";
 					};
 				};
 			};
@@ -2227,25 +2213,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/zsh;
 			shellScript = "if command -v swiftformat >/dev/null 2>&1; then\n    swiftformat \"${SRCROOT}/Tempo\" --config \"${SRCROOT}/.swiftformat\" --lint --quiet\nelif [ -x /opt/homebrew/bin/swiftformat ]; then\n    /opt/homebrew/bin/swiftformat \"${SRCROOT}/Tempo\" --config \"${SRCROOT}/.swiftformat\" --lint --quiet\nelif [ -x /usr/local/bin/swiftformat ]; then\n    /usr/local/bin/swiftformat \"${SRCROOT}/Tempo\" --config \"${SRCROOT}/.swiftformat\" --lint --quiet\nelse\n    echo \"warning: SwiftFormat not installed. Run 'brew install swiftformat' to enable formatting.\"\nfi\nmkdir -p \"${DERIVED_FILE_DIR}\"\ntouch \"${DERIVED_FILE_DIR}/swiftformat.stamp\"\n";
-		};
-		FF41245B5DC48B2AC0EB209E /* Increment Build Number */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-			);
-			name = "Increment Build Number";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/zsh;
-			shellScript = "if [ \"${CONFIGURATION}\" = \"Release\" ] || [ \"${CONFIGURATION}\" = \"Staging\" ]; then\n    buildNumber=$(/usr/libexec/PlistBuddy -c \"Print CFBundleVersion\" \"${INFOPLIST_FILE}\")\n    buildNumber=$(($buildNumber + 1))\n    /usr/libexec/PlistBuddy -c \"Set :CFBundleVersion $buildNumber\" \"${INFOPLIST_FILE}\"\n    echo \"Build number incremented to $buildNumber\"\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -2710,6 +2677,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = TempoWatch/TempoWatch.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 942QL2V6SV;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Tempo;
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = app.tempo.Tempo.staging;
@@ -2804,6 +2772,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = TempoWidget/TempoWidgetExtension.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 942QL2V6SV;
 				INFOPLIST_FILE = TempoWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -2920,6 +2889,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				DEVELOPMENT_TEAM = 942QL2V6SV;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -2938,6 +2908,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = TempoWidget/TempoWidgetExtension.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 942QL2V6SV;
 				INFOPLIST_FILE = TempoWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -2955,6 +2926,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				DEVELOPMENT_TEAM = 942QL2V6SV;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -2972,6 +2944,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				DEVELOPMENT_TEAM = 942QL2V6SV;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -2989,6 +2962,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				DEVELOPMENT_TEAM = 942QL2V6SV;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -3008,6 +2982,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = TempoWatch/TempoWatch.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 942QL2V6SV;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Tempo;
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = app.tempo.Tempo.dev;
@@ -3102,6 +3077,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = TempoWidget/TempoWidgetExtension.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 942QL2V6SV;
 				INFOPLIST_FILE = TempoWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -3119,6 +3095,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				DEVELOPMENT_TEAM = 942QL2V6SV;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -3138,6 +3115,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = TempoWatch/TempoWatch.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 942QL2V6SV;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Tempo;
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = app.tempo.Tempo;
@@ -3183,6 +3161,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				DEVELOPMENT_TEAM = 942QL2V6SV;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -3200,6 +3179,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				DEVELOPMENT_TEAM = 942QL2V6SV;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -3217,6 +3197,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				DEVELOPMENT_TEAM = 942QL2V6SV;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -3234,6 +3215,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				DEVELOPMENT_TEAM = 942QL2V6SV;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
