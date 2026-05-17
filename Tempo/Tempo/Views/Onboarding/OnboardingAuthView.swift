@@ -62,16 +62,26 @@ struct OnboardingAuthView: View {
                     .tint(.white)
                     .scaleEffect(1.2)
             } else {
-                SignInWithAppleButton(.signIn) { request in
-                    request.requestedScopes = [.fullName, .email]
-                } onCompletion: { _ in
+                // The system SIWA button is required by App Store Review
+                // Guideline 4.8, but its own onCompletion would fire a
+                // SECOND ASAuthorizationController on top of the one
+                // AuthService.signInWithApple() drives — two Apple sheets,
+                // a nonce-less token the backend rejects, and a hung flow.
+                // Disable the button's own hit-testing and let a single
+                // outer Button drive AuthService's correct nonce flow once.
+                Button {
                     Task { await signIn() }
+                } label: {
+                    SignInWithAppleButton(.signIn, onRequest: { _ in }, onCompletion: { _ in })
+                        .signInWithAppleButtonStyle(.white)
+                        .allowsHitTesting(false)
+                        .frame(height: 50)
+                        .frame(maxWidth: 320)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
-                .signInWithAppleButtonStyle(.white)
-                .frame(height: 50)
-                .frame(maxWidth: 320)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .buttonStyle(.plain)
                 .padding(.horizontal, TempoSpacing.xl)
+                .accessibilityLabel("Sign in with Apple")
             }
 
             // DEBUG: Bypass button for simulator testing

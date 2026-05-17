@@ -360,7 +360,11 @@ final class OnboardingViewModel {
         let classBlocksData = (try? JSONEncoder().encode(classBlocks)) ?? Data()
         let workBlocksData = (try? JSONEncoder().encode(workBlocks)) ?? Data()
 
-        let data: [String: Any] = [
+        // NOTE: every value here MUST be a property-list type. A boxed
+        // `Optional.none` (e.g. `someOptional as Any` when nil) makes
+        // `UserDefaults.set` raise NSInvalidArgumentException and the app
+        // hard-crashes. Optional dates are therefore inserted only when set.
+        var data: [String: Any] = [
             "displayName": displayName,
             "username": username,
             "doesTrain": doesTrain ?? false,
@@ -379,8 +383,6 @@ final class OnboardingViewModel {
             "chronotype": chronotype.rawValue,
             "classBlocks": classBlocksData,
             "workBlocks": workBlocksData,
-            "termStartDate": termStartDate as Any,
-            "termEndDate": termEndDate as Any,
             "trainingTimePreference": trainingTimePreference.rawValue,
             "eatingWindowPreset": eatingWindowPreset.rawValue,
             "eatingWindowStartMinutes": eatingWindowStartMinutes,
@@ -390,6 +392,12 @@ final class OnboardingViewModel {
             "studySessionLengthMinutes": studySessionLengthMinutes,
             "weekendDifferential": weekendDifferential.rawValue,
         ]
+        if let termStartDate {
+            data["termStartDate"] = termStartDate
+        }
+        if let termEndDate {
+            data["termEndDate"] = termEndDate
+        }
         UserDefaults.standard.set(data, forKey: "tempo.onboarding.data")
     }
 
