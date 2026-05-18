@@ -48,25 +48,35 @@ struct SubscriptionMiddleware: AsyncMiddleware {
 
     // MARK: - Allowlist
 
-    /// True when the authenticated user's `apple_user_id` appears in the
-    /// PRO_ALLOWLIST env var (comma-separated). Stable across reinstalls
-    /// because it keys on the Apple Sign-In identifier, not the row id.
+    /// True when the authenticated user matches any entry in the
+    /// PRO_ALLOWLIST env var (comma-separated). An entry matches if it
+    /// equals the user's `apple_user_id` (exact), `id` (exact), or
+    /// `username` (case-insensitive) — so the operator can whitelist
+    /// themselves by whichever identifier is convenient without a DB
+    /// lookup. Empty/unset env var = allowlist disabled.
     private func isAllowlisted(userID: String, on req: Request) async throws -> Bool {
         guard let raw = Environment.get("PRO_ALLOWLIST"), !raw.isEmpty else {
             return false
         }
-        let allow = Set(
-            raw.split(separator: ",")
-                .map { $0.trimmingCharacters(in: .whitespaces) }
-                .filter { !$0.isEmpty }
-        )
-        guard !allow.isEmpty else {
+        let entries = raw.split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        guard !entries.isEmpty else {
             return false
         }
         guard let user = try await User.find(userID, on: req.db) else {
             return false
         }
-        return allow.contains(user.appleUserID)
+
+        let exact = Set(entries)
+        if exact.contains(user.appleUserID) {
+            return true
+        }
+        if let id = user.id, exact.contains(id) {
+            return true
+        }
+        let lowerEntries = Set(entries.map { $0.lowercased() })
+        return lowerEntries.contains(user.username.lowercased())
     }
 
     // MARK: - Subscription lookup
