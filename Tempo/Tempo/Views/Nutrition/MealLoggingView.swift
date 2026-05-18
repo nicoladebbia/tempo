@@ -28,6 +28,12 @@ struct MealLoggingView: View {
     @State
     private var showBarcodeScanner = false
     @State
+    private var showVoiceLog = false
+    /// Pre-fills FoodSearchView when a low-confidence voice item taps
+    /// "Search instead".
+    @State
+    private var searchPrefill: String?
+    @State
     private var toast: ToastData?
 
     var onMealLogged: (([FoodItem], MealType) -> Void)?
@@ -101,9 +107,23 @@ struct MealLoggingView: View {
                 }
             }
             .sheet(isPresented: $showFoodSearch) {
-                FoodSearchView { item in
-                    addFoodItem(item)
-                }
+                FoodSearchView(
+                    onFoodSelected: { item in
+                        addFoodItem(item)
+                    },
+                    initialQuery: searchPrefill
+                )
+            }
+            .sheet(isPresented: $showVoiceLog) {
+                VoiceMealLogView(
+                    onFoodSelected: { item in
+                        addFoodItem(item)
+                    },
+                    onSearchInstead: { name in
+                        searchPrefill = name
+                        showFoodSearch = true
+                    }
+                )
             }
             .sheet(isPresented: $showPhotoAnalysis) {
                 PhotoAnalysisView { items in
@@ -254,6 +274,10 @@ struct MealLoggingView: View {
 
             inputMethodButton(icon: "barcode.viewfinder", label: "Scan") {
                 showBarcodeScanner = true
+            }
+
+            inputMethodButton(icon: "mic.fill", label: "Voice") {
+                showVoiceLog = true
             }
         }
         .padding(.horizontal, TempoSpacing.screenEdge)

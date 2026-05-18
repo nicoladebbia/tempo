@@ -31,6 +31,19 @@ final class OnboardingViewModel {
     var displayName: String = ""
     var username: String = ""
 
+    // Identity ("What best describes you?")
+    var identityLabel: String = OnboardingViewModel.identityLabels[0]
+
+    /// Canonical, ordered identity options. Single source of truth shared by
+    /// the onboarding picker and any future surface that needs the list.
+    static let identityLabels: [String] = [
+        "Athlete", "Student", "Student-Athlete", "Coach", "Personal Trainer",
+        "Bodybuilder", "Runner", "Cyclist", "Swimmer", "Combat Sports",
+        "Team Sport Player", "Weekend Warrior", "Military / First Responder",
+        "Office Worker", "Remote Worker", "Entrepreneur", "Artist / Creative",
+        "Parent", "Retiree", "General Fitness",
+    ]
+
     // Training data
     var doesTrain: Bool?
     var trainingTypes: Set<String> = []
@@ -127,7 +140,8 @@ final class OnboardingViewModel {
         switch currentStep {
         case .splash,
              .valueDemo,
-             .auth:
+             .auth,
+             .identity:
             true
         case .profile:
             !displayName.trimmingCharacters(in: .whitespaces).isEmpty &&
@@ -367,6 +381,7 @@ final class OnboardingViewModel {
         var data: [String: Any] = [
             "displayName": displayName,
             "username": username,
+            "identityLabel": identityLabel,
             "doesTrain": doesTrain ?? false,
             "trainingTypes": Array(trainingTypes),
             "daysPerWeek": daysPerWeek,
@@ -407,6 +422,7 @@ final class OnboardingViewModel {
         }
         displayName = data["displayName"] as? String ?? ""
         username = data["username"] as? String ?? ""
+        identityLabel = data["identityLabel"] as? String ?? OnboardingViewModel.identityLabels[0]
         doesTrain = data["doesTrain"] as? Bool
         trainingTypes = Set(data["trainingTypes"] as? [String] ?? [])
         daysPerWeek = data["daysPerWeek"] as? Int ?? 4
@@ -487,6 +503,9 @@ enum OnboardingStep: String, Codable, CaseIterable {
     case healthkit
     case auth
     case profile
+    /// "What best describes you?" — single identity label persisted to
+    /// UserProfile.identityLabel and surfaced in Settings.
+    case identity
     case trainingSetup
     case academicSetup
     // ── Daily plan profile (INTELLIGENCE_REMEDIATION_PLAN.md §8) ──
@@ -527,6 +546,7 @@ enum OnboardingStep: String, Codable, CaseIterable {
         switch self {
         case .auth,
              .profile,
+             .identity,
              .goals: true
         default: false
         }

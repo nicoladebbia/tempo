@@ -43,11 +43,13 @@ struct ContentView: View {
         let data = UserDefaults.standard.dictionary(forKey: "tempo.onboarding.data")
         let name = data?["displayName"] as? String ?? "Athlete"
         let user = data?["username"] as? String ?? "athlete"
+        let identity = data?["identityLabel"] as? String ?? "Athlete"
 
         let profile = UserProfile(
             appleID: "local",
             username: user,
-            displayName: name
+            displayName: name,
+            identityLabel: identity
         )
         modelContext.insert(profile)
 

@@ -1,0 +1,97 @@
+//
+// RecoveryAIInsightView.swift
+// Tempo
+//
+// Renders the AI-generated personalised daily recovery paragraph (Haiku),
+// replacing the old static 2-day prescription text. Shows a loading skeleton
+// while the proxy call is in flight; the result is cached per calendar day by
+// RecoveryAIInsightService so re-appearances do not re-call the API.
+//
+
+import SwiftData
+import SwiftUI
+
+struct RecoveryAIInsightView: View {
+    let recovery: DailyRecovery?
+
+    @Environment(ServiceContainer.self)
+    private var services
+    @Environment(\.modelContext)
+    private var modelContext
+
+    @State private var service: RecoveryAIInsightService?
+    @State private var paragraph: String?
+    @State private var isLoading = false
+    @State private var errorText: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.md) {
+            TempoSectionHeader("Today's Read", accentColor: Color.tempoSignal)
+
+            Group {
+                if isLoading {
+                    loadingSkeleton
+                } else if let paragraph {
+                    Text(paragraph)
+                        .font(.tempoBody)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else if let errorText {
+                    Text(errorText)
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                } else {
+                    Text("Connect WHOOP to get today's personalised read.")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                }
+            }
+            .padding(TempoSpacing.cardPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.tempoSurfaceCard)
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+            .tempoShadow(.card)
+        }
+        .task(id: recovery?.id) {
+            await load()
+        }
+    }
+
+    private var loadingSkeleton: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            ForEach(0 ..< 4, id: \.self) { i in
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color.tempoTextTertiary.opacity(0.18))
+                    .frame(height: 12)
+                    .frame(maxWidth: i == 3 ? 180 : .infinity)
+            }
+        }
+        .redacted(reason: .placeholder)
+        .accessibilityLabel("Generating today's recovery insight")
+    }
+
+    @MainActor
+    private func load() async {
+        guard let recovery else { return }
+
+        let svc = service ?? RecoveryAIInsightService(apiClient: services.apiClient)
+        service = svc
+
+        // Cache hit → no spinner, no API call.
+        if let cached = svc.cachedParagraph(modelContext: modelContext) {
+            paragraph = cached
+            return
+        }
+
+        isLoading = true
+        errorText = nil
+        defer { isLoading = false }
+
+        do {
+            paragraph = try await svc.paragraph(for: recovery, modelContext: modelContext)
+        } catch {
+            errorText = (error as? RecoveryAIInsightError)?.errorDescription
+                ?? error.localizedDescription
+        }
+    }
+}

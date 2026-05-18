@@ -15,6 +15,9 @@ import SwiftUI
 
 struct FoodSearchView: View {
     var onFoodSelected: ((FoodItem) -> Void)?
+    /// Optional pre-filled query (e.g. from a low-confidence voice item's
+    /// "Search instead" fallback). Defaults to empty for existing callers.
+    var initialQuery: String?
 
     @Environment(\.dismiss)
     private var dismiss
@@ -105,6 +108,12 @@ struct FoodSearchView: View {
             }
             .sheet(item: $selectedFood) { food in
                 portionPickerSheet(food: food)
+            }
+            .onAppear {
+                if let initialQuery, searchText.isEmpty {
+                    searchText = initialQuery
+                    performSearch()
+                }
             }
         }
     }

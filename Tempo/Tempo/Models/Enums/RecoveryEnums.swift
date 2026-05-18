@@ -42,4 +42,7 @@ enum RecoveryInsightType: String, Codable, CaseIterable {
     case correlation
     case pattern
     case recommendation
+    /// AI-generated personalised daily paragraph (Haiku). Cached one row
+    /// per calendar day; replaces the old static 2-day prescription text.
+    case aiDailyParagraph
 }

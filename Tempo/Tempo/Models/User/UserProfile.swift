@@ -28,6 +28,11 @@ final class UserProfile {
 
     var avatarURL: String?
 
+    /// User-selected identity label chosen during onboarding
+    /// ("What best describes you?"). Defaults to "Athlete" so the
+    /// additive property migrates losslessly on existing stores.
+    var identityLabel: String = "Athlete"
+
     // MARK: - Biometrics
 
     var timezone: String
@@ -116,6 +121,7 @@ final class UserProfile {
         username: String,
         displayName: String,
         avatarURL: String? = nil,
+        identityLabel: String = "Athlete",
         timezone: String = TimeZone.current.identifier,
         weightKg: Double? = nil,
         heightCm: Double? = nil,
@@ -130,6 +136,7 @@ final class UserProfile {
         self.username = username
         self.displayName = displayName
         self.avatarURL = avatarURL
+        self.identityLabel = identityLabel
         self.timezone = timezone
         self.weightKg = weightKg
         self.heightCm = heightCm
@@ -154,6 +161,7 @@ extension UserProfile {
         let username: String
         let display_name: String
         let avatar_url: String?
+        let identity_label: String?
         let timezone: String
         let weight_kg: Double?
         let height_cm: Double?
@@ -175,6 +183,7 @@ extension UserProfile {
             username: username,
             display_name: displayName,
             avatar_url: avatarURL,
+            identity_label: identityLabel,
             timezone: timezone,
             weight_kg: weightKg,
             height_cm: heightCm,
@@ -194,6 +203,9 @@ extension UserProfile {
         username = dto.username
         displayName = dto.display_name
         avatarURL = dto.avatar_url
+        if let label = dto.identity_label, !label.isEmpty {
+            identityLabel = label
+        }
         timezone = dto.timezone
         weightKg = dto.weight_kg
         heightCm = dto.height_cm

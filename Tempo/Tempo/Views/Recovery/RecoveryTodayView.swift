@@ -55,8 +55,9 @@ struct RecoveryTodayView: View {
                     warningsSection(prescription.warnings)
                 }
 
-                // Today's Prescription
-                prescriptionSection
+                // Today's AI-generated recovery read (replaces the old
+                // static 2-day prescription text).
+                RecoveryAIInsightView(recovery: viewModel.todayRecovery)
 
                 // Quick Insights
                 quickInsightsSection
@@ -325,130 +326,13 @@ struct RecoveryTodayView: View {
 
     // Per MODULE_RECOVERY.md Section 4.4
 
-    private var prescriptionSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            TempoSectionHeader("Today's Prescription", accentColor: zoneColor)
-
-            if let prescription = viewModel.todayPrescription {
-                // Training
-                recoveryPrescriptionCard(
-                    icon: "figure.strengthtraining.traditional",
-                    category: "Training",
-                    headline: prescription.trainingRec,
-                    body: prescription.trainingDetail
-                )
-
-                // Nutrition
-                if !prescription.nutritionRecs.isEmpty {
-                    recoveryPrescriptionCard(
-                        icon: "fork.knife",
-                        category: "Meal Timing",
-                        headline: prescription.nutritionRecs.first ?? "",
-                        body: prescription.nutritionRecs.count > 1
-                            ? prescription.nutritionRecs.dropFirst().joined(separator: " ")
-                            : nil
-                    )
-                }
-
-                // Bedtime (Task 6 — Smart bedtime with explanation)
-                recoveryPrescriptionCard(
-                    icon: "bed.double.fill",
-                    category: "Bedtime",
-                    headline: "Target: \(viewModel.formattedBedtime)",
-                    body: viewModel.smartBedtimeExplanation ?? sleepDebtContext
-                )
-
-                // Caffeine cutoff
-                recoveryPrescriptionCard(
-                    icon: "cup.and.saucer.fill",
-                    category: "Caffeine Cutoff",
-                    headline: "No caffeine after \(viewModel.formattedCaffeineCutoff)",
-                    body: "8-hour buffer before your target bedtime. This includes pre-workout, energy drinks, and tea."
-                )
-
-                // Tonight's Sleep Goal
-                if viewModel.sleepNeededHours != nil {
-                    recoveryPrescriptionCard(
-                        icon: "moon.stars.fill",
-                        category: "Tonight's Sleep Goal",
-                        headline: "\(viewModel.formattedSleepNeeded) of sleep",
-                        body: sleepGoalDetail
-                    )
-                }
-
-                // Hydration
-                recoveryPrescriptionCard(
-                    icon: "drop.fill",
-                    category: "Hydration",
-                    headline: "Target: \(viewModel.formattedHydration) today",
-                    body: nil
-                )
-            } else {
-                // Loading/empty state
-                VStack(spacing: TempoSpacing.md) {
-                    Image(systemName: "waveform.path.ecg")
-                        .font(.system(size: 40))
-                        .foregroundStyle(Color.tempoTextTertiary)
-
-                    Text("Waiting for recovery data")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
-
-                    Text("Connect your Whoop to see personalized prescriptions.")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, TempoSpacing.xxxl)
-            }
-        }
-    }
+    
 
     // MARK: - Recovery Prescription Card
 
     // Per MODULE_RECOVERY.md Section 3.2
 
-    private func recoveryPrescriptionCard(
-        icon: String,
-        category: String,
-        headline: String,
-        body: String?
-    ) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            // Category header
-            HStack(spacing: TempoSpacing.sm) {
-                Image(systemName: icon)
-                    .font(.tempoBody)
-                    .foregroundStyle(zoneColor)
-
-                Text(category)
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
-            }
-
-            Divider()
-                .background(Color.tempoBorder)
-
-            // Headline
-            Text(headline)
-                .font(.tempoBody)
-                .fontWeight(.medium)
-                .foregroundStyle(Color.tempoTextPrimary)
-
-            // Body
-            if let body, !body.isEmpty {
-                Text(body)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-            }
-        }
-        .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
-    }
+    
 
     // MARK: - Quick Insights Section
 
@@ -666,20 +550,7 @@ struct RecoveryTodayView: View {
 
     // MARK: - Sleep Goal Detail (Task 1)
 
-    private var sleepGoalDetail: String? {
-        guard let baseline = viewModel.todayRecovery?.sleepNeededBaseline else {
-            return nil
-        }
-        let baseH = Int(baseline)
-        let baseM = Int((baseline - Double(baseH)) * 60)
-        let baseStr = baseM > 0 ? "\(baseH)h \(baseM)m" : "\(baseH)h"
-
-        if let strain = viewModel.todayRecovery?.strain, strain >= 10 {
-            let extra = strain >= 14 ? "1h" : "30m"
-            return "Baseline need: \(baseStr). Added \(extra) for today's strain (\(String(format: "%.1f", strain)))."
-        }
-        return "Based on your baseline sleep need of \(baseStr)."
-    }
+    
 
     // MARK: - Helpers
 
@@ -691,20 +562,7 @@ struct RecoveryTodayView: View {
         }
     }
 
-    private var sleepDebtContext: String? {
-        guard let debt = viewModel.todayRecovery?.sleepDebt else {
-            return nil
-        }
-        if debt < 0.5 {
-            return "Sleep debt is minimal. Maintain your current routine."
-        } else if debt < 2 {
-            return "Sleep debt: \(String(format: "%.1f", debt))h. An extra 30-60 min tonight will help."
-        } else if debt < 4 {
-            return "Sleep debt: \(String(format: "%.1f", debt))h. Prioritize an early bedtime tonight."
-        } else {
-            return "Significant sleep debt (\(String(format: "%.1f", debt))h). Your body needs multiple nights of good sleep."
-        }
-    }
+    
 }
 
 // MARK: - MetricType

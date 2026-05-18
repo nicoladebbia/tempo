@@ -108,6 +108,8 @@ struct OnboardingContainerView: View {
             OnboardingAuthView(viewModel: viewModel)
         case .profile:
             ProfileSetupView(viewModel: viewModel)
+        case .identity:
+            IdentitySetupView(viewModel: viewModel)
         case .trainingSetup:
             TrainingSetupView(viewModel: viewModel)
         case .academicSetup:

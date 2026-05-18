@@ -266,7 +266,6 @@ struct DashboardView: View {
                     }
                 }
 
-                scoreTrendSparkline(vm)
                 quadrantGrid(vm)
                 quickActionsRow(vm)
                 nonNegotiablesSection(vm)
@@ -274,6 +273,9 @@ struct DashboardView: View {
                 arenaQuickAccessCard()
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
+        }
+        .safeAreaInset(edge: .bottom) {
+            Color.clear.frame(height: 16)
         }
         .scrollIndicators(.hidden)
         .refreshable {
@@ -375,8 +377,6 @@ struct DashboardView: View {
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(Color.tempoSurfaceCard)
-                    .clipShape(Capsule())
                 }
             }
         }
@@ -849,9 +849,10 @@ struct DashboardView: View {
                         height: 4
                     )
 
-                    FlowLayout(spacing: 10, lineSpacing: 6) {
+                    HStack(spacing: 10) {
                         ForEach(vm.nonNegotiables) { item in
                             nonNegotiablePill(item)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
                 }
@@ -899,6 +900,8 @@ struct DashboardView: View {
 
             Text(item.title)
                 .font(.tempoCaption1)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
                 .foregroundStyle(item.isCompleted ? Color.tempoTextSecondary : Color.tempoTextPrimary)
                 .strikethrough(item.isCompleted)
         }
@@ -1071,56 +1074,9 @@ struct DashboardView: View {
 
     // MARK: - Score Trend Sparkline
 
-    @ViewBuilder
-    private func scoreTrendSparkline(_ vm: DashboardViewModel) -> some View {
-        if vm.scoreTrend.count >= 2 {
-            HStack(spacing: TempoSpacing.sm) {
-                Text("7-DAY")
-                    .font(.tempoModuleTag)
-                    .fontWeight(.bold)
-                    .tracking(0.8)
-                    .foregroundStyle(Color.tempoTextTertiary)
+    
 
-                SparklineView(
-                    data: vm.scoreTrend.map { Double($0.score) },
-                    lineColor: sparklineColor(vm.scoreTrend),
-                    height: 24
-                )
-
-                if let last = vm.scoreTrend.last, let prev = vm.scoreTrend.dropLast().last {
-                    let delta = last.score - prev.score
-                    let trend = vm.scoreTrendDirection
-                    HStack(spacing: 2) {
-                        Image(systemName: trend.icon)
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(trend.color)
-                        Text(delta >= 0 ? "+\(delta)" : "\(delta)")
-                            .font(.tempoDataSmall)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(delta >= 0 ? Color.tempoSuccess : Color.tempoError)
-                            .contentTransition(.numericText(countsDown: delta < 0))
-                    }
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-        }
-    }
-
-    private func sparklineColor(_ trend: [DashboardViewModel.DailyScorePoint]) -> Color {
-        guard let first = trend.first, let last = trend.last else {
-            return .tempoTextSecondary
-        }
-        if last.score > first.score {
-            return Color.tempoSuccess
-        }
-        if last.score < first.score {
-            return Color.tempoError
-        }
-        return Color.tempoTextSecondary
-    }
+    
 
     // MARK: - Card Shell
 
@@ -1613,7 +1569,6 @@ private struct ScoreBreakdownSheet: View {
                     )
                 }
                 .padding(TempoSpacing.cardPadding)
-                .background(Color.tempoSurfaceCard)
                 .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
 
                 Spacer()
@@ -1682,38 +1637,6 @@ private struct ScoreBreakdownSheet: View {
             }
             .frame(height: 6)
         }
-    }
-}
-
-// MARK: - SparklineView
-
-private struct SparklineView: View {
-    let data: [Double]
-    let lineColor: Color
-    let height: CGFloat
-
-    var body: some View {
-        GeometryReader { geo in
-            if data.count >= 2 {
-                let minVal = data.min() ?? 0
-                let maxVal = data.max() ?? 100
-                let range = max(maxVal - minVal, 1)
-
-                Path { path in
-                    for (index, value) in data.enumerated() {
-                        let x = geo.size.width * CGFloat(index) / CGFloat(data.count - 1)
-                        let y = geo.size.height * (1 - CGFloat((value - minVal) / range))
-                        if index == 0 {
-                            path.move(to: CGPoint(x: x, y: y))
-                        } else {
-                            path.addLine(to: CGPoint(x: x, y: y))
-                        }
-                    }
-                }
-                .stroke(lineColor, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-            }
-        }
-        .frame(height: height)
     }
 }
 

@@ -24,6 +24,12 @@ final class WhoopConnection {
 
     var statusMessage: String?
 
+    /// Set true after the one-time 30-day historical backfill completes on
+    /// first successful connect. Default false migrates losslessly on
+    /// existing stores (additive lightweight migration — see
+    /// TempoModelContainer policy note).
+    var didBackfill: Bool = false
+
     // MARK: - Computed
 
     @Transient
@@ -52,7 +58,8 @@ final class WhoopConnection {
         lastSyncAt: Date? = nil,
         tokenExpiresAt: Date? = nil,
         whoopUserID: String? = nil,
-        statusMessage: String? = nil
+        statusMessage: String? = nil,
+        didBackfill: Bool = false
     ) {
         self.id = id
         self.isConnected = isConnected
@@ -60,5 +67,6 @@ final class WhoopConnection {
         self.tokenExpiresAt = tokenExpiresAt
         self.whoopUserID = whoopUserID
         self.statusMessage = statusMessage
+        self.didBackfill = didBackfill
     }
 }

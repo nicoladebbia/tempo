@@ -844,6 +844,96 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
 
     // MARK: - Private: Date Helpers
 
+    // MARK: - Explicit-range batch fetch (one-time historical backfill)
+
+    /// ISO-8601 bounds for an explicit closed date range. Separate from
+    /// `dateRange(for:)` so the existing 7-day callers are untouched.
+    private func isoRange(_ start: Date, _ end: Date) -> (start: String, end: String) {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return (formatter.string(from: start), formatter.string(from: end))
+    }
+
+    /// All SCORED recovery records between `start` and `end`. Used by the
+    /// one-time 30-day backfill; daily sync keeps using the 7-day variant.
+    func fetchRecoveryBatch(start: Date, end: Date) async throws -> [WhoopRecoveryData] {
+        if isDemoMode {
+            return try await [mockService.fetchRecovery(for: end)]
+        }
+
+        let (startStr, endStr) = isoRange(start, end)
+        let response: WhoopAPIResponse<WhoopAPIRecoveryRecord> = try await whoopGet(
+            path: "/recovery",
+            queryItems: [
+                URLQueryItem(name: "start", value: startStr),
+                URLQueryItem(name: "end", value: endStr),
+            ]
+        )
+
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        return response.records.compactMap { record in
+            guard record.scoreState == "SCORED", let score = record.score else {
+                return nil
+            }
+            let recordDate = record.createdAt.flatMap { isoFormatter.date(from: $0) } ?? end
+            return WhoopRecoveryData(
+                score: score.recoveryScore ?? 0,
+                hrvRmssd: score.hrvRmssdMilli ?? 0,
+                restingHeartRate: score.restingHeartRate ?? 0,
+                spo2: score.spo2Percentage,
+                skinTemp: score.skinTempCelsius,
+                date: recordDate
+            )
+        }
+    }
+
+    /// All SCORED non-nap sleep records between `start` and `end`.
+    func fetchSleepBatch(start: Date, end: Date) async throws -> [WhoopSleepData] {
+        if isDemoMode {
+            return try await [mockService.fetchSleep(for: end)]
+        }
+
+        let (startStr, endStr) = isoRange(start, end)
+        let response: WhoopAPIResponse<WhoopAPISleepRecord> = try await whoopGet(
+            path: "/activity/sleep",
+            queryItems: [
+                URLQueryItem(name: "start", value: startStr),
+                URLQueryItem(name: "end", value: endStr),
+            ]
+        )
+
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        return response.records.compactMap { record in
+            guard record.nap != true, record.scoreState == "SCORED", let score = record.score else {
+                return nil
+            }
+            let stages = score.stageSummary
+            let lightMilli: Int64 = stages?.totalLightSleepTimeMilli ?? 0
+            let deepMilli: Int64 = stages?.totalSlowWaveSleepTimeMilli ?? 0
+            let remMilli: Int64 = stages?.totalRemSleepTimeMilli ?? 0
+            let awakeMilli: Int64 = stages?.totalAwakeTimeMilli ?? 0
+            let totalSleepMilli = lightMilli + deepMilli + remMilli
+            let recordDate = record.createdAt.flatMap { isoFormatter.date(from: $0) } ?? end
+
+            return WhoopSleepData(
+                totalHours: Double(totalSleepMilli) / 3_600_000.0,
+                sleepScore: score.sleepPerformancePercentage ?? 0,
+                sleepEfficiency: score.sleepEfficiencyPercentage ?? 0,
+                sleepConsistency: score.sleepConsistencyPercentage ?? 0,
+                deepSleepMinutes: Int(deepMilli / 60000),
+                remSleepMinutes: Int(remMilli / 60000),
+                lightSleepMinutes: Int(lightMilli / 60000),
+                awakeMinutes: Int(awakeMilli / 60000),
+                respiratoryRate: score.respiratoryRate ?? 0,
+                date: recordDate
+            )
+        }
+    }
+
     private func dateRange(for date: Date) -> (start: String, end: String) {
         let cal = Calendar.current
         let startOfDay = cal.startOfDay(for: date)

@@ -463,7 +463,6 @@ struct NutritionTodayView: View {
             .padding(.vertical, 14)
             .background(Color.tempoSignal)
             .clipShape(Capsule())
-            .shadow(color: Color.tempoSignal.opacity(0.3), radius: 8, x: 0, y: 4)
         }
     }
 }

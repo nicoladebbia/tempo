@@ -55,6 +55,14 @@ final class MockWhoopService: WhoopServiceProtocol, @unchecked Sendable {
         try await [fetchSleep(for: date)]
     }
 
+    func fetchRecoveryBatch(start: Date, end: Date) async throws -> [WhoopRecoveryData] {
+        try await [fetchRecovery(for: end)]
+    }
+
+    func fetchSleepBatch(start: Date, end: Date) async throws -> [WhoopSleepData] {
+        try await [fetchSleep(for: end)]
+    }
+
     func fetchSleep(for date: Date) async throws -> WhoopSleepData {
         WhoopSleepData(
             totalHours: 7.2,

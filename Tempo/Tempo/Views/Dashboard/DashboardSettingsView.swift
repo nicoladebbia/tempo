@@ -73,6 +73,10 @@ struct DashboardSettingsView: View {
                             Text("@\(profile?.username ?? "—")")
                                 .font(.tempoFootnote)
                                 .foregroundStyle(Color.tempoTextTertiary)
+
+                            Text(profile?.identityLabel ?? "Athlete")
+                                .font(.tempoCaption1)
+                                .foregroundStyle(Color.tempoTextSecondary)
                         }
                     }
                 }

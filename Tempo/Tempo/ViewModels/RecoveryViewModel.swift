@@ -142,6 +142,10 @@ final class RecoveryViewModel {
         // Seed historical records from Whoop batch data (fills trends on first launch).
         // Only creates new records for dates that don't already exist in the database.
         if whoop.connectionState == .connected {
+            // One-time 30-day historical backfill on first successful connect.
+            // No-op once WhoopConnection.didBackfill is set.
+            await backfillIfNeeded(modelContext: modelContext)
+
             let todayStart = Calendar.current.startOfDay(for: today)
             let recoveryBatch = await (try? whoop.fetchRecoveryBatch(for: today)) ?? []
             let sleepBatch = await (try? whoop.fetchSleepBatch(for: today)) ?? []
@@ -219,6 +223,91 @@ final class RecoveryViewModel {
         }
 
         loadState = .loaded
+    }
+
+    /// One-time 30-day historical backfill of recovery + sleep + cycle data,
+    /// run on first successful WHOOP connect. Gated by
+    /// `WhoopConnection.didBackfill`; idempotent (skips dates already stored)
+    /// so a mid-backfill failure safely retries on next launch. The flag is
+    /// only set after `modelContext.save()` succeeds.
+    func backfillIfNeeded(modelContext: ModelContext) async {
+        // Fetch-or-create the WhoopConnection row (nothing creates it elsewhere).
+        var connDescriptor = FetchDescriptor<WhoopConnection>()
+        connDescriptor.fetchLimit = 1
+        let connection: WhoopConnection
+        if let existing = try? modelContext.fetch(connDescriptor).first {
+            connection = existing
+        } else {
+            connection = WhoopConnection(isConnected: true)
+            modelContext.insert(connection)
+        }
+
+        guard !connection.didBackfill else {
+            return
+        }
+
+        let cal = Calendar.current
+        let today = Date()
+        let todayStart = cal.startOfDay(for: today)
+        guard let backfillStart = cal.date(byAdding: .day, value: -30, to: todayStart) else {
+            return
+        }
+
+        let recoveryBatch = (try? await whoop.fetchRecoveryBatch(start: backfillStart, end: today)) ?? []
+        let sleepBatch = (try? await whoop.fetchSleepBatch(start: backfillStart, end: today)) ?? []
+
+        for histRecovery in recoveryBatch {
+            let histDate = cal.startOfDay(for: histRecovery.date)
+            guard histDate < todayStart else {
+                continue // today is handled by the normal refresh path
+            }
+
+            let checkDescriptor = FetchDescriptor<DailyRecovery>(
+                predicate: #Predicate { $0.date == histDate }
+            )
+            if (try? modelContext.fetchCount(checkDescriptor)) ?? 0 > 0 {
+                continue
+            }
+
+            let matchingSleep = sleepBatch.first {
+                cal.startOfDay(for: $0.date) == histDate
+            }
+            // Cycle data is per-date on the WHOOP API; one call per backfilled
+            // day is acceptable for a one-time operation.
+            let cycle = try? await whoop.fetchCycle(for: histDate)
+
+            let histDaily = DailyRecovery(
+                date: histDate,
+                recoveryScore: histRecovery.score,
+                hrvRmssd: histRecovery.hrvRmssd,
+                restingHR: histRecovery.restingHeartRate,
+                spo2: histRecovery.spo2,
+                skinTemp: histRecovery.skinTemp,
+                sleepHours: matchingSleep?.totalHours,
+                sleepScore: matchingSleep?.sleepScore,
+                sleepEfficiency: matchingSleep?.sleepEfficiency,
+                sleepConsistency: matchingSleep?.sleepConsistency,
+                deepSleepMin: matchingSleep?.deepSleepMinutes,
+                remSleepMin: matchingSleep?.remSleepMinutes,
+                lightSleepMin: matchingSleep?.lightSleepMinutes,
+                awakeMin: matchingSleep?.awakeMinutes,
+                respiratoryRate: matchingSleep?.respiratoryRate,
+                strain: cycle?.strain,
+                avgHR: cycle?.averageHeartRate,
+                maxHR: cycle?.maxHeartRate,
+                caloriesBurned: cycle?.caloriesBurned
+            )
+            modelContext.insert(histDaily)
+        }
+
+        do {
+            try modelContext.save()
+            connection.didBackfill = true
+            try? modelContext.save()
+        } catch {
+            // Leave didBackfill false so the next launch retries; the
+            // existence check above makes the retry safe.
+        }
     }
 
     // MARK: - Trend Range

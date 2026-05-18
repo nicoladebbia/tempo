@@ -32,6 +32,8 @@ protocol WhoopServiceProtocol: Sendable {
     func fetchRecovery(for date: Date) async throws -> WhoopRecoveryData
     func fetchRecoveryBatch(for date: Date) async throws -> [WhoopRecoveryData]
     func fetchSleepBatch(for date: Date) async throws -> [WhoopSleepData]
+    func fetchRecoveryBatch(start: Date, end: Date) async throws -> [WhoopRecoveryData]
+    func fetchSleepBatch(start: Date, end: Date) async throws -> [WhoopSleepData]
     func fetchSleep(for date: Date) async throws -> WhoopSleepData
     func fetchWorkouts(for date: Date) async throws -> [WhoopWorkoutData]
     func fetchCycle(for date: Date) async throws -> WhoopCycleData
