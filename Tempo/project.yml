@@ -4,7 +4,7 @@ options:
   deploymentTarget:
     iOS: "17.4"
     watchOS: "10.0"
-  xcodeVersion: "16.0"
+  xcodeVersion: "26.5"
   generateEmptyDirectories: true
   groupSortPosition: top
 

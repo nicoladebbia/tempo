@@ -1072,12 +1072,6 @@ struct DashboardView: View {
         }
     }
 
-    // MARK: - Score Trend Sparkline
-
-    
-
-    
-
     // MARK: - Card Shell
 
     @Environment(\.colorScheme)

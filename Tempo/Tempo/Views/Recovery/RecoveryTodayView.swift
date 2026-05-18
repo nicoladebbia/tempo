@@ -322,18 +322,6 @@ struct RecoveryTodayView: View {
         }
     }
 
-    // MARK: - Prescription Section
-
-    // Per MODULE_RECOVERY.md Section 4.4
-
-    
-
-    // MARK: - Recovery Prescription Card
-
-    // Per MODULE_RECOVERY.md Section 3.2
-
-    
-
     // MARK: - Quick Insights Section
 
     // Per MODULE_RECOVERY.md Section 4.5
@@ -548,10 +536,6 @@ struct RecoveryTodayView: View {
         }
     }
 
-    // MARK: - Sleep Goal Detail (Task 1)
-
-    
-
     // MARK: - Helpers
 
     private var zoneColor: Color {
@@ -561,8 +545,6 @@ struct RecoveryTodayView: View {
         case .red: Color.tempoRecoveryRed
         }
     }
-
-    
 }
 
 // MARK: - MetricType
