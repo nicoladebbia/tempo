@@ -23,6 +23,14 @@ struct SubscriptionMiddleware: AsyncMiddleware {
     func respond(to request: Request, chainingTo next: AsyncResponder) async throws -> Response {
         let userID = try request.auth.requireUserID()
 
+        // 0. Allowlist bypass. Comma-separated Apple user IDs in the
+        // PRO_ALLOWLIST env var get full access with no subscription and no
+        // AI-consent gate — used to grant the operator(s) their own access
+        // without a purchase. Empty/unset env var = allowlist disabled.
+        if try await isAllowlisted(userID: userID, on: request) {
+            return try await next.respond(to: request)
+        }
+
         // 1. Resolve subscription (Redis cache → Postgres fallback).
         let isPro = try await isUserPro(userID: userID, on: request)
         guard isPro else {
@@ -36,6 +44,29 @@ struct SubscriptionMiddleware: AsyncMiddleware {
         }
 
         return try await next.respond(to: request)
+    }
+
+    // MARK: - Allowlist
+
+    /// True when the authenticated user's `apple_user_id` appears in the
+    /// PRO_ALLOWLIST env var (comma-separated). Stable across reinstalls
+    /// because it keys on the Apple Sign-In identifier, not the row id.
+    private func isAllowlisted(userID: String, on req: Request) async throws -> Bool {
+        guard let raw = Environment.get("PRO_ALLOWLIST"), !raw.isEmpty else {
+            return false
+        }
+        let allow = Set(
+            raw.split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+        )
+        guard !allow.isEmpty else {
+            return false
+        }
+        guard let user = try await User.find(userID, on: req.db) else {
+            return false
+        }
+        return allow.contains(user.appleUserID)
     }
 
     // MARK: - Subscription lookup
