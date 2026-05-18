@@ -47,10 +47,7 @@ struct DashboardView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                Color.tempoBgPrimary
-                    .ignoresSafeArea()
-
+            Group {
                 if let viewModel {
                     switch viewModel.loadState {
                     case .loading where !hasAppeared:
@@ -76,6 +73,8 @@ struct DashboardView: View {
                     DashboardLoadingView()
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.tempoBgPrimary)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -274,6 +273,7 @@ struct DashboardView: View {
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
         }
+        .background(Color.tempoBgPrimary)
         .safeAreaInset(edge: .bottom) {
             Color.clear.frame(height: 16)
         }
