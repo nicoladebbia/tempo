@@ -33,12 +33,12 @@ struct OnboardingContainerView: View {
                         .padding(.top, TempoSpacing.md)
                 }
 
-                // Step content — fills remaining space. Opacity-only transition
-                // avoids the mid-animation clipping artifact that `.move(edge:)`
-                // produces inside a constrained safe-area frame.
+                // Step content — fills remaining space. Opacity-only
+                // transition; `.scale`/`.move` here caused overflow artifacts
+                // on device, so keep it plain opacity.
                 stepContent
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                    .transition(.opacity)
             }
         }
         .preferredColorScheme(.dark)

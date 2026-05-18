@@ -22,6 +22,10 @@ struct OnboardingAuthView: View {
     private var isSigningIn = false
     @State
     private var errorMessage: String?
+    /// Raw (un-hashed) nonce generated in the SIWA button's onRequest
+    /// closure. Sent to the backend in onCompletion to verify the token.
+    @State
+    private var pendingNonce: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -62,24 +66,26 @@ struct OnboardingAuthView: View {
                     .tint(.white)
                     .scaleEffect(1.2)
             } else {
-                // The system SIWA button is required by App Store Review
-                // Guideline 4.8, but its own onCompletion would fire a
-                // SECOND ASAuthorizationController on top of the one
-                // AuthService.signInWithApple() drives — two Apple sheets,
-                // a nonce-less token the backend rejects, and a hung flow.
-                // Disable the button's own hit-testing and let a single
-                // outer Button drive AuthService's correct nonce flow once.
-                Button {
-                    Task { await signIn() }
-                } label: {
-                    SignInWithAppleButton(.signIn, onRequest: { _ in }, onCompletion: { _ in })
-                        .signInWithAppleButtonStyle(.white)
-                        .allowsHitTesting(false)
-                        .frame(height: 50)
-                        .frame(maxWidth: 320)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                // Use SignInWithAppleButton's OWN flow. Wrapping it in an
+                // outer Button (even with allowsHitTesting(false) on the
+                // inner button) caused the UIKit-backed control to swallow
+                // the tap on iOS 26 — the button was dead. The native
+                // onRequest/onCompletion path handles its own touch and is
+                // the App-Store-compliant pattern. We set the nonce in
+                // onRequest and exchange the result via AuthService —
+                // crucially WITHOUT firing a second ASAuthorizationController.
+                SignInWithAppleButton(.signIn) { request in
+                    let nonce = services.authService.makeNonce()
+                    pendingNonce = nonce.raw
+                    request.requestedScopes = [.fullName, .email]
+                    request.nonce = nonce.hashed
+                } onCompletion: { result in
+                    Task { await handleAppleResult(result) }
                 }
-                .buttonStyle(.plain)
+                .signInWithAppleButtonStyle(.white)
+                .frame(height: 50)
+                .frame(maxWidth: 320)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .padding(.horizontal, TempoSpacing.xl)
                 .accessibilityLabel("Sign in with Apple")
             }
@@ -102,22 +108,33 @@ struct OnboardingAuthView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func signIn() async {
+    private func handleAppleResult(_ result: Result<ASAuthorization, Error>) async {
         isSigningIn = true
         errorMessage = nil
+        defer { isSigningIn = false }
 
-        do {
-            try await services.authService.signInWithApple()
-            // Success! Advance to next screen
-            viewModel.advance()
-        } catch AuthService.AuthError.signInCancelled {
-            // User cancelled — no error to show
-            errorMessage = nil
-        } catch {
-            errorMessage = "Sign in failed. Please try again."
+        switch result {
+        case let .success(authorization):
+            guard let nonce = pendingNonce else {
+                errorMessage = "Sign in failed. Please try again."
+                return
+            }
+            do {
+                try await services.authService.completeAppleSignIn(
+                    authorization: authorization,
+                    nonce: nonce
+                )
+                viewModel.advance()
+            } catch {
+                errorMessage = "Sign in failed. Please try again."
+            }
+        case let .failure(error):
+            if (error as? ASAuthorizationError)?.code == .canceled {
+                errorMessage = nil
+            } else {
+                errorMessage = "Sign in failed. Please try again."
+            }
         }
-
-        isSigningIn = false
     }
 }
 

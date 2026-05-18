@@ -125,8 +125,8 @@ struct ClassScheduleView: View {
         .sheet(isPresented: $showAdd) {
             ClassBlockEditor(
                 existing: nil,
-                onSave: { newBlock in
-                    viewModel.classBlocks.append(newBlock)
+                onSave: { newBlocks in
+                    viewModel.classBlocks.append(contentsOf: newBlocks)
                     showAdd = false
                 },
                 onCancel: { showAdd = false }
@@ -135,9 +135,14 @@ struct ClassScheduleView: View {
         .sheet(item: $editing) { block in
             ClassBlockEditor(
                 existing: block,
-                onSave: { updated in
-                    if let idx = viewModel.classBlocks.firstIndex(where: { $0.id == updated.id }) {
-                        viewModel.classBlocks[idx] = updated
+                onSave: { updatedBlocks in
+                    // Replace the edited block in place; if the user picked
+                    // extra days, the additional blocks follow it.
+                    if let idx = viewModel.classBlocks.firstIndex(where: { $0.id == block.id }) {
+                        viewModel.classBlocks.remove(at: idx)
+                        viewModel.classBlocks.insert(contentsOf: updatedBlocks, at: idx)
+                    } else {
+                        viewModel.classBlocks.append(contentsOf: updatedBlocks)
                     }
                     editing = nil
                 },
@@ -205,10 +210,15 @@ struct ClassScheduleView: View {
 
 private struct ClassBlockEditor: View {
     let existing: OnboardingClassBlock?
-    let onSave: (OnboardingClassBlock) -> Void
+    /// Returns one block per selected weekday (same course + time). In add
+    /// mode all are appended; in edit mode they replace the edited block.
+    let onSave: ([OnboardingClassBlock]) -> Void
     let onCancel: () -> Void
 
-    @State private var weekday: Int = 2 // Monday default
+    // A class commonly recurs on several weekdays at the same time
+    // (e.g. Mon/Wed/Fri 09:00–10:30). Multi-select the days; each becomes
+    // its own ClassBlock so the scheduler can treat them per-day.
+    @State private var weekdays: Set<Int> = [2] // Monday default
     @State private var startMinutes: Int = 9 * 60
     @State private var endMinutes: Int = 10 * 60 + 30
     @State private var courseCode: String = ""
@@ -225,12 +235,29 @@ private struct ClassBlockEditor: View {
                     TextField("Full name (optional)", text: $courseName)
                     TextField("Location (optional)", text: $location)
                 }
-                Section("Time") {
-                    Picker("Day", selection: $weekday) {
+                Section("Days") {
+                    // Tap each weekday the class meets (e.g. Mon/Wed/Fri).
+                    HStack(spacing: 6) {
                         ForEach(1 ... 7, id: \.self) { d in
-                            Text(weekdayLabel(d)).tag(d)
+                            let on = weekdays.contains(d)
+                            Button {
+                                if on { weekdays.remove(d) } else { weekdays.insert(d) }
+                            } label: {
+                                Text(weekdayShort(d))
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(on ? .black : .white)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 38)
+                                    .background(on ? Color.tempoAmber : Color.white.opacity(0.1))
+                                    .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+                }
+                Section("Time") {
                     minutesTimePickerRow("Starts", minutes: $startMinutes)
                     minutesTimePickerRow("Ends", minutes: $endMinutes)
                 }
@@ -243,24 +270,35 @@ private struct ClassBlockEditor: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        let block = OnboardingClassBlock(
-                            id: existing?.id ?? UUID(),
-                            weekday: weekday,
-                            startMinuteOfDay: startMinutes,
-                            endMinuteOfDay: endMinutes,
-                            courseCode: courseCode.trimmingCharacters(in: .whitespaces),
-                            courseName: courseName.isEmpty ? nil : courseName,
-                            location: location.isEmpty ? nil : location
-                        )
-                        onSave(block)
+                        let code = courseCode.trimmingCharacters(in: .whitespaces)
+                        // One block per selected weekday. The first reuses
+                        // the edited block's id (so edit replaces in place);
+                        // any extra days get fresh ids.
+                        let sortedDays = weekdays.sorted()
+                        let blocks = sortedDays.enumerated().map { idx, day in
+                            OnboardingClassBlock(
+                                id: idx == 0 ? (existing?.id ?? UUID()) : UUID(),
+                                weekday: day,
+                                startMinuteOfDay: startMinutes,
+                                endMinuteOfDay: endMinutes,
+                                courseCode: code,
+                                courseName: courseName.isEmpty ? nil : courseName,
+                                location: location.isEmpty ? nil : location
+                            )
+                        }
+                        onSave(blocks)
                     }
-                    .disabled(courseCode.trimmingCharacters(in: .whitespaces).isEmpty || endMinutes <= startMinutes)
+                    .disabled(
+                        courseCode.trimmingCharacters(in: .whitespaces).isEmpty
+                            || endMinutes <= startMinutes
+                            || weekdays.isEmpty
+                    )
                 }
             }
         }
         .onAppear {
             if let e = existing {
-                weekday = e.weekday
+                weekdays = [e.weekday]
                 startMinutes = e.startMinuteOfDay
                 endMinutes = e.endMinuteOfDay
                 courseCode = e.courseCode
@@ -541,6 +579,12 @@ private func minutesTimePickerRow(_ label: String, minutes: Binding<Int>) -> som
 
 private func weekdayLabel(_ weekday: Int) -> String {
     let names = ["", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    return names[max(1, min(7, weekday))]
+}
+
+/// Two-letter day label for the compact 7-across day selector.
+private func weekdayShort(_ weekday: Int) -> String {
+    let names = ["", "Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
     return names[max(1, min(7, weekday))]
 }
 

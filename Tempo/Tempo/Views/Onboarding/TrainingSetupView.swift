@@ -82,7 +82,14 @@ struct TrainingSetupView: View {
                             .font(.system(size: 14, weight: .medium))
                             .foregroundStyle(.white)
 
-                        HStack(spacing: TempoSpacing.xs) {
+                        // FlowLayout (not HStack): 7 fixed-36pt circles in an
+                        // HStack have a combined intrinsic width that cannot
+                        // compress, forcing this card's VStack — and via the
+                        // ScrollView, the whole screen — wider than the device
+                        // (content rendered 516pt on a 402pt screen, shifted
+                        // off the left edge). FlowLayout lets the circles wrap.
+                        // Same bug class as GoalSetupView's wheel→compact fix.
+                        FlowLayout(spacing: TempoSpacing.xs, lineSpacing: TempoSpacing.xs) {
                             ForEach(1 ... 7, id: \.self) { day in
                                 Button {
                                     viewModel.daysPerWeek = day
@@ -155,7 +162,12 @@ struct TrainingSetupView: View {
                     .padding(.horizontal, TempoSpacing.screenEdge)
                 }
 
-                Spacer()
+                // A bare Spacer() here is broken: inside a ScrollView the
+                // content gets unbounded height, so an unconstrained Spacer
+                // mis-sizes the stack and the YES content overflows the
+                // screen instead of scrolling. Use a fixed gap so the
+                // Continue button sits a consistent distance below content.
+                Spacer().frame(height: TempoSpacing.xl)
 
                 HStack {
                     OnboardingSkipButton { viewModel.skip() }

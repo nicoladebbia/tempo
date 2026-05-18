@@ -1300,12 +1300,26 @@ struct FlowLayout: Layout {
     var lineSpacing: CGFloat
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let result = layout(proposal: proposal, subviews: subviews)
+        // A nil proposed width (common when this Layout sits in a
+        // ScrollView, especially on-device) must NOT become .infinity —
+        // that disables wrapping, lays every chip on one infinite row, and
+        // forces the whole parent wider than the screen (content clips off
+        // both edges on device while the simulator happens to propose a
+        // concrete width). Resolve unspecified dims to a concrete width.
+        let width = proposal.replacingUnspecifiedDimensions().width
+        let result = layout(
+            proposal: ProposedViewSize(width: width, height: proposal.height),
+            subviews: subviews
+        )
         return result.size
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let result = layout(proposal: proposal, subviews: subviews)
+        // bounds.width is always concrete here — wrap against it.
+        let result = layout(
+            proposal: ProposedViewSize(width: bounds.width, height: proposal.height),
+            subviews: subviews
+        )
         for (index, position) in result.positions.enumerated() {
             subviews[index].place(
                 at: CGPoint(x: bounds.minX + position.x, y: bounds.minY + position.y),

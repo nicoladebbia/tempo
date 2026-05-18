@@ -90,6 +90,18 @@ struct AuthTokenResponse: Codable {
     let refreshToken: String
     let tokenType: String
     let expiresIn: Int
+
+    // The backend serializes all JSON with
+    // `keyEncodingStrategy = .convertToSnakeCase`, so these arrive as
+    // access_token / refresh_token / etc. The app's decoder uses no global
+    // key strategy (other DTOs already spell their keys snake_case), so
+    // map them explicitly here — matching codebase convention.
+    enum CodingKeys: String, CodingKey {
+        case accessToken = "access_token"
+        case refreshToken = "refresh_token"
+        case tokenType = "token_type"
+        case expiresIn = "expires_in"
+    }
 }
 
 // MARK: - SyncStatusResponse

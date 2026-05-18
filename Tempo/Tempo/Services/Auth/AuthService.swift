@@ -64,7 +64,25 @@ final class AuthService: NSObject {
             controller.delegate = self
             controller.performRequests()
         }
+        try await completeAppleSignIn(authorization: authorization, nonce: nonce)
+    }
 
+    /// Generate a fresh nonce and its SHA-256 hash for a SIWA request. The
+    /// caller (a `SignInWithAppleButton.onRequest` closure) sets the hash on
+    /// the request; the raw nonce must be passed back to
+    /// `completeAppleSignIn` so the backend can verify it against the token.
+    func makeNonce() -> (raw: String, hashed: String) {
+        let nonce = generateNonce()
+        currentNonce = nonce
+        return (nonce, sha256(nonce))
+    }
+
+    /// Exchange an already-obtained Apple authorization for backend tokens.
+    /// Used by the native `SignInWithAppleButton` flow, which presents its
+    /// own controller — so there is NO second `ASAuthorizationController`
+    /// here. `signInWithApple()` (manual-controller flow) funnels through
+    /// this same method after its continuation resolves.
+    func completeAppleSignIn(authorization: ASAuthorization, nonce: String) async throws {
         guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
               let identityTokenData = credential.identityToken,
               let identityToken = String(data: identityTokenData, encoding: .utf8),

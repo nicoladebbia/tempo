@@ -62,6 +62,11 @@ final class ServiceContainer {
     ) {
         self.apiClient = apiClient
         self.authService = authService
+        // AuthService is created without an APIClient (to break the
+        // init cycle); wire it here so sign-in/refresh can reach the
+        // backend. Without this, completeAppleSignIn throws
+        // AuthError.notConfigured and Apple sign-in silently fails.
+        authService.configure(apiClient: apiClient)
         self.healthKit = healthKit
         self.whoop = whoop
         self.calendar = calendar
