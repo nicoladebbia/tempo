@@ -45,6 +45,9 @@ struct DashboardSettingsView: View {
     @State private var showDeleteConfirm = false
     @State private var isDeletingAccount = false
     @State private var deleteAccountError: String?
+    @State private var showPaywall = false
+    @State private var isRestoring = false
+    @State private var restoreError: String?
 
     var body: some View {
         List {
@@ -200,6 +203,47 @@ struct DashboardSettingsView: View {
             // in-app. The warning copy is the canonical
             // `settings_delete_warning` string in UX_COPY_BIBLE.md §28.
 
+            Section("Subscription") {
+                HStack {
+                    Label("Plan", systemImage: "crown.fill")
+                        .font(.tempoSubheadline)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                    Spacer()
+                    Text(subscriptionStatusText)
+                        .font(.tempoDataSmall)
+                        .foregroundStyle(
+                            services.subscriptions.isPro
+                                ? Color.tempoSuccess : Color.tempoTextTertiary
+                        )
+                }
+
+                if !services.subscriptions.isPro {
+                    Button {
+                        showPaywall = true
+                    } label: {
+                        Label("Subscribe to Pro", systemImage: "sparkles")
+                            .font(.tempoSubheadline)
+                            .foregroundStyle(Color.tempoSignal)
+                    }
+                }
+
+                Button {
+                    Task { await restorePurchases() }
+                } label: {
+                    Label("Restore Purchases", systemImage: "arrow.clockwise")
+                        .font(.tempoSubheadline)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                }
+                .disabled(isRestoring)
+
+                if let restoreError {
+                    Text(restoreError)
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoError)
+                }
+            }
+            .listRowBackground(Color.tempoSurfaceCard)
+
             Section("Account") {
                 Button {
                     showDeleteConfirm = true
@@ -275,6 +319,41 @@ struct DashboardSettingsView: View {
             Button("OK", role: .cancel) { deleteAccountError = nil }
         } message: {
             Text(deleteAccountError ?? "")
+        }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
+        }
+    }
+
+    // MARK: - Subscription
+
+    private var subscriptionStatusText: String {
+        switch services.subscriptions.state {
+        case .free:
+            "Free"
+        case .trial:
+            "Pro · Trial"
+        case .active:
+            "Pro"
+        case .gracePeriod:
+            "Pro · Billing issue"
+        case .expired,
+             .churned:
+            "Expired"
+        }
+    }
+
+    @MainActor
+    private func restorePurchases() async {
+        guard !isRestoring else { return }
+        isRestoring = true
+        restoreError = nil
+        defer { isRestoring = false }
+
+        do {
+            try await services.subscriptions.restorePurchases()
+        } catch {
+            restoreError = error.localizedDescription
         }
     }
 
