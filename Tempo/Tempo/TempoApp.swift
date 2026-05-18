@@ -58,8 +58,9 @@ struct TempoApp: App {
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }
-        let apiClient = APIClient()
-        let serviceContainer = ServiceContainer.live(apiClient: apiClient)
+        // ServiceContainer.live builds the APIClient itself so it can wire
+        // the AuthInterceptor (Bearer-token attachment) at APIClient init.
+        let serviceContainer = ServiceContainer.live()
         _services = State(initialValue: serviceContainer)
 
         // Wire push registration service to AppDelegate

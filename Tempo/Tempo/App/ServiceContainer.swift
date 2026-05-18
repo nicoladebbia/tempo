@@ -110,8 +110,15 @@ final class ServiceContainer {
         )
     }
 
-    static func live(apiClient: APIClient) -> ServiceContainer {
+    static func live() -> ServiceContainer {
+        // Build the auth chain first so the APIClient is created WITH an
+        // interceptor. APIClient.authInterceptor is a `let` (set only at
+        // init); without this wiring no Bearer token is ever attached and
+        // every protected endpoint 401s ("Missing Authorization header.").
         let auth = AuthService()
+        let tokenProvider = AuthServiceTokenProvider(authService: auth)
+        let interceptor = AuthInterceptor(tokenProvider: tokenProvider)
+        let apiClient = APIClient(authInterceptor: interceptor)
         let healthKit = HealthKitService()
         return ServiceContainer(
             apiClient: apiClient,
