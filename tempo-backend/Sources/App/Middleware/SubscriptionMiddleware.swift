@@ -65,8 +65,10 @@ struct SubscriptionMiddleware: AsyncMiddleware {
             return false
         }
         guard let user = try await User.find(userID, on: req.db) else {
+            req.logger.info("[allowlist] userID=\(userID) NOT FOUND in users table; entries=\(entries.count)")
             return false
         }
+        req.logger.info("[allowlist] check userID=\(userID) apple=\(user.appleUserID) username=\(user.username) entries=\(entries.joined(separator: "|"))")
 
         let exact = Set(entries)
         if exact.contains(user.appleUserID) {
