@@ -24,37 +24,68 @@ struct RecoveryAIInsightView: View {
     @State private var isLoading = false
     @State private var errorText: String?
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            TempoSectionHeader("Today's Read", accentColor: Color.tempoSignal)
+    // Weekly recap (Mondays only). nil until loaded / not Monday.
+    @State private var weeklyRecap: String?
+    @State private var isLoadingWeekly = false
 
-            Group {
-                if isLoading {
-                    loadingSkeleton
-                } else if let paragraph {
-                    Text(paragraph)
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-                } else if let errorText {
-                    Text(errorText)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                } else {
-                    Text("Connect WHOOP to get today's personalised read.")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+    var body: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.xl) {
+            // Weekly recap first (reflection on last week), Mondays only.
+            if isLoadingWeekly || weeklyRecap != nil {
+                VStack(alignment: .leading, spacing: TempoSpacing.md) {
+                    TempoSectionHeader("Last Week", accentColor: Color.tempoSignal)
+                    insightCard {
+                        if isLoadingWeekly {
+                            loadingSkeleton
+                        } else if let weeklyRecap {
+                            Text(weeklyRecap)
+                                .font(.tempoBody)
+                                .foregroundStyle(Color.tempoTextPrimary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
                 }
             }
+
+            // Daily read (action for today).
+            VStack(alignment: .leading, spacing: TempoSpacing.md) {
+                TempoSectionHeader("Today's Read", accentColor: Color.tempoSignal)
+                insightCard {
+                    if isLoading {
+                        loadingSkeleton
+                    } else if let paragraph {
+                        Text(paragraph)
+                            .font(.tempoBody)
+                            .foregroundStyle(Color.tempoTextPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else if let errorText {
+                        Text(errorText)
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                    } else {
+                        Text("Connect WHOOP to get today's personalised read.")
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                    }
+                }
+            }
+        }
+        .task(id: recovery?.id) {
+            // Sequential, not concurrent — avoids two Haiku calls racing in
+            // the same task on a Monday cache-miss.
+            await loadWeeklyRecap()
+            await load()
+        }
+    }
+
+    @ViewBuilder
+    private func insightCard(@ViewBuilder _ content: () -> some View) -> some View {
+        content()
             .padding(TempoSpacing.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.tempoSurfaceCard)
             .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
             .tempoShadow(.card)
-        }
-        .task(id: recovery?.id) {
-            await load()
-        }
     }
 
     private var loadingSkeleton: some View {
@@ -93,5 +124,18 @@ struct RecoveryAIInsightView: View {
             errorText = (error as? RecoveryAIInsightError)?.errorDescription
                 ?? error.localizedDescription
         }
+    }
+
+    @MainActor
+    private func loadWeeklyRecap() async {
+        let svc = service ?? RecoveryAIInsightService(apiClient: services.apiClient)
+        service = svc
+
+        isLoadingWeekly = true
+        defer { isLoadingWeekly = false }
+
+        // Returns nil when it isn't Monday or there's <3 days of data —
+        // the card simply doesn't render in that case.
+        weeklyRecap = try? await svc.weeklyRecap(modelContext: modelContext)
     }
 }

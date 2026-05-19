@@ -45,4 +45,7 @@ enum RecoveryInsightType: String, Codable, CaseIterable {
     /// AI-generated personalised daily paragraph (Haiku). Cached one row
     /// per calendar day; replaces the old static 2-day prescription text.
     case aiDailyParagraph
+    /// AI-generated weekly recap (Haiku), shown on Mondays. Cached one row
+    /// per week, keyed by that week's Monday `date`.
+    case aiWeeklyRecap
 }

@@ -198,6 +198,173 @@ final class RecoveryAIInsightService: @unchecked Sendable {
         return ctx
     }
 
+    // MARK: - Weekly recap (Mondays)
+
+    /// The Monday (start-of-day) that begins the week containing `date`.
+    /// Foundation weekday: Sunday=1 ... Saturday=7, so Monday=2.
+    private static func weekStartMonday(for date: Date) -> Date {
+        let cal = Calendar.current
+        let todayStart = cal.startOfDay(for: date)
+        let weekday = cal.component(.weekday, from: todayStart) // 1...7
+        // Days since Monday: Mon→0, Tue→1, ... Sun→6.
+        let daysSinceMonday = (weekday + 5) % 7
+        return cal.date(byAdding: .day, value: -daysSinceMonday, to: todayStart) ?? todayStart
+    }
+
+    /// Returns the cached or freshly-generated weekly recap, or nil when:
+    /// it isn't Monday, there are <3 days of recovery data in the trailing
+    /// 7 days, or the proxy call fails. Cached one row per week keyed by
+    /// that week's Monday `date` (so it's a hit all day Monday).
+    @MainActor
+    func weeklyRecap(modelContext: ModelContext) async throws -> String? {
+        let cal = Calendar.current
+        let now = Date()
+        // Foundation: Sunday=1, Monday=2.
+        guard cal.component(.weekday, from: now) == 2 else { return nil }
+
+        let monday = Self.weekStartMonday(for: now)
+        let typeRaw = RecoveryInsightType.aiWeeklyRecap.rawValue
+
+        // Cache hit: a recap row for this week's Monday already exists.
+        var cacheDesc = FetchDescriptor<RecoveryInsight>(
+            predicate: #Predicate { $0.typeRaw == typeRaw && $0.date == monday }
+        )
+        cacheDesc.fetchLimit = 1
+        if let cached = try? modelContext.fetch(cacheDesc).first {
+            logger.info("[weekly_recap] cache hit for week of \(monday) — no proxy call")
+            return cached.body
+        }
+
+        // Trailing 7 days: the week that just ended (the 7 days before today).
+        guard let windowStart = cal.date(byAdding: .day, value: -7, to: cal.startOfDay(for: now)) else {
+            return nil
+        }
+        let windowEnd = cal.startOfDay(for: now)
+
+        let recDesc = FetchDescriptor<DailyRecovery>(
+            predicate: #Predicate { $0.date >= windowStart && $0.date < windowEnd },
+            sortBy: [SortDescriptor(\.date, order: .forward)]
+        )
+        let recoveries = (try? modelContext.fetch(recDesc)) ?? []
+        guard recoveries.count >= 3 else {
+            logger.info("[weekly_recap] only \(recoveries.count) days of data — skipping")
+            return nil
+        }
+
+        let mealDesc = FetchDescriptor<MealLog>(
+            predicate: #Predicate { $0.dayDate >= windowStart && $0.dayDate < windowEnd }
+        )
+        let meals = (try? modelContext.fetch(mealDesc)) ?? []
+
+        let exDesc = FetchDescriptor<ExerciseHistory>(
+            predicate: #Predicate { $0.date >= windowStart && $0.date < windowEnd }
+        )
+        let exercises = (try? modelContext.fetch(exDesc)) ?? []
+
+        let runDesc = FetchDescriptor<RunSession>(
+            predicate: #Predicate { $0.date >= windowStart && $0.date < windowEnd }
+        )
+        let runs = (try? modelContext.fetch(runDesc)) ?? []
+
+        let accDesc = FetchDescriptor<DailyAccountability>(
+            predicate: #Predicate { $0.date >= windowStart && $0.date < windowEnd }
+        )
+        let accountability = (try? modelContext.fetch(accDesc)) ?? []
+
+        let prompt = Self.buildWeeklyPrompt(
+            recoveries: recoveries,
+            meals: meals,
+            exercises: exercises,
+            runs: runs,
+            accountability: accountability
+        )
+        let text = try await sendWithRetry(system: Self.weeklySystemPrompt, prompt: prompt)
+
+        let insight = RecoveryInsight(
+            date: monday,
+            type: .aiWeeklyRecap,
+            title: "Last Week",
+            body: text,
+            confidence: 1.0
+        )
+        modelContext.insert(insight)
+        try? modelContext.save()
+        return text
+    }
+
+    static let weeklySystemPrompt = """
+    You are Tempo's recovery coach writing a WEEKLY review on Monday \
+    morning. You get aggregate stats for the 7 days that just ended: \
+    recovery trend, sleep, training, nutrition, and how many \
+    non-negotiables the user hit. Write a reflective recap: 4-6 \
+    sentences, 100 words MAX. Call out the single clearest pattern of \
+    the week (good or bad), cite 2-3 concrete numbers, and name one \
+    thing that improved and one thing to fix this coming week. State \
+    adherence and trends as FACTS — never claim outcomes happened \
+    BECAUSE the user followed your advice; weekly noise is real. End \
+    with one specific focus for the week ahead. Plain text only: no \
+    markdown, asterisks, dashes-as-bullets, headings, or greeting. \
+    Output only the recap.
+    """
+
+    /// Aggregates the trailing-7-day window into a compact fact sheet.
+    static func buildWeeklyPrompt(
+        recoveries: [DailyRecovery],
+        meals: [MealLog],
+        exercises: [ExerciseHistory],
+        runs: [RunSession],
+        accountability: [DailyAccountability]
+    ) -> String {
+        var lines: [String] = []
+
+        let scores = recoveries.map(\.recoveryScore)
+        if let first = scores.first, let last = scores.last, !scores.isEmpty {
+            let avg = scores.reduce(0, +) / Double(scores.count)
+            lines.append(String(format: "- Recovery: %d days logged, avg %.0f%%, started %.0f%% ended %.0f%%",
+                                 scores.count, avg, first, last))
+        }
+        let sleeps = recoveries.compactMap(\.sleepHours)
+        if !sleeps.isEmpty {
+            lines.append(String(format: "- Sleep: avg %.1f h/night over %d nights",
+                                 sleeps.reduce(0, +) / Double(sleeps.count), sleeps.count))
+        }
+        let strains = recoveries.compactMap(\.strain)
+        if !strains.isEmpty {
+            lines.append(String(format: "- Avg day strain: %.1f", strains.reduce(0, +) / Double(strains.count)))
+        }
+        if !meals.isEmpty {
+            let kcal = meals.reduce(0) { $0 + $1.totalCalories }
+            let protein = meals.reduce(0) { $0 + $1.totalProtein }
+            let loggedDays = Set(meals.map(\.dayDate)).count
+            lines.append(String(format: "- Nutrition: logged on %d days, total %.0f kcal, %.0fg protein",
+                                 loggedDays, kcal, protein))
+        }
+        if !exercises.isEmpty {
+            let volume = exercises.reduce(0) { $0 + $1.totalVolume }
+            let trainDays = Set(exercises.map(\.date)).count
+            lines.append("- Training: \(trainDays) days, \(exercises.count) exercises, \(Int(volume)) total volume")
+        }
+        if !runs.isEmpty {
+            let km = runs.reduce(0) { $0 + $1.distanceMeters } / 1000.0
+            lines.append(String(format: "- Running: %d runs, %.1f km total", runs.count, km))
+        }
+        if !accountability.isEmpty {
+            let done = accountability.reduce(0) { $0 + $1.completedCount }
+            let total = accountability.reduce(0) { $0 + $1.totalCount }
+            if total > 0 {
+                lines.append("- Non-negotiables: \(done)/\(total) hit across \(accountability.count) days")
+            }
+        }
+
+        return """
+        Aggregate stats for the 7 days that just ended:
+        \(lines.joined(separator: "\n"))
+
+        Write the weekly recap described in the system instructions using \
+        ONLY the values above.
+        """
+    }
+
     // MARK: - Prompt
 
     /// Builds a structured prompt containing every available WHOOP field for
