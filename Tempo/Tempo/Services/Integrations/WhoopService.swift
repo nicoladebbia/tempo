@@ -208,13 +208,17 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
             throw WhoopError.notConnected
         }
 
+        // Per RFC 6749 §6: a refresh_token grant accepts ONLY grant_type,
+        // refresh_token, and (optionally) scope. `redirect_uri` is invalid here
+        // — it belongs to the authorization_code grant. Whoop rejects the extra
+        // param with 400 invalid_request, which the catch-as-terminal branch
+        // below then treats as a dead token and clears it, disconnecting the
+        // user on every access-token expiry. Send only the legal params.
         let body = [
             "grant_type": "refresh_token",
             "refresh_token": refreshToken,
             "client_id": cID,
             "client_secret": cSecret,
-            "redirect_uri": OAuth.redirectURI,
-            "scope": OAuth.scopes,
         ]
 
         let tokenResponse: WhoopTokenResponse
