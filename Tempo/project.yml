@@ -108,6 +108,7 @@ targets:
               - tempo
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+        UIRequiresFullScreen: true
         UIUserInterfaceStyle: Dark
         UILaunchScreen:
           UIColorName: tempo-bg-primary
