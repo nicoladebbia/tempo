@@ -661,6 +661,9 @@ struct TrainingSettingsDetailView: View {
         allSettings.first
     }
 
+    /// Mon-first to match the ActiveDays bitmask (index 0 = Monday = 1<<0).
+    private let footballDayLabels = ["M", "T", "W", "T", "F", "S", "S"]
+
     @State
     private var trainingSplit: TrainingSplit = .pushPullLegs
     @State
@@ -684,14 +687,41 @@ struct TrainingSettingsDetailView: View {
                     save()
                 }
 
-                HStack {
-                    Label("Football Days", systemImage: "sportscourt.fill")
-                        .font(.tempoSubheadline)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                    Spacer()
-                    Text("\(settings?.footballDays.rawValue.nonzeroBitCount ?? 0)/week")
-                        .font(.tempoSubheadline)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+                    HStack {
+                        Label("Football Days", systemImage: "sportscourt.fill")
+                            .font(.tempoSubheadline)
+                            .foregroundStyle(Color.tempoTextPrimary)
+                        Spacer()
+                        Text("\(settings?.footballDays.rawValue.nonzeroBitCount ?? 0)/week")
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                    }
+
+                    // Editable day chips (was a read-only label — no input
+                    // existed, so it was stuck at 0/week). Mon=1<<0 … Sun=1<<6.
+                    HStack(spacing: TempoSpacing.xs) {
+                        ForEach(Array(footballDayLabels.enumerated()), id: \.offset) { index, dayLabel in
+                            let bit = 1 << index
+                            let isOn = ((settings?.footballDaysRaw ?? 0) & bit) != 0
+                            Button {
+                                guard let s = settings else { return }
+                                s.footballDaysRaw ^= bit
+                                save()
+                                HapticManager.selection()
+                            } label: {
+                                Text(dayLabel)
+                                    .font(.tempoCaption1)
+                                    .fontWeight(.semibold)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 36)
+                                    .background(isOn ? Color.tempoSignal : Color.tempoBgSecondary)
+                                    .foregroundStyle(isOn ? .white : Color.tempoTextSecondary)
+                                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.sm, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                 }
 
                 Picker(selection: Binding(
