@@ -59,8 +59,18 @@ final class RecoveryAIInsightService: @unchecked Sendable {
             return cached
         }
 
-        let prompt = Self.buildPrompt(from: recovery)
-        let text = try await sendWithRetry(prompt: prompt)
+        // Longitudinal read when yesterday's context exists; otherwise the
+        // today-only read (cold-start / reinstall / missed day).
+        let prompt: String
+        let system: String
+        if let yctx = yesterdayContext(modelContext: modelContext) {
+            prompt = Self.buildLongitudinalPrompt(today: recovery, yesterday: yctx)
+            system = Self.longitudinalSystemPrompt
+        } else {
+            prompt = Self.buildPrompt(from: recovery)
+            system = Self.systemPrompt
+        }
+        let text = try await sendWithRetry(system: system, prompt: prompt)
 
         let insight = RecoveryInsight(
             date: Calendar.current.startOfDay(for: Date()),
@@ -98,6 +108,94 @@ final class RecoveryAIInsightService: @unchecked Sendable {
         )
         descriptor.fetchLimit = 1
         return (try? modelContext.fetch(descriptor))?.first?.body
+    }
+
+    // MARK: - Yesterday context (longitudinal)
+
+    /// Everything we know about yesterday: the read we gave, the WHOOP
+    /// numbers, what was eaten/trained, and which non-negotiables were hit.
+    /// All fields optional — a sparse day still produces useful context.
+    struct YesterdayContext {
+        var tipGiven: String?
+        var recovery: DailyRecovery
+        var mealCalories: Double?
+        var mealProtein: Double?
+        var mealCount: Int
+        var trainedExercises: Int
+        var trainingVolume: Double
+        var ranKm: Double?
+        var nonNegotiablesDone: Int?
+        var nonNegotiablesTotal: Int?
+    }
+
+    /// Assembles yesterday's context, or nil when there's no yesterday
+    /// recovery row (cold-start / reinstall / missed day) — caller then
+    /// falls back to the today-only prompt.
+    @MainActor
+    func yesterdayContext(modelContext: ModelContext) -> YesterdayContext? {
+        let cal = Calendar.current
+        let yStart = cal.date(byAdding: .day, value: -1, to: cal.startOfDay(for: Date())) ?? Date()
+        guard let yEnd = cal.date(byAdding: .day, value: 1, to: yStart) else { return nil }
+
+        // Yesterday's recovery is the anchor — no row → no longitudinal read.
+        var recDesc = FetchDescriptor<DailyRecovery>(
+            predicate: #Predicate { $0.date == yStart }
+        )
+        recDesc.fetchLimit = 1
+        guard let rec = try? modelContext.fetch(recDesc).first else { return nil }
+
+        var ctx = YesterdayContext(
+            recovery: rec, mealCount: 0, trainedExercises: 0, trainingVolume: 0
+        )
+
+        // The tip we gave yesterday (the .aiDailyParagraph for that day).
+        let typeRaw = RecoveryInsightType.aiDailyParagraph.rawValue
+        var tipDesc = FetchDescriptor<RecoveryInsight>(
+            predicate: #Predicate { i in
+                i.typeRaw == typeRaw && i.date >= yStart && i.date < yEnd
+            },
+            sortBy: [SortDescriptor(\.date, order: .reverse)]
+        )
+        tipDesc.fetchLimit = 1
+        ctx.tipGiven = (try? modelContext.fetch(tipDesc).first)?.body
+
+        // Nutrition — MealLog.dayDate is day-normalized (== match).
+        let mealDesc = FetchDescriptor<MealLog>(
+            predicate: #Predicate { $0.dayDate == yStart }
+        )
+        if let meals = try? modelContext.fetch(mealDesc), !meals.isEmpty {
+            ctx.mealCount = meals.count
+            ctx.mealCalories = meals.reduce(0) { $0 + $1.totalCalories }
+            ctx.mealProtein = meals.reduce(0) { $0 + $1.totalProtein }
+        }
+
+        // Training — ExerciseHistory.date is day-normalized; RunSession.date
+        // is NOT, so it needs a range.
+        let exDesc = FetchDescriptor<ExerciseHistory>(
+            predicate: #Predicate { $0.date == yStart }
+        )
+        if let ex = try? modelContext.fetch(exDesc), !ex.isEmpty {
+            ctx.trainedExercises = ex.count
+            ctx.trainingVolume = ex.reduce(0) { $0 + $1.totalVolume }
+        }
+        let runDesc = FetchDescriptor<RunSession>(
+            predicate: #Predicate { $0.date >= yStart && $0.date < yEnd }
+        )
+        if let runs = try? modelContext.fetch(runDesc), !runs.isEmpty {
+            ctx.ranKm = runs.reduce(0) { $0 + $1.distanceMeters } / 1000.0
+        }
+
+        // Adherence — DailyAccountability.date is day-normalized.
+        var accDesc = FetchDescriptor<DailyAccountability>(
+            predicate: #Predicate { $0.date == yStart }
+        )
+        accDesc.fetchLimit = 1
+        if let acc = try? modelContext.fetch(accDesc).first {
+            ctx.nonNegotiablesDone = acc.completedCount
+            ctx.nonNegotiablesTotal = acc.totalCount
+        }
+
+        return ctx
     }
 
     // MARK: - Prompt
@@ -152,16 +250,95 @@ final class RecoveryAIInsightService: @unchecked Sendable {
     headings, no greeting. Output only the read, nothing else.
     """
 
+    // MARK: - Longitudinal prompt (yesterday → today)
+
+    static let longitudinalSystemPrompt = """
+    You are Tempo's recovery coach. You get yesterday's read you gave the \
+    user, what they actually did yesterday (sleep, food, training, which \
+    daily non-negotiables they hit), and today's WHOOP numbers. Write a \
+    SHORT read: 3-4 sentences, 70 words MAX. First, connect yesterday to \
+    today: note what they did yesterday and how today's recovery looks \
+    relative to it, referencing 1-2 concrete facts (e.g. "you hit your \
+    bedtime and protein; recovery climbed to 78"). You MAY note if they \
+    followed or skipped yesterday's advice, but state it as fact — NEVER \
+    claim their day is good or bad BECAUSE they listened to you; recovery \
+    is noisy and causation is often false. Then give ONE concrete action \
+    for today. Direct and specific, not exhaustive. Plain text only: no \
+    markdown, asterisks, dashes-as-bullets, headings, or greeting. Output \
+    only the read.
+    """
+
+    /// Builds the longitudinal user message: yesterday's tip + what the
+    /// user actually did + today's WHOOP. Sparse yesterday fields are
+    /// omitted so the model only reasons over real data.
+    static func buildLongitudinalPrompt(
+        today: DailyRecovery,
+        yesterday y: YesterdayContext
+    ) -> String {
+        var yLines: [String] = []
+        func add(_ label: String, _ value: String?) {
+            if let value, !value.isEmpty { yLines.append("- \(label): \(value)") }
+        }
+
+        add("Recovery score", "\(Int(y.recovery.recoveryScore))%")
+        add("Sleep duration", y.recovery.sleepHours.map { String(format: "%.1f h", $0) })
+        add("Sleep consistency", y.recovery.sleepConsistency.map { String(format: "%.0f%%", $0) })
+        add("Day strain", y.recovery.strain.map { String(format: "%.1f", $0) })
+        if let kcal = y.mealCalories, y.mealCount > 0 {
+            add("Food logged", String(format: "%.0f kcal, %.0fg protein across %d meals",
+                                      kcal, y.mealProtein ?? 0, y.mealCount))
+        }
+        if y.trainedExercises > 0 {
+            add("Training", "\(y.trainedExercises) exercises, \(Int(y.trainingVolume)) total volume")
+        }
+        if let km = y.ranKm, km > 0 {
+            add("Run", String(format: "%.1f km", km))
+        }
+        if let done = y.nonNegotiablesDone, let total = y.nonNegotiablesTotal, total > 0 {
+            add("Non-negotiables hit", "\(done)/\(total)")
+        }
+
+        var tLines: [String] = []
+        func addT(_ label: String, _ value: String?) {
+            if let value, !value.isEmpty { tLines.append("- \(label): \(value)") }
+        }
+        addT("Recovery score", "\(Int(today.recoveryScore))%")
+        addT("HRV (RMSSD)", today.hrvRmssd.map { String(format: "%.0f ms", $0) })
+        addT("Resting heart rate", today.restingHR.map { String(format: "%.0f bpm", $0) })
+        addT("Sleep duration", today.sleepHours.map { String(format: "%.1f h", $0) })
+        addT("Sleep consistency", today.sleepConsistency.map { String(format: "%.0f%%", $0) })
+        addT("Sleep debt", today.sleepDebt.map { String(format: "%.1f h", $0) })
+        addT("Day strain", today.strain.map { String(format: "%.1f", $0) })
+
+        let tip = (y.tipGiven?.isEmpty == false)
+            ? y.tipGiven!
+            : "(no read was given yesterday)"
+
+        return """
+        The read you gave the user YESTERDAY:
+        "\(tip)"
+
+        What the user actually did YESTERDAY:
+        \(yLines.joined(separator: "\n"))
+
+        The user's WHOOP data TODAY:
+        \(tLines.joined(separator: "\n"))
+
+        Write the longitudinal read described in the system instructions \
+        using ONLY the values above.
+        """
+    }
+
     // MARK: - Proxy call (mirrors NutritionCoachService.sendWithRetry)
 
-    private func sendWithRetry(prompt: String) async throws -> String {
+    private func sendWithRetry(system: String, prompt: String) async throws -> String {
         var lastError: Error?
 
         for attempt in 0 ... maxRetries {
             do {
                 let body = NutritionProxyTextRequest(
                     model: "haiku",
-                    system: Self.systemPrompt,
+                    system: system,
                     userMessage: prompt,
                     maxTokens: 400,
                     temperature: 0.4,
