@@ -740,6 +740,11 @@ struct DashboardView: View {
                             value: data.formattedActiveCalories,
                             valueColor: .tempoTextPrimary
                         )
+                        miniMetricAnimated(
+                            label: "Strain",
+                            value: data.formattedStrain,
+                            valueColor: .tempoTextPrimary
+                        )
                     }
 
                     progressBar(

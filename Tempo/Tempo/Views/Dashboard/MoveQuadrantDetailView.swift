@@ -175,6 +175,12 @@ struct MoveQuadrantDetailView: View {
                     label: "Active Cal",
                     subtitle: nil
                 )
+
+                activityCard(
+                    value: data.formattedStrain,
+                    label: "Strain",
+                    subtitle: nil
+                )
             }
 
             // Steps progress bar

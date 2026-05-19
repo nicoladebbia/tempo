@@ -386,6 +386,7 @@ struct MoveQuadrantData {
     var steps: Int?
     var stepsTarget: Int
     var activeCalories: Int?
+    var strain: Double?
     var heartRateCurrent: Int?
     var isConnected: Bool
     var lastSync: Date?
@@ -418,6 +419,13 @@ struct MoveQuadrantData {
             return "--"
         }
         return "\(activeCalories) cal"
+    }
+
+    var formattedStrain: String {
+        guard let strain else {
+            return "--"
+        }
+        return String(format: "%.1f", strain)
     }
 
     var formattedHeartRate: String {
@@ -797,45 +805,35 @@ final class DashboardViewModel {
         var rhr: Double?
         var hkSleepData: SleepData
         var workouts: [WorkoutSample]
-        do {
-            async let hkSteps = healthKit.fetchSteps(for: today)
-            async let hkActiveEnergy = healthKit.fetchActiveEnergy(for: today)
-            async let hkHeartRate = healthKit.fetchHeartRate(for: today)
-            async let hkHRV = healthKit.fetchHRV(for: today)
-            async let hkRHR = healthKit.fetchRestingHeartRate(for: today)
-            async let hkSleep = healthKit.fetchSleepAnalysis(for: today)
-            async let hkWorkouts = healthKit.fetchWorkouts(for: today)
-            steps = try await hkSteps
-            energy = try await hkActiveEnergy
-            heartRates = try await hkHeartRate
-            hrv = try await hkHRV
-            rhr = try await hkRHR
-            hkSleepData = try await hkSleep
-            workouts = try await hkWorkouts
-        } catch {
-            // HealthKit error code 11 = "No data available for the specified
-            // predicate" — that's a normal empty-result case (e.g. fresh
-            // Simulator with no health data), not a fetch failure. Other
-            // errors still get logged.
-            let nsErr = error as NSError
-            let isEmptyResult = nsErr.domain == "com.apple.healthkit" && nsErr.code == 11
-            #if DEBUG
-                if !isEmptyResult {
-                    print("[Dashboard] HealthKit fetch failed: \(error) — using defaults")
-                }
-            #endif
-            steps = 0
-            energy = 0
-            heartRates = []
-            hrv = nil
-            rhr = nil
-            hkSleepData = SleepData(
-                totalHours: 0, deepSleepMinutes: 0, remSleepMinutes: 0,
-                lightSleepMinutes: 0, awakeMinutes: 0, sleepEfficiency: 0,
-                bedtime: nil, wakeTime: nil
-            )
-            workouts = []
-        }
+        // Fetch all HealthKit metrics concurrently, but await each in its own
+        // do/catch so one metric's failure can't wipe the others. A bare
+        // `async let … ; try await` group aborts on the FIRST throw — and
+        // `fetchHeartRate` (descriptor-based) throws HealthKit error code 11
+        // ("No data available") on empty results, which on an iPhone without
+        // an Apple Watch is *every* refresh. That previously discarded a
+        // successfully-fetched step count (the zero-steps bug). HealthKit's
+        // empty-result throw is a normal "no data" case, not a fetch failure;
+        // each helper already returns a sane empty default on its own, so we
+        // just fall back to that default per-metric here.
+        async let hkSteps = healthKit.fetchSteps(for: today)
+        async let hkActiveEnergy = healthKit.fetchActiveEnergy(for: today)
+        async let hkHeartRate = healthKit.fetchHeartRate(for: today)
+        async let hkHRV = healthKit.fetchHRV(for: today)
+        async let hkRHR = healthKit.fetchRestingHeartRate(for: today)
+        async let hkSleep = healthKit.fetchSleepAnalysis(for: today)
+        async let hkWorkouts = healthKit.fetchWorkouts(for: today)
+
+        steps = (try? await hkSteps) ?? 0
+        energy = (try? await hkActiveEnergy) ?? 0
+        heartRates = (try? await hkHeartRate) ?? []
+        hrv = (try? await hkHRV) ?? nil
+        rhr = (try? await hkRHR) ?? nil
+        hkSleepData = (try? await hkSleep) ?? SleepData(
+            totalHours: 0, deepSleepMinutes: 0, remSleepMinutes: 0,
+            lightSleepMinutes: 0, awakeMinutes: 0, sleepEfficiency: 0,
+            bedtime: nil, wakeTime: nil
+        )
+        workouts = (try? await hkWorkouts) ?? []
 
         // Aggregate today's MealLog records from SwiftData (native nutrition).
         let nutritionTotals = fetchNutritionTotalsForToday()
@@ -994,13 +992,21 @@ final class DashboardViewModel {
             workoutDuration = nil
         }
 
+        // Steps: HealthKit only (Whoop does not expose steps natively).
+        // Calories + strain: Whoop only (via backend proxy `fetchCycle`).
+        // When Whoop is unavailable, these stay nil so the Move block
+        // renders "--" instead of a misleading zero.
+        let whoopCalories = cycle.map { Int($0.caloriesBurned) }
+        let whoopStrain = cycle?.dayStrain
+
         move = MoveQuadrantData(
             workoutStatus: workoutStatus,
             workoutName: workoutName,
             workoutDurationMinutes: workoutDuration,
             steps: steps,
             stepsTarget: 10000,
-            activeCalories: Int(energy),
+            activeCalories: whoopCalories,
+            strain: whoopStrain,
             heartRateCurrent: latestHR,
             isConnected: healthKitConnected || !workouts.isEmpty,
             lastSync: now
@@ -1067,6 +1073,7 @@ final class DashboardViewModel {
             steps: move.steps,
             stepsTarget: move.stepsTarget,
             activeCalories: move.activeCalories,
+            strain: move.strain,
             heartRateCurrent: move.heartRateCurrent,
             isConnected: move.isConnected,
             lastSync: move.lastSync
