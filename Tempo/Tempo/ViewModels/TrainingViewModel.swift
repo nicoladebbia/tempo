@@ -6,6 +6,7 @@
 //
 //
 
+import AudioToolbox
 import Foundation
 import SwiftData
 import SwiftUI
@@ -73,6 +74,11 @@ final class TrainingViewModel {
     var elapsedSeconds: TimeInterval = 0
     var totalPauseDuration: TimeInterval = 0
     var detectedPRs: [PersonalRecord] = []
+
+    /// The working set just completed via `logSet`. The session view observes
+    /// this to present `SetFeedbackSheet` for that exact set. Reset to nil
+    /// once feedback is captured or the sheet is dismissed.
+    var lastCompletedSet: PlannedSet?
 
     // MARK: - Rest Timer
 
@@ -207,9 +213,39 @@ final class TrainingViewModel {
         currentSetIndex = 0
         detectedPRs = []
 
-        // Transition to first exercise
-        sessionState = .exercise(.setActive(exerciseIndex: 0, setIndex: 0))
+        // Per STATE_MACHINES.md §1 lines 153–154: idle → warmup if the first
+        // exercise has warmup sets, else idle → exercise.setActive directly.
+        let firstExercise = plan.orderedExercises.first
+        let hasWarmup = (firstExercise?.orderedSets ?? []).contains { $0.isWarmup }
+        if hasWarmup {
+            sessionState = .warmup(exerciseIndex: 0, warmupSetIndex: 0)
+        } else {
+            sessionState = .exercise(.setActive(exerciseIndex: 0, setIndex: 0))
+        }
         startElapsedTimer()
+    }
+
+    // MARK: - Advance Past Warmup
+
+    // Per STATE_MACHINES.md §1 line 158 — warmup → exercise.setActive once
+    // the user taps "Ready — Start Working Sets". Warmup sets are display-only
+    // guidance (info-screen-then-skip): we jump to the first non-warmup set so
+    // warmup is never logged and never counts toward volume/history.
+
+    func advancePastWarmup() {
+        guard case .warmup = sessionState, let plan = todayPlan else {
+            return
+        }
+        let exercises = plan.orderedExercises
+        guard let first = exercises.first else {
+            sessionState = .cooldown
+            return
+        }
+        let sets = first.orderedSets
+        let firstWorkingIndex = sets.firstIndex { !$0.isWarmup } ?? 0
+        currentExerciseIndex = 0
+        currentSetIndex = firstWorkingIndex
+        sessionState = .exercise(.setActive(exerciseIndex: 0, setIndex: firstWorkingIndex))
     }
 
     // MARK: - Resume from Crash Recovery
@@ -292,6 +328,10 @@ final class TrainingViewModel {
         set.rpe = rpe
         set.completed = true
         set.completedAt = Date()
+
+        // Surface the just-completed set so the session view can present
+        // SetFeedbackSheet for exactly this set (Phase 3, done_when #12).
+        lastCompletedSet = set
 
         // Persist immediately (crash recovery)
         try? modelContext.save()
@@ -419,7 +459,7 @@ final class TrainingViewModel {
 
     // Per STATE_MACHINES.md — summary → saved
 
-    func saveWorkout(modelContext: ModelContext) async {
+   func saveWorkout(modelContext: ModelContext) async {
         guard let plan = todayPlan else {
             return
         }
@@ -427,6 +467,35 @@ final class TrainingViewModel {
         plan.status = .completed
         plan.finishedAt = Date()
         plan.durationMinutes = Int(elapsedSeconds / 60)
+
+        // Per build done_when #11 — write one ExerciseHistory record per
+        // exercise that had at least one completed working set. Warmup sets
+        // are excluded (they are never marked completed). This is the trend
+        // signal future workout generation reads.
+        let sessionDate = plan.finishedAt ?? Date()
+        for plannedEx in plan.orderedExercises {
+            guard let exercise = plannedEx.exercise else { continue }
+            let completedSets = (plannedEx.sets ?? []).filter { $0.completed && !$0.isWarmup }
+            guard !completedSets.isEmpty else { continue }
+
+            let totalVolume = completedSets.reduce(0.0) { acc, set in
+                guard let w = set.actualWeight, let r = set.actualReps else { return acc }
+                return acc + (w * Double(r))
+            }
+            let best = completedSets.max { ($0.actualWeight ?? 0) < ($1.actualWeight ?? 0) }
+            let best1RM = completedSets.compactMap(\.estimated1RM).max()
+
+            let history = ExerciseHistory(
+                date: sessionDate,
+                estimated1RM: best1RM,
+                totalVolume: totalVolume,
+                bestSetWeight: best?.actualWeight,
+                bestSetReps: best?.actualReps,
+                setsPerformed: completedSets.count,
+                exercise: exercise
+            )
+            modelContext.insert(history)
+        }
 
         // Persist to SwiftData
         try? modelContext.save()
@@ -713,7 +782,7 @@ final class TrainingViewModel {
 
     private static let restTimerNotificationID = "tempo.rest.timer"
 
-    private func startRestTimer(duration: TimeInterval, nextAction: RestNextAction) {
+   private func startRestTimer(duration: TimeInterval, nextAction: RestNextAction) {
         stopRestTimer()
         restTimerTotal = duration
         restTimerRemaining = duration
@@ -728,15 +797,29 @@ final class TrainingViewModel {
                 guard !Task.isCancelled else {
                     return
                 }
+                let previous = restTimerRemaining
                 restTimerRemaining = max(0, restTimerRemaining - 1)
+                // T-10s audible cue: fire once as the timer crosses 11→10
+                // (only when the rest period is long enough to have a T-10).
+                if previous > 10, restTimerRemaining == 10 {
+                    Self.playRestCue()
+                }
             }
             guard !Task.isCancelled else {
                 return
             }
-            // Timer complete
+            // Timer complete (T-0): second beep + haptic, then advance.
+            Self.playRestCue()
             HapticManager.notification(.warning)
             self?.advanceAfterRest()
         }
+    }
+
+    /// Short system tone used for the rest-timer T-10s and T-0s cues so the
+    /// user can rest with the phone locked. `AudioToolbox` is a system
+    /// framework (no SPM dependency). 1057 is a short, crisp tone.
+    private static func playRestCue() {
+        AudioServicesPlaySystemSound(1057)
     }
 
     private func stopRestTimer() {
@@ -1205,6 +1288,23 @@ final class TrainingViewModel {
             return (frequency: settings.deloadFrequencyWeeks, startDate: startDate)
         }
         return (frequency: 5, startDate: nil)
+
+    // MARK: - Historical Set Feedback
+
+    // Per build done_when #14 — read path so future workout generation (AI
+    // prompts) can incorporate historical difficulty signals. Returns the
+    // most recent `SetFeedback` records, newest first, optionally capped.
+
+    func recentSetFeedback(
+        limit: Int = 50,
+        modelContext: ModelContext
+    ) -> [SetFeedback] {
+        var descriptor = FetchDescriptor<SetFeedback>(
+            sortBy: [SortDescriptor(\.capturedAt, order: .reverse)]
+        )
+        descriptor.fetchLimit = limit
+        return (try? modelContext.fetch(descriptor)) ?? []
+    }
     }
 
     private func loadRecoveryScore(modelContext: ModelContext) -> Double? {

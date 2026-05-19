@@ -8,6 +8,7 @@
 
 import SwiftData
 import SwiftUI
+import UserNotifications
 
 // MARK: - Today's Workout View
 
@@ -27,6 +28,51 @@ struct TodayWorkoutView: View {
     private var allSettings: [UserSettings]
     @State
     private var showMobilityAlert = false
+    @Environment(ServiceContainer.self)
+    private var services
+    /// Suggested free workout window for today (Phase 4). nil = not loaded
+    /// or none found.
+    @State
+    private var suggestedWindow: DateInterval?
+    /// A workout event already saved to the calendar for today (future
+    /// start). When set, the banner shows a live countdown instead of the
+    /// suggestion.
+    @State
+    private var savedWorkoutEvent: DateInterval?
+    @State
+    private var showAddToCalendar = false
+    /// Drives the once-a-minute countdown refresh.
+    @State
+    private var now = Date()
+
+    private let countdownTick = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
+
+    /// Reminder is scheduled at most once per saved-event start.
+    private static let workoutReminderID = "tempo.workout.reminder"
+
+    /// Stable identifier of the workout event we saved, plus the day it was
+    /// saved for (yyyy-MM-dd). The day-stamp guards against a stale
+    /// yesterday-ID binding to today's banner.
+    @AppStorage("tempo.workout.eventID")
+    private var savedEventID = ""
+    @AppStorage("tempo.workout.eventID.day")
+    private var savedEventDay = ""
+
+    /// Today's date key for the day-stamp comparison.
+    private var todayKey: String {
+        let f = DateFormatter()
+        f.calendar = Calendar.current
+        f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: Date())
+    }
+
+    /// The persisted event id, but only if it was saved for today.
+    private var validEventID: String? {
+        guard savedEventDay == todayKey, !savedEventID.isEmpty else {
+            return nil
+        }
+        return savedEventID
+    }
 
     private var settings: UserSettings? {
         allSettings.first
@@ -64,6 +110,90 @@ struct TodayWorkoutView: View {
         .task {
             await viewModel.loadToday(modelContext: modelContext)
         }
+        .task {
+            await refreshWorkoutSchedule()
+        }
+        .onReceive(countdownTick) { tick in
+            now = tick
+            // Saved event has started — drop the banner.
+            if let ev = savedWorkoutEvent, ev.start <= tick {
+                savedWorkoutEvent = nil
+            }
+        }
+        .sheet(isPresented: $showAddToCalendar, onDismiss: {
+            // Re-read the calendar after the editor closes so a just-saved
+            // event flips the banner into countdown mode.
+            Task { await refreshWorkoutSchedule() }
+        }) {
+            if let window = suggestedWindow {
+                WorkoutEventEditView(
+                    window: window,
+                    workoutTitle: viewModel.workoutTypeDisplayName,
+                    onSaved: { id in
+                        if let id {
+                            savedEventID = id
+                            savedEventDay = todayKey
+                        }
+                    }
+                )
+            }
+        }
+    }
+
+    // MARK: - Workout Schedule Loading
+
+    /// Loads both the saved workout event (countdown source) and the
+    /// suggested free window (fallback). Schedules the 30-min reminder when a
+    /// future saved event exists; clears it otherwise.
+    private func refreshWorkoutSchedule() async {
+        let saved = await services.calendar.todaysWorkoutEvent(
+            for: Date(),
+            matchingID: validEventID
+        )
+        savedWorkoutEvent = saved
+        if let saved {
+            scheduleWorkoutReminder(start: saved.start)
+        } else {
+            // No event resolved (deleted, past, or none) — clear stale
+            // persistence so a dead ID can't shadow a future re-add.
+            savedEventID = ""
+            savedEventDay = ""
+            cancelWorkoutReminder()
+            suggestedWindow = await services.calendar.suggestWorkoutWindow(for: Date())
+        }
+    }
+
+    private func scheduleWorkoutReminder(start: Date) {
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: [Self.workoutReminderID])
+
+        let fireDate = start.addingTimeInterval(-30 * 60)
+        guard fireDate > Date() else {
+            return // less than 30 min away — no point scheduling
+        }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Gym in 30 min"
+        content.body = "Get moving — your workout window is coming up."
+        content.sound = .default
+        content.interruptionLevel = .timeSensitive
+
+        let comps = Calendar.current.dateComponents(
+            [.year, .month, .day, .hour, .minute],
+            from: fireDate
+        )
+        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: Self.workoutReminderID,
+            content: content,
+            trigger: trigger
+        )
+        center.add(request) { _ in }
+    }
+
+    private func cancelWorkoutReminder() {
+        UNUserNotificationCenter.current()
+            .removePendingNotificationRequests(withIdentifiers: [Self.workoutReminderID])
     }
 
     // MARK: - Workout Content
@@ -76,6 +206,14 @@ struct TodayWorkoutView: View {
             // Deload week banner
             if viewModel.isDeloadWeek {
                 deloadBanner
+            }
+
+            // Saved-event countdown takes precedence over the suggestion;
+            // both are non-blocking (Phase 4 + follow-up).
+            if let saved = savedWorkoutEvent {
+                workoutCountdownBanner(saved)
+            } else if let window = suggestedWindow {
+                workoutWindowBanner(window)
             }
 
             // Recovery badge bar
@@ -137,6 +275,107 @@ struct TodayWorkoutView: View {
             RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous)
                 .stroke(Color.tempoRecoveryYellow.opacity(0.3), lineWidth: 1)
         )
+    }
+
+    // MARK: - Workout Window Banner
+
+    // Per build done_when #16 — non-blocking suggestion banner.
+
+    private func workoutWindowBanner(_ window: DateInterval) -> some View {
+        HStack(spacing: TempoSpacing.sm) {
+            Image(systemName: "calendar.badge.clock")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(Color.tempoSignal)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("BEST WINDOW TODAY")
+                    .font(.tempoCaption2)
+                    .tracking(TempoTracking.drillLabel)
+                    .foregroundStyle(Color.tempoTextSecondary)
+
+                Text("\(timeString(window.start)) – \(timeString(window.end))")
+                    .font(.tempoHeadline)
+                    .foregroundStyle(Color.tempoTextPrimary)
+            }
+
+            Spacer()
+
+            Button {
+                showAddToCalendar = true
+                HapticManager.selection()
+            } label: {
+                Text("Add to Calendar")
+                    .font(.tempoCaption1)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.tempoTextInverse)
+                    .padding(.horizontal, TempoSpacing.sm)
+                    .padding(.vertical, TempoSpacing.xs)
+                    .background(Color.tempoSignal)
+                    .clipShape(Capsule())
+            }
+        }
+        .padding(.horizontal, TempoSpacing.md)
+        .padding(.vertical, TempoSpacing.sm)
+        .background(Color.tempoSignal.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous)
+                .stroke(Color.tempoSignal.opacity(0.3), lineWidth: 1)
+        )
+    }
+
+    // MARK: - Workout Countdown Banner
+
+    // Shown once an event is saved to the calendar: live "Gym in Xh Ym"
+    // counting down to the saved start, refreshed each minute by
+    // `countdownTick`. Clears itself when the start passes.
+
+    private func workoutCountdownBanner(_ event: DateInterval) -> some View {
+        HStack(spacing: TempoSpacing.sm) {
+            Image(systemName: "figure.run")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(Color.tempoSignal)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("NEXT WORKOUT")
+                    .font(.tempoCaption2)
+                    .tracking(TempoTracking.drillLabel)
+                    .foregroundStyle(Color.tempoTextSecondary)
+
+                Text("Gym in \(countdownString(to: event.start)) — \(timeString(event.start))")
+                    .font(.tempoHeadline)
+                    .foregroundStyle(Color.tempoTextPrimary)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, TempoSpacing.md)
+        .padding(.vertical, TempoSpacing.sm)
+        .background(Color.tempoSignal.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous)
+                .stroke(Color.tempoSignal.opacity(0.3), lineWidth: 1)
+        )
+    }
+
+    /// "3h 32m" / "47m" / "soon" — derived from `now` so it re-renders on
+    /// each `countdownTick`.
+    private func countdownString(to start: Date) -> String {
+        let remaining = Int(start.timeIntervalSince(now))
+        guard remaining > 0 else {
+            return "soon"
+        }
+        let hours = remaining / 3600
+        let minutes = (remaining % 3600) / 60
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        }
+        return "\(max(minutes, 1))m"
+    }
+
+    private func timeString(_ date: Date) -> String {
+        date.formatted(.dateTime.hour().minute())
     }
 
     // MARK: - Recovery Badge

@@ -23,12 +23,7 @@ struct CookingCapacityStepView: View {
             onCancel: coordinator.cancel
         ) {
             VStack(spacing: TempoSpacing.lg) {
-                HStack(spacing: TempoSpacing.md) {
-                    ForEach(0 ... 7, id: \.self) { day in
-                        button(for: day)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .center)
+                dayPicker
 
                 VStack(alignment: .leading, spacing: TempoSpacing.xs) {
                     Text(footerLabel)
@@ -41,7 +36,26 @@ struct CookingCapacityStepView: View {
         }
     }
 
-    private func button(for day: Int) -> some View {
+    private static let dayCount = 8
+    private static let interButtonSpacing = TempoSpacing.sm
+    private static let maxDiameter: CGFloat = 44
+
+    private var dayPicker: some View {
+        GeometryReader { geo in
+            let totalSpacing = Self.interButtonSpacing * CGFloat(Self.dayCount - 1)
+            let fitDiameter = (geo.size.width - totalSpacing) / CGFloat(Self.dayCount)
+            let diameter = max(28, min(Self.maxDiameter, fitDiameter))
+            HStack(spacing: Self.interButtonSpacing) {
+                ForEach(0 ..< Self.dayCount, id: \.self) { day in
+                    button(for: day, diameter: diameter)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
+        }
+        .frame(height: Self.maxDiameter)
+    }
+
+    private func button(for day: Int, diameter: CGFloat) -> some View {
         let selected = coordinator.intake.cookableDaysThisWeek == day
         return Button {
             HapticManager.selection()
@@ -49,11 +63,13 @@ struct CookingCapacityStepView: View {
         } label: {
             Text("\(day)")
                 .font(.system(size: 17, weight: .semibold, design: .monospaced))
+                .minimumScaleFactor(0.6)
                 .foregroundStyle(selected ? Color.tempoTextInverse : Color.tempoTextPrimary)
-                .frame(width: 36, height: 36)
+                .frame(width: diameter, height: diameter)
                 .background(selected ? Color.tempoSignal : Color.tempoSurfaceElevated)
                 .clipShape(Circle())
         }
+        .buttonStyle(.plain)
     }
 
     private var footerLabel: String {

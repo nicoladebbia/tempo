@@ -195,12 +195,51 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
         return try await forceTokenRefresh()
     }
 
+    // Serializes token refresh across concurrent callers. Whoop rotates
+    // refresh tokens (single-use): if two callers refresh in parallel they
+    // race for the same stored refresh token — the first consumes it and
+    // saves new tokens, the second POSTs the now-spent token, gets 400, and
+    // the terminal-error branch clears the *good* tokens the first call just
+    // saved. On cold launch `TempoApp.refreshIfNeeded()`,
+    // `checkConnectionOnLaunch()`, and the Dashboard fetch path all hit this
+    // at once. Coalesce: concurrent callers await the one in-flight refresh.
+    private let refreshLock = NSLock()
+    private var inFlightRefresh: Task<String, Error>?
+
     /// Refresh the access token using the stored refresh token.
     /// Used by validAccessToken() and as a retry mechanism on 401.
+    /// Concurrent callers share a single in-flight refresh (see above) so the
+    /// single-use refresh token is consumed exactly once.
+    private func forceTokenRefresh() async throws -> String {
+        // Synchronous check-and-set only — never await while holding the lock.
+        // Either join the in-flight refresh or become the one that runs it.
+        let task: Task<String, Error> = refreshLock.withLock {
+            if let existing = inFlightRefresh {
+                return existing
+            }
+            let newTask = Task { try await performTokenRefresh() }
+            inFlightRefresh = newTask
+            return newTask
+        }
+
+        defer {
+            refreshLock.withLock {
+                // Only the originating caller clears the slot; joiners leave
+                // a still-running refresh in place for others.
+                if inFlightRefresh == task {
+                    inFlightRefresh = nil
+                }
+            }
+        }
+        return try await task.value
+    }
+
     /// Phase 3: Whoop rotates refresh tokens (single-use), so the new refresh
     /// token MUST be persisted atomically. Transient network errors retry once;
     /// terminal HTTP errors (400/401) clear tokens and surface .error state.
-    private func forceTokenRefresh() async throws -> String {
+    /// Always invoked through `forceTokenRefresh()`'s coalescing guard — never
+    /// call this directly or the single-use-token race returns.
+    private func performTokenRefresh() async throws -> String {
         guard let refreshToken = storedRefreshToken,
               let cID = clientID,
               let cSecret = clientSecret

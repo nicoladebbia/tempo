@@ -17,14 +17,15 @@ if [[ "$FILE_PATH" != "$PROJECT_DIR"* ]]; then
     exit 2
 fi
 
-# 2. Block writes to protected files (docs should not be modified during build)
-if [[ "$FILE_PATH" == */docs/DESIGN_SYSTEM.md ]] || \
-   [[ "$FILE_PATH" == */docs/DATA_MODELS_IOS.md ]] || \
-   [[ "$FILE_PATH" == */docs/STATE_MACHINES.md ]] || \
-   [[ "$FILE_PATH" == */docs/CROSS_DOC_AUDIT.md ]] || \
-   [[ "$FILE_PATH" == */docs/TECHNICAL_FEASIBILITY_AUDIT.md ]] || \
-   [[ "$FILE_PATH" == */docs/UX_COPY_BIBLE.md ]]; then
-    echo "BLOCKED: Cannot modify specification docs during build. These are read-only references." >&2
+# 2. Block writes to the remaining read-only audit references.
+# NOTE (2026-05-19): the module/spec docs (DESIGN_SYSTEM, DATA_MODELS_IOS,
+# STATE_MACHINES, UX_COPY_BIBLE, the MODULE_* set, etc.) were reconciled into
+# AS-BUILT documentation describing the actual codebase. They are no longer
+# aspirational specs, so they are no longer write-protected. The two files
+# below remain protected because they are meta-audits, not specs.
+if [[ "$FILE_PATH" == */docs/CROSS_DOC_AUDIT.md ]] || \
+   [[ "$FILE_PATH" == */docs/TECHNICAL_FEASIBILITY_AUDIT.md ]]; then
+    echo "BLOCKED: Cannot modify audit reference docs. These are read-only references." >&2
     exit 2
 fi
 

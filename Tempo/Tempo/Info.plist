@@ -2,22 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>ANTHROPIC_API_KEY</key>
+	<string>__ANTHROPIC_API_KEY__</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.tempo.healthkit-sync</string>
 		<string>com.tempo.data-sync</string>
 		<string>com.tempo.daily-reset</string>
 	</array>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>fetch</string>
-		<string>remote-notification</string>
-		<string>processing</string>
-	</array>
-	<key>NSSupportsLiveActivities</key>
-	<true/>
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleExecutable</key>
@@ -28,8 +20,6 @@
 	<string>6.0</string>
 	<key>CFBundleName</key>
 	<string>$(PRODUCT_NAME)</string>
-	<key>CFBundleDisplayName</key>
-	<string>$(BUNDLE_DISPLAY_NAME)</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -49,22 +39,25 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<key>TEMPO_API_BASE_URL</key>
-	<string>__TEMPO_API_BASE_URL__</string>
-	<key>TEMPO_ENVIRONMENT</key>
-	<string>__TEMPO_ENVIRONMENT__</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Tempo uses the camera to scan grocery receipts so it can fill your pantry and price-track items automatically.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Tempo reads receipts from your photo library to import them into your pantry.</string>
-	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>Tempo reads your calendar to flag meals that fall during busy blocks as "portable only" so you can prep ahead.</string>
-	<key>NSCalendarsUsageDescription</key>
-	<string>Tempo reads your calendar to flag meals that fall during busy blocks as "portable only" so you can prep ahead.</string>
 	<key>NSRemindersFullAccessUsageDescription</key>
 	<string>Tempo can save your weekly grocery list to Reminders so you can check items off while shopping.</string>
 	<key>NSRemindersUsageDescription</key>
 	<string>Tempo can save your weekly grocery list to Reminders so you can check items off while shopping.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>TEMPO_API_BASE_URL</key>
+	<string>__TEMPO_API_BASE_URL__</string>
+	<key>TEMPO_ENVIRONMENT</key>
+	<string>__TEMPO_ENVIRONMENT__</string>
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string>tempo-bg-primary</string>
+	</dict>
 	<key>UIRequiresFullScreen</key>
 	<true/>
 	<key>UISupportedInterfaceOrientations</key>
@@ -73,10 +66,5 @@
 	</array>
 	<key>UIUserInterfaceStyle</key>
 	<string>Dark</string>
-	<key>UILaunchScreen</key>
-	<dict>
-		<key>UIColorName</key>
-		<string>tempo-bg-primary</string>
-	</dict>
 </dict>
 </plist>

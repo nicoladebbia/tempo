@@ -19,6 +19,22 @@ protocol CalendarServiceProtocol: Sendable {
     /// Persist an exam-tagged event to the user's default calendar.
     /// Returns false if calendar access is denied or the event cannot be saved.
     func addExam(name: String, date: Date) async throws -> Bool
+
+    /// Largest free contiguous block of >= 45 minutes within the waking
+    /// window (08:00-22:00) of the given day, derived from the user's
+    /// calendar events. Returns nil if no qualifying gap exists or access
+    /// is denied. Requests calendar access lazily on first use.
+    func suggestWorkoutWindow(for date: Date) async -> DateInterval?
+
+    /// The user's saved workout event for `date` whose start is still in
+    /// the future. Drives the live countdown banner. Resolution order:
+    /// 1. If `matchingID` resolves to a real event today with a future
+    ///    start, use it (robust — survives the user renaming the event).
+    /// 2. Otherwise fall back to the title heuristic (title ends with
+    ///    "Workout"), so manually-created or pre-persistence events still
+    ///    bind.
+    /// Returns nil if none / already started / access denied.
+    func todaysWorkoutEvent(for date: Date, matchingID: String?) async -> DateInterval?
 }
 
 // MARK: - CalendarEvent

@@ -30,6 +30,26 @@ struct ActiveWorkoutView: View {
     private var inputRPE: Int?
     @State
     private var showFinishConfirmation = false
+    @Query
+    private var allSettings: [UserSettings]
+
+    /// User weight-unit preference. The stepper edits a *display* value in
+    /// this unit; storage stays kg (converted at the log boundary) so
+    /// volume/PR/history math is never corrupted.
+    private var weightUnit: WeightUnit {
+        allSettings.first?.weightUnit ?? .kg
+    }
+
+    /// Stepper increment in the display unit: 2.5 kg vs a realistic 5 lb
+    /// plate jump.
+    private var weightStep: Double {
+        weightUnit == .kg ? 2.5 : 5
+    }
+
+    /// Upper bound in the display unit (≈ 500 kg).
+    private var weightRangeMax: Double {
+        weightUnit == .kg ? 500 : 1100
+    }
 
     var body: some View {
         ZStack {
@@ -41,6 +61,9 @@ struct ActiveWorkoutView: View {
 
                 // Content based on state
                 switch viewModel.sessionState {
+                case .warmup:
+                    warmupContent
+
                 case .exercise(.setActive):
                     setActiveContent
 
@@ -92,6 +115,20 @@ struct ActiveWorkoutView: View {
         .onAppear { loadCurrentSetInputs() }
         .onChange(of: viewModel.currentExerciseIndex) { _, _ in loadCurrentSetInputs() }
         .onChange(of: viewModel.currentSetIndex) { _, _ in loadCurrentSetInputs() }
+        // Per build done_when #12 — present SetFeedbackSheet for the set just
+        // completed via Finish Set. Cleared on dismiss; not re-prompted.
+        .sheet(
+            isPresented: Binding(
+                get: { viewModel.lastCompletedSet != nil },
+                set: { presented in
+                    if !presented { viewModel.lastCompletedSet = nil }
+                }
+            )
+        ) {
+            if let set = viewModel.lastCompletedSet {
+                SetFeedbackSheet(plannedSet: set)
+            }
+        }
     }
 
     // MARK: - Timer Bar
@@ -145,10 +182,10 @@ struct ActiveWorkoutView: View {
                         .foregroundStyle(Color.tempoTextTertiary)
                     NumberStepperView(
                         value: $inputWeight,
-                        range: 0 ... 500,
-                        step: 2.5,
-                        format: "%.1f",
-                        unit: "kg"
+                        range: 0 ... weightRangeMax,
+                        step: weightStep,
+                        format: weightUnit == .kg ? "%.1f" : "%.0f",
+                        unit: weightUnit.abbreviation
                     )
                 }
 
@@ -174,15 +211,17 @@ struct ActiveWorkoutView: View {
 
                 // Done button
                 Button {
+                    // inputWeight is in the user's display unit; persist kg.
+                    let weightKg = weightUnit.convert(inputWeight, to: .kg)
                     viewModel.logSet(
-                        weight: inputWeight,
+                        weight: weightKg,
                         reps: Int(inputReps),
                         rpe: inputRPE,
                         modelContext: modelContext
                     )
                     HapticManager.notification(.success)
                 } label: {
-                    Text("DONE")
+                    Text("Finish Set")
                         .font(.tempoHeadline)
                         .frame(maxWidth: .infinity)
                         .frame(height: 56)
@@ -195,6 +234,82 @@ struct ActiveWorkoutView: View {
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.vertical, TempoSpacing.lg)
         }
+    }
+
+    // MARK: - Warmup Content
+
+    // Per STATE_MACHINES.md §1 and build done_when #7 — display-only warmup
+    // prompt. Lists the first exercise's warmup sets as target guidance;
+    // "Ready — Start Working Sets" skips straight to the first working set
+    // (warmup is never logged). Weights shown in kg to match the set-input
+    // stepper in this view (unit-aware input is out of scope here).
+
+    private var warmupContent: some View {
+        let firstExercise = viewModel.todayPlan?.orderedExercises.first
+        let warmupSets = (firstExercise?.orderedSets ?? []).filter(\.isWarmup)
+
+        return ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: TempoSpacing.xl) {
+                VStack(spacing: TempoSpacing.xs) {
+                    Text("WARM-UP")
+                        .font(.tempoCaption1)
+                        .tracking(TempoTracking.drillLabel)
+                        .foregroundStyle(Color.tempoTextTertiary)
+
+                    Text(firstExercise?.exercise?.name ?? "First Exercise")
+                        .font(.tempoTitle2)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                        .multilineTextAlignment(.center)
+
+                    Text("Two warm-up sets. Ramp up, then hit your working sets.")
+                        .font(.tempoBody)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.top, TempoSpacing.xl)
+
+                VStack(spacing: TempoSpacing.sm) {
+                    ForEach(Array(warmupSets.enumerated()), id: \.element.id) { index, set in
+                        HStack {
+                            Text("Set \(index + 1)")
+                                .font(.tempoHeadline)
+                                .foregroundStyle(Color.tempoTextSecondary)
+                            Spacer()
+                            Text(warmupTargetLabel(set))
+                                .font(.tempoHeadline)
+                                .monospacedDigit()
+                                .foregroundStyle(Color.tempoTextPrimary)
+                        }
+                        .padding(TempoSpacing.cardPadding)
+                        .background(Color.tempoSurfaceCard)
+                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+                    }
+                }
+                .padding(.horizontal, TempoSpacing.screenEdge)
+
+                Button {
+                    viewModel.advancePastWarmup()
+                    HapticManager.notification(.success)
+                } label: {
+                    Text("Ready — Start Working Sets")
+                        .font(.tempoHeadline)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                        .background(Color.tempoSignal)
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+                }
+                .padding(.horizontal, TempoSpacing.screenEdge)
+            }
+            .padding(.vertical, TempoSpacing.lg)
+        }
+    }
+
+    private func warmupTargetLabel(_ set: PlannedSet) -> String {
+        if let w = set.targetWeight, w > 0 {
+            return "\(Int(w)) kg × \(set.targetReps)"
+        }
+        return "Bodyweight × \(set.targetReps)"
     }
 
     // MARK: - Exercise Header
@@ -469,9 +584,13 @@ struct ActiveWorkoutView: View {
     // MARK: - Helpers
 
     private func loadCurrentSetInputs() {
-        // Per MODULE_TRAINING.md — sticky weight from previous set
-        if let sticky = viewModel.stickyWeight {
-            inputWeight = sticky
+        // Per MODULE_TRAINING.md — sticky weight from previous set.
+        // stickyWeight is kg-stored; convert to the display unit and snap to
+        // the stepper grid so the first +/- tap lands on a clean increment
+        // (a 60 kg sticky → 132.28 lb would otherwise step to 137.28).
+        if let stickyKg = viewModel.stickyWeight {
+            let display = WeightUnit.kg.convert(stickyKg, to: weightUnit)
+            inputWeight = (display / weightStep).rounded() * weightStep
         }
         if let targetReps = viewModel.currentSet?.targetReps {
             inputReps = Double(targetReps)

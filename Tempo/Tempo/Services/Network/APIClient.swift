@@ -155,6 +155,11 @@ actor APIClient {
                 throw APIError.notModified
 
             case 401:
+                #if DEBUG
+                    let serverReason = String(data: data, encoding: .utf8) ?? "<non-utf8 body>"
+                    let hadAuthHeader = request.value(forHTTPHeaderField: "Authorization") != nil
+                    logger.error("← 401 \(endpoint.path) authHeaderPresent=\(hadAuthHeader) didRefresh=\(didRefreshToken) body=\(serverReason)")
+                #endif
                 // Token expired — refresh and retry once (does not consume a retry attempt)
                 if endpoint.requiresAuth, let interceptor = authInterceptor, !didRefreshToken {
                     let newToken = try await interceptor.refreshAndGetToken()

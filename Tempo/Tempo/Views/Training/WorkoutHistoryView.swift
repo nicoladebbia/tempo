@@ -22,8 +22,36 @@ struct WorkoutHistoryView: View {
     )
     private var completedWorkouts: [WorkoutPlan]
 
+    @Query
+    private var userSettings: [UserSettings]
+
+    /// All captured set feedback. Bounded (one row per logged set); built
+    /// into a `[setID: SetFeedback]` lookup so expanded rows can show
+    /// RPE/breath/form. Legacy sessions have none — graceful absence.
+    @Query
+    private var allFeedback: [SetFeedback]
+
+    @Environment(\.modelContext)
+    private var modelContext
+
     @State
     private var expandedWorkoutID: UUID?
+
+    /// Row currently swiped open (only one at a time).
+    @State
+    private var swipedWorkoutID: UUID?
+
+    /// Pending hard-delete awaiting confirmation.
+    @State
+    private var pendingDelete: WorkoutPlan?
+
+    private var weightUnit: WeightUnit {
+        userSettings.first?.weightUnit ?? .kg
+    }
+
+    private var feedbackBySetID: [UUID: SetFeedback] {
+        Dictionary(allFeedback.map { ($0.setID, $0) }) { first, _ in first }
+    }
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -37,7 +65,7 @@ struct WorkoutHistoryView: View {
             } else {
                 LazyVStack(spacing: TempoSpacing.sm) {
                     ForEach(completedWorkouts, id: \.id) { workout in
-                        workoutCard(workout)
+                        swipeToDeleteRow(workout)
                     }
                 }
                 .padding(.horizontal, TempoSpacing.screenEdge)
@@ -47,6 +75,104 @@ struct WorkoutHistoryView: View {
         .background(Color.tempoBgPrimary)
         .navigationTitle("Workout History")
         .navigationBarTitleDisplayMode(.inline)
+        .confirmationDialog(
+            "Delete this workout?",
+            isPresented: Binding(
+                get: { pendingDelete != nil },
+                set: { if !$0 { pendingDelete = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: pendingDelete
+        ) { workout in
+            Button("Delete Workout", role: .destructive) {
+                deleteWorkout(workout)
+            }
+            Button("Cancel", role: .cancel) {
+                pendingDelete = nil
+            }
+        } message: { workout in
+            Text(deleteConfirmationMessage(workout))
+        }
+    }
+
+    // MARK: - Swipe-to-Delete Row
+
+    // LazyVStack can't use .swipeActions (List-only), and converting this
+    // screen to a List would wreck the custom card design. So this is a
+    // contained left-swipe: drag reveals a red Delete; tapping it asks for
+    // confirmation (hard delete is irreversible — see deleteWorkout).
+
+    private func swipeToDeleteRow(_ workout: WorkoutPlan) -> some View {
+        let isSwiped = swipedWorkoutID == workout.id
+        let revealWidth: CGFloat = 88
+
+        return ZStack(alignment: .trailing) {
+            // Delete affordance behind the card.
+            Button {
+                pendingDelete = workout
+                HapticManager.notification(.warning)
+            } label: {
+                VStack(spacing: TempoSpacing.xxs) {
+                    Image(systemName: "trash.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                    Text("Delete")
+                        .font(.tempoCaption2)
+                        .fontWeight(.semibold)
+                }
+                .foregroundStyle(Color.tempoTextInverse)
+                .frame(width: revealWidth)
+                .frame(maxHeight: .infinity)
+                .background(Color.tempoError)
+                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+            }
+
+            workoutCard(workout)
+                .offset(x: isSwiped ? -revealWidth - TempoSpacing.sm : 0)
+                .gesture(
+                    DragGesture(minimumDistance: 20)
+                        .onEnded { value in
+                            withAnimation(.snappy(duration: 0.25)) {
+                                if value.translation.width < -40 {
+                                    swipedWorkoutID = workout.id
+                                } else if value.translation.width > 40 {
+                                    swipedWorkoutID = nil
+                                }
+                            }
+                        }
+                )
+        }
+        .animation(.snappy(duration: 0.25), value: isSwiped)
+    }
+
+    /// Honest confirmation copy — states exactly what is and is NOT removed.
+    /// Volume reads completed plans live, so it updates. ExerciseHistory /
+    /// PRs are separate Exercise-linked records and are NOT rolled back.
+    private func deleteConfirmationMessage(_ workout: WorkoutPlan) -> String {
+        let setCount = workout.orderedExercises.reduce(0) { $0 + ($1.sets?.count ?? 0) }
+        let name = workout.type.displayName
+        return """
+        \(name): removes this session, its \(setCount) set\(setCount == 1 ? "" : "s") and any set feedback. \
+        Weekly volume will update. Progress-chart history and PRs are kept. This can't be undone.
+        """
+    }
+
+    /// Hard delete. WorkoutPlan cascades to PlannedExercise → PlannedSet.
+    /// SetFeedback links to PlannedSet with a .nullify rule, so it would be
+    /// orphaned — we delete the linked feedback explicitly so "removes …
+    /// feedback" in the confirmation is truthful.
+    private func deleteWorkout(_ workout: WorkoutPlan) {
+        let setIDs = Set(
+            workout.orderedExercises.flatMap { ($0.sets ?? []).map(\.id) }
+        )
+        for fb in allFeedback where setIDs.contains(fb.setID) {
+            modelContext.delete(fb)
+        }
+        modelContext.delete(workout)
+        try? modelContext.save()
+
+        swipedWorkoutID = nil
+        pendingDelete = nil
+        HapticManager.notification(.success)
     }
 
     // MARK: - Workout Card
@@ -170,25 +296,39 @@ struct WorkoutHistoryView: View {
                     )
             }
 
-            // Sets detail
-            HStack(spacing: TempoSpacing.xs) {
+            // Sets detail — per-set chip + optional feedback line
+            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
                 ForEach(plannedEx.orderedSets, id: \.id) { set in
-                    if set.completed, let weight = set.actualWeight, let reps = set.actualReps {
-                        Text("\(Int(weight))x\(reps)")
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(Color.tempoTextSecondary)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 2)
-                            .background(Color.tempoBgSecondary)
-                            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xs, style: .continuous))
-                    } else {
-                        Text("--")
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(Color.tempoTextTertiary)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 2)
-                            .background(Color.tempoBgSecondary.opacity(0.5))
-                            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xs, style: .continuous))
+                    HStack(spacing: TempoSpacing.xs) {
+                        if set.completed, let weight = set.actualWeight, let reps = set.actualReps {
+                            let dispW = WeightUnit.kg.convert(weight, to: weightUnit)
+                            Text("\(Int(dispW))x\(reps)")
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(Color.tempoTextSecondary)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 2)
+                                .background(Color.tempoBgSecondary)
+                                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xs, style: .continuous))
+                        } else {
+                            Text("--")
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(Color.tempoTextTertiary)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 2)
+                                .background(Color.tempoBgSecondary.opacity(0.5))
+                                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xs, style: .continuous))
+                        }
+
+                        // Feedback line — only when a linked SetFeedback
+                        // exists. Legacy sessions show nothing (no backfill).
+                        if let fb = feedbackBySetID[set.id] {
+                            Text("RPE \(fb.rpe) · \(fb.breathDifficulty.displayName) · \(fb.formQuality.displayName)")
+                                .font(.tempoCaption2)
+                                .foregroundStyle(Color.tempoTextTertiary)
+                                .lineLimit(1)
+                        }
+
+                        Spacer(minLength: 0)
                     }
                 }
             }
@@ -206,10 +346,13 @@ struct WorkoutHistoryView: View {
 
     // MARK: - Helpers
 
-    private func formatVolume(_ volume: Double) -> String {
-        if volume >= 1000 {
-            return String(format: "%.1fk kg", volume / 1000)
+    /// Formats a kg volume into the user's preferred unit.
+    private func formatVolume(_ volumeKg: Double) -> String {
+        let v = WeightUnit.kg.convert(volumeKg, to: weightUnit)
+        let unit = weightUnit.abbreviation
+        if v >= 1000 {
+            return String(format: "%.1fk %@", v / 1000, unit)
         }
-        return "\(Int(volume)) kg"
+        return "\(Int(v)) \(unit)"
     }
 }

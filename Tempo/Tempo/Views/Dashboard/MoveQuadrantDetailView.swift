@@ -7,6 +7,7 @@
 //
 
 import Charts
+import SwiftData
 import SwiftUI
 
 // MARK: - MoveQuadrantDetailView
@@ -22,43 +23,27 @@ struct MoveQuadrantDetailView: View {
     @AppStorage("healthKitAuthorized")
     private var healthKitAuthorized = false
 
-    /// Stub workout history
-    private let workoutHistory: [WorkoutHistoryItem] = [
-        WorkoutHistoryItem(day: "Today", name: "Upper Body Push", duration: 55, calories: 342),
-        WorkoutHistoryItem(day: "Mon", name: "Lower Body", duration: 62, calories: 410),
-        WorkoutHistoryItem(day: "Sat", name: "Full Body", duration: 48, calories: 320),
-        WorkoutHistoryItem(day: "Thu", name: "Upper Body Pull", duration: 52, calories: 335),
-    ]
+    /// Real completed workouts, newest first. Empty until the user finishes
+    /// a session — no seed data (Phase 1, done_when #1).
+    @Query(
+        filter: #Predicate<WorkoutPlan> { $0.statusRaw == "completed" },
+        sort: \WorkoutPlan.date,
+        order: .reverse
+    )
+    private var completedWorkouts: [WorkoutPlan]
 
-    /// Stub 7-day active calorie trend
-    private let volumeTrend: [ActiveCalTrendPoint] = {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        let values = [420, 0, 380, 0, 335, 0, 342]
-        return (-6 ... 0).map { offset in
-            let date = calendar.date(byAdding: .day, value: offset, to: today)!
-            return ActiveCalTrendPoint(date: date, calories: values[offset + 6])
-        }
-    }()
+    /// User weight-unit preference for volume display.
+    @Query
+    private var userSettings: [UserSettings]
 
-    /// Stub HR data
-    private let heartRateData: [HRDataPoint] = {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        return (6 ... Int(Date().timeIntervalSince(calendar.startOfDay(for: Date())) / 3600)).compactMap { hour in
-            guard hour <= 24 else {
-                return nil
-            }
-            let date = calendar.date(byAdding: .hour, value: hour, to: today)!
-            let bpm = if hour >= 9, hour <= 10 {
-                Double.random(in: 120 ... 165)
-            } // Workout window
-            else {
-                Double.random(in: 55 ... 85)
-            }
-            return HRDataPoint(time: date, bpm: bpm)
-        }
-    }()
+    /// Post-workout average HR for the most recent completed session,
+    /// sourced from HealthKit `HKWorkout` samples. `nil` = not yet loaded;
+    /// `.some(nil)` = loaded but no HR recorded (Phase 1, done_when #3).
+    @State private var lastSessionAvgHR: Double??
+
+    private var weightUnit: WeightUnit {
+        userSettings.first?.weightUnit ?? .kg
+    }
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -91,6 +76,61 @@ struct MoveQuadrantDetailView: View {
         .background(Color.tempoBgPrimary)
         .navigationTitle("Move")
         .navigationBarTitleDisplayMode(.inline)
+        .task(id: completedWorkouts.first?.id) {
+            await loadLastSessionHR()
+        }
+    }
+
+    // MARK: - Real Data Loaders
+
+    /// Reads the most recent completed session's `HKWorkout` HR summary.
+    ///
+    /// Per the `healthkit_batch_fetch_trap` memory: `fetchWorkouts` is
+    /// HKSampleQuery-based and throws code 11 ("No data available") on an
+    /// iPhone with no Apple Watch. It MUST be isolated in its own `try?`
+    /// with an empty default — never a shared do/catch.
+    private func loadLastSessionHR() async {
+        guard let last = completedWorkouts.first else {
+            lastSessionAvgHR = .some(nil)
+            return
+        }
+        let sessionDate = last.finishedAt ?? last.date
+        let samples = (try? await services.healthKit.fetchWorkouts(for: sessionDate)) ?? []
+        // Match the HK workout that overlaps this session's finish time;
+        // fall back to the highest-HR sample for the day.
+        let avg = samples
+            .compactMap(\.averageHeartRate)
+            .max()
+        lastSessionAvgHR = .some(avg)
+    }
+
+    /// 7-day training-volume series from completed sessions only:
+    /// Σ(actualWeight × actualReps) over completed sets, in the user's unit.
+    /// Per done_when #2 — NOT planned exercises, NOT active calories.
+    private var weeklyVolumeTrend: [TrainingVolumePoint] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let window = (-6 ... 0).map { offset in
+            calendar.date(byAdding: .day, value: offset, to: today)!
+        }
+        let byDay = Dictionary(grouping: completedWorkouts) { plan in
+            calendar.startOfDay(for: plan.finishedAt ?? plan.date)
+        }
+        return window.map { day in
+            let plansThatDay = byDay[day] ?? []
+            let volumeKg = plansThatDay.reduce(0.0) { acc, plan in
+                acc + plan.orderedExercises.reduce(0.0) { exAcc, ex in
+                    exAcc + (ex.sets ?? []).reduce(0.0) { setAcc, set in
+                        guard set.completed,
+                              let w = set.actualWeight,
+                              let r = set.actualReps else { return setAcc }
+                        return setAcc + (w * Double(r))
+                    }
+                }
+            }
+            let displayVolume = WeightUnit.kg.convert(volumeKg, to: weightUnit)
+            return TrainingVolumePoint(date: day, volume: displayVolume)
+        }
     }
 
     // MARK: - Workout Hero
@@ -238,7 +278,8 @@ struct MoveQuadrantDetailView: View {
 
     // MARK: - Heart Rate Section
 
-    // Per MODULE_DASHBOARD.md Section 4.5 — Heart Rate Section
+    // Per MODULE_DASHBOARD.md Section 4.5 — post-workout HR summary only.
+    // No live HR streaming (no Apple Watch — see build constraints).
 
     private var heartRateSection: some View {
         VStack(alignment: .leading, spacing: TempoSpacing.md) {
@@ -247,61 +288,30 @@ struct MoveQuadrantDetailView: View {
                 .tracking(TempoTracking.drillLabel)
                 .foregroundStyle(Color.tempoTextSecondary)
 
-            if let lastHR = data.heartRateCurrent {
-                Text("Current: \(lastHR) bpm")
+            switch lastSessionAvgHR {
+            case .none:
+                // Not yet loaded — quiet placeholder, no spinner churn.
+                Text("—")
+                    .font(.tempoTitle3)
+                    .foregroundStyle(Color.tempoTextTertiary)
+            case .some(.some(let avg)):
+                Text("Last session avg: \(Int(avg.rounded())) bpm")
                     .font(.tempoTitle3)
                     .foregroundStyle(Color.tempoTextPrimary)
-            } else {
-                Text("No heart rate data")
+                if let last = completedWorkouts.first {
+                    Text(last.type.displayName + " · " + (last.finishedAt ?? last.date)
+                        .formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                }
+            case .some(.none):
+                // Loaded, but no HKWorkout HR for this session.
+                Text("No HR data recorded")
                     .font(.tempoBody)
                     .foregroundStyle(Color.tempoTextTertiary)
             }
-
-            // HR chart
-            if !heartRateData.isEmpty {
-                Chart(heartRateData) { point in
-                    AreaMark(
-                        x: .value("Time", point.time),
-                        y: .value("BPM", point.bpm)
-                    )
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [Color.tempoError.opacity(0.15), Color.clear],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .interpolationMethod(.catmullRom)
-
-                    LineMark(
-                        x: .value("Time", point.time),
-                        y: .value("BPM", point.bpm)
-                    )
-                    .foregroundStyle(Color.tempoError)
-                    .lineStyle(StrokeStyle(lineWidth: 1.5))
-                    .interpolationMethod(.catmullRom)
-                }
-                .chartXAxis {
-                    AxisMarks(values: .stride(by: .hour, count: 3)) { value in
-                        AxisValueLabel {
-                            if let date = value.as(Date.self) {
-                                Text(TempoDateFormatters.timeOnly.string(from: date))
-                                    .font(.tempoCaption2)
-                                    .foregroundStyle(Color.tempoTextTertiary)
-                            }
-                        }
-                    }
-                }
-                .frame(height: 120)
-
-                let bpms = heartRateData.map(\.bpm)
-                if let minBPM = bpms.min(), let maxBPM = bpms.max() {
-                    Text("Today's range: \(Int(minBPM)) — \(Int(maxBPM)) bpm")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                }
-            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(TempoSpacing.buttonPaddingV)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
@@ -310,7 +320,7 @@ struct MoveQuadrantDetailView: View {
 
     // MARK: - Workout History
 
-    // Per MODULE_DASHBOARD.md Section 4.5 — Workout History
+    // Per MODULE_DASHBOARD.md Section 4.5 — real completed sessions only.
 
     private var workoutHistorySection: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -320,33 +330,37 @@ struct MoveQuadrantDetailView: View {
                 .foregroundStyle(Color.tempoTextSecondary)
                 .padding(.bottom, TempoSpacing.md)
 
-            if workoutHistory.isEmpty {
-                Text("No workouts recorded this week.")
+            let recent = Array(completedWorkouts.prefix(5))
+            if recent.isEmpty {
+                Text("No workouts recorded yet.")
                     .font(.tempoBody)
                     .foregroundStyle(Color.tempoTextTertiary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, TempoSpacing.lg)
             } else {
-                ForEach(Array(workoutHistory.enumerated()), id: \.element.id) { index, workout in
+                ForEach(Array(recent.enumerated()), id: \.element.id) { index, workout in
                     HStack(spacing: TempoSpacing.md) {
-                        Text(workout.day)
+                        Text((workout.finishedAt ?? workout.date)
+                            .formatted(.dateTime.weekday(.abbreviated)))
                             .font(.tempoCaption1)
                             .foregroundStyle(Color.tempoTextTertiary)
                             .frame(width: 36, alignment: .leading)
 
-                        Text(workout.name)
+                        Text(workout.type.displayName)
                             .font(.tempoBody)
                             .foregroundStyle(Color.tempoTextPrimary)
 
                         Spacer()
 
-                        Text("\(workout.duration)m · \(workout.calories) cal")
+                        let dur = workout.durationMinutes ?? workout.actualDurationMinutes
+                        let vol = WeightUnit.kg.convert(workout.totalVolume, to: weightUnit)
+                        Text(volumeHistoryLabel(durationMinutes: dur, volume: vol))
                             .font(.tempoCaption1)
                             .foregroundStyle(Color.tempoTextSecondary)
                     }
                     .frame(minHeight: 44)
 
-                    if index < workoutHistory.count - 1 {
+                    if index < recent.count - 1 {
                         Divider().background(Color.tempoDivider)
                     }
                 }
@@ -358,50 +372,68 @@ struct MoveQuadrantDetailView: View {
         .tempoShadow(.card)
     }
 
+    private func volumeHistoryLabel(durationMinutes: Int?, volume: Double) -> String {
+        let unit = weightUnit.abbreviation
+        let volStr = volume >= 1000
+            ? String(format: "%.1fk %@", volume / 1000, unit)
+            : "\(Int(volume)) \(unit)"
+        if let dur = durationMinutes {
+            return "\(dur)m · \(volStr)"
+        }
+        return volStr
+    }
+
     // MARK: - Weekly Volume Chart
 
-    // Per MODULE_DASHBOARD.md Section 4.5 — Weekly Volume Chart
+    // Per MODULE_DASHBOARD.md Section 4.5 — training volume from completed
+    // sets (actual weight × actual reps), NOT active calories.
 
     private var weeklyVolumeSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
+        let trend = weeklyVolumeTrend
+        let unit = weightUnit.abbreviation
+        let totalVol = trend.reduce(0.0) { $0 + $1.volume }
+        let workoutDays = trend.count(where: { $0.volume > 0 })
+
+        return VStack(alignment: .leading, spacing: TempoSpacing.md) {
             Text("WEEKLY VOLUME")
                 .font(.tempoModuleTag)
                 .tracking(TempoTracking.drillLabel)
                 .foregroundStyle(Color.tempoTextSecondary)
 
-            Chart(volumeTrend) { point in
-                BarMark(
-                    x: .value("Day", point.date, unit: .day),
-                    y: .value("Calories", point.calories)
-                )
-                .foregroundStyle(Color.tempoAmber)
-                .cornerRadius(4)
-            }
-            .chartXAxis {
-                AxisMarks(values: .stride(by: .day)) { value in
-                    AxisValueLabel {
-                        if let date = value.as(Date.self) {
-                            Text(TempoDateFormatters.shortDayOfWeek.string(from: date))
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
+            if totalVol == 0 {
+                Text("No completed sets this week.")
+                    .font(.tempoBody)
+                    .foregroundStyle(Color.tempoTextTertiary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, TempoSpacing.lg)
+            } else {
+                Chart(trend) { point in
+                    BarMark(
+                        x: .value("Day", point.date, unit: .day),
+                        y: .value("Volume", point.volume)
+                    )
+                    .foregroundStyle(Color.tempoAmber)
+                    .cornerRadius(4)
+                }
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: .day)) { value in
+                        AxisValueLabel {
+                            if let date = value.as(Date.self) {
+                                Text(TempoDateFormatters.shortDayOfWeek.string(from: date))
+                                    .font(.tempoCaption2)
+                                    .foregroundStyle(Color.tempoTextTertiary)
+                            }
                         }
                     }
                 }
+                .frame(height: 140)
+
+                Text(
+                    "Total: \(NumberFormatter.localizedString(from: NSNumber(value: Int(totalVol)), number: .decimal)) \(unit) · \(workoutDays) \(workoutDays == 1 ? "session" : "sessions")"
+                )
+                .font(.tempoCallout)
+                .foregroundStyle(Color.tempoTextPrimary)
             }
-            .frame(height: 140)
-
-            // Weekly totals
-            let totalCal = volumeTrend.reduce(0) { $0 + $1.calories }
-            let workoutCount = volumeTrend.count(where: { $0.calories > 0 })
-            Text(
-                "Total: \(NumberFormatter.localizedString(from: NSNumber(value: totalCal), number: .decimal)) cal · \(workoutCount) workouts"
-            )
-            .font(.tempoCallout)
-            .foregroundStyle(Color.tempoTextPrimary)
-
-            Text("vs last week: +12%")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoSuccess)
         }
         .padding(TempoSpacing.buttonPaddingV)
         .background(Color.tempoSurfaceCard)
@@ -475,30 +507,14 @@ struct MoveQuadrantDetailView: View {
     }
 }
 
-// MARK: - WorkoutHistoryItem
+// MARK: - TrainingVolumePoint
 
-struct WorkoutHistoryItem: Identifiable {
-    let id = UUID()
-    let day: String
-    let name: String
-    let duration: Int
-    let calories: Int
-}
-
-// MARK: - ActiveCalTrendPoint
-
-struct ActiveCalTrendPoint: Identifiable {
+/// One day's training volume (Σ actual weight × actual reps over completed
+/// sets) in the user's weight unit. Backs the Weekly Volume chart.
+struct TrainingVolumePoint: Identifiable {
     let id = UUID()
     let date: Date
-    let calories: Int
-}
-
-// MARK: - HRDataPoint
-
-struct HRDataPoint: Identifiable {
-    let id = UUID()
-    let time: Date
-    let bpm: Double
+    let volume: Double
 }
 
 // MARK: - Preview

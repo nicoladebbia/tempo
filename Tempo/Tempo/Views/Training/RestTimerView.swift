@@ -63,7 +63,7 @@ struct RestTimerView: View {
                 }
             }
 
-            // +15s and Skip Rest buttons
+            // +15s and Finish Set buttons
             HStack(spacing: TempoSpacing.md) {
                 // +15s button
                 Button {
@@ -72,7 +72,7 @@ struct RestTimerView: View {
                 } label: {
                     Text("+15s")
                         .font(.tempoHeadline)
-                        .frame(width: 72, height: 48)
+                        .frame(width: 72, height: 56)
                         .foregroundStyle(Color.tempoTextPrimary)
                         .background(Color.tempoSurfaceCard)
                         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
@@ -82,19 +82,21 @@ struct RestTimerView: View {
                         )
                 }
 
-                // Skip Rest button
+                // Finish Set — primary, full-width, tappable any time during
+                // rest. Semantically ends the rest early and advances to the
+                // next set/exercise (replaces the old secondary "SKIP REST";
+                // one control, not two that call the same thing).
                 Button {
                     viewModel.skipRest()
+                    HapticManager.notification(.success)
                 } label: {
-                    Text("SKIP REST")
+                    Text("Finish Set")
                         .font(.tempoHeadline)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 48)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous)
-                                .stroke(Color.tempoTextTertiary, lineWidth: 1)
-                        )
+                        .frame(height: 56)
+                        .background(Color.tempoSignal)
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
                 }
             }
             .padding(.horizontal, TempoSpacing.screenEdge)

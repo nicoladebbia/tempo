@@ -151,13 +151,19 @@ final class AuthService: NSObject {
             let refreshToken: String
         }
 
-        let response: AuthTokenResponse = try await apiClient.request(
-            .refreshToken(),
-            body: RefreshBody(refreshToken: storedRefresh)
-        )
-
-        try storeTokens(accessToken: response.accessToken, refreshToken: response.refreshToken)
-        return response.accessToken
+        do {
+            let response: AuthTokenResponse = try await apiClient.request(
+                .refreshToken(),
+                body: RefreshBody(refreshToken: storedRefresh)
+            )
+            try storeTokens(accessToken: response.accessToken, refreshToken: response.refreshToken)
+            return response.accessToken
+        } catch {
+            #if DEBUG
+                print("[AuthService] refreshToken failed: \(error.localizedDescription)")
+            #endif
+            throw error
+        }
     }
 
     // MARK: - Sign Out

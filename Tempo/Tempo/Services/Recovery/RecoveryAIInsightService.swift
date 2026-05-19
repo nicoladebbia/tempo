@@ -346,13 +346,17 @@ final class RecoveryAIInsightService: @unchecked Sendable {
         let scores = recoveries.map(\.recoveryScore)
         if let first = scores.first, let last = scores.last, !scores.isEmpty {
             let avg = scores.reduce(0, +) / Double(scores.count)
-            lines.append(String(format: "- Recovery: %d days logged, avg %.0f%%, started %.0f%% ended %.0f%%",
-                                 scores.count, avg, first, last))
+            lines.append(String(
+                format: "- Recovery: %d days logged, avg %.0f%%, started %.0f%% ended %.0f%%",
+                scores.count, avg, first, last
+            ))
         }
         let sleeps = recoveries.compactMap(\.sleepHours)
         if !sleeps.isEmpty {
-            lines.append(String(format: "- Sleep: avg %.1f h/night over %d nights",
-                                 sleeps.reduce(0, +) / Double(sleeps.count), sleeps.count))
+            lines.append(String(
+                format: "- Sleep: avg %.1f h/night over %d nights",
+                sleeps.reduce(0, +) / Double(sleeps.count), sleeps.count
+            ))
         }
         let strains = recoveries.compactMap(\.strain)
         if !strains.isEmpty {
@@ -362,8 +366,10 @@ final class RecoveryAIInsightService: @unchecked Sendable {
             let kcal = meals.reduce(0) { $0 + $1.totalCalories }
             let protein = meals.reduce(0) { $0 + $1.totalProtein }
             let loggedDays = Set(meals.map(\.dayDate)).count
-            lines.append(String(format: "- Nutrition: logged on %d days, total %.0f kcal, %.0fg protein",
-                                 loggedDays, kcal, protein))
+            lines.append(String(
+                format: "- Nutrition: logged on %d days, total %.0f kcal, %.0fg protein",
+                loggedDays, kcal, protein
+            ))
         }
         if !exercises.isEmpty {
             let volume = exercises.reduce(0) { $0 + $1.totalVolume }

@@ -28,3 +28,7 @@ node_modules/
 # Misc
 *.swp
 *~
+.plans/
+
+# Serena MCP local tooling cache
+.serena/

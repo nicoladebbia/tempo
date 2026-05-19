@@ -155,6 +155,130 @@ final class CalendarService: CalendarServiceProtocol, @unchecked Sendable {
         return true
     }
 
+    // MARK: - Workout Window Suggestion
+
+    // Per build done_when #15 — largest free contiguous block of >= 45 min in
+    // the 08:00–22:00 waking window. All-day events are ignored (they don't
+    // block a real time slot). Requests access lazily on first use.
+
+    func suggestWorkoutWindow(for date: Date) async -> DateInterval? {
+        if !isAuthorized {
+            try? await requestAuthorization()
+        }
+        guard isAuthorized else {
+            return nil
+        }
+
+        let cal = Calendar.current
+        let day = cal.startOfDay(for: date)
+        guard
+            let windowStart = cal.date(bySettingHour: 8, minute: 0, second: 0, of: day),
+            let windowEnd = cal.date(bySettingHour: 22, minute: 0, second: 0, of: day),
+            windowEnd > windowStart
+        else {
+            return nil
+        }
+
+        let minimumDuration: TimeInterval = 45 * 60
+        let dayRange = DateInterval(start: windowStart, end: windowEnd)
+        let events = (try? await fetchEvents(for: dayRange)) ?? []
+
+        // Busy intervals: timed events only, clamped to the waking window,
+        // sorted and merged so overlapping meetings collapse into one block.
+        let busy = events
+            .filter { !$0.isAllDay && $0.endDate > windowStart && $0.startDate < windowEnd }
+            .map { event in
+                DateInterval(
+                    start: max(event.startDate, windowStart),
+                    end: min(event.endDate, windowEnd)
+                )
+            }
+            .sorted { $0.start < $1.start }
+
+        var merged: [DateInterval] = []
+        for interval in busy {
+            if let last = merged.last, interval.start <= last.end {
+                merged[merged.count - 1] = DateInterval(
+                    start: last.start,
+                    end: max(last.end, interval.end)
+                )
+            } else {
+                merged.append(interval)
+            }
+        }
+
+        // Scan the free gaps between merged busy blocks for the largest one.
+        var bestGap: DateInterval?
+        var cursor = windowStart
+        for block in merged {
+            if block.start > cursor {
+                let gap = DateInterval(start: cursor, end: block.start)
+                if gap.duration >= minimumDuration,
+                   gap.duration > (bestGap?.duration ?? 0) {
+                    bestGap = gap
+                }
+            }
+            cursor = max(cursor, block.end)
+        }
+        // Trailing gap after the last busy block to the window end.
+        if cursor < windowEnd {
+            let gap = DateInterval(start: cursor, end: windowEnd)
+            if gap.duration >= minimumDuration,
+               gap.duration > (bestGap?.duration ?? 0) {
+                bestGap = gap
+            }
+        }
+
+        return bestGap
+    }
+
+    // MARK: - Saved Workout Event Lookup
+
+    // Drives the live countdown banner. Matches the title convention written
+    // by WorkoutEventEditView ("<Type> Workout"). Only returns an event whose
+    // start is still in the future so a finished/ongoing session clears the
+    // banner.
+
+    func todaysWorkoutEvent(for date: Date, matchingID: String?) async -> DateInterval? {
+        if !isAuthorized {
+            try? await requestAuthorization()
+        }
+        guard isAuthorized else {
+            return nil
+        }
+
+        let cal = Calendar.current
+        let dayStart = cal.startOfDay(for: date)
+        guard let dayEnd = cal.date(byAdding: .day, value: 1, to: dayStart) else {
+            return nil
+        }
+        let now = Date()
+
+        // 1. ID-first: resolve the exact event we created. Survives the user
+        //    renaming it in Calendar.app. event(withIdentifier:) returns nil
+        //    if the user deleted it or its calendar was removed — then we
+        //    fall through to the heuristic.
+        if let id = matchingID, let ev = eventStore.event(withIdentifier: id) {
+            let valid = !ev.isAllDay
+                && ev.startDate > now
+                && ev.startDate >= dayStart
+                && ev.startDate < dayEnd
+            if valid {
+                return DateInterval(start: ev.startDate, end: ev.endDate)
+            }
+        }
+
+        // 2. Heuristic fallback: title ends with "Workout". Covers
+        //    manually-created events and events saved before ID persistence
+        //    existed.
+        let events = (try? await fetchEvents(for: DateInterval(start: dayStart, end: dayEnd))) ?? []
+        return events
+            .filter { !$0.isAllDay && $0.title.hasSuffix("Workout") && $0.startDate > now }
+            .sorted { $0.startDate < $1.startDate }
+            .first
+            .map { DateInterval(start: $0.startDate, end: $0.endDate) }
+    }
+
     // MARK: - Class Detection
 
     func detectClassSchedule(for date: Date) -> [CalendarClass] {

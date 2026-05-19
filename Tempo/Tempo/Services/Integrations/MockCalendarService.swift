@@ -89,6 +89,24 @@ final class MockCalendarService: CalendarServiceProtocol, @unchecked Sendable {
         true
     }
 
+    func suggestWorkoutWindow(for date: Date) async -> DateInterval? {
+        // Mock returns a fixed afternoon block so previews/tests are stable.
+        let cal = Calendar.current
+        let day = cal.startOfDay(for: date)
+        guard
+            let start = cal.date(bySettingHour: 14, minute: 0, second: 0, of: day),
+            let end = cal.date(bySettingHour: 15, minute: 30, second: 0, of: day)
+        else {
+            return nil
+        }
+        return DateInterval(start: start, end: end)
+    }
+
+    func todaysWorkoutEvent(for _: Date, matchingID _: String?) async -> DateInterval? {
+        // Mock has no saved event by default (suggestion mode in previews).
+        nil
+    }
+
     func detectClassSchedule(for date: Date) -> [CalendarClass] {
         let calendar = Calendar.current
         let weekday = calendar.component(.weekday, from: date)

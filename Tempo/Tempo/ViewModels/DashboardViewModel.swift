@@ -826,8 +826,8 @@ final class DashboardViewModel {
         steps = (try? await hkSteps) ?? 0
         energy = (try? await hkActiveEnergy) ?? 0
         heartRates = (try? await hkHeartRate) ?? []
-        hrv = (try? await hkHRV) ?? nil
-        rhr = (try? await hkRHR) ?? nil
+        hrv = try? await hkHRV
+        rhr = try? await hkRHR
         hkSleepData = (try? await hkSleep) ?? SleepData(
             totalHours: 0, deepSleepMinutes: 0, remSleepMinutes: 0,
             lightSleepMinutes: 0, awakeMinutes: 0, sleepEfficiency: 0,
