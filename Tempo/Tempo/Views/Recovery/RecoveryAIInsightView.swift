@@ -49,7 +49,19 @@ struct RecoveryAIInsightView: View {
 
             // Daily read (action for today).
             VStack(alignment: .leading, spacing: TempoSpacing.md) {
-                TempoSectionHeader("Today's Read", accentColor: Color.tempoSignal)
+                HStack {
+                    TempoSectionHeader("Today's Read", accentColor: Color.tempoSignal)
+                    Spacer()
+                    Button {
+                        Task { await regenerate() }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.tempoFootnote)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                    }
+                    .disabled(isLoading)
+                    .accessibilityLabel("Regenerate today's read")
+                }
                 insightCard {
                     if isLoading {
                         loadingSkeleton
@@ -120,6 +132,25 @@ struct RecoveryAIInsightView: View {
 
         do {
             paragraph = try await svc.paragraph(for: recovery, modelContext: modelContext)
+        } catch {
+            errorText = (error as? RecoveryAIInsightError)?.errorDescription
+                ?? error.localizedDescription
+        }
+    }
+
+    @MainActor
+    private func regenerate() async {
+        guard let recovery, !isLoading else { return }
+
+        let svc = service ?? RecoveryAIInsightService(apiClient: services.apiClient)
+        service = svc
+
+        isLoading = true
+        errorText = nil
+        defer { isLoading = false }
+
+        do {
+            paragraph = try await svc.regenerateToday(for: recovery, modelContext: modelContext)
         } catch {
             errorText = (error as? RecoveryAIInsightError)?.errorDescription
                 ?? error.localizedDescription

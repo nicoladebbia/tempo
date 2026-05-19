@@ -85,6 +85,32 @@ final class RecoveryAIInsightService: @unchecked Sendable {
         return text
     }
 
+    /// Deletes today's cached `.aiDailyParagraph` row and re-generates it,
+    /// so a prompt change is visible immediately instead of waiting for
+    /// the per-day cache to roll over. Backs the manual refresh button.
+    @MainActor
+    func regenerateToday(
+        for recovery: DailyRecovery,
+        modelContext: ModelContext
+    ) async throws -> String {
+        let cal = Calendar.current
+        let dayStart = cal.startOfDay(for: Date())
+        guard let dayEnd = cal.date(byAdding: .day, value: 1, to: dayStart) else {
+            return try await paragraph(for: recovery, modelContext: modelContext)
+        }
+        let typeRaw = RecoveryInsightType.aiDailyParagraph.rawValue
+        let staleDesc = FetchDescriptor<RecoveryInsight>(
+            predicate: #Predicate { i in
+                i.typeRaw == typeRaw && i.date >= dayStart && i.date < dayEnd
+            }
+        )
+        for stale in (try? modelContext.fetch(staleDesc)) ?? [] {
+            modelContext.delete(stale)
+        }
+        try? modelContext.save()
+        return try await paragraph(for: recovery, modelContext: modelContext)
+    }
+
     // MARK: - Cache
 
     /// Looks up a cached `.aiDailyParagraph` insight whose `date` falls within
