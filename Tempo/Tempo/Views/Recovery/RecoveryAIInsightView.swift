@@ -51,6 +51,10 @@ struct RecoveryAIInsightView: View {
             VStack(alignment: .leading, spacing: TempoSpacing.md) {
                 HStack {
                     TempoSectionHeader("Today's Read", accentColor: Color.tempoSignal)
+                    #if DEBUG
+                    // DEBUG-only: each tap is a paid Haiku call. Never ship
+                    // to users — they'd spam it and drive API cost up. The
+                    // per-day cache is the cost control in release builds.
                     Spacer()
                     Button {
                         Task { await regenerate() }
@@ -61,6 +65,7 @@ struct RecoveryAIInsightView: View {
                     }
                     .disabled(isLoading)
                     .accessibilityLabel("Regenerate today's read")
+                    #endif
                 }
                 insightCard {
                     if isLoading {
