@@ -348,8 +348,8 @@ Prepare for all required device sizes. Each screenshot must tell a story in unde
 ### 4.6 In-App Purchase Configuration
 
 - [ ] Subscription product created in App Store Connect:
-  - [ ] Product ID: `com.tempo.pro.monthly` ($4.99/month)
-  - [ ] Product ID: `com.tempo.pro.annual` ($39.99/year)
+  - [ ] Product ID: `app.tempo.Tempo.pro.monthly` ($4.99/month)
+  - [ ] Product ID: `app.tempo.Tempo.pro.annual` ($39.99/year)
 - [ ] Subscription group created: "Tempo Pro"
 - [ ] Pricing set for all territories (use Apple's equalized pricing)
 - [ ] Subscription description written (what Pro includes)

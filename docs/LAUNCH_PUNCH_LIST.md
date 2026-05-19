@@ -78,10 +78,10 @@ Everything between "intelligence layer shipped" and "first paying customer in th
 
 | Product ID | Price | Subscription duration |
 |---|---|---|
-| `com.tempo.pro.monthly` | $4.99 | 1 month |
-| `com.tempo.pro.annual` | $39.99 | 1 year |
-| `com.tempo.pro.student.monthly` | $3.99 | 1 month |
-| `com.tempo.pro.student.annual` | $29.99 | 1 year |
+| `app.tempo.Tempo.pro.monthly` | $4.99 | 1 month |
+| `app.tempo.Tempo.pro.annual` | $39.99 | 1 year |
+| `app.tempo.Tempo.pro.student.monthly` | $3.99 | 1 month |
+| `app.tempo.Tempo.pro.student.annual` | $29.99 | 1 year |
 
 - For each:
   - Localised display name + description (4 lines, sells the feature)
