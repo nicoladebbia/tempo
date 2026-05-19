@@ -41,6 +41,16 @@ struct MoveQuadrantDetailView: View {
     /// `.some(nil)` = loaded but no HR recorded (Phase 1, done_when #3).
     @State private var lastSessionAvgHR: Double??
 
+    @Environment(\.modelContext)
+    private var modelContext
+
+    // Live workout session presented directly from the Move detail (chosen
+    // behavior). Mirrors TrainingTabView's VM + fullScreenCover wiring so the
+    // session behaves identically wherever it's started.
+    @State private var trainingVM: TrainingViewModel?
+    @State private var showActiveWorkout = false
+    @State private var showSummary = false
+
     private var weightUnit: WeightUnit {
         userSettings.first?.weightUnit ?? .kg
     }
@@ -78,6 +88,28 @@ struct MoveQuadrantDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task(id: completedWorkouts.first?.id) {
             await loadLastSessionHR()
+        }
+        .fullScreenCover(isPresented: $showActiveWorkout) {
+            if let trainingVM {
+                NavigationStack {
+                    ActiveWorkoutView(viewModel: trainingVM)
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $showSummary, onDismiss: {
+            showSummary = false
+        }) {
+            if let trainingVM {
+                NavigationStack {
+                    WorkoutSummaryView(viewModel: trainingVM)
+                }
+            }
+        }
+        .onChange(of: trainingVM?.sessionState) { _, newState in
+            if case .summary = newState {
+                showActiveWorkout = false
+                showSummary = true
+            }
         }
     }
 
@@ -446,7 +478,21 @@ struct MoveQuadrantDetailView: View {
     // Per MODULE_DASHBOARD.md Section 4.5
 
     private var startWorkoutButton: some View {
-        Button {} label: {
+        Button {
+            Task { @MainActor in
+                // Build the VM lazily, same construction as TrainingTabView.
+                let vm = trainingVM ?? TrainingViewModel(
+                    trainingEngine: services.trainingEngine,
+                    whoop: services.whoop,
+                    healthKit: services.healthKit
+                )
+                trainingVM = vm
+                await vm.loadToday(modelContext: modelContext)
+                vm.startWorkout()
+                showActiveWorkout = true
+                HapticManager.notification(.success)
+            }
+        } label: {
             HStack(spacing: 6) {
                 Image(systemName: "play.fill")
                     .font(.system(size: 14))

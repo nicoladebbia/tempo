@@ -75,13 +75,12 @@ struct WorkoutHistoryView: View {
         .background(Color.tempoBgPrimary)
         .navigationTitle("Workout History")
         .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog(
+        .alert(
             "Delete this workout?",
             isPresented: Binding(
                 get: { pendingDelete != nil },
                 set: { if !$0 { pendingDelete = nil } }
             ),
-            titleVisibility: .visible,
             presenting: pendingDelete
         ) { workout in
             Button("Delete Workout", role: .destructive) {

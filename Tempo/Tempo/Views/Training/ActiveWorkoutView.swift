@@ -108,9 +108,13 @@ struct ActiveWorkoutView: View {
                 }
             }
         }
-        .confirmationDialog("Finish Workout?", isPresented: $showFinishConfirmation) {
-            Button("Save & Finish") { viewModel.finishWorkout() }
+        .alert("Finish Workout?", isPresented: $showFinishConfirmation) {
+            Button("Save & Finish", role: .destructive) {
+                viewModel.finishWorkout()
+            }
             Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This ends and saves your session.")
         }
         .onAppear { loadCurrentSetInputs() }
         .onChange(of: viewModel.currentExerciseIndex) { _, _ in loadCurrentSetInputs() }
