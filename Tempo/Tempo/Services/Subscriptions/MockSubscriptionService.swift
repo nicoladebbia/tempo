@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import StoreKit
 
 // MARK: - Mock Subscription Service
 
@@ -35,6 +36,10 @@ final class MockSubscriptionService: SubscriptionServiceProtocol, @unchecked Sen
     func restorePurchases() async throws {}
 
     func refreshState() async {}
+
+    /// Mock has no real StoreKit products; PaywallView falls back to static
+    /// price copy when this is empty.
+    func availableProducts() -> [Product] { [] }
 
     // MARK: - Test Helpers
 

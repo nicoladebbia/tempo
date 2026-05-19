@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import StoreKit
 
 // MARK: - SubscriptionServiceProtocol
 
@@ -32,6 +33,11 @@ protocol SubscriptionServiceProtocol: AnyObject, Sendable {
 
     /// Refresh entitlement state from StoreKit.
     func refreshState() async
+
+    /// StoreKit products available for purchase, sorted for display.
+    /// Mock implementations may return an empty array (previews fall back
+    /// to static price copy).
+    func availableProducts() -> [Product]
 }
 
 // MARK: - SubscriptionState
