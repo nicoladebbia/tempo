@@ -284,22 +284,27 @@ struct MoveQuadrantDetailView: View {
     }
 
     private func activityCard(value: String, label: String, subtitle: String?) -> some View {
-        VStack(spacing: TempoSpacing.xs) {
+        // All three cards are identical: same fixed height, same value font
+        // (no minimumScaleFactor so "1332" and "5.0" render at the same
+        // size), and the subtitle line's space is always reserved so a card
+        // with no subtitle is exactly as tall as one that has it.
+        VStack(spacing: TempoSpacing.xxs) {
             Text(value)
-                .font(.tempoTitle1)
+                .font(.tempoTitle3)
+                .fontWeight(.bold)
                 .foregroundStyle(Color.tempoTextPrimary)
-                .minimumScaleFactor(0.8)
+                .lineLimit(1)
             Text(label)
                 .font(.tempoCaption1)
                 .foregroundStyle(Color.tempoTextSecondary)
-            if let subtitle {
-                Text(subtitle)
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
-            }
+                .lineLimit(1)
+            Text(subtitle ?? " ")
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextTertiary)
+                .lineLimit(1)
         }
         .frame(maxWidth: .infinity)
-        .padding(12)
+        .frame(height: 92)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
         .overlay(

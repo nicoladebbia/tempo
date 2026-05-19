@@ -117,20 +117,22 @@ struct SetFeedbackSheet: View {
     // MARK: - RPE Dial
 
     private var rpeDial: some View {
-        HStack(spacing: TempoSpacing.xs) {
-            ForEach(1 ... 10, id: \.self) { value in
+        // 6–10 only (below 6 is warmup-easy, not worth logging). Five large
+        // buttons instead of ten cramped/stretched ones.
+        HStack(spacing: TempoSpacing.sm) {
+            ForEach(6 ... 10, id: \.self) { value in
                 Button {
                     rpe = value
                     HapticManager.selection()
                 } label: {
                     Text("\(value)")
-                        .font(.tempoHeadline)
+                        .font(.tempoTitle3)
                         .monospacedDigit()
                         .frame(maxWidth: .infinity)
-                        .frame(height: 44)
+                        .frame(height: 52)
                         .background(rpe == value ? Color.tempoSignal : Color.tempoSurfaceCard)
                         .foregroundStyle(rpe == value ? .white : Color.tempoTextPrimary)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
                 }
             }
         }

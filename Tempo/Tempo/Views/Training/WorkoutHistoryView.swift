@@ -31,6 +31,12 @@ struct WorkoutHistoryView: View {
     @Query
     private var allFeedback: [SetFeedback]
 
+    @Query
+    private var allHistory: [ExerciseHistory]
+
+    @Query
+    private var allPRs: [PersonalRecord]
+
     @Environment(\.modelContext)
     private var modelContext
 
@@ -106,7 +112,10 @@ struct WorkoutHistoryView: View {
         let revealWidth: CGFloat = 88
 
         return ZStack(alignment: .trailing) {
-            // Delete affordance behind the card.
+            // Delete affordance behind the card. It matches the card's
+            // height because swiping force-collapses the row (below), so the
+            // card is always the compact summary height when Delete shows —
+            // it never stretches to the expanded detail height.
             Button {
                 pendingDelete = workout
                 HapticManager.notification(.warning)
@@ -132,6 +141,12 @@ struct WorkoutHistoryView: View {
                         .onEnded { value in
                             withAnimation(.snappy(duration: 0.25)) {
                                 if value.translation.width < -40 {
+                                    // Collapse this row before revealing
+                                    // Delete so the affordance can't stretch
+                                    // to the expanded detail height.
+                                    if expandedWorkoutID == workout.id {
+                                        expandedWorkoutID = nil
+                                    }
                                     swipedWorkoutID = workout.id
                                 } else if value.translation.width > 40 {
                                     swipedWorkoutID = nil
@@ -150,8 +165,9 @@ struct WorkoutHistoryView: View {
         let setCount = workout.orderedExercises.reduce(0) { $0 + ($1.sets?.count ?? 0) }
         let name = workout.type.displayName
         return """
-        \(name): removes this session, its \(setCount) set\(setCount == 1 ? "" : "s") and any set feedback. \
-        Weekly volume will update. Progress-chart history and PRs are kept. This can't be undone.
+        \(name): permanently removes this session — its \(setCount) set\(setCount == 1 ? "" : "s"), \
+        set feedback, and the progress-chart history & PRs it created. Weekly volume and charts \
+        will update. This can't be undone.
         """
     }
 
@@ -160,12 +176,34 @@ struct WorkoutHistoryView: View {
     /// orphaned — we delete the linked feedback explicitly so "removes …
     /// feedback" in the confirmation is truthful.
     private func deleteWorkout(_ workout: WorkoutPlan) {
+        // Full purge (user-chosen): the session AND every record it
+        // produced, so it disappears from history, weekly volume, progress
+        // charts and PRs alike.
+        let cal = Calendar.current
+        let sessionDay = cal.startOfDay(for: workout.finishedAt ?? workout.date)
+        let exerciseIDs = Set(
+            workout.orderedExercises.compactMap { $0.exercise?.id }
+        )
         let setIDs = Set(
             workout.orderedExercises.flatMap { ($0.sets ?? []).map(\.id) }
         )
+
+        // 1. Set feedback linked to this session's sets.
         for fb in allFeedback where setIDs.contains(fb.setID) {
             modelContext.delete(fb)
         }
+        // 2. ExerciseHistory rows this session created (same day + one of
+        //    this workout's exercises — saveWorkout stamps finishedAt).
+        for h in allHistory
+            where cal.isDate(h.date, inSameDayAs: sessionDay)
+            && (h.exercise?.id).map(exerciseIDs.contains) == true {
+            modelContext.delete(h)
+        }
+        // 3. PRs attributed to this exact plan.
+        for pr in allPRs where pr.workoutPlanID == workout.id {
+            modelContext.delete(pr)
+        }
+        // 4. The plan itself (cascades to PlannedExercise → PlannedSet).
         modelContext.delete(workout)
         try? modelContext.save()
 
@@ -182,6 +220,16 @@ struct WorkoutHistoryView: View {
         return VStack(spacing: 0) {
             // Main card content
             Button {
+                // If this row is swiped open, a tap closes the swipe
+                // (iOS-standard) rather than expanding — which also keeps
+                // the Delete affordance from ever pairing with an expanded
+                // (tall) card.
+                if swipedWorkoutID == workout.id {
+                    withAnimation(.snappy(duration: 0.25)) {
+                        swipedWorkoutID = nil
+                    }
+                    return
+                }
                 withAnimation(.easeInOut(duration: 0.25)) {
                     expandedWorkoutID = isExpanded ? nil : workout.id
                 }

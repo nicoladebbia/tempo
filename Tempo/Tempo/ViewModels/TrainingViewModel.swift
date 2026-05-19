@@ -80,6 +80,10 @@ final class TrainingViewModel {
     /// once feedback is captured or the sheet is dismissed.
     var lastCompletedSet: PlannedSet?
 
+    /// User weight-unit preference, loaded from UserSettings in loadToday.
+    /// All stored weights are kg; this is display-only conversion.
+    var weightUnit: WeightUnit = .kg
+
     // MARK: - Rest Timer
 
     var restTimerRemaining: TimeInterval = 0
@@ -112,6 +116,11 @@ final class TrainingViewModel {
 
     func loadToday(modelContext: ModelContext) async {
         isLoading = true
+
+        // Display unit for the session (weights are stored kg).
+        if let settings = try? modelContext.fetch(FetchDescriptor<UserSettings>()).first {
+            weightUnit = settings.weightUnit
+        }
 
         // Check for existing plan in SwiftData
         let today = Calendar.current.startOfDay(for: Date())
@@ -681,11 +690,19 @@ final class TrainingViewModel {
     }
 
     var formattedVolume: String {
-        let vol = totalVolume
+        // totalVolume is kg-stored; show in the user's unit.
+        let vol = WeightUnit.kg.convert(totalVolume, to: weightUnit)
+        let unit = weightUnit.abbreviation
         if vol >= 1000 {
-            return String(format: "%.1fk kg", vol / 1000)
+            return String(format: "%.1fk %@", vol / 1000, unit)
         }
-        return "\(Int(vol)) kg"
+        return "\(Int(vol)) \(unit)"
+    }
+
+    /// Working-set count for the current exercise (excludes warmup) so the
+    /// +/- stepper matches the "Set X of N" header.
+    var workingSetCount: Int {
+        (currentExercise?.orderedSets ?? []).filter { !$0.isWarmup }.count
     }
 
     var formattedElapsedTime: String {

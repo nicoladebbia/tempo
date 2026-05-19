@@ -245,8 +245,8 @@ struct ActiveWorkoutView: View {
     // Per STATE_MACHINES.md §1 and build done_when #7 — display-only warmup
     // prompt. Lists the first exercise's warmup sets as target guidance;
     // "Ready — Start Working Sets" skips straight to the first working set
-    // (warmup is never logged). Weights shown in kg to match the set-input
-    // stepper in this view (unit-aware input is out of scope here).
+    // (warmup is never logged). Weights shown in the user's unit, matching
+    // the set-input stepper.
 
     private var warmupContent: some View {
         let firstExercise = viewModel.todayPlan?.orderedExercises.first
@@ -311,7 +311,8 @@ struct ActiveWorkoutView: View {
 
     private func warmupTargetLabel(_ set: PlannedSet) -> String {
         if let w = set.targetWeight, w > 0 {
-            return "\(Int(w)) kg × \(set.targetReps)"
+            let display = WeightUnit.kg.convert(w, to: weightUnit)
+            return "\(Int(display)) \(weightUnit.abbreviation) × \(set.targetReps)"
         }
         return "Bodyweight × \(set.targetReps)"
     }
@@ -366,8 +367,11 @@ struct ActiveWorkoutView: View {
         VStack(spacing: TempoSpacing.sm) {
             HStack(spacing: TempoSpacing.xs) {
                 if let exercise = viewModel.currentExercise {
-                    ForEach(exercise.orderedSets.indices, id: \.self) { idx in
-                        let set = exercise.orderedSets[idx]
+                    // Iterate the elements by stable id — never index into
+                    // orderedSets by position. The +/- buttons mutate this
+                    // array; a ForEach over `.indices` keeps a stale range
+                    // and crashes (Index out of range) on the next render.
+                    ForEach(Array(exercise.orderedSets.enumerated()), id: \.element.id) { idx, set in
                         if set.isWarmup {
                             // Warmup sets shown as smaller, outlined dots
                             Circle()
@@ -396,7 +400,7 @@ struct ActiveWorkoutView: View {
                 }
                 .disabled((viewModel.currentExercise?.orderedSets.count ?? 0) <= 1)
 
-                Text("\(viewModel.currentExercise?.orderedSets.count ?? 0) sets")
+                Text("\(viewModel.workingSetCount) sets")
                     .font(.tempoCaption2)
                     .foregroundStyle(Color.tempoTextSecondary)
 
