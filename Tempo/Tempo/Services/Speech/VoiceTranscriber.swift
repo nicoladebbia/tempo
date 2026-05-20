@@ -35,8 +35,11 @@ final class VoiceTranscriber {
     /// Human-readable error from the last `start()` attempt, if any.
     private(set) var error: String?
 
-    /// How long without a new partial result before we auto-stop.
-    var silenceTimeout: TimeInterval = 1.5
+    /// How long without a new partial result before we auto-stop. 4s gives
+    /// the user time to pause and think mid-sentence (e.g. listing a
+    /// multi-ingredient meal) without being cut off. Tap the stop button
+    /// for an immediate end.
+    var silenceTimeout: TimeInterval = 4.0
 
     private let logger = Logger(subsystem: "app.tempo", category: "VoiceTranscriber")
     /// Prefer the user's current locale (so an Italian user gets Italian
@@ -93,7 +96,13 @@ final class VoiceTranscriber {
 
     // MARK: - Permissions
 
-    private func requestPermissions() async -> Bool {
+    private nonisolated func requestPermissions() async -> Bool {
+        // Both TCC callbacks fire on `com.apple.root.default-qos`, NOT the
+        // main actor. If this method (or its continuation closures) inherits
+        // @MainActor isolation from the enclosing class, Swift 6 strict
+        // concurrency trips `_swift_task_checkIsolatedSwift` →
+        // dispatch_assert_queue_fail the moment the callback runs. Marking
+        // the method nonisolated keeps the resume off the main actor.
         let speechStatus = await withCheckedContinuation { (cont: CheckedContinuation<SFSpeechRecognizerAuthorizationStatus, Never>) in
             SFSpeechRecognizer.requestAuthorization { status in
                 cont.resume(returning: status)
@@ -127,31 +136,49 @@ final class VoiceTranscriber {
         let format = inputNode.outputFormat(forBus: 0)
         // Reset any previously-installed tap so reruns don't crash on duplicate install.
         inputNode.removeTap(onBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak request] buffer, _ in
-            request?.append(buffer)
+        // The tap closure fires on the real-time audio render thread
+        // (`RealtimeMessenger.mServiceQueue`). If the closure inherits
+        // @MainActor isolation from the enclosing class, Swift 6 strict
+        // concurrency runs `_swift_task_checkIsolatedSwift` on entry and
+        // trips dispatch_assert_queue_fail. Hoist the tap block into an
+        // explicit @Sendable function value so it has no actor isolation.
+        nonisolated(unsafe) let tapRequest = request
+        let tapBlock: @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void = { buffer, _ in
+            tapRequest.append(buffer)
         }
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format, block: tapBlock)
 
         audioEngine.prepare()
         try audioEngine.start()
 
-        recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
+        // Same isolation hazard as the tap block: this callback runs on
+        // Apple's recognition queue, not the main actor. Declare it
+        // @Sendable so it doesn't inherit @MainActor from the enclosing
+        // class, then hop back to MainActor inside.
+        let taskHandler: @Sendable (SFSpeechRecognitionResult?, Error?) -> Void = { [weak self] result, error in
+            // Extract Sendable values on Apple's recognition queue — the
+            // result object itself is not Sendable, so don't capture it.
+            let transcript = result?.bestTranscription.formattedString
+            let isFinal = result?.isFinal ?? false
+            let errorDescription = error?.localizedDescription
             Task { @MainActor [weak self] in
                 guard let self else {
                     return
                 }
-                if let result {
-                    self.transcribedText = result.bestTranscription.formattedString
+                if let transcript {
+                    self.transcribedText = transcript
                     self.resetSilenceTimer()
-                    if result.isFinal {
+                    if isFinal {
                         self.stop()
                     }
                 }
-                if let error {
-                    self.logger.warning("Recognition error: \(error.localizedDescription)")
+                if let errorDescription {
+                    self.logger.warning("Recognition error: \(errorDescription)")
                     self.stop()
                 }
             }
         }
+        recognitionTask = recognizer.recognitionTask(with: request, resultHandler: taskHandler)
 
         resetSilenceTimer()
     }
