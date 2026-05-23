@@ -7,6 +7,20 @@
 
 ---
 
+## 2026-05-23 audit notes (overnight audit, non-destructive)
+
+The 2026-03-25 "124/124 (100%)" claim above is a bulk-sweep marker — every checkbox in this file is dated 2026-03-25, and `doc-audit-summary.md` (2026-05-19) graded the actual codebase at roughly **45% implemented / 30% partial / 25% missing** against the original spec. Specific known gaps as of overnight audit:
+- **Arena:** full Vapor backend exists, iOS never calls it (no APIClient arena methods); leaderboard + friends are hardcoded mock data.
+- **Whoop:** still embedding `client_secret` in iOS binary and calling Whoop directly — backend proxy is dead code (security inversion vs spec).
+- **Backend API:** roughly half of the documented endpoints unbuilt (Training/Workouts, Study Sessions, Daily Snapshots, Sync/Batch, Webhooks, Search, Admin, WS).
+- **Sound:** no audio files ship — sound layer silently no-ops.
+
+Note: on 2026-05-19 all 16 module/spec docs were rewritten IN PLACE as v3.0 AS-BUILT docs. Original aspirational spec intent is preserved inline via `> Divergence from original spec:` and `> Status: NOT IMPLEMENTED.` callouts. See `.plans/doc-audit-summary.md` for the full gap inventory.
+
+For active in-flight work as of the audit: see `.plans/*.md`. `feat/storekit-subscriptions` branch is in flight (gates storekit P2/P3 + dashboard-autosync P1).
+
+---
+
 ## Phase 0: Project Scaffolding
 **Goal:** Set up Git, Xcode project, Vapor backend, folder structures, dependencies, and shared enums/constants.
 
