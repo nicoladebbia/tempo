@@ -544,6 +544,7 @@ final class RecoveryAIInsightService: @unchecked Sendable {
         var lastError: Error?
 
         for attempt in 0 ... maxRetries {
+            let started = Date()
             do {
                 let body = NutritionProxyTextRequest(
                     model: "haiku",
@@ -557,21 +558,35 @@ final class RecoveryAIInsightService: @unchecked Sendable {
                     APIEndpoint<NutritionProxyTextResponse>.nutritionProxyText(),
                     body: body
                 )
-                logger.info("[recovery_insight] Haiku response received (attempt \(attempt))")
+                let elapsed = Date().timeIntervalSince(started)
+                logger.info("[recovery_insight] final: success attempt=\(attempt) elapsed=\(String(format: "%.2f", elapsed))s")
                 return response.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            } catch is CancellationError {
+                // Parent SwiftUI task was torn down (view re-mount, task(id:)
+                // change). Not a real failure — surface it as cancelled and
+                // bail so the next view-recreate attempt isn't double-charged.
+                logger.info("[recovery_insight] final: cancelled attempt=\(attempt) elapsed=\(String(format: "%.2f", Date().timeIntervalSince(started)))s")
+                throw CancellationError()
             } catch let error as APIError {
+                let elapsed = Date().timeIntervalSince(started)
                 lastError = error
-                logger.warning("[recovery_insight] proxy error (attempt \(attempt)): \(String(describing: error))")
+                logger.warning("[recovery_insight] proxy error attempt=\(attempt) elapsed=\(String(format: "%.2f", elapsed))s err=\(String(describing: error))")
                 guard error.isRetryable, attempt < maxRetries else { break }
                 let delay = baseRetryDelay * pow(2.0, Double(attempt))
-                try await Task.sleep(for: .seconds(delay))
+                do {
+                    try await Task.sleep(for: .seconds(delay))
+                } catch is CancellationError {
+                    logger.info("[recovery_insight] final: cancelled (during backoff) attempt=\(attempt)")
+                    throw CancellationError()
+                }
             } catch {
                 lastError = error
-                logger.error("[recovery_insight] unexpected error: \(error.localizedDescription)")
+                logger.error("[recovery_insight] unexpected error attempt=\(attempt): \(error.localizedDescription)")
                 break
             }
         }
 
+        logger.warning("[recovery_insight] final: failed err=\(lastError.map { String(describing: $0) } ?? "unknown")")
         throw RecoveryAIInsightError.apiFailed(lastError ?? APIError.unknown(statusCode: -1))
     }
 }

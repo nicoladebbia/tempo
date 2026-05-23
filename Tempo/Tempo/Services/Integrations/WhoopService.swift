@@ -297,6 +297,16 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
         return tokenResponse.accessToken
     }
 
+    // Counts `records` array elements in a Whoop list response without
+    // decoding the full payload. Returns nil if the body isn't a `{records:[…]}`
+    // shape (e.g. profile endpoint), in which case the caller logs -1.
+    private static func recordCount(in data: Data) -> Int? {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let records = json["records"] as? [Any]
+        else { return nil }
+        return records.count
+    }
+
     private static func isTransient(_ error: URLError) -> Bool {
         switch error.code {
         case .notConnectedToInternet,
@@ -842,14 +852,17 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
 
         switch httpResponse.statusCode {
         case 200 ... 299:
-            // Raw JSON dump for diagnostics — first 800 chars
-            if let raw = String(data: data, encoding: .utf8) {
-                print("[WhoopAPI] \(path) (\(data.count) bytes): \(String(raw.prefix(800)))")
-            }
+            #if DEBUG
+                // Structured summary instead of raw JSON: leaks no PII to the
+                // console, no truncated mid-record blobs, and the record count
+                // alone tells you whether the call succeeded as expected.
+                let recordCount = Self.recordCount(in: data) ?? -1
+                logger.debug("[WhoopAPI] \(path) \(data.count)B records=\(recordCount)")
+            #endif
             do {
                 return try Self.decoder.decode(T.self, from: data)
             } catch {
-                print("[WhoopAPI] DECODE FAILED for \(path): \(error)")
+                logger.error("[WhoopAPI] DECODE FAILED for \(path): \(error.localizedDescription)")
                 throw WhoopError.backendError(code: "decode", message: error.localizedDescription)
             }
         case 401:

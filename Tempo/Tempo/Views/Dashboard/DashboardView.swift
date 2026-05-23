@@ -191,7 +191,13 @@ struct DashboardView: View {
             }
         }
         .onChange(of: services.whoop.connectionState) { oldState, newState in
-            // Auto-refresh when Whoop connects mid-session (e.g. after OAuth completes)
+            // Auto-refresh when Whoop connects mid-session (e.g. after OAuth completes).
+            // Guarded by `hasAppeared` so we don't double-fire on cold launch: the
+            // `.task` body already calls checkConnectionOnLaunch() (which flips state
+            // to .connected) AND calls vm.refresh() explicitly — without the guard
+            // this observer fires a redundant refresh in between, racing the AI
+            // insight task(id:) and getting it cancelled mid-flight.
+            guard hasAppeared else { return }
             if case .connected = newState, oldState != .connected {
                 Task {
                     await viewModel?.refresh()
