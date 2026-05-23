@@ -89,9 +89,14 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
     // sequence at app launch.
     private actor ResponseCache {
         private let ttl: TimeInterval
-        private var recovery: [Date: (Date, WhoopRecoveryData)] = [:]
-        private var sleep: [Date: (Date, WhoopSleepData)] = [:]
-        private var cycle: [Date: (Date, WhoopCycleData)] = [:]
+        // Caches store the RAW decoded API responses, not the post-processed
+        // shapes. That way fetchRecovery(for: today) and
+        // fetchRecoveryBatch(for: today) — which hit the same URL with the
+        // same query params via dateRange(for:) — share a single cached
+        // response and only the local pick/transform differs.
+        private var recovery: [Date: (Date, WhoopAPIResponse<WhoopAPIRecoveryRecord>)] = [:]
+        private var sleep: [Date: (Date, WhoopAPIResponse<WhoopAPISleepRecord>)] = [:]
+        private var cycle: [Date: (Date, WhoopAPIResponse<WhoopAPICycleRecord>)] = [:]
 
         init(ttl: TimeInterval) { self.ttl = ttl }
 
@@ -103,30 +108,30 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
             Date().timeIntervalSince(stored) < ttl
         }
 
-        func getRecovery(_ date: Date) -> WhoopRecoveryData? {
+        func getRecovery(_ date: Date) -> WhoopAPIResponse<WhoopAPIRecoveryRecord>? {
             guard let (ts, value) = recovery[key(date)], isFresh(ts) else { return nil }
             return value
         }
 
-        func setRecovery(_ date: Date, _ value: WhoopRecoveryData) {
+        func setRecovery(_ date: Date, _ value: WhoopAPIResponse<WhoopAPIRecoveryRecord>) {
             recovery[key(date)] = (Date(), value)
         }
 
-        func getSleep(_ date: Date) -> WhoopSleepData? {
+        func getSleep(_ date: Date) -> WhoopAPIResponse<WhoopAPISleepRecord>? {
             guard let (ts, value) = sleep[key(date)], isFresh(ts) else { return nil }
             return value
         }
 
-        func setSleep(_ date: Date, _ value: WhoopSleepData) {
+        func setSleep(_ date: Date, _ value: WhoopAPIResponse<WhoopAPISleepRecord>) {
             sleep[key(date)] = (Date(), value)
         }
 
-        func getCycle(_ date: Date) -> WhoopCycleData? {
+        func getCycle(_ date: Date) -> WhoopAPIResponse<WhoopAPICycleRecord>? {
             guard let (ts, value) = cycle[key(date)], isFresh(ts) else { return nil }
             return value
         }
 
-        func setCycle(_ date: Date, _ value: WhoopCycleData) {
+        func setCycle(_ date: Date, _ value: WhoopAPIResponse<WhoopAPICycleRecord>) {
             cycle[key(date)] = (Date(), value)
         }
 
@@ -518,20 +523,22 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
             return try await mockService.fetchRecovery(for: date)
         }
 
+        let response: WhoopAPIResponse<WhoopAPIRecoveryRecord>
         if let cached = await responseCache.getRecovery(date) {
             print("\(DebugTrace.prefix)[Whoop] fetchRecovery: cache hit")
-            return cached
+            response = cached
+        } else {
+            let (start, end) = dateRange(for: date)
+            print("\(DebugTrace.prefix)[Whoop] fetchRecovery: range \(start) → \(end)")
+            response = try await whoopGet(
+                path: "/recovery",
+                queryItems: [
+                    URLQueryItem(name: "start", value: start),
+                    URLQueryItem(name: "end", value: end),
+                ]
+            )
+            await responseCache.setRecovery(date, response)
         }
-
-        let (start, end) = dateRange(for: date)
-        print("\(DebugTrace.prefix)[Whoop] fetchRecovery: range \(start) → \(end)")
-        let response: WhoopAPIResponse<WhoopAPIRecoveryRecord> = try await whoopGet(
-            path: "/recovery",
-            queryItems: [
-                URLQueryItem(name: "start", value: start),
-                URLQueryItem(name: "end", value: end),
-            ]
-        )
 
         // Log what we got
         print("\(DebugTrace.prefix)[Whoop] Recovery: \(response.records.count) records")
@@ -557,7 +564,6 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
             date: date
         )
         print("\(DebugTrace.prefix)[Whoop] Recovery result: score=\(result.score)%, hrv=\(result.hrvRmssd)ms, rhr=\(result.restingHeartRate)bpm")
-        await responseCache.setRecovery(date, result)
         return result
     }
 
@@ -568,14 +574,21 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
             return try await [mockService.fetchRecovery(for: date)]
         }
 
-        let (start, end) = dateRange(for: date)
-        let response: WhoopAPIResponse<WhoopAPIRecoveryRecord> = try await whoopGet(
-            path: "/recovery",
-            queryItems: [
-                URLQueryItem(name: "start", value: start),
-                URLQueryItem(name: "end", value: end),
-            ]
-        )
+        let response: WhoopAPIResponse<WhoopAPIRecoveryRecord>
+        if let cached = await responseCache.getRecovery(date) {
+            print("\(DebugTrace.prefix)[Whoop] fetchRecoveryBatch: cache hit")
+            response = cached
+        } else {
+            let (start, end) = dateRange(for: date)
+            response = try await whoopGet(
+                path: "/recovery",
+                queryItems: [
+                    URLQueryItem(name: "start", value: start),
+                    URLQueryItem(name: "end", value: end),
+                ]
+            )
+            await responseCache.setRecovery(date, response)
+        }
 
         let isoFormatter = ISO8601DateFormatter()
         isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -603,14 +616,21 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
             return try await [mockService.fetchSleep(for: date)]
         }
 
-        let (start, end) = dateRange(for: date)
-        let response: WhoopAPIResponse<WhoopAPISleepRecord> = try await whoopGet(
-            path: "/activity/sleep",
-            queryItems: [
-                URLQueryItem(name: "start", value: start),
-                URLQueryItem(name: "end", value: end),
-            ]
-        )
+        let response: WhoopAPIResponse<WhoopAPISleepRecord>
+        if let cached = await responseCache.getSleep(date) {
+            print("\(DebugTrace.prefix)[Whoop] fetchSleepBatch: cache hit")
+            response = cached
+        } else {
+            let (start, end) = dateRange(for: date)
+            response = try await whoopGet(
+                path: "/activity/sleep",
+                queryItems: [
+                    URLQueryItem(name: "start", value: start),
+                    URLQueryItem(name: "end", value: end),
+                ]
+            )
+            await responseCache.setSleep(date, response)
+        }
 
         let isoFormatter = ISO8601DateFormatter()
         isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -649,20 +669,22 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
             return try await mockService.fetchSleep(for: date)
         }
 
+        let response: WhoopAPIResponse<WhoopAPISleepRecord>
         if let cached = await responseCache.getSleep(date) {
             print("\(DebugTrace.prefix)[Whoop] fetchSleep: cache hit")
-            return cached
+            response = cached
+        } else {
+            let (start, end) = dateRange(for: date)
+            print("\(DebugTrace.prefix)[Whoop] fetchSleep: range \(start) → \(end)")
+            response = try await whoopGet(
+                path: "/activity/sleep",
+                queryItems: [
+                    URLQueryItem(name: "start", value: start),
+                    URLQueryItem(name: "end", value: end),
+                ]
+            )
+            await responseCache.setSleep(date, response)
         }
-
-        let (start, end) = dateRange(for: date)
-        print("\(DebugTrace.prefix)[Whoop] fetchSleep: range \(start) → \(end)")
-        let response: WhoopAPIResponse<WhoopAPISleepRecord> = try await whoopGet(
-            path: "/activity/sleep",
-            queryItems: [
-                URLQueryItem(name: "start", value: start),
-                URLQueryItem(name: "end", value: end),
-            ]
-        )
 
         print("\(DebugTrace.prefix)[Whoop] Sleep: \(response.records.count) records")
         for (i, r) in response.records.enumerated() {
@@ -685,7 +707,7 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
         let awakeMilli: Int64 = stages?.totalAwakeTimeMilli ?? 0
         let totalSleepMilli = lightMilli + deepMilli + remMilli
 
-        let result = WhoopSleepData(
+        return WhoopSleepData(
             totalHours: Double(totalSleepMilli) / 3_600_000.0,
             sleepScore: score.sleepPerformancePercentage ?? 0,
             sleepEfficiency: score.sleepEfficiencyPercentage ?? 0,
@@ -697,8 +719,6 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
             respiratoryRate: score.respiratoryRate ?? 0,
             date: date
         )
-        await responseCache.setSleep(date, result)
-        return result
     }
 
     // MARK: - Fetch Workouts
@@ -742,19 +762,21 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
             return try await mockService.fetchCycle(for: date)
         }
 
+        let response: WhoopAPIResponse<WhoopAPICycleRecord>
         if let cached = await responseCache.getCycle(date) {
             print("\(DebugTrace.prefix)[Whoop] fetchCycle: cache hit")
-            return cached
+            response = cached
+        } else {
+            let (start, end) = dateRange(for: date)
+            response = try await whoopGet(
+                path: "/cycle",
+                queryItems: [
+                    URLQueryItem(name: "start", value: start),
+                    URLQueryItem(name: "end", value: end),
+                ]
+            )
+            await responseCache.setCycle(date, response)
         }
-
-        let (start, end) = dateRange(for: date)
-        let response: WhoopAPIResponse<WhoopAPICycleRecord> = try await whoopGet(
-            path: "/cycle",
-            queryItems: [
-                URLQueryItem(name: "start", value: start),
-                URLQueryItem(name: "end", value: end),
-            ]
-        )
 
         // Prefer SCORED, fall back to any record with a score
         let record = response.records.first(where: { $0.scoreState == "SCORED" && $0.score != nil })
@@ -765,7 +787,7 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
             throw WhoopError.noDataAvailable
         }
 
-        let result = WhoopCycleData(
+        return WhoopCycleData(
             strain: score.strain ?? 0,
             averageHeartRate: Double(score.averageHeartRate ?? 0),
             maxHeartRate: Double(score.maxHeartRate ?? 0),
@@ -773,8 +795,6 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
             dayStrain: score.strain ?? 0,
             date: date
         )
-        await responseCache.setCycle(date, result)
-        return result
     }
 
     // MARK: - Sync All
@@ -1161,7 +1181,7 @@ private struct WhoopTokenResponse: Codable {
 
 // All DTOs use generous optionals — Whoop API fields vary by device model and score state.
 
-private struct WhoopAPIResponse<T: Codable & Sendable>: Codable {
+private struct WhoopAPIResponse<T: Codable & Sendable>: Codable, Sendable {
     let records: [T]
     let nextToken: String?
 
@@ -1215,7 +1235,7 @@ private struct WhoopAPIProfileResponse: Codable {
 // Minimal structs — only fields we actually read. Extra JSON keys are ignored by decoder.
 // Avoids type-mismatch failures (e.g. Whoop returns some IDs as strings, some as ints).
 
-private struct WhoopAPIRecoveryRecord: Codable {
+private struct WhoopAPIRecoveryRecord: Codable, Sendable {
     let createdAt: String?
     let scoreState: String?
     let score: WhoopAPIRecoveryScore?
@@ -1223,7 +1243,7 @@ private struct WhoopAPIRecoveryRecord: Codable {
 
 // MARK: - WhoopAPIRecoveryScore
 
-private struct WhoopAPIRecoveryScore: Codable {
+private struct WhoopAPIRecoveryScore: Codable, Sendable {
     let userCalibrating: Bool?
     let recoveryScore: Double?
     let restingHeartRate: Double?
@@ -1234,7 +1254,7 @@ private struct WhoopAPIRecoveryScore: Codable {
 
 // MARK: - WhoopAPISleepRecord
 
-private struct WhoopAPISleepRecord: Codable {
+private struct WhoopAPISleepRecord: Codable, Sendable {
     let createdAt: String?
     let nap: Bool?
     let scoreState: String?
@@ -1243,7 +1263,7 @@ private struct WhoopAPISleepRecord: Codable {
 
 // MARK: - WhoopAPISleepScore
 
-private struct WhoopAPISleepScore: Codable {
+private struct WhoopAPISleepScore: Codable, Sendable {
     let stageSummary: WhoopAPIStageSummary?
     let respiratoryRate: Double?
     let sleepPerformancePercentage: Double?
@@ -1253,7 +1273,7 @@ private struct WhoopAPISleepScore: Codable {
 
 // MARK: - WhoopAPIStageSummary
 
-private struct WhoopAPIStageSummary: Codable {
+private struct WhoopAPIStageSummary: Codable, Sendable {
     let totalInBedTimeMilli: Int64?
     let totalAwakeTimeMilli: Int64?
     let totalLightSleepTimeMilli: Int64?
@@ -1285,14 +1305,14 @@ private struct WhoopAPIWorkoutScore: Codable {
 
 // MARK: - WhoopAPICycleRecord
 
-private struct WhoopAPICycleRecord: Codable {
+private struct WhoopAPICycleRecord: Codable, Sendable {
     let scoreState: String?
     let score: WhoopAPICycleScore?
 }
 
 // MARK: - WhoopAPICycleScore
 
-private struct WhoopAPICycleScore: Codable {
+private struct WhoopAPICycleScore: Codable, Sendable {
     let strain: Double?
     let kilojoule: Double?
     let averageHeartRate: Int?
