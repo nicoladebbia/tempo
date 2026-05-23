@@ -386,14 +386,55 @@ struct NutritionLogView: View {
             )
         }
         let foodItems = inputs.map { MealFoodItem(from: $0) }
-        let meal = MealLog(
+
+        // 1) MealLog — the canonical "what the user actually ate" history.
+        //    Drives Dashboard quadrant and HealthKit sync (future).
+        let mealLog = MealLog(
             type: type,
             dayDate: Date(),
             source: .naturalLanguage,
             photo: nil,
             items: foodItems
         )
-        modelContext.insert(meal)
+        modelContext.insert(mealLog)
+
+        // 2) PlannedMeal (.eaten) — the row Today's UI renders. Mirrors
+        //    logFromPreset's pattern. Linked to the active WeeklyMealPlan
+        //    when one exists so the active-plan filter on todayMeals lets
+        //    this row through. Linked back to the MealLog via
+        //    linkedMealLogID so we can de-dup later if needed.
+        let totalCals = items.reduce(into: 0.0) { $0 += $1.calories }
+        let totalProt = items.reduce(into: 0.0) { $0 += $1.proteinG }
+        let totalCarbs = items.reduce(into: 0.0) { $0 += $1.carbsG }
+        let totalFat = items.reduce(into: 0.0) { $0 += $1.fatG }
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "HH:mm"
+        let plannedMeal = PlannedMeal(
+            dayDate: Date(),
+            mealNumber: viewModel.todayMeals.count + 1,
+            mealName: type.displayName,
+            scheduledTime: timeFormatter.string(from: Date()),
+            foods: items.map { item in
+                PlannedFood(
+                    name: item.name,
+                    quantityGrams: item.quantityGrams,
+                    calories: item.calories,
+                    proteinG: item.proteinG,
+                    carbsG: item.carbsG,
+                    fatG: item.fatG
+                )
+            },
+            totalCalories: totalCals,
+            totalProtein: totalProt,
+            totalCarbs: totalCarbs,
+            totalFat: totalFat,
+            status: .eaten,
+            linkedMealLogID: mealLog.id,
+            actualEatenAt: Date(),
+            mealPlan: viewModel.weeklyPlan
+        )
+        modelContext.insert(plannedMeal)
+
         do {
             try modelContext.save()
         } catch {
@@ -404,7 +445,7 @@ struct NutritionLogView: View {
             return
         }
         toast = ToastData(
-            message: "\(type.displayName) logged. \(items.reduce(into: 0) { $0 += Int($1.calories) }) kcal.",
+            message: "\(type.displayName) logged. \(Int(totalCals)) kcal.",
             style: .success
         )
         naturalLanguageInput = ""

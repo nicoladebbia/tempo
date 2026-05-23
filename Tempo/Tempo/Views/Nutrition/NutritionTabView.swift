@@ -70,7 +70,29 @@ struct NutritionTabView: View {
                 NotificationCenter.default.publisher(for: .tempoTrainingSettingsChanged)
                     .debounce(for: .seconds(0.6), scheduler: DispatchQueue.main)
             ) { _ in
-                guard viewModel.dietaryProfile != nil else { return }
+                // If the dietary profile has already loaded, regen now.
+                // Otherwise latch the request so loadToday() can fire it
+                // the moment the profile becomes available — previously
+                // the notification was silently dropped if it arrived
+                // before loadToday() populated dietaryProfile, which is a
+                // tight race during cold-launch-into-Settings.
+                if viewModel.dietaryProfile != nil {
+                    viewModel.generatePlan(
+                        modelContext: modelContext,
+                        whoop: services.whoop,
+                        apiClient: services.apiClient,
+                        notifications: services.notifications
+                    )
+                } else {
+                    viewModel.pendingTrainingSettingsRegen = true
+                }
+            }
+            // Drain a pending TrainingSettingsChanged regen the moment the
+            // dietary profile finishes loading. Without this, a notification
+            // that arrives during the cold-launch race window is lost forever.
+            .onChange(of: viewModel.dietaryProfile?.id) { _, newID in
+                guard newID != nil, viewModel.pendingTrainingSettingsRegen else { return }
+                viewModel.pendingTrainingSettingsRegen = false
                 viewModel.generatePlan(
                     modelContext: modelContext,
                     whoop: services.whoop,

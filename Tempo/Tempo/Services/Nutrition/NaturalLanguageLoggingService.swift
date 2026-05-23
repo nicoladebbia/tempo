@@ -101,9 +101,14 @@ final class NaturalLanguageLoggingService: @unchecked Sendable {
         let system = """
         You are a food macro parser for a fitness nutrition app. \
         Parse natural language food descriptions into structured JSON with accurate macro data. \
-        Use standard USDA/nutritional database values. All quantities in grams (raw/uncooked weight for \
-        foods that are cooked). Be precise with portions -- "a chicken breast" is ~150g, "a banana" is ~120g, \
-        "a cup of rice" is ~185g raw. Output ONLY valid JSON. No markdown, no code blocks, no preamble.
+        Use standard USDA/nutritional database values. \
+        IMPORTANT: When the user gives a gram weight (e.g. "160g of pasta", "200g rice"), \
+        assume COOKED weight by default — that's what people actually weigh on their plate. \
+        Only treat the number as raw/uncooked if the user explicitly says "dry", "uncooked", "raw", \
+        or "before cooking". Macro values must match the assumed cooking state — 160g cooked pasta \
+        is ~220 kcal, 160g dry pasta is ~568 kcal. Get this right. \
+        Be precise with portions -- "a chicken breast" is ~150g cooked, "a banana" is ~120g, \
+        "a cup of cooked rice" is ~200g. Output ONLY valid JSON. No markdown, no code blocks, no preamble.
         """
 
         // Wrap user text in a delimited block and strip the delimiter from
@@ -124,9 +129,9 @@ final class NaturalLanguageLoggingService: @unchecked Sendable {
         Return ONLY valid JSON (start with [, no markdown, no code blocks) matching this schema:
         [
             {
-                "name": "string (food name, lowercase, e.g. 'chicken breast', 'white rice', 'banana')",
-                "quantityGrams": number (raw/uncooked weight in grams),
-                "calories": number (total for the quantity),
+                "name": "string (food name, lowercase, e.g. 'cooked pasta', 'white rice', 'banana'). Include the cooking state when it changes calories — 'cooked pasta' vs 'dry pasta'.",
+                "quantityGrams": number (the weight you assumed — cooked unless the user said otherwise),
+                "calories": number (total for the quantity, MATCHING the cooking state in `name`),
                 "proteinG": number (total grams),
                 "carbsG": number (total grams),
                 "fatG": number (total grams)
@@ -134,11 +139,13 @@ final class NaturalLanguageLoggingService: @unchecked Sendable {
         ]
 
         Rules:
-        - Use common food names that match a nutrition database (e.g. "chicken breast" not "grilled chicken").
-        - If a quantity is not specified, estimate a reasonable single serving.
-        - "A plate of pasta" = ~80g raw pasta. "A bowl of rice" = ~75g raw rice.
-        - All macro values must be realistic for the stated quantity.
-        - Separate composite foods into individual items (e.g. "chicken and rice" = two items).
+        - Use common food names that match a nutrition database. Prefix with cooking state when relevant: "cooked pasta", "cooked rice", "grilled chicken breast".
+        - If the user did NOT say "dry", "uncooked", or "raw", assume the weight is COOKED. 160g of pasta → ~220 kcal cooked, NOT 568 kcal dry.
+        - If a quantity is not specified, estimate a reasonable single serving in cooked weight.
+        - "A plate of pasta" = ~250g cooked pasta. "A bowl of rice" = ~200g cooked rice.
+        - All macro values must match the cooking state in `name` — be consistent.
+        - Separate composite foods into individual items (e.g. "chicken and rice" = two items) so the user can see per-item calories.
+        - For oils/dressings/sauces, default to a realistic single-serving size: "olive oil" without quantity = ~10g (1 tbsp). Vinegar = ~5g. A pat of butter = ~7g.
         - If the input mentions a brand or prepared food you cannot verify, estimate from the closest generic food.
         """
 

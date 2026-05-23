@@ -119,6 +119,12 @@ final class NutritionTabViewModel {
     private(set) var presets: [MealPreset] = []
     private(set) var dietaryProfile: DietaryProfile?
 
+    /// True when a TrainingSettingsChanged notification arrived before
+    /// dietaryProfile had loaded. loadToday() inspects this at the end of
+    /// its fetch and triggers the deferred regenerate. Cleared as soon
+    /// as the regen fires so we don't loop.
+    var pendingTrainingSettingsRegen: Bool = false
+
     // MARK: - Generation
 
     var isGeneratingPlan: Bool = false
@@ -326,13 +332,28 @@ final class NutritionTabViewModel {
         // but if any orphan survives a future code path the filter prevents
         // ghost duplicates from polluting the Today view.
         do {
+            // Sort by scheduledTime ("HH:mm" — lexicographic ordering on
+            // zero-padded 24h strings matches chronological order). Tiebreak
+            // by mealNumber so two slots at the same time stay deterministic.
+            // Previously we sorted by mealNumber alone, which let the AI
+            // generator's assignment order leak into the UI — a 16:00 snack
+            // (mealNumber 4) would render AFTER a 17:30 dinner (mealNumber
+            // 3) because the indices didn't track time.
+            //
+            // Predicate accepts EITHER (a) PlannedMeals tied to an active
+            // weekly plan, OR (b) PlannedMeals with no plan link AT ALL
+            // (the natural-language log path inserts these). Without (b),
+            // user-logged meals would persist but never appear on Today.
             let mealDescriptor = FetchDescriptor<PlannedMeal>(
                 predicate: #Predicate<PlannedMeal> { meal in
                     meal.dayDate >= todayStart
                         && meal.dayDate < tomorrowStart
-                        && meal.mealPlan?.isActive == true
+                        && (meal.mealPlan?.isActive == true || meal.mealPlan == nil)
                 },
-                sortBy: [SortDescriptor(\.mealNumber)]
+                sortBy: [
+                    SortDescriptor(\.scheduledTime),
+                    SortDescriptor(\.mealNumber),
+                ]
             )
             todayMeals = try modelContext.fetch(mealDescriptor)
             refreshFeedbackPresence(modelContext: modelContext)
@@ -979,11 +1000,16 @@ final class NutritionTabViewModel {
         let tomorrowStart = calendar.date(byAdding: .day, value: 1, to: todayStart)!
 
         do {
+            // Match the primary fetch site's sort: scheduledTime, then
+            // mealNumber as tiebreak. See loadToday(modelContext:) for why.
             let descriptor = FetchDescriptor<PlannedMeal>(
                 predicate: #Predicate<PlannedMeal> { meal in
                     meal.dayDate >= todayStart && meal.dayDate < tomorrowStart
                 },
-                sortBy: [SortDescriptor(\.mealNumber)]
+                sortBy: [
+                    SortDescriptor(\.scheduledTime),
+                    SortDescriptor(\.mealNumber),
+                ]
             )
             todayMeals = try modelContext.fetch(descriptor)
             refreshFeedbackPresence(modelContext: modelContext)
