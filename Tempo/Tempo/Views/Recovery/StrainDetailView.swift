@@ -41,7 +41,7 @@ struct StrainDetailView: View {
         .navigationTitle("Strain")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable {
-            await viewModel.refresh(modelContext: modelContext)
+            await viewModel.forceRefresh(modelContext: modelContext)
         }
     }
 

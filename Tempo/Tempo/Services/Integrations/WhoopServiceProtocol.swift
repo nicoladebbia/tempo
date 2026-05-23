@@ -44,6 +44,11 @@ protocol WhoopServiceProtocol: Sendable {
     /// Used on scenePhase==.active and cold launch.
     /// Retries once on transient network errors; throws on terminal 4xx responses.
     func refreshIfNeeded() async throws
+
+    /// Drops all in-memory cached fetch responses so the next call hits the
+    /// network. Use from explicit user-driven refresh paths (pull-to-refresh).
+    /// No-op when nothing is cached.
+    func invalidateCache() async
 }
 
 // MARK: - WhoopRecoveryData

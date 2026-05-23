@@ -114,4 +114,8 @@ final class MockWhoopService: WhoopServiceProtocol, @unchecked Sendable {
     func refreshIfNeeded() async throws {
         // No-op: mock has no real tokens.
     }
+
+    func invalidateCache() async {
+        // No-op: mock has no network cache.
+    }
 }

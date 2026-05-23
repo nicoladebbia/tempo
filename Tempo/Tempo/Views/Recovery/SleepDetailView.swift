@@ -45,7 +45,7 @@ struct SleepDetailView: View {
         .navigationTitle("Sleep")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable {
-            await viewModel.refresh(modelContext: modelContext)
+            await viewModel.forceRefresh(modelContext: modelContext)
         }
     }
 

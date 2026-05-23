@@ -73,6 +73,79 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
         return d
     }()
 
+    // MARK: - Response Cache
+    //
+    // Dashboard / Recovery / Nutrition views each refresh independently on
+    // appearance and historically all three hit /recovery, /activity/sleep,
+    // /cycle within seconds of cold launch — burning quota and surfacing as
+    // duplicate fetch cycles in the log. This in-memory cache dedups the
+    // burst: a hit within `cacheTTL` returns the prior response without a
+    // network call. The cache is wiped on disconnect/connect/token-clear so
+    // identity changes can't bleed across.
+    //
+    // TTL = 30s. Whoop recovery scores can update around wake-up; 30s is
+    // short enough to never serve materially stale data during the session,
+    // long enough to cover the typical Dashboard→Recovery→Nutrition tab
+    // sequence at app launch.
+    private actor ResponseCache {
+        private let ttl: TimeInterval
+        private var recovery: [Date: (Date, WhoopRecoveryData)] = [:]
+        private var sleep: [Date: (Date, WhoopSleepData)] = [:]
+        private var cycle: [Date: (Date, WhoopCycleData)] = [:]
+
+        init(ttl: TimeInterval) { self.ttl = ttl }
+
+        private func key(_ date: Date) -> Date {
+            Calendar.current.startOfDay(for: date)
+        }
+
+        private func isFresh(_ stored: Date) -> Bool {
+            Date().timeIntervalSince(stored) < ttl
+        }
+
+        func getRecovery(_ date: Date) -> WhoopRecoveryData? {
+            guard let (ts, value) = recovery[key(date)], isFresh(ts) else { return nil }
+            return value
+        }
+
+        func setRecovery(_ date: Date, _ value: WhoopRecoveryData) {
+            recovery[key(date)] = (Date(), value)
+        }
+
+        func getSleep(_ date: Date) -> WhoopSleepData? {
+            guard let (ts, value) = sleep[key(date)], isFresh(ts) else { return nil }
+            return value
+        }
+
+        func setSleep(_ date: Date, _ value: WhoopSleepData) {
+            sleep[key(date)] = (Date(), value)
+        }
+
+        func getCycle(_ date: Date) -> WhoopCycleData? {
+            guard let (ts, value) = cycle[key(date)], isFresh(ts) else { return nil }
+            return value
+        }
+
+        func setCycle(_ date: Date, _ value: WhoopCycleData) {
+            cycle[key(date)] = (Date(), value)
+        }
+
+        func invalidateAll() {
+            recovery.removeAll()
+            sleep.removeAll()
+            cycle.removeAll()
+        }
+    }
+
+    private let responseCache = ResponseCache(ttl: 30)
+
+    /// Wipes all cached fetch responses. Call when the user explicitly wants
+    /// fresh data (pull-to-refresh) or after a connection-state change that
+    /// could change the underlying account.
+    func invalidateCache() async {
+        await responseCache.invalidateAll()
+    }
+
     // MARK: - Init
 
     override init() {
@@ -392,6 +465,10 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
             // Exchange authorization code for tokens
             try await exchangeCodeForTokens(code: code)
 
+            // Fresh OAuth completed — wipe any cached responses that could
+            // belong to a previous account on this device.
+            await responseCache.invalidateAll()
+
             connectionState = .connected
             isDemoMode = false
             lastSyncDate = Date()
@@ -428,6 +505,7 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
 
     func disconnect() async throws {
         try? clearTokens()
+        await responseCache.invalidateAll()
         connectionState = .disconnected
         isDemoMode = false
         logger.info("Whoop disconnected")
@@ -438,6 +516,11 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
     func fetchRecovery(for date: Date) async throws -> WhoopRecoveryData {
         if isDemoMode {
             return try await mockService.fetchRecovery(for: date)
+        }
+
+        if let cached = await responseCache.getRecovery(date) {
+            print("\(DebugTrace.prefix)[Whoop] fetchRecovery: cache hit")
+            return cached
         }
 
         let (start, end) = dateRange(for: date)
@@ -453,7 +536,7 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
         // Log what we got
         print("\(DebugTrace.prefix)[Whoop] Recovery: \(response.records.count) records")
         for (i, r) in response.records.enumerated() {
-            print("[Whoop]   [\(i)] state=\(r.scoreState ?? "nil") hasScore=\(r.score != nil) recovery=\(r.score?.recoveryScore ?? -1)")
+            print("\(DebugTrace.prefix)[Whoop]   [\(i)] state=\(r.scoreState ?? "nil") hasScore=\(r.score != nil) recovery=\(r.score?.recoveryScore ?? -1)")
         }
 
         // Prefer SCORED, fall back to any record with a score
@@ -461,7 +544,7 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
             ?? response.records.first(where: { $0.score != nil })
 
         guard let record, let score = record.score else {
-            print("[Whoop] Recovery: NO usable record found")
+            print("\(DebugTrace.prefix)[Whoop] Recovery: NO usable record found")
             throw WhoopError.noDataAvailable
         }
 
@@ -474,6 +557,7 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
             date: date
         )
         print("\(DebugTrace.prefix)[Whoop] Recovery result: score=\(result.score)%, hrv=\(result.hrvRmssd)ms, rhr=\(result.restingHeartRate)bpm")
+        await responseCache.setRecovery(date, result)
         return result
     }
 
@@ -565,6 +649,11 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
             return try await mockService.fetchSleep(for: date)
         }
 
+        if let cached = await responseCache.getSleep(date) {
+            print("\(DebugTrace.prefix)[Whoop] fetchSleep: cache hit")
+            return cached
+        }
+
         let (start, end) = dateRange(for: date)
         print("\(DebugTrace.prefix)[Whoop] fetchSleep: range \(start) → \(end)")
         let response: WhoopAPIResponse<WhoopAPISleepRecord> = try await whoopGet(
@@ -577,7 +666,7 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
 
         print("\(DebugTrace.prefix)[Whoop] Sleep: \(response.records.count) records")
         for (i, r) in response.records.enumerated() {
-            print("[Whoop]   [\(i)] nap=\(r.nap ?? false) state=\(r.scoreState ?? "nil") hasScore=\(r.score != nil)")
+            print("\(DebugTrace.prefix)[Whoop]   [\(i)] nap=\(r.nap ?? false) state=\(r.scoreState ?? "nil") hasScore=\(r.score != nil)")
         }
 
         // Get main sleep (not nap), prefer scored
@@ -585,7 +674,7 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
             ?? response.records.first(where: { $0.nap != true && $0.score != nil })
 
         guard let record, let score = record.score else {
-            print("[Whoop] Sleep: NO usable record found")
+            print("\(DebugTrace.prefix)[Whoop] Sleep: NO usable record found")
             throw WhoopError.noDataAvailable
         }
 
@@ -596,7 +685,7 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
         let awakeMilli: Int64 = stages?.totalAwakeTimeMilli ?? 0
         let totalSleepMilli = lightMilli + deepMilli + remMilli
 
-        return WhoopSleepData(
+        let result = WhoopSleepData(
             totalHours: Double(totalSleepMilli) / 3_600_000.0,
             sleepScore: score.sleepPerformancePercentage ?? 0,
             sleepEfficiency: score.sleepEfficiencyPercentage ?? 0,
@@ -608,6 +697,8 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
             respiratoryRate: score.respiratoryRate ?? 0,
             date: date
         )
+        await responseCache.setSleep(date, result)
+        return result
     }
 
     // MARK: - Fetch Workouts
@@ -651,6 +742,11 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
             return try await mockService.fetchCycle(for: date)
         }
 
+        if let cached = await responseCache.getCycle(date) {
+            print("\(DebugTrace.prefix)[Whoop] fetchCycle: cache hit")
+            return cached
+        }
+
         let (start, end) = dateRange(for: date)
         let response: WhoopAPIResponse<WhoopAPICycleRecord> = try await whoopGet(
             path: "/cycle",
@@ -669,7 +765,7 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
             throw WhoopError.noDataAvailable
         }
 
-        return WhoopCycleData(
+        let result = WhoopCycleData(
             strain: score.strain ?? 0,
             averageHeartRate: Double(score.averageHeartRate ?? 0),
             maxHeartRate: Double(score.maxHeartRate ?? 0),
@@ -677,6 +773,8 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
             dayStrain: score.strain ?? 0,
             date: date
         )
+        await responseCache.setCycle(date, result)
+        return result
     }
 
     // MARK: - Sync All
@@ -876,8 +974,10 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
                 // Structured summary instead of raw JSON: leaks no PII to the
                 // console, no truncated mid-record blobs, and the record count
                 // alone tells you whether the call succeeded as expected.
-                let recordCount = Self.recordCount(in: data) ?? -1
-                logger.debug("\(DebugTrace.prefix)[WhoopAPI] \(path) \(data.count)B records=\(recordCount)")
+                // Non-list endpoints (e.g. /user/profile/basic) get "n/a"
+                // instead of "-1" so the log line doesn't look like a bug.
+                let recordSummary = Self.recordCount(in: data).map(String.init) ?? "n/a"
+                logger.debug("\(DebugTrace.prefix)[WhoopAPI] \(path) \(data.count)B records=\(recordSummary)")
             #endif
             do {
                 return try Self.decoder.decode(T.self, from: data)
@@ -898,6 +998,7 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
                 else {
                     logger.error("Whoop \(path): retry also failed")
                     try? clearTokens()
+                    await responseCache.invalidateAll()
                     connectionState = .disconnected
                     throw WhoopError.notConnected
                 }
@@ -906,6 +1007,7 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
             } catch {
                 logger.error("Whoop \(path): 401 recovery failed — \(error.localizedDescription)")
                 try? clearTokens()
+                await responseCache.invalidateAll()
                 connectionState = .disconnected
                 throw WhoopError.notConnected
             }
@@ -1071,7 +1173,7 @@ private struct WhoopAPIResponse<T: Codable & Sendable>: Codable {
             records = try container.decode([T].self, forKey: .records)
         } catch {
             // Full array decode failed — try lossy: decode one-by-one, skip bad elements
-            print("[WhoopAPI] Full array decode failed: \(error)")
+            print("\(DebugTrace.prefix)[WhoopAPI] Full array decode failed: \(error)")
             var lossy: [T] = []
             if var array = try? container.nestedUnkeyedContainer(forKey: .records) {
                 while !array.isAtEnd {
@@ -1084,7 +1186,7 @@ private struct WhoopAPIResponse<T: Codable & Sendable>: Codable {
                 }
             }
             records = lossy
-            print("[WhoopAPI] Lossy decode recovered \(lossy.count) records")
+            print("\(DebugTrace.prefix)[WhoopAPI] Lossy decode recovered \(lossy.count) records")
         }
 
         nextToken = try? container.decode(String.self, forKey: .nextToken)

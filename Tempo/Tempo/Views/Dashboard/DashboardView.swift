@@ -285,6 +285,9 @@ struct DashboardView: View {
         }
         .scrollIndicators(.hidden)
         .refreshable {
+            // Pull-to-refresh is the user explicitly asking for fresh data —
+            // bypass the in-memory Whoop response cache.
+            await services.whoop.invalidateCache()
             await vm.refresh()
             vm.refreshTrainingStatus(modelContext: modelContext)
             vm.refreshAccountability(modelContext: modelContext)

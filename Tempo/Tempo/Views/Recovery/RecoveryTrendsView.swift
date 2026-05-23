@@ -55,7 +55,7 @@ struct RecoveryTrendsView: View {
         .navigationTitle("Trends")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable {
-            await viewModel.refresh(modelContext: modelContext)
+            await viewModel.forceRefresh(modelContext: modelContext)
         }
     }
 

@@ -63,7 +63,7 @@ struct WeeklyRecoverySummaryView: View {
         .navigationTitle("Weekly Summary")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable {
-            await viewModel.refresh(modelContext: modelContext)
+            await viewModel.forceRefresh(modelContext: modelContext)
         }
     }
 

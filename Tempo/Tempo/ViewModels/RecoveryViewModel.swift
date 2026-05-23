@@ -70,6 +70,14 @@ final class RecoveryViewModel {
 
     // Per MODULE_RECOVERY.md Section 4 — Pull-to-refresh
 
+    /// Pull-to-refresh entry point: drops the Whoop in-memory cache so the
+    /// user-initiated refresh actually hits the network instead of returning
+    /// the value cached during the most-recent Dashboard load.
+    func forceRefresh(modelContext: ModelContext) async {
+        await whoop.invalidateCache()
+        await refresh(modelContext: modelContext)
+    }
+
     func refresh(modelContext: ModelContext) async {
         loadState = .loading
 

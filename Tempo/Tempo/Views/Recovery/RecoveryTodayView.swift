@@ -67,7 +67,7 @@ struct RecoveryTodayView: View {
         }
         .background(Color.tempoBgPrimary)
         .refreshable {
-            await viewModel.refresh(modelContext: modelContext)
+            await viewModel.forceRefresh(modelContext: modelContext)
         }
         .task {
             if viewModel.loadState != .loaded {
