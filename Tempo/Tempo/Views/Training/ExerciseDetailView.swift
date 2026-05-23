@@ -122,10 +122,56 @@ struct ExerciseDetailView: View {
     // Per WIREFRAMES.md Screen 20 — 24pt height pill chips
 
     private var infoPills: some View {
-        HStack(spacing: TempoSpacing.sm) {
-            infoPill(exercise.muscleGroup.displayName)
-            infoPill(equipmentLabel)
-            infoPill(exercise.isCompound ? "Compound" : "Isolation")
+        VStack(spacing: TempoSpacing.sm) {
+            HStack(spacing: TempoSpacing.sm) {
+                infoPill(exercise.muscleGroup.displayName)
+                infoPill(equipmentLabel)
+                infoPill(exercise.isCompound ? "Compound" : "Isolation")
+            }
+            beginnerExplainer
+        }
+    }
+
+    /// Plain-language one-liner for whichever pills are most likely to confuse
+    /// a beginner. UserSettings.experienceLevel isn't persisted today, so this
+    /// is shown unconditionally — the explainer is small and dismissible by
+    /// just ignoring it, and the cost to an experienced user is one secondary
+    /// line vs. a beginner being stuck.
+    @ViewBuilder
+    private var beginnerExplainer: some View {
+        let equipmentTip = equipmentExplainer
+        let movementTip = exercise.isCompound
+            ? "Compound — works multiple muscle groups at once. Heaviest, most efficient lifts."
+            : "Isolation — targets one muscle. Lighter, used for shaping or weak points."
+        VStack(alignment: .leading, spacing: 2) {
+            if let equipmentTip {
+                Text(equipmentTip)
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextTertiary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            Text(movementTip)
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextTertiary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var equipmentExplainer: String? {
+        switch exercise.equipment {
+        case .barbell: "Barbell — long metal bar you load with plates on each end. Used for the heaviest lifts."
+        case .dumbbell: "Dumbbell — short handheld weights, one per hand. Better for balance and one-arm work."
+        case .cable: "Cable — adjustable pulley with a handle. Constant tension through the whole movement."
+        case .machine: "Machine — fixed path with selectable weight stack. Easier to learn; safer for going heavy alone."
+        case .bodyweight: "Bodyweight — no equipment, you ARE the load. Scales by adjusting leverage or reps."
+        case .kettlebell: "Kettlebell — ball-shaped weight with a handle. Great for swings and ballistic moves."
+        case .resistanceBand: "Band — elastic; tension increases as you stretch it. Light option for assistance or warm-ups."
+        case .smithMachine: "Smith Machine — barbell locked on vertical rails. Stable, but limits natural movement path."
+        case .ezBar: "EZ Bar — short curved barbell. Easier on the wrists for curls and skullcrushers."
+        case .trapBar: "Trap Bar — hexagonal bar you stand inside. Easier-on-the-back deadlift variant."
+        case .pullUpBar: "Pull-Up Bar — overhead bar. Hang and pull yourself up; the canonical upper-body bodyweight test."
+        case .bench: "Bench — flat or adjustable padded bench. Lets you press, row, or step up from a stable base."
+        case .none: nil
         }
     }
 
