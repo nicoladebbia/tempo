@@ -307,6 +307,14 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
         return records.count
     }
 
+    // Case-insensitive integer header lookup. HTTPURLResponse.value(forHTTPHeaderField:)
+    // is case-insensitive on iOS 13+, but we still string-parse explicitly so a
+    // future header type change doesn't silently break the rate-limit log.
+    private static func intHeader(_ response: HTTPURLResponse, _ name: String) -> Int? {
+        guard let raw = response.value(forHTTPHeaderField: name) else { return nil }
+        return Int(raw.trimmingCharacters(in: .whitespaces))
+    }
+
     private static func isTransient(_ error: URLError) -> Bool {
         switch error.code {
         case .notConnectedToInternet,
@@ -433,7 +441,7 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
         }
 
         let (start, end) = dateRange(for: date)
-        print("[Whoop] fetchRecovery: range \(start) → \(end)")
+        print("\(DebugTrace.prefix)[Whoop] fetchRecovery: range \(start) → \(end)")
         let response: WhoopAPIResponse<WhoopAPIRecoveryRecord> = try await whoopGet(
             path: "/recovery",
             queryItems: [
@@ -443,7 +451,7 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
         )
 
         // Log what we got
-        print("[Whoop] Recovery: \(response.records.count) records")
+        print("\(DebugTrace.prefix)[Whoop] Recovery: \(response.records.count) records")
         for (i, r) in response.records.enumerated() {
             print("[Whoop]   [\(i)] state=\(r.scoreState ?? "nil") hasScore=\(r.score != nil) recovery=\(r.score?.recoveryScore ?? -1)")
         }
@@ -465,7 +473,7 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
             skinTemp: score.skinTempCelsius,
             date: date
         )
-        print("[Whoop] Recovery result: score=\(result.score)%, hrv=\(result.hrvRmssd)ms, rhr=\(result.restingHeartRate)bpm")
+        print("\(DebugTrace.prefix)[Whoop] Recovery result: score=\(result.score)%, hrv=\(result.hrvRmssd)ms, rhr=\(result.restingHeartRate)bpm")
         return result
     }
 
@@ -558,7 +566,7 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
         }
 
         let (start, end) = dateRange(for: date)
-        print("[Whoop] fetchSleep: range \(start) → \(end)")
+        print("\(DebugTrace.prefix)[Whoop] fetchSleep: range \(start) → \(end)")
         let response: WhoopAPIResponse<WhoopAPISleepRecord> = try await whoopGet(
             path: "/activity/sleep",
             queryItems: [
@@ -567,7 +575,7 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
             ]
         )
 
-        print("[Whoop] Sleep: \(response.records.count) records")
+        print("\(DebugTrace.prefix)[Whoop] Sleep: \(response.records.count) records")
         for (i, r) in response.records.enumerated() {
             print("[Whoop]   [\(i)] nap=\(r.nap ?? false) state=\(r.scoreState ?? "nil") hasScore=\(r.score != nil)")
         }
@@ -852,12 +860,24 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
 
         switch httpResponse.statusCode {
         case 200 ... 299:
+            // Surface low rate-limit budget regardless of build config — if we
+            // ever start burning through Whoop's quota, this is the first
+            // place we'll notice. Whoop's v2 API returns X-RateLimit-* headers
+            // on every response. We only log when remaining drops under 20%
+            // to keep the console quiet in the common case.
+            if let remaining = Self.intHeader(httpResponse, "X-RateLimit-Remaining"),
+               let limit = Self.intHeader(httpResponse, "X-RateLimit-Limit"),
+               limit > 0,
+               Double(remaining) / Double(limit) < 0.20
+            {
+                logger.warning("\(DebugTrace.prefix)[WhoopAPI] rate-limit low \(remaining)/\(limit) on \(path)")
+            }
             #if DEBUG
                 // Structured summary instead of raw JSON: leaks no PII to the
                 // console, no truncated mid-record blobs, and the record count
                 // alone tells you whether the call succeeded as expected.
                 let recordCount = Self.recordCount(in: data) ?? -1
-                logger.debug("[WhoopAPI] \(path) \(data.count)B records=\(recordCount)")
+                logger.debug("\(DebugTrace.prefix)[WhoopAPI] \(path) \(data.count)B records=\(recordCount)")
             #endif
             do {
                 return try Self.decoder.decode(T.self, from: data)

@@ -753,6 +753,15 @@ final class DashboardViewModel {
         }
         isRefreshing = true
         defer { isRefreshing = false }
+        await DebugTrace.$refreshID.withValue(DebugTrace.newID()) {
+            await refreshBody()
+        }
+    }
+
+    // Body of refresh() lifted into its own method so we can wrap the entire
+    // call chain in a TaskLocal correlation ID. Every downstream log line that
+    // calls DebugTrace.prefix will be tagged with the same [T:abc123] marker.
+    private func refreshBody() async {
         loadState = .loading
 
         let today = Date()
@@ -763,28 +772,28 @@ final class DashboardViewModel {
         let whoopSleepData: WhoopSleepData?
         let cycle: WhoopCycleData?
         #if DEBUG
-            print("[Dashboard] Whoop state: \(whoop.connectionState), isDemoMode: \(whoop.isDemoMode)")
+            print("\(DebugTrace.prefix)[Dashboard] Whoop state: \(whoop.connectionState), isDemoMode: \(whoop.isDemoMode)")
         #endif
         if whoop.connectionState == .connected {
             do { recovery = try await whoop.fetchRecovery(for: today) }
             catch {
                 recovery = nil
                 #if DEBUG
-                    print("[Dashboard] Whoop recovery fetch failed: \(error)")
+                    print("\(DebugTrace.prefix)[Dashboard] Whoop recovery fetch failed: \(error)")
                 #endif
             }
             do { whoopSleepData = try await whoop.fetchSleep(for: today) }
             catch {
                 whoopSleepData = nil
                 #if DEBUG
-                    print("[Dashboard] Whoop sleep fetch failed: \(error)")
+                    print("\(DebugTrace.prefix)[Dashboard] Whoop sleep fetch failed: \(error)")
                 #endif
             }
             do { cycle = try await whoop.fetchCycle(for: today) }
             catch {
                 cycle = nil
                 #if DEBUG
-                    print("[Dashboard] Whoop cycle fetch failed: \(error)")
+                    print("\(DebugTrace.prefix)[Dashboard] Whoop cycle fetch failed: \(error)")
                 #endif
             }
         } else {
@@ -792,7 +801,7 @@ final class DashboardViewModel {
             whoopSleepData = nil
             cycle = nil
             #if DEBUG
-                print("[Dashboard] Whoop not connected — skipping Whoop data fetch")
+                print("\(DebugTrace.prefix)[Dashboard] Whoop not connected — skipping Whoop data fetch")
             #endif
         }
         // Fetch HealthKit data (always — used as fallback or standalone).
@@ -834,6 +843,18 @@ final class DashboardViewModel {
             bedtime: nil, wakeTime: nil
         )
         workouts = (try? await hkWorkouts) ?? []
+
+        #if DEBUG
+            // Single-line summary of every HK metric outcome — easier to scan
+            // than the per-helper logs scattered through HealthKitService.
+            // `nil` means the helper threw (HK error 11 / no auth / etc.);
+            // numeric values are real fetched data.
+            let hrvStr = hrv.map { String(format: "%.1f", $0) } ?? "nil"
+            let rhrStr = rhr.map { String(format: "%.1f", $0) } ?? "nil"
+            print(
+                "\(DebugTrace.prefix)[Dashboard] HK summary steps=\(steps) hr=\(heartRates.count) hrv=\(hrvStr) rhr=\(rhrStr) sleep=\(String(format: "%.1f", hkSleepData.totalHours))h workouts=\(workouts.count)"
+            )
+        #endif
 
         // Aggregate today's MealLog records from SwiftData (native nutrition).
         let nutritionTotals = fetchNutritionTotalsForToday()
@@ -882,7 +903,7 @@ final class DashboardViewModel {
         )
         #if DEBUG
             print(
-                "[Dashboard] Body built: recovery=\(recovery?.score ?? -1), hrv=\(bodyHRV ?? -1), rhr=\(bodyRHR ?? -1), sleep=\(sleepHours)h, strain=\(cycle?.dayStrain ?? -1), source=\(dataSource.rawValue), connected=\(hasWhoopData || healthKitConnected)"
+                "\(DebugTrace.prefix)[Dashboard] Body built: recovery=\(recovery?.score ?? -1), hrv=\(bodyHRV ?? -1), rhr=\(bodyRHR ?? -1), sleep=\(sleepHours)h, strain=\(cycle?.dayStrain ?? -1), source=\(dataSource.rawValue), connected=\(hasWhoopData || healthKitConnected)"
             )
         #endif
 

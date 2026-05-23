@@ -41,6 +41,18 @@ final class RecoveryAIInsightService: @unchecked Sendable {
     private let maxRetries = 2
     private let baseRetryDelay: Double = 1.0
 
+    // Final outcome of the most-recent paragraph() call. Observable so a
+    // DEBUG-only badge in RecoveryAIInsightView can render it without polling.
+    // Stays nil before the first call.
+    enum FinalState: String, Sendable {
+        case cacheHit = "cache-hit"
+        case apiSuccess = "api-success"
+        case cancelled
+        case failed
+    }
+
+    @MainActor var lastFinalState: FinalState?
+
     init(apiClient: APIClient) {
         self.apiClient = apiClient
     }
@@ -55,7 +67,8 @@ final class RecoveryAIInsightService: @unchecked Sendable {
         modelContext: ModelContext
     ) async throws -> String {
         if let cached = cachedParagraph(modelContext: modelContext) {
-            logger.info("[recovery_insight] cache hit for today — no proxy call")
+            logger.info("\(DebugTrace.prefix)[recovery_insight] cache hit for today — no proxy call")
+            lastFinalState = .cacheHit
             return cached
         }
 
@@ -70,7 +83,17 @@ final class RecoveryAIInsightService: @unchecked Sendable {
             prompt = Self.buildPrompt(from: recovery)
             system = Self.systemPrompt
         }
-        let text = try await sendWithRetry(system: system, prompt: prompt)
+        let text: String
+        do {
+            text = try await sendWithRetry(system: system, prompt: prompt)
+            lastFinalState = .apiSuccess
+        } catch is CancellationError {
+            lastFinalState = .cancelled
+            throw CancellationError()
+        } catch {
+            lastFinalState = .failed
+            throw error
+        }
 
         let insight = RecoveryInsight(
             date: Calendar.current.startOfDay(for: Date()),
@@ -559,34 +582,34 @@ final class RecoveryAIInsightService: @unchecked Sendable {
                     body: body
                 )
                 let elapsed = Date().timeIntervalSince(started)
-                logger.info("[recovery_insight] final: success attempt=\(attempt) elapsed=\(String(format: "%.2f", elapsed))s")
+                logger.info("\(DebugTrace.prefix)[recovery_insight] final: success attempt=\(attempt) elapsed=\(String(format: "%.2f", elapsed))s")
                 return response.text.trimmingCharacters(in: .whitespacesAndNewlines)
             } catch is CancellationError {
                 // Parent SwiftUI task was torn down (view re-mount, task(id:)
                 // change). Not a real failure — surface it as cancelled and
                 // bail so the next view-recreate attempt isn't double-charged.
-                logger.info("[recovery_insight] final: cancelled attempt=\(attempt) elapsed=\(String(format: "%.2f", Date().timeIntervalSince(started)))s")
+                logger.info("\(DebugTrace.prefix)[recovery_insight] final: cancelled attempt=\(attempt) elapsed=\(String(format: "%.2f", Date().timeIntervalSince(started)))s")
                 throw CancellationError()
             } catch let error as APIError {
                 let elapsed = Date().timeIntervalSince(started)
                 lastError = error
-                logger.warning("[recovery_insight] proxy error attempt=\(attempt) elapsed=\(String(format: "%.2f", elapsed))s err=\(String(describing: error))")
+                logger.warning("\(DebugTrace.prefix)[recovery_insight] proxy error attempt=\(attempt) elapsed=\(String(format: "%.2f", elapsed))s err=\(String(describing: error))")
                 guard error.isRetryable, attempt < maxRetries else { break }
                 let delay = baseRetryDelay * pow(2.0, Double(attempt))
                 do {
                     try await Task.sleep(for: .seconds(delay))
                 } catch is CancellationError {
-                    logger.info("[recovery_insight] final: cancelled (during backoff) attempt=\(attempt)")
+                    logger.info("\(DebugTrace.prefix)[recovery_insight] final: cancelled (during backoff) attempt=\(attempt)")
                     throw CancellationError()
                 }
             } catch {
                 lastError = error
-                logger.error("[recovery_insight] unexpected error attempt=\(attempt): \(error.localizedDescription)")
+                logger.error("\(DebugTrace.prefix)[recovery_insight] unexpected error attempt=\(attempt): \(error.localizedDescription)")
                 break
             }
         }
 
-        logger.warning("[recovery_insight] final: failed err=\(lastError.map { String(describing: $0) } ?? "unknown")")
+        logger.warning("\(DebugTrace.prefix)[recovery_insight] final: failed err=\(lastError.map { String(describing: $0) } ?? "unknown")")
         throw RecoveryAIInsightError.apiFailed(lastError ?? APIError.unknown(statusCode: -1))
     }
 }

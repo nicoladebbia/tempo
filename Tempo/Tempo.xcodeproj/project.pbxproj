@@ -71,6 +71,7 @@
 		2E978D47831F02C897C3E6C9 /* MealPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AD6C7012CCDF878B2C41265 /* MealPreset.swift */; };
 		2EB6A739EEB35D06134926D2 /* XPEngineProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A300B1153B724961360B8C /* XPEngineProtocol.swift */; };
 		2FD90060C6E6B435B160C7FA /* PhotoAnalysisService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B61E27D4D0D5FDB241C668A3 /* PhotoAnalysisService.swift */; };
+		30559A3450A96F99BE0A4D87 /* DebugTrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3F8D3874146880249B5802D /* DebugTrace.swift */; };
 		313C3E974D6C484A252DE914 /* StreakCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E12F8C9AD532F04BF678536 /* StreakCalendarView.swift */; };
 		3173E661E04307834C2F449A /* WeeklyRecoverySummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3258B0C665468D65B76F193 /* WeeklyRecoverySummaryView.swift */; };
 		325C8C2C6263920E5CCB395C /* DashboardSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C5B1331799BBAE62F6E1ECE /* DashboardSettingsView.swift */; };
@@ -734,6 +735,7 @@
 		B2B54A1A7480F07957A6AA35 /* Exercise.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Exercise.swift; sourceTree = "<group>"; };
 		B2E8C61CFE080DB193DDFEED /* NutritionTodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionTodayView.swift; sourceTree = "<group>"; };
 		B3A63083CF496418C4A7B0F8 /* testQuadrantCardFuel.1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = testQuadrantCardFuel.1.png; sourceTree = "<group>"; };
+		B3F8D3874146880249B5802D /* DebugTrace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugTrace.swift; sourceTree = "<group>"; };
 		B41099FE41B5BF95B0966875 /* RecipeSuggestionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeSuggestionEngine.swift; sourceTree = "<group>"; };
 		B5411241E0299EB01755166F /* MealScheduleHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealScheduleHelpers.swift; sourceTree = "<group>"; };
 		B5D716D5E3223A9FA8FE3D40 /* RecoveryEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryEngineTests.swift; sourceTree = "<group>"; };
@@ -1067,6 +1069,7 @@
 			children = (
 				65D7A538CE0A98C67A1E209A /* .gitkeep */,
 				780C97DA0C11CEFA1B0DBB1C /* DateFormatters.swift */,
+				B3F8D3874146880249B5802D /* DebugTrace.swift */,
 				B6631C5AF683ED649E1C7D40 /* HapticManager.swift */,
 				6A9F438FD7D99195C6E720D2 /* NetworkMonitor.swift */,
 				B6C363A6C34768A0DD800131 /* SoundManager.swift */,
@@ -2446,6 +2449,7 @@
 				512F4110C850D2875D1E626B /* DayPlanner.swift in Sources */,
 				CC7F85E347D338C7724DEE36 /* DayPlannerAIHydrator.swift in Sources */,
 				1D06D58BE7C61B4BAD9A4401 /* DayPlannerService.swift in Sources */,
+				30559A3450A96F99BE0A4D87 /* DebugTrace.swift in Sources */,
 				FA7E7514ED95B5A5C738A967 /* DesignTokens.swift in Sources */,
 				152B267CCE9A9954DD4985C2 /* DietaryProfile.swift in Sources */,
 				E102EEDE150B8CF28D190F3B /* DietaryProfileSetupView.swift in Sources */,

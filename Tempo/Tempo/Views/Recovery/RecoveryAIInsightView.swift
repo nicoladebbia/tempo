@@ -56,6 +56,16 @@ struct RecoveryAIInsightView: View {
                     // to users — they'd spam it and drive API cost up. The
                     // per-day cache is the cost control in release builds.
                     Spacer()
+                    if let state = service?.lastFinalState {
+                        Text(state.rawValue)
+                            .font(.system(size: 9, weight: .medium, design: .monospaced))
+                            .foregroundStyle(badgeColor(for: state))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(badgeColor(for: state).opacity(0.15))
+                            .clipShape(Capsule())
+                            .accessibilityLabel("Insight state: \(state.rawValue)")
+                    }
                     Button {
                         Task { await regenerate() }
                     } label: {
@@ -94,6 +104,19 @@ struct RecoveryAIInsightView: View {
             await load()
         }
     }
+
+    #if DEBUG
+    // Pure UI helper for the DEBUG-only final-state badge. Keeping it inside
+    // an #if guard so it doesn't ship to release builds.
+    private func badgeColor(for state: RecoveryAIInsightService.FinalState) -> Color {
+        switch state {
+        case .cacheHit: return Color.tempoTextSecondary
+        case .apiSuccess: return Color.tempoSignal
+        case .cancelled: return Color.tempoWarning
+        case .failed: return Color.tempoError
+        }
+    }
+    #endif
 
     @ViewBuilder
     private func insightCard(@ViewBuilder _ content: () -> some View) -> some View {
