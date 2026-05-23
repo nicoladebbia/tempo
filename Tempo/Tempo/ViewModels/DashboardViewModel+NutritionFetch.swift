@@ -60,15 +60,28 @@ extension DashboardViewModel {
             totals.fat = Int(logs.reduce(0.0) { $0 + $1.totalFat })
         }
 
-        let targetDescriptor = FetchDescriptor<NutritionTarget>(
+        // Targets come from NutritionTargetCalculator — the SAME helper
+        // Nutrition Today uses — so the two surfaces never disagree on the
+        // calorie / macro target. Previously this read NutritionTarget (a
+        // SwiftData record left over from an earlier architecture, holding
+        // onboarding-time defaults like 2,400), while Nutrition Today
+        // summed PlannedMeal.totalCalories from the active plan (~3,536).
+        // Same user, same day, two different numbers. Fixed by the shared
+        // calculator.
+        let targets = NutritionTargetCalculator.targetsForToday(in: context)
+        totals.calorieTarget = targets.calories
+        totals.proteinTarget = targets.protein
+        totals.carbsTarget = targets.carbs
+        totals.fatTarget = targets.fat
+        // mealsPlanned stays from NutritionTarget for now — it's an
+        // onboarding setting, not a derived value, and no other surface
+        // sources it. If we ever rebuild meal-count-per-day from the plan
+        // itself, switch this too.
+        let mealsPerDayDescriptor = FetchDescriptor<NutritionTarget>(
             predicate: #Predicate<NutritionTarget> { t in t.isActive == true },
             sortBy: [SortDescriptor(\.effectiveFrom, order: .reverse)]
         )
-        if let target = (try? context.fetch(targetDescriptor))?.first {
-            totals.calorieTarget = target.calorieTarget
-            totals.proteinTarget = target.proteinTargetGrams
-            totals.carbsTarget = target.carbsTargetGrams
-            totals.fatTarget = target.fatTargetGrams
+        if let target = (try? context.fetch(mealsPerDayDescriptor))?.first {
             totals.mealsPlanned = target.mealsPerDay
         }
 

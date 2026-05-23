@@ -163,38 +163,14 @@ final class NutritionTabViewModel {
     }
 
     var todayCalorieTarget: Int {
-        // PRIMARY: when an active WeeklyMealPlan exists, today's target IS
-        // the sum of its planned meals for today. This guarantees the Today
-        // number, the Coach number, and the Plan number all agree — they
-        // were diverging because Today/Coach used a local Mifflin-St Jeor
-        // calc while Plan used TDEECalculator (with whoopTDEE + body-fat
-        // refinements). Same source of truth eliminates the mismatch the
-        // user saw on screen (2,687 vs 3,536 vs 2,687).
-        if !todayMeals.isEmpty {
-            let summed = todayMeals.reduce(into: 0.0) { $0 += $1.totalCalories }
-            return Int(summed)
-        }
-
-        // FALLBACK: no plan yet — return a Mifflin-St Jeor estimate from
-        // the dietary profile so the Today screen still has a number on
-        // first launch. Once the plan generates, the PRIMARY branch above
-        // takes over and stays consistent with the Plan tab.
-        guard let profile = dietaryProfile else {
-            return 2400
-        }
-        let bmr: Double = if profile.biologicalSex == .male {
-            10 * profile.currentWeightKg + 6.25 * profile.heightCm - 5 * Double(profile.age) + 5
-        } else {
-            10 * profile.currentWeightKg + 6.25 * profile.heightCm - 5 * Double(profile.age) - 161
-        }
-        let activityMultiplier = 1.2 + (Double(profile.trainingFrequency) * 0.05)
-        var target = Int(bmr * activityMultiplier)
-        switch profile.primaryGoal {
-        case .leanGain: target += 200
-        case .cut: target -= 400
-        case .maintain: break
-        }
-        return target
+        // Delegates to NutritionTargetCalculator so this VM and the
+        // Dashboard's Fuel quadrant compute the same number from the same
+        // inputs. See NutritionTargetCalculator.swift for the full
+        // primary-vs-fallback logic and why this matters.
+        NutritionTargetCalculator.targetsForToday(
+            todayMeals: todayMeals,
+            dietaryProfile: dietaryProfile
+        ).calories
     }
 
     var todayProteinConsumed: Int {
@@ -204,18 +180,10 @@ final class NutritionTabViewModel {
     }
 
     var todayProteinTarget: Int {
-        // Same source-of-truth pattern as todayCalorieTarget: when an
-        // active plan exists, sum the day's PlannedMeal proteinG so the
-        // Today number agrees with what the Plan tab said it should be.
-        if !todayMeals.isEmpty {
-            let summed = todayMeals.reduce(into: 0.0) { $0 += $1.totalProtein }
-            return Int(summed)
-        }
-        guard let profile = dietaryProfile else {
-            return 180
-        }
-        // ~2g per kg for training individuals
-        return Int(profile.currentWeightKg * 2.0)
+        NutritionTargetCalculator.targetsForToday(
+            todayMeals: todayMeals,
+            dietaryProfile: dietaryProfile
+        ).protein
     }
 
     var todayCarbsConsumed: Int {
@@ -225,12 +193,10 @@ final class NutritionTabViewModel {
     }
 
     var todayCarbsTarget: Int {
-        if !todayMeals.isEmpty {
-            let summed = todayMeals.reduce(into: 0.0) { $0 += $1.totalCarbs }
-            return Int(summed)
-        }
-        // Fallback when no plan: ~45% of fallback-calorie target from carbs
-        return Int(Double(todayCalorieTarget) * 0.45 / 4.0)
+        NutritionTargetCalculator.targetsForToday(
+            todayMeals: todayMeals,
+            dietaryProfile: dietaryProfile
+        ).carbs
     }
 
     var todayFatConsumed: Int {
@@ -240,12 +206,10 @@ final class NutritionTabViewModel {
     }
 
     var todayFatTarget: Int {
-        if !todayMeals.isEmpty {
-            let summed = todayMeals.reduce(into: 0.0) { $0 += $1.totalFat }
-            return Int(summed)
-        }
-        // Fallback when no plan: ~25% of fallback-calorie target from fat
-        return Int(Double(todayCalorieTarget) * 0.25 / 9.0)
+        NutritionTargetCalculator.targetsForToday(
+            todayMeals: todayMeals,
+            dietaryProfile: dietaryProfile
+        ).fat
     }
 
     // MARK: - Recovery-Adjusted Targets (Phase 4)
@@ -319,6 +283,22 @@ final class NutritionTabViewModel {
         return try? modelContext.fetch(descriptor).first
     }
 
+    /// Parse a "HH:mm" (or "H:mm") string into minutes-since-midnight for
+    /// chronological sort. Returns nil for anything we can't read so
+    /// malformed values sort to the end instead of corrupting the order.
+    /// Locale-independent: we split on ":" and parse as integers directly,
+    /// dodging any DateFormatter locale or 12-h-format weirdness.
+    static func minutesOfDay(from hhmm: String) -> Int? {
+        let parts = hhmm.split(separator: ":")
+        guard parts.count == 2,
+              let hour = Int(parts[0]),
+              let minute = Int(parts[1]),
+              (0 ..< 24).contains(hour),
+              (0 ..< 60).contains(minute)
+        else { return nil }
+        return hour * 60 + minute
+    }
+
     func loadToday(modelContext: ModelContext) {
         loadState = .loading
 
@@ -332,30 +312,37 @@ final class NutritionTabViewModel {
         // but if any orphan survives a future code path the filter prevents
         // ghost duplicates from polluting the Today view.
         do {
-            // Sort by scheduledTime ("HH:mm" — lexicographic ordering on
-            // zero-padded 24h strings matches chronological order). Tiebreak
-            // by mealNumber so two slots at the same time stay deterministic.
-            // Previously we sorted by mealNumber alone, which let the AI
-            // generator's assignment order leak into the UI — a 16:00 snack
-            // (mealNumber 4) would render AFTER a 17:30 dinner (mealNumber
-            // 3) because the indices didn't track time.
+            // Predicate keeps only the date-range filter — SwiftData's
+            // #Predicate parser is unreliable for optional-chain expressions
+            // on to-one relationships (`meal.mealPlan?.isActive == true`
+            // silently returns false for some not-yet-faulted relationships,
+            // which is why an NL-logged PlannedMeal could persist but never
+            // render). Active-plan filtering happens in Swift right after
+            // the fetch where the relationship resolves reliably.
             //
-            // Predicate accepts EITHER (a) PlannedMeals tied to an active
-            // weekly plan, OR (b) PlannedMeals with no plan link AT ALL
-            // (the natural-language log path inserts these). Without (b),
-            // user-logged meals would persist but never appear on Today.
+            // Sort moves to Swift too so the scheduledTime string is parsed
+            // for chronological order (lex sort fails on "9:00" vs "10:00"
+            // when the AI generator drops the leading zero).
             let mealDescriptor = FetchDescriptor<PlannedMeal>(
                 predicate: #Predicate<PlannedMeal> { meal in
-                    meal.dayDate >= todayStart
-                        && meal.dayDate < tomorrowStart
-                        && (meal.mealPlan?.isActive == true || meal.mealPlan == nil)
-                },
-                sortBy: [
-                    SortDescriptor(\.scheduledTime),
-                    SortDescriptor(\.mealNumber),
-                ]
+                    meal.dayDate >= todayStart && meal.dayDate < tomorrowStart
+                }
             )
-            todayMeals = try modelContext.fetch(mealDescriptor)
+            let allTodayMeals = try modelContext.fetch(mealDescriptor)
+            todayMeals = allTodayMeals
+                .filter { meal in
+                    // Keep AI-generated meals from the active plan AND
+                    // user-logged meals that aren't tied to any plan.
+                    meal.mealPlan?.isActive == true || meal.mealPlan == nil
+                }
+                .sorted { lhs, rhs in
+                    // Parse "HH:mm" to minutes-of-day for true chronological
+                    // ordering. Anything malformed sorts to the end.
+                    let lhsMinutes = Self.minutesOfDay(from: lhs.scheduledTime) ?? Int.max
+                    let rhsMinutes = Self.minutesOfDay(from: rhs.scheduledTime) ?? Int.max
+                    if lhsMinutes != rhsMinutes { return lhsMinutes < rhsMinutes }
+                    return lhs.mealNumber < rhs.mealNumber
+                }
             refreshFeedbackPresence(modelContext: modelContext)
 
             // Fetch active WeeklyMealPlan
@@ -1000,18 +987,23 @@ final class NutritionTabViewModel {
         let tomorrowStart = calendar.date(byAdding: .day, value: 1, to: todayStart)!
 
         do {
-            // Match the primary fetch site's sort: scheduledTime, then
-            // mealNumber as tiebreak. See loadToday(modelContext:) for why.
+            // Same shape as the primary loadToday fetch — Swift-side filter
+            // and sort, simple predicate. See loadToday(modelContext:) for
+            // why we don't do this in #Predicate.
             let descriptor = FetchDescriptor<PlannedMeal>(
                 predicate: #Predicate<PlannedMeal> { meal in
                     meal.dayDate >= todayStart && meal.dayDate < tomorrowStart
-                },
-                sortBy: [
-                    SortDescriptor(\.scheduledTime),
-                    SortDescriptor(\.mealNumber),
-                ]
+                }
             )
-            todayMeals = try modelContext.fetch(descriptor)
+            let allTodayMeals = try modelContext.fetch(descriptor)
+            todayMeals = allTodayMeals
+                .filter { $0.mealPlan?.isActive == true || $0.mealPlan == nil }
+                .sorted { lhs, rhs in
+                    let lhsMinutes = Self.minutesOfDay(from: lhs.scheduledTime) ?? Int.max
+                    let rhsMinutes = Self.minutesOfDay(from: rhs.scheduledTime) ?? Int.max
+                    if lhsMinutes != rhsMinutes { return lhsMinutes < rhsMinutes }
+                    return lhs.mealNumber < rhs.mealNumber
+                }
             refreshFeedbackPresence(modelContext: modelContext)
         } catch {
             // Silent refresh failure
