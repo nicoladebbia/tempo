@@ -7,6 +7,7 @@
 //
 
 import Charts
+import OSLog
 import SwiftData
 import SwiftUI
 
@@ -86,7 +87,11 @@ struct ProgressChartsView: View {
     // Purge them on Progress appearance: any history row whose (day, exercise.id)
     // doesn't correspond to a completed WorkoutPlan is dead weight.
     private func purgeOrphanedHistory() {
-        guard !allHistory.isEmpty else { return }
+        let historySnapshot = Array(allHistory)
+        guard !historySnapshot.isEmpty else {
+            Logger.training.info("[purge] no history rows, nothing to do")
+            return
+        }
         let cal = Calendar.current
         var validKeys = Set<String>()
         for plan in workoutPlans where plan.status == .completed {
@@ -97,17 +102,29 @@ struct ProgressChartsView: View {
                 }
             }
         }
-        var deletedCount = 0
-        for entry in allHistory {
+        Logger.training.info("[purge] historySnapshot.count=\(historySnapshot.count) validKeys.count=\(validKeys.count) completedPlans=\(workoutPlans.filter { $0.status == .completed }.count)")
+
+        var toDelete: [ExerciseHistory] = []
+        for entry in historySnapshot {
             let day = cal.startOfDay(for: entry.date)
             let key = "\(day.timeIntervalSince1970)|\(entry.exercise?.id.uuidString ?? "nil")"
             if !validKeys.contains(key) {
-                modelContext.delete(entry)
-                deletedCount += 1
+                toDelete.append(entry)
+                Logger.training.debug("[purge] orphan vol=\(entry.totalVolume) ex=\(entry.exercise?.name ?? "nil") day=\(day)")
             }
         }
-        if deletedCount > 0 {
-            try? modelContext.save()
+        guard !toDelete.isEmpty else {
+            Logger.training.info("[purge] no orphans found")
+            return
+        }
+        for entry in toDelete {
+            modelContext.delete(entry)
+        }
+        do {
+            try modelContext.save()
+            Logger.training.info("[purge] deleted \(toDelete.count) orphan ExerciseHistory rows")
+        } catch {
+            Logger.training.error("[purge] save failed: \(error.localizedDescription)")
         }
     }
 
