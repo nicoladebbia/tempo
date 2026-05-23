@@ -35,7 +35,7 @@ struct ProgressChartsView: View {
     }
 
     private var hasAnyData: Bool {
-        !workoutPlans.filter { $0.status == .completed }.isEmpty || !allHistory.isEmpty
+        workoutPlans.contains(where: { $0.status == .completed })
     }
 
     var body: some View {
@@ -47,6 +47,7 @@ struct ProgressChartsView: View {
                     message: "Complete your first workout to start tracking progress."
                 )
             } else {
+
                 // Segmented picker
                 // Per MODULE_TRAINING.md Section 11.1 — segmented control at top
                 Picker("View", selection: $selectedTab) {
@@ -73,6 +74,41 @@ struct ProgressChartsView: View {
         .background(Color.tempoBgPrimary)
         .navigationTitle("Progress")
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            purgeOrphanedHistory()
+        }
+    }
+
+    // ExerciseHistory has no relationship back to WorkoutPlan, so historically a
+    // user could delete a workout from History and leave behind ExerciseHistory
+    // rows that still showed in Progress. WorkoutHistoryView.deleteWorkout() now
+    // cascades correctly for new deletions, but pre-existing orphans linger.
+    // Purge them on Progress appearance: any history row whose (day, exercise.id)
+    // doesn't correspond to a completed WorkoutPlan is dead weight.
+    private func purgeOrphanedHistory() {
+        guard !allHistory.isEmpty else { return }
+        let cal = Calendar.current
+        var validKeys = Set<String>()
+        for plan in workoutPlans where plan.status == .completed {
+            let day = cal.startOfDay(for: plan.finishedAt ?? plan.date)
+            for plannedEx in plan.orderedExercises {
+                if let exID = plannedEx.exercise?.id {
+                    validKeys.insert("\(day.timeIntervalSince1970)|\(exID.uuidString)")
+                }
+            }
+        }
+        var deletedCount = 0
+        for entry in allHistory {
+            let day = cal.startOfDay(for: entry.date)
+            let key = "\(day.timeIntervalSince1970)|\(entry.exercise?.id.uuidString ?? "nil")"
+            if !validKeys.contains(key) {
+                modelContext.delete(entry)
+                deletedCount += 1
+            }
+        }
+        if deletedCount > 0 {
+            try? modelContext.save()
+        }
     }
 
     // MARK: - Overview Tab
