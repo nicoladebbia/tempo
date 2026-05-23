@@ -259,42 +259,191 @@ struct WeekPlanView: View {
             }
             .buttonStyle(.plain)
 
-            // Expanded exercise list
-            if isExpanded, plan.type.isGymWorkout {
+            // Expanded content — every day type renders something useful on tap.
+            if isExpanded {
                 Divider()
                     .padding(.horizontal, TempoSpacing.cardPadding)
 
-                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                    ForEach(Array(plan.orderedExercises.enumerated()), id: \.element.id) { index, plannedEx in
-                        HStack(spacing: TempoSpacing.sm) {
-                            Text("\(index + 1)")
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
-                                .frame(width: 16, alignment: .trailing)
-
-                            Text(plannedEx.exercise?.name ?? "Exercise")
-                                .font(.tempoBody)
-                                .foregroundStyle(Color.tempoTextPrimary)
-                                .lineLimit(1)
-
-                            Spacer()
-
-                            if let sets = plannedEx.sets {
-                                Text("\(sets.count) sets")
-                                    .font(.tempoCaption2)
-                                    .foregroundStyle(Color.tempoTextSecondary)
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal, TempoSpacing.cardPadding)
-                .padding(.vertical, TempoSpacing.sm)
+                expandedContent(for: plan)
+                    .padding(.horizontal, TempoSpacing.cardPadding)
+                    .padding(.vertical, TempoSpacing.sm)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
         .tempoShadow(.card)
+    }
+
+    // MARK: - Expanded Content
+
+    /// Renders the per-day expand body. Gym days list the planned exercises;
+    /// non-gym days (mobility, football, rest, run/sprint/conditioning) show
+    /// activity-appropriate guidance so the expand never reads as empty.
+    @ViewBuilder
+    private func expandedContent(for plan: WorkoutPlan) -> some View {
+        switch plan.type {
+        case .push, .pull, .legs, .upper, .lower, .fullBody:
+            gymExerciseList(plan: plan)
+        case .mobility:
+            mobilityRoutine
+        case .football:
+            footballContext(plan: plan)
+        case .rest:
+            restGuidance
+        case .run, .sprint, .conditioning:
+            conditioningGuidance(plan: plan)
+        }
+    }
+
+    private func gymExerciseList(plan: WorkoutPlan) -> some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+            if plan.orderedExercises.isEmpty {
+                Text("No exercises planned yet.")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextSecondary)
+            } else {
+                ForEach(Array(plan.orderedExercises.enumerated()), id: \.element.id) { index, plannedEx in
+                    HStack(spacing: TempoSpacing.sm) {
+                        Text("\(index + 1)")
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                            .frame(width: 16, alignment: .trailing)
+
+                        Text(plannedEx.exercise?.name ?? "Exercise")
+                            .font(.tempoBody)
+                            .foregroundStyle(Color.tempoTextPrimary)
+                            .lineLimit(1)
+
+                        Spacer()
+
+                        if let sets = plannedEx.sets {
+                            Text("\(sets.count) sets")
+                                .font(.tempoCaption2)
+                                .foregroundStyle(Color.tempoTextSecondary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var mobilityRoutine: some View {
+        let movements: [(name: String, duration: String)] = [
+            ("Foam roll — thoracic spine", "2 min"),
+            ("90/90 hip switches", "8 reps/side"),
+            ("World's greatest stretch", "5 reps/side"),
+            ("Deep squat hold + reach", "1 min"),
+            ("Couch stretch", "1 min/side"),
+            ("Cat-cow + scapular CARs", "10 reps"),
+        ]
+        return VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+            ForEach(Array(movements.enumerated()), id: \.offset) { index, item in
+                HStack(spacing: TempoSpacing.sm) {
+                    Text("\(index + 1)")
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                        .frame(width: 16, alignment: .trailing)
+
+                    Text(item.name)
+                        .font(.tempoBody)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                        .lineLimit(1)
+
+                    Spacer()
+
+                    Text(item.duration)
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                }
+            }
+        }
+    }
+
+    private func footballContext(plan: WorkoutPlan) -> some View {
+        let phase = footballPhase(for: plan.date)
+        return VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            Text(phase.headline)
+                .font(.tempoHeadline)
+                .foregroundStyle(Color.tempoTextPrimary)
+            Text(phase.body)
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var restGuidance: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            Text("Full rest")
+                .font(.tempoHeadline)
+                .foregroundStyle(Color.tempoTextPrimary)
+            Text("No lifting today. Light walk and mobility optional. Target 8h sleep — recovery is where adaptation happens.")
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func conditioningGuidance(plan: WorkoutPlan) -> some View {
+        let title: String
+        let body: String
+        switch plan.type {
+        case .run:
+            title = "Run"
+            body = "Steady Z2 effort, conversational pace. Aim for ~30–45 min."
+        case .sprint:
+            title = "Sprint session"
+            body = "6–8 × 30–60m sprints with full recovery. Warm up thoroughly before max effort."
+        case .conditioning:
+            title = "Conditioning"
+            body = "Mixed-modal aerobic work — bike intervals, sled pushes, or circuits. 20–30 min."
+        default:
+            title = plan.type.displayName
+            body = ""
+        }
+        return VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            Text(title)
+                .font(.tempoHeadline)
+                .foregroundStyle(Color.tempoTextPrimary)
+            if !body.isEmpty {
+                Text(body)
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// Classify a football day relative to surrounding planned matches.
+    /// Looks at the loaded weekPlans for other .football entries within ±1 day.
+    private func footballPhase(for date: Date) -> (headline: String, body: String) {
+        let cal = calendar
+        let today = cal.startOfDay(for: date)
+
+        let footballDates = viewModel.weekPlans
+            .filter { $0.type == .football }
+            .map { cal.startOfDay(for: $0.date) }
+
+        let isMatchToday = footballDates.contains(today)
+        let dayAfter = cal.date(byAdding: .day, value: 1, to: today) ?? today
+        let dayBefore = cal.date(byAdding: .day, value: -1, to: today) ?? today
+        let matchTomorrow = footballDates.contains(dayAfter)
+        let matchYesterday = footballDates.contains(dayBefore)
+
+        if isMatchToday && matchYesterday {
+            return ("Back-to-back match", "Second game in 24h. Focus on hydration, mobility between games, and active recovery walks.")
+        }
+        if isMatchToday {
+            return ("Match day", "Game is the workout. Stick to your pre-match routine: light warm-up, hydrate, fuel ~3h before kick-off.")
+        }
+        if matchTomorrow {
+            return ("Match tomorrow (T-1)", "Light technical work only. Hydrate, eat clean carbs, sleep 8h. No heavy lifting.")
+        }
+        if matchYesterday {
+            return ("Post-match (T+1)", "Active recovery: 20 min Z2 walk + full mobility flow. No lifting, no sprints.")
+        }
+        return ("Football session", "Training session — sprint patterns, ball work, and small-sided games. Treat as a high-intensity day.")
     }
 
     // MARK: - Helpers
