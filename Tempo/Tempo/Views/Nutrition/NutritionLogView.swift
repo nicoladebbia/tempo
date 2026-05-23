@@ -21,6 +21,8 @@ struct NutritionLogView: View {
     var showMealLogging: Bool
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(ServiceContainer.self)
+    private var services
 
     @State
     private var naturalLanguageInput: String = ""
@@ -28,6 +30,22 @@ struct NutritionLogView: View {
     private var showPhotoAnalysis = false
     @State
     private var toast: ToastData?
+
+    /// Focus on the Quick Log text field. Used so submitNaturalLanguage()
+    /// can resign the keyboard the moment the user taps Go — previously the
+    /// keyboard stayed up until the user tapped away.
+    @FocusState
+    private var quickLogFocused: Bool
+
+    /// True while NaturalLanguageLoggingService is awaiting Haiku. Disables
+    /// the Go button so the user can't double-fire.
+    @State
+    private var isParsing: Bool = false
+
+    /// Parsed items waiting for user confirmation in the review sheet. Nil
+    /// means no sheet; non-nil presents ParsedFoodReviewSheet.
+    @State
+    private var parsedFoodsForReview: [ParsedFoodItem]?
 
     private let columns = [
         GridItem(.flexible(), spacing: TempoSpacing.md),
@@ -50,6 +68,21 @@ struct NutritionLogView: View {
                 .onDisappear {
                     viewModel.loadToday(modelContext: modelContext)
                 }
+        }
+        .sheet(item: Binding<ParsedFoodReviewPayload?>(
+            get: { parsedFoodsForReview.map { ParsedFoodReviewPayload(items: $0) } },
+            set: { newValue in
+                if newValue == nil { parsedFoodsForReview = nil }
+            }
+        )) { payload in
+            ParsedFoodReviewSheet(
+                items: payload.items,
+                defaultMealType: Self.defaultMealTypeForNow(),
+                onConfirm: { mealType in
+                    persistParsedItems(payload.items, type: mealType)
+                },
+                onCancel: { parsedFoodsForReview = nil }
+            )
         }
         .tempoToast($toast)
     }
@@ -76,22 +109,31 @@ struct NutritionLogView: View {
                             .stroke(Color.tempoBorder, lineWidth: 1)
                     )
                     .submitLabel(.send)
+                    .focused($quickLogFocused)
                     .onSubmit {
                         submitNaturalLanguage()
                     }
+                    .disabled(isParsing)
 
                 Button {
                     submitNaturalLanguage()
                 } label: {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 32))
-                        .foregroundStyle(
-                            naturalLanguageInput.isEmpty
-                                ? Color.tempoTextDisabled
-                                : Color.tempoSignal
-                        )
+                    if isParsing {
+                        // Match the icon's 32pt frame so the row height
+                        // doesn't shift while the request is in flight.
+                        ProgressView()
+                            .frame(width: 32, height: 32)
+                    } else {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.system(size: 32))
+                            .foregroundStyle(
+                                naturalLanguageInput.isEmpty
+                                    ? Color.tempoTextDisabled
+                                    : Color.tempoSignal
+                            )
+                    }
                 }
-                .disabled(naturalLanguageInput.isEmpty)
+                .disabled(naturalLanguageInput.isEmpty || isParsing)
             }
 
             Text("e.g. \"2 eggs, toast with butter, orange juice\"")
@@ -268,17 +310,245 @@ struct NutritionLogView: View {
     // MARK: - Actions
 
     private func submitNaturalLanguage() {
-        guard !naturalLanguageInput.trimmingCharacters(in: .whitespaces).isEmpty else {
+        let text = naturalLanguageInput.trimmingCharacters(in: .whitespaces)
+        guard !text.isEmpty, !isParsing else {
             return
         }
         HapticManager.lightImpact()
-        // Natural language parsing will be handled by Claude API
-        // For now, show feedback
+        // Drop the keyboard immediately — the parse takes a moment and the
+        // user shouldn't be staring at a stuck keyboard while it runs.
+        quickLogFocused = false
+
+        isParsing = true
+        Task {
+            defer { isParsing = false }
+            do {
+                let service = NaturalLanguageLoggingService(apiClient: services.apiClient)
+                let items = try await service.parseNaturalLanguage(text)
+                guard !items.isEmpty else {
+                    toast = ToastData(
+                        message: "Couldn't parse that. Try being more specific.",
+                        style: .info
+                    )
+                    return
+                }
+                // Present the parsed items for confirmation. The user picks
+                // a meal type and taps Confirm — only THEN do we persist.
+                parsedFoodsForReview = items
+            } catch {
+                toast = ToastData(
+                    message: "Parse failed: \(error.localizedDescription)",
+                    style: .error
+                )
+            }
+        }
+    }
+
+    /// Defaults the meal-type chooser in the review sheet based on the
+    /// user's local time-of-day. Breakfast, lunch, and dinner windows
+    /// match the prompt anchor times used in MealPlanPrompts.
+    private static func defaultMealTypeForNow(date: Date = Date()) -> MealType {
+        let hour = Calendar.current.component(.hour, from: date)
+        switch hour {
+        case ..<11: return .breakfast
+        case 11 ..< 15: return .lunch
+        case 17 ..< 22: return .dinner
+        default: return .snack
+        }
+    }
+
+    /// Persist the user-confirmed parsed items to MealLog. Done inline
+    /// (instead of routing through MealLoggingService.logMeal) because
+    /// the service's `async` signature would require sending ModelContext
+    /// across actor boundaries under Swift 6 strict concurrency, and
+    /// ModelContext isn't Sendable. The DB insert + save are synchronous
+    /// anyway; only the HealthKit sync needs async, and that can fire
+    /// from a follow-on Task with the saved MealLog (which IS Sendable).
+    @MainActor
+    private func persistParsedItems(_ items: [ParsedFoodItem], type: MealType) {
+        // Map ParsedFoodItem (NL service per-item shape) onto MealFoodItem.
+        // We go through MealFoodItemInput's convenience init so the field-
+        // name mapping (proteinG → proteinPerServing etc.) lives in one
+        // place — the model itself — rather than being duplicated here.
+        let inputs = items.map { item in
+            MealFoodItemInput(
+                foodId: item.id,
+                name: item.name,
+                brand: nil,
+                servings: 1,
+                servingSize: item.quantityGrams,
+                servingUnit: "g",
+                calories: item.calories,
+                proteinGrams: item.proteinG,
+                carbsGrams: item.carbsG,
+                fatGrams: item.fatG,
+                source: item.isVerified ? .cached : .claude
+            )
+        }
+        let foodItems = inputs.map { MealFoodItem(from: $0) }
+        let meal = MealLog(
+            type: type,
+            dayDate: Date(),
+            source: .naturalLanguage,
+            photo: nil,
+            items: foodItems
+        )
+        modelContext.insert(meal)
+        do {
+            try modelContext.save()
+        } catch {
+            toast = ToastData(
+                message: "Couldn't save: \(error.localizedDescription)",
+                style: .error
+            )
+            return
+        }
         toast = ToastData(
-            message: "Natural language logging coming soon.",
-            style: .info
+            message: "\(type.displayName) logged. \(items.reduce(into: 0) { $0 += Int($1.calories) }) kcal.",
+            style: .success
         )
         naturalLanguageInput = ""
+        parsedFoodsForReview = nil
+        viewModel.loadToday(modelContext: modelContext)
+    }
+}
+
+// MARK: - ParsedFoodReviewPayload
+
+/// Identifiable wrapper so SwiftUI's `.sheet(item:)` can present the
+/// review sheet from a non-Identifiable `[ParsedFoodItem]`. New UUID per
+/// presentation so re-opening the sheet with the same items still fires.
+private struct ParsedFoodReviewPayload: Identifiable {
+    let id = UUID()
+    let items: [ParsedFoodItem]
+}
+
+// MARK: - ParsedFoodReviewSheet
+
+/// User-facing confirmation step between Haiku parsing and DB persistence.
+/// Shows each parsed food row with quantity + macros, plus a meal-type
+/// picker prefilled from time-of-day. Tapping Confirm fires onConfirm
+/// with the user's chosen meal type; Cancel fires onCancel.
+private struct ParsedFoodReviewSheet: View {
+    let items: [ParsedFoodItem]
+    let defaultMealType: MealType
+    let onConfirm: (MealType) -> Void
+    let onCancel: () -> Void
+
+    @State
+    private var selectedMealType: MealType
+
+    @Environment(\.dismiss)
+    private var dismiss
+
+    init(
+        items: [ParsedFoodItem],
+        defaultMealType: MealType,
+        onConfirm: @escaping (MealType) -> Void,
+        onCancel: @escaping () -> Void
+    ) {
+        self.items = items
+        self.defaultMealType = defaultMealType
+        self.onConfirm = onConfirm
+        self.onCancel = onCancel
+        _selectedMealType = State(initialValue: defaultMealType)
+    }
+
+    private var totalCalories: Int {
+        items.reduce(into: 0) { $0 += Int($1.calories) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+                    mealTypePicker
+                    itemList
+                    totalsFooter
+                }
+                .padding(.horizontal, TempoSpacing.screenEdge)
+                .padding(.vertical, TempoSpacing.lg)
+            }
+            .background(Color.tempoBgPrimary)
+            .navigationTitle("Confirm Meal")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        onCancel()
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Log") {
+                        onConfirm(selectedMealType)
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+    }
+
+    private var mealTypePicker: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            Text("MEAL TYPE")
+                .font(.tempoModuleTag)
+                .tracking(TempoTracking.drillLabel)
+                .foregroundStyle(Color.tempoTextSecondary)
+            Picker("Meal type", selection: $selectedMealType) {
+                ForEach(MealType.allCases, id: \.self) { type in
+                    Text(type.displayName).tag(type)
+                }
+            }
+            .pickerStyle(.segmented)
+        }
+    }
+
+    private var itemList: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            Text("PARSED FOODS")
+                .font(.tempoModuleTag)
+                .tracking(TempoTracking.drillLabel)
+                .foregroundStyle(Color.tempoTextSecondary)
+            VStack(spacing: TempoSpacing.xs) {
+                ForEach(items) { item in
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.name)
+                                .font(.tempoBody)
+                                .foregroundStyle(Color.tempoTextPrimary)
+                            Text(item.formattedPortion)
+                                .font(.tempoCaption2)
+                                .foregroundStyle(Color.tempoTextSecondary)
+                        }
+                        Spacer()
+                        Text("\(Int(item.calories)) kcal")
+                            .font(.tempoCaption1.monospacedDigit())
+                            .foregroundStyle(Color.tempoTextPrimary)
+                    }
+                    .padding(.horizontal, TempoSpacing.md)
+                    .padding(.vertical, 10)
+                    .background(Color.tempoBgSecondary)
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+                }
+            }
+        }
+    }
+
+    private var totalsFooter: some View {
+        HStack {
+            Text("TOTAL")
+                .font(.tempoModuleTag)
+                .tracking(TempoTracking.drillLabel)
+                .foregroundStyle(Color.tempoTextSecondary)
+            Spacer()
+            Text("\(totalCalories) kcal")
+                .font(.tempoSubheadline)
+                .fontWeight(.semibold)
+                .foregroundStyle(Color.tempoTextPrimary)
+        }
+        .padding(.top, TempoSpacing.sm)
     }
 }
 
