@@ -142,4 +142,107 @@ enum MealShiftPlanner {
             )
         }
     }
+
+
+    /// Generic anchor-based shift. Used by the Coach agent when an arbitrary
+    /// event (soccer match, study sprint, calendar block) makes a meal need
+    /// to land at a specific wall-clock time — without that meal having
+    /// actually been eaten yet.
+    ///
+    /// The math is identical to `computeShift`: pin a chosen meal to
+    /// `anchorTime`, propagate the delta forward to subsequent planned
+    /// meals, then compress under the bedtime cap. The only thing that
+    /// changes is the anchor: there is no `eatenMealID` and no real eat
+    /// duration to add to the anchor when compressing — we use 0.
+    ///
+    /// - Parameters:
+    ///   - todaysMeals: today's PlannedMeals, any order. Filtered + sorted internally.
+    ///   - anchorTime: wall-clock time the anchor meal should sit at.
+    ///   - anchorMealNumber: which meal in the day (by `mealNumber`, 1-indexed)
+    ///     is being pinned to `anchorTime`. Subsequent meals (mealNumber > this)
+    ///     are shifted; earlier meals are untouched.
+    ///   - bedtimeCap: latest a meal can land. Defaults to 22:00.
+    ///   - calendar: for date arithmetic. Defaults to `.current`.
+    /// - Returns: shifts for every still-planned meal AFTER the anchor.
+    ///   Empty when the anchor meal isn't found, when nothing needs to
+    ///   shift (delta below threshold), or when no later planned meals exist.
+    static func computeShiftFromAnchor(
+        todaysMeals: [PlannedMeal],
+        anchorTime: Date,
+        anchorMealNumber: Int,
+        bedtimeCap: (hour: Int, minute: Int) = defaultBedtimeCap,
+        calendar: Calendar = .current
+    ) -> [MealShiftResult] {
+        let ordered = todaysMeals.sorted { $0.mealNumber < $1.mealNumber }
+        guard let anchorIndex = ordered.firstIndex(where: { $0.mealNumber == anchorMealNumber }) else {
+            return []
+        }
+        let anchorMeal = ordered[anchorIndex]
+        let anchorOriginal = MealScheduleHelpers.scheduledDate(for: anchorMeal, calendar: calendar)
+        let delta = anchorTime.timeIntervalSince(anchorOriginal)
+        guard abs(delta) >= minShiftThresholdSeconds else {
+            return []
+        }
+
+        let remaining = Array(ordered[(anchorIndex + 1)...])
+            .filter { $0.status == .planned }
+        guard !remaining.isEmpty else {
+            return []
+        }
+
+        var shifted: [(meal: PlannedMeal, date: Date)] = remaining.map { meal in
+            let original = MealScheduleHelpers.scheduledDate(for: meal, calendar: calendar)
+            return (meal, original.addingTimeInterval(delta))
+        }
+
+        // Bedtime cap compression — same as computeShift but with the
+        // anchor itself as the post-meal pivot (eat duration = 0 since
+        // this is a synthetic anchor, not an eaten meal).
+        if let last = shifted.last {
+            let dayStart = calendar.startOfDay(for: anchorTime)
+            let capDate = calendar.date(
+                bySettingHour: bedtimeCap.hour,
+                minute: bedtimeCap.minute,
+                second: 0,
+                of: dayStart
+            ) ?? last.date
+
+            if last.date > capDate {
+                let anchorPivot = anchorTime
+                let lastOriginal = MealScheduleHelpers.scheduledDate(
+                    for: last.meal,
+                    calendar: calendar
+                )
+                let originalSpan = lastOriginal.timeIntervalSince(anchorOriginal)
+                let available = capDate.timeIntervalSince(anchorPivot)
+
+                if originalSpan > 0, available > 0, available < originalSpan {
+                    let compression = available / originalSpan
+                    shifted = shifted.map { entry in
+                        let original = MealScheduleHelpers.scheduledDate(
+                            for: entry.meal,
+                            calendar: calendar
+                        )
+                        let originalOffset = original.timeIntervalSince(anchorOriginal)
+                        let newOffset = originalOffset * compression
+                        return (entry.meal, anchorPivot.addingTimeInterval(newOffset))
+                    }
+                } else if available <= 0 {
+                    shifted = shifted.map { ($0.meal, capDate) }
+                }
+            }
+        }
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        return shifted.map { entry in
+            MealShiftResult(
+                mealID: entry.meal.id,
+                originalScheduledTime: entry.meal.scheduledTime,
+                newScheduledTime: formatter.string(from: entry.date),
+                newScheduledDate: entry.date
+            )
+        }
+    }
 }

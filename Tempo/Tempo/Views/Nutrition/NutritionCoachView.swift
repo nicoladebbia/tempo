@@ -21,6 +21,7 @@ struct NutritionCoachView: View {
     private var modelContext
     @Environment(ServiceContainer.self)
     private var services
+    @State private var coachViewModel: CoachViewModel?
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -29,6 +30,13 @@ struct NutritionCoachView: View {
                 mealSuggestionSection
                 recoveryGuidanceCard
                 recentMealFeedback
+
+                // Coach Chat — agent-driven multi-turn assistant. Sits
+                // below the one-shot cards so users can drop into a
+                // conversation when the static guidance isn't enough.
+                if let coachVM = coachViewModel {
+                    CoachChatView(viewModel: coachVM)
+                }
 
                 // AI disclaimer
                 HStack(spacing: 6) {
@@ -46,6 +54,13 @@ struct NutritionCoachView: View {
         }
         .task {
             viewModel.loadRecoveryData(whoop: services.whoop)
+            if coachViewModel == nil {
+                coachViewModel = CoachViewModel(
+                    apiClient: services.apiClient,
+                    modelContext: modelContext,
+                    notifications: services.notifications
+                )
+            }
         }
     }
 

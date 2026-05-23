@@ -177,6 +177,16 @@ struct DashboardSettingsView: View {
             }
             .listRowBackground(Color.tempoSurfaceCard)
 
+            Section("Coach") {
+                NavigationLink {
+                    CoachMemoryView()
+                } label: {
+                    Label("Coach's Memory", systemImage: "brain")
+                        .font(.tempoSubheadline)
+                }
+            }
+            .listRowBackground(Color.tempoSurfaceCard)
+
             Section("Appearance") {
                 NavigationLink {
                     AppearanceSettingsDetailView()
@@ -448,117 +458,340 @@ struct DashboardSettingsView: View {
 struct ProfileSettingsDetailView: View {
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(ServiceContainer.self)
+    private var services
     @Query
     private var allProfiles: [UserProfile]
+    @Query(filter: #Predicate<DietaryProfile> { $0.isActive })
+    private var activeDietaryProfiles: [DietaryProfile]
+    @Query
+    private var allSettings: [UserSettings]
 
-    private var profile: UserProfile? {
-        allProfiles.first
-    }
+    /// Set true to push the weekly-schedule editor sheet. Bound to the row.
+    @State private var showWeeklyScheduleEditor = false
 
-    @State
-    private var displayName = ""
-    @State
-    private var username = ""
-    @State
-    private var weightKg = ""
-    @State
-    private var heightCm = ""
-    @State
-    private var age = ""
+    // Identity — editable (user-chosen, not from HealthKit)
+    @State private var displayName: String = ""
+    @State private var username: String = ""
+
+    // Biometrics — read-only, sourced from HealthKit via BiometricsSync.
+    // Mirrored into local @State so the view shows the refreshed values
+    // immediately after .task fires; the SwiftData write-through is the
+    // source of truth for everything else (TDEE, meal plan).
+    @State private var biometrics: BiometricsSnapshot?
+
+    private var userProfile: UserProfile? { allProfiles.first }
+    private var dietaryProfile: DietaryProfile? { activeDietaryProfiles.first }
+    private var userSettings: UserSettings? { allSettings.first }
 
     var body: some View {
         List {
-            Section("Identity") {
-                TextField("Display Name", text: $displayName)
-                    .font(.tempoSubheadline)
-                    .onChange(of: displayName) { _, newValue in
-                        profile?.displayName = newValue
-                        profile?.updatedAt = Date()
-                        save()
-                    }
-
-                TextField("Username", text: $username)
-                    .font(.tempoSubheadline)
-                    .autocapitalization(.none)
-                    .onChange(of: username) { _, newValue in
-                        profile?.username = newValue
-                        profile?.updatedAt = Date()
-                        save()
-                    }
-            }
-            .listRowBackground(Color.tempoSurfaceCard)
-
-            Section("Biometrics") {
-                HStack {
-                    Text("Weight (kg)")
-                        .font(.tempoSubheadline)
-                    Spacer()
-                    TextField("--", text: $weightKg)
-                        .font(.tempoSubheadline)
-                        .multilineTextAlignment(.trailing)
-                        .keyboardType(.decimalPad)
-                        .frame(width: 80)
-                        .onChange(of: weightKg) { _, newValue in
-                            profile?.weightKg = Double(newValue)
-                            profile?.updatedAt = Date()
-                            save()
-                        }
-                }
-
-                HStack {
-                    Text("Height (cm)")
-                        .font(.tempoSubheadline)
-                    Spacer()
-                    TextField("--", text: $heightCm)
-                        .font(.tempoSubheadline)
-                        .multilineTextAlignment(.trailing)
-                        .keyboardType(.decimalPad)
-                        .frame(width: 80)
-                        .onChange(of: heightCm) { _, newValue in
-                            profile?.heightCm = Double(newValue)
-                            profile?.updatedAt = Date()
-                            save()
-                        }
-                }
-
-                HStack {
-                    Text("Age")
-                        .font(.tempoSubheadline)
-                    Spacer()
-                    TextField("--", text: $age)
-                        .font(.tempoSubheadline)
-                        .multilineTextAlignment(.trailing)
-                        .keyboardType(.numberPad)
-                        .frame(width: 80)
-                        .onChange(of: age) { _, newValue in
-                            profile?.age = Int(newValue)
-                            profile?.updatedAt = Date()
-                            save()
-                        }
-                }
-            }
-            .listRowBackground(Color.tempoSurfaceCard)
+            identitySection
+            biometricsSection
+            goalSection
+            integrationsSection
         }
         .scrollContentBackground(.hidden)
         .background(Color.tempoBgPrimary)
         .navigationTitle("Profile")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear { loadProfile() }
+        .task {
+            loadIdentity()
+            biometrics = await BiometricsSync.refresh(
+                healthKit: services.healthKit,
+                modelContext: modelContext
+            )
+        }
+        .sheet(isPresented: $showWeeklyScheduleEditor) {
+            WeeklyScheduleEditorSheet(
+                userSettings: userSettings,
+                modelContext: modelContext
+            )
+        }
     }
 
-    private func loadProfile() {
-        guard let p = profile else {
-            return
+    // MARK: - Identity
+
+    private var identitySection: some View {
+        Section("Identity") {
+            TextField("Display Name", text: $displayName)
+                .font(.tempoSubheadline)
+                .onChange(of: displayName) { _, newValue in
+                    userProfile?.displayName = newValue
+                    userProfile?.updatedAt = Date()
+                    try? modelContext.save()
+                }
+
+            TextField("Username", text: $username)
+                .font(.tempoSubheadline)
+                .autocapitalization(.none)
+                .onChange(of: username) { _, newValue in
+                    userProfile?.username = newValue
+                    userProfile?.updatedAt = Date()
+                    try? modelContext.save()
+                }
         }
+        .listRowBackground(Color.tempoSurfaceCard)
+    }
+
+    // MARK: - Biometrics (read-only, HealthKit-synced)
+
+    private var biometricsSection: some View {
+        Section {
+            // Header row — explains where the data comes from.
+            HStack(alignment: .top, spacing: TempoSpacing.sm) {
+                Image(systemName: "heart.text.square.fill")
+                    .font(.tempoCallout)
+                    .foregroundStyle(Color.tempoSignal)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Synced from Apple Health")
+                        .font(.tempoFootnote)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                    Text("Update these in the Health app — Tempo reads them, never writes.")
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                }
+                Spacer()
+                Button {
+                    if let url = URL(string: "x-apple-health://") {
+                        UIApplication.shared.open(url)
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text("Open")
+                        Image(systemName: "arrow.up.right.square")
+                    }
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoSignal)
+                }
+            }
+
+            readOnlyRow(
+                label: "Weight",
+                value: biometrics?.weightKg.map { String(format: "%.1f kg", $0) } ?? "—"
+            )
+            readOnlyRow(
+                label: "Height",
+                value: biometrics?.heightCm.map { String(format: "%.0f cm", $0) } ?? "—"
+            )
+            readOnlyRow(
+                label: "Age",
+                value: biometrics?.age.map { "\($0) years" } ?? "—"
+            )
+            readOnlyRow(
+                label: "Biological Sex",
+                value: biometrics?.biologicalSex?.displayName ?? "—"
+            )
+            readOnlyRow(
+                label: "Body Fat",
+                value: biometrics?.bodyFatPercent.map { String(format: "%.1f%%", $0) } ?? "—"
+            )
+        } header: {
+            Text("Biometrics")
+        } footer: {
+            if let date = biometrics?.measurementDate {
+                Text("Last measurement: \(date.formatted(date: .abbreviated, time: .shortened))")
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextTertiary)
+            } else if biometrics?.isCompleteForTDEE == false {
+                Text("Some biometrics are missing — open the Health app to add them.")
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoSignal)
+            }
+        }
+        .listRowBackground(Color.tempoSurfaceCard)
+    }
+
+    // MARK: - Goal & Training (read-only, from DietaryProfile)
+
+    private var goalSection: some View {
+        Section {
+            readOnlyRow(
+                label: "Goal",
+                value: dietaryProfile?.primaryGoal.displayName ?? "—"
+            )
+            readOnlyRow(
+                label: "Training",
+                value: dietaryProfile.map { "\($0.trainingFrequency)× / week" } ?? "—"
+            )
+            // Weekly schedule — tappable, opens the picker sheet. Locks day
+            // types per weekday so meal-plan generation doesn't have to guess.
+            Button {
+                showWeeklyScheduleEditor = true
+            } label: {
+                HStack {
+                    Text("Weekly Schedule")
+                        .font(.tempoSubheadline)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                    Spacer()
+                    Text(weeklyScheduleSummary)
+                        .font(.tempoFootnote)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                    Image(systemName: "chevron.right")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                }
+            }
+            .buttonStyle(.plain)
+        } header: {
+            Text("Goal & Training")
+        } footer: {
+            Text("Goal and frequency are set in the dietary profile. Weekly schedule drives meal-plan calorie targets.")
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextTertiary)
+        }
+        .listRowBackground(Color.tempoSurfaceCard)
+    }
+
+    /// Short summary of the user's weekly DayType layout. Counts each type
+    /// and renders the highest-count non-rest tag plus rest count, e.g.
+    /// "4× Strength · 2× Soccer · 1 Rest".
+    private var weeklyScheduleSummary: String {
+        let plan = userSettings?.weeklyTrainingPlan ?? WeeklyTrainingPlan.defaultPlan
+        guard !plan.isEmpty else { return "Not set" }
+        var counts: [DayType: Int] = [:]
+        for day in plan.values {
+            counts[day, default: 0] += 1
+        }
+        let parts = counts
+            .sorted { ($0.value, $0.key.displayName) > ($1.value, $1.key.displayName) }
+            .prefix(2)
+            .map { "\($0.value)× \($0.key.displayName)" }
+        return parts.joined(separator: " · ")
+    }
+
+    // MARK: - Integrations
+
+    private var integrationsSection: some View {
+        Section("Integrations") {
+            // HealthKit row — green when at least the TDEE-required fields are
+            // present; otherwise amber to flag missing pieces. Last sync
+            // timestamp lives in the biometrics footer; here we just gate on
+            // completeness so the user gets an at-a-glance status.
+            HStack {
+                Image(systemName: "heart.fill")
+                    .foregroundStyle(Color.tempoSignal)
+                Text("Apple Health")
+                    .font(.tempoSubheadline)
+                Spacer()
+                Text(healthKitStatusLabel)
+                    .font(.tempoFootnote)
+                    .foregroundStyle(healthKitStatusColor)
+            }
+
+            // Whoop row — mirrors the connectionState the DashboardSettings
+            // header bar uses. Keeps a single source of truth on integration
+            // health.
+            HStack {
+                Image(systemName: "waveform.path.ecg")
+                    .foregroundStyle(Color.tempoSignal)
+                Text("Whoop")
+                    .font(.tempoSubheadline)
+                Spacer()
+                Text(whoopStatusLabel)
+                    .font(.tempoFootnote)
+                    .foregroundStyle(whoopStatusColor)
+            }
+        }
+        .listRowBackground(Color.tempoSurfaceCard)
+    }
+
+    // MARK: - Helpers
+
+    @ViewBuilder
+    private func readOnlyRow(label: String, value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.tempoSubheadline)
+                .foregroundStyle(Color.tempoTextSecondary)
+            Spacer()
+            Text(value)
+                .font(.tempoSubheadline)
+                .foregroundStyle(Color.tempoTextPrimary)
+        }
+    }
+
+    private var healthKitStatusLabel: String {
+        guard let bio = biometrics else { return "Checking…" }
+        return bio.isCompleteForTDEE ? "Connected" : "Missing data"
+    }
+
+    private var healthKitStatusColor: Color {
+        guard let bio = biometrics else { return Color.tempoTextSecondary }
+        return bio.isCompleteForTDEE ? Color.tempoSignal : Color.tempoAmber
+    }
+
+    private var whoopStatusLabel: String {
+        switch services.whoop.connectionState {
+        case .connected: return "Connected"
+        case .connecting: return "Connecting…"
+        case .disconnected: return "Not connected"
+        case .error: return "Error"
+        }
+    }
+
+    private var whoopStatusColor: Color {
+        switch services.whoop.connectionState {
+        case .connected: return Color.tempoSignal
+        case .connecting: return Color.tempoTextSecondary
+        case .disconnected: return Color.tempoTextSecondary
+        case .error: return Color.tempoAmber
+        }
+    }
+
+    private func loadIdentity() {
+        guard let p = userProfile else { return }
         displayName = p.displayName
         username = p.username
-        weightKg = p.weightKg.map { String(format: "%.1f", $0) } ?? ""
-        heightCm = p.heightCm.map { String(format: "%.0f", $0) } ?? ""
-        age = p.age.map { "\($0)" } ?? ""
     }
+}
 
-    private func save() {
-        try? modelContext.save()
+
+// MARK: - WeeklyScheduleEditorSheet
+
+/// Sheet that wraps `WeeklyTrainingPlanPickerView` for the Settings flow.
+/// Local @State holds the working copy; "Save" writes back to UserSettings.
+private struct WeeklyScheduleEditorSheet: View {
+    let userSettings: UserSettings?
+    let modelContext: ModelContext
+
+    @Environment(\.dismiss)
+    private var dismiss
+
+    @State private var workingPlan: [Int: DayType] = WeeklyTrainingPlan.defaultPlan
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                WeeklyTrainingPlanPickerView(plan: $workingPlan)
+                    .padding(TempoSpacing.lg)
+            }
+            .background(Color.tempoBgPrimary)
+            .navigationTitle("Weekly Schedule")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") { dismiss() }
+                        .font(.tempoCallout)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Save") {
+                        userSettings?.weeklyTrainingPlan = workingPlan
+                        userSettings?.updatedAt = Date()
+                        try? modelContext.save()
+                        dismiss()
+                    }
+                    .font(.tempoCallout.weight(.semibold))
+                    .foregroundStyle(Color.tempoSignal)
+                }
+            }
+            .onAppear {
+                if let existing = userSettings?.weeklyTrainingPlan, !existing.isEmpty {
+                    workingPlan = existing
+                }
+            }
+        }
     }
 }
 

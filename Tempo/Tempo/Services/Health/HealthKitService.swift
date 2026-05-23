@@ -9,6 +9,7 @@
 import Foundation
 import HealthKit
 import os
+import SwiftData
 import UIKit
 
 // MARK: - HealthKit Service (Real Implementation)
@@ -490,6 +491,70 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
         return result
     }
 
+    /// Live biometrics snapshot for TDEE. Combines quantity samples
+    /// (weight/height/body fat) with HealthKit characteristic types
+    /// (date of birth, biological sex). Characteristics throw `noDataAvailable`
+    /// when the user hasn't set them; we catch and map to nil so a partial
+    /// snapshot is surfaceable.
+    func fetchBiometricsSnapshot() async throws -> BiometricsSnapshot {
+        // Quantity reads — reuse fetchBodyComposition's plumbing.
+        let weight = await fetchLatestQuantity(.bodyMass, unit: .gramUnit(with: .kilo))
+        let height = await fetchLatestQuantity(.height, unit: .meterUnit(with: .centi))
+        let bodyFat = await fetchLatestQuantity(.bodyFatPercentage, unit: .percent())
+        let measurementDate = await fetchLatestSampleDate(.bodyMass)
+
+        // Characteristics — both throw if user hasn't set them in Health.app.
+        // We do NOT request them via authorization status check here because
+        // HKHealthStore.dateOfBirthComponents() / biologicalSex() return
+        // typed throws on missing data, which is the signal we want.
+        let age: Int? = {
+            do {
+                let components = try healthStore.dateOfBirthComponents()
+                guard let dob = Calendar.current.date(from: components) else {
+                    return nil
+                }
+                let years = Calendar.current.dateComponents([.year], from: dob, to: Date()).year
+                // Sanity bound — anything outside [10, 120] is corrupt or unset.
+                guard let years, (10 ... 120).contains(years) else {
+                    return nil
+                }
+                return years
+            } catch {
+                Logger.healthkit.debug("dateOfBirthComponents unavailable: \(error.localizedDescription)")
+                return nil
+            }
+        }()
+
+        let sex: BiologicalSex? = {
+            do {
+                let raw = try healthStore.biologicalSex().biologicalSex
+                switch raw {
+                case .male: return .male
+                case .female: return .female
+                case .other, .notSet: return nil
+                @unknown default: return nil
+                }
+            } catch {
+                Logger.healthkit.debug("biologicalSex unavailable: \(error.localizedDescription)")
+                return nil
+            }
+        }()
+
+        let snapshot = BiometricsSnapshot(
+            weightKg: weight,
+            heightCm: height,
+            age: age,
+            biologicalSex: sex,
+            bodyFatPercent: bodyFat.map { $0 * 100 }, // HK stores 0.0-1.0
+            measurementDate: measurementDate
+        )
+
+        Logger.healthkit.debug(
+            "fetchBiometricsSnapshot: weight=\(weight ?? -1)kg, height=\(height ?? -1)cm, age=\(age ?? -1), sex=\(sex?.rawValue ?? "nil"), bf=\(snapshot.bodyFatPercent ?? -1)%"
+        )
+        return snapshot
+    }
+
     private func fetchLatestQuantity(_ identifier: HKQuantityTypeIdentifier, unit: HKUnit) async -> Double? {
         let type = HKQuantityType(identifier)
         let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
@@ -773,6 +838,105 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
         case "walk": .walking
         case "sport": .other
         default: .other
+        }
+    }
+}
+
+
+// MARK: - BiometricsSync
+
+/// Stateless helper that flows the HealthKit biometrics snapshot into both
+/// the SwiftData `DietaryProfile` and `UserProfile` rows.
+///
+/// **Direction is one-way: HealthKit → SwiftData.** The two SwiftData rows act
+/// purely as a write-through cache so offline reads still work; they are never
+/// the source of truth. Editing the values in the app is intentionally
+/// disabled — the user updates them in the Apple Health app.
+///
+/// Returns the snapshot it applied so callers can decide whether the result
+/// is complete enough to proceed (e.g. meal-plan generation refuses to run
+/// without a complete TDEE biometric set).
+enum BiometricsSync {
+    /// Pull the latest snapshot from HealthKit and write it into the active
+    /// `DietaryProfile` and the singleton `UserProfile`. No-op if HealthKit
+    /// throws or returns an empty snapshot.
+    ///
+    /// - Returns: The snapshot that was applied. `isCompleteForTDEE` tells the
+    ///   caller whether weight/height/age/sex are all present.
+    @MainActor
+    @discardableResult
+    static func refresh(
+        healthKit: any HealthKitServiceProtocol,
+        modelContext: ModelContext
+    ) async -> BiometricsSnapshot {
+        var snapshot = await fetchOrEmpty(healthKit: healthKit)
+
+        // Upgrade path: dateOfBirth + biologicalSex were added to readTypes
+        // after some users already granted HealthKit access for the original
+        // type set. iOS will not re-prompt automatically — we have to call
+        // requestAuthorization() again. The call is silent for already-granted
+        // types and only surfaces a sheet for "not determined" ones.
+        //
+        // We gate this behind a UserDefaults flag so it fires at most ONCE
+        // per install, even if HealthKit genuinely has no DOB/sex (e.g. the
+        // user denied the additional permissions). Without the gate, every
+        // meal-plan tap would re-trigger the auth flow when the user has
+        // intentionally declined.
+        if (snapshot.age == nil || snapshot.biologicalSex == nil)
+            && !UserDefaults.standard.bool(forKey: characteristicsReauthKey) {
+            UserDefaults.standard.set(true, forKey: characteristicsReauthKey)
+            Logger.healthkit.info("BiometricsSync: characteristic types missing — triggering re-auth")
+            try? await healthKit.requestAuthorization()
+            snapshot = await fetchOrEmpty(healthKit: healthKit)
+        }
+
+        // DietaryProfile — non-optional fields, so only overwrite when we have
+        // a real value. Missing pieces keep the prior cache value (which is
+        // either an earlier HK sync or the onboarding default if first run).
+        if let active = try? modelContext.fetch(
+            FetchDescriptor<DietaryProfile>(
+                predicate: #Predicate<DietaryProfile> { $0.isActive }
+            )
+        ).first {
+            if let w = snapshot.weightKg { active.currentWeightKg = w }
+            if let h = snapshot.heightCm { active.heightCm = h }
+            if let a = snapshot.age { active.age = a }
+            if let s = snapshot.biologicalSex { active.biologicalSex = s }
+            if let bf = snapshot.bodyFatPercent { active.bodyFatPercent = bf }
+            active.updatedAt = Date()
+        }
+
+        // UserProfile — nullable fields, so we can write the optionals
+        // straight through. There's exactly one row (singleton) in practice.
+        if let user = try? modelContext.fetch(FetchDescriptor<UserProfile>()).first {
+            if let w = snapshot.weightKg { user.weightKg = w }
+            if let h = snapshot.heightCm { user.heightCm = h }
+            if let a = snapshot.age { user.age = a }
+            user.updatedAt = Date()
+        }
+
+        try? modelContext.save()
+        return snapshot
+    }
+
+    /// UserDefaults flag — once a re-auth has been triggered for the
+    /// characteristic types, we don't trigger it again. Reset on app
+    /// reinstall (which also resets HealthKit auth) so the next install gets
+    /// a fresh attempt.
+    private static let characteristicsReauthKey = "tempo.biometricsSync.characteristicReauthRequested"
+
+    /// Wraps `fetchBiometricsSnapshot()` to swallow errors and return an
+    /// empty snapshot instead. Used so the caller can branch on
+    /// `isCompleteForTDEE` rather than juggling throws.
+    private static func fetchOrEmpty(healthKit: any HealthKitServiceProtocol) async -> BiometricsSnapshot {
+        do {
+            return try await healthKit.fetchBiometricsSnapshot()
+        } catch {
+            Logger.healthkit.warning("BiometricsSync: fetch failed — \(error.localizedDescription)")
+            return BiometricsSnapshot(
+                weightKg: nil, heightCm: nil, age: nil,
+                biologicalSex: nil, bodyFatPercent: nil, measurementDate: nil
+            )
         }
     }
 }

@@ -132,6 +132,33 @@ enum DayType: String, Codable, CaseIterable {
     }
 }
 
+
+// MARK: - WeeklyTrainingPlan helpers
+
+/// Default per-weekday DayType assignment used when the user hasn't yet set
+/// their own via the onboarding/Settings weekly-schedule picker. Tuned for
+/// the most common student-athlete pattern (lift weekdays, soccer Wed evening
+/// + Sun morning, Sat for cardio, one rest day).
+///
+/// Keys are `Calendar.current.weekday` values: 1 = Sunday … 7 = Saturday.
+enum WeeklyTrainingPlan {
+    static let defaultPlan: [Int: DayType] = [
+        1: .soccer,    // Sunday — morning match
+        2: .strength,  // Monday
+        3: .strength,  // Tuesday
+        4: .soccer,    // Wednesday — evening match
+        5: .strength,  // Thursday
+        6: .rest,      // Friday
+        7: .cardio,    // Saturday — long run / mixed cardio
+    ]
+
+    /// Look up a weekday's DayType, falling back to the default when the
+    /// user-supplied map is empty or missing this day.
+    static func dayType(for weekday: Int, in plan: [Int: DayType]) -> DayType {
+        plan[weekday] ?? defaultPlan[weekday] ?? .strength
+    }
+}
+
 // MARK: - DietaryGoal
 
 enum DietaryGoal: String, Codable, CaseIterable {

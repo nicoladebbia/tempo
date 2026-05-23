@@ -120,6 +120,33 @@ enum DailyResetCoordinator {
         // and dashboard land on a populated record.
         _ = engine.loadTodayNonNegotiables(modelContext: context)
 
+        // Coach Agent — nightly behavior observation + preference decay.
+        // Reads PlannedMeal vs MealLog for the trailing 7 days, mints
+        // observed preferences, reinforces existing ones, and decays the
+        // rest. Per docs/COACH_AGENT.md.
+        BehaviorObserver.run(context: context)
+
+        // Coach Agent — purge ended conversations older than 30 days. We
+        // keep the extracted preferences (they live in LearnedPreference)
+        // but the raw transcript bytes pile up fast and aren't useful
+        // long-term. Active conversations (endedAt == nil) are never
+        // purged regardless of age — that's a stuck session, not stale
+        // history.
+        if let cutoff = Calendar.current.date(byAdding: .day, value: -30, to: today) {
+            let endedDesc = FetchDescriptor<CoachConversation>(
+                predicate: #Predicate<CoachConversation> { $0.endedAt != nil }
+            )
+            if let ended = try? context.fetch(endedDesc) {
+                let stale = ended.filter { ($0.endedAt ?? Date.distantFuture) < cutoff }
+                for convo in stale {
+                    context.delete(convo)
+                }
+                if !stale.isEmpty {
+                    logger.info("Purged \(stale.count) stale coach conversation(s) (>30 days)")
+                }
+            }
+        }
+
         try? context.save()
         defaults.set(today, forKey: lastRunKey)
         logger.info("Daily reset complete for \(priorDays.count) prior day(s)")

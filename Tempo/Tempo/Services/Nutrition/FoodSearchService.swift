@@ -58,7 +58,7 @@ final class FoodSearchService: FoodSearchServiceProtocol, @unchecked Sendable {
         components.queryItems = [
             URLQueryItem(name: "api_key", value: usdaAPIKey),
             URLQueryItem(name: "query", value: trimmed),
-            URLQueryItem(name: "pageSize", value: "25"),
+            URLQueryItem(name: "pageSize", value: "50"),
             URLQueryItem(name: "dataType", value: "Foundation,SR Legacy,Branded"),
         ]
 

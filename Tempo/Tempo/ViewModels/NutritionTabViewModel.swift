@@ -579,6 +579,7 @@ final class NutritionTabViewModel {
         modelContext: ModelContext,
         whoop: any WhoopServiceProtocol,
         apiClient: APIClient,
+        healthKit: any HealthKitServiceProtocol,
         notifications: (any NotificationServiceProtocol)? = nil,
         intake: MealPlanIntake? = nil
     ) {
@@ -593,6 +594,24 @@ final class NutritionTabViewModel {
         planGenerationTask?.cancel()
         planGenerationTask = Task {
             do {
+                // 1) Refresh biometrics from HealthKit FIRST. Single source of
+                // truth — DietaryProfile is just a write-through cache.
+                let snapshot = await BiometricsSync.refresh(
+                    healthKit: healthKit,
+                    modelContext: modelContext
+                )
+
+                // 2) If anything required for TDEE is missing, block generation
+                // and tell the user exactly what to add in Apple Health.
+                guard snapshot.isCompleteForTDEE else {
+                    var missing: [String] = []
+                    if snapshot.weightKg == nil { missing.append("weight") }
+                    if snapshot.heightCm == nil { missing.append("height") }
+                    if snapshot.age == nil { missing.append("date of birth") }
+                    if snapshot.biologicalSex == nil { missing.append("biological sex") }
+                    throw MealPlanGeneratorError.biometricsMissing(missingFields: missing)
+                }
+
                 // Per INTELLIGENCE_REMEDIATION_PLAN.md §3 — Claude calls proxy
                 // through the backend; the generator needs the auth-attaching
                 // APIClient instead of the deleted ClaudeAPIClient.
@@ -630,10 +649,57 @@ final class NutritionTabViewModel {
             } catch {
                 isGeneratingPlan = false
                 planGenerationStatusLabel = ""
-                planGenerationError = error.localizedDescription
+                planGenerationError = Self.friendlyPlanError(from: error)
                 HapticManager.notification(.error)
             }
         }
+    }
+
+    /// Drill-sergeant-flavored, actionable error messages for the plan
+    /// generation flow. Surfaces three buckets: (a) clear network problem,
+    /// (b) AI returned bad JSON, (c) genuine server/unknown failure. Anything
+    /// else falls through to the raw error.
+    static func friendlyPlanError(from error: Error) -> String {
+        if let apiErr = error as? APIError {
+            switch apiErr {
+            case .networkError, .timeout, .connectionRefused:
+                return "Couldn't reach the planner. Connection dropped — try again."
+            case .rateLimited:
+                return "Planner is rate-limited. Wait a minute, then retry."
+            case .aiConsentRequired:
+                return "AI consent required. Enable it in Settings → Privacy."
+            case .subscriptionRequired:
+                return "This needs a Pro subscription."
+            case .serverError, .unknown:
+                return "Planner service hiccup. Try again in a moment."
+            default:
+                return "Couldn't generate the plan. Try again."
+            }
+        }
+        if let genErr = error as? MealPlanGeneratorError {
+            switch genErr {
+            case let .generationFailed(inner):
+                return friendlyPlanError(from: inner)
+            case .parsingFailed:
+                return "Planner returned a malformed response. Try again."
+            case .validationFailed:
+                return "Plan failed validation. Try again."
+            case .persistenceFailed:
+                return "Couldn't save the plan locally. Try again."
+            case let .biometricsMissing(missing):
+                return "Open the Health app and add: \(missing.joined(separator: ", "))."
+            }
+        }
+        // URLError pass-through (e.g. -1005 surfacing directly, no wrap)
+        if let urlErr = error as? URLError {
+            switch urlErr.code {
+            case .networkConnectionLost, .notConnectedToInternet, .timedOut, .cannotConnectToHost:
+                return "Couldn't reach the planner. Connection dropped — try again."
+            default:
+                return "Network error. Try again."
+            }
+        }
+        return error.localizedDescription
     }
 
     /// Compute the set of canonical ingredient names referenced by the plan that

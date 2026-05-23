@@ -79,11 +79,17 @@ enum TDEECalculator {
         let calculatedTDEE = bmr * activityMultiplier
 
         // ── Step 3: Whoop blend ──────────────────────────────────
+        //
+        // Reduced from 60/40 → 30/70 in favor of the calculated TDEE. The
+        // Whoop value is a single-day calorie burn, which swings hugely with
+        // strain (a recovery day at strain 4 vs a match day at strain 18
+        // produces wildly different blends, yet our long-term TDEE shouldn't
+        // ride on yesterday). Use it as a small correction, not the anchor.
 
         let tdee: Double
         if let whoopTDEE = whoopAverageTDEE, whoopTDEE > 0 {
             let correctedWhoop = whoopTDEE * 0.9 // wrist HR overestimation correction
-            tdee = 0.6 * correctedWhoop + 0.4 * calculatedTDEE
+            tdee = 0.3 * correctedWhoop + 0.7 * calculatedTDEE
         } else {
             tdee = calculatedTDEE
         }
@@ -97,14 +103,20 @@ enum TDEECalculator {
         )
 
         // ── Step 5: Macro targets per day type ───────────────────
+        //
+        // Each day type carries its own calorie multiplier so rest days eat
+        // less and match days eat more — previously every day showed an
+        // identical kcal target because only protein varied.
 
         let referenceWeight = leanMassKg ?? weightKg
         var dayTypeTargets: [DayType: MacroTargets] = [:]
 
         for dayType in DayType.allCases {
             let proteinPerKg = proteinMultiplier(for: dayType)
+            let dayMultiplier = caloriesMultiplier(for: dayType)
+            let dayCalories = Int((Double(adjustedCalories) * dayMultiplier).rounded())
             let targets = buildMacroTargets(
-                calories: adjustedCalories,
+                calories: dayCalories,
                 proteinPerKg: proteinPerKg,
                 referenceWeight: referenceWeight,
                 bodyWeightKg: weightKg
@@ -222,6 +234,21 @@ enum TDEECalculator {
         case .strength: 2.0
         case .soccer: 2.0
         case .double: 2.2
+        }
+    }
+
+    /// Calorie multiplier applied to `adjustedCalories` per day type so each
+    /// day eats appropriately for the work being done. Centered on 1.0 for
+    /// strength (the baseline), with REST eating less and DOUBLE-SESSION
+    /// eating substantially more. These deltas stack ON TOP of the goal
+    /// adjustment (cut / maintain / lean gain) — they don't replace it.
+    private static func caloriesMultiplier(for dayType: DayType) -> Double {
+        switch dayType {
+        case .rest: 0.90      // -10%: lighter day, modest reduction
+        case .cardio: 1.10    // +10%: aerobic burn needs replenishment
+        case .strength: 1.00  // baseline
+        case .soccer: 1.15    // +15%: ~60-90min match output
+        case .double: 1.25    // +25%: training + match same day
         }
     }
 

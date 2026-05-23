@@ -192,4 +192,45 @@ extension AnalyticsService {
             "is_fatal": isFatal,
         ])
     }
+
+    // MARK: - Notifications
+
+    /// A notification was scheduled (or fired, for immediate event-driven ones).
+    /// `channel` = accountability / arena / social / streak / meal …
+    /// `tier` = the within-channel variant (gentle/firm/urgent/critical, the
+    /// arena event id suffix, etc). `intensity` = the coaching-intensity pool.
+    func trackNotificationScheduled(channel: String, tier: String, intensity: String) {
+        track("notification_scheduled", properties: [
+            "channel": channel,
+            "tier": tier,
+            "intensity": intensity,
+        ])
+    }
+
+    /// The daily budget governor suppressed a non-urgent notification.
+    func trackNotificationSuppressedBudget(channel: String, tier: String, spent: Double, cap: Double) {
+        track("notification_suppressed_budget", properties: [
+            "channel": channel,
+            "tier": tier,
+            "budget_spent": spent,
+            "budget_cap": cap,
+        ])
+    }
+
+    /// The budget governor's NonNegotiable-deadline override fired — an
+    /// imminent urgent/critical alert bypassed an exhausted budget.
+    func trackNotificationBudgetOverride(tier: String, secondsUntilFire: Int) {
+        track("notification_budget_override", properties: [
+            "tier": tier,
+            "seconds_until_fire": secondsUntilFire,
+        ])
+    }
+
+    /// The social-hours Focus Timer blocker fired for a session.
+    func trackSocialBlockerFired(intensity: String, minutesIntoSocial: Int) {
+        track("social_blocker_fired", properties: [
+            "intensity": intensity,
+            "minutes_into_social": minutesIntoSocial,
+        ])
+    }
 }

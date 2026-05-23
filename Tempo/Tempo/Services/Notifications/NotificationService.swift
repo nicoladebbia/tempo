@@ -39,6 +39,10 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
     private var budgetDate: String = ""
     private var lastNotificationTime: Date?
 
+    // Focus Timer session IDs that have already fired their one social-hours
+    // blocker. Guarantees at most one blocker per session (per `<constraints>`).
+    private var socialBlockerFiredSessionIDs: Set<String> = []
+
     // MARK: - Category Registration
 
     /// Register all notification categories at app launch.
@@ -161,6 +165,14 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
                     UNNotificationAction(identifier: "VIEW_TASKS", title: "View Tasks", options: .foreground),
                 ]
             ),
+            // Social-Hours Focus Blocker — fired when a Focus Timer session is
+            // running inside the user's configured social-hours window.
+            makeCategory(
+                id: "SOCIAL_BLOCKER",
+                actions: [
+                    UNNotificationAction(identifier: "STAY_FOCUSED", title: "Stay Focused", options: .foreground),
+                ]
+            ),
         ]
 
         center.setNotificationCategories(categories)
@@ -235,6 +247,31 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
             title = "FINAL WARNING"
         }
 
+        // Daily budget governor — NonNegotiable deadline override.
+        // The budget is a governor, not a hard cap: it must never silently
+        // drop an urgent NonNegotiable deadline alert that fires within the
+        // next 30 minutes. `urgent` (E-1h) and `critical` (E-30min) are the
+        // deadline tiers; when their fire time is imminent we bypass the
+        // budget so an exhausted day still surfaces the final warning.
+        // Non-imminent / lower tiers stay budget-gated and are logged on
+        // suppression by `scheduleNotification`.
+        let secondsUntilFire = time.timeIntervalSinceNow
+        let bypassBudget = Self.shouldBypassBudgetForDeadline(
+            tier: tier, secondsUntilFire: secondsUntilFire
+        )
+        if bypassBudget {
+            logger.info(
+                "Budget override: \(tier.rawValue) deadline fires in \(Int(secondsUntilFire))s — bypassing budget"
+            )
+            let overrideTier = tier.rawValue
+            let overrideSeconds = Int(secondsUntilFire)
+            Task { @MainActor in
+                AnalyticsService.shared.trackNotificationBudgetOverride(
+                    tier: overrideTier, secondsUntilFire: overrideSeconds
+                )
+            }
+        }
+
         scheduleNotification(
             id: "accountability_\(tier.rawValue)_\(dateKey(time))",
             title: title,
@@ -244,7 +281,8 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
             threadID: "tempo.accountability.\(dateKey(time))",
             interruptionLevel: interruptionLevel,
             budgetCost: budgetCost,
-            priority: 2
+            priority: 2,
+            bypassBudget: bypassBudget
         )
     }
 
@@ -450,6 +488,168 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         )
     }
 
+    // MARK: - Arena (event-driven)
+
+    /// A genuine Arena trigger event. Arena notifications fire on these events
+    /// only — never on a fixed schedule. Per `<constraints>` Arena rule.
+    enum ArenaEvent {
+        /// Leaderboard rank changed (e.g. an opponent overtook the user).
+        case leaderboardChange(newRank: Int, previousRank: Int, opponentName: String)
+        /// A challenge started.
+        case challengeStarted(name: String)
+        /// A challenge ended.
+        case challengeEnded(name: String)
+        /// An XP milestone was crossed.
+        case xpMilestone(total: Int)
+    }
+
+    /// Fire an Arena notification for a genuine trigger event, immediately.
+    /// Copy is intensity-gated (4 tiers) from the `arena` pool in
+    /// `AccountabilityCopy.json`. The caller is responsible for gating on
+    /// `UserSettings.arenaNotificationsEnabled` (matches every other channel's
+    /// settings-gating convention). Budget-governed like any non-deadline
+    /// notification — Arena is never bypass-budget.
+    func scheduleArenaNotification(event: ArenaEvent, notificationIntensity: Int) {
+        let intensity = CopyIntensity(notificationIntensity: notificationIntensity)
+
+        var context = CopyContext()
+        let title: String
+        let idSuffix: String
+        switch event {
+        case let .leaderboardChange(newRank, previousRank, opponentName):
+            context.rank = newRank
+            context.previousRank = previousRank
+            context.opponentName = opponentName
+            title = "Arena"
+            idSuffix = "rank_\(newRank)"
+        case let .challengeStarted(name):
+            context.challengeName = name
+            title = "Challenge Started"
+            idSuffix = "challenge_start"
+        case let .challengeEnded(name):
+            context.challengeName = name
+            title = "Challenge Over"
+            idSuffix = "challenge_end"
+        case let .xpMilestone(total):
+            context.xpMilestone = total
+            title = "Milestone"
+            idSuffix = "xp_\(total)"
+        }
+
+        let body = AccountabilityCopyPool.shared.pick(
+            tier: .arena, intensity: intensity, context: context
+        )
+
+        scheduleNotification(
+            id: "arena_\(idSuffix)_\(dateKey(Date()))",
+            title: title,
+            body: body,
+            date: Date(),
+            categoryID: "ARENA_SOCIAL",
+            threadID: "tempo.arena.\(dateKey(Date()))",
+            interruptionLevel: .active,
+            budgetCost: 0.5,
+            priority: 6,
+            immediate: true
+        )
+        let arenaTier = idSuffix
+        let arenaIntensity = intensity.rawValue
+        Task { @MainActor in
+            AnalyticsService.shared.trackNotificationScheduled(
+                channel: "arena", tier: arenaTier, intensity: arenaIntensity
+            )
+        }
+    }
+
+    // MARK: - Social-Hours Focus Blocker
+
+    /// Fire the social-hours Focus Timer blocker for `sessionID` if the current
+    /// time falls inside the configured social-hours window — at most once per
+    /// Focus Timer session (per `<constraints>`). Caller supplies the window
+    /// from `UserSettings` so this service stays free of SwiftData coupling.
+    /// Returns true if a blocker was fired, false if suppressed (outside
+    /// window, disabled, or already fired this session).
+    @discardableResult
+    func scheduleSocialBlockerIfNeeded(
+        sessionID: String,
+        enabled: Bool,
+        windowStartMinutes: Int,
+        windowEndMinutes: Int,
+        notificationIntensity: Int,
+        now: Date = Date()
+    ) -> Bool {
+        guard enabled else {
+            return false
+        }
+        // One blocker per Focus Timer session.
+        guard !socialBlockerFiredSessionIDs.contains(sessionID) else {
+            logger.debug("Social blocker already fired for session \(sessionID), skipping")
+            return false
+        }
+
+        let cal = Calendar.current
+        let comps = cal.dateComponents([.hour, .minute], from: now)
+        let nowMinutes = (comps.hour ?? 0) * 60 + (comps.minute ?? 0)
+        guard Self.minutesInWindow(
+            nowMinutes, start: windowStartMinutes, end: windowEndMinutes
+        ) else {
+            return false
+        }
+
+        let minutesIntoSocial = Self.minutesSinceWindowStart(
+            nowMinutes, start: windowStartMinutes
+        )
+        let intensity = CopyIntensity(notificationIntensity: notificationIntensity)
+        var context = CopyContext()
+        context.minutesIntoSocial = minutesIntoSocial
+        let body = AccountabilityCopyPool.shared.pick(
+            tier: .social, intensity: intensity, context: context
+        )
+
+        socialBlockerFiredSessionIDs.insert(sessionID)
+
+        scheduleNotification(
+            id: "social_blocker_\(sessionID)",
+            title: "Social Hours",
+            body: body,
+            date: now,
+            categoryID: "SOCIAL_BLOCKER",
+            threadID: "tempo.social.\(dateKey(now))",
+            interruptionLevel: .timeSensitive,
+            budgetCost: 0.5,
+            priority: 4,
+            immediate: true
+        )
+
+        let analyticsIntensity = intensity.rawValue
+        Task { @MainActor in
+            AnalyticsService.shared.trackSocialBlockerFired(
+                intensity: analyticsIntensity, minutesIntoSocial: minutesIntoSocial
+            )
+        }
+        logger.info("Fired social-hours blocker for session \(sessionID)")
+        return true
+    }
+
+    /// True if `minutes` (minutes-since-midnight) is inside the window
+    /// [start, end), handling windows that wrap past midnight (start > end).
+    static func minutesInWindow(_ minutes: Int, start: Int, end: Int) -> Bool {
+        if start == end {
+            return false
+        }
+        if start < end {
+            return minutes >= start && minutes < end
+        }
+        // Wraps midnight, e.g. 22:00 → 02:00.
+        return minutes >= start || minutes < end
+    }
+
+    /// Minutes elapsed since the window opened, accounting for midnight wrap.
+    static func minutesSinceWindowStart(_ minutes: Int, start: Int) -> Int {
+        let delta = minutes - start
+        return delta >= 0 ? delta : delta + 24 * 60
+    }
+
     // MARK: - Training Reminder
 
     // Per ONBOARDING_AND_NOTIFICATIONS.md — Channel 8: Training Reminder.
@@ -535,21 +735,22 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
 
     // Per TECHNICAL_FEASIBILITY_AUDIT.md Section 3.1 — Reschedule on app foreground.
 
+    /// Rebuild today's local schedule. Morning briefing, bedtime reminder, and
+    /// recovery-score notifications were intentionally removed from this
+    /// orchestrator: they duplicate what Whoop already delivers (morning
+    /// briefing, bedtime nudge, recovery score). See
+    /// `.plans/notifications-audit.md` §1. The `scheduleMorningBriefing` /
+    /// `scheduleBedtimeReminder` / `scheduleRecoveryNotification` methods are
+    /// retained (protocol surface) but are no longer invoked anywhere. The
+    /// backend `MorningBriefingJob` was likewise unscheduled in
+    /// `configure.swift`.
     func rescheduleAllForToday(
-        briefing: BriefingContent?,
-        briefingTime: Date?,
         escalations: [(tier: EscalationTier, time: Date, content: String)],
-        meals: [(name: String, time: Date)],
-        bedtime: Date?
+        meals: [(name: String, time: Date)]
     ) {
         // Clear all existing local notifications
         center.removeAllPendingNotificationRequests()
         resetDailyBudget()
-
-        // 1. Schedule today's notifications first (highest priority)
-        if let briefing, let time = briefingTime, time > Date() {
-            scheduleMorningBriefing(for: time, content: briefing)
-        }
 
         for escalation in escalations where escalation.time > Date() {
             scheduleAccountabilityEscalation(
@@ -563,11 +764,6 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
             scheduleMealReminder(mealName: meal.name, time: meal.time)
         }
 
-        if let bedtime, bedtime > Date() {
-            scheduleBedtimeReminder(time: bedtime)
-        }
-
-        // 2. Log pending count
         logPendingCount()
     }
 
@@ -597,7 +793,8 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         interruptionLevel: UNNotificationInterruptionLevel,
         budgetCost: Double,
         priority: Int,
-        bypassBudget: Bool = false
+        bypassBudget: Bool = false,
+        immediate: Bool = false
     ) {
         // Budget check — bypassable for time-critical, discrete-event notifications
         // (e.g. defrost reminders) whose suppression would cause real-world harm.
@@ -605,6 +802,12 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         if !bypassBudget {
             guard canSpendBudget(cost: budgetCost) else {
                 logger.info("Budget exhausted (\(self.budgetSpentToday)/\(Self.dailyBudgetCap)), skipping \(id)")
+                let suppressedSpent = budgetSpentToday
+                Task { @MainActor in
+                    AnalyticsService.shared.trackNotificationSuppressedBudget(
+                        channel: categoryID, tier: id, spent: suppressedSpent, cap: Self.dailyBudgetCap
+                    )
+                }
                 return
             }
         }
@@ -645,11 +848,19 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
             content.interruptionLevel = interruptionLevel
             content.sound = sound(for: categoryID)
 
-            let components = Calendar.current.dateComponents(
-                [.year, .month, .day, .hour, .minute, .second],
-                from: date
-            )
-            let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+            // Event-driven notifications (Arena, social blocker) fire on the
+            // trigger event itself — a nil trigger delivers immediately.
+            // Scheduled notifications use a DST-safe calendar trigger.
+            let trigger: UNNotificationTrigger?
+            if immediate {
+                trigger = nil
+            } else {
+                let components = Calendar.current.dateComponents(
+                    [.year, .month, .day, .hour, .minute, .second],
+                    from: date
+                )
+                trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+            }
 
             let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
 
@@ -680,12 +891,26 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         }
     }
 
-    private func canSpendBudget(cost: Double) -> Bool {
+    /// Daily budget governor decision. `internal` for unit testing — pure
+    /// given `budgetSpentToday`.
+    func canSpendBudget(cost: Double) -> Bool {
         budgetSpentToday + cost <= Self.dailyBudgetCap
     }
 
-    private func spendBudget(cost: Double) {
+    func spendBudget(cost: Double) {
         budgetSpentToday += cost
+    }
+
+    /// Pure budget-governor override rule: an urgent/critical accountability
+    /// deadline that fires within the 30-minute imminence window must never be
+    /// dropped by the budget. Extracted as a testable static.
+    static func shouldBypassBudgetForDeadline(
+        tier: EscalationTier,
+        secondsUntilFire: TimeInterval
+    ) -> Bool {
+        let isDeadlineTier = tier == .urgent || tier == .critical
+        let isImminent = secondsUntilFire <= minIntervalBetweenNotifications
+        return isDeadlineTier && isImminent
     }
 
     private func resetDailyBudget() {

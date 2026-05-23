@@ -46,6 +46,13 @@ enum HealthKitConstants {
             HKQuantityType(.bodyFatPercentage),
             HKQuantityType(.leanBodyMass),
 
+            // Characteristics — date of birth + biological sex are the
+            // single source of truth for age + sex used in TDEE / Mifflin-St
+            // Jeor. Tempo will not store these directly; biometrics flow
+            // HealthKit → DietaryProfile each sync, never the other way.
+            HKCharacteristicType(.dateOfBirth),
+            HKCharacteristicType(.biologicalSex),
+
             // Workouts
             HKWorkoutType.workoutType(),
         ]

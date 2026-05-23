@@ -191,10 +191,13 @@ func configure(_ app: Application) async throws {
     // ─────────────────────────────────────────────────
     app.queues.add(WhoopWebhookJob())
 
-    // Per BUILD_PLAN step 12.4 — Morning briefing scheduled job.
-    // Runs every 15 minutes, checks which users need their morning briefing.
-    app.queues.schedule(MorningBriefingJob())
-        .every(minutes: 15)
+    // Morning briefing job intentionally NOT scheduled. The morning briefing,
+    // bedtime nudge, and recovery score duplicate what Whoop already delivers
+    // to the user; firing our own would double-notify. See
+    // `.plans/notifications-audit.md` §1 (Whoop-overlap removal, iOS + backend).
+    // `MorningBriefingJob` struct is retained but no longer registered.
+    // app.queues.schedule(MorningBriefingJob())
+    //     .every(minutes: 15)
 
     // Per BUILD_PLAN step 15.2 — Weekly summary job.
     // Per AI_INTELLIGENCE_ENGINE.md Section 6.3 — Sunday 20:00 cache warming.

@@ -383,6 +383,28 @@ final class AccountabilityViewModel {
         startFocusCountdown(total: focusDuration, modelContext: modelContext)
     }
 
+    /// Fire the social-hours Focus Timer blocker for the current session, if
+    /// the user is inside their social-hours window. At most once per session
+    /// (enforced by `NotificationService`). Called by the view layer right
+    /// after a focus session starts, since only the view holds the service +
+    /// settings. No-op if there is no active study session.
+    func fireSocialBlockerIfNeeded(
+        notificationService: NotificationService,
+        settings: UserSettings?
+    ) {
+        guard let session = currentStudySession else {
+            return
+        }
+        let intensity = settings?.notificationIntensity ?? 3
+        notificationService.scheduleSocialBlockerIfNeeded(
+            sessionID: session.id.uuidString,
+            enabled: settings?.socialHoursEnabled ?? true,
+            windowStartMinutes: settings?.socialHoursStartMinutes ?? 1170,
+            windowEndMinutes: settings?.socialHoursEndMinutes ?? 1380,
+            notificationIntensity: intensity
+        )
+    }
+
     func pauseFocus() {
         guard case let currentState = focusState, currentState.isActive else {
             return
@@ -728,21 +750,20 @@ final class AccountabilityViewModel {
     // Schedules context-aware notifications based on historical completion patterns.
     // Progressive urgency: gentle at 50% time remaining, firm at 25%, urgent at 10%.
 
+    /// Canonical accountability-notification entry point. Delegates entirely to
+    /// `AccountabilityEscalationEngine` (JSON copy pool, recency-aware,
+    /// state-machine-backed). The previous hand-rolled progressive-urgency
+    /// scheduler that lived here was removed — it duplicated the engine and
+    /// produced competing notifications. See `.plans/notifications-audit.md` §1.
     func scheduleSmartNotifications(
-        notificationService: NotificationService,
+        escalationEngine: AccountabilityEscalationEngine,
+        notificationIntensity: Int,
         modelContext: ModelContext
     ) {
         guard let accountability, !accountability.leisureUnlocked else {
             return
         }
         guard activeOverride == nil else {
-            return
-        }
-
-        let now = Date()
-        let ps5Time = ps5TimeToday
-        let timeToPS5 = ps5Time.timeIntervalSince(now)
-        guard timeToPS5 > 0 else {
             return
         }
 
@@ -754,118 +775,28 @@ final class AccountabilityViewModel {
 
         let remaining = totalCount - completedCount
         let streakDays = overallStreak?.currentCount ?? 0
+        let eveningStart = ps5TimeToday
 
-        // Calculate historical study start time (placeholder: default 2 PM)
-        // In production, this would analyze StudySession history for avg start time.
-        let historicalStudyHour = historicalAverageStudyHour(modelContext: modelContext)
-
-        // Study-specific check: if user hasn't started study and it's past their usual time
         let studyProgress = progressItems.first(where: { $0.nonNegotiable?.type == .study })
-        let studyNotStarted = (studyProgress?.currentValue ?? 0) == 0 && studyProgress != nil
-        let studyRemainingMin = max(0, Int((studyProgress?.targetValue ?? 0) - (studyProgress?.currentValue ?? 0)))
+        let studyDone = String(Int(studyProgress?.currentValue ?? 0))
+        let studyTarget = String(Int(studyProgress?.targetValue ?? 0))
 
-        let calendar = Calendar.current
-        let currentHour = calendar.component(.hour, from: now)
-
-        // Schedule study nudge if past historical study time and study not started
-        if studyNotStarted, currentHour >= historicalStudyHour {
-            let nudgeTime = now.addingTimeInterval(30 * 60) // 30 min from now
-            if nudgeTime < ps5Time {
-                let message = if streakDays > 5 {
-                    "You're behind on study today. \(studyRemainingMin)min target. Your \(streakDays)-day streak needs this."
-                } else {
-                    "You haven't started studying yet. \(studyRemainingMin)min left to hit your target. Open Tempo and start a timer."
-                }
-                notificationService.scheduleAccountabilityEscalation(
-                    tier: .gentle,
-                    time: nudgeTime,
-                    content: message
-                )
-            }
-        }
-
-        // Progressive urgency based on time remaining
-        let halfwayPoint = now.addingTimeInterval(timeToPS5 * 0.5) // 50% time remaining
-        let quarterPoint = now.addingTimeInterval(timeToPS5 * 0.75) // 25% time remaining
-        let tenPercentPoint = now.addingTimeInterval(timeToPS5 * 0.9) // 10% time remaining
-
-        // Gentle reminder at 50% time remaining (if less than half done)
-        let completionPct = Double(completedCount) / Double(totalCount)
-        if completionPct < 0.5, halfwayPoint > now.addingTimeInterval(60) {
-            let body = "\(remaining) task\(remaining == 1 ? "" : "s") remaining. \(formatTimeInterval(timeToPS5 * 0.5)) left. You've got time, but don't waste it."
-            notificationService.scheduleAccountabilityEscalation(
-                tier: .gentle,
-                time: halfwayPoint,
-                content: body
-            )
-        }
-
-        // Firm at 25% time remaining
-        if completionPct < 0.75, quarterPoint > now.addingTimeInterval(60) {
-            var body = "\(remaining) task\(remaining == 1 ? "" : "s") incomplete. \(formatTimeInterval(timeToPS5 * 0.25)) left."
-            if studyRemainingMin > 0 {
-                body += " Study: \(studyRemainingMin)min to go."
-            }
-            body += " Time is running."
-            notificationService.scheduleAccountabilityEscalation(
-                tier: .firm,
-                time: quarterPoint,
-                content: body
-            )
-        }
-
-        // Urgent at 10% time remaining
-        if completionPct < 1.0, tenPercentPoint > now.addingTimeInterval(60) {
-            let body = if streakDays > 3 {
-                "Your \(streakDays)-day streak dies in \(formatTimeInterval(timeToPS5 * 0.1)). \(remaining) task\(remaining == 1 ? "" : "s") left. DO IT NOW."
-            } else {
-                "\(formatTimeInterval(timeToPS5 * 0.1)) until PS5 time. \(remaining) task\(remaining == 1 ? "" : "s") undone. This is it."
-            }
-            notificationService.scheduleAccountabilityEscalation(
-                tier: .urgent,
-                time: tenPercentPoint,
-                content: body
-            )
-        }
-
-        // Streak warning (if streak > 3 and significant tasks remain)
-        if streakDays > 3, remaining > 0 {
-            let streakWarningTime = ps5Time.addingTimeInterval(-45 * 60) // 45 min before PS5
-            if streakWarningTime > now.addingTimeInterval(60) {
-                notificationService.scheduleStreakWarning(
-                    streakDays: streakDays,
-                    tasksRemaining: remaining,
-                    time: streakWarningTime
-                )
-            }
-        }
-    }
-
-    /// Analyze StudySession history to find the user's average study start hour.
-    /// Falls back to 14 (2 PM) if no history exists.
-    private func historicalAverageStudyHour(modelContext: ModelContext) -> Int {
-        let calendar = Calendar.current
-        let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: Date())!
-
-        let descriptor = FetchDescriptor<StudySession>(
-            predicate: #Predicate { s in s.startTime >= sevenDaysAgo }
+        escalationEngine.scheduleEscalations(
+            eveningStartTime: eveningStart,
+            completedCount: completedCount,
+            totalCount: totalCount,
+            userName: "",
+            studyDone: studyDone,
+            studyTarget: studyTarget,
+            tasksRemaining: remaining,
+            notificationIntensity: notificationIntensity
         )
 
-        guard let sessions = try? modelContext.fetch(descriptor), !sessions.isEmpty else {
-            return 14 // Default: 2 PM
-        }
-
-        let totalHours = sessions.reduce(0) { $0 + calendar.component(.hour, from: $1.startTime) }
-        return totalHours / sessions.count
-    }
-
-    private func formatTimeInterval(_ interval: TimeInterval) -> String {
-        let hours = Int(interval) / 3600
-        let minutes = (Int(interval) % 3600) / 60
-        if hours > 0 {
-            return "\(hours)h \(minutes)m"
-        }
-        return "\(minutes)m"
+        escalationEngine.scheduleStreakWarningIfAtRisk(
+            eveningStartTime: eveningStart,
+            streakDays: streakDays,
+            tasksRemaining: remaining
+        )
     }
 
     // MARK: - End of Day

@@ -172,69 +172,63 @@ struct DietaryProfileSetupView: View {
         VStack(alignment: .leading, spacing: TempoSpacing.md) {
             sectionLabel("BODY STATS")
 
-            // Weight
-            VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                Text("Weight")
+            // Managed-by-Health caption + deep link. Weight, height, age, sex
+            // come from the Apple Health app and update automatically every
+            // time a meal plan is generated. The user cannot edit them here.
+            HStack(alignment: .top, spacing: TempoSpacing.sm) {
+                Image(systemName: "heart.text.square.fill")
                     .font(.tempoCallout)
-                    .foregroundStyle(Color.tempoTextPrimary)
-
-                HStack {
-                    Slider(value: $weightKg, in: 40 ... 150, step: 0.5)
-                        .tint(Color.tempoViolet)
-
-                    Text(String(format: "%.1f kg", weightKg))
-                        .font(.system(size: 14, weight: .bold, design: .monospaced))
+                    .foregroundStyle(Color.tempoSignal)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Synced from Apple Health")
+                        .font(.tempoFootnote)
                         .foregroundStyle(Color.tempoTextPrimary)
-                        .frame(width: 70, alignment: .trailing)
+                    Text("Update weight, height, date of birth, and biological sex in the Health app.")
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoTextSecondary)
                 }
-            }
-
-            // Height
-            VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                Text("Height")
-                    .font(.tempoCallout)
-                    .foregroundStyle(Color.tempoTextPrimary)
-
-                HStack {
-                    Slider(value: $heightCm, in: 140 ... 220, step: 1)
-                        .tint(Color.tempoViolet)
-
-                    Text(String(format: "%.0f cm", heightCm))
-                        .font(.system(size: 14, weight: .bold, design: .monospaced))
-                        .foregroundStyle(Color.tempoTextPrimary)
-                        .frame(width: 70, alignment: .trailing)
-                }
-            }
-
-            // Age
-            VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                Text("Age")
-                    .font(.tempoCallout)
-                    .foregroundStyle(Color.tempoTextPrimary)
-
-                Stepper(value: $age, in: 14 ... 80) {
-                    Text("\(age) years")
-                        .font(.system(size: 14, weight: .bold, design: .monospaced))
-                        .foregroundStyle(Color.tempoTextPrimary)
-                }
-                .tint(Color.tempoViolet)
-            }
-
-            // Biological Sex
-            VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                Text("Biological Sex")
-                    .font(.tempoCallout)
-                    .foregroundStyle(Color.tempoTextPrimary)
-
-                Picker("Biological Sex", selection: $biologicalSex) {
-                    ForEach(BiologicalSex.allCases, id: \.self) { sex in
-                        Text(sex.displayName).tag(sex)
+                Spacer()
+                Button {
+                    if let url = URL(string: "x-apple-health://") {
+                        UIApplication.shared.open(url)
                     }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text("Open")
+                        Image(systemName: "arrow.up.right.square")
+                    }
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoSignal)
                 }
-                .pickerStyle(.segmented)
             }
+            .padding(.vertical, TempoSpacing.xs)
 
-            // Body Fat (optional)
+            // Weight — read-only
+            biometricReadOnlyRow(
+                label: "Weight",
+                value: String(format: "%.1f kg", weightKg)
+            )
+
+            // Height — read-only
+            biometricReadOnlyRow(
+                label: "Height",
+                value: String(format: "%.0f cm", heightCm)
+            )
+
+            // Age — read-only
+            biometricReadOnlyRow(
+                label: "Age",
+                value: "\(age) years"
+            )
+
+            // Biological sex — read-only
+            biometricReadOnlyRow(
+                label: "Biological Sex",
+                value: biologicalSex.displayName
+            )
+
+            // Body Fat — still editable, since HealthKit often lacks it and
+            // the user may want to enter a measured value (DEXA, calipers).
             VStack(alignment: .leading, spacing: TempoSpacing.xs) {
                 HStack {
                     Text("Body Fat %")
@@ -261,6 +255,22 @@ struct DietaryProfileSetupView: View {
             }
         }
         .tempoCard()
+    }
+
+    /// Single read-only biometric row used inside `bodyStatsSection`. Keeps the
+    /// HealthKit-synced fields visually consistent.
+    @ViewBuilder
+    private func biometricReadOnlyRow(label: String, value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.tempoCallout)
+                .foregroundStyle(Color.tempoTextSecondary)
+            Spacer()
+            Text(value)
+                .font(.system(size: 14, weight: .bold, design: .monospaced))
+                .foregroundStyle(Color.tempoTextPrimary)
+        }
+        .padding(.vertical, 6)
     }
 
     // MARK: - Goal
@@ -812,27 +822,25 @@ struct DietaryProfileSetupView: View {
     // MARK: - HealthKit Sync (Withings Body Comp)
 
     private func syncFromHealthKit() async {
-        do {
-            let bodyComp = try await services.healthKit.fetchBodyComposition()
+        // Pull live biometrics from HealthKit and write through to the
+        // `DietaryProfile` + `UserProfile` rows. This is the single source of
+        // truth for weight, height, age, biological sex. We then mirror the
+        // synced values into the view's `@State` so the read-only labels show
+        // the just-refreshed numbers without waiting for a SwiftData refetch.
+        let snapshot = await BiometricsSync.refresh(
+            healthKit: services.healthKit,
+            modelContext: modelContext
+        )
 
-            // Only update if we got data and no existing profile (don't overwrite manual edits)
-            if existingProfile == nil {
-                if let w = bodyComp.weightKg {
-                    weightKg = w
-                }
-                if let h = bodyComp.heightCm {
-                    heightCm = h
-                }
-                if let bf = bodyComp.bodyFatPercent {
-                    bodyFatPercent = String(format: "%.1f", bf)
-                }
-            }
-
-            lastMeasurementDate = bodyComp.measurementDate
-            healthKitSynced = true
-        } catch {
-            // HealthKit not authorized or no data — silently continue with defaults
+        if let w = snapshot.weightKg { weightKg = w }
+        if let h = snapshot.heightCm { heightCm = h }
+        if let a = snapshot.age { age = a }
+        if let s = snapshot.biologicalSex { biologicalSex = s }
+        if let bf = snapshot.bodyFatPercent {
+            bodyFatPercent = String(format: "%.1f", bf)
         }
+        lastMeasurementDate = snapshot.measurementDate
+        healthKitSynced = snapshot.isCompleteForTDEE
     }
 
     // MARK: - Save

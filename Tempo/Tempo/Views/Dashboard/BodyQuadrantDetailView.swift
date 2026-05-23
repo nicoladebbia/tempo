@@ -230,9 +230,9 @@ struct BodyQuadrantDetailView: View {
                             )
                             .rotationEffect(.degrees(-90))
                     }
-                    VStack(spacing: 0) {
+                    VStack(spacing: 2) {
                         Text(scoreDigits)
-                            .font(.tempoScoreDisplay)
+                            .font(.tempoScoreDisplaySmall)
                             .foregroundStyle(zoneColor)
                             .lineLimit(1)
                             .minimumScaleFactor(0.5)
@@ -241,7 +241,7 @@ struct BodyQuadrantDetailView: View {
                             .tracking(TempoTracking.drillLabel)
                             .foregroundStyle(Color.tempoTextTertiary)
                     }
-                    .frame(width: 96)
+                    .frame(width: 88)
                 }
                 .frame(width: 120, height: 120)
 

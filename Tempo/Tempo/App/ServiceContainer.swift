@@ -39,6 +39,13 @@ final class ServiceContainer {
     var recipes: (any RecipeServiceProtocol)?
     var groceryList: (any GroceryListServiceProtocol)?
     let nutritionIntelligence: NutritionIntelligenceService
+    /// Canonical accountability-escalation scheduler (JSON copy pool, state
+    /// machine, recency-aware). Derived from `notifications` when it is the
+    /// concrete `NotificationService`; nil under the mock service (tests
+    /// exercise the engine directly with a `NotificationService`). The legacy
+    /// `AccountabilityViewModel.scheduleSmartNotifications` path was deleted —
+    /// see `.plans/notifications-audit.md` §1.
+    let accountabilityEscalation: AccountabilityEscalationEngine?
     let appState: AppState
 
     init(
@@ -83,6 +90,8 @@ final class ServiceContainer {
         self.subscriptions = subscriptions
         self.nutrition = nutrition
         self.nutritionIntelligence = NutritionIntelligenceService()
+        accountabilityEscalation = (notifications as? NotificationService)
+            .map(AccountabilityEscalationEngine.init(notificationService:))
         appState = AppState(authService: authService)
     }
 

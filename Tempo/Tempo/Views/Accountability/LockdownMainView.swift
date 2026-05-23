@@ -84,9 +84,12 @@ struct LockdownMainView: View {
             .refreshable {
                 viewModel.loadToday(modelContext: modelContext)
                 // Re-evaluate smart notifications now that progress is fresh.
-                if let notifService = services.notifications as? NotificationService {
+                // Canonical path: the escalation engine (JSON copy pool,
+                // recency-aware). See `.plans/notifications-audit.md` §1.
+                if let escalationEngine = services.accountabilityEscalation {
                     viewModel.scheduleSmartNotifications(
-                        notificationService: notifService,
+                        escalationEngine: escalationEngine,
+                        notificationIntensity: settings?.notificationIntensity ?? 3,
                         modelContext: modelContext
                     )
                 }

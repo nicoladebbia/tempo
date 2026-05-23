@@ -65,6 +65,9 @@ enum TempoSchemaV1: VersionedSchema {
             RecipeStep.self,
             GroceryList.self,
             GroceryListItem.self,
+            // Coach (AI agent)
+            LearnedPreference.self,
+            CoachConversation.self,
         ]
     }
 }

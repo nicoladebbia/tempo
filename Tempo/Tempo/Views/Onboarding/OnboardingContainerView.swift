@@ -112,6 +112,8 @@ struct OnboardingContainerView: View {
             IdentitySetupView(viewModel: viewModel)
         case .trainingSetup:
             TrainingSetupView(viewModel: viewModel)
+        case .weeklySchedule:
+            WeeklyScheduleSetupView(viewModel: viewModel)
         case .academicSetup:
             AcademicSetupView(viewModel: viewModel)
         case .dailyRhythm:

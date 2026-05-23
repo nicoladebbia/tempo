@@ -29,21 +29,34 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         case generating
         case validating
         case saving
-        case attachingRecipes
+        /// `completed` and `total` are zero-based progress counters for the
+        /// per-meal recipe fan-out. UI shows "Writing recipes 12/28…".
+        case attachingRecipes(completed: Int, total: Int)
         case failed(String)
         case complete
 
         /// User-facing copy for the long-running spinner. Drill-sergeant tone.
         var statusLabel: String {
             switch self {
-            case .idle: ""
-            case .calculating: "Crunching your numbers…"
-            case .generating: "Drafting the week…"
-            case .validating: "Double-checking macros…"
-            case .saving: "Locking it in…"
-            case .attachingRecipes: "Writing recipes for every meal…"
-            case let .failed(msg): msg
-            case .complete: "Done."
+            case .idle:
+                return ""
+            case .calculating:
+                return "Crunching your numbers…"
+            case .generating:
+                return "Drafting the week…"
+            case .validating:
+                return "Double-checking macros…"
+            case .saving:
+                return "Locking it in…"
+            case let .attachingRecipes(completed, total):
+                if total > 0 {
+                    return "Writing recipes \(completed)/\(total)…"
+                }
+                return "Writing recipes…"
+            case let .failed(msg):
+                return msg
+            case .complete:
+                return "Done."
             }
         }
     }
@@ -122,13 +135,22 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         let observed = observedMealTimes(modelContext: modelContext)
         let feedback = recentFeedbackDigest(modelContext: modelContext)
 
+        // Pull the user-defined weekly training schedule (weekday → DayType).
+        // Convert to a dayIndex-relative map (0 = Monday … 6 = Sunday) so the
+        // prompt and Sonnet share the same indexing convention. Falls back to
+        // the model default when the user hasn't completed onboarding's
+        // weekly-schedule step yet, so we still ship a deterministic schedule
+        // instead of letting Sonnet invent one.
+        let dayTypeSchedule = userWeekSchedule(modelContext: modelContext)
+
         let (systemPrompt, userPrompt) = MealPlanPrompts.weeklyPlanPrompt(
             targets: tdeeResult.dayTypeTargets,
             restrictions: restrictions,
             preferences: preferences,
             intake: intake,
             observedMealTimes: observed,
-            feedbackDigest: feedback
+            feedbackDigest: feedback,
+            dayTypeSchedule: dayTypeSchedule
         )
 
         let response = try await sendWithRetry(
@@ -157,13 +179,19 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             modelContext: modelContext
         )
 
-        // Step 7: Generate per-meal recipes via Haiku (fan-out, attach in main actor)
-        setState(.attachingRecipes)
+        // Step 7: Generate per-meal recipes via Haiku (throttled fan-out).
+        let totalMeals = weeklyPlan.meals?.count ?? 0
+        setState(.attachingRecipes(completed: 0, total: totalMeals))
         await attachRecipes(
             to: weeklyPlan,
             profile: profile,
             intake: intake,
-            modelContext: modelContext
+            modelContext: modelContext,
+            onProgress: { done, total in
+                // Use setState so onStatus callbacks fire and the View's
+                // `planGenerationStatusLabel` refreshes for every batch.
+                setState(.attachingRecipes(completed: done, total: total))
+            }
         )
 
         setState(.complete)
@@ -182,7 +210,8 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         to plan: WeeklyMealPlan,
         profile: DietaryProfile,
         intake: MealPlanIntake?,
-        modelContext: ModelContext
+        modelContext: ModelContext,
+        onProgress: @MainActor (Int, Int) -> Void = { _, _ in }
     ) async {
         let meals = plan.meals ?? []
         guard !meals.isEmpty else {
@@ -202,30 +231,48 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             MealRequest(mealID: meal.id, mealName: meal.mealName, foods: meal.foods)
         }
 
-        // Fan out — capped concurrency would be safer for rate limits, but
-        // 21 parallel Haiku requests are well within Anthropic's per-key limit.
-        let results = await withTaskGroup(of: (UUID, ParsedRecipe?).self) { group in
-            for request in requests {
-                group.addTask { [weak self] in
-                    guard let self else {
-                        return (request.mealID, nil)
+        let total = requests.count
+        onProgress(0, total)
+
+        // Throttled fan-out — 4 concurrent Haiku calls. Earlier we fanned out
+        // all 28 at once and the backend rate-limited us, scattering 429s and
+        // forcing client-side retries that doubled wall-clock time. 4 stays
+        // safely under the Anthropic per-key limit while keeping things fast.
+        let concurrency = 4
+        var results: [UUID: ParsedRecipe] = [:]
+        var completed = 0
+
+        for chunkStart in stride(from: 0, to: requests.count, by: concurrency) {
+            let chunkEnd = min(chunkStart + concurrency, requests.count)
+            let chunk = Array(requests[chunkStart ..< chunkEnd])
+
+            let chunkResults = await withTaskGroup(of: (UUID, ParsedRecipe?).self) { group in
+                for request in chunk {
+                    group.addTask { [weak self] in
+                        guard let self else {
+                            return (request.mealID, nil)
+                        }
+                        let parsed = await self.generateRecipeJSON(
+                            mealName: request.mealName,
+                            foods: request.foods,
+                            skillLevel: skillLevel,
+                            exclusions: exclusions
+                        )
+                        return (request.mealID, parsed)
                     }
-                    let parsed = await self.generateRecipeJSON(
-                        mealName: request.mealName,
-                        foods: request.foods,
-                        skillLevel: skillLevel,
-                        exclusions: exclusions
-                    )
-                    return (request.mealID, parsed)
                 }
-            }
-            var collected: [UUID: ParsedRecipe] = [:]
-            for await (id, parsed) in group {
-                if let parsed {
-                    collected[id] = parsed
+                var collected: [UUID: ParsedRecipe] = [:]
+                for await (id, parsed) in group {
+                    if let parsed {
+                        collected[id] = parsed
+                    }
                 }
+                return collected
             }
-            return collected
+
+            results.merge(chunkResults) { _, new in new }
+            completed += chunk.count
+            onProgress(completed, total)
         }
 
         // Attach recipes to meals on the main actor.
@@ -424,6 +471,32 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         return result.isEmpty ? nil : result
     }
 
+
+    /// Build a `dayIndex → DayType` map (0 = Monday … 6 = Sunday) from the
+    /// user's `UserSettings.weeklyTrainingPlan`, which is keyed by
+    /// `Calendar.weekday` (1 = Sunday … 7 = Saturday). Falls back to
+    /// `WeeklyTrainingPlan.defaultPlan` per day when the user hasn't picked.
+    /// This is the single point of truth for "what day-type does the user
+    /// want on each day" — both the prompt and `persistPlan` use it.
+    @MainActor
+    private func userWeekSchedule(modelContext: ModelContext) -> [Int: DayType] {
+        let descriptor = FetchDescriptor<UserSettings>()
+        let settings = try? modelContext.fetch(descriptor).first
+        let userPlan = settings?.weeklyTrainingPlan ?? [:]
+
+        // Calendar weekday → dayIndex: Monday=2 → 0, Sunday=1 → 6.
+        func dayIndex(forWeekday weekday: Int) -> Int {
+            (weekday + 5) % 7
+        }
+
+        var result: [Int: DayType] = [:]
+        for weekday in 1 ... 7 {
+            let idx = dayIndex(forWeekday: weekday)
+            result[idx] = WeeklyTrainingPlan.dayType(for: weekday, in: userPlan)
+        }
+        return result
+    }
+
     /// Aggregate the last `windowDays` of `MealFeedback` rows into a digest
     /// the prompt can act on. Groups by recipe and by ingredient. Filters
     /// out empty / signal-less rows so the prompt stays lean.
@@ -539,11 +612,15 @@ final class MealPlanGeneratorService: @unchecked Sendable {
 
         for attempt in 0 ... maxRetries {
             do {
+                // Dropped from 32_768 → 16_384: 7-day meal-plan JSON output is
+                // typically 6–10K tokens. 32K let Sonnet ramble and held the
+                // connection open long enough to hit Railway proxy idle limits,
+                // surfacing as -1005 mid-response. 16K is still ~2× headroom.
                 let body = NutritionProxyTextRequest(
                     model: "sonnet",
                     system: system,
                     userMessage: prompt,
-                    maxTokens: 32_768,
+                    maxTokens: 16_384,
                     temperature: 0.3,
                     caller: feature
                 )
@@ -747,13 +824,23 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         let endDate = calendar.date(byAdding: .day, value: 6, to: startDate)!
 
         // Build day type assignments keyed by the real weekday of each plan day
-        // so RecoverIQ / training-day logic still sees Mon/Tue/Wed mapping.
+        // so RecoverIQ / training-day logic still sees Mon/Tue/Wend mapping.
+        //
+        // OVERRIDE: We use the user's saved weekly schedule, NOT the AI's
+        // `day.dayType`. Even when the prompt instructs Sonnet to follow the
+        // schedule, we don't trust it — this is the authoritative write.
         var dayTypeAssignments: [Int: String] = [:]
         let todayWeekday = calendar.component(.weekday, from: today)
+        let userPlan: [Int: DayType] = {
+            let descriptor = FetchDescriptor<UserSettings>()
+            let settings = try? modelContext.fetch(descriptor).first
+            return settings?.weeklyTrainingPlan ?? [:]
+        }()
         for day in plan.days {
             // dayIndex 0 = today, walk forward; wrap Sunday(7)→Sunday(1) etc.
             let weekdayNumber = ((todayWeekday - 1 + day.dayIndex) % 7) + 1
-            dayTypeAssignments[weekdayNumber] = day.dayType
+            let resolved = WeeklyTrainingPlan.dayType(for: weekdayNumber, in: userPlan)
+            dayTypeAssignments[weekdayNumber] = resolved.rawValue
         }
 
         // Deactivate any existing active plans
@@ -909,6 +996,11 @@ enum MealPlanGeneratorError: Error, LocalizedError {
     case parsingFailed(String)
     case validationFailed(String)
     case persistenceFailed(String)
+    /// HealthKit lacks one or more of weight / height / age / biological sex.
+    /// Surfaced with a deep link to the Health app so the user can fill the
+    /// gap. Tempo refuses to fabricate biometrics or use stale onboarding
+    /// values for meal planning.
+    case biometricsMissing(missingFields: [String])
 
     var errorDescription: String? {
         switch self {
@@ -937,6 +1029,8 @@ enum MealPlanGeneratorError: Error, LocalizedError {
             "Meal plan validation failed: \(msg)"
         case let .persistenceFailed(msg):
             "Could not save meal plan: \(msg)"
+        case let .biometricsMissing(missing):
+            "Open the Health app and add: \(missing.joined(separator: ", "))."
         }
     }
 }

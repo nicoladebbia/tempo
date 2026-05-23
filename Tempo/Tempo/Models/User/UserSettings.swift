@@ -39,6 +39,25 @@ final class UserSettings {
     var quietHoursStartMinutes: Int
     var quietHoursEndMinutes: Int
 
+    // MARK: - Social Hours (Focus Timer blocker)
+    //
+    // The window in which evening social pressure (PS5 with friends) competes
+    // with study. When a Focus Timer session is running inside this window the
+    // notification system fires a single coaching-intensity blocking nudge.
+    // Distinct from quiet hours (which suppresses notifications); social hours
+    // is when we *want* to interrupt. Defaults to the leisure window.
+    //
+    // Property-level defaults are MANDATORY: these were added to an existing
+    // V1 store post-launch-prep, and SwiftData's inferred lightweight
+    // migration needs a value to fill in for every pre-existing row.
+    // Without these defaults, store load fails with NSCocoaError 134110
+    // ("Validation error missing attribute values on mandatory destination
+    // attribute"). Per `TempoModelContainer.create()` policy — evolve V1.
+
+    var socialHoursEnabled: Bool = true
+    var socialHoursStartMinutes: Int = 1170
+    var socialHoursEndMinutes: Int = 1380
+
     // MARK: - Training
 
     var trainingSplitRaw: String
@@ -54,6 +73,15 @@ final class UserSettings {
     var deloadFrequencyWeeks: Int
 
     var footballDaysRaw: Int
+
+    /// User-chosen weekday → DayType map. Keys are `Calendar.current.weekday`
+    /// (1 = Sunday … 7 = Saturday); values are `DayType.rawValue`. Persisted
+    /// as JSON because SwiftData doesn't support `[Int: String]` natively.
+    /// Empty when the user hasn't completed the weekly-schedule onboarding
+    /// step yet — callers fall back to `WeeklyTrainingPlan.defaultPlan` in
+    /// that case so meal-plan generation always has a deterministic schedule
+    /// rather than letting the AI improvise.
+    var weeklyTrainingPlanJSON: Data?
 
     // MARK: - Schedule
 
@@ -109,6 +137,32 @@ final class UserSettings {
     var footballDays: ActiveDays {
         get { ActiveDays(rawValue: footballDaysRaw) }
         set { footballDaysRaw = newValue.rawValue }
+    }
+
+    /// Typed accessor for the weekday → DayType map. Keys are
+    /// `Calendar.current.weekday` (1 = Sunday … 7 = Saturday). Returns an
+    /// empty dict when nothing has been set; the meal-plan generator falls
+    /// back to `WeeklyTrainingPlan.defaultPlan` in that case.
+    @Transient
+    var weeklyTrainingPlan: [Int: DayType] {
+        get {
+            guard let data = weeklyTrainingPlanJSON,
+                  let raw = try? JSONDecoder().decode([Int: String].self, from: data)
+            else {
+                return [:]
+            }
+            var out: [Int: DayType] = [:]
+            for (k, v) in raw {
+                if let day = DayType(rawValue: v) { out[k] = day }
+            }
+            return out
+        }
+        set {
+            let raw = newValue.mapValues { $0.rawValue }
+            weeklyTrainingPlanJSON = raw.isEmpty
+                ? nil
+                : try? JSONEncoder().encode(raw)
+        }
     }
 
     @Transient
@@ -167,6 +221,12 @@ final class UserSettings {
         quietHoursEnabled: Bool = false,
         quietHoursStartMinutes: Int = 1380,
         quietHoursEndMinutes: Int = 420,
+        // Default social window 19:30 (= default leisureTimeMinutes 1170)
+        // through 23:00. Callers that know the user's leisure time should
+        // pass socialHoursStartMinutes: leisureTimeMinutes for exact linkage.
+        socialHoursEnabled: Bool = true,
+        socialHoursStartMinutes: Int = 1170,
+        socialHoursEndMinutes: Int = 1380,
         trainingSplit: TrainingSplit = .pushPullLegs,
         weightUnit: WeightUnit = .kg,
         autoStartRestTimer: Bool = true,
@@ -202,6 +262,9 @@ final class UserSettings {
         self.quietHoursEnabled = quietHoursEnabled
         self.quietHoursStartMinutes = quietHoursStartMinutes
         self.quietHoursEndMinutes = quietHoursEndMinutes
+        self.socialHoursEnabled = socialHoursEnabled
+        self.socialHoursStartMinutes = socialHoursStartMinutes
+        self.socialHoursEndMinutes = socialHoursEndMinutes
         trainingSplitRaw = trainingSplit.rawValue
         weightUnitRaw = weightUnit.rawValue
         self.autoStartRestTimer = autoStartRestTimer
@@ -243,6 +306,9 @@ extension UserSettings {
         let quiet_hours_enabled: Bool
         let quiet_hours_start_minutes: Int
         let quiet_hours_end_minutes: Int
+        let social_hours_enabled: Bool
+        let social_hours_start_minutes: Int
+        let social_hours_end_minutes: Int
         let training_split: String
         let weight_unit: String
         let auto_start_rest_timer: Bool
@@ -280,6 +346,9 @@ extension UserSettings {
             quiet_hours_enabled: quietHoursEnabled,
             quiet_hours_start_minutes: quietHoursStartMinutes,
             quiet_hours_end_minutes: quietHoursEndMinutes,
+            social_hours_enabled: socialHoursEnabled,
+            social_hours_start_minutes: socialHoursStartMinutes,
+            social_hours_end_minutes: socialHoursEndMinutes,
             training_split: trainingSplitRaw,
             weight_unit: weightUnitRaw,
             auto_start_rest_timer: autoStartRestTimer,

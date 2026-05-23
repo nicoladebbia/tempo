@@ -389,26 +389,32 @@ struct BarcodeScannerView: View {
         scanState = .loading
         HapticManager.mediumImpact()
 
-        // Simulated OpenFoodFacts lookup
         Task {
-            try? await Task.sleep(for: .seconds(1.5))
-
-            // Mock: 70% chance of finding a product
-            if Int.random(in: 0 ... 9) < 7 {
+            let service = FoodSearchService()
+            do {
+                guard let result = try await service.lookupBarcode(barcode) else {
+                    scanState = .notFound
+                    HapticManager.notification(.warning)
+                    return
+                }
+                let servingLabel = "\(Int(result.servingSize.rounded()))\(result.servingUnit)"
                 scannedProduct = ScannedProduct(
                     barcode: barcode,
-                    name: "Skyr High Protein",
-                    brand: "Arla",
-                    servingSize: "150g",
-                    caloriesPerServing: 95,
-                    proteinPerServing: 15,
-                    carbsPerServing: 6,
-                    fatPerServing: 0.2,
-                    imageName: "takeoutbag.and.cup.and.straw"
+                    name: result.name,
+                    brand: result.brand,
+                    servingSize: servingLabel,
+                    caloriesPerServing: Int(result.calories.rounded()),
+                    proteinPerServing: result.proteinGrams,
+                    carbsPerServing: result.carbsGrams,
+                    fatPerServing: result.fatGrams,
+                    imageName: nil
                 )
                 scanState = .found
                 HapticManager.notification(.success)
-            } else {
+            } catch {
+                // Network / rate-limit / decode failure — fold into not-found
+                // since the UI affords a "scan again" retry. No separate error
+                // state to dispatch to.
                 scanState = .notFound
                 HapticManager.notification(.warning)
             }

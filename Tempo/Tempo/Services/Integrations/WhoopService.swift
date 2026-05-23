@@ -28,6 +28,88 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
     private let session = URLSession.shared
     private var authSession: ASWebAuthenticationSession?
 
+    // MARK: - HTTP Cache + In-Flight Dedupe
+    //
+    // Recovery page load was firing the same Whoop endpoint 3× — Dashboard,
+    // RecoveryViewModel, then the engine — each making its own network call.
+    // Cache raw response bytes keyed by (path + sorted query) with a 5-min
+    // TTL, and dedupe in-flight requests so concurrent callers await the
+    // same `Task` instead of double-fetching. Caches GET 200 responses
+    // only; 401-refresh and other error paths bypass.
+    private static let cacheTTL: TimeInterval = 5 * 60
+    private struct CacheEntry {
+        let data: Data
+        let storedAt: Date
+    }
+    private let cacheLock = NSLock()
+    private var responseCache: [String: CacheEntry] = [:]
+    private var inFlight: [String: Task<Data, Error>] = [:]
+
+    private func cacheKey(path: String, queryItems: [URLQueryItem]) -> String {
+        let sorted = queryItems
+            .sorted { $0.name < $1.name }
+            .map { "\($0.name)=\($0.value ?? "")" }
+            .joined(separator: "&")
+        return sorted.isEmpty ? path : "\(path)?\(sorted)"
+    }
+
+    private func cachedData(forKey key: String) -> Data? {
+        cacheLock.withLock {
+            guard let entry = responseCache[key] else { return nil }
+            if Date().timeIntervalSince(entry.storedAt) > Self.cacheTTL {
+                responseCache.removeValue(forKey: key)
+                return nil
+            }
+            return entry.data
+        }
+    }
+
+    private func storeCache(_ data: Data, forKey key: String) {
+        cacheLock.withLock {
+            responseCache[key] = CacheEntry(data: data, storedAt: Date())
+        }
+    }
+
+    /// Atomically clear a cache entry — used when a cached payload no longer
+    /// decodes to the requested type.
+    private func dropCacheEntry(forKey key: String) {
+        cacheLock.withLock {
+            _ = responseCache.removeValue(forKey: key)
+        }
+    }
+
+    /// Drop every cached response. Call after disconnect / demo-mode toggle
+    /// so stale bytes from the previous identity don't survive.
+    private func invalidateResponseCache() {
+        cacheLock.withLock {
+            responseCache.removeAll()
+            inFlight.removeAll()
+        }
+    }
+
+    /// Get or create the in-flight task for `key`. Returns `(task, isJoined)`
+    /// where `isJoined` is true when another caller's task was returned.
+    /// `make` is invoked under the lock if no in-flight task exists.
+    private func taskForKey(
+        _ key: String,
+        make: () -> Task<Data, Error>
+    ) -> (task: Task<Data, Error>, isJoined: Bool) {
+        cacheLock.withLock {
+            if let existing = inFlight[key] {
+                return (existing, true)
+            }
+            let newTask = make()
+            inFlight[key] = newTask
+            return (newTask, false)
+        }
+    }
+
+    private func clearInFlight(forKey key: String) {
+        cacheLock.withLock {
+            _ = inFlight.removeValue(forKey: key)
+        }
+    }
+
     // MARK: - OAuth Constants
 
     private enum OAuth {
@@ -403,6 +485,7 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
         isDemoMode = true
         connectionState = .connected
         lastSyncDate = Date()
+        invalidateResponseCache()
         logger.info("Whoop connected in demo mode")
     }
 
@@ -412,51 +495,25 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
         try? clearTokens()
         connectionState = .disconnected
         isDemoMode = false
+        invalidateResponseCache()
         logger.info("Whoop disconnected")
     }
 
     // MARK: - Fetch Recovery
 
+    /// Latest scored recovery in the active 9-day range. Delegates to
+    /// `fetchRecoveryBatch` so callers that need both "today" and the full
+    /// history (e.g. `RecoveryViewModel.refresh`) hit `/recovery` once instead
+    /// of twice — a single 2927-byte response served both queries in the logs
+    /// before this change.
     func fetchRecovery(for date: Date) async throws -> WhoopRecoveryData {
-        if isDemoMode {
-            return try await mockService.fetchRecovery(for: date)
-        }
-
-        let (start, end) = dateRange(for: date)
-        print("[Whoop] fetchRecovery: range \(start) → \(end)")
-        let response: WhoopAPIResponse<WhoopAPIRecoveryRecord> = try await whoopGet(
-            path: "/recovery",
-            queryItems: [
-                URLQueryItem(name: "start", value: start),
-                URLQueryItem(name: "end", value: end),
-            ]
-        )
-
-        // Log what we got
-        print("[Whoop] Recovery: \(response.records.count) records")
-        for (i, r) in response.records.enumerated() {
-            print("[Whoop]   [\(i)] state=\(r.scoreState ?? "nil") hasScore=\(r.score != nil) recovery=\(r.score?.recoveryScore ?? -1)")
-        }
-
-        // Prefer SCORED, fall back to any record with a score
-        let record = response.records.first(where: { $0.scoreState == "SCORED" && $0.score != nil })
-            ?? response.records.first(where: { $0.score != nil })
-
-        guard let record, let score = record.score else {
+        let batch = try await fetchRecoveryBatch(for: date)
+        guard let latest = batch.first else {
             print("[Whoop] Recovery: NO usable record found")
             throw WhoopError.noDataAvailable
         }
-
-        let result = WhoopRecoveryData(
-            score: score.recoveryScore ?? 0,
-            hrvRmssd: score.hrvRmssdMilli ?? 0,
-            restingHeartRate: score.restingHeartRate ?? 0,
-            spo2: score.spo2Percentage,
-            skinTemp: score.skinTempCelsius,
-            date: date
-        )
-        print("[Whoop] Recovery result: score=\(result.score)%, hrv=\(result.hrvRmssd)ms, rhr=\(result.restingHeartRate)bpm")
-        return result
+        print("[Whoop] Recovery result: score=\(latest.score)%, hrv=\(latest.hrvRmssd)ms, rhr=\(latest.restingHeartRate)bpm")
+        return latest
     }
 
     // MARK: - Fetch Recovery Batch (all scored records in range)
@@ -542,54 +599,17 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
 
     // MARK: - Fetch Sleep
 
+    /// Latest scored main-sleep in the active 9-day range. Delegates to
+    /// `fetchSleepBatch` so a single `/activity/sleep` round-trip serves both
+    /// the "today" and "history" needs (was firing twice per refresh before).
+    /// `fetchSleepBatch` already filters out naps and unscored records.
     func fetchSleep(for date: Date) async throws -> WhoopSleepData {
-        if isDemoMode {
-            return try await mockService.fetchSleep(for: date)
-        }
-
-        let (start, end) = dateRange(for: date)
-        print("[Whoop] fetchSleep: range \(start) → \(end)")
-        let response: WhoopAPIResponse<WhoopAPISleepRecord> = try await whoopGet(
-            path: "/activity/sleep",
-            queryItems: [
-                URLQueryItem(name: "start", value: start),
-                URLQueryItem(name: "end", value: end),
-            ]
-        )
-
-        print("[Whoop] Sleep: \(response.records.count) records")
-        for (i, r) in response.records.enumerated() {
-            print("[Whoop]   [\(i)] nap=\(r.nap ?? false) state=\(r.scoreState ?? "nil") hasScore=\(r.score != nil)")
-        }
-
-        // Get main sleep (not nap), prefer scored
-        let record = response.records.first(where: { $0.nap != true && $0.scoreState == "SCORED" })
-            ?? response.records.first(where: { $0.nap != true && $0.score != nil })
-
-        guard let record, let score = record.score else {
+        let batch = try await fetchSleepBatch(for: date)
+        guard let latest = batch.first else {
             print("[Whoop] Sleep: NO usable record found")
             throw WhoopError.noDataAvailable
         }
-
-        let stages = score.stageSummary
-        let lightMilli: Int64 = stages?.totalLightSleepTimeMilli ?? 0
-        let deepMilli: Int64 = stages?.totalSlowWaveSleepTimeMilli ?? 0
-        let remMilli: Int64 = stages?.totalRemSleepTimeMilli ?? 0
-        let awakeMilli: Int64 = stages?.totalAwakeTimeMilli ?? 0
-        let totalSleepMilli = lightMilli + deepMilli + remMilli
-
-        return WhoopSleepData(
-            totalHours: Double(totalSleepMilli) / 3_600_000.0,
-            sleepScore: score.sleepPerformancePercentage ?? 0,
-            sleepEfficiency: score.sleepEfficiencyPercentage ?? 0,
-            sleepConsistency: score.sleepConsistencyPercentage ?? 0,
-            deepSleepMinutes: Int(deepMilli / 60000),
-            remSleepMinutes: Int(remMilli / 60000),
-            lightSleepMinutes: Int(lightMilli / 60000),
-            awakeMinutes: Int(awakeMilli / 60000),
-            respiratoryRate: score.respiratoryRate ?? 0,
-            date: date
-        )
+        return latest
     }
 
     // MARK: - Fetch Workouts
@@ -818,6 +838,53 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
         path: String,
         queryItems: [URLQueryItem] = []
     ) async throws -> T {
+        // Cache + in-flight dedupe path. On a cache hit or in-flight join we
+        // return decoded data without touching the network.
+        let key = cacheKey(path: path, queryItems: queryItems)
+        if let cached = cachedData(forKey: key) {
+            #if DEBUG
+                print("[WhoopAPI] \(path) (cache hit, \(cached.count) bytes)")
+            #endif
+            do {
+                return try Self.decoder.decode(T.self, from: cached)
+            } catch {
+                // Cached payload no longer matches the requested type — drop
+                // it and fall through to a fresh fetch.
+                dropCacheEntry(forKey: key)
+            }
+        }
+
+        // Join the in-flight task if another caller is already fetching this
+        // exact (path, queryItems) tuple. Otherwise start a new one.
+        let (task, joined) = taskForKey(key) { [weak self] in
+            Task<Data, Error> {
+                guard let self else { throw WhoopError.notConnected }
+                defer { self.clearInFlight(forKey: key) }
+                return try await self.fetchRawData(path: path, queryItems: queryItems, cacheKey: key)
+            }
+        }
+        if joined {
+            #if DEBUG
+                print("[WhoopAPI] \(path) (joining in-flight)")
+            #endif
+        }
+
+        let data = try await task.value
+        do {
+            return try Self.decoder.decode(T.self, from: data)
+        } catch {
+            print("[WhoopAPI] DECODE FAILED for \(path): \(error)")
+            throw WhoopError.backendError(code: "decode", message: error.localizedDescription)
+        }
+    }
+
+    /// Single GET round-trip. Stores 200 responses in the cache; bypasses on
+    /// 401 (forces a token refresh + uncached retry) and other errors.
+    private func fetchRawData(
+        path: String,
+        queryItems: [URLQueryItem],
+        cacheKey: String
+    ) async throws -> Data {
         let token = try await validAccessToken()
 
         var components = URLComponents(url: OAuth.apiBase.appendingPathComponent(path), resolvingAgainstBaseURL: false)!
@@ -842,16 +909,11 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
 
         switch httpResponse.statusCode {
         case 200 ... 299:
-            // Raw JSON dump for diagnostics — first 800 chars
             if let raw = String(data: data, encoding: .utf8) {
                 print("[WhoopAPI] \(path) (\(data.count) bytes): \(String(raw.prefix(800)))")
             }
-            do {
-                return try Self.decoder.decode(T.self, from: data)
-            } catch {
-                print("[WhoopAPI] DECODE FAILED for \(path): \(error)")
-                throw WhoopError.backendError(code: "decode", message: error.localizedDescription)
-            }
+            storeCache(data, forKey: cacheKey)
+            return data
         case 401:
             // Token rejected — force refresh and retry once before giving up
             logger.info("Whoop \(path): 401 — forcing token refresh and retry")
@@ -869,7 +931,8 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
                     throw WhoopError.notConnected
                 }
                 logger.info("Whoop \(path): retry succeeded after refresh")
-                return try Self.decoder.decode(T.self, from: retryData)
+                storeCache(retryData, forKey: cacheKey)
+                return retryData
             } catch {
                 logger.error("Whoop \(path): 401 recovery failed — \(error.localizedDescription)")
                 try? clearTokens()

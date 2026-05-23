@@ -66,6 +66,17 @@ final class MockHealthKitService: HealthKitServiceProtocol, @unchecked Sendable 
         )
     }
 
+    func fetchBiometricsSnapshot() async throws -> BiometricsSnapshot {
+        BiometricsSnapshot(
+            weightKg: 75.2,
+            heightCm: 178,
+            age: 22,
+            biologicalSex: .male,
+            bodyFatPercent: 14.5,
+            measurementDate: Date().addingTimeInterval(-3600)
+        )
+    }
+
     func fetchWorkouts(for date: Date) async throws -> [WorkoutSample] {
         [
             WorkoutSample(

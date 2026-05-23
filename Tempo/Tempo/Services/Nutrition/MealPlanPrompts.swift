@@ -329,7 +329,12 @@ enum MealPlanPrompts {
         preferences: String,
         intake: MealPlanIntake? = nil,
         observedMealTimes: ObservedMealTimes? = nil,
-        feedbackDigest: FeedbackDigest? = nil
+        feedbackDigest: FeedbackDigest? = nil,
+        /// Optional user-defined dayIndex → DayType mapping (0 = Monday … 6 = Sunday).
+        /// When non-nil, the prompt instructs Sonnet to honor it exactly — no
+        /// model-side improvisation. The generator also enforces this in
+        /// `persistPlan` as defense in depth.
+        dayTypeSchedule: [Int: DayType]? = nil
     ) -> (system: String, user: String) {
         let system = """
         You are the nutrition arm of Tempo, a drill-sergeant life operating system for student-athletes. \
@@ -365,6 +370,31 @@ enum MealPlanPrompts {
             }
         }
 
+        // Build user-defined schedule block, if provided.
+        let scheduleBlock: String = {
+            guard let schedule = dayTypeSchedule, !schedule.isEmpty else {
+                return ""
+            }
+            let dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+            var lines = ""
+            for idx in 0 ... 6 {
+                let type = schedule[idx] ?? .strength
+                lines += "        - Day \(idx) (\(dayNames[idx])): \(type.rawValue)\n"
+            }
+            return """
+
+            <user_schedule>
+            The user has set these day types — you MUST use exactly these. Do not pick your own.
+            \(lines)        </user_schedule>
+            """
+        }()
+
+        let scheduleRule: String = if dayTypeSchedule != nil {
+            "- dayType MUST match the <user_schedule> above for each dayIndex. Do not pick types yourself."
+        } else {
+            "- Assign day types to match a typical training week: 3-4 training days, 1-2 rest days. Vary the types."
+        }
+
         let user = """
         Generate a 7-day meal plan. Each day has a day type with specific macro targets.
 
@@ -379,6 +409,7 @@ enum MealPlanPrompts {
         <preferences>
         \(preferences.isEmpty ? "No specific preferences." : preferences)
         </preferences>
+        \(scheduleBlock)
         \(weeklyIntakeBlock(intake))
         \(observedTimesBlock(observedMealTimes))
         \(feedbackBlock(feedbackDigest))
@@ -423,7 +454,7 @@ enum MealPlanPrompts {
         Rules:
         - dayIndex 0 = Monday, 6 = Sunday.
         - dayType must be one of: strength, cardio, soccer, double, rest.
-        - Assign day types to match a typical training week: 3-4 training days, 1-2 rest days. Vary the types.
+        \(scheduleRule)
         - mealNumber: 1 = Breakfast, 2 = Lunch, 3 = Dinner, 4 = Snack.
         - scheduledTime format: "HH:mm" (24h). Breakfast ~07:30, Lunch ~12:30, Dinner ~19:30, Snack ~16:00.
         - Each food's macros must be realistic for the stated quantity. Reference standard per-100g values.

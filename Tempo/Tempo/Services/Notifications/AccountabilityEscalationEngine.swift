@@ -150,6 +150,35 @@ final class AccountabilityEscalationEngine: @unchecked Sendable {
         logger.info("Scheduled \(escalations.count) escalation tiers (completion: \(Int(completionPercent * 100))%)")
     }
 
+    // MARK: - Streak At-Risk
+
+    /// Fire a streak-at-risk warning ahead of the evening cutoff when the user
+    /// still has incomplete non-negotiables and a streak worth defending.
+    /// Canonical replacement for the deleted
+    /// `AccountabilityViewModel.scheduleSmartNotifications` streak branch.
+    func scheduleStreakWarningIfAtRisk(
+        eveningStartTime: Date,
+        streakDays: Int,
+        tasksRemaining: Int
+    ) {
+        guard streakDays > 3, tasksRemaining > 0 else {
+            return
+        }
+        if case .resolved = state {
+            return
+        }
+        let warningTime = eveningStartTime.addingTimeInterval(-45 * 60)
+        guard warningTime > Date().addingTimeInterval(60) else {
+            return
+        }
+        notificationService.scheduleStreakWarning(
+            streakDays: streakDays,
+            tasksRemaining: tasksRemaining,
+            time: warningTime
+        )
+        logger.info("Scheduled streak-at-risk warning (\(streakDays)d streak, \(tasksRemaining) left)")
+    }
+
     // MARK: - All Tasks Complete
 
     // Per STATE_MACHINES.md Section 11 — Any non-resolved → resolved.

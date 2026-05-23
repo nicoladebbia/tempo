@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "tiers": {
     "gentle": {
       "gentle": [
@@ -15,6 +15,13 @@
         "{remaining} non-negotiables waiting. {done} done. Get back to work.",
         "Half the day's gone. {done}/{total}. Time to start closing the gap.",
         "You're tracking at {done}/{total}. Pick the next one and go."
+      ],
+      "drillSergeant": [
+        "{done}/{total}. That's the scoreboard. {remaining} left. Pick one and execute — now.",
+        "Half the day, half a job. {done}/{total}. I want the next one started before you put this phone down.",
+        "{remaining} non-negotiables still standing. They don't close themselves. Move.",
+        "You're at {done}/{total}. Acceptable is not the target. Get the next one.",
+        "Clock's running, soldier. {done}/{total}. No more warm-up. Work."
       ],
       "savage": [
         "{remaining} tasks. {done}/{total}. The clock doesn't care about your excuses.",
@@ -36,6 +43,12 @@
         "{timeRemaining} until your time is up. {remaining} tasks. Focus.",
         "Study sitting at {studyDone}/{studyTarget}. {timeRemaining} left. Sit down and work."
       ],
+      "drillSergeant": [
+        "{timeRemaining} on the clock. {remaining} tasks, study {studyDone}/{studyTarget}. This is where the day is won or lost. Decide.",
+        "Late afternoon and you're at {done}/{total}. That's a problem you can still fix. Fix it.",
+        "Study {studyDone}/{studyTarget}, {timeRemaining} left. Sit down. Phone face-down. Work the problem.",
+        "{remaining} non-negotiables and the evening is closing in. No more drifting. Lock in."
+      ],
       "savage": [
         "{remaining} tasks. Study: {studyDone}/{studyTarget}. {timeRemaining} until you've burned the day. Move.",
         "It's {timeRemaining} from done. {done}/{total}. This is the moment — execute or accept the loss.",
@@ -55,6 +68,12 @@
         "Evening is approaching. {done}/{total}. The window is closing.",
         "{timeRemaining}. {remaining} undone. No more delay."
       ],
+      "drillSergeant": [
+        "{timeRemaining} left and {remaining} on the board. This is the line. You cross it working or you cross it lying to yourself.",
+        "Study {studyDone}/{studyTarget}. The window is closing on you. No negotiation — go.",
+        "{remaining} tasks, {timeRemaining}. Drop everything else. This is the only thing that matters right now.",
+        "Evening's at the door. {done}/{total}. Last honest chance to make today count. Take it."
+      ],
       "savage": [
         "{timeRemaining} until you waste another night. Study: {studyDone}/{studyTarget}. MOVE.",
         "Stop. Look at the clock. {timeRemaining} left. {remaining} tasks. Choose.",
@@ -72,6 +91,12 @@
         "You're about to waste another evening. {remaining} tasks undone. This is your last chance today.",
         "Final warning. {remaining} non-negotiables incomplete. Evening is here.",
         "Last chance. {done}/{total}. After this, the day is gone."
+      ],
+      "drillSergeant": [
+        "Final warning. {remaining} undone. You knew this deadline was coming and you let it get here. Move — now.",
+        "This is it. {done}/{total}. No more time to buy. Either you close these or you own the failure.",
+        "{remaining} tasks and the day is gone in minutes. Stop reading. Start doing.",
+        "Last chance, and we both know it. {remaining} left. Prove the morning you wasn't lying."
       ],
       "savage": [
         "You're about to waste another evening. {remaining} tasks undone. Last chance.",
@@ -91,10 +116,63 @@
         "Locked in. {total}/{total}. {streakDays}-day streak alive. Go enjoy.",
         "Cleared. Every non-negotiable done. The evening belongs to you now."
       ],
+      "drillSergeant": [
+        "ALL CLEAR. {total}/{total}. Day {streakDays}. That's how it's done. Now rest — you earned it.",
+        "Mission complete. {total}/{total}. {streakDays}-day streak holding. Good work. Same standard tomorrow.",
+        "Cleared, every one. Day {streakDays}. This is the bar now. Don't drop it."
+      ],
       "savage": [
         "ALL CLEAR. {total}/{total}. Day {streakDays}. Bare minimum, but you did it. Don't make it harder tomorrow.",
         "Done. {total}/{total}. The evening is yours — you earned it the only way that counts.",
         "Cleared. {streakDays} days. Show up tomorrow or this dies."
+      ]
+    },
+    "arena": {
+      "gentle": [
+        "You moved to #{rank} on the leaderboard. Nice climb — keep it going.",
+        "Challenge '{challengeName}' is live. You're in. Have fun with it.",
+        "{xpMilestone} XP milestone reached. That's real progress — well done.",
+        "Heads up: {opponentName} just passed you. You're #{rank} now. Worth a look."
+      ],
+      "firm": [
+        "Leaderboard: #{previousRank} → #{rank}. Movement is good. Keep pushing.",
+        "'{challengeName}' just started. Clock's running on it.",
+        "{xpMilestone} XP crossed. You're trending up. Don't coast.",
+        "{opponentName} overtook you. You're #{rank}. Respond to it."
+      ],
+      "drillSergeant": [
+        "#{previousRank} to #{rank}. That climb came from work. Do it again.",
+        "'{challengeName}' is live. You entered it — now go win it, don't just show up.",
+        "{xpMilestone} XP. Good. That's not a finish line, it's a checkpoint. Keep moving.",
+        "{opponentName} just walked past you to take #{rank}. Are you going to let that stand?"
+      ],
+      "savage": [
+        "#{rank}. {opponentName} is ahead of you. Let that sit for a second, then go fix it.",
+        "'{challengeName}' started. Everyone else is already moving. You're not. Change that.",
+        "{xpMilestone} XP and still #{rank}? Stop celebrating participation. Climb.",
+        "You dropped to #{rank}. Nobody's coming to defend your spot but you."
+      ]
+    },
+    "social": {
+      "gentle": [
+        "Focus session is running and you're in your social window. Stay with it a little longer — you've got this.",
+        "It's social hours, but you're locked into a focus block. Finish strong, then unwind.",
+        "Your friends' time is starting. Your focus timer says: one more block first. Worth it."
+      ],
+      "firm": [
+        "Social hours started — your focus session is still running. Finish it before you switch off.",
+        "You set this focus block during social time on purpose. Honour it. {minutesIntoSocial} min in.",
+        "Focus timer's active inside your social window. Don't break it now. Close the session first."
+      ],
+      "drillSergeant": [
+        "Social hours hit and your focus timer is still going. You scheduled this fight knowing they'd call. Win it. Finish the block.",
+        "{minutesIntoSocial} minutes into social time and you're still in focus. Good. Don't fold now — see it through.",
+        "The phone's going to light up. You knew that. The session isn't done. Stay in your seat."
+      ],
+      "savage": [
+        "They're online. You're in a focus block you set for exactly this moment. Pick: the work or the excuse.",
+        "Social hours. Focus timer running. Every other version of you quit here. Don't.",
+        "{minutesIntoSocial} min into the temptation window. The session isn't over. Neither are you. Sit down."
       ]
     }
   }

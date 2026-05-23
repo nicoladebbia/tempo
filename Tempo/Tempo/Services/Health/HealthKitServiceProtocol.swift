@@ -20,6 +20,11 @@ protocol HealthKitServiceProtocol: Sendable {
     func fetchSleepAnalysis(for date: Date) async throws -> SleepData
     func fetchWorkouts(for date: Date) async throws -> [WorkoutSample]
     func fetchBodyComposition() async throws -> BodyCompositionData
+    /// Live biometrics for TDEE / meal-plan generation. Pulls weight, height,
+    /// body fat from quantity samples and age, biological sex from
+    /// `HKCharacteristicType`. Any missing piece comes back nil so the caller
+    /// can decide what to do (block, fall back, prompt the user).
+    func fetchBiometricsSnapshot() async throws -> BiometricsSnapshot
     func writeWorkout(_ workout: WorkoutSample) async throws
     func writeNutrition(_ nutrition: NutritionSample) async throws
     func enableBackgroundDelivery() async throws
@@ -88,6 +93,32 @@ struct BodyCompositionData {
             return nil
         }
         return w * (bf / 100.0)
+    }
+}
+
+// MARK: - BiometricsSnapshot
+
+/// Live biometrics pulled from HealthKit on demand. Distinct from
+/// `BodyCompositionData` because it carries the two `HKCharacteristicType`
+/// values (age, sex) that `BodyCompositionData` does not, plus it's the
+/// authoritative source for TDEE / meal-plan generation. The caller treats
+/// this as the **only** source of truth — `DietaryProfile` is just a cache.
+///
+/// Fields are optional so the caller (BiometricsSyncService) can detect a
+/// missing value and surface "open the Health app" rather than silently
+/// substituting a default.
+struct BiometricsSnapshot: Sendable, Equatable {
+    let weightKg: Double?
+    let heightCm: Double?
+    let age: Int?
+    let biologicalSex: BiologicalSex?
+    let bodyFatPercent: Double?
+    let measurementDate: Date?
+
+    /// True when every field required for TDEE (Mifflin-St Jeor) is present.
+    /// Body fat is optional (Katch-McArdle blend only kicks in when known).
+    var isCompleteForTDEE: Bool {
+        weightKg != nil && heightCm != nil && age != nil && biologicalSex != nil
     }
 }
 

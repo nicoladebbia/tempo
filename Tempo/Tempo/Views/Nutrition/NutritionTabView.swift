@@ -70,6 +70,7 @@ struct NutritionTabView: View {
                             modelContext: modelContext,
                             whoop: services.whoop,
                             apiClient: services.apiClient,
+                            healthKit: services.healthKit,
                             notifications: services.notifications
                         )
                     }

@@ -31,6 +31,11 @@ struct NutritionAIController: RouteCollection {
         // body limit explicitly so the route does not 413 on legitimate photo
         // meal logs.
         proxy.on(.POST, "vision", body: .collect(maxSize: "5mb"), use: proxyVision)
+
+        // Coach Agent multi-turn tool-use endpoint. Bodies are large because
+        // each turn echoes prior tool_use/tool_result blocks back to Claude.
+        let coach = routes.grouped("coach")
+        coach.on(.POST, "chat", body: .collect(maxSize: "512kb"), use: coachChat)
     }
 
     @Sendable
@@ -73,6 +78,21 @@ struct NutritionAIController: RouteCollection {
         _ = try req.auth.requireUserID()
         let input = try req.content.decode(NutritionProxyVisionRequest.self)
         let response = try await NutritionClaudeProxyService.shared.sendVision(input: input, on: req)
+        return Envelope(data: response, requestID: req.requestID)
+    }
+
+
+    /// POST /v1/nutrition/ai/coach/chat
+    /// Multi-turn Claude conversation with tool use. iOS Coach agent posts
+    /// the current transcript + tool schemas; server returns Claude's next
+    /// response (text + any tool_use blocks). iOS dispatches the tools on
+    /// device, appends the tool_result blocks, and posts again — looping
+    /// until stop_reason == "end_turn".
+    @Sendable
+    func coachChat(req: Request) async throws -> Envelope<NutritionProxyChatResponse> {
+        _ = try req.auth.requireUserID()
+        let input = try req.content.decode(NutritionProxyChatRequest.self)
+        let response = try await NutritionClaudeProxyService.shared.sendChat(input: input, on: req)
         return Envelope(data: response, requestID: req.requestID)
     }
 }

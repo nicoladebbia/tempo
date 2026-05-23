@@ -44,15 +44,65 @@ actor AIBudgetTracker {
     private var cachedSpendCents: Int = 0
     private var cachedThreshold: ThrottleLevel = .none
 
+    // ── Per-feature sub-budgets ───────────────────
+    //
+    // In-memory monthly spend per `caller` tag. Cheaper than per-feature DB
+    // rows, accurate enough for a single-replica deployment. Resets when the
+    // month rolls over (mirrors `cachedYearMonth`).
+    //
+    // Only callers with an entry in `subBudgetCapCents(for:)` are gated;
+    // every other caller falls through to the global cap.
+    private var subSpendCents: [String: Int] = [:]
+    private var subBudgetYearMonth: String?
+
+    /// Per-feature monthly caps in cents. Env-overridable so we can tighten
+    /// or relax without a deploy. Coach defaults to $15/mo per the Coach
+    /// Agent plan (`COACH_MONTHLY_BUDGET_CENTS`).
+    nonisolated static func subBudgetCapCents(for caller: String) -> Int? {
+        switch caller {
+        case "coach":
+            return Environment.get("COACH_MONTHLY_BUDGET_CENTS").flatMap(Int.init) ?? 1500
+        default:
+            return nil
+        }
+    }
+
+    private func refreshSubBudgetIfNeeded() {
+        let ym = Self.currentYearMonth()
+        if subBudgetYearMonth != ym {
+            subBudgetYearMonth = ym
+            subSpendCents.removeAll(keepingCapacity: true)
+        }
+    }
+
     // MARK: - Public API
 
     /// Returns true if a call with the given worst-case cost can proceed.
     /// Callers pass the estimate BEFORE making the HTTP request.
     func canMakeCall(estimatedCostCents: Int, on req: Request) async -> Bool {
+        await canMakeCall(estimatedCostCents: estimatedCostCents, caller: "_global", on: req)
+    }
+
+    /// Per-feature gate. If a sub-budget is registered for `caller` (see
+    /// `subBudgetCapCents`), enforce both the global monthly cap AND the
+    /// per-caller cap. Unknown callers only check the global cap.
+    func canMakeCall(estimatedCostCents: Int, caller: String, on req: Request) async -> Bool {
         do {
             try await refreshIfNeeded(on: req)
             let projected = cachedSpendCents + max(0, estimatedCostCents)
-            return projected <= AIConfig.monthlyBudgetCents
+            guard projected <= AIConfig.monthlyBudgetCents else { return false }
+
+            if let cap = Self.subBudgetCapCents(for: caller) {
+                refreshSubBudgetIfNeeded()
+                let projectedSub = (subSpendCents[caller] ?? 0) + max(0, estimatedCostCents)
+                if projectedSub > cap {
+                    req.logger.warning(
+                        "[ai_budget] sub-budget exhausted caller=\(caller) projected=\(projectedSub)c cap=\(cap)c"
+                    )
+                    return false
+                }
+            }
+            return true
         } catch {
             // Fail open: if the DB is unreachable we don't want to bring down
             // every AI feature. The circuit breaker + post-call recordSpend
@@ -70,6 +120,23 @@ actor AIBudgetTracker {
         model: String,
         inputTokens: Int,
         outputTokens: Int,
+        on req: Request
+    ) async -> ThrottleLevel {
+        await recordSpend(
+            model: model,
+            inputTokens: inputTokens,
+            outputTokens: outputTokens,
+            caller: "_global",
+            on: req
+        )
+    }
+
+    @discardableResult
+    func recordSpend(
+        model: String,
+        inputTokens: Int,
+        outputTokens: Int,
+        caller: String,
         on req: Request
     ) async -> ThrottleLevel {
         let costMicrodollars = costInMicrodollars(
@@ -90,6 +157,12 @@ actor AIBudgetTracker {
             )
         }
 
+        // Sub-budget bookkeeping (in-memory; resets monthly).
+        if Self.subBudgetCapCents(for: caller) != nil {
+            refreshSubBudgetIfNeeded()
+            subSpendCents[caller, default: 0] += costCents
+        }
+
         let level = thresholdLevel(for: cachedSpendCents)
         if level.rawValue > cachedThreshold.rawValue {
             await applyThresholdChange(from: cachedThreshold, to: level, on: req)
@@ -98,7 +171,7 @@ actor AIBudgetTracker {
         }
 
         req.logger.info(
-            "AI usage: model=\(model) in=\(inputTokens) out=\(outputTokens) cost=\(costCents)c spend=\(cachedSpendCents)/\(AIConfig.monthlyBudgetCents)c level=\(level.rawValue)%"
+            "AI usage: model=\(model) caller=\(caller) in=\(inputTokens) out=\(outputTokens) cost=\(costCents)c spend=\(cachedSpendCents)/\(AIConfig.monthlyBudgetCents)c level=\(level.rawValue)%"
         )
 
         return level

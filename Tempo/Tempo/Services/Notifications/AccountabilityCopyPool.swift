@@ -16,9 +16,9 @@ import os
 // user doesn't see the same line twice in a week.
 //
 // Per MODULE_ACCOUNTABILITY.md §6.1 (D7) — last-7-day exclude, last-14-day
-// weight halving. Per §7.4 (D45-49) — intensity tiers (Gentle Coach 1,
-// Firm Coach 2, Drill Sergeant 3, Savage Mode 4) collapse onto three copy
-// pools: gentle, firm, savage.
+// weight halving. Per §7.4 (D45-49) — intensity tiers map 1:1 to four copy
+// pools: Gentle Coach (1) → gentle, Firm Coach (2) → firm,
+// Drill Sergeant (3) → drillSergeant, Savage Mode (4) → savage.
 
 enum CopyTier: String {
     case gentle
@@ -26,20 +26,42 @@ enum CopyTier: String {
     case urgent
     case critical
     case allClear
+    // Arena (event-driven): leaderboard change, challenge event, XP milestone.
+    case arena
+    // Social: Focus Timer fired while inside the social-hours window.
+    case social
 }
 
 // MARK: - CopyIntensity
 
-enum CopyIntensity: String {
+enum CopyIntensity: String, CaseIterable {
     case gentle
     case firm
+    case drillSergeant
     case savage
 
+    /// Maps the persisted `UserSettings.notificationIntensity` (1–4, validated)
+    /// to a copy pool. Each setting level now has a distinct pool — Drill
+    /// Sergeant (3) no longer collapses into Firm.
     init(notificationIntensity: Int) {
         switch notificationIntensity {
         case 1: self = .gentle
+        case 2: self = .firm
+        case 3: self = .drillSergeant
         case 4: self = .savage
         default: self = .firm
+        }
+    }
+
+    /// Graceful degrade order if a tier is missing this intensity's array in
+    /// the JSON (e.g. a partially-authored channel). Never silently drops to
+    /// the terse code fallback while a less-intense pool still exists.
+    var degradeChain: [CopyIntensity] {
+        switch self {
+        case .gentle: [.gentle, .firm]
+        case .firm: [.firm, .gentle]
+        case .drillSergeant: [.drillSergeant, .firm, .savage]
+        case .savage: [.savage, .drillSergeant, .firm]
         }
     }
 }
@@ -54,6 +76,14 @@ struct CopyContext {
     var studyTarget: String = "0"
     var timeRemaining: String = ""
     var streakDays: Int = 0
+    // Arena
+    var rank: Int = 0
+    var previousRank: Int = 0
+    var challengeName: String = ""
+    var xpMilestone: Int = 0
+    var opponentName: String = ""
+    // Social
+    var minutesIntoSocial: Int = 0
 }
 
 // MARK: - AccountabilityCopyPool
@@ -89,7 +119,13 @@ final class AccountabilityCopyPool: @unchecked Sendable {
     /// suppression and template variable substitution. Falls back to a short
     /// fixed string if the pool is empty (resource load failure).
     func pick(tier: CopyTier, intensity: CopyIntensity, context: CopyContext) -> String {
-        let pool = pools[tier.rawValue]?[intensity.rawValue] ?? []
+        let tierPools = pools[tier.rawValue]
+        // Try the requested intensity, then degrade (drillSergeant → firm, etc.)
+        // before falling back to the terse code string.
+        let pool = intensity.degradeChain
+            .lazy
+            .compactMap { tierPools?[$0.rawValue] }
+            .first(where: { !$0.isEmpty }) ?? []
         guard !pool.isEmpty else {
             return fallback(for: tier, context: context)
         }
@@ -165,6 +201,12 @@ final class AccountabilityCopyPool: @unchecked Sendable {
             ("{studyTarget}", context.studyTarget),
             ("{timeRemaining}", context.timeRemaining),
             ("{streakDays}", String(context.streakDays)),
+            ("{rank}", String(context.rank)),
+            ("{previousRank}", String(context.previousRank)),
+            ("{challengeName}", context.challengeName),
+            ("{xpMilestone}", String(context.xpMilestone)),
+            ("{opponentName}", context.opponentName),
+            ("{minutesIntoSocial}", String(context.minutesIntoSocial)),
         ]
         for (placeholder, value) in pairs {
             result = result.replacingOccurrences(of: placeholder, with: value)
@@ -184,6 +226,10 @@ final class AccountabilityCopyPool: @unchecked Sendable {
             "Final warning. \(context.remaining) tasks undone."
         case .allClear:
             "ALL CLEAR. \(context.total)/\(context.total) complete."
+        case .arena:
+            "Arena update. You're #\(context.rank)."
+        case .social:
+            "Social hours. Focus session running — stay on it."
         }
     }
 }

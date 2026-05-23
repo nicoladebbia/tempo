@@ -74,6 +74,7 @@ actor APIClient {
 
         var request = URLRequest(url: url)
         request.httpMethod = endpoint.method.rawValue
+        request.timeoutInterval = endpoint.timeoutInterval
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
@@ -217,9 +218,22 @@ actor APIClient {
                 throw APIError.connectionRefused
             }
 
+            // -1005 "network connection was lost" is common on Railway-hosted
+            // endpoints under load (proxy churn / cold connections). Retry with
+            // a longer base delay than the generic exponential — short retries
+            // tend to land on the same broken connection. Log so we can see
+            // the retry attempts in DEBUG logs.
+            let isConnectionLost = (error as? URLError)?.code.rawValue == -1005
+            #if DEBUG
+                if isConnectionLost {
+                    logger.warning("URLError -1005 on \(endpoint.path) attempt=\(attempt)/\(self.maxRetries); will retry with extended delay")
+                }
+            #endif
+
             let apiError = APIError.networkError(error.localizedDescription)
             if apiError.isRetryable, attempt < maxRetries {
-                let delay = baseDelay * pow(2.0, Double(attempt))
+                let baseRetry = isConnectionLost ? 3.0 : baseDelay
+                let delay = baseRetry * pow(2.0, Double(attempt))
                 try await Task.sleep(for: .seconds(delay))
                 return try await executeWithRetry(request, endpoint: endpoint, attempt: attempt + 1)
             }

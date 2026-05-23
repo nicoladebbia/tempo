@@ -58,6 +58,23 @@ struct ContentView: View {
         if (try? modelContext.fetchCount(settingsDescriptor)) == 0 {
             let settings = UserSettings()
             settings.userProfile = profile
+
+            // Restore the user's weekly-training-plan picks from onboarding.
+            // Stored as JSON-encoded [Int: String] (weekday → DayType.rawValue).
+            // Falls back silently to the model default if absent — meal-plan
+            // generation will then use WeeklyTrainingPlan.defaultPlan.
+            if let planData = data?["weeklyTrainingPlan"] as? Data,
+               let raw = try? JSONDecoder().decode([Int: String].self, from: planData)
+            {
+                var typed: [Int: DayType] = [:]
+                for (k, v) in raw {
+                    if let dt = DayType(rawValue: v) { typed[k] = dt }
+                }
+                if !typed.isEmpty {
+                    settings.weeklyTrainingPlan = typed
+                }
+            }
+
             modelContext.insert(settings)
         }
 

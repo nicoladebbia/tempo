@@ -29,12 +29,23 @@ struct APIEndpoint<Response: Decodable & Sendable> {
     /// auth routes that return their payload directly. Per
     /// INTELLIGENCE_REMEDIATION_PLAN.md §3 (envelope unwrap fix).
     let expectsEnvelope: Bool
+    /// Per-request timeout. Defaults to 60s (URLSession default). Override for
+    /// endpoints whose backend work is genuinely long — e.g. Sonnet meal-plan
+    /// generation routinely takes 90–120s and was timing out on the default.
+    let timeoutInterval: TimeInterval
 
-    init(path: String, method: HTTPMethod = .get, requiresAuth: Bool = true, expectsEnvelope: Bool = true) {
+    init(
+        path: String,
+        method: HTTPMethod = .get,
+        requiresAuth: Bool = true,
+        expectsEnvelope: Bool = true,
+        timeoutInterval: TimeInterval = 60
+    ) {
         self.path = path
         self.method = method
         self.requiresAuth = requiresAuth
         self.expectsEnvelope = expectsEnvelope
+        self.timeoutInterval = timeoutInterval
     }
 }
 

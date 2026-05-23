@@ -51,6 +51,12 @@ final class OnboardingViewModel {
     var preferredSplit: String?
     var experienceLevel: String?
 
+    /// User-chosen weekday → DayType map captured by the weeklySchedule step.
+    /// Persisted to `UserSettings.weeklyTrainingPlan` on completion. Pre-seeded
+    /// with `WeeklyTrainingPlan.defaultPlan` so the picker shows a sensible
+    /// starting layout instead of all-blank.
+    var weeklyTrainingPlan: [Int: DayType] = WeeklyTrainingPlan.defaultPlan
+
     // Academic data
     var university: String = ""
     var yearOfStudy: String?
@@ -147,6 +153,7 @@ final class OnboardingViewModel {
             !displayName.trimmingCharacters(in: .whitespaces).isEmpty &&
                 !username.trimmingCharacters(in: .whitespaces).isEmpty
         case .trainingSetup,
+             .weeklySchedule,
              .academicSetup,
              .dailyRhythm,
              .classSchedule,
@@ -373,6 +380,9 @@ final class OnboardingViewModel {
         // Encode class/work blocks as JSON so UserDefaults can store them.
         let classBlocksData = (try? JSONEncoder().encode(classBlocks)) ?? Data()
         let workBlocksData = (try? JSONEncoder().encode(workBlocks)) ?? Data()
+        // Same trick for the weekly-schedule map ([Int: DayType] isn't plist).
+        let weeklyPlanRaw = weeklyTrainingPlan.mapValues { $0.rawValue }
+        let weeklyPlanData = (try? JSONEncoder().encode(weeklyPlanRaw)) ?? Data()
 
         // NOTE: every value here MUST be a property-list type. A boxed
         // `Optional.none` (e.g. `someOptional as Any` when nil) makes
@@ -406,6 +416,7 @@ final class OnboardingViewModel {
             "postWorkoutMandatory": postWorkoutMandatory,
             "studySessionLengthMinutes": studySessionLengthMinutes,
             "weekendDifferential": weekendDifferential.rawValue,
+            "weeklyTrainingPlan": weeklyPlanData,
         ]
         if let termStartDate {
             data["termStartDate"] = termStartDate
@@ -507,6 +518,10 @@ enum OnboardingStep: String, Codable, CaseIterable {
     /// UserProfile.identityLabel and surfaced in Settings.
     case identity
     case trainingSetup
+    /// Per-weekday DayType picker (strength / cardio / soccer / double / rest).
+    /// Drives meal-plan calorie targets and the AI's day-type labelling so the
+    /// generator never has to guess the user's weekly pattern.
+    case weeklySchedule
     case academicSetup
     // ── Daily plan profile (INTELLIGENCE_REMEDIATION_PLAN.md §8) ──
     /// Wake time + sleep target + chronotype.
@@ -556,6 +571,7 @@ enum OnboardingStep: String, Codable, CaseIterable {
         switch self {
         case .healthkit,
              .trainingSetup,
+             .weeklySchedule,
              .academicSetup,
              .dailyRhythm,
              .classSchedule,

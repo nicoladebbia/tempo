@@ -209,6 +209,158 @@ struct TrainingSetupView: View {
     }
 }
 
+
+// MARK: - WeeklyTrainingPlanPickerView
+
+/// 7-day picker where the user tags each weekday with a `DayType`. Bound to a
+/// `[Int: DayType]` map keyed by `Calendar.current.weekday`. Used in
+/// onboarding and in Settings → Profile.
+///
+/// Tapping a day cycles the type forward through the list; long-press resets
+/// it to rest. The cycling order matches the meal-plan calorie multipliers so
+/// users see the activity level escalate naturally.
+struct WeeklyTrainingPlanPickerView: View {
+    @Binding var plan: [Int: DayType]
+
+    /// Display order Mon → Sun for the grid; the binding still uses
+    /// Calendar's 1=Sunday … 7=Saturday convention.
+    private let displayOrder: [Int] = [2, 3, 4, 5, 6, 7, 1]
+
+    private let cycleOrder: [DayType] = [.rest, .strength, .cardio, .soccer, .double]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.md) {
+            Text("WEEKLY SCHEDULE")
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextSecondary)
+                .tracking(1.5)
+
+            Text("Tap a day to set what you're doing. Tempo uses this for calorie targets and meal timing.")
+                .font(.tempoFootnote)
+                .foregroundStyle(Color.tempoTextSecondary)
+
+            VStack(spacing: TempoSpacing.xs) {
+                ForEach(displayOrder, id: \.self) { weekday in
+                    dayRow(weekday: weekday)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func dayRow(weekday: Int) -> some View {
+        let current = plan[weekday] ?? WeeklyTrainingPlan.defaultPlan[weekday] ?? .strength
+        Button {
+            HapticManager.selection()
+            plan[weekday] = nextType(after: current)
+        } label: {
+            HStack {
+                Text(weekdayName(weekday))
+                    .font(.tempoBody)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                    .frame(width: 110, alignment: .leading)
+
+                Spacer()
+
+                HStack(spacing: TempoSpacing.xs) {
+                    Image(systemName: icon(for: current))
+                        .font(.tempoCaption1)
+                        .foregroundStyle(color(for: current))
+                    Text(current.displayName)
+                        .font(.tempoCallout)
+                        .foregroundStyle(color(for: current))
+                }
+                .padding(.horizontal, TempoSpacing.md)
+                .padding(.vertical, 8)
+                .background(color(for: current).opacity(0.15))
+                .clipShape(Capsule())
+            }
+            .padding(.vertical, 4)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func nextType(after current: DayType) -> DayType {
+        guard let idx = cycleOrder.firstIndex(of: current) else {
+            return .strength
+        }
+        return cycleOrder[(idx + 1) % cycleOrder.count]
+    }
+
+    private func weekdayName(_ weekday: Int) -> String {
+        switch weekday {
+        case 1: return "Sunday"
+        case 2: return "Monday"
+        case 3: return "Tuesday"
+        case 4: return "Wednesday"
+        case 5: return "Thursday"
+        case 6: return "Friday"
+        case 7: return "Saturday"
+        default: return ""
+        }
+    }
+
+    private func icon(for type: DayType) -> String {
+        switch type {
+        case .strength: return "dumbbell.fill"
+        case .cardio: return "figure.run"
+        case .soccer: return "soccerball"
+        case .double: return "bolt.fill"
+        case .rest: return "moon.zzz.fill"
+        }
+    }
+
+    private func color(for type: DayType) -> Color {
+        switch type {
+        case .strength: return .tempoSignal
+        case .cardio: return .tempoElectric
+        case .soccer: return .tempoViolet
+        case .double: return .tempoAmber
+        case .rest: return .tempoTextSecondary
+        }
+    }
+}
+
+
+// MARK: - WeeklyScheduleSetupView (onboarding step)
+
+/// Onboarding step that wraps the `WeeklyTrainingPlanPickerView` with the
+/// standard onboarding chrome (title, skip, continue).
+struct WeeklyScheduleSetupView: View {
+    @Bindable var viewModel: OnboardingViewModel
+
+    var body: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+                Spacer().frame(height: TempoSpacing.md)
+
+                Text("YOUR WEEKLY\nSCHEDULE.")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, TempoSpacing.screenEdge)
+
+                WeeklyTrainingPlanPickerView(plan: $viewModel.weeklyTrainingPlan)
+                    .onboardingCard()
+                    .padding(.horizontal, TempoSpacing.screenEdge)
+
+                Spacer().frame(height: TempoSpacing.xl)
+
+                HStack {
+                    OnboardingSkipButton { viewModel.skip() }
+                    Spacer()
+                }
+                .padding(.horizontal, TempoSpacing.screenEdge)
+
+                OnboardingPrimaryButton(title: "CONTINUE", enabled: true) {
+                    viewModel.advance()
+                }
+
+                Spacer().frame(height: TempoSpacing.lg)
+            }
+        }
+    }
+}
+
 #Preview {
     @Previewable @State
     var vm = OnboardingViewModel()

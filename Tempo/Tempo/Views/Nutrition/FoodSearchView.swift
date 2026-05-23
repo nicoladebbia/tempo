@@ -38,6 +38,11 @@ struct FoodSearchView: View {
     private var hasSearched = false
     @State
     private var errorMessage: String?
+    /// Set when the current query looks misspelled and a correction yields a
+    /// plausible alternative. Surfaced as a tappable "Did you mean X?" banner
+    /// above results. Cleared whenever the user types again.
+    @State
+    private var suggestedQuery: String?
     @State
     private var selectedFood: SearchableFoodItem?
     @State
@@ -100,6 +105,7 @@ struct FoodSearchView: View {
                 performSearch()
             }
             .onChange(of: searchText) { _, newValue in
+                suggestedQuery = nil
                 if newValue.isEmpty {
                     searchResults = []
                     hasSearched = false
@@ -123,9 +129,7 @@ struct FoodSearchView: View {
     private var allTabContent: some View {
         Group {
             if isLoading {
-                LoadingStateView(style: .list)
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-                    .padding(.top, TempoSpacing.lg)
+                tempoRingLoader
             } else if let errorMessage {
                 errorState(message: errorMessage)
             } else if searchResults.isEmpty, hasSearched {
@@ -133,7 +137,12 @@ struct FoodSearchView: View {
             } else if searchResults.isEmpty {
                 searchEmptyState
             } else {
-                resultsList(searchResults)
+                VStack(spacing: 0) {
+                    if let suggestedQuery {
+                        didYouMeanBanner(suggestedQuery)
+                    }
+                    resultsList(searchResults)
+                }
             }
         }
     }
@@ -374,6 +383,83 @@ struct FoodSearchView: View {
         )
     }
 
+    // MARK: - Tempo Loader
+
+    /// Mirrors the wordmark "O" from DashboardLoadingView — same 75% arc,
+    /// same lineCap, but rotating. Drives rotation via TimelineView so no
+    /// @State or onAppear gymnastics needed.
+    private var tempoRingLoader: some View {
+        VStack(spacing: TempoSpacing.lg) {
+            Spacer()
+            TimelineView(.animation) { timeline in
+                let angle = timeline.date.timeIntervalSinceReferenceDate
+                    .truncatingRemainder(dividingBy: 1.2) / 1.2 * 360
+                ZStack {
+                    Circle()
+                        .stroke(
+                            Color.tempoBorder.opacity(0.4),
+                            style: StrokeStyle(lineWidth: 5, lineCap: .round)
+                        )
+                    Circle()
+                        .trim(from: 0, to: 0.75)
+                        .stroke(
+                            Color.tempoSignal,
+                            style: StrokeStyle(lineWidth: 5, lineCap: .round)
+                        )
+                        .rotationEffect(.degrees(angle - 90))
+                }
+                .frame(width: 36, height: 36)
+            }
+            Text("Searching…")
+                .font(.tempoCallout)
+                .foregroundStyle(Color.tempoTextSecondary)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Searching")
+        .accessibilityAddTraits(.updatesFrequently)
+    }
+
+    // MARK: - Did-You-Mean Banner
+
+    private func didYouMeanBanner(_ suggestion: String) -> some View {
+        Button {
+            HapticManager.lightImpact()
+            searchText = suggestion
+            suggestedQuery = nil
+            performSearch()
+        } label: {
+            HStack(spacing: TempoSpacing.sm) {
+                Image(systemName: "sparkle.magnifyingglass")
+                    .font(.tempoCallout)
+                    .foregroundStyle(Color.tempoSignal)
+                Text("Did you mean ")
+                    .foregroundStyle(Color.tempoTextSecondary)
+                    + Text("\(suggestion)")
+                    .foregroundStyle(Color.tempoTextPrimary)
+                    .fontWeight(.semibold)
+                    + Text("?")
+                    .foregroundStyle(Color.tempoTextSecondary)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.tempoFootnote)
+                    .foregroundStyle(Color.tempoTextSecondary)
+            }
+            .font(.tempoCallout)
+            .padding(.horizontal, TempoSpacing.screenEdge)
+            .padding(.vertical, TempoSpacing.sm)
+            .background(Color.tempoSurfaceCard)
+            .overlay(
+                Rectangle()
+                    .fill(Color.tempoBorder.opacity(0.4))
+                    .frame(height: 0.5),
+                alignment: .bottom
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
     private var noResultsState: some View {
         EmptyStateView(
             icon: "magnifyingglass",
@@ -434,25 +520,126 @@ struct FoodSearchView: View {
     // MARK: - Actions
 
     private func performSearch() {
-        guard !searchText.trimmingCharacters(in: .whitespaces).isEmpty else {
+        let query = searchText.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else {
             return
         }
         isLoading = true
         hasSearched = true
         errorMessage = nil
+        suggestedQuery = nil
 
-        // Simulated search — in production, hits local CachedFood first then USDA API
         Task {
-            try? await Task.sleep(for: .milliseconds(800))
+            let service = FoodSearchService()
+            do {
+                let results = try await service.searchUSDA(query: query)
+                searchResults = results.map { result in
+                    let servingLabel = "\(Int(result.servingSize.rounded()))\(result.servingUnit)"
+                    return SearchableFoodItem(
+                        id: UUID(),
+                        name: result.name,
+                        brand: result.brand,
+                        servingSize: servingLabel,
+                        caloriesPerServing: Int(result.calories.rounded()),
+                        proteinPerServing: result.proteinGrams,
+                        carbsPerServing: result.carbsGrams,
+                        fatPerServing: result.fatGrams,
+                        isFavorite: false
+                    )
+                }
+                isLoading = false
 
-            // Mock results
-            searchResults = SearchableFoodItem.mockSearchResults(for: searchText)
-            isLoading = false
-
-            if searchResults.isEmpty {
-                // No error — just no results
+                // Sparse results + plausible correction → surface "Did you mean".
+                // We only suggest when the correction is meaningfully different
+                // (not just a case fold) and the original query was long enough
+                // for a typo to be likely.
+                if results.count < 5, query.count >= 4 {
+                    let corrected = Self.correctedQuery(for: query)
+                    if corrected.lowercased() != query.lowercased() {
+                        suggestedQuery = corrected
+                    }
+                }
+            } catch let NutritionError.rateLimited(retryAfter) {
+                isLoading = false
+                if let retryAfter {
+                    errorMessage = "Search rate-limited. Try again in \(Int(retryAfter))s."
+                } else {
+                    errorMessage = "Search rate-limited. Try again shortly."
+                }
+            } catch let NutritionError.searchFailed(message) {
+                isLoading = false
+                errorMessage = "Search failed: \(message)"
+            } catch {
+                isLoading = false
+                errorMessage = error.localizedDescription
             }
         }
+    }
+
+    /// Very small inline corrector for common food-word typos. Not a real
+    /// spellchecker — just a hand-tuned table for high-frequency mistakes
+    /// USDA's search won't tolerate (it does no fuzzy matching). Words not in
+    /// the table pass through unchanged. Multi-word queries are corrected
+    /// token-by-token. Case is preserved (Title Case in → Title Case out).
+    static func correctedQuery(for query: String) -> String {
+        let corrections: [String: String] = [
+            "chiken": "chicken",
+            "chickn": "chicken",
+            "chiekn": "chicken",
+            "brocoli": "broccoli",
+            "brocolli": "broccoli",
+            "broccli": "broccoli",
+            "banaan": "banana",
+            "bannana": "banana",
+            "bananna": "banana",
+            "tomatoe": "tomato",
+            "potatoe": "potato",
+            "yougurt": "yogurt",
+            "yoghurt": "yogurt",
+            "salmonn": "salmon",
+            "samlon": "salmon",
+            "spinich": "spinach",
+            "spinnach": "spinach",
+            "aspargus": "asparagus",
+            "asparugus": "asparagus",
+            "cuccumber": "cucumber",
+            "cucummber": "cucumber",
+            "avacado": "avocado",
+            "avacodo": "avocado",
+            "cantelope": "cantaloupe",
+            "rasberry": "raspberry",
+            "strawbery": "strawberry",
+            "blueberys": "blueberries",
+            "blueberies": "blueberries",
+            "cofee": "coffee",
+            "expresso": "espresso",
+            "lentle": "lentil",
+            "lentill": "lentil",
+            "chickpea": "chickpeas",
+            "garbonzo": "garbanzo",
+            "pinapple": "pineapple",
+            "pineaple": "pineapple",
+            "watermellon": "watermelon",
+            "egplant": "eggplant",
+            "egggplant": "eggplant",
+        ]
+
+        let tokens = query.split(separator: " ").map(String.init)
+        let correctedTokens = tokens.map { token -> String in
+            let lower = token.lowercased()
+            guard let fixed = corrections[lower] else {
+                return token
+            }
+            // Preserve simple capitalization patterns.
+            if token == token.uppercased() {
+                return fixed.uppercased()
+            }
+            if token.first?.isUppercase == true {
+                return fixed.prefix(1).uppercased() + fixed.dropFirst()
+            }
+            return fixed
+        }
+        return correctedTokens.joined(separator: " ")
     }
 
     private func addToMeal(food: SearchableFoodItem) {

@@ -26,6 +26,14 @@ struct FocusTimerView: View {
     private var dismiss
     @Environment(\.scenePhase)
     private var scenePhase
+    @Environment(ServiceContainer.self)
+    private var services
+    @Query
+    private var allSettings: [UserSettings]
+
+    private var settings: UserSettings? {
+        allSettings.first
+    }
 
     @State
     private var showStopConfirmation = false
@@ -763,12 +771,25 @@ struct FocusTimerView: View {
 
     // MARK: - Actions
 
+    /// Fire the social-hours blocker for the just-started session if the
+    /// concrete `NotificationService` is in use (skipped under the mock).
+    private func fireSocialBlocker() {
+        guard let notif = services.notifications as? NotificationService else {
+            return
+        }
+        viewModel.fireSocialBlockerIfNeeded(
+            notificationService: notif,
+            settings: settings
+        )
+    }
+
     private func mainButtonAction() {
         switch viewModel.focusState {
         case .idle,
              .configuring,
              .cancelled:
             viewModel.startFocusSession(modelContext: modelContext)
+            fireSocialBlocker()
         case .focusing:
             viewModel.pauseFocus()
         case .paused:
@@ -780,6 +801,7 @@ struct FocusTimerView: View {
             viewModel.startBreak()
         case .breakDone:
             viewModel.startFocusSession(modelContext: modelContext)
+            fireSocialBlocker()
         case .completed:
             viewModel.focusState = .review
         case .review:

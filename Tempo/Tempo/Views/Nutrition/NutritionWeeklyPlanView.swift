@@ -44,43 +44,54 @@ struct NutritionWeeklyPlanView: View {
     }()
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.lg) {
-                if let plan = viewModel.weeklyPlan {
-                    planHeaderCard(plan)
-                    weekDaysList(plan)
-                } else {
-                    emptyPlanState
-                }
-
-                generateButton
-                    .padding(.top, TempoSpacing.md)
-
-                if let error = viewModel.planGenerationError {
-                    HStack(spacing: TempoSpacing.xs) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Color.tempoError)
-                        Text(error)
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoError)
+        ZStack {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: TempoSpacing.lg) {
+                    if let plan = viewModel.weeklyPlan {
+                        planHeaderCard(plan)
+                        weekDaysList(plan)
+                    } else {
+                        emptyPlanState
                     }
-                    .tempoCard()
+
+                    generateButton
+                        .padding(.top, TempoSpacing.md)
+
+                    if let error = viewModel.planGenerationError {
+                        HStack(spacing: TempoSpacing.xs) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 12))
+                                .foregroundStyle(Color.tempoError)
+                            Text(error)
+                                .font(.tempoCaption1)
+                                .foregroundStyle(Color.tempoError)
+                        }
+                        .tempoCard()
+                    }
+                    // AI disclaimer
+                    HStack(spacing: 6) {
+                        Image(systemName: "info.circle")
+                            .font(.caption2)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                        Text("AI-generated guidance. Not medical or dietetic advice. Consult a professional for personalized plans.")
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                    }
+                    .padding(.vertical, TempoSpacing.sm)
                 }
-                // AI disclaimer
-                HStack(spacing: 6) {
-                    Image(systemName: "info.circle")
-                        .font(.caption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                    Text("AI-generated guidance. Not medical or dietetic advice. Consult a professional for personalized plans.")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                }
-                .padding(.vertical, TempoSpacing.sm)
+                .padding(.horizontal, TempoSpacing.screenEdge)
+                .padding(.bottom, TempoSpacing.bottomSafe)
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, TempoSpacing.bottomSafe)
+
+            // Full-screen generation overlay. Shown whenever generation is in
+            // flight so the user can't miss it. Blocks taps on the plan
+            // beneath (we want them to wait, not navigate away mid-plan).
+            if viewModel.isGeneratingPlan {
+                generationOverlay
+                    .transition(.opacity)
+            }
         }
+        .animation(.easeInOut(duration: 0.2), value: viewModel.isGeneratingPlan)
         .alert("AI-Generated Meal Plan", isPresented: $showDisclaimerAlert) {
             Button("I Understand") {
                 disclaimerAccepted = true
@@ -117,6 +128,7 @@ struct NutritionWeeklyPlanView: View {
                         modelContext: modelContext,
                         whoop: services.whoop,
                         apiClient: services.apiClient,
+                        healthKit: services.healthKit,
                         notifications: services.notifications,
                         intake: intake
                     )
@@ -126,6 +138,66 @@ struct NutritionWeeklyPlanView: View {
                 }
             )
         }
+    }
+
+    // MARK: - Generation Overlay
+
+    /// Full-screen overlay shown while a meal plan is being generated.
+    /// Mirrors the wordmark "O" loader pattern from DashboardLoadingView,
+    /// shows the current phase label, and explains what's happening so the
+    /// user doesn't bail thinking the app is frozen.
+    private var generationOverlay: some View {
+        ZStack {
+            Color.tempoBgPrimary.opacity(0.96)
+                .ignoresSafeArea()
+                .contentShape(Rectangle()) // capture taps so user can't poke
+                                           // the plan list underneath
+
+            VStack(spacing: TempoSpacing.lg) {
+                Spacer()
+
+                TimelineView(.animation) { timeline in
+                    let angle = timeline.date.timeIntervalSinceReferenceDate
+                        .truncatingRemainder(dividingBy: 1.2) / 1.2 * 360
+                    ZStack {
+                        Circle()
+                            .stroke(
+                                Color.tempoBorder.opacity(0.4),
+                                style: StrokeStyle(lineWidth: 8, lineCap: .round)
+                            )
+                        Circle()
+                            .trim(from: 0, to: 0.75)
+                            .stroke(
+                                Color.tempoSignal,
+                                style: StrokeStyle(lineWidth: 8, lineCap: .round)
+                            )
+                            .rotationEffect(.degrees(angle - 90))
+                    }
+                    .frame(width: 64, height: 64)
+                }
+
+                VStack(spacing: TempoSpacing.xs) {
+                    Text(viewModel.planGenerationStatusLabel.isEmpty
+                        ? "Working…"
+                        : viewModel.planGenerationStatusLabel)
+                        .font(.tempoHeadline)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                        .multilineTextAlignment(.center)
+                        .animation(.easeInOut(duration: 0.2), value: viewModel.planGenerationStatusLabel)
+
+                    Text("This usually takes 30–90 seconds. Keep the app open.")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.horizontal, TempoSpacing.xl)
+
+                Spacer()
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Generating meal plan: \(viewModel.planGenerationStatusLabel)")
+        .accessibilityAddTraits(.updatesFrequently)
     }
 
     // MARK: - Plan Header
