@@ -30,6 +30,12 @@ extension Notification.Name {
     /// replan. Optional `userInfo["reason"]` accepts a `DayPlanReason`
     /// rawValue for telemetry attribution.
     static let tempoDayPlanReplanRequested = Notification.Name("tempo.dayPlan.replanRequested")
+
+    /// Posted when the user changes a Training setting that affects the
+    /// nutrition plan (trainingSplit, footballDays). NutritionTabViewModel
+    /// observes this and re-generates the active WeeklyMealPlan so the
+    /// Plan tab's day-types track the user's real training week.
+    static let tempoTrainingSettingsChanged = Notification.Name("tempo.training.settingsChanged")
 }
 
 @MainActor

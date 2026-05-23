@@ -304,6 +304,15 @@ final class NutritionTabViewModel {
 
     // MARK: - Load
 
+    /// Look up the (single) UserSettings record so Plan generation can read
+    /// trainingSplit + footballDays. Returns nil only on fresh installs that
+    /// haven't completed onboarding — in which case the generator skips the
+    /// schedule injection and falls back to its generic week.
+    static func loadUserSettings(modelContext: ModelContext) -> UserSettings? {
+        let descriptor = FetchDescriptor<UserSettings>()
+        return try? modelContext.fetch(descriptor).first
+    }
+
     func loadToday(modelContext: ModelContext) {
         loadState = .loading
 
@@ -640,11 +649,23 @@ final class NutritionTabViewModel {
                     whoopTDEE = cycle.caloriesBurned
                 }
 
+                // Enrich the intake with the user's actual weekly training
+                // schedule from UserSettings so the AI generates day-types
+                // that match Mon=Upper / Wed=Football reality rather than
+                // a generic "Wed strength / Thu cardio" guess.
+                var enrichedIntake = intake ?? .default
+                if let settings = Self.loadUserSettings(modelContext: modelContext) {
+                    enrichedIntake.trainingSchedule = WeeklyTrainingSchedule.make(
+                        split: settings.trainingSplit,
+                        footballDays: settings.footballDays
+                    )
+                }
+
                 let plan = try await generator.generateWeeklyPlan(
                     profile: profile,
                     whoopTDEE: whoopTDEE,
                     modelContext: modelContext,
-                    intake: intake,
+                    intake: enrichedIntake,
                     onStatus: { [weak self] state in
                         self?.planGenerationStatusLabel = state.statusLabel
                     }

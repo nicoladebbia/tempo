@@ -651,6 +651,12 @@ struct ScheduleSettingsDetailView: View {
 
 // MARK: - TrainingSettingsDetailView
 
+// Note on the local save() in this view: after every successful save we post
+// `Notification.Name.tempoTrainingSettingsChanged` so NutritionTabViewModel
+// can regenerate its WeeklyMealPlan against the new trainingSplit /
+// footballDays. Without this, the Nutrition Plan tab kept showing the
+// previous schedule (e.g. Wednesday strength) until the user manually
+// re-generated.
 struct TrainingSettingsDetailView: View {
     @Environment(\.modelContext)
     private var modelContext
@@ -784,6 +790,14 @@ struct TrainingSettingsDetailView: View {
 
     private func save() {
         try? modelContext.save()
+        // Tell the Nutrition tab to regenerate its plan with the new
+        // trainingSplit/footballDays. We intentionally post on EVERY save
+        // (every chip toggle); the observer side debounces so a burst of
+        // chip taps produces a single regen at the end.
+        NotificationCenter.default.post(
+            name: .tempoTrainingSettingsChanged,
+            object: nil
+        )
     }
 }
 

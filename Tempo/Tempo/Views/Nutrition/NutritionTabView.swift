@@ -6,6 +6,7 @@
 //
 //
 
+import Combine
 import SwiftData
 import SwiftUI
 
@@ -59,6 +60,23 @@ struct NutritionTabView: View {
             .tempoSettingsToolbar()
             .task {
                 viewModel.loadToday(modelContext: modelContext)
+            }
+            // When the user changes a Training setting (split / football days)
+            // we regenerate the active WeeklyMealPlan so the Plan tab reflects
+            // the new schedule. Debounced 0.6s because each chip toggle posts a
+            // notification and a user can flip several in a row — we want one
+            // regen at the end of the burst, not N.
+            .onReceive(
+                NotificationCenter.default.publisher(for: .tempoTrainingSettingsChanged)
+                    .debounce(for: .seconds(0.6), scheduler: DispatchQueue.main)
+            ) { _ in
+                guard viewModel.dietaryProfile != nil else { return }
+                viewModel.generatePlan(
+                    modelContext: modelContext,
+                    whoop: services.whoop,
+                    apiClient: services.apiClient,
+                    notifications: services.notifications
+                )
             }
             .sheet(isPresented: $showDietaryProfileSetup) {
                 DietaryProfileSetupView(onSaveAndGenerate: { _ in

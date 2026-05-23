@@ -162,11 +162,38 @@ enum MealPlanPrompts {
                 )
         }
 
+        // Inject the user's actual weekly training schedule when available.
+        // The day-type assignment rule in weeklyPlanPrompt was previously a
+        // generic "match a typical training week", so the model returned
+        // Wed=strength / Thu=cardio that bore no relation to the user's
+        // Mon=upper, Tue=lower, Wed=football reality. With this block the
+        // model is bound to the real schedule.
+        var scheduleBlock = ""
+        if let schedule = intake.trainingSchedule {
+            scheduleBlock = """
+
+            <actual_training_schedule>
+            \(schedule.formattedForPrompt)
+            </actual_training_schedule>
+
+            DAY-TYPE MAPPING REQUIREMENT: For each calendar day above, map the
+            user's training kind to a calorie day type as follows:
+            - Football → soccer
+            - Lower / Legs → strength
+            - Upper / Push / Pull / Full Body / Chest / Back / Shoulders / Arms → strength
+            - Mobility → rest
+            - Conditioning / Run / Sprint → cardio
+            - Rest → rest
+            Two trainings in one day (e.g. lifting + football) → double.
+            Do NOT improvise day types — use the schedule above.
+            """
+        }
+
         return """
 
         <weekly_intake>
         \(lines.joined(separator: "\n"))
-        </weekly_intake>
+        </weekly_intake>\(scheduleBlock)
         """
     }
 
@@ -423,7 +450,7 @@ enum MealPlanPrompts {
         Rules:
         - dayIndex 0 = Monday, 6 = Sunday.
         - dayType must be one of: strength, cardio, soccer, double, rest.
-        - Assign day types to match a typical training week: 3-4 training days, 1-2 rest days. Vary the types.
+        - dayType assignment: when an <actual_training_schedule> block is provided above, you MUST use the mapping it specifies for each day. Only when no schedule is given fall back to a typical 3-4 training / 1-2 rest week with varied types.
         - mealNumber: 1 = Breakfast, 2 = Lunch, 3 = Dinner, 4 = Snack.
         - scheduledTime format: "HH:mm" (24h). Breakfast ~07:30, Lunch ~12:30, Dinner ~19:30, Snack ~16:00.
         - Each food's macros must be realistic for the stated quantity. Reference standard per-100g values.
