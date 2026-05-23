@@ -344,7 +344,31 @@ final class MockPhotoAnalysisService: PhotoAnalysisServiceProtocol, @unchecked S
                     proteinGrams: 46.5,
                     carbsGrams: 0,
                     fatGrams: 5.4,
-                    confidence: 0.9
+                    confidence: 0.9,
+                    alternatives: [
+                        // Mock alternatives so the top-N picker has
+                        // something to show in previews / dev builds.
+                        PhotoAnalysisResult.FoodCandidate(
+                            id: "photo_1_alt_pork",
+                            name: "Grilled Pork Tenderloin",
+                            estimatedPortion: "~150g",
+                            calories: 215,
+                            proteinGrams: 39.0,
+                            carbsGrams: 0,
+                            fatGrams: 5.7,
+                            confidence: 0.55
+                        ),
+                        PhotoAnalysisResult.FoodCandidate(
+                            id: "photo_1_alt_turkey",
+                            name: "Grilled Turkey Breast",
+                            estimatedPortion: "~150g",
+                            calories: 200,
+                            proteinGrams: 44.0,
+                            carbsGrams: 0,
+                            fatGrams: 2.2,
+                            confidence: 0.40
+                        ),
+                    ]
                 ),
                 PhotoAnalysisResult.PhotoFoodItem(
                     id: "photo_2",
@@ -354,7 +378,19 @@ final class MockPhotoAnalysisService: PhotoAnalysisServiceProtocol, @unchecked S
                     proteinGrams: 5.4,
                     carbsGrams: 51.2,
                     fatGrams: 2.0,
-                    confidence: 0.85
+                    confidence: 0.85,
+                    alternatives: [
+                        PhotoAnalysisResult.FoodCandidate(
+                            id: "photo_2_alt_white",
+                            name: "Steamed White Rice",
+                            estimatedPortion: "~1 cup (200g)",
+                            calories: 260,
+                            proteinGrams: 5.4,
+                            carbsGrams: 56.0,
+                            fatGrams: 0.4,
+                            confidence: 0.55
+                        ),
+                    ]
                 ),
                 PhotoAnalysisResult.PhotoFoodItem(
                     id: "photo_3",
@@ -364,7 +400,8 @@ final class MockPhotoAnalysisService: PhotoAnalysisServiceProtocol, @unchecked S
                     proteinGrams: 2.4,
                     carbsGrams: 7.2,
                     fatGrams: 0.4,
-                    confidence: 0.88
+                    confidence: 0.88,
+                    alternatives: []
                 ),
             ],
             totalCalories: 529,

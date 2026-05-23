@@ -125,6 +125,11 @@ final class PhotoAnalysisService: PhotoAnalysisServiceProtocol, @unchecked Senda
         var prompt = """
         Analyze this meal photo. Identify each food item and estimate its nutritional content.
 
+        For EACH food item, include up to 2 alternative identifications when the
+        visual is ambiguous (e.g. chicken vs. pork, white rice vs. cauliflower
+        rice, beef vs. plant-based ground). Skip the alternatives array entirely
+        when the identification is unambiguous (a banana is a banana).
+
         Return ONLY valid JSON in this exact format (no markdown, no explanation):
         {
           "items": [
@@ -135,7 +140,18 @@ final class PhotoAnalysisService: PhotoAnalysisServiceProtocol, @unchecked Senda
               "protein": 12.5,
               "carbs": 30.0,
               "fat": 8.0,
-              "confidence": 0.85
+              "confidence": 0.85,
+              "alternatives": [
+                {
+                  "name": "alternative food name",
+                  "portion": "1 cup",
+                  "calories": 240,
+                  "protein": 11.0,
+                  "carbs": 28.0,
+                  "fat": 9.0,
+                  "confidence": 0.55
+                }
+              ]
             }
           ],
           "confidence": 0.8,
@@ -145,6 +161,9 @@ final class PhotoAnalysisService: PhotoAnalysisServiceProtocol, @unchecked Senda
         Rules:
         - All numeric values must be numbers, not strings.
         - Confidence is 0.0 to 1.0 (how sure you are about the identification and portion).
+        - The primary item is your best guess; alternatives are ranked by descending confidence.
+        - Each alternative must carry its OWN macros — different foods have different macros even at the same portion.
+        - Maximum 2 alternatives per item. Skip the alternatives key entirely for unambiguous items.
         - If the image does not contain food, return: {"items": [], "confidence": 0, "verdict": "No food detected in this image."}
         - If the image is too blurry or unclear, return: {"items": [], "confidence": 0, "verdict": "Image is too unclear to analyze."}
         - Be conservative with portion estimates — better to underestimate than overestimate.
@@ -204,6 +223,24 @@ final class PhotoAnalysisService: PhotoAnalysisServiceProtocol, @unchecked Senda
         var verifiedItems: [PhotoAnalysisResult.PhotoFoodItem] = []
 
         for item in items {
+            // Map any model-supplied alternatives onto the public DTO shape.
+            // We deliberately do NOT USDA-verify alternatives — the user
+            // hasn't picked one yet, so spending an extra API call per
+            // candidate would multiply latency for guesses the user will
+            // probably never accept.
+            let mappedAlternatives = (item.alternatives ?? []).map { alt in
+                PhotoAnalysisResult.FoodCandidate(
+                    id: UUID().uuidString,
+                    name: alt.name,
+                    estimatedPortion: alt.portion,
+                    calories: alt.calories,
+                    proteinGrams: alt.protein,
+                    carbsGrams: alt.carbs,
+                    fatGrams: alt.fat,
+                    confidence: alt.confidence
+                )
+            }
+
             var finalItem = PhotoAnalysisResult.PhotoFoodItem(
                 id: UUID().uuidString,
                 name: item.name,
@@ -212,7 +249,8 @@ final class PhotoAnalysisService: PhotoAnalysisServiceProtocol, @unchecked Senda
                 proteinGrams: item.protein,
                 carbsGrams: item.carbs,
                 fatGrams: item.fat,
-                confidence: item.confidence
+                confidence: item.confidence,
+                alternatives: mappedAlternatives
             )
 
             // Attempt USDA cross-reference for higher-confidence items
@@ -232,7 +270,8 @@ final class PhotoAnalysisService: PhotoAnalysisServiceProtocol, @unchecked Senda
                             proteinGrams: best.proteinGrams * usdaRatio,
                             carbsGrams: best.carbsGrams * usdaRatio,
                             fatGrams: best.fatGrams * usdaRatio,
-                            confidence: min(item.confidence + 0.1, 1.0) // Boost confidence with USDA verification
+                            confidence: min(item.confidence + 0.1, 1.0), // Boost confidence with USDA verification
+                            alternatives: mappedAlternatives
                         )
                     }
                 } catch {

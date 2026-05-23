@@ -199,6 +199,27 @@ struct PhotoAnalysisResult {
         let carbsGrams: Double
         let fatGrams: Double
         let confidence: Double
+        /// Top-3 alternative identifications from the vision model, ranked
+        /// by confidence. The displayed item (name/macros above) is the
+        /// model's best guess; alternatives let the user correct it
+        /// ("this looks like chicken — or maybe pork?") without re-running
+        /// the photo analysis. Empty when the model returned no
+        /// alternatives or for legacy responses pre-top-N.
+        let alternatives: [FoodCandidate]
+    }
+
+    /// One alternative identification from the vision model. Includes its
+    /// own macro estimates so swapping to it is a complete replacement,
+    /// not a name-only change.
+    struct FoodCandidate: Identifiable {
+        let id: String
+        let name: String
+        let estimatedPortion: String
+        let calories: Double
+        let proteinGrams: Double
+        let carbsGrams: Double
+        let fatGrams: Double
+        let confidence: Double
     }
 
     enum PhotoConfidence: String {
@@ -478,6 +499,19 @@ struct ClaudeFoodAnalysis: Codable {
     let verdict: String
 
     struct ClaudeFoodItem: Codable {
+        let name: String
+        let portion: String
+        let calories: Double
+        let protein: Double
+        let carbs: Double
+        let fat: Double
+        let confidence: Double
+        /// Up to 3 ranked alternative identifications. Optional so existing
+        /// pre-top-N response shapes (and the mock service) decode cleanly.
+        let alternatives: [ClaudeFoodAlternative]?
+    }
+
+    struct ClaudeFoodAlternative: Codable {
         let name: String
         let portion: String
         let calories: Double

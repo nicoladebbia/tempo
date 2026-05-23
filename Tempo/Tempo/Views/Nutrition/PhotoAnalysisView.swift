@@ -30,6 +30,11 @@ struct PhotoAnalysisView: View {
     private var analysisState: AnalysisState = .idle
     @State
     private var identifiedItems: [AnalyzedFoodItem] = []
+    /// When set, presents the alternatives sheet for the item with this ID
+    /// so the user can swap the model's best-guess identification for one
+    /// of the ranked candidates. Nil = sheet closed.
+    @State
+    private var alternativesItemID: UUID?
 
     private enum AnalysisState {
         case idle
@@ -87,7 +92,71 @@ struct PhotoAnalysisView: View {
                     analyzePhoto()
                 }
             }
+            // Alternatives picker — appears when the user taps "Not right?"
+            // on a row that has model-returned candidates. Swap fires
+            // applyAlternative(...) which mutates the row in-place.
+            .sheet(item: Binding<AlternativesSheetPayload?>(
+                get: {
+                    guard let id = alternativesItemID,
+                          let item = identifiedItems.first(where: { $0.id == id })
+                    else { return nil }
+                    return AlternativesSheetPayload(itemID: id, item: item)
+                },
+                set: { newValue in
+                    if newValue == nil { alternativesItemID = nil }
+                }
+            )) { payload in
+                PhotoAlternativesSheet(
+                    primary: payload.item,
+                    onPick: { candidate in
+                        applyAlternative(candidate, to: payload.itemID)
+                    },
+                    onCancel: { alternativesItemID = nil }
+                )
+            }
         }
+    }
+
+    /// Replace the displayed identification for `itemID` with the chosen
+    /// alternative. Macros + portion swap together — picking "pork" doesn't
+    /// keep "chicken" calories. The original best-guess moves into the
+    /// alternatives list so the user can change their mind.
+    private func applyAlternative(
+        _ candidate: PhotoAnalysisResult.FoodCandidate,
+        to itemID: UUID
+    ) {
+        guard let index = identifiedItems.firstIndex(where: { $0.id == itemID }) else {
+            return
+        }
+        let previous = identifiedItems[index]
+        // Build a candidate from the previous primary so the user can swap
+        // back. Keeps the alternatives list non-empty after a pick.
+        let previousAsCandidate = PhotoAnalysisResult.FoodCandidate(
+            id: UUID().uuidString,
+            name: previous.name,
+            estimatedPortion: previous.estimatedPortion,
+            calories: Double(previous.calories),
+            proteinGrams: previous.protein,
+            carbsGrams: previous.carbs,
+            fatGrams: previous.fat,
+            confidence: previous.confidence.scoreApprox
+        )
+        var newAlternatives = previous.alternatives.filter { $0.id != candidate.id }
+        newAlternatives.insert(previousAsCandidate, at: 0)
+        identifiedItems[index] = AnalyzedFoodItem(
+            id: previous.id,
+            name: candidate.name,
+            estimatedPortion: candidate.estimatedPortion,
+            calories: Int(candidate.calories),
+            protein: candidate.proteinGrams,
+            carbs: candidate.carbsGrams,
+            fat: candidate.fatGrams,
+            confidence: ConfidenceLevel(score: candidate.confidence),
+            servingMultiplier: previous.servingMultiplier,
+            alternatives: newAlternatives
+        )
+        alternativesItemID = nil
+        HapticManager.notification(.success)
     }
 
     // MARK: - Analysis Content
@@ -217,6 +286,25 @@ struct PhotoAnalysisView: View {
                     Text(item.wrappedValue.estimatedPortion)
                         .font(.tempoCaption1)
                         .foregroundStyle(Color.tempoTextTertiary)
+
+                    // Alternatives affordance — visible only when the model
+                    // returned ranked candidates for this item ("could be
+                    // chicken, or pork?"). Tap opens a sheet to swap.
+                    if !item.wrappedValue.alternatives.isEmpty {
+                        Button {
+                            alternativesItemID = item.wrappedValue.id
+                            HapticManager.lightImpact()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "questionmark.circle")
+                                    .font(.tempoCaption2)
+                                Text("Not right? \(item.wrappedValue.alternatives.count) other guesses")
+                                    .font(.tempoCaption2)
+                            }
+                            .foregroundStyle(Color.tempoSignal)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
 
                 Spacer()
@@ -357,7 +445,8 @@ struct PhotoAnalysisView: View {
                         carbs: item.carbsGrams,
                         fat: item.fatGrams,
                         confidence: ConfidenceLevel(score: item.confidence),
-                        servingMultiplier: 1.0
+                        servingMultiplier: 1.0,
+                        alternatives: item.alternatives
                     )
                 }
 
@@ -403,6 +492,11 @@ struct AnalyzedFoodItem: Identifiable {
     var fat: Double
     var confidence: ConfidenceLevel
     var servingMultiplier: Double
+    /// Top alternative identifications from the vision model, ranked by
+    /// descending confidence. Empty when the food is unambiguous. Tapping
+    /// an alternative in the picker sheet swaps this row's name +
+    /// estimatedPortion + macros to that alternative's values.
+    var alternatives: [PhotoAnalysisResult.FoodCandidate] = []
 }
 
 extension ConfidenceLevel {
@@ -413,6 +507,19 @@ extension ConfidenceLevel {
             self = .medium
         } else {
             self = .low
+        }
+    }
+
+    /// Round-trip back to a numeric score when we need to push a
+    /// ConfidenceLevel back into a candidate DTO (e.g. when the user
+    /// swaps to an alternative and the previous primary becomes a
+    /// candidate they could swap back to). Uses the midpoint of each
+    /// bucket so the value re-decodes to the same level.
+    var scoreApprox: Double {
+        switch self {
+        case .high: 0.9
+        case .medium: 0.65
+        case .low: 0.35
         }
     }
 }
@@ -464,6 +571,202 @@ struct CameraPickerView: UIViewControllerRepresentable {
 
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
             parent.onCancel()
+        }
+    }
+}
+
+// MARK: - AlternativesSheetPayload
+
+/// Identifiable wrapper so SwiftUI's .sheet(item:) can present the
+/// alternatives picker from a non-Identifiable (UUID, AnalyzedFoodItem)
+/// pair. New UUID per presentation so reopening the sheet for the same
+/// item still fires the rebuild.
+private struct AlternativesSheetPayload: Identifiable {
+    let id = UUID()
+    let itemID: UUID
+    let item: AnalyzedFoodItem
+}
+
+// MARK: - PhotoAlternativesSheet
+
+/// Modal picker showing the vision model's ranked alternative
+/// identifications for one row of the photo analysis. The primary (the
+/// model's best guess) appears at the top with a "Current" badge;
+/// alternatives are listed below in descending-confidence order with
+/// per-candidate macros so the user can see the full implication of
+/// each swap. Tapping a row fires onPick with that candidate.
+private struct PhotoAlternativesSheet: View {
+    let primary: AnalyzedFoodItem
+    let onPick: (PhotoAnalysisResult.FoodCandidate) -> Void
+    let onCancel: () -> Void
+
+    @Environment(\.dismiss)
+    private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+                    explainer
+                    currentRow
+                    candidatesList
+                }
+                .padding(.horizontal, TempoSpacing.screenEdge)
+                .padding(.vertical, TempoSpacing.lg)
+            }
+            .background(Color.tempoBgPrimary)
+            .navigationTitle("Other Guesses")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        onCancel()
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private var explainer: some View {
+        Text("Pick the closest match. The macros below assume the model is right about portion size; tap a row to swap.")
+            .font(.tempoCaption1)
+            .foregroundStyle(Color.tempoTextSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var currentRow: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+            HStack {
+                Text("CURRENT")
+                    .font(.tempoModuleTag)
+                    .tracking(TempoTracking.drillLabel)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                Spacer()
+            }
+            candidateCard(
+                name: primary.name,
+                portion: primary.estimatedPortion,
+                calories: primary.calories,
+                protein: primary.protein,
+                carbs: primary.carbs,
+                fat: primary.fat,
+                confidence: primary.confidence.scoreApprox,
+                isCurrent: true,
+                action: nil
+            )
+        }
+    }
+
+    private var candidatesList: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+            HStack {
+                Text("ALTERNATIVES")
+                    .font(.tempoModuleTag)
+                    .tracking(TempoTracking.drillLabel)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                Spacer()
+            }
+            VStack(spacing: TempoSpacing.xs) {
+                ForEach(primary.alternatives) { alt in
+                    candidateCard(
+                        name: alt.name,
+                        portion: alt.estimatedPortion,
+                        calories: Int(alt.calories),
+                        protein: alt.proteinGrams,
+                        carbs: alt.carbsGrams,
+                        fat: alt.fatGrams,
+                        confidence: alt.confidence,
+                        isCurrent: false,
+                        action: {
+                            onPick(alt)
+                            dismiss()
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func candidateCard(
+        name: String,
+        portion: String,
+        calories: Int,
+        protein: Double,
+        carbs: Double,
+        fat: Double,
+        confidence: Double,
+        isCurrent: Bool,
+        action: (() -> Void)?
+    ) -> some View {
+        let content = VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(name)
+                        .font(.tempoBody)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                    Text(portion)
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                }
+                Spacer()
+                Text(confidenceBadgeLabel(confidence))
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(confidenceBadgeColor(confidence).opacity(0.15))
+                    .foregroundStyle(confidenceBadgeColor(confidence))
+                    .clipShape(Capsule())
+            }
+            HStack(spacing: TempoSpacing.lg) {
+                Text("\(calories) kcal")
+                    .font(.tempoCaption2.monospacedDigit())
+                    .foregroundStyle(Color.tempoTextSecondary)
+                Text("P \(Int(protein))g")
+                    .font(.tempoCaption2.monospacedDigit())
+                    .foregroundStyle(Color.tempoMacroProtein)
+                Text("C \(Int(carbs))g")
+                    .font(.tempoCaption2.monospacedDigit())
+                    .foregroundStyle(Color.tempoMacroCarbs)
+                Text("F \(Int(fat))g")
+                    .font(.tempoCaption2.monospacedDigit())
+                    .foregroundStyle(Color.tempoMacroFat)
+            }
+        }
+        .padding(.horizontal, TempoSpacing.md)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(isCurrent ? Color.tempoBgSecondary : Color.tempoSurfaceCard)
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+        .overlay {
+            if isCurrent {
+                RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous)
+                    .stroke(Color.tempoSignal, lineWidth: 1)
+            }
+        }
+
+        if let action {
+            Button(action: action) { content }
+                .buttonStyle(.plain)
+        } else {
+            content
+        }
+    }
+
+    private func confidenceBadgeLabel(_ score: Double) -> String {
+        switch score {
+        case 0.8...: "HIGH"
+        case 0.5 ..< 0.8: "MED"
+        default: "LOW"
+        }
+    }
+
+    private func confidenceBadgeColor(_ score: Double) -> Color {
+        switch score {
+        case 0.8...: Color.tempoSuccess
+        case 0.5 ..< 0.8: Color.tempoWarning
+        default: Color.tempoError
         }
     }
 }
