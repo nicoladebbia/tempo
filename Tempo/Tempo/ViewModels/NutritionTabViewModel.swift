@@ -281,11 +281,17 @@ final class NutritionTabViewModel {
         let todayStart = calendar.startOfDay(for: Date())
         let tomorrowStart = calendar.date(byAdding: .day, value: 1, to: todayStart)!
 
-        // Fetch today's PlannedMeals
+        // Fetch today's PlannedMeals. The `meal.mealPlan?.isActive == true`
+        // clause is defense-in-depth: MealPlanGeneratorService now deletes
+        // (not just deactivates) prior plans so cascade wipes their meals,
+        // but if any orphan survives a future code path the filter prevents
+        // ghost duplicates from polluting the Today view.
         do {
             let mealDescriptor = FetchDescriptor<PlannedMeal>(
                 predicate: #Predicate<PlannedMeal> { meal in
-                    meal.dayDate >= todayStart && meal.dayDate < tomorrowStart
+                    meal.dayDate >= todayStart
+                        && meal.dayDate < tomorrowStart
+                        && meal.mealPlan?.isActive == true
                 },
                 sortBy: [SortDescriptor(\.mealNumber)]
             )

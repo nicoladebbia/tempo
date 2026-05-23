@@ -756,13 +756,22 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             dayTypeAssignments[weekdayNumber] = day.dayType
         }
 
-        // Deactivate any existing active plans
+        // Delete any existing active plans. Cascade-delete on
+        // WeeklyMealPlan.meals (deleteRule: .cascade) wipes their PlannedMeals
+        // too — without this, the Today query (filtered only by dayDate)
+        // surfaced today's PlannedMeals from every prior regen, showing
+        // each meal slot duplicated 2× / 3× / Nth-times.
+        //
+        // Previous behavior was `existing.isActive = false`, which kept the
+        // stale rows forever. Delete is correct: an inactive plan is never
+        // re-read by any code path, and history rows live on MealLog/
+        // MealFeedback which are NOT cascade-deleted from WeeklyMealPlan.
         let existingDescriptor = FetchDescriptor<WeeklyMealPlan>(
             predicate: #Predicate<WeeklyMealPlan> { $0.isActive }
         )
         if let existingPlans = try? modelContext.fetch(existingDescriptor) {
             for existing in existingPlans {
-                existing.isActive = false
+                modelContext.delete(existing)
             }
         }
 
