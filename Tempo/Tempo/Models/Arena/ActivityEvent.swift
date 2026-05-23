@@ -79,11 +79,12 @@ final class ActivityEvent {
 
     // MARK: - Factory Methods
 
-    static func workoutCompleted(name: String, duration: Int, volume: Double) -> ActivityEvent {
-        ActivityEvent(
+    static func workoutCompleted(name: String, duration: Int, volume: Double, unit: WeightUnit = .kg) -> ActivityEvent {
+        let displayVolume = WeightUnit.kg.convert(volume, to: unit)
+        return ActivityEvent(
             eventType: .workoutCompleted,
             title: "Completed \(name)",
-            subtitle: "\(duration) min, \(String(format: "%.0f", volume)) kg volume",
+            subtitle: "\(duration) min, \(String(format: "%.0f", displayVolume)) \(unit.abbreviation) volume",
             xpAwarded: 50,
             iconName: "dumbbell.fill"
         )
