@@ -157,10 +157,25 @@ final class NutritionTabViewModel {
     }
 
     var todayCalorieTarget: Int {
+        // PRIMARY: when an active WeeklyMealPlan exists, today's target IS
+        // the sum of its planned meals for today. This guarantees the Today
+        // number, the Coach number, and the Plan number all agree — they
+        // were diverging because Today/Coach used a local Mifflin-St Jeor
+        // calc while Plan used TDEECalculator (with whoopTDEE + body-fat
+        // refinements). Same source of truth eliminates the mismatch the
+        // user saw on screen (2,687 vs 3,536 vs 2,687).
+        if !todayMeals.isEmpty {
+            let summed = todayMeals.reduce(into: 0.0) { $0 += $1.totalCalories }
+            return Int(summed)
+        }
+
+        // FALLBACK: no plan yet — return a Mifflin-St Jeor estimate from
+        // the dietary profile so the Today screen still has a number on
+        // first launch. Once the plan generates, the PRIMARY branch above
+        // takes over and stays consistent with the Plan tab.
         guard let profile = dietaryProfile else {
             return 2400
         }
-        // Base estimate from Mifflin-St Jeor + activity
         let bmr: Double = if profile.biologicalSex == .male {
             10 * profile.currentWeightKg + 6.25 * profile.heightCm - 5 * Double(profile.age) + 5
         } else {
@@ -183,6 +198,13 @@ final class NutritionTabViewModel {
     }
 
     var todayProteinTarget: Int {
+        // Same source-of-truth pattern as todayCalorieTarget: when an
+        // active plan exists, sum the day's PlannedMeal proteinG so the
+        // Today number agrees with what the Plan tab said it should be.
+        if !todayMeals.isEmpty {
+            let summed = todayMeals.reduce(into: 0.0) { $0 += $1.totalProtein }
+            return Int(summed)
+        }
         guard let profile = dietaryProfile else {
             return 180
         }
@@ -197,8 +219,12 @@ final class NutritionTabViewModel {
     }
 
     var todayCarbsTarget: Int {
-        // ~45% of calories from carbs
-        Int(Double(todayCalorieTarget) * 0.45 / 4.0)
+        if !todayMeals.isEmpty {
+            let summed = todayMeals.reduce(into: 0.0) { $0 += $1.totalCarbs }
+            return Int(summed)
+        }
+        // Fallback when no plan: ~45% of fallback-calorie target from carbs
+        return Int(Double(todayCalorieTarget) * 0.45 / 4.0)
     }
 
     var todayFatConsumed: Int {
@@ -208,8 +234,12 @@ final class NutritionTabViewModel {
     }
 
     var todayFatTarget: Int {
-        // ~25% of calories from fat
-        Int(Double(todayCalorieTarget) * 0.25 / 9.0)
+        if !todayMeals.isEmpty {
+            let summed = todayMeals.reduce(into: 0.0) { $0 += $1.totalFat }
+            return Int(summed)
+        }
+        // Fallback when no plan: ~25% of fallback-calorie target from fat
+        return Int(Double(todayCalorieTarget) * 0.25 / 9.0)
     }
 
     // MARK: - Recovery-Adjusted Targets (Phase 4)
