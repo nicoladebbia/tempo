@@ -181,7 +181,19 @@ struct WeeklyMealReviewView: View {
         let calendar = Calendar.current
         let buckets = Dictionary(grouping: meals) { calendar.startOfDay(for: $0.dayDate) }
         return buckets
-            .map { DayGroup(dayStart: $0.key, meals: $0.value.sorted { $0.mealNumber < $1.mealNumber }) }
+            .map { group in
+                // Sort within day by scheduledTime ("HH:mm" → minutes-of-day)
+                // so a 16:00 snack appears before a 17:30 dinner regardless
+                // of the AI's mealNumber assignment. Matches the Today view
+                // sort introduced in the previous commit.
+                let sortedMeals = group.value.sorted { lhs, rhs in
+                    let lhsMin = NutritionTabViewModel.minutesOfDay(from: lhs.scheduledTime) ?? Int.max
+                    let rhsMin = NutritionTabViewModel.minutesOfDay(from: rhs.scheduledTime) ?? Int.max
+                    if lhsMin != rhsMin { return lhsMin < rhsMin }
+                    return lhs.mealNumber < rhs.mealNumber
+                }
+                return DayGroup(dayStart: group.key, meals: sortedMeals)
+            }
             .sorted { $0.dayStart > $1.dayStart }
     }
 
@@ -193,13 +205,23 @@ struct WeeklyMealReviewView: View {
         else {
             return
         }
+        // Predicate keeps the date window (last 7 days INCLUDING today).
+        // We further filter in Swift to keep only meals that are actually
+        // reviewable: .eaten or .skipped. `.planned` meals — today's
+        // upcoming slots and any past-but-untouched ones — get hidden
+        // because there's nothing to review yet. Older-than-7-days meals
+        // stay in the DB but don't appear here; a future History view
+        // will surface them read-only.
         let descriptor = FetchDescriptor<PlannedMeal>(
             predicate: #Predicate<PlannedMeal> { meal in
                 meal.dayDate >= weekAgo && meal.dayDate < tomorrowStart
             },
             sortBy: [SortDescriptor(\.dayDate, order: .reverse), SortDescriptor(\.mealNumber)]
         )
-        meals = (try? modelContext.fetch(descriptor)) ?? []
+        let allMeals = (try? modelContext.fetch(descriptor)) ?? []
+        meals = allMeals.filter { meal in
+            meal.status == .eaten || meal.status == .skipped
+        }
 
         // Predicate body must be a single expression; fetch-all + filter
         // is canonical here (last-7-days feedback volume is bounded).
