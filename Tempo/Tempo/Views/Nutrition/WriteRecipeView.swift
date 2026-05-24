@@ -100,28 +100,33 @@ struct WriteRecipeView: View {
         }
     }
 
+    /// Single-ingredient row. Extracted from ingredientsSection so the
+    /// section's ForEach stays a one-line builder; combined VStack +
+    /// HStack + macroCoverageBadge inline is exactly the shape that pushes
+    /// SwiftUI's type-checker into timeout territory.
+    @ViewBuilder
+    private func ingredientRowView(row: Binding<IngredientRow>) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            TextField("Ingredient (e.g. chicken breast)", text: row.name)
+                .textInputAutocapitalization(.never)
+            HStack {
+                TextField("Quantity (e.g. 200g)", text: row.displayQuantity)
+                TextField("Grams", text: row.quantityGramsText)
+                    .keyboardType(.decimalPad)
+                    .frame(width: 70)
+            }
+            .font(.tempoCaption1)
+            // Live macro-coverage badge tells the user up-front whether
+            // this row will contribute to recipe totals.
+            macroCoverageBadge(for: row.wrappedValue)
+        }
+        .padding(.vertical, 4)
+    }
+
     private var ingredientsSection: some View {
         Section {
             ForEach($ingredientRows) { $row in
-                VStack(alignment: .leading, spacing: 6) {
-                    TextField("Ingredient (e.g. chicken breast)", text: $row.name)
-                        .textInputAutocapitalization(.never)
-                    HStack {
-                        TextField("Quantity (e.g. 200g)", text: $row.displayQuantity)
-                        TextField("Grams", text: $row.quantityGramsText)
-                            .keyboardType(.decimalPad)
-                            .frame(width: 70)
-                    }
-                    .font(.tempoCaption1)
-                    // Live macro-coverage badge. Tells the user up-front
-                    // whether this row will contribute to recipe totals.
-                    // Previously you'd save a recipe with "homemade
-                    // soffritto" (not in DB, no grams) and discover later
-                    // that totals were nonsense — this surfaces the gap
-                    // while you can still fix it.
-                    macroCoverageBadge(for: row)
-                }
-                .padding(.vertical, 4)
+                ingredientRowView(row: $row)
             }
             .onDelete { offsets in
                 ingredientRows.remove(atOffsets: offsets)
@@ -179,20 +184,33 @@ struct WriteRecipeView: View {
         }
     }
 
+    /// Single-step row. Extracted so the index lookup can happen outside
+    /// the body builder — keeps the parent ForEach's type-check cheap.
+    @ViewBuilder
+    private func stepRowView(row: Binding<StepRow>) -> some View {
+        let idx = stepRows.firstIndex(where: { $0.id == row.wrappedValue.id }) ?? 0
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Step \(idx + 1)")
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoTextSecondary)
+            TextField("Instruction", text: row.instruction, axis: .vertical)
+                .lineLimit(2 ... 5)
+            TextField("Minutes (optional)", text: row.durationText)
+                .keyboardType(.numberPad)
+                .font(.tempoCaption1)
+        }
+        .padding(.vertical, 4)
+    }
+
     private var stepsSection: some View {
         Section("Steps") {
-            ForEach(Array($stepRows.enumerated()), id: \.element.id) { index, $row in
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Step \(index + 1)")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                    TextField("Instruction", text: $row.instruction, axis: .vertical)
-                        .lineLimit(2 ... 5)
-                    TextField("Minutes (optional)", text: $row.durationText)
-                        .keyboardType(.numberPad)
-                        .font(.tempoCaption1)
-                }
-                .padding(.vertical, 4)
+            // Iterate by id and look up the row's index separately rather
+            // than combining $Binding + enumerated() in one expression —
+            // SwiftUI's type-checker times out on the combined form, and
+            // splitting it keeps the view-body expressions trivially
+            // type-checkable.
+            ForEach($stepRows) { $row in
+                stepRowView(row: $row)
             }
             .onDelete { offsets in
                 stepRows.remove(atOffsets: offsets)
