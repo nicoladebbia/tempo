@@ -25,11 +25,25 @@ actor APIClient {
 
     init(
         baseURL: URL = AppConstants.apiBaseURL,
-        session: URLSession = .shared,
+        session: URLSession? = nil,
         authInterceptor: AuthInterceptor? = nil
     ) {
         self.baseURL = baseURL
-        self.session = session
+        // Default session has a 60s per-request timeout. AI proxy calls
+        // (Haiku via Railway backend) can legitimately exceed that when
+        // Railway is cold-starting from sleep — we saw two consecutive
+        // /v1/nutrition/ai/proxy/text requests time out (-1001) right
+        // after a token refresh that put the backend on its first call
+        // for the session. 120s gives the cold-start headroom without
+        // hiding actual hangs from the user.
+        if let session {
+            self.session = session
+        } else {
+            let config = URLSessionConfiguration.default
+            config.timeoutIntervalForRequest = 120
+            config.timeoutIntervalForResource = 180
+            self.session = URLSession(configuration: config)
+        }
         self.authInterceptor = authInterceptor
 
         decoder = JSONDecoder()

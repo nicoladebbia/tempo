@@ -27,6 +27,14 @@ struct NutritionTabView: View {
     @State
     private var showMealLogging = false
 
+    /// Surfaces a plan-generation failure as a toast at the Nutrition root
+    /// regardless of which sub-tab the user is on. Previously the only
+    /// error indicator lived on the Plan view, so a failed auto-regen
+    /// (triggered by a Training settings change) would happen silently if
+    /// the user was on Today / Coach / Log / Pantry at the time.
+    @State
+    private var planErrorToast: ToastData?
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -100,6 +108,18 @@ struct NutritionTabView: View {
                     notifications: services.notifications
                 )
             }
+            // Surface plan-generation failures (timeout / 5xx / decode) as
+            // a toast at the Nutrition root. Previously these only showed
+            // on the Plan sub-tab, so a silent failure on auto-regen would
+            // leave the user wondering why nothing happened.
+            .onChange(of: viewModel.planGenerationError) { _, newError in
+                guard let newError, !newError.isEmpty else { return }
+                planErrorToast = ToastData(
+                    message: "Couldn't generate plan: \(newError). Tap Generate on the Plan tab to retry.",
+                    style: .error
+                )
+            }
+            .tempoToast($planErrorToast)
             .sheet(isPresented: $showDietaryProfileSetup) {
                 DietaryProfileSetupView(onSaveAndGenerate: { _ in
                     // Switch to Plan tab and auto-generate
