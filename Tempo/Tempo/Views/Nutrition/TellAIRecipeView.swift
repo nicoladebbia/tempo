@@ -25,6 +25,11 @@ struct TellAIRecipeView: View {
     @State private var isParsing: Bool = false
     @State private var errorText: String?
 
+    /// Parsed recipe awaiting user confirmation. Non-nil → preview sheet
+    /// is presented. The user must accept (or edit) before persistence,
+    /// matching the ParsedFoodReviewSheet pattern in NL meal logging.
+    @State private var pendingRecipe: Recipe?
+
     @FocusState
     private var textFocused: Bool
 
@@ -83,18 +88,36 @@ struct TellAIRecipeView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
-                        Task { await parseAndSave() }
+                        Task { await parseAndPreview() }
                     } label: {
                         if isParsing {
                             ProgressView()
                         } else {
-                            Text("Parse & Save")
+                            Text("Parse")
                         }
                     }
                     .disabled(text.trimmingCharacters(in: .whitespaces).isEmpty || isParsing)
                 }
             }
             .onAppear { textFocused = true }
+            // After parsing, present a preview so the user can audit what
+            // Haiku produced before it lands in the DB. Save fires onSave
+            // upstream then dismisses both sheets; Discard just clears the
+            // pending recipe (the text the user typed is preserved so they
+            // can retry).
+            .sheet(item: $pendingRecipe) { recipe in
+                RecipePreviewSheet(
+                    recipe: recipe,
+                    onConfirm: { confirmed in
+                        onSave(confirmed)
+                        pendingRecipe = nil
+                        dismiss()
+                    },
+                    onCancel: {
+                        pendingRecipe = nil
+                    }
+                )
+            }
         }
     }
 
@@ -107,7 +130,7 @@ struct TellAIRecipeView: View {
     }
 
     @MainActor
-    private func parseAndSave() async {
+    private func parseAndPreview() async {
         guard !isParsing else { return }
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
@@ -120,12 +143,145 @@ struct TellAIRecipeView: View {
         service = svc
         do {
             let recipe = try await svc.parse(trimmed)
-            onSave(recipe)
-            dismiss()
+            // Guard against degenerate parses — Haiku can return empty
+            // name / no ingredients on garbled input. Without this we'd
+            // happily persist garbage and surface a useless row in the
+            // Recipes list.
+            let trimmedName = recipe.name.trimmingCharacters(in: .whitespaces)
+            let ingredientCount = recipe.ingredients?.count ?? 0
+            guard !trimmedName.isEmpty, ingredientCount > 0 else {
+                errorText = "AI couldn't pull a usable recipe from that. Try being more specific about ingredients and steps."
+                HapticManager.notification(.error)
+                return
+            }
+            pendingRecipe = recipe
         } catch {
             errorText = (error as? RecipeParseError)?.errorDescription
                 ?? error.localizedDescription
             HapticManager.notification(.error)
+        }
+    }
+}
+
+// MARK: - RecipePreviewSheet
+
+/// User-facing confirmation between Haiku parsing and DB persistence.
+/// Shows the parsed recipe (name, servings, prep/cook time, ingredients,
+/// steps) so the user can audit what the AI produced before it's saved.
+/// Tap Save → onConfirm fires with the recipe. Cancel discards.
+private struct RecipePreviewSheet: View {
+    let recipe: Recipe
+    let onConfirm: (Recipe) -> Void
+    let onCancel: () -> Void
+
+    @Environment(\.dismiss)
+    private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+                    header
+                    ingredientsBlock
+                    stepsBlock
+                }
+                .padding(.horizontal, TempoSpacing.screenEdge)
+                .padding(.vertical, TempoSpacing.lg)
+            }
+            .background(Color.tempoBgPrimary)
+            .navigationTitle("Preview")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Discard") {
+                        onCancel()
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        onConfirm(recipe)
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+            Text(recipe.name)
+                .font(.tempoHeadline)
+                .foregroundStyle(Color.tempoTextPrimary)
+            HStack(spacing: TempoSpacing.md) {
+                Label("\(recipe.servings) servings", systemImage: "fork.knife")
+                if let prep = recipe.prepMinutes, prep > 0 {
+                    Label("\(prep) min prep", systemImage: "timer")
+                }
+                if let cook = recipe.cookMinutes, cook > 0 {
+                    Label("\(cook) min cook", systemImage: "flame")
+                }
+            }
+            .font(.tempoCaption1)
+            .foregroundStyle(Color.tempoTextSecondary)
+        }
+    }
+
+    private var ingredientsBlock: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            Text("INGREDIENTS")
+                .font(.tempoModuleTag)
+                .tracking(TempoTracking.drillLabel)
+                .foregroundStyle(Color.tempoTextSecondary)
+            VStack(spacing: TempoSpacing.xs) {
+                ForEach(recipe.orderedIngredients) { ing in
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(ing.displayName)
+                            .font(.tempoBody)
+                            .foregroundStyle(Color.tempoTextPrimary)
+                        Spacer()
+                        Text(ing.displayQuantity ?? "\(Int(ing.quantityGrams))g")
+                            .font(.tempoCaption1.monospacedDigit())
+                            .foregroundStyle(Color.tempoTextSecondary)
+                    }
+                    .padding(.horizontal, TempoSpacing.md)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.tempoBgSecondary)
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.sm, style: .continuous))
+                }
+            }
+        }
+    }
+
+    private var stepsBlock: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            Text("STEPS")
+                .font(.tempoModuleTag)
+                .tracking(TempoTracking.drillLabel)
+                .foregroundStyle(Color.tempoTextSecondary)
+            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+                ForEach(Array(recipe.orderedSteps.enumerated()), id: \.element.id) { index, step in
+                    HStack(alignment: .top, spacing: TempoSpacing.sm) {
+                        Text("\(index + 1)")
+                            .font(.tempoCaption1.monospacedDigit().weight(.semibold))
+                            .foregroundStyle(Color.tempoSignal)
+                            .frame(width: 20, alignment: .leading)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(step.instruction)
+                                .font(.tempoBody)
+                                .foregroundStyle(Color.tempoTextPrimary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            if let min = step.durationMinutes, min > 0 {
+                                Text("~\(min) min")
+                                    .font(.tempoCaption2)
+                                    .foregroundStyle(Color.tempoTextTertiary)
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

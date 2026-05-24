@@ -58,6 +58,18 @@ struct RecipeSuggestionsView: View {
         .background(Color.tempoBgPrimary)
         .navigationTitle("Recipes")
         .toolbar {
+            // Refresh stays as a one-tap action (it's the most common one
+            // — pantry changes daily, the suggestions list updates often).
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    viewModel.refreshRecipeSuggestions()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+            }
+            // Add lives under a separate "+" so the two creation paths
+            // (typed form vs AI dictation) share a single chooser without
+            // burying refresh under it.
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button {
@@ -69,12 +81,6 @@ struct RecipeSuggestionsView: View {
                         showTellAIRecipe = true
                     } label: {
                         Label("Tell AI", systemImage: "wand.and.stars")
-                    }
-                    Divider()
-                    Button {
-                        viewModel.refreshRecipeSuggestions()
-                    } label: {
-                        Label("Refresh", systemImage: "arrow.clockwise")
                     }
                 } label: {
                     Image(systemName: "plus")
