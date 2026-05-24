@@ -201,6 +201,31 @@ struct PlannedMealCardView: View {
                     .padding(.vertical, 2)
                 }
             }
+
+            // Visible Mark Eaten action. Previously the only entry points
+            // for onMarkEaten were a hidden trailing swipe and a long-press
+            // contextMenu — neither discoverable. Surface a pill button at
+            // the bottom of the expanded row when the meal is still planned.
+            if meal.status == .planned, onMarkEaten != nil {
+                Button {
+                    HapticManager.notification(.success)
+                    onMarkEaten?()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                        Text("Mark Eaten")
+                    }
+                    .font(.tempoCaption1.weight(.semibold))
+                    .foregroundStyle(Color.tempoSuccess)
+                    .padding(.horizontal, TempoSpacing.md)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.tempoSuccess.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .padding(.top, TempoSpacing.sm)
+            }
         }
         .padding(.vertical, TempoSpacing.sm)
     }

@@ -740,19 +740,35 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
 
-        // Plans start today and run for the next 7 days so the dashboard's
-        // "today's meal" query immediately resolves. Calendar-week alignment
-        // turned out to dark the Fuel quadrant for any plan generated mid-week.
-        let startDate = today
+        // Plan-start is the Monday of THIS week — matches the prompt's
+        // contract that day.dayIndex 0 = Monday, 6 = Sunday. Previously
+        // startDate was today and dayIndex was treated as "days from
+        // today" — that worked for "today's meal" queries but broke the
+        // user's training schedule alignment. With football=Wed+Sun in
+        // settings, Haiku correctly emitted dayIndex 2 = soccer; the
+        // offset-from-today math then shifted Wed-soccer to (today+2),
+        // which was Sat-soccer when the plan was generated on Thursday.
+        //
+        // Anchoring on the actual Monday makes weekday math trivial:
+        // weekdayNumber = dayIndex + 1 (Mon=1, …, Sun=7). The user's
+        // Today/Dashboard "today's meal" query (filter by dayDate) still
+        // resolves because today's PlannedMeal will be one of the seven
+        // rows generated.
+        //
+        // ISO 8601 week (Calendar.current may not be ISO; .iso8601 returns
+        // Monday-anchored). Subtract days to get Monday-of-this-week even
+        // when the device locale starts the week on Sunday.
+        let weekdayOfToday = calendar.component(.weekday, from: today) // 1=Sun, 2=Mon, ..., 7=Sat
+        let mondayOffset = (weekdayOfToday + 5) % 7 // days since Monday: Mon=0, Tue=1, ..., Sun=6
+        let startDate = calendar.date(byAdding: .day, value: -mondayOffset, to: today) ?? today
         let endDate = calendar.date(byAdding: .day, value: 6, to: startDate)!
 
-        // Build day type assignments keyed by the real weekday of each plan day
-        // so RecoverIQ / training-day logic still sees Mon/Tue/Wed mapping.
+        // Build day type assignments keyed by absolute weekday (Mon=1..Sun=7)
+        // so RecoverIQ / training-day logic gets a stable mapping.
         var dayTypeAssignments: [Int: String] = [:]
-        let todayWeekday = calendar.component(.weekday, from: today)
         for day in plan.days {
-            // dayIndex 0 = today, walk forward; wrap Sunday(7)→Sunday(1) etc.
-            let weekdayNumber = ((todayWeekday - 1 + day.dayIndex) % 7) + 1
+            // dayIndex 0 = Monday per the prompt contract. Map directly.
+            let weekdayNumber = day.dayIndex + 1
             dayTypeAssignments[weekdayNumber] = day.dayType
         }
 

@@ -348,11 +348,16 @@ struct NutritionLogView: View {
     /// user's local time-of-day. Breakfast, lunch, and dinner windows
     /// match the prompt anchor times used in MealPlanPrompts.
     private static func defaultMealTypeForNow(date: Date = Date()) -> MealType {
+        // Tighter breakfast window (was < 11) — at 10:30 most people are
+        // logging lunch, not breakfast. Late-evening (after 22) defaults
+        // to snack because the user is more likely doing a late bite than
+        // a full dinner. The user can always change it in the review
+        // sheet's segmented picker.
         let hour = Calendar.current.component(.hour, from: date)
         switch hour {
-        case ..<11: return .breakfast
-        case 11 ..< 15: return .lunch
-        case 17 ..< 22: return .dinner
+        case 5 ..< 10: return .breakfast
+        case 10 ..< 16: return .lunch
+        case 18 ..< 22: return .dinner
         default: return .snack
         }
     }
@@ -367,9 +372,6 @@ struct NutritionLogView: View {
     @MainActor
     private func persistParsedItems(_ items: [ParsedFoodItem], type: MealType) {
         // Map ParsedFoodItem (NL service per-item shape) onto MealFoodItem.
-        // We go through MealFoodItemInput's convenience init so the field-
-        // name mapping (proteinG → proteinPerServing etc.) lives in one
-        // place — the model itself — rather than being duplicated here.
         let inputs = items.map { item in
             MealFoodItemInput(
                 foodId: item.id,
@@ -387,8 +389,12 @@ struct NutritionLogView: View {
         }
         let foodItems = inputs.map { MealFoodItem(from: $0) }
 
-        // 1) MealLog — the canonical "what the user actually ate" history.
-        //    Drives Dashboard quadrant and HealthKit sync (future).
+        let totalCals = items.reduce(into: 0.0) { $0 += $1.calories }
+        let totalProt = items.reduce(into: 0.0) { $0 += $1.proteinG }
+        let totalCarbs = items.reduce(into: 0.0) { $0 += $1.carbsG }
+        let totalFat = items.reduce(into: 0.0) { $0 += $1.fatG }
+
+        // 1) MealLog — canonical history record. Drives Dashboard.
         let mealLog = MealLog(
             type: type,
             dayDate: Date(),
@@ -398,42 +404,61 @@ struct NutritionLogView: View {
         )
         modelContext.insert(mealLog)
 
-        // 2) PlannedMeal (.eaten) — the row Today's UI renders. Mirrors
-        //    logFromPreset's pattern. Linked to the active WeeklyMealPlan
-        //    when one exists so the active-plan filter on todayMeals lets
-        //    this row through. Linked back to the MealLog via
-        //    linkedMealLogID so we can de-dup later if needed.
-        let totalCals = items.reduce(into: 0.0) { $0 += $1.calories }
-        let totalProt = items.reduce(into: 0.0) { $0 += $1.proteinG }
-        let totalCarbs = items.reduce(into: 0.0) { $0 += $1.carbsG }
-        let totalFat = items.reduce(into: 0.0) { $0 += $1.fatG }
-        let timeFormatter = DateFormatter()
-        timeFormatter.dateFormat = "HH:mm"
-        let plannedMeal = PlannedMeal(
-            dayDate: Date(),
-            mealNumber: viewModel.todayMeals.count + 1,
-            mealName: type.displayName,
-            scheduledTime: timeFormatter.string(from: Date()),
-            foods: items.map { item in
-                PlannedFood(
-                    name: item.name,
-                    quantityGrams: item.quantityGrams,
-                    calories: item.calories,
-                    proteinG: item.proteinG,
-                    carbsG: item.carbsG,
-                    fatG: item.fatG
-                )
-            },
-            totalCalories: totalCals,
-            totalProtein: totalProt,
-            totalCarbs: totalCarbs,
-            totalFat: totalFat,
-            status: .eaten,
-            linkedMealLogID: mealLog.id,
-            actualEatenAt: Date(),
-            mealPlan: viewModel.weeklyPlan
-        )
-        modelContext.insert(plannedMeal)
+        // 2) PlannedMeal — the row Today renders. CRITICAL: if today already
+        //    has a planned meal of this MealType (e.g. plan says lunch =
+        //    chicken+rice but the user ate pasta), we REPLACE the planned
+        //    row in place rather than inserting a duplicate. The user's
+        //    mental model is "I'm logging today's lunch", not "I'm adding
+        //    a 5th meal". mealNumber = MealType.sortOrder + 1 matches the
+        //    AI generator's prompt convention (1=Breakfast, 2=Lunch, …).
+        let plannedFoods = items.map { item in
+            PlannedFood(
+                name: item.name,
+                quantityGrams: item.quantityGrams,
+                calories: item.calories,
+                proteinG: item.proteinG,
+                carbsG: item.carbsG,
+                fatG: item.fatG
+            )
+        }
+        let targetMealNumber = type.sortOrder + 1
+
+        if let existing = viewModel.todayMeals.first(where: { $0.mealNumber == targetMealNumber }) {
+            // Replace-in-place. Keep scheduledTime/mealName from the plan
+            // so the row stays in its original chronological slot; flip
+            // status to .eaten and overwrite foods + totals + the
+            // actualEatenAt/linkedMealLogID provenance fields.
+            existing.foodsJSON = try? JSONEncoder().encode(plannedFoods)
+            existing.totalCalories = totalCals
+            existing.totalProtein = totalProt
+            existing.totalCarbs = totalCarbs
+            existing.totalFat = totalFat
+            existing.statusRaw = MealStatus.eaten.rawValue
+            existing.linkedMealLogID = mealLog.id
+            existing.actualEatenAt = Date()
+        } else {
+            // No planned slot for this MealType (e.g. user is logging a
+            // 4th meal on a 3-meal-plan day). Insert a new PlannedMeal
+            // mirroring logFromPreset's pattern.
+            let timeFormatter = DateFormatter()
+            timeFormatter.dateFormat = "HH:mm"
+            let plannedMeal = PlannedMeal(
+                dayDate: Date(),
+                mealNumber: targetMealNumber,
+                mealName: type.displayName,
+                scheduledTime: timeFormatter.string(from: Date()),
+                foods: plannedFoods,
+                totalCalories: totalCals,
+                totalProtein: totalProt,
+                totalCarbs: totalCarbs,
+                totalFat: totalFat,
+                status: .eaten,
+                linkedMealLogID: mealLog.id,
+                actualEatenAt: Date(),
+                mealPlan: viewModel.weeklyPlan
+            )
+            modelContext.insert(plannedMeal)
+        }
 
         do {
             try modelContext.save()

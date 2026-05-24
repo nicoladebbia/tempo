@@ -134,17 +134,29 @@ struct NutritionTodayView: View {
                 Text("\(current)")
                     .font(.system(size: 14, weight: .bold, design: .monospaced))
                     .foregroundStyle(Color.tempoTextPrimary)
-                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+                    // Cap the text to the circle's inner area minus the stroke
+                    // so 3+ digit values shrink instead of clipping over the
+                    // donut edge.
+                    .frame(width: 52)
             }
             .frame(width: 64, height: 64)
 
             Text(name)
                 .font(.tempoCaption2)
                 .foregroundStyle(Color.tempoTextSecondary)
+                .lineLimit(1)
 
             Text("\(current)/\(target)g")
                 .font(.system(size: 10, weight: .medium, design: .monospaced))
                 .foregroundStyle(Color.tempoTextTertiary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                // Worst-case "999/999g" needs to fit a ~64pt column without
+                // overflowing the adjacent ring; cap width so the scale
+                // factor kicks in before the text reaches the next column.
+                .frame(maxWidth: 80)
         }
         .frame(maxWidth: .infinity)
     }
