@@ -20,6 +20,19 @@ struct RecipeSuggestionsView: View {
     @Environment(\.modelContext)
     private var modelContext
 
+    /// Presented when the user taps "Write Recipe" — typed form.
+    @State
+    private var showWriteRecipe = false
+
+    /// Presented when the user taps "Tell AI" — NL textarea + Haiku parse.
+    @State
+    private var showTellAIRecipe = false
+
+    /// Toast surfaced after a successful save so the user gets a beat of
+    /// confirmation before navigating into their new recipe.
+    @State
+    private var savedRecipeToast: ToastData?
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TempoSpacing.lg) {
@@ -46,16 +59,64 @@ struct RecipeSuggestionsView: View {
         .navigationTitle("Recipes")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    viewModel.refreshRecipeSuggestions()
+                Menu {
+                    Button {
+                        showWriteRecipe = true
+                    } label: {
+                        Label("Write Recipe", systemImage: "square.and.pencil")
+                    }
+                    Button {
+                        showTellAIRecipe = true
+                    } label: {
+                        Label("Tell AI", systemImage: "wand.and.stars")
+                    }
+                    Divider()
+                    Button {
+                        viewModel.refreshRecipeSuggestions()
+                    } label: {
+                        Label("Refresh", systemImage: "arrow.clockwise")
+                    }
                 } label: {
-                    Image(systemName: "arrow.clockwise")
+                    Image(systemName: "plus")
                 }
             }
         }
+        .sheet(isPresented: $showWriteRecipe) {
+            WriteRecipeView { recipe in
+                saveCustomRecipe(recipe)
+            }
+        }
+        .sheet(isPresented: $showTellAIRecipe) {
+            TellAIRecipeView(apiClient: services.apiClient) { recipe in
+                saveCustomRecipe(recipe)
+            }
+        }
+        .tempoToast($savedRecipeToast)
         .task {
             viewModel.attachPhase7Services(modelContext: modelContext, services: services)
             viewModel.refreshRecipeSuggestions()
+        }
+    }
+
+    /// Persist a user-created Recipe through LocalRecipeService (the
+    /// existing service that owns Recipe insertion + macro recompute), then
+    /// refresh suggestions so the new recipe shows up immediately.
+    @MainActor
+    private func saveCustomRecipe(_ recipe: Recipe) {
+        do {
+            let service = LocalRecipeService(modelContext: modelContext)
+            try service.add(recipe)
+            savedRecipeToast = ToastData(
+                message: "Saved “\(recipe.name)”",
+                style: .success
+            )
+            HapticManager.notification(.success)
+            viewModel.refreshRecipeSuggestions()
+        } catch {
+            savedRecipeToast = ToastData(
+                message: "Couldn't save: \(error.localizedDescription)",
+                style: .error
+            )
         }
     }
 
