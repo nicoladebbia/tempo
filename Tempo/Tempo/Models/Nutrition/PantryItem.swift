@@ -55,6 +55,37 @@ enum PantryUnit: String, Codable, CaseIterable, Sendable {
         default: false
         }
     }
+
+    /// Convert a quantity in this unit to grams, when possible. Used by
+    /// cross-unit reconciliation (grocery list dedup against pantry where
+    /// the user might have logged "1 pack" while the list says "500g").
+    /// Returns nil when conversion would require food-specific knowledge
+    /// we don't have here (e.g. `.servings` of "pasta" vs `.servings` of
+    /// "olive oil" → caller must pass `foodName` for those).
+    ///
+    /// `foodName` enables container-unit conversion via
+    /// FoodMacroDatabase.naturalPortions[foodName].purchaseGrams — "1 pack
+    /// of pasta" resolves to its known purchase weight.
+    func gramsApprox(quantity: Double, foodName: String? = nil) -> Double? {
+        switch self {
+        case .grams: return quantity
+        case .kilograms: return quantity * 1000
+        case .milliliters: return quantity // 1mL ≈ 1g for most liquid foods
+        case .liters: return quantity * 1000
+        case .ounces: return quantity * 28.3495
+        case .pounds: return quantity * 453.592
+        case .pieces, .servings, .cans, .bottles, .jars, .packs:
+            // Look up the per-unit gram weight for this food (e.g. one
+            // "pack" of pasta = 500g per naturalPortions). Without the
+            // food name we can't disambiguate "1 piece" of an apple
+            // (~150g) from "1 piece" of a chip (~2g).
+            guard let foodName,
+                  let portion = FoodMacroDatabase.naturalPortions[foodName.lowercased()]
+            else { return nil }
+            let unitGrams = self == .packs ? portion.purchaseGrams : portion.grams
+            return quantity * unitGrams
+        }
+    }
 }
 
 // MARK: - PantryStorageLocation

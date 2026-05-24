@@ -113,6 +113,13 @@ struct WriteRecipeView: View {
                             .frame(width: 70)
                     }
                     .font(.tempoCaption1)
+                    // Live macro-coverage badge. Tells the user up-front
+                    // whether this row will contribute to recipe totals.
+                    // Previously you'd save a recipe with "homemade
+                    // soffritto" (not in DB, no grams) and discover later
+                    // that totals were nonsense — this surfaces the gap
+                    // while you can still fix it.
+                    macroCoverageBadge(for: row)
                 }
                 .padding(.vertical, 4)
             }
@@ -130,8 +137,45 @@ struct WriteRecipeView: View {
         } header: {
             Text("Ingredients")
         } footer: {
-            Text("Grams powers per-recipe macros. Leave empty for unverified items.")
+            Text("Macros come from a built-in food database when the name matches and grams are filled in. Unknown items still save — they just won't contribute to totals.")
                 .font(.tempoCaption2)
+        }
+    }
+
+    /// Three-state badge under each ingredient row:
+    /// - tracked: name is in FoodMacroDatabase AND grams > 0 → row will
+    ///   contribute to recipe totals.
+    /// - needs grams: name is known but grams field is empty.
+    /// - unknown food: name not in DB → user can still save but the row
+    ///   contributes zero macros.
+    /// Empty name renders nothing so a fresh row doesn't get a warning.
+    @ViewBuilder
+    private func macroCoverageBadge(for row: IngredientRow) -> some View {
+        let trimmed = row.name.trimmingCharacters(in: .whitespaces)
+        if trimmed.isEmpty {
+            EmptyView()
+        } else {
+            let inDB = FoodMacroDatabase.lookup(trimmed) != nil
+            let grams = Double(row.quantityGramsText.replacingOccurrences(of: ",", with: ".")) ?? 0
+            HStack(spacing: 4) {
+                if inDB, grams > 0 {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Color.tempoSuccess)
+                    Text("Tracked")
+                        .foregroundStyle(Color.tempoSuccess)
+                } else if inDB {
+                    Image(systemName: "scalemass")
+                        .foregroundStyle(Color.tempoWarning)
+                    Text("Add grams to track macros")
+                        .foregroundStyle(Color.tempoWarning)
+                } else {
+                    Image(systemName: "questionmark.circle")
+                        .foregroundStyle(Color.tempoTextTertiary)
+                    Text("Not in food database — saves but excluded from macros")
+                        .foregroundStyle(Color.tempoTextTertiary)
+                }
+            }
+            .font(.tempoCaption2)
         }
     }
 

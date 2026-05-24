@@ -135,27 +135,47 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
             return 0
         }
         let pantryItems = (try? pantry.fetchAll()) ?? []
-        // Build a map of canonical name → total available quantity in pantry
-        // (in the item's own unit; cross-unit math lives in PantryUnit
-        // canonicalization, which we don't reach into here).
-        var available: [String: Double] = [:]
+
+        // Normalize pantry stock to grams per food name. PantryUnit.gramsApprox
+        // handles all weight/volume conversions deterministically; for
+        // container units (packs/cans/etc) it consults FoodMacroDatabase's
+        // naturalPortions table so "1 pack of pasta" resolves to 500g.
+        // Items whose unit can't be converted (e.g. .pieces of an obscure
+        // food not in naturalPortions) contribute zero to the gram total —
+        // we'd rather under-dedup than guess.
+        //
+        // PantryItem.canonicalName and GroceryListItem.canonicalFoodName
+        // share the same lowercased/trimmed convention.
+        var availableGrams: [String: Double] = [:]
         for p in pantryItems {
-            // PantryItem.canonicalName matches GroceryListItem.canonicalFoodName
-            // — both are lowercased+trimmed by their respective writers.
-            available[p.canonicalName, default: 0] += p.quantity
+            guard let grams = p.unit.gramsApprox(quantity: p.quantity, foodName: p.canonicalName) else { continue }
+            availableGrams[p.canonicalName, default: 0] += grams
         }
+
         var removed = 0
         for item in items where !item.isChecked {
             // Already-bought items are preserved — they're history of the
             // current shopping trip, not a re-evaluation target.
-            guard let onHand = available[item.canonicalFoodName], onHand > 0 else { continue }
-            if onHand >= item.quantity {
+            guard let onHand = availableGrams[item.canonicalFoodName], onHand > 0 else { continue }
+            guard let itemGrams = item.unit.gramsApprox(quantity: item.quantity, foodName: item.canonicalFoodName),
+                  itemGrams > 0
+            else {
+                // Grocery item is in a unit we can't convert to grams (no
+                // food-specific portion data). Skip — better to leave it
+                // on the list than guess wrong and delete something the
+                // user still needs to buy.
+                continue
+            }
+            if onHand >= itemGrams {
                 modelContext.delete(item)
                 removed += 1
-                available[item.canonicalFoodName] = onHand - item.quantity
+                availableGrams[item.canonicalFoodName] = onHand - itemGrams
             } else {
-                item.quantity -= onHand
-                available[item.canonicalFoodName] = 0
+                // Partial coverage: shrink the grocery item proportionally
+                // in its own unit so the user still buys the remainder.
+                let coverage = onHand / itemGrams
+                item.quantity *= (1 - coverage)
+                availableGrams[item.canonicalFoodName] = 0
             }
         }
         try modelContext.save()
