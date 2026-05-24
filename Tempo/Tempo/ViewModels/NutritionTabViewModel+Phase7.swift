@@ -262,6 +262,49 @@ extension NutritionTabViewModel {
         }
     }
 
+    /// User-added "oh, also" item. Refreshes the latest list so the UI
+    /// reflects the new row immediately.
+    func addGroceryItem(name: String, quantity: Double, unit: PantryUnit) {
+        guard let service = groceryService else { return }
+        do {
+            _ = try service.addItem(name: name, quantity: quantity, unit: unit, category: "pantry")
+            groceryState.latest = try service.fetchLatest()
+            groceryState.lastError = nil
+        } catch {
+            groceryState.lastError = error.localizedDescription
+        }
+    }
+
+    /// Swipe-to-delete from the list. Refreshes latest after the remove.
+    func deleteGroceryItem(_ item: GroceryListItem) {
+        guard let service = groceryService else { return }
+        do {
+            try service.deleteItem(item)
+            groceryState.latest = try service.fetchLatest()
+            groceryState.lastError = nil
+        } catch {
+            groceryState.lastError = error.localizedDescription
+        }
+    }
+
+    /// Re-run pantry deduction on the active grocery list. Call after the
+    /// user has updated the pantry mid-week (added items they just bought
+    /// without going through the list) so the list shrinks accordingly.
+    /// Returns the count of items removed for surfacing to the user.
+    @discardableResult
+    func reapplyPantryToGrocery() -> Int {
+        guard let service = groceryService, let pantryService else { return 0 }
+        do {
+            let removed = try service.reapplyPantry(pantryService)
+            groceryState.latest = try service.fetchLatest()
+            groceryState.lastError = nil
+            return removed
+        } catch {
+            groceryState.lastError = error.localizedDescription
+            return 0
+        }
+    }
+
     func exportGroceryListToReminders() async {
         guard let groceryService, let list = groceryState.latest else {
             groceryState.lastError = "No grocery list to export."

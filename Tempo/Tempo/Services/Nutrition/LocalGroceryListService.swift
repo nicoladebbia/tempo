@@ -99,6 +99,69 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
         try modelContext.save()
     }
 
+    func addItem(
+        name: String,
+        quantity: Double,
+        unit: PantryUnit,
+        category: String = "pantry"
+    ) throws -> GroceryListItem {
+        // Attach to the latest list. Without an active list there's nowhere
+        // to put the item — caller should generate a plan first.
+        guard let list = try fetchLatest() else {
+            throw GroceryListServiceError.noMealsToShop
+        }
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        let item = GroceryListItem(
+            list: list,
+            canonicalFoodName: trimmed.lowercased(),
+            displayName: trimmed.isEmpty ? "Item" : trimmed,
+            quantity: max(0, quantity),
+            unit: unit,
+            category: category
+        )
+        modelContext.insert(item)
+        try modelContext.save()
+        return item
+    }
+
+    func deleteItem(_ item: GroceryListItem) throws {
+        modelContext.delete(item)
+        try modelContext.save()
+    }
+
+    @discardableResult
+    func reapplyPantry(_ pantry: any PantryServiceProtocol) throws -> Int {
+        guard let list = try fetchLatest(), let items = list.items else {
+            return 0
+        }
+        let pantryItems = (try? pantry.fetchAll()) ?? []
+        // Build a map of canonical name → total available quantity in pantry
+        // (in the item's own unit; cross-unit math lives in PantryUnit
+        // canonicalization, which we don't reach into here).
+        var available: [String: Double] = [:]
+        for p in pantryItems {
+            // PantryItem.canonicalName matches GroceryListItem.canonicalFoodName
+            // — both are lowercased+trimmed by their respective writers.
+            available[p.canonicalName, default: 0] += p.quantity
+        }
+        var removed = 0
+        for item in items where !item.isChecked {
+            // Already-bought items are preserved — they're history of the
+            // current shopping trip, not a re-evaluation target.
+            guard let onHand = available[item.canonicalFoodName], onHand > 0 else { continue }
+            if onHand >= item.quantity {
+                modelContext.delete(item)
+                removed += 1
+                available[item.canonicalFoodName] = onHand - item.quantity
+            } else {
+                item.quantity -= onHand
+                available[item.canonicalFoodName] = 0
+            }
+        }
+        try modelContext.save()
+        return removed
+    }
+
     func delete(_ list: GroceryList) throws {
         modelContext.delete(list)
         try modelContext.save()
@@ -201,6 +264,41 @@ final class MockGroceryListService: GroceryListServiceProtocol {
 
     func toggleChecked(_ item: GroceryListItem) throws {
         item.isChecked.toggle()
+    }
+
+    func addItem(
+        name: String,
+        quantity: Double,
+        unit: PantryUnit,
+        category: String = "pantry"
+    ) throws -> GroceryListItem {
+        guard let list = lists.first else {
+            throw GroceryListServiceError.noMealsToShop
+        }
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        let item = GroceryListItem(
+            list: list,
+            canonicalFoodName: trimmed.lowercased(),
+            displayName: trimmed.isEmpty ? "Item" : trimmed,
+            quantity: max(0, quantity),
+            unit: unit,
+            category: category
+        )
+        if list.items == nil { list.items = [] }
+        list.items?.append(item)
+        return item
+    }
+
+    func deleteItem(_ item: GroceryListItem) throws {
+        for list in lists {
+            list.items?.removeAll { $0.id == item.id }
+        }
+    }
+
+    @discardableResult
+    func reapplyPantry(_ pantry: any PantryServiceProtocol) throws -> Int {
+        // Mock pantry isn't wired; treat as a no-op so tests stay stable.
+        return 0
     }
 
     func exportToReminders(_ list: GroceryList) async throws {

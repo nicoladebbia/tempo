@@ -27,6 +27,22 @@ protocol GroceryListServiceProtocol: Sendable {
 
     func toggleChecked(_ item: GroceryListItem) throws
 
+    /// User-added item from the grocery view ("oh, also: olive oil").
+    /// Goes onto the current list with the given name + quantity + unit;
+    /// category defaults to "pantry" so it sorts to the end unless the
+    /// caller knows better. Throws if no list is active.
+    func addItem(name: String, quantity: Double, unit: PantryUnit, category: String) throws -> GroceryListItem
+
+    /// User-deleted item ("skip the kale"). Removes from the current list.
+    func deleteItem(_ item: GroceryListItem) throws
+
+    /// Re-run pantry deduction against the existing list. Called after the
+    /// user updates the pantry mid-week — items the user has just acquired
+    /// drop off the list (or have their quantity reduced). Items the user
+    /// already checked off are preserved. Returns the count of items removed.
+    @discardableResult
+    func reapplyPantry(_ pantry: any PantryServiceProtocol) throws -> Int
+
     /// Export the list to Apple Reminders. Throws if the user hasn't granted
     /// access. Marks the list as exported on success.
     func exportToReminders(_ list: GroceryList) async throws
