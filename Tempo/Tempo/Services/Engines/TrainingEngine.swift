@@ -246,7 +246,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
 
     func generateWeekPlan(
         startDate: Date,
-        recoveryScore: Double?,
+        recoveryScores: [Date: Double],
         footballDays: ActiveDays,
         split: TrainingSplit
     ) -> [WorkoutPlan] {
@@ -283,7 +283,12 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                 continue
             }
 
-            let zone = classifyRecoveryZone(score: recoveryScore)
+            // Per-day recovery lookup (was: today-applied-to-every-day, which
+            // painted the whole Week Plan as mobility/rest whenever Monday was
+            // low). Missing day → nil → green default (matches single-day path).
+            let dayKey = cal.startOfDay(for: meta.date)
+            let dayRecoveryScore = recoveryScores[dayKey]
+            let zone = classifyRecoveryZone(score: dayRecoveryScore)
 
             // Per MODULE_TRAINING.md Section 18.2 — T+1
             if meta.isTPlus1 {
@@ -295,7 +300,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                         notes: "Rest — T+1 after football"
                     ))
                 case .yellow:
-                    let score = recoveryScore ?? 50
+                    let score = dayRecoveryScore ?? 50
                     if score < 50 {
                         plans.append(WorkoutPlan(
                             date: meta.date,
@@ -346,7 +351,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                 }
 
                 let adjustment: Double = zone == .yellow
-                    ? ((recoveryScore ?? 50) >= 50 ? 0.8 : 0.75)
+                    ? ((dayRecoveryScore ?? 50) >= 50 ? 0.8 : 0.75)
                     : 1.0
 
                 plans.append(WorkoutPlan(
@@ -374,35 +379,6 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         }
 
         return plans
-    }
-
-    // MARK: - Calendar-Aware Week Plan
-
-    // Per BUILD_PLAN step 13.2 — Merge calendar-detected football days with static settings.
-    // Football on calendar → training plan avoids heavy legs the day before.
-
-    func generateWeekPlan(
-        startDate: Date,
-        recoveryScore: Double?,
-        footballDays: ActiveDays,
-        calendarFootballDates: [Date],
-        split: TrainingSplit
-    ) -> [WorkoutPlan] {
-        // Merge static footballDays bitmask with calendar-detected dates
-        let cal = Calendar.current
-        var mergedFootballDays = footballDays
-
-        for footballDate in calendarFootballDates {
-            let weekday = cal.component(.weekday, from: footballDate)
-            mergedFootballDays = ActiveDays(rawValue: mergedFootballDays.rawValue | (1 << weekday))
-        }
-
-        return generateWeekPlan(
-            startDate: startDate,
-            recoveryScore: recoveryScore,
-            footballDays: mergedFootballDays,
-            split: split
-        )
     }
 
     // MARK: - Deload Detection

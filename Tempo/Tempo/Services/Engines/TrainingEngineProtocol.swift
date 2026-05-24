@@ -29,9 +29,13 @@ protocol TrainingEngineProtocol: Sendable {
         reps: Int
     ) -> PersonalRecord?
 
+    /// Generates a week's worth of WorkoutPlans starting Monday.
+    /// `recoveryScores` is a per-day map (key = startOfDay for that date); a
+    /// missing day falls through to the green/unknown branch. Pass an empty
+    /// map for environments without recovery data.
     func generateWeekPlan(
         startDate: Date,
-        recoveryScore: Double?,
+        recoveryScores: [Date: Double],
         footballDays: ActiveDays,
         split: TrainingSplit
     ) -> [WorkoutPlan]

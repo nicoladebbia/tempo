@@ -45,7 +45,7 @@ final class MockTrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
 
     func generateWeekPlan(
         startDate: Date,
-        recoveryScore: Double?,
+        recoveryScores: [Date: Double],
         footballDays: ActiveDays,
         split: TrainingSplit
     ) -> [WorkoutPlan] {

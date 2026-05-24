@@ -205,11 +205,11 @@ final class TrainingViewModel {
 
         let footballDays = loadFootballDays(modelContext: modelContext)
         let split = loadTrainingSplit(modelContext: modelContext)
-        let recoveryScore = loadRecoveryScore(modelContext: modelContext)
+        let recoveryScores = loadRecoveryScores(modelContext: modelContext, startDate: monday)
 
         weekPlans = trainingEngine.generateWeekPlan(
             startDate: monday,
-            recoveryScore: recoveryScore,
+            recoveryScores: recoveryScores,
             footballDays: footballDays,
             split: split
         )
@@ -1332,23 +1332,6 @@ final class TrainingViewModel {
             return (frequency: settings.deloadFrequencyWeeks, startDate: startDate)
         }
         return (frequency: 5, startDate: nil)
-
-    // MARK: - Historical Set Feedback
-
-    // Per build done_when #14 — read path so future workout generation (AI
-    // prompts) can incorporate historical difficulty signals. Returns the
-    // most recent `SetFeedback` records, newest first, optionally capped.
-
-    func recentSetFeedback(
-        limit: Int = 50,
-        modelContext: ModelContext
-    ) -> [SetFeedback] {
-        var descriptor = FetchDescriptor<SetFeedback>(
-            sortBy: [SortDescriptor(\.capturedAt, order: .reverse)]
-        )
-        descriptor.fetchLimit = limit
-        return (try? modelContext.fetch(descriptor)) ?? []
-    }
     }
 
     private func loadRecoveryScore(modelContext: ModelContext) -> Double? {
@@ -1358,5 +1341,25 @@ final class TrainingViewModel {
             sortBy: [SortDescriptor(\.date, order: .reverse)]
         )
         return try? modelContext.fetch(descriptor).first?.recoveryScore
+    }
+
+    /// Per-day recovery scores for the 7-day window starting at `startDate`.
+    /// Missing days are omitted (engine falls back to green/unknown for those).
+    private func loadRecoveryScores(modelContext: ModelContext, startDate: Date) -> [Date: Double] {
+        let cal = Calendar.current
+        let weekStart = cal.startOfDay(for: startDate)
+        guard let weekEnd = cal.date(byAdding: .day, value: 7, to: weekStart) else {
+            return [:]
+        }
+        let descriptor = FetchDescriptor<DailyRecovery>(
+            predicate: #Predicate { $0.date >= weekStart && $0.date < weekEnd }
+        )
+        guard let rows = try? modelContext.fetch(descriptor) else { return [:] }
+        var result: [Date: Double] = [:]
+        for row in rows {
+            let key = cal.startOfDay(for: row.date)
+            result[key] = row.recoveryScore
+        }
+        return result
     }
 }
