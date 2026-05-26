@@ -26,6 +26,19 @@ struct NutritionTotalsToday {
     var carbsTarget: Int = 0
     var fatTarget: Int = 0
     var nextMeal: PlannedMeal?
+    /// Last-7-days kcal totals (one entry per day, today inclusive,
+    /// chronologically ordered). Empty when no MealLog rows exist.
+    /// Drives the Fuel quadrant trend chart — replaces the previous
+    /// hardcoded `[2250, 2100, 2500, ...]` stub.
+    var caloriesLast7Days: [(date: Date, calories: Int)] = []
+    /// Average daily kcal across days that had >=1 logged meal in the
+    /// 7-day window. Nil when the window is fully empty.
+    var weeklyAverageCalories: Int?
+    /// Average daily protein (g) across the same non-empty days.
+    var weeklyAverageProtein: Int?
+    /// % of non-empty days where logged kcal landed in 80–120% of the
+    /// target. Nil when no logged days exist in the window.
+    var weeklyCompliancePercent: Int?
     /// `false` when no `ModelContext` has been bound yet (zeros are
     /// "not connected", not "no consumption"). Views can use this to
     /// differentiate empty-state UI from "0 consumed" UI.
@@ -93,6 +106,59 @@ extension DashboardViewModel {
         )
         if let plannedMeals = try? context.fetch(plannedDescriptor) {
             totals.nextMeal = MealScheduleHelpers.nextUpcomingMeal(in: plannedMeals)
+        }
+
+        // 7-day kcal trend + weekly averages from MealLog. Reads the
+        // actual history (MealLog rows survive plan regens — PlannedMeal
+        // doesn't, so we can't aggregate from there). Empty days are
+        // included as (date, 0) so the chart bars line up across the week
+        // even on days the user didn't eat.
+        let weekStart = Calendar.current.date(byAdding: .day, value: -6, to: todayStart) ?? todayStart
+        let weekDescriptor = FetchDescriptor<MealLog>(
+            predicate: #Predicate<MealLog> { log in
+                log.dayDate >= weekStart && log.dayDate < tomorrowStart
+            }
+        )
+        if let weekLogs = try? context.fetch(weekDescriptor) {
+            // Group by dayDate (already normalized to midnight in MealLog.init).
+            var byDay: [Date: (cal: Double, prot: Double)] = [:]
+            for log in weekLogs {
+                let day = Calendar.current.startOfDay(for: log.dayDate)
+                byDay[day, default: (0, 0)].cal += log.totalCalories
+                byDay[day, default: (0, 0)].prot += log.totalProtein
+            }
+
+            var trend: [(date: Date, calories: Int)] = []
+            for offset in (-6 ... 0) {
+                if let day = Calendar.current.date(byAdding: .day, value: offset, to: todayStart) {
+                    let kcal = Int(byDay[day]?.cal ?? 0)
+                    trend.append((date: day, calories: kcal))
+                }
+            }
+            totals.caloriesLast7Days = trend
+
+            let nonEmpty = byDay.values.filter { $0.cal > 0 }
+            // Require >=4 logged days before showing weekly aggregates.
+            // A "weekly average" from 1 day is misleading; drill-sergeant
+            // tone favors honest "—" over a confident-wrong number.
+            if nonEmpty.count >= 4 {
+                let avgCal = nonEmpty.reduce(0.0) { $0 + $1.cal } / Double(nonEmpty.count)
+                let avgProt = nonEmpty.reduce(0.0) { $0 + $1.prot } / Double(nonEmpty.count)
+                totals.weeklyAverageCalories = Int(avgCal)
+                totals.weeklyAverageProtein = Int(avgProt)
+
+                // Compliance = (days in 80–120% of target) / 7. Missed
+                // days count as failures, not "neutral non-events" — this
+                // matches the app's accountability tone. Per-day targets
+                // aren't versioned yet, so today's target is the reference
+                // for all 7 days in the window.
+                if totals.calorieTarget > 0 {
+                    let lower = Double(totals.calorieTarget) * 0.8
+                    let upper = Double(totals.calorieTarget) * 1.2
+                    let compliant = nonEmpty.filter { $0.cal >= lower && $0.cal <= upper }.count
+                    totals.weeklyCompliancePercent = Int(Double(compliant) / 7.0 * 100)
+                }
+            }
         }
 
         return totals

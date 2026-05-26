@@ -304,6 +304,73 @@ final class NutritionTabViewModel {
         return hour * 60 + minute
     }
 
+    /// Best-effort `MealName → MealType` inference. PlannedMeal carries a
+    /// free-form `mealName` ("Breakfast" / "Lunch" / "Pre-workout snack"
+    /// etc); the Dashboard's history aggregation needs a canonical enum.
+    /// Falls back to `.snack` for anything we can't map — same default
+    /// MealLog itself uses (see `MealLog.mealType` getter).
+    static func inferMealType(from mealName: String) -> MealType {
+        let lower = mealName.lowercased()
+        if lower.contains("breakfast") { return .breakfast }
+        if lower.contains("lunch") { return .lunch }
+        if lower.contains("dinner") || lower.contains("supper") { return .dinner }
+        return .snack
+    }
+
+    /// Insert (or update) the MealLog mirror for a PlannedMeal that just
+    /// flipped to `.eaten`. Idempotent: if the planned meal already has
+    /// a `linkedMealLogID`, update that row's totals instead of writing
+    /// a second log. Called from `markMealEaten` AND `logFromPreset` so
+    /// every "eaten" source pathway lands in MealLog (which is what the
+    /// Dashboard reads + what survives a plan regen for the 7-day trend).
+    ///
+    /// Orphan policy: `linkedMealLogID` is a plain UUID — NOT a
+    /// `@Relationship`. By design, deleting the parent PlannedMeal
+    /// (via plan regen cascade, swipe-to-delete, etc.) leaves the
+    /// MealLog row alive so the 7-day trend graph survives. The
+    /// trade-off is that a delete + re-log of the same meal will
+    /// double-count in the trend (two MealLog rows, same day). That
+    /// trade is accepted — losing history on every plan regen would
+    /// make the trend chart unusable, while the double-count is a
+    /// rare edge case in normal usage. Revisit if users start
+    /// frequently deleting eaten meals from Today.
+    static func upsertMealLogMirror(
+        for meal: PlannedMeal,
+        eatenAt: Date,
+        modelContext: ModelContext
+    ) {
+        let mealType = inferMealType(from: meal.mealName)
+
+        if let logID = meal.linkedMealLogID {
+            let descriptor = FetchDescriptor<MealLog>(
+                predicate: #Predicate<MealLog> { $0.id == logID }
+            )
+            if let existing = (try? modelContext.fetch(descriptor))?.first {
+                existing.totalCalories = meal.totalCalories
+                existing.totalProtein = meal.totalProtein
+                existing.totalCarbs = meal.totalCarbs
+                existing.totalFat = meal.totalFat
+                existing.loggedAt = eatenAt
+                existing.dayDate = Calendar.current.startOfDay(for: eatenAt)
+                existing.mealType = mealType
+                return
+            }
+        }
+
+        let log = MealLog(
+            mealType: mealType,
+            loggedAt: eatenAt,
+            totalCalories: meal.totalCalories,
+            totalProtein: meal.totalProtein,
+            totalCarbs: meal.totalCarbs,
+            totalFat: meal.totalFat,
+            source: .preset,
+            dayDate: Calendar.current.startOfDay(for: eatenAt)
+        )
+        modelContext.insert(log)
+        meal.linkedMealLogID = log.id
+    }
+
     func loadToday(modelContext: ModelContext) {
         loadState = .loading
 
@@ -392,6 +459,17 @@ final class NutritionTabViewModel {
         let mealID = meal.id
         meal.status = .eaten
         meal.actualEatenAt = eatenAt
+
+        // Mirror a MealLog row so the Dashboard's Fuel quadrant — which
+        // reads MealLog (the survives-a-plan-regen history record) — sees
+        // the consumption. Without this, the user marks a meal eaten and
+        // the Today tab updates, but the Dashboard's calorie ring stays
+        // at 0 because no MealLog ever existed.
+        //
+        // Idempotent: if linkedMealLogID is already set we update the
+        // existing log instead of duplicating, so re-tapping "Mark eaten"
+        // (or the Mark-Eaten sheet committing twice) doesn't double-count.
+        Self.upsertMealLogMirror(for: meal, eatenAt: eatenAt, modelContext: modelContext)
 
         // Shift any subsequent planned meals to maintain their original
         // gaps. Pure function — see `MealShiftPlanner` for the math and the
@@ -680,33 +758,66 @@ final class NutritionTabViewModel {
         let today = calendar.startOfDay(for: Date())
         let timeFormatter = DateFormatter()
         timeFormatter.dateFormat = "HH:mm"
+        let now = Date()
 
-        let meal = PlannedMeal(
-            dayDate: today,
-            mealNumber: todayMeals.count + 1,
-            mealName: preset.mealType.displayName,
-            scheduledTime: timeFormatter.string(from: Date()),
-            foods: preset.foodItems.map { input in
-                PlannedFood(
-                    name: input.name,
-                    quantityGrams: input.servingSize,
-                    calories: input.calories,
-                    proteinG: input.proteinGrams,
-                    carbsG: input.carbsGrams,
-                    fatG: input.fatGrams
-                )
-            },
-            totalCalories: preset.totalCalories,
-            totalProtein: preset.totalProtein,
-            totalCarbs: preset.totalCarbs,
-            totalFat: preset.totalFat,
-            status: .eaten,
-            mealPlan: weeklyPlan
-        )
-        modelContext.insert(meal)
+        let plannedFoods = preset.foodItems.map { input in
+            PlannedFood(
+                name: input.name,
+                quantityGrams: input.servingSize,
+                calories: input.calories,
+                proteinG: input.proteinGrams,
+                carbsG: input.carbsGrams,
+                fatG: input.fatGrams
+            )
+        }
+
+        // Dedupe: a preset tied to MealType=lunch should REPLACE today's
+        // lunch slot, not append a new one. Mirrors NutritionLogView's
+        // natural-language replace-in-place logic (see
+        // `NutritionLogView.swift:426`). Without this, tapping a preset
+        // on a day where the plan already has that slot creates a duplicate
+        // row in Today and double-counts in the macro totals.
+        //
+        // Match by mealNumber === MealType.sortOrder + 1 (1=Breakfast …
+        // 4=Snack) — the same convention the AI generator uses.
+        let targetMealNumber = preset.mealType.sortOrder + 1
+        let eaten: PlannedMeal
+        if let existing = todayMeals.first(where: { $0.mealNumber == targetMealNumber }) {
+            existing.foodsJSON = try? JSONEncoder().encode(plannedFoods)
+            existing.totalCalories = preset.totalCalories
+            existing.totalProtein = preset.totalProtein
+            existing.totalCarbs = preset.totalCarbs
+            existing.totalFat = preset.totalFat
+            existing.status = .eaten
+            existing.actualEatenAt = now
+            eaten = existing
+        } else {
+            let meal = PlannedMeal(
+                dayDate: today,
+                mealNumber: targetMealNumber,
+                mealName: preset.mealType.displayName,
+                scheduledTime: timeFormatter.string(from: now),
+                foods: plannedFoods,
+                totalCalories: preset.totalCalories,
+                totalProtein: preset.totalProtein,
+                totalCarbs: preset.totalCarbs,
+                totalFat: preset.totalFat,
+                status: .eaten,
+                actualEatenAt: now,
+                mealPlan: weeklyPlan
+            )
+            modelContext.insert(meal)
+            todayMeals.append(meal)
+            eaten = meal
+        }
+
+        // Mirror to MealLog so Dashboard + 7-day trend pick it up. Same
+        // upsert helper that `markMealEaten` uses — idempotent on the
+        // linkedMealLogID field.
+        Self.upsertMealLogMirror(for: eaten, eatenAt: now, modelContext: modelContext)
+
         preset.recordUse()
         try? modelContext.save()
-        todayMeals.append(meal)
         HapticManager.notification(.success)
     }
 

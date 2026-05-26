@@ -29,16 +29,12 @@ struct FuelQuadrantDetailView: View {
     @State
     private var showNativeNutrition = false
 
-    /// Stub 7-day calorie trend
-    private let calorieTrend: [CalorieTrendPoint] = {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        let values = [2250, 2100, 2500, 1980, 2350, 2150, 2100]
-        return (-6 ... 0).map { offset in
-            let date = calendar.date(byAdding: .day, value: offset, to: today)!
-            return CalorieTrendPoint(date: date, calories: values[offset + 6])
-        }
-    }()
+    /// 7-day calorie trend driven by `FuelQuadrantData.caloriesLast7Days`
+    /// (real MealLog history). Empty array → trend chart renders the
+    /// empty-state copy instead of the prior hardcoded stub.
+    private var calorieTrend: [CalorieTrendPoint] {
+        data.caloriesLast7Days.map { CalorieTrendPoint(date: $0.date, calories: $0.calories) }
+    }
 
     // Macro bar colors per MODULE_DASHBOARD.md Section 3.4.2
     private let proteinColor = Color.tempoMacroProtein
@@ -415,35 +411,44 @@ struct FuelQuadrantDetailView: View {
                 .tracking(TempoTracking.drillLabel)
                 .foregroundStyle(Color.tempoTextSecondary)
 
-            Chart(calorieTrend) { point in
-                BarMark(
-                    x: .value("Day", point.date, unit: .day),
-                    y: .value("Calories", point.calories)
-                )
-                .foregroundStyle(
-                    point.calories > (data.calorieTarget ?? 2400)
-                        ? Color.tempoError : Color.tempoViolet
-                )
-                .cornerRadius(4)
+            if calorieTrend.contains(where: { $0.calories > 0 }) {
+                Chart(calorieTrend) { point in
+                    BarMark(
+                        x: .value("Day", point.date, unit: .day),
+                        y: .value("Calories", point.calories)
+                    )
+                    .foregroundStyle(
+                        point.calories > (data.calorieTarget ?? 2400)
+                            ? Color.tempoError : Color.tempoViolet
+                    )
+                    .cornerRadius(4)
 
-                if let target = data.calorieTarget {
-                    RuleMark(y: .value("Target", target))
-                        .foregroundStyle(Color.tempoTextTertiary)
-                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                    if let target = data.calorieTarget {
+                        RuleMark(y: .value("Target", target))
+                            .foregroundStyle(Color.tempoTextTertiary)
+                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                    }
                 }
-            }
-            .chartXAxis {
-                AxisMarks(values: .stride(by: .day)) { value in
-                    AxisValueLabel {
-                        if let date = value.as(Date.self) {
-                            Text(TempoDateFormatters.shortDayOfWeek.string(from: date))
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: .day)) { value in
+                        AxisValueLabel {
+                            if let date = value.as(Date.self) {
+                                Text(TempoDateFormatters.shortDayOfWeek.string(from: date))
+                                    .font(.tempoCaption2)
+                                    .foregroundStyle(Color.tempoTextTertiary)
+                            }
                         }
                     }
                 }
+                .frame(height: 160)
+            } else {
+                // Honest empty-state — prior version rendered fake
+                // [2250, 2100, 2500, ...] bars even on a fresh install.
+                Text("Log meals to see your weekly trend.")
+                    .font(.tempoBody)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                    .frame(maxWidth: .infinity, minHeight: 80, alignment: .center)
             }
-            .frame(height: 160)
         }
         .padding(TempoSpacing.buttonPaddingV)
         .background(Color.tempoSurfaceCard)
@@ -462,21 +467,42 @@ struct FuelQuadrantDetailView: View {
                 .tracking(TempoTracking.drillLabel)
                 .foregroundStyle(Color.tempoTextSecondary)
 
-            Text("Calories: 2,250/day (target \(data.formattedCalorieTarget))")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
+            // Read from real MealLog aggregates wired through
+            // `FuelQuadrantData`. Nil means no logged days in the
+            // 7-day window — render "—" so we don't print a fake number.
+            if let avgCal = data.weeklyAverageCalories {
+                Text("Calories: \(avgCal)/day (target \(data.formattedCalorieTarget))")
+                    .font(.tempoBody)
+                    .foregroundStyle(Color.tempoTextPrimary)
+            } else {
+                Text("Calories: — / day")
+                    .font(.tempoBody)
+                    .foregroundStyle(Color.tempoTextSecondary)
+            }
 
-            Text("Protein: 172g/day")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
+            if let avgProt = data.weeklyAverageProtein {
+                Text("Protein: \(avgProt)g/day")
+                    .font(.tempoBody)
+                    .foregroundStyle(Color.tempoTextPrimary)
+            } else {
+                Text("Protein: — g/day")
+                    .font(.tempoBody)
+                    .foregroundStyle(Color.tempoTextSecondary)
+            }
 
             HStack(spacing: 4) {
                 Text("Compliance:")
                     .font(.tempoBody)
                     .foregroundStyle(Color.tempoTextPrimary)
-                Text("82%")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoSuccess) // >= 80% = green
+                if let pct = data.weeklyCompliancePercent {
+                    Text("\(pct)%")
+                        .font(.tempoBody)
+                        .foregroundStyle(pct >= 80 ? Color.tempoSuccess : (pct >= 50 ? Color.tempoWarning : Color.tempoError))
+                } else {
+                    Text("—")
+                        .font(.tempoBody)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

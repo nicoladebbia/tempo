@@ -126,6 +126,18 @@ struct FuelQuadrantData {
     var mealsPlanned: Int?
     var isConnected: Bool
     var lastSync: Date?
+    /// Last-7-days totals from `MealLog` (today inclusive). Empty when the
+    /// user has no logged meals in the window — the calorie-trend chart
+    /// renders an empty-state instead of stubbed values in that case.
+    var caloriesLast7Days: [(date: Date, calories: Int)] = []
+    /// Average daily kcal across the last 7 days that actually had >=1
+    /// logged meal. Nil when the window is fully empty.
+    var weeklyAverageCalories: Int?
+    /// Average daily protein (g) across the same non-empty days.
+    var weeklyAverageProtein: Int?
+    /// % of days in the last 7 where logged kcal was within 80–120% of
+    /// the calorie target. Nil when no logged days exist.
+    var weeklyCompliancePercent: Int?
 
     var isStale: Bool {
         guard let lastSync else {
@@ -970,6 +982,10 @@ final class DashboardViewModel {
         fuelData.activeCaloriesBurned = Int(energy)
         fuelData.estimatedBMR = 1800 // Will use real BMR when UserProfile is available
         fuelData.nextMeal = nutritionTotals.nextMeal
+        fuelData.caloriesLast7Days = nutritionTotals.caloriesLast7Days
+        fuelData.weeklyAverageCalories = nutritionTotals.weeklyAverageCalories
+        fuelData.weeklyAverageProtein = nutritionTotals.weeklyAverageProtein
+        fuelData.weeklyCompliancePercent = nutritionTotals.weeklyCompliancePercent
         fuel = fuelData
 
         // Build Mind quadrant — exams from calendar, study data local
