@@ -78,8 +78,14 @@ struct NutritionLogView: View {
             ParsedFoodReviewSheet(
                 items: payload.items,
                 defaultMealType: Self.defaultMealTypeForNow(),
-                onConfirm: { mealType in
-                    persistParsedItems(payload.items, type: mealType)
+                defaultTimestamp: Date(),
+                onConfirm: { mealType, timestamp, presetName in
+                    persistParsedItems(
+                        payload.items,
+                        type: mealType,
+                        loggedAt: timestamp,
+                        savePresetNamed: presetName
+                    )
                 },
                 onCancel: { parsedFoodsForReview = nil }
             )
@@ -370,7 +376,12 @@ struct NutritionLogView: View {
     /// anyway; only the HealthKit sync needs async, and that can fire
     /// from a follow-on Task with the saved MealLog (which IS Sendable).
     @MainActor
-    private func persistParsedItems(_ items: [ParsedFoodItem], type: MealType) {
+    private func persistParsedItems(
+        _ items: [ParsedFoodItem],
+        type: MealType,
+        loggedAt: Date,
+        savePresetNamed presetName: String?
+    ) {
         // Map ParsedFoodItem (NL service per-item shape) onto MealFoodItem.
         let inputs = items.map { item in
             MealFoodItemInput(
@@ -395,13 +406,23 @@ struct NutritionLogView: View {
         let totalFat = items.reduce(into: 0.0) { $0 += $1.fatG }
 
         // 1) MealLog — canonical history record. Drives Dashboard.
+        //    Honor the user-picked `loggedAt`: dayDate normalizes to its
+        //    calendar day, so logging "yesterday's late dinner" at 1am
+        //    files under yesterday not today. Convenience init defaults
+        //    `loggedAt` to now; use the long init to inject the picked one.
         let mealLog = MealLog(
-            type: type,
-            dayDate: Date(),
+            mealType: type,
+            loggedAt: loggedAt,
+            totalCalories: totalCals,
+            totalProtein: totalProt,
+            totalCarbs: totalCarbs,
+            totalFat: totalFat,
             source: .naturalLanguage,
-            photo: nil,
-            items: foodItems
+            dayDate: Calendar.current.startOfDay(for: loggedAt)
         )
+        for item in foodItems {
+            mealLog.items.append(item)
+        }
         modelContext.insert(mealLog)
 
         // 2) PlannedMeal — the row Today renders. CRITICAL: if today already
@@ -423,11 +444,24 @@ struct NutritionLogView: View {
         }
         let targetMealNumber = type.sortOrder + 1
 
-        if let existing = viewModel.todayMeals.first(where: { $0.mealNumber == targetMealNumber }) {
-            // Replace-in-place. Keep scheduledTime/mealName from the plan
-            // so the row stays in its original chronological slot; flip
-            // status to .eaten and overwrite foods + totals + the
-            // actualEatenAt/linkedMealLogID provenance fields.
+        // Replace-in-place is ONLY valid when the user is logging on today's
+        // calendar day — `viewModel.todayMeals` is fetched with a today-bounded
+        // FetchDescriptor, so a back-dated log for yesterday must NOT
+        // overwrite today's slot. If the picked timestamp falls outside
+        // today, always insert a fresh PlannedMeal for the picked dayDate.
+        let pickedDay = Calendar.current.startOfDay(for: loggedAt)
+        let today = Calendar.current.startOfDay(for: Date())
+        let isToday = pickedDay == today
+
+        if isToday,
+           let existing = viewModel.todayMeals.first(where: { $0.mealNumber == targetMealNumber }) {
+            // Replace-in-place. Keep mealName from the plan so the row's
+            // label stays consistent; refresh scheduledTime to the picked
+            // hour so a "logged 6pm dinner at 8pm" updates the row's time,
+            // not just the eaten-at provenance. Flip status to .eaten and
+            // overwrite foods + totals + actualEatenAt/linkedMealLogID.
+            let timeFormatter = DateFormatter()
+            timeFormatter.dateFormat = "HH:mm"
             existing.foodsJSON = try? JSONEncoder().encode(plannedFoods)
             existing.totalCalories = totalCals
             existing.totalProtein = totalProt
@@ -435,18 +469,20 @@ struct NutritionLogView: View {
             existing.totalFat = totalFat
             existing.statusRaw = MealStatus.eaten.rawValue
             existing.linkedMealLogID = mealLog.id
-            existing.actualEatenAt = Date()
+            existing.actualEatenAt = loggedAt
+            existing.scheduledTime = timeFormatter.string(from: loggedAt)
         } else {
             // No planned slot for this MealType (e.g. user is logging a
             // 4th meal on a 3-meal-plan day). Insert a new PlannedMeal
-            // mirroring logFromPreset's pattern.
+            // mirroring logFromPreset's pattern. Scheduled-time and
+            // dayDate derive from the picked timestamp.
             let timeFormatter = DateFormatter()
             timeFormatter.dateFormat = "HH:mm"
             let plannedMeal = PlannedMeal(
-                dayDate: Date(),
+                dayDate: Calendar.current.startOfDay(for: loggedAt),
                 mealNumber: targetMealNumber,
                 mealName: type.displayName,
-                scheduledTime: timeFormatter.string(from: Date()),
+                scheduledTime: timeFormatter.string(from: loggedAt),
                 foods: plannedFoods,
                 totalCalories: totalCals,
                 totalProtein: totalProt,
@@ -454,7 +490,7 @@ struct NutritionLogView: View {
                 totalFat: totalFat,
                 status: .eaten,
                 linkedMealLogID: mealLog.id,
-                actualEatenAt: Date(),
+                actualEatenAt: loggedAt,
                 mealPlan: viewModel.weeklyPlan
             )
             modelContext.insert(plannedMeal)
@@ -469,8 +505,25 @@ struct NutritionLogView: View {
             )
             return
         }
+
+        // Optional preset save. The review sheet only emits a non-nil
+        // name when the user ticked "Save as preset" AND typed something.
+        // Re-encode using PlannedFood (same shape NutritionTabViewModel
+        // expects) so the saved preset replays cleanly via logFromPreset.
+        if let presetName, !presetName.trimmingCharacters(in: .whitespaces).isEmpty {
+            viewModel.savePreset(
+                name: presetName.trimmingCharacters(in: .whitespaces),
+                items: plannedFoods,
+                mealType: type,
+                modelContext: modelContext
+            )
+        }
+
+        let savedSuffix = (presetName?.trimmingCharacters(in: .whitespaces).isEmpty == false)
+            ? " Preset saved."
+            : ""
         toast = ToastData(
-            message: "\(type.displayName) logged. \(Int(totalCals)) kcal.",
+            message: "\(type.displayName) logged. \(Int(totalCals)) kcal.\(savedSuffix)",
             style: .success
         )
         naturalLanguageInput = ""
@@ -498,11 +551,26 @@ private struct ParsedFoodReviewPayload: Identifiable {
 private struct ParsedFoodReviewSheet: View {
     let items: [ParsedFoodItem]
     let defaultMealType: MealType
-    let onConfirm: (MealType) -> Void
+    let defaultTimestamp: Date
+    /// (mealType, loggedAt, presetName?) — `presetName` is non-nil only if
+    /// the user ticked "Save as preset" AND provided a trimmed-non-empty name.
+    let onConfirm: (MealType, Date, String?) -> Void
     let onCancel: () -> Void
 
     @State
     private var selectedMealType: MealType
+
+    @State
+    private var timestamp: Date
+
+    @State
+    private var saveAsPreset: Bool = false
+
+    @State
+    private var presetName: String = ""
+
+    @FocusState
+    private var presetFieldFocused: Bool
 
     @Environment(\.dismiss)
     private var dismiss
@@ -510,18 +578,29 @@ private struct ParsedFoodReviewSheet: View {
     init(
         items: [ParsedFoodItem],
         defaultMealType: MealType,
-        onConfirm: @escaping (MealType) -> Void,
+        defaultTimestamp: Date,
+        onConfirm: @escaping (MealType, Date, String?) -> Void,
         onCancel: @escaping () -> Void
     ) {
         self.items = items
         self.defaultMealType = defaultMealType
+        self.defaultTimestamp = defaultTimestamp
         self.onConfirm = onConfirm
         self.onCancel = onCancel
         _selectedMealType = State(initialValue: defaultMealType)
+        _timestamp = State(initialValue: defaultTimestamp)
     }
 
     private var totalCalories: Int {
         items.reduce(into: 0) { $0 += Int($1.calories) }
+    }
+
+    /// Trim-and-validate the preset name. Empty/whitespace-only → nil so
+    /// the parent skips the savePreset call entirely (no "" presets in DB).
+    private var validatedPresetName: String? {
+        guard saveAsPreset else { return nil }
+        let trimmed = presetName.trimmingCharacters(in: .whitespaces)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     var body: some View {
@@ -529,8 +608,10 @@ private struct ParsedFoodReviewSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: TempoSpacing.lg) {
                     mealTypePicker
+                    timestampPicker
                     itemList
                     totalsFooter
+                    presetSaveSection
                 }
                 .padding(.horizontal, TempoSpacing.screenEdge)
                 .padding(.vertical, TempoSpacing.lg)
@@ -547,7 +628,7 @@ private struct ParsedFoodReviewSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Log") {
-                        onConfirm(selectedMealType)
+                        onConfirm(selectedMealType, timestamp, validatedPresetName)
                         dismiss()
                     }
                     .fontWeight(.semibold)
@@ -569,6 +650,91 @@ private struct ParsedFoodReviewSheet: View {
             }
             .pickerStyle(.segmented)
         }
+    }
+
+    /// Lets the user back-date a log ("had this at 1pm but only logging now").
+    /// Range capped at +/- 7 days so an accidental tap can't write a 2024
+    /// meal. `displayedComponents: [.date, .hourAndMinute]` matches the
+    /// granularity MealLog/PlannedMeal actually persist.
+    private var timestampPicker: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            Text("WHEN")
+                .font(.tempoModuleTag)
+                .tracking(TempoTracking.drillLabel)
+                .foregroundStyle(Color.tempoTextSecondary)
+            DatePicker(
+                "When",
+                selection: $timestamp,
+                in: Self.allowedTimestampRange(),
+                displayedComponents: [.date, .hourAndMinute]
+            )
+            .labelsHidden()
+            .datePickerStyle(.compact)
+            .tint(Color.tempoSignal)
+        }
+    }
+
+    private static func allowedTimestampRange(now: Date = Date()) -> ClosedRange<Date> {
+        let cal = Calendar.current
+        let lower = cal.date(byAdding: .day, value: -7, to: now) ?? now
+        let upper = cal.date(byAdding: .day, value: 1, to: now) ?? now
+        return lower ... upper
+    }
+
+    /// "Save as preset" affordance. Hidden behind a Toggle so the default
+    /// path (one-off log) doesn't surface another input. When the toggle
+    /// is on, a TextField appears prefilled with a slot-derived default
+    /// (e.g. "Lunch — \(first food name)") that the user can overwrite.
+    private var presetSaveSection: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            Toggle(isOn: $saveAsPreset.animation(.easeInOut(duration: 0.15))) {
+                HStack(spacing: TempoSpacing.xs) {
+                    Image(systemName: "bookmark.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.tempoViolet)
+                    Text("SAVE AS PRESET")
+                        .font(.tempoModuleTag)
+                        .tracking(TempoTracking.drillLabel)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                }
+            }
+            .tint(Color.tempoSignal)
+            .onChange(of: saveAsPreset) { _, newValue in
+                if newValue, presetName.isEmpty {
+                    presetName = defaultPresetName
+                    presetFieldFocused = true
+                }
+            }
+
+            if saveAsPreset {
+                TextField("Preset name", text: $presetName)
+                    .font(.tempoBody)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                    .padding(.horizontal, TempoSpacing.md)
+                    .padding(.vertical, 10)
+                    .background(Color.tempoBgSecondary)
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous)
+                            .stroke(Color.tempoBorder, lineWidth: 1)
+                    )
+                    .focused($presetFieldFocused)
+                    .submitLabel(.done)
+                    .onSubmit { presetFieldFocused = false }
+
+                Text("Tap the preset later to re-log instantly — no AI call.")
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextTertiary)
+            }
+        }
+    }
+
+    private var defaultPresetName: String {
+        // "Lunch — chicken & rice" style. Keeps it short; the user
+        // can rewrite. First item's name is the cheapest meaningful
+        // identifier without re-running the parser.
+        let first = items.first?.name ?? "meal"
+        return "\(selectedMealType.displayName) — \(first)"
     }
 
     private var itemList: some View {
