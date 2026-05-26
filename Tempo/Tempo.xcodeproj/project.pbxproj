@@ -77,6 +77,7 @@
 		325C8C2C6263920E5CCB395C /* DashboardSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C5B1331799BBAE62F6E1ECE /* DashboardSettingsView.swift */; };
 		32A243A55DB5F5B329135CA8 /* SyncState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61A364A3A9D6DD964A981AA0 /* SyncState.swift */; };
 		32F4E02C0A889C96EE790C7A /* ReceiptStructuringDTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30BAAE5E8871F724400475AB /* ReceiptStructuringDTOs.swift */; };
+		33A7A2973AE3ED4178E6C70E /* WhoopReconnectBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2E758B121EF25DCAD2E49EA /* WhoopReconnectBannerView.swift */; };
 		36D46BF586019E4AE013A861 /* OnboardingFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18F1A61E3E6137EC69CAA180 /* OnboardingFlowTests.swift */; };
 		379CA0F6FE0238EBD826FA59 /* SubscriptionServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA66F2F1806E039D46642569 /* SubscriptionServiceProtocol.swift */; };
 		3976E9A677CEBAF1936FBB80 /* RecoveryAIInsightService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB5F3C01FCAC01E78F4B23D /* RecoveryAIInsightService.swift */; };
@@ -773,6 +774,7 @@
 		C1A300B1153B724961360B8C /* XPEngineProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XPEngineProtocol.swift; sourceTree = "<group>"; };
 		C1E65C1ADEA63F79B03903FC /* TempoSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoSnapshotTests.swift; sourceTree = "<group>"; };
 		C2DEC35AD81BA8AD5DC65865 /* PhotoAnalysisView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoAnalysisView.swift; sourceTree = "<group>"; };
+		C2E758B121EF25DCAD2E49EA /* WhoopReconnectBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhoopReconnectBannerView.swift; sourceTree = "<group>"; };
 		C3258B0C665468D65B76F193 /* WeeklyRecoverySummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyRecoverySummaryView.swift; sourceTree = "<group>"; };
 		C39A3BB5D217FC9262C150F0 /* DietaryProfileSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DietaryProfileSetupView.swift; sourceTree = "<group>"; };
 		C3B62BE9DC93A07AE61FA72A /* RecoveryEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryEngine.swift; sourceTree = "<group>"; };
@@ -1315,6 +1317,7 @@
 				EDB21C0C26C0B857F473A95A /* TempoSectionHeader.swift */,
 				7954B471741533324D7316A4 /* TempoTextField.swift */,
 				1AA111EDE8D7F9FA86E85D0B /* TempoToast.swift */,
+				C2E758B121EF25DCAD2E49EA /* WhoopReconnectBannerView.swift */,
 				434489B67B26E92709DA90A0 /* WorkoutCardView.swift */,
 			);
 			path = Components;
@@ -2705,6 +2708,7 @@
 				5706A03676F43998082CD81F /* WhoopConnectView.swift in Sources */,
 				677E977A69F8CB7878C942F5 /* WhoopConnection.swift in Sources */,
 				602956ABA23D68B18B0F61C5 /* WhoopConnectionView.swift in Sources */,
+				33A7A2973AE3ED4178E6C70E /* WhoopReconnectBannerView.swift in Sources */,
 				83F7247364B8C165EFACD9EA /* WhoopService.swift in Sources */,
 				3F71AEE789B2A89CCCC6D47E /* WhoopServiceProtocol.swift in Sources */,
 				E822524191A602119CB45CCB /* WizardCoordinator.swift in Sources */,

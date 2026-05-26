@@ -278,6 +278,15 @@ struct DashboardView: View {
                     }
                 }
 
+                // Whoop reconnect prompt — surfaces .disconnected/.error states
+                // that the Body card alone cannot communicate (it shows a generic
+                // "Connect Whoop" CTA but never the specific error message).
+                // Phase 3 of .plans/overnight-tempo-fixes-2026-05-26.md.
+                WhoopReconnectBannerView(
+                    state: services.whoop.connectionState,
+                    onReconnect: { showWhoopConnect = true }
+                )
+
                 quadrantGrid(vm)
                 quickActionsRow(vm)
                 nonNegotiablesSection(vm)

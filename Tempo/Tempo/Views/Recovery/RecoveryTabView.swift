@@ -21,6 +21,8 @@ struct RecoveryTabView: View {
     private var modelContext
     @State
     private var viewModel: RecoveryViewModel?
+    @State
+    private var showWhoopConnect = false
 
     var body: some View {
         NavigationStack {
@@ -36,6 +38,19 @@ struct RecoveryTabView: View {
             .navigationTitle("Recovery")
             .navigationBarTitleDisplayMode(.inline)
             .tempoSettingsToolbar()
+        }
+        .sheet(isPresented: $showWhoopConnect, onDismiss: {
+            // Re-pull recovery data once OAuth lands so the user sees fresh
+            // numbers immediately rather than after the next .onAppear.
+            Task {
+                if let vm = viewModel {
+                    await vm.forceRefresh(modelContext: modelContext)
+                }
+            }
+        }) {
+            NavigationStack {
+                WhoopConnectionView()
+            }
         }
         .onAppear {
             if viewModel == nil {
@@ -54,6 +69,14 @@ struct RecoveryTabView: View {
         @Bindable
         var vm = viewModel
         return VStack(spacing: 0) {
+            // Whoop reconnect banner — visible across all 4 sub-tabs
+            // (Today/Sleep/Strain/Trends) when Whoop is disconnected or errored.
+            // Phase 3 of .plans/overnight-tempo-fixes-2026-05-26.md.
+            WhoopReconnectBannerView(
+                state: services.whoop.connectionState,
+                onReconnect: { showWhoopConnect = true }
+            )
+
             // Segmented control
             // Per MODULE_RECOVERY.md Section 2 — Today / Sleep / Strain / Trends
             Picker("Recovery Section", selection: $vm.selectedTab) {
