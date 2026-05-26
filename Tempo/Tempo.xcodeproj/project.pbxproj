@@ -82,6 +82,7 @@
 		32FF0ABDF7B87B6706CFF4FE /* CoachTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92D3A8599DF88C6309EA3F37 /* CoachTools.swift */; };
 		36D46BF586019E4AE013A861 /* OnboardingFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18F1A61E3E6137EC69CAA180 /* OnboardingFlowTests.swift */; };
 		379CA0F6FE0238EBD826FA59 /* SubscriptionServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA66F2F1806E039D46642569 /* SubscriptionServiceProtocol.swift */; };
+		3975296BE7F3EBF731E6E5D0 /* PreferenceExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71AB9B3CDE583329359B5395 /* PreferenceExtractor.swift */; };
 		3976E9A677CEBAF1936FBB80 /* RecoveryAIInsightService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB5F3C01FCAC01E78F4B23D /* RecoveryAIInsightService.swift */; };
 		3A49CBB5AFDC2D2988CF3A39 /* AccountabilityEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4688A47205DFFEB4EAE9EA0 /* AccountabilityEngineTests.swift */; };
 		3AA463AC1BD8892785DF01B8 /* ExerciseLibraryLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FF4587F47E810681EFB5A10 /* ExerciseLibraryLoader.swift */; };
@@ -122,6 +123,7 @@
 		50A75BA9CE93F5206404B28B /* HeatmapCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06B7EACC3C573749065D6F24 /* HeatmapCalendarView.swift */; };
 		50F77068D556F5168D6C6AF1 /* CalendarService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 214BEF6F7BDB24D37AAB7F8A /* CalendarService.swift */; };
 		512F4110C850D2875D1E626B /* DayPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA8DC80370CF1FB5C4C9462C /* DayPlanner.swift */; };
+		51DA71ED8DA77CB0FB510338 /* PreferenceExtractorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E13AFE1F582504BA4001CD47 /* PreferenceExtractorTests.swift */; };
 		520F1D1BC2D5D449DFDEA0CE /* RecoveryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13C0C3D400A03FC5177BECC8 /* RecoveryView.swift */; };
 		52BCFF9BEE7A293C5010B966 /* XCUIApplication+Tempo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F23FEAF81689F4ECAC8D940 /* XCUIApplication+Tempo.swift */; };
 		52DAE08B133E3A1240896AA6 /* ReceiptLineItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB27F024CE99ACAA64F6920F /* ReceiptLineItem.swift */; };
@@ -651,6 +653,7 @@
 		6FD9976F95F5CF9A61B0D088 /* HealthKitServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitServiceProtocol.swift; sourceTree = "<group>"; };
 		7010369E576E52A315266579 /* SetFeedbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetFeedbackTests.swift; sourceTree = "<group>"; };
 		705235EDE942F04975A3908C /* WeeklyMealPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyMealPlan.swift; sourceTree = "<group>"; };
+		71AB9B3CDE583329359B5395 /* PreferenceExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferenceExtractor.swift; sourceTree = "<group>"; };
 		747196CAA8117ACC7DD2F998 /* testQuadrantCardBody.1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = testQuadrantCardBody.1.png; sourceTree = "<group>"; };
 		74C3F68731BE06299EE41DB4 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		76CF37C5D880D915B2C35C06 /* ActiveWorkoutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveWorkoutView.swift; sourceTree = "<group>"; };
@@ -851,6 +854,7 @@
 		DF0B4AE96EDF5D9E965D3BD9 /* GroceryListGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroceryListGenerator.swift; sourceTree = "<group>"; };
 		DF7A70F4976A041F87B6FB15 /* WorkoutPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutPlan.swift; sourceTree = "<group>"; };
 		DFBB22EB2A96D0E5BE372E11 /* MoveQuadrantDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveQuadrantDetailView.swift; sourceTree = "<group>"; };
+		E13AFE1F582504BA4001CD47 /* PreferenceExtractorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferenceExtractorTests.swift; sourceTree = "<group>"; };
 		E13F8115D0C5DF2208B49EE9 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		E1D5702E0E481397D39A0C71 /* FuelQuadrantDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FuelQuadrantDetailView.swift; sourceTree = "<group>"; };
 		E207CFE8A1C998700CF165B2 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
@@ -1497,6 +1501,7 @@
 				453C46F0BEFAED6CA4B52548 /* BehaviorObserverTests.swift */,
 				04F74AB9672C62B51FE03F8E /* CoachToolsTests.swift */,
 				CC92309AFC4CA26A8386B484 /* LearnedPreferenceTests.swift */,
+				E13AFE1F582504BA4001CD47 /* PreferenceExtractorTests.swift */,
 				24769F0E2A22F6E962AE8DC1 /* PreferenceRetrieverTests.swift */,
 			);
 			path = Coach;
@@ -1706,6 +1711,7 @@
 				92D3A8599DF88C6309EA3F37 /* CoachTools.swift */,
 				C5F69F78D519760976F185C4 /* LearnedOutcome.swift */,
 				5A3CA597A2FE3A91DD5F887E /* LearnedPreference.swift */,
+				71AB9B3CDE583329359B5395 /* PreferenceExtractor.swift */,
 				B573A68BA55EBDC6FFEE8423 /* PreferenceRetriever.swift */,
 			);
 			path = Coach;
@@ -2381,6 +2387,7 @@
 				45D549BE8D563C23DFE294DA /* NutritionTabViewModelTests.swift in Sources */,
 				C6700D4ABEDE8160D2C18803 /* PantryServiceTests.swift in Sources */,
 				69AFDA29F7B83353099A330B /* PerformanceTests.swift in Sources */,
+				51DA71ED8DA77CB0FB510338 /* PreferenceExtractorTests.swift in Sources */,
 				E3F88E766668B49CDE016ADA /* PreferenceRetrieverTests.swift in Sources */,
 				CFEF0807A7883160272EA8FB /* RecipeSuggestionEngineTests.swift in Sources */,
 				A2C4F9D5799D59350B3C7725 /* RecoveryEngineTests.swift in Sources */,
@@ -2655,6 +2662,7 @@
 				C0C5B4ABBEBDEB5DCBB237DB /* PlannedMeal.swift in Sources */,
 				4D17E625F1B90E1A78D99FC3 /* PlannedMealCardView.swift in Sources */,
 				DC8BEFF95B9D8BFDCE98C8A9 /* PlannedSet.swift in Sources */,
+				3975296BE7F3EBF731E6E5D0 /* PreferenceExtractor.swift in Sources */,
 				909F2CC00EE61A636B3EE973 /* PreferenceRetriever.swift in Sources */,
 				743657687BC2177D484B3963 /* PrescriptionCardView.swift in Sources */,
 				F13B62DD20C49D6C44359583 /* PrivacyInfoView.swift in Sources */,
