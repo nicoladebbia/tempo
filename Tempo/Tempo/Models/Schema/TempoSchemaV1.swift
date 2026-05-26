@@ -67,6 +67,7 @@ enum TempoSchemaV1: VersionedSchema {
             GroceryListItem.self,
             // Coach (v2.1)
             LearnedPreference.self,
+            LearnedOutcome.self,
         ]
     }
 }
