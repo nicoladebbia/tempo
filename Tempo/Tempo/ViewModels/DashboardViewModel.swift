@@ -711,6 +711,7 @@ final class DashboardViewModel {
     private let healthKit: any HealthKitServiceProtocol
     private let whoop: any WhoopServiceProtocol
     private let calendar: any CalendarServiceProtocol
+    private let trainingEngine: any TrainingEngineProtocol
     private var userName: String?
 
     /// SwiftData model context for reading today's MealLog records.
@@ -725,6 +726,7 @@ final class DashboardViewModel {
         healthKit = services.healthKit
         whoop = services.whoop
         calendar = services.calendar
+        trainingEngine = services.trainingEngine
         userName = nil
     }
 
@@ -1057,8 +1059,51 @@ final class DashboardViewModel {
             }
         )
 
-        guard let todayPlan = try? modelContext.fetch(descriptor).first else {
-            // No plan found — keep existing HealthKit-based move data
+        var todayPlan = try? modelContext.fetch(descriptor).first
+
+        // Phase 5 fix — Dashboard ↔ Training reconciliation.
+        // If no plan exists for today, generate the canonical Week Plan
+        // (same path TrainingViewModel.loadToday uses) so the Move card and
+        // the Training tab can never disagree about today's workout type.
+        // Exercises are NOT populated here; TrainingViewModel.loadToday
+        // populates them on first open (populateExercises is idempotent).
+        if todayPlan == nil {
+            let cal = Calendar.current
+            var comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())
+            comps.weekday = 2 // Monday
+            let monday = cal.date(from: comps) ?? today
+
+            let settingsDescriptor = FetchDescriptor<UserSettings>()
+            let settings = try? modelContext.fetch(settingsDescriptor).first
+            let footballDays = settings?.footballDays ?? ActiveDays(rawValue: 0)
+            let split = settings?.trainingSplit ?? .pushPullLegs
+
+            let recoveryDescriptor = FetchDescriptor<DailyRecovery>(
+                predicate: #Predicate { $0.date >= monday }
+            )
+            var recoveryScores: [Date: Double] = [:]
+            if let rows = try? modelContext.fetch(recoveryDescriptor) {
+                for row in rows {
+                    recoveryScores[cal.startOfDay(for: row.date)] = row.recoveryScore
+                }
+            }
+
+            let weekPlans = trainingEngine.generateWeekPlan(
+                startDate: monday,
+                recoveryScores: recoveryScores,
+                footballDays: footballDays,
+                split: split
+            )
+
+            if let canonical = weekPlans.first(where: { cal.isDate($0.date, inSameDayAs: today) }) {
+                modelContext.insert(canonical)
+                try? modelContext.save()
+                todayPlan = canonical
+            }
+        }
+
+        guard let todayPlan else {
+            // Still no plan (engine returned empty) — keep HealthKit-based fallback
             return
         }
 

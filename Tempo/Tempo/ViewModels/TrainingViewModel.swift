@@ -153,6 +153,11 @@ final class TrainingViewModel {
             } else {
                 // Persisted plan matches Week Plan type — keep it (preserves any
                 // sets the user already logged today).
+                // Phase 5 — DashboardViewModel may have pre-inserted this plan
+                // without exercises (it only needs type/status). populateExercises
+                // is idempotent (returns early if already populated).
+                populateExercises(for: existing, modelContext: modelContext)
+                try? modelContext.save()
                 todayPlan = existing
             }
         } else if let canonical = weekPlanForToday {
