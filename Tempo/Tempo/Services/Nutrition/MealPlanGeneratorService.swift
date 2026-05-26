@@ -121,6 +121,10 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         // 07:30/12:30/19:30/16:00 schema defaults.
         let observed = observedMealTimes(modelContext: modelContext)
         let feedback = recentFeedbackDigest(modelContext: modelContext)
+        let expiringSoon = expiringPantryItems(modelContext: modelContext)
+        if !expiringSoon.isEmpty {
+            logger.info("Expiring pantry items injected into plan prompt: \(expiringSoon.count)")
+        }
 
         let (systemPrompt, userPrompt) = MealPlanPrompts.weeklyPlanPrompt(
             targets: tdeeResult.dayTypeTargets,
@@ -128,7 +132,8 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             preferences: preferences,
             intake: intake,
             observedMealTimes: observed,
-            feedbackDigest: feedback
+            feedbackDigest: feedback,
+            expiringSoon: expiringSoon
         )
 
         let response = try await sendWithRetry(
@@ -422,6 +427,30 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             result[number] = String(format: "%02d:%02d", h, m)
         }
         return result.isEmpty ? nil : result
+    }
+
+    /// Pulls non-archived PantryItems expiring within the next 7 days, sorted
+    /// by urgency (soonest first). Returns canonical names + days-to-expire
+    /// for the weekly-plan prompt's FIFO hint block.
+    ///
+    /// Items already expired (negative days) are excluded — we don't suggest
+    /// recipes that consume spoiled food.
+    private func expiringPantryItems(modelContext: ModelContext) -> [(name: String, days: Int)] {
+        let descriptor = FetchDescriptor<PantryItem>(
+            predicate: #Predicate<PantryItem> { item in
+                !item.isArchived && item.quantity > 0 && item.useBy != nil
+            }
+        )
+        let items = (try? modelContext.fetch(descriptor)) ?? []
+        return items
+            .compactMap { item -> (String, Int)? in
+                guard let days = item.daysUntilUseBy, (0...7).contains(days) else {
+                    return nil
+                }
+                return (item.canonicalName, days)
+            }
+            .sorted { lhs, rhs in lhs.1 < rhs.1 }
+            .map { (name: $0.0, days: $0.1) }
     }
 
     /// Aggregate the last `windowDays` of `MealFeedback` rows into a digest

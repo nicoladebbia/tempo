@@ -233,4 +233,90 @@ final class RecipeSuggestionEngineTests: XCTestCase {
         let ranked = RecipeSuggestionEngine.rank(candidates: [recipe], inputs: inputs)
         XCTAssertEqual(ranked.first?.coverageScore ?? 0, 0.5, accuracy: 0.001)
     }
+
+    // MARK: - Expiry urgency (Pre-1 — FIFO ranking)
+
+    func testUrgencyOf_buckets() {
+        XCTAssertEqual(RecipeSuggestionEngine.urgencyOf(daysToExpire: -1), 0.0)
+        XCTAssertEqual(RecipeSuggestionEngine.urgencyOf(daysToExpire: 0), 1.0)
+        XCTAssertEqual(RecipeSuggestionEngine.urgencyOf(daysToExpire: 1), 1.0)
+        XCTAssertEqual(RecipeSuggestionEngine.urgencyOf(daysToExpire: 2), 0.7)
+        XCTAssertEqual(RecipeSuggestionEngine.urgencyOf(daysToExpire: 3), 0.7)
+        XCTAssertEqual(RecipeSuggestionEngine.urgencyOf(daysToExpire: 4), 0.3)
+        XCTAssertEqual(RecipeSuggestionEngine.urgencyOf(daysToExpire: 7), 0.3)
+        XCTAssertEqual(RecipeSuggestionEngine.urgencyOf(daysToExpire: 8), 0.0)
+        XCTAssertEqual(RecipeSuggestionEngine.urgencyOf(daysToExpire: 30), 0.0)
+    }
+
+    func testRank_expiryUrgencyBoostsRecipesWithExpiringItems() {
+        let fresh = makeRecipe(
+            name: "Fresh Pantry Bowl",
+            ingredients: [
+                ("rice", false, []),
+                ("beans", false, []),
+            ]
+        )
+        let urgent = makeRecipe(
+            name: "Chicken Rice",
+            ingredients: [
+                ("chicken breast", false, []),
+                ("rice", false, []),
+            ]
+        )
+        // Same coverage (both 100%), same macros (default). Urgency tips the scale.
+        let inputs = RecipeSuggestionInputs(
+            pantryCanonicalNames: ["rice", "beans", "chicken breast"],
+            pantryExpiryByName: ["chicken breast": 1, "rice": 30, "beans": 30]
+        )
+        let ranked = RecipeSuggestionEngine.rank(candidates: [fresh, urgent], inputs: inputs)
+        XCTAssertEqual(ranked.first?.recipeName, "Chicken Rice")
+        XCTAssertEqual(ranked.first?.expiryUrgencyScore ?? 0, 1.0, accuracy: 0.001)
+        XCTAssertEqual(ranked.last?.expiryUrgencyScore ?? -1, 0.0, accuracy: 0.001)
+    }
+
+    func testRank_expiryUrgencyEmptyMap_noEffect() {
+        // Without expiry data, scoring falls back to coverage + macros only.
+        let recipeA = makeRecipe(name: "A", ingredients: [("rice", false, [])])
+        let recipeB = makeRecipe(name: "B", ingredients: [("chicken breast", false, [])])
+        let inputs = RecipeSuggestionInputs(
+            pantryCanonicalNames: ["rice", "chicken breast"]
+            // pantryExpiryByName defaults to [:]
+        )
+        let ranked = RecipeSuggestionEngine.rank(candidates: [recipeA, recipeB], inputs: inputs)
+        XCTAssertEqual(ranked.count, 2)
+        for s in ranked {
+            XCTAssertEqual(s.expiryUrgencyScore, 0.0, accuracy: 0.001)
+        }
+    }
+
+    func testRank_expiredItemDoesNotBoost() {
+        // Already-spoiled items should not surface — urgencyOf returns 0 for negative days.
+        let recipe = makeRecipe(
+            name: "Old Chicken Salad",
+            ingredients: [("chicken breast", false, [])]
+        )
+        let inputs = RecipeSuggestionInputs(
+            pantryCanonicalNames: ["chicken breast"],
+            pantryExpiryByName: ["chicken breast": -2]
+        )
+        let ranked = RecipeSuggestionEngine.rank(candidates: [recipe], inputs: inputs)
+        XCTAssertEqual(ranked.first?.expiryUrgencyScore ?? -1, 0.0, accuracy: 0.001)
+    }
+
+    func testRank_expiryUrgencyTakesMaxAcrossIngredients() {
+        // Recipe has one item at 1 day, one at 30 days. Score should reflect the urgent one.
+        let recipe = makeRecipe(
+            name: "Mixed",
+            ingredients: [
+                ("spinach", false, []),
+                ("rice", false, []),
+            ]
+        )
+        let inputs = RecipeSuggestionInputs(
+            pantryCanonicalNames: ["spinach", "rice"],
+            pantryExpiryByName: ["spinach": 1, "rice": 30]
+        )
+        let ranked = RecipeSuggestionEngine.rank(candidates: [recipe], inputs: inputs)
+        XCTAssertEqual(ranked.first?.expiryUrgencyScore ?? 0, 1.0, accuracy: 0.001)
+    }
 }

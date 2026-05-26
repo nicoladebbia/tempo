@@ -180,8 +180,14 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.tempo.TempoTests
         GENERATE_INFOPLIST_FILE: true
-        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Tempo.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tempo"
         BUNDLE_LOADER: "$(TEST_HOST)"
+      configs:
+        Debug:
+          TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Tempo Dev.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tempo Dev"
+        Staging:
+          TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Tempo Staging.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tempo Staging"
+        Release:
+          TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Tempo.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tempo"
 
   TempoUITests:
     type: bundle.ui-testing
@@ -272,5 +278,11 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.tempo.TempoSnapshotTests
         GENERATE_INFOPLIST_FILE: true
-        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Tempo.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tempo"
         BUNDLE_LOADER: "$(TEST_HOST)"
+      configs:
+        Debug:
+          TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Tempo Dev.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tempo Dev"
+        Staging:
+          TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Tempo Staging.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tempo Staging"
+        Release:
+          TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Tempo.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tempo"

@@ -184,11 +184,22 @@ extension NutritionTabViewModel {
     }
 
     /// Rank recipes against the current pantry + today's remaining macros.
+    /// Includes expiry-urgency weighting (FIFO) so soon-to-expire items surface first.
     func refreshRecipeSuggestions(limit: Int = 8) {
         guard let recipeService else {
             return
         }
-        let pantryNames = Set(pantryState.items.filter { $0.quantity > 0 }.map(\.canonicalName))
+        let activePantry = pantryState.items.filter { $0.quantity > 0 }
+        let pantryNames = Set(activePantry.map(\.canonicalName))
+        var expiryByName: [String: Int] = [:]
+        for item in activePantry {
+            guard let days = item.daysUntilUseBy, days >= 0 else { continue }
+            // Keep the soonest expiry per canonical name if duplicates exist.
+            if let existing = expiryByName[item.canonicalName], existing <= days {
+                continue
+            }
+            expiryByName[item.canonicalName] = days
+        }
         let remainingCal = max(0, todayCalorieTarget - todayCaloriesConsumed)
         let remainingProtein = max(0, todayProteinTarget - todayProteinConsumed)
         let remainingCarbs = max(0, todayCarbsTarget - todayCarbsConsumed)
@@ -196,6 +207,7 @@ extension NutritionTabViewModel {
 
         let inputs = RecipeSuggestionInputs(
             pantryCanonicalNames: pantryNames,
+            pantryExpiryByName: expiryByName,
             remainingCalories: remainingCal,
             remainingProtein: remainingProtein,
             remainingCarbs: remainingCarbs,

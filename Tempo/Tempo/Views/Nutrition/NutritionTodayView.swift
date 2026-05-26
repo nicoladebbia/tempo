@@ -51,6 +51,7 @@ struct NutritionTodayView: View {
                         redistributionBanner(banner)
                     }
                     macroRingsSection
+                    UseUpSoonCard(viewModel: viewModel)
                     calorieProgressSection
                     mealsListSection
 
@@ -73,6 +74,12 @@ struct NutritionTodayView: View {
             floatingLogButton
                 .padding(.trailing, TempoSpacing.screenEdge)
                 .padding(.bottom, TempoSpacing.bottomSafe)
+        }
+        .task {
+            // Refresh pantry + recipe suggestions so UseUpSoonCard has FIFO-ranked
+            // candidates without requiring a visit to the Recipes tab first.
+            viewModel.reloadPantry()
+            viewModel.refreshRecipeSuggestions()
         }
         .sheet(item: $feedbackMeal, onDismiss: {
             viewModel.refreshFeedbackPresence(modelContext: modelContext)

@@ -197,6 +197,7 @@
 		7973F9C790F5A145A0CDC99D /* ActivityFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4710A68B55ABC7B62E30476 /* ActivityFeedView.swift */; };
 		7A448B0FBAEBBBC4316642F7 /* XPEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49ACE819EC67B27E98797001 /* XPEvent.swift */; };
 		7ADDF7900D7EBAC2DAB207E3 /* EatingWindowStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EDD2B5F032A8F144477874D /* EatingWindowStepView.swift */; };
+		7B9071085B562F380CAEEF36 /* UseUpSoonCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B0AA76F0D6E4C4C02DFD5FC /* UseUpSoonCard.swift */; };
 		7C1028AFDD1D96B68005C350 /* TermsAcceptanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3678D318AC458ABED686A82C /* TermsAcceptanceView.swift */; };
 		7D5CCD728516D32D664B9E42 /* MockPantryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE5E21E08019BEE4D532281B /* MockPantryService.swift */; };
 		7DE57B7828A5E39CEBC09558 /* RecoveryEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7073F332EC51ED92B9C4021 /* RecoveryEnums.swift */; };
@@ -624,6 +625,7 @@
 		6A8D5FA6B4F4E523C088A285 /* CircularRingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircularRingView.swift; sourceTree = "<group>"; };
 		6A9F438FD7D99195C6E720D2 /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		6B0915816BC3049DA77D7AED /* TrainingTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingTabView.swift; sourceTree = "<group>"; };
+		6B0AA76F0D6E4C4C02DFD5FC /* UseUpSoonCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UseUpSoonCard.swift; sourceTree = "<group>"; };
 		6B7D8774A65516298E76651B /* QuadrantCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuadrantCardView.swift; sourceTree = "<group>"; };
 		6B942A08219ED48198388A40 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		6B9A3BCA3AB54AD01D0758E3 /* DesignTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokens.swift; sourceTree = "<group>"; };
@@ -1918,6 +1920,7 @@
 				96E54ED996E486C0997A66DB /* ReceiptReviewView.swift */,
 				5D80435DD4731EBFEB97EC18 /* RecipeSuggestionsView.swift */,
 				482D68428AB7838E01758165 /* TellAIRecipeView.swift */,
+				6B0AA76F0D6E4C4C02DFD5FC /* UseUpSoonCard.swift */,
 				BEF1ADE800B362B94773359D /* VoiceMealLogView.swift */,
 				A14538AA6E522718B6E72A6F /* WeeklyMealReviewView.swift */,
 				67B30DD6F72473C7EFE2567F /* WriteRecipeView.swift */,
@@ -2683,6 +2686,7 @@
 				7007FEDD94A8699687D08EB4 /* TrainingSplit.swift in Sources */,
 				92D211B47535A258CBC8302F /* TrainingTabView.swift in Sources */,
 				FDA86A8A1FAAB495654536A5 /* TrainingViewModel.swift in Sources */,
+				7B9071085B562F380CAEEF36 /* UseUpSoonCard.swift in Sources */,
 				A4388E2900C0087CD71E67EA /* UserDailyPlanProfile.swift in Sources */,
 				063B238786B9E91632A534A0 /* UserProfile.swift in Sources */,
 				F76FED9FA3501D94EDEE6BF7 /* UserSettings.swift in Sources */,
@@ -3016,7 +3020,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = app.tempo.TempoTests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Tempo.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tempo";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Tempo Staging.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tempo Staging";
 			};
 			name = Staging;
 		};
@@ -3050,7 +3054,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = app.tempo.TempoTests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Tempo.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tempo";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Tempo Dev.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tempo Dev";
 			};
 			name = Debug;
 		};
@@ -3170,7 +3174,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = app.tempo.TempoSnapshotTests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Tempo.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tempo";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Tempo Staging.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tempo Staging";
 			};
 			name = Staging;
 		};
@@ -3250,7 +3254,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = app.tempo.TempoSnapshotTests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Tempo.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tempo";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Tempo Dev.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tempo Dev";
 			};
 			name = Debug;
 		};
