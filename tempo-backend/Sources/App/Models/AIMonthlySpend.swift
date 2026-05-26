@@ -17,6 +17,12 @@ final class AIMonthlySpend: Model, Content, @unchecked Sendable {
     @Field(key: "spend_cents")
     var spendCents: Int
 
+    /// Per-feature spend for caller="coach". Subset of `spendCents`.
+    /// Enforced alongside the global cap via AIConfig.coachMonthlyBudgetCents.
+    /// Per Coach v2.1 plan.
+    @Field(key: "coach_spend_cents")
+    var coachSpendCents: Int
+
     /// Highest threshold rung already applied this month.
     /// 0 = none, 50/80/95/100 = §5.4 ladder levels.
     @Field(key: "threshold_applied")
@@ -30,9 +36,15 @@ final class AIMonthlySpend: Model, Content, @unchecked Sendable {
 
     init() {}
 
-    init(yearMonth: String, spendCents: Int = 0, thresholdApplied: Int = 0) {
+    init(
+        yearMonth: String,
+        spendCents: Int = 0,
+        coachSpendCents: Int = 0,
+        thresholdApplied: Int = 0
+    ) {
         self.id = yearMonth
         self.spendCents = spendCents
+        self.coachSpendCents = coachSpendCents
         self.thresholdApplied = thresholdApplied
     }
 }

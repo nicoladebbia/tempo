@@ -539,6 +539,18 @@ struct AIConfig {
     static var monthlyBudgetCents: Int {
         Environment.get("CLAUDE_MONTHLY_BUDGET_CENTS").flatMap(Int.init) ?? 5000
     }
+
+    /// Per-feature monthly sub-cap for Coach (caller="coach"). Default $15. Override
+    /// via CLAUDE_COACH_MONTHLY_BUDGET_CENTS env var. Per Coach v2.1 plan Q1 decision.
+    /// Enforced alongside the global cap: a Coach call must satisfy BOTH the global
+    /// monthly cap AND this sub-cap. Returns nil when no sub-cap configured.
+    static var coachMonthlyBudgetCents: Int? {
+        if let raw = Environment.get("CLAUDE_COACH_MONTHLY_BUDGET_CENTS").flatMap(Int.init) {
+            return raw
+        }
+        return 1500
+    }
+
     static let dailyPerUserLimit = 12
     static let weeklyReportLimit = 3
     static let patternAnalysisLimit = 2

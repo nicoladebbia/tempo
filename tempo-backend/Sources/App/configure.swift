@@ -170,6 +170,7 @@ func configure(_ app: Application) async throws {
     app.migrations.add(CreateDeviceTokens())
     app.migrations.add(CreateUserSubscriptions())
     app.migrations.add(CreateAIMonthlySpend())
+    app.migrations.add(AddCoachSpendToAIMonthlySpend())
     app.migrations.add(CreateAIResponseCache())
     app.migrations.add(CreateUserDailyPlanProfiles())
 

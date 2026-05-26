@@ -31,6 +31,13 @@ struct NutritionAIController: RouteCollection {
         // body limit explicitly so the route does not 413 on legitimate photo
         // meal logs.
         proxy.on(.POST, "vision", body: .collect(maxSize: "5mb"), use: proxyVision)
+
+        // Coach chat (v2.1) — stateless single-turn relay with tool-use.
+        // Per Coach v2.1 plan §03-services-and-data-flow.md. iOS drives the
+        // tool-use loop; this endpoint is one Anthropic round-trip per request.
+        // 256kb is plenty for the largest plausible system+history+tools payload.
+        let coach = routes.grouped("coach")
+        coach.on(.POST, "chat", body: .collect(maxSize: "256kb"), use: coachChat)
     }
 
     @Sendable
@@ -73,6 +80,15 @@ struct NutritionAIController: RouteCollection {
         _ = try req.auth.requireUserID()
         let input = try req.content.decode(NutritionProxyVisionRequest.self)
         let response = try await NutritionClaudeProxyService.shared.sendVision(input: input, on: req)
+        return Envelope(data: response, requestID: req.requestID)
+    }
+
+
+    @Sendable
+    func coachChat(req: Request) async throws -> Envelope<CoachProxyChatResponse> {
+        _ = try req.auth.requireUserID()
+        let input = try req.content.decode(CoachProxyChatRequest.self)
+        let response = try await CoachClaudeProxyService.shared.sendCoachChat(input: input, on: req)
         return Envelope(data: response, requestID: req.requestID)
     }
 }
