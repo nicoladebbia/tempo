@@ -17,7 +17,12 @@ enum NutritionSection: String, CaseIterable, Identifiable {
     case today = "Today"
     case plan = "Plan"
     case log = "Log"
-    case coach = "Coach"
+    // HIDDEN 2026-05-26 — see .plans/overnight-tempo-fixes-2026-05-26.md Phase 1.
+    // Coach tab is intentionally suppressed pending the v2 Coach Agent decision
+    // (see .plans/coach-agent-plan.md, status ACTIVE/PLAN-ONLY). Restoring is a
+    // one-line uncomment of the enum case plus the matching switch branch in
+    // NutritionTabView.sectionContent.
+    // case coach = "Coach"
     case pantry = "Pantry"
 
     var id: String {

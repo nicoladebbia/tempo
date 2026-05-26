@@ -196,8 +196,10 @@ struct NutritionTabView: View {
             }
         case .log:
             NutritionLogView(viewModel: viewModel, showMealLogging: $showMealLogging)
-        case .coach:
-            NutritionCoachView(viewModel: viewModel)
+        // HIDDEN 2026-05-26 — see .plans/overnight-tempo-fixes-2026-05-26.md Phase 1.
+        // Restore alongside the matching enum case in NutritionTabViewModel.NutritionSection.
+        // case .coach:
+        //     NutritionCoachView(viewModel: viewModel)
         case .pantry:
             PantryView(viewModel: viewModel)
         }
