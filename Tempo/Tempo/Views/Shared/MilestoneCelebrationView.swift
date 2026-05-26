@@ -12,6 +12,22 @@ struct MilestoneCelebrationView: View {
     let milestone: MilestoneService.Milestone
     let onDismiss: () -> Void
     let onShowProgress: (() -> Void)?
+    /// Day-7/14/21: "LET'S GO" routes to the Streak Calendar so the popup leads somewhere
+    /// instead of being a hollow dismiss. Day-30 keeps its progress-report route.
+    /// See .plans/overnight-tempo-fixes-2026-05-26.md Phase 2.
+    let onShowStreak: (() -> Void)?
+
+    init(
+        milestone: MilestoneService.Milestone,
+        onDismiss: @escaping () -> Void,
+        onShowProgress: (() -> Void)? = nil,
+        onShowStreak: (() -> Void)? = nil
+    ) {
+        self.milestone = milestone
+        self.onDismiss = onDismiss
+        self.onShowProgress = onShowProgress
+        self.onShowStreak = onShowStreak
+    }
 
     @State
     private var showContent = false
@@ -74,19 +90,39 @@ struct MilestoneCelebrationView: View {
                         }
                     }
 
+                    // Day-7/14/21: primary action routes to Streak Calendar (the popup now
+                    // leads somewhere instead of just dismissing). Day-30 keeps DISMISS as
+                    // the secondary button after VIEW PROGRESS REPORT.
+                    if milestone != .day30, let onShowStreak {
+                        Button(action: {
+                            MilestoneService.markShown(milestone)
+                            onShowStreak()
+                        }) {
+                            Text("VIEW STREAK")
+                                .font(.tempoHeadline)
+                                .foregroundStyle(Color.tempoBgPrimary)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, TempoSpacing.buttonPaddingV)
+                                .background(Color.tempoSignal)
+                                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl))
+                        }
+                    }
+
                     Button(action: {
                         MilestoneService.markShown(milestone)
                         onDismiss()
                     }) {
-                        Text(milestone == .day30 ? "DISMISS" : "LET'S GO")
+                        // Secondary dismiss styling whenever a primary CTA exists above.
+                        let hasPrimaryAbove = (milestone == .day30) || (onShowStreak != nil)
+                        Text(milestone == .day30 ? "DISMISS" : (onShowStreak != nil ? "LATER" : "LET'S GO"))
                             .font(.tempoHeadline)
                             .foregroundStyle(
-                                milestone == .day30 ? Color.tempoTextSecondary : Color.tempoBgPrimary
+                                hasPrimaryAbove ? Color.tempoTextSecondary : Color.tempoBgPrimary
                             )
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, TempoSpacing.buttonPaddingV)
                             .background(
-                                milestone == .day30 ? Color.tempoSurfaceCard : Color.tempoSignal
+                                hasPrimaryAbove ? Color.tempoSurfaceCard : Color.tempoSignal
                             )
                             .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl))
                     }

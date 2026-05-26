@@ -170,7 +170,14 @@ struct DashboardView: View {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                             showProgressReport = true
                         }
-                    } : nil
+                    } : nil,
+                    // Day-7/14/21: route LET'S GO → Streak Calendar (lives in Lockdown tab).
+                    // Phase 2 of .plans/overnight-tempo-fixes-2026-05-26.md — fixes the
+                    // popup that previously only dismissed itself.
+                    onShowStreak: milestone == .day30 ? nil : {
+                        showMilestoneCelebration = false
+                        services.appState.activeTab = .lockdown
+                    }
                 )
             }
         }
