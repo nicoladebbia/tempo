@@ -214,10 +214,12 @@
 		7F8D5C180EA58E97C7FF03F0 /* VoiceMealLogService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA21E0682ABDE1512254EA20 /* VoiceMealLogService.swift */; };
 		800BFFC1B70ACB5044C7AC91 /* GroceryListGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF0B4AE96EDF5D9E965D3BD9 /* GroceryListGenerator.swift */; };
 		80CDCA744F00F1DC020F8951 /* WatchWorkoutState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A247748130B484B770E9ADA0 /* WatchWorkoutState.swift */; };
+		820A038F312A97A144E299CD /* CoachContextAssemblerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AA62C74B8140770502A34CE /* CoachContextAssemblerTests.swift */; };
 		821FAE11F7F28007F2F07341 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B1BD6649FE3F5F144BBFBA5 /* EmptyStateView.swift */; };
 		82232592A48A929CC215CBB6 /* HealthKitState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C8D40CF30AC1F6BA6A1CC4B /* HealthKitState.swift */; };
 		8263A459906BE962F1CE6F66 /* TempoBarChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5535978CE10DE36CA66E218 /* TempoBarChart.swift */; };
 		82B27CA05AC1B3CB435B7F98 /* WeeklyAccountabilityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BA302201C5F6747FCC2959D /* WeeklyAccountabilityView.swift */; };
+		830B57F9AACF74B9F2804BF3 /* CoachContextAssembler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8122466846CE7F386EE05ACD /* CoachContextAssembler.swift */; };
 		830E071F6A87532F270D679E /* ArenaViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54949B90A73092BDE0933B7F /* ArenaViewModel.swift */; };
 		838065C7C0A84638F5E42DF6 /* BarcodeScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B66D89D80327021526641C1 /* BarcodeScannerView.swift */; };
 		83A1CB1A9449C0FF4E1F0CEE /* NutritionLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBE51E68BEEAE73C444619C7 /* NutritionLogView.swift */; };
@@ -660,6 +662,7 @@
 		780C97DA0C11CEFA1B0DBB1C /* DateFormatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateFormatters.swift; sourceTree = "<group>"; };
 		783CC3794DB2C2A30C21002F /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		7954B471741533324D7316A4 /* TempoTextField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoTextField.swift; sourceTree = "<group>"; };
+		7AA62C74B8140770502A34CE /* CoachContextAssemblerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachContextAssemblerTests.swift; sourceTree = "<group>"; };
 		7B020D95D451799ABAD44B5D /* ErrorStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorStateView.swift; sourceTree = "<group>"; };
 		7B150313A01D062B883F3941 /* AchievementCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AchievementCardView.swift; sourceTree = "<group>"; };
 		7B8B7FCFCF4322BA2DE412B4 /* MealPlanGeneratorService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealPlanGeneratorService.swift; sourceTree = "<group>"; };
@@ -671,6 +674,7 @@
 		7E1559B7E21E10BCE19326D2 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		8094D8380452850D0E377C20 /* ExerciseLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExerciseLibraryView.swift; sourceTree = "<group>"; };
 		80D835BCF7D39B334F2254FD /* DailyRecovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyRecovery.swift; sourceTree = "<group>"; };
+		8122466846CE7F386EE05ACD /* CoachContextAssembler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachContextAssembler.swift; sourceTree = "<group>"; };
 		8141A68708EB6E765E94D253 /* testErrorStateView.1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = testErrorStateView.1.png; sourceTree = "<group>"; };
 		83510616D1E0812BDD2B5166 /* BasePage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BasePage.swift; sourceTree = "<group>"; };
 		8373DCB9C0829D3723EF298B /* PlannedMealCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlannedMealCardView.swift; sourceTree = "<group>"; };
@@ -1499,6 +1503,7 @@
 			isa = PBXGroup;
 			children = (
 				453C46F0BEFAED6CA4B52548 /* BehaviorObserverTests.swift */,
+				7AA62C74B8140770502A34CE /* CoachContextAssemblerTests.swift */,
 				04F74AB9672C62B51FE03F8E /* CoachToolsTests.swift */,
 				CC92309AFC4CA26A8386B484 /* LearnedPreferenceTests.swift */,
 				E13AFE1F582504BA4001CD47 /* PreferenceExtractorTests.swift */,
@@ -1708,6 +1713,7 @@
 			isa = PBXGroup;
 			children = (
 				C3F13D8B901A974DB3A3A9D8 /* BehaviorObserver.swift */,
+				8122466846CE7F386EE05ACD /* CoachContextAssembler.swift */,
 				92D3A8599DF88C6309EA3F37 /* CoachTools.swift */,
 				C5F69F78D519760976F185C4 /* LearnedOutcome.swift */,
 				5A3CA597A2FE3A91DD5F887E /* LearnedPreference.swift */,
@@ -2378,6 +2384,7 @@
 			files = (
 				3A49CBB5AFDC2D2988CF3A39 /* AccountabilityEngineTests.swift in Sources */,
 				0DB24BEF600B2337002D5885 /* BehaviorObserverTests.swift in Sources */,
+				820A038F312A97A144E299CD /* CoachContextAssemblerTests.swift in Sources */,
 				48E2965EE5A8FD999A62B804 /* CoachToolsTests.swift in Sources */,
 				573DD6B3F3F34FD715B81ECC /* FoodCanonicalizerTests.swift in Sources */,
 				1F3AD3F9102BB66597F1A248 /* GroceryListGeneratorTests.swift in Sources */,
@@ -2491,6 +2498,7 @@
 				0BA85D862D6A603E6C69FD7D /* ChallengeLocal.swift in Sources */,
 				B6643208673080AC8FE3B3A6 /* ChallengesView.swift in Sources */,
 				5DA1533F4B4E5557C0888C6A /* CircularRingView.swift in Sources */,
+				830B57F9AACF74B9F2804BF3 /* CoachContextAssembler.swift in Sources */,
 				32FF0ABDF7B87B6706CFF4FE /* CoachTools.swift in Sources */,
 				A2F529337AB3F368478A4DC4 /* Color+Tempo.swift in Sources */,
 				9573B28ABEDA1B18CE629AC4 /* ContentView.swift in Sources */,
