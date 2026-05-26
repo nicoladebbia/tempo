@@ -6,6 +6,7 @@
 //
 //
 
+import SwiftData
 import SwiftUI
 
 // MARK: - OnboardingViewModel
@@ -219,6 +220,142 @@ final class OnboardingViewModel {
         UserDefaults.standard.removeObject(forKey: "tempo.onboarding.step")
         UserDefaults.standard.removeObject(forKey: "tempo.onboarding.data")
         onComplete?()
+    }
+
+    // MARK: - Onboarding → SwiftData materialisation
+    //
+    // Phase 10b2 (overnight 2026-05-26): bridge onboarding fields into the
+    // models that downstream features actually read. Before this, primaryGoal
+    // / preferredSplit / experienceLevel / studyTarget / mealTarget were
+    // collected, persisted to UserDefaults, and then `complete()` deleted the
+    // blob — every new user shipped with default PPL split + no DietaryProfile,
+    // forcing them to manually open DietaryProfileSetupView for any real
+    // personalisation, and NonNegotiable defaults to ignore their stated targets.
+    //
+    // Idempotent — guarded by row-existence checks. Safe to call multiple times
+    // (e.g. via state restoration re-entering OnboardingCompleteView).
+
+    /// Materialise the onboarding-collected fields into the SwiftData models
+    /// the rest of the app reads from: `UserSettings` (training split),
+    /// `DietaryProfile` (primary goal + skill + frequency), and seed
+    /// `NonNegotiable` rows whose target values mirror the user's stated
+    /// study-minutes and meals-per-day intent.
+    ///
+    /// Called from `OnboardingCompleteView` after `buildDailyPlanProfile()`.
+    /// No backend sync — these are local-only writes; future Settings edits are
+    /// the canonical sync surface.
+    func materializeUserModelsIfNeeded(modelContext: ModelContext) {
+        // UserSettings — bridge training split. `daysPerWeek` is captured on
+        // `DietaryProfile.trainingFrequency` (below) since UserSettings has no
+        // per-week-frequency field. `ContentView.ensureUserProfile()` may have
+        // already created a default row before this view appears (its task
+        // fires when isOnboardingComplete flips to true — only AFTER `complete()`,
+        // which happens AFTER this method runs). Still, update-in-place rather
+        // than insert is safer against future re-entry.
+        let settingsDescriptor = FetchDescriptor<UserSettings>()
+        let settings: UserSettings
+        if let existing = try? modelContext.fetch(settingsDescriptor).first {
+            settings = existing
+        } else {
+            settings = UserSettings()
+            modelContext.insert(settings)
+        }
+        if let mapped = mapPreferredSplit(preferredSplit) {
+            settings.trainingSplit = mapped
+        }
+
+        // DietaryProfile — create a minimal active profile so the meal-plan
+        // generator can run without requiring the user to open
+        // DietaryProfileSetupView. Skill/frequency come from onboarding too;
+        // weight/height/age stay at sensible defaults until the user provides
+        // them later (DietaryProfileSetupView is the canonical editor).
+        let dietaryDescriptor = FetchDescriptor<DietaryProfile>()
+        let hasDietary = (try? modelContext.fetchCount(dietaryDescriptor)) ?? 0 > 0
+        if !hasDietary {
+            let goal = mapPrimaryGoal(primaryGoal) ?? .maintain
+            let skill = mapExperienceLevel(experienceLevel) ?? .intermediate
+            let dietary = DietaryProfile(
+                primaryGoal: goal,
+                trainingFrequency: max(0, min(7, daysPerWeek)),
+                skillLevel: skill
+            )
+            modelContext.insert(dietary)
+        }
+
+        // NonNegotiable seeds — `studyTarget` (minutes/day) and `mealTarget`
+        // (count/day) come from the goals step. Only insert defaults if the
+        // user has not already configured non-negotiables elsewhere
+        // (NonNegotiableSetupView guards by type, so the contracts match).
+        let nnDescriptor = FetchDescriptor<NonNegotiable>()
+        let existingNNs = (try? modelContext.fetch(nnDescriptor)) ?? []
+        let seeds: [(String, NonNegotiableType, String, Double, TrackingMethod)] = [
+            ("Study", .study, "book.fill", Double(studyTarget), .timer),
+            ("Training", .train, "dumbbell.fill", 1, .autoWhoop),
+            ("Meals", .meals, "fork.knife", Double(mealTarget), .manual),
+            ("Sleep", .sleep, "moon.fill", sleepTargetHours, .autoHealthkit),
+        ]
+        for (idx, seed) in seeds.enumerated() {
+            guard !existingNNs.contains(where: { $0.type == seed.1 }) else { continue }
+            let nn = NonNegotiable(
+                name: seed.0,
+                type: seed.1,
+                icon: seed.2,
+                targetValue: seed.3,
+                trackingMethod: seed.4,
+                order: existingNNs.count + idx
+            )
+            modelContext.insert(nn)
+        }
+
+        do {
+            try modelContext.save()
+        } catch {
+            // Non-fatal — log and continue. A failed materialisation leaves the
+            // user with default UserSettings and no DietaryProfile, which is
+            // the pre-fix state; nothing breaks, the personalisation is just
+            // weaker.
+            print("[onboarding] materializeUserModels save failed: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Field mappers (free-string → enum)
+
+    /// Maps the GoalSetupView free-string labels to `DietaryGoal`. Returns nil
+    /// for unknown labels so callers can fall back to `.maintain` rather than
+    /// silently miscategorising the user.
+    private func mapPrimaryGoal(_ label: String?) -> DietaryGoal? {
+        guard let label else { return nil }
+        switch label {
+        case "Build Muscle": return .leanGain
+        case "Lose Fat": return .cut
+        case "Stay Healthy", "All-Around": return .maintain
+        case "Improve Performance": return .leanGain // performance ≈ maintain-or-grow; choose growth
+        default: return nil
+        }
+    }
+
+    /// Maps the TrainingSetupView free-string labels to `TrainingSplit`.
+    /// Returns nil for "I Don't Know" so the UserSettings default (PPL) stays.
+    private func mapPreferredSplit(_ label: String?) -> TrainingSplit? {
+        guard let label else { return nil }
+        switch label {
+        case "PPL": return .pushPullLegs
+        case "Upper/Lower": return .upperLower
+        case "Full Body": return .fullBody
+        case "Bro Split": return .bro
+        default: return nil // "I Don't Know" or anything else → keep default
+        }
+    }
+
+    /// Maps the TrainingSetupView experience-level labels to `SkillLevel`.
+    private func mapExperienceLevel(_ label: String?) -> SkillLevel? {
+        guard let label else { return nil }
+        switch label {
+        case "Beginner": return .beginner
+        case "Intermediate": return .intermediate
+        case "Advanced": return .advanced
+        default: return nil
+        }
     }
 
     // MARK: - Daily plan profile

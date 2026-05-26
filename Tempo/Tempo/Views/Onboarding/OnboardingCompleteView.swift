@@ -83,6 +83,12 @@ struct OnboardingCompleteView: View {
             print("[onboarding] persistDailyPlanProfile local save failed: \(error.localizedDescription)")
         }
 
+        // Phase 10b2: bridge onboarding-collected fields (preferredSplit,
+        // primaryGoal, experienceLevel, daysPerWeek, studyTarget, mealTarget)
+        // into UserSettings / DietaryProfile / NonNegotiable. Without this
+        // every new user shipped with default PPL + no DietaryProfile.
+        viewModel.materializeUserModelsIfNeeded(modelContext: modelContext)
+
         // Backend sync — non-blocking. Failures are logged in the VM helper.
         Task {
             await viewModel.syncDailyPlanProfile(apiClient: services.apiClient)
