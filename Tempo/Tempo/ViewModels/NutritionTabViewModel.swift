@@ -562,6 +562,85 @@ final class NutritionTabViewModel {
         HapticManager.notification(.success)
     }
 
+    // MARK: - AI Edit Meal (Phase 6)
+
+    /// True while an AI-edit-meal parse is in flight. Drives the per-row
+    /// spinner state in the edit sheet. Keyed by `PlannedMeal.id` so a
+    /// concurrent edit on a different row doesn't double-spin.
+    private(set) var editingAIMealID: UUID?
+
+    /// User-facing error from the most recent AI-edit attempt. Toasted by
+    /// the sheet then cleared. Nil on success.
+    var lastAIEditError: String?
+
+    /// Replace the foods + macros on `meal` from a free-text description
+    /// (e.g. "actually I had pasta with pesto instead"). Reuses the existing
+    /// `NaturalLanguageLoggingService` — same Haiku model, same backend
+    /// proxy, same FoodMacroDatabase cross-reference. The meal's id,
+    /// slot, scheduled time, and plan binding are preserved; only the
+    /// foods + totals change. `status` is bumped to `.modified` so the
+    /// "I ate something different" history is honest.
+    ///
+    /// Cost: backend proxy already meters `caller: "nl_parse"` via
+    /// AIBudgetTracker; no new spend path. Per-call budget = 1 Haiku
+    /// request, max 500 tokens (set inside the service).
+    func replaceMealWithNaturalLanguage(
+        _ meal: PlannedMeal,
+        freeText: String,
+        apiClient: APIClient,
+        modelContext: ModelContext
+    ) async {
+        let text = freeText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else {
+            lastAIEditError = "Type what you ate first."
+            return
+        }
+        editingAIMealID = meal.id
+        defer { editingAIMealID = nil }
+
+        let service = NaturalLanguageLoggingService(apiClient: apiClient)
+        do {
+            let items = try await service.parseNaturalLanguage(text)
+            guard !items.isEmpty else {
+                lastAIEditError = "Couldn't parse that. Try being more specific."
+                return
+            }
+
+            // Replace foods + recompute totals. Status flips to .modified
+            // so downstream (review screen, history) can tell this slot
+            // diverged from the planned dish.
+            meal.foods = items.map { item in
+                PlannedFood(
+                    name: item.name,
+                    quantityGrams: item.quantityGrams,
+                    calories: item.calories,
+                    proteinG: item.proteinG,
+                    carbsG: item.carbsG,
+                    fatG: item.fatG
+                )
+            }
+            meal.recalculateTotals()
+            if meal.status == .planned {
+                meal.status = .modified
+            }
+            do {
+                try modelContext.save()
+            } catch {
+                // SwiftData save failures from a user-triggered AI edit
+                // would otherwise silently revert on next cold launch.
+                // Surface the error and bail BEFORE the success haptic.
+                Logger.nutrition.error("AI edit save failed: \(error.localizedDescription)")
+                lastAIEditError = "Couldn't save edit. Try again."
+                return
+            }
+            refreshTodayMeals(modelContext: modelContext)
+            HapticManager.notification(.success)
+            lastAIEditError = nil
+        } catch {
+            lastAIEditError = "Parse failed: \(error.localizedDescription)"
+        }
+    }
+
     // MARK: - Presets
 
     func savePreset(name: String, items: [PlannedFood], mealType: MealType, modelContext: ModelContext) {

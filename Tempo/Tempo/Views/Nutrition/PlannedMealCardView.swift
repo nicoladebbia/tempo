@@ -21,6 +21,11 @@ struct PlannedMealCardView: View {
     /// that don't yet have a `MealFeedback` row. Caller decides what to
     /// present (typically `MealFeedbackSheet`).
     var onReviewTap: (() -> Void)?
+    /// Tap handler for the "Edit with AI" affordance — opens a sheet where
+    /// the user types what they actually ate and Claude Haiku replaces the
+    /// foods + macros for THIS slot only (see
+    /// `NutritionTabViewModel.replaceMealWithNaturalLanguage`). Nil = hide.
+    var onEditWithAI: (() -> Void)?
     /// When true, surface the small "review" dot next to the status badge.
     /// The day list computes this from the VM's `feedbackPresence` map.
     var needsReview: Bool = false
@@ -86,6 +91,13 @@ struct PlannedMealCardView: View {
                     onMarkSkipped?()
                 } label: {
                     Label("Skip Meal", systemImage: "xmark.circle.fill")
+                }
+            }
+            if onEditWithAI != nil {
+                Button {
+                    onEditWithAI?()
+                } label: {
+                    Label("Edit with AI", systemImage: "sparkles")
                 }
             }
         }
@@ -225,6 +237,33 @@ struct PlannedMealCardView: View {
                 }
                 .buttonStyle(.plain)
                 .padding(.top, TempoSpacing.sm)
+            }
+
+            // Phase 6 — "Edit with AI" pill. Shown whenever the caller
+            // wires `onEditWithAI` (we don't restrict to .planned because
+            // the user often wants to correct an already-marked-eaten
+            // meal that was logged wrong). Triggers the AI edit sheet
+            // in NutritionTodayView which calls
+            // NutritionTabViewModel.replaceMealWithNaturalLanguage.
+            if onEditWithAI != nil {
+                Button {
+                    HapticManager.lightImpact()
+                    onEditWithAI?()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "sparkles")
+                        Text("Edit with AI")
+                    }
+                    .font(.tempoCaption1.weight(.semibold))
+                    .foregroundStyle(Color.tempoElectric)
+                    .padding(.horizontal, TempoSpacing.md)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.tempoElectric.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .padding(.top, TempoSpacing.xs)
             }
         }
         .padding(.vertical, TempoSpacing.sm)

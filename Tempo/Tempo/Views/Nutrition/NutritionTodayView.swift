@@ -38,6 +38,18 @@ struct NutritionTodayView: View {
     @State
     private var markEatenMeal: PlannedMeal?
 
+    /// When set, presents `AIEditMealSheet` for this meal — Phase 6.
+    /// User types what they actually ate; VM rewrites foods + macros via
+    /// NaturalLanguageLoggingService.
+    @State
+    private var aiEditMeal: PlannedMeal?
+
+    /// Toast surfaced when the AI edit fails (parse error, empty result,
+    /// network). Driven by `viewModel.lastAIEditError` after the call
+    /// returns.
+    @State
+    private var aiEditToast: ToastData?
+
     // Macro colors per MODULE_DASHBOARD.md
     private let proteinColor = Color.tempoMacroProtein
     private let carbsColor = Color.tempoMacroCarbs
@@ -86,6 +98,34 @@ struct NutritionTodayView: View {
             }
             .presentationDetents([.medium, .large])
         }
+        .sheet(item: $aiEditMeal, onDismiss: {
+            // Surface any error the VM stored during the parse. Reading +
+            // clearing here keeps the sheet itself dumb.
+            if let err = viewModel.lastAIEditError {
+                aiEditToast = ToastData(message: err, style: .error)
+                viewModel.lastAIEditError = nil
+            }
+        }) { meal in
+            AIEditMealSheet(
+                meal: meal,
+                isProcessing: viewModel.editingAIMealID == meal.id,
+                onSubmit: { text in
+                    await viewModel.replaceMealWithNaturalLanguage(
+                        meal,
+                        freeText: text,
+                        apiClient: services.apiClient,
+                        modelContext: modelContext
+                    )
+                    // Close on success (no error stored); leave open on
+                    // failure so the user can retry without retyping.
+                    if viewModel.lastAIEditError == nil {
+                        aiEditMeal = nil
+                    }
+                }
+            )
+            .presentationDetents([.medium, .large])
+        }
+        .tempoToast($aiEditToast)
     }
 
     // MARK: - Macro Rings
@@ -298,6 +338,7 @@ struct NutritionTodayView: View {
                             }
                         },
                         onReviewTap: { feedbackMeal = meal },
+                        onEditWithAI: { aiEditMeal = meal },
                         needsReview: meal.status == .eaten
                             && !(viewModel.feedbackPresence[meal.id] ?? false)
                     )
@@ -475,6 +516,117 @@ struct NutritionTodayView: View {
             .padding(.vertical, 14)
             .background(Color.tempoSignal)
             .clipShape(Capsule())
+        }
+    }
+}
+
+// MARK: - Preview
+
+// MARK: - AI Edit Meal Sheet (Phase 6)
+
+/// Lightweight sheet for the "Edit with AI" affordance on a single
+/// PlannedMeal row. Lets the user type "actually I had pasta with pesto
+/// instead" and rewrites the meal's foods + macros via
+/// NaturalLanguageLoggingService. Stateless beyond the text buffer —
+/// the parse, the spinner state, the error, and the persistence all
+/// live on NutritionTabViewModel.
+private struct AIEditMealSheet: View {
+    let meal: PlannedMeal
+    let isProcessing: Bool
+    let onSubmit: (String) async -> Void
+
+    @State
+    private var text: String = ""
+    @FocusState
+    private var fieldFocused: Bool
+    @Environment(\.dismiss)
+    private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+                    Text("EDITING")
+                        .font(.tempoModuleTag)
+                        .tracking(TempoTracking.drillLabel)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                    Text(meal.mealName)
+                        .font(.tempoTitle3)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                    Text("Type what you actually had. AI rewrites the foods and macros for this slot only.")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                ZStack(alignment: .topLeading) {
+                    if text.isEmpty {
+                        Text("e.g. 200g pasta with pesto and a side of salad")
+                            .font(.tempoBody)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                            .padding(.horizontal, TempoSpacing.sm + 4) // align with TextEditor caret column
+                            .padding(.top, TempoSpacing.md + 2)
+                    }
+                    TextEditor(text: $text)
+                        .focused($fieldFocused)
+                        .font(.tempoBody)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                        .scrollContentBackground(.hidden)
+                        .padding(.horizontal, TempoSpacing.sm)
+                        .padding(.vertical, TempoSpacing.sm)
+                        .frame(minHeight: 120)
+                        .disabled(isProcessing)
+                }
+                .background(Color.tempoBgSecondary)
+                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+
+                Button {
+                    HapticManager.lightImpact()
+                    fieldFocused = false
+                    Task {
+                        await onSubmit(text)
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        if isProcessing {
+                            ProgressView()
+                                .tint(Color.tempoTextInverse)
+                        } else {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 15, weight: .semibold))
+                        }
+                        Text(isProcessing ? "Parsing…" : "Replace Meal")
+                            .font(.system(size: 15, weight: .semibold))
+                    }
+                    .foregroundStyle(Color.tempoTextInverse)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .background(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isProcessing ? Color.tempoElectric.opacity(0.4) : Color.tempoElectric)
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                }
+                .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isProcessing)
+
+                Spacer(minLength: 0)
+            }
+            .padding(TempoSpacing.lg)
+            .navigationTitle("Edit with AI")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .disabled(isProcessing)
+                }
+            }
+            .onAppear {
+                fieldFocused = true
+            }
+            // Don't let a swipe-down dismiss the sheet while the parse is
+            // in flight — that swallows error feedback (the onDismiss
+            // toast on the parent only fires once, and if dismiss already
+            // happened the success branch can't run).
+            .interactiveDismissDisabled(isProcessing)
         }
     }
 }
