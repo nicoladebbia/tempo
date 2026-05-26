@@ -306,23 +306,40 @@ final class DayPlannerService {
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.locale = Locale(identifier: "en_US_POSIX")
 
-        let weekStart: Date = {
-            let cal = Calendar.current
-            let comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: day)
-            return cal.date(from: comps) ?? day
-        }()
+        // Monday-anchored regardless of `Calendar.current.firstWeekday` (which
+        // is Sunday on en-US, Monday on en-GB/EU). Same formula used by
+        // `MealPlanGeneratorService` line 762.
+        let cal = Calendar.current
+        let weekdayOfDay = cal.component(.weekday, from: day) // 1=Sun, 2=Mon, …, 7=Sat
+        let mondayOffset = (weekdayOfDay + 5) % 7             // Mon=0, …, Sun=6
+        let weekStart = cal.date(byAdding: .day, value: -mondayOffset, to: day) ?? day
 
         let trainingTime = input.workoutBlock.map { block -> String in
             String(format: "%02d:%02d", block.startMinuteOfDay / 60, block.startMinuteOfDay % 60)
         }
 
-        let footballDays = input.fixedBlocks
-            .filter { $0.kind == .football }
-            .map { _ in
-                Calendar.current.weekdaySymbols[
-                    (Calendar.current.component(.weekday, from: day) - 1) % 7
-                ].lowercased()
+        // Football days are a WEEK-WIDE field on the backend prompt
+        // (TrainingProgramService.swift line 108 joins them as
+        // "your football days are X, Y"). Sourcing from today's `fixedBlocks`
+        // — which is single-day-scoped by `replan()` line 43 — never sees
+        // football events that aren't on `day`, so the AI got an empty list
+        // on rest days and `[today]` on football days. Source from
+        // `UserSettings.footballDays: ActiveDays` instead.
+        // Coordinate: bit 0 = Mon, …, bit 6 = Sun;
+        // `Calendar.weekdaySymbols` is Sun-indexed at 0.
+        // So bit i → weekdaySymbols[(i + 1) % 7].
+        let userFootballDays: ActiveDays? = {
+            let descriptor = FetchDescriptor<UserSettings>()
+            return (try? modelContext.fetch(descriptor))?.first?.footballDays
+        }()
+        let symbols = cal.weekdaySymbols // ["Sunday", "Monday", …, "Saturday"]
+        let footballDays: [String] = {
+            guard let userFootballDays else { return [] }
+            return (0..<7).compactMap { bit in
+                guard (userFootballDays.rawValue & (1 << bit)) != 0 else { return nil }
+                return symbols[(bit + 1) % 7].lowercased()
             }
+        }()
 
         let studyMinutes = input.studyBlocks
             .map { $0.endMinuteOfDay - $0.startMinuteOfDay }

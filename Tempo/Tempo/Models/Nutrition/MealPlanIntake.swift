@@ -93,7 +93,14 @@ struct WeeklyTrainingSchedule: Sendable, Equatable {
         // — that's how the Training engine treats it (football is the priority
         // signal). Without this, a user with Mon=upper and Wed=football would
         // still see Wed=Legs in the meal plan.
-        for weekday in 1 ... 7 where footballDays.isActive(on: weekday) {
+        //
+        // Coordinate note: `byWeekday` is keyed Mon-1…Sun-7 (this file's own
+        // convention). `ActiveDays.isActive(on:)` expects Calendar-standard
+        // weekday (1=Sun, 2=Mon, …, 7=Sat). Convert Mon-1 → Calendar-standard
+        // via `(weekday % 7) + 1`: Mon(1)→2, Tue(2)→3, …, Sat(6)→7, Sun(7)→1.
+        // Previously this passed the Mon-1 index raw and shifted every
+        // football day one slot earlier in the nutrition weekly schedule.
+        for weekday in 1 ... 7 where footballDays.isActive(on: (weekday % 7) + 1) {
             byWeekday[weekday] = "Football"
         }
         return WeeklyTrainingSchedule(byWeekday: byWeekday)
