@@ -121,6 +121,8 @@ struct RecoveryTrendsView: View {
             Text(value)
                 .font(.tempoHeadline)
                 .foregroundStyle(Color.tempoTextPrimary)
+                .contentTransition(.numericText(countsDown: false))
+                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: value)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, TempoSpacing.md)

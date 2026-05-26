@@ -273,6 +273,8 @@ struct RecoveryTodayView: View {
                     Text(value)
                         .font(.tempoHeadline)
                         .foregroundStyle(Color.tempoTextPrimary)
+                        .contentTransition(.numericText(countsDown: false))
+                        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: value)
 
                     Text(unit)
                         .font(.tempoCaption2)
@@ -478,6 +480,8 @@ struct RecoveryTodayView: View {
                 Text(todayValue)
                     .font(.tempoHeadline)
                     .foregroundStyle(Color.tempoTextPrimary)
+                    .contentTransition(.numericText(countsDown: false))
+                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: todayValue)
                 if !unit.isEmpty {
                     Text(unit)
                         .font(.tempoCaption2)
@@ -494,6 +498,8 @@ struct RecoveryTodayView: View {
                 Text(String(format: "%+.0f", delta))
                     .font(.tempoCaption1)
                     .fontWeight(.medium)
+                    .contentTransition(.numericText(countsDown: false))
+                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: delta)
             }
             .foregroundStyle(isPositive ? Color.tempoRecoveryGreen : Color.tempoRecoveryRed)
 
@@ -501,6 +507,8 @@ struct RecoveryTodayView: View {
                 .font(.tempoCaption2)
                 .foregroundStyle(Color.tempoTextTertiary)
                 .frame(width: 65, alignment: .trailing)
+                .contentTransition(.numericText(countsDown: false))
+                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: baselineValue)
         }
     }
 
@@ -644,13 +652,16 @@ struct MetricTrendSheet: View {
     }
 
     private func summaryItem(label: String, value: Double?) -> some View {
-        VStack(spacing: TempoSpacing.xxs) {
+        let formatted = value.map { metric == .temp ? String(format: "%.1f", $0) : "\(Int($0))" } ?? "--"
+        return VStack(spacing: TempoSpacing.xxs) {
             Text(label)
                 .font(.tempoCaption2)
                 .foregroundStyle(Color.tempoTextSecondary)
-            Text(value.map { metric == .temp ? String(format: "%.1f", $0) : "\(Int($0))" } ?? "--")
+            Text(formatted)
                 .font(.tempoHeadline)
                 .foregroundStyle(Color.tempoTextPrimary)
+                .contentTransition(.numericText(countsDown: false))
+                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: formatted)
             Text(metric.unit)
                 .font(.tempoCaption2)
                 .foregroundStyle(Color.tempoTextTertiary)

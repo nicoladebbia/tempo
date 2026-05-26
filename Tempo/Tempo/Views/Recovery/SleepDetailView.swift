@@ -68,6 +68,8 @@ struct SleepDetailView: View {
                 Text(viewModel.formattedSleepHours)
                     .font(.tempoBody)
                     .foregroundStyle(Color.tempoTextPrimary)
+                    .contentTransition(.numericText(countsDown: false))
+                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: viewModel.formattedSleepHours)
                 Text("asleep")
                     .font(.tempoBody)
                     .foregroundStyle(Color.tempoTextSecondary)
@@ -78,6 +80,8 @@ struct SleepDetailView: View {
                 Text("Sleep Efficiency: \(String(format: "%.1f", efficiency))%")
                     .font(.tempoCaption1)
                     .foregroundStyle(sleepEfficiencyColor(efficiency))
+                    .contentTransition(.numericText(countsDown: false))
+                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: efficiency)
             }
         }
         .padding(.top, TempoSpacing.lg)
@@ -219,10 +223,14 @@ struct SleepDetailView: View {
             Text(formatMinutes(minutes))
                 .font(.tempoHeadline)
                 .foregroundStyle(Color.tempoTextPrimary)
+                .contentTransition(.numericText(countsDown: false))
+                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: minutes)
 
             Text("\(percentage)%")
                 .font(.tempoCaption2)
                 .foregroundStyle(Color.tempoTextSecondary)
+                .contentTransition(.numericText(countsDown: false))
+                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: percentage)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, TempoSpacing.sm)
@@ -248,6 +256,8 @@ struct SleepDetailView: View {
                             Text(String(format: "%.1f", viewModel.calculatedSleepDebt))
                                 .font(.tempoLargeTitle)
                                 .foregroundStyle(Color.tempoTextPrimary)
+                                .contentTransition(.numericText(countsDown: false))
+                                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: viewModel.calculatedSleepDebt)
                             Text("hours")
                                 .font(.tempoBody)
                                 .foregroundStyle(Color.tempoTextSecondary)

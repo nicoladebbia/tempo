@@ -126,6 +126,8 @@ struct StrainDetailView: View {
                 Text(value)
                     .font(.tempoTitle3)
                     .foregroundStyle(Color.tempoTextPrimary)
+                    .contentTransition(.numericText(countsDown: false))
+                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: value)
                 Text(unit)
                     .font(.tempoCaption2)
                     .foregroundStyle(Color.tempoTextTertiary)
@@ -186,10 +188,14 @@ struct StrainDetailView: View {
                 Text(detail)
                     .font(.tempoCaption2)
                     .foregroundStyle(Color.tempoTextTertiary)
+                    .contentTransition(.numericText(countsDown: false))
+                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: detail)
             }
             Text(value)
                 .font(bold ? .tempoHeadline : .tempoBody)
                 .foregroundStyle(Color.tempoTextPrimary)
+                .contentTransition(.numericText(countsDown: false))
+                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: value)
         }
     }
 
