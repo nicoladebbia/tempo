@@ -88,12 +88,19 @@ final class DayPlannerService {
         try? modelContext.save()
 
         // AI hydration runs after the persisted skeleton is visible.
-        // Failure is non-fatal — caller gets the saved DayPlan either
-        // way, and the view shows titles even when copy is nil.
+        // Detached on the MainActor so the caller returns immediately with
+        // the saved skeleton — the view renders titles right away, and
+        // AI copy fills in when the Sonnet/Haiku calls land. Failure is
+        // non-fatal per ADR-014 (offline-first); a 402/503/network blip
+        // leaves blocks rendered with title + "No AI rationale yet."
+        //
+        // Perceived latency on cold replan drops from ~10s (Sonnet p95)
+        // to near-zero. Per .plans/overnight-tempo-fixes-2026-05-26
+        // Phase 10a Auditor 4 / Finding 1.
         if let apiClient {
             let context = buildHydrationContext(day: day, input: input)
             let hydrator = DayPlannerAIHydrator(modelContext: modelContext, apiClient: apiClient)
-            await hydrator.hydrate(plan: plan, context: context)
+            Task { await hydrator.hydrate(plan: plan, context: context) }
         }
 
         return plan
