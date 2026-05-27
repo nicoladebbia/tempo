@@ -751,21 +751,38 @@ final class NutritionTabViewModel {
                     }
                 )
 
-                weeklyPlan = plan
-                // CRITICAL: refresh todayMeals BEFORE the notification +
-                // pantry-gap passes. Plan-gen's delete-and-reinsert of
-                // PlannedMeals can leave any stale ref in scope pointing
-                // at deleted backing data; scheduleDefrostReminders +
-                // computePantryGap iterate the plan's meals and would
-                // crash with "BackingData.swift:1039 Fatal" on access.
-                // Moving loadToday up forces the re-fault while we still
-                // have a clean stack. The scheduler also snapshots the
-                // data it needs eagerly (see scheduleDefrostReminders).
+                // Plan-gen's delete-and-reinsert of WeeklyMealPlan +
+                // PlannedMeal rows leaves the `plan` local pointing at
+                // an invalidated SwiftData ref under some timings. Re-
+                // fetch by ID via the modelContext so every downstream
+                // consumer (scheduleDefrostReminders, computePantryGap,
+                // generateGroceryList) reads from a fresh ref. If the
+                // re-fetch fails (shouldn't, but defensive) we skip the
+                // post-gen passes rather than risk the crash.
+                let planID = plan.id
+                let planDesc = FetchDescriptor<WeeklyMealPlan>(
+                    predicate: #Predicate<WeeklyMealPlan> { $0.id == planID }
+                )
+                guard let freshPlan = (try? modelContext.fetch(planDesc))?.first else {
+                    weeklyPlan = nil
+                    loadToday(modelContext: modelContext)
+                    isGeneratingPlan = false
+                    planGenerationStatusLabel = ""
+                    HapticManager.notification(.success)
+                    return
+                }
+                weeklyPlan = freshPlan
+                // Refresh todayMeals AFTER the plan re-fetch so the
+                // cached array also holds fresh refs.
                 loadToday(modelContext: modelContext)
                 if let notifications {
-                    scheduleDefrostReminders(for: plan, notifications: notifications)
+                    scheduleDefrostReminders(
+                        for: freshPlan,
+                        notifications: notifications,
+                        modelContext: modelContext
+                    )
                 }
-                pantryGapAlert = computePantryGap(for: plan, modelContext: modelContext)
+                pantryGapAlert = computePantryGap(for: freshPlan, modelContext: modelContext)
                 // Auto-build the grocery list now so the user doesn't have to
                 // hunt for a Generate button after the plan lands. Non-fatal:
                 // failures surface via groceryState.lastError, not the plan UI.
@@ -801,9 +818,19 @@ final class NutritionTabViewModel {
                 acc.insert(name.lowercased())
             }
 
-        // Collect every distinct ingredient referenced by the plan's recipes.
+        // Re-fetch the plan's PlannedMeals by ID rather than iterating
+        // the plan's relationship, which can hold invalidated refs
+        // right after persistPlan's delete-and-reinsert
+        // ("BackingData.swift:1039 Fatal" otherwise).
+        let planID = plan.id
+        let mealDesc = FetchDescriptor<PlannedMeal>(
+            predicate: #Predicate<PlannedMeal> { meal in
+                meal.mealPlan?.id == planID
+            }
+        )
+        let meals = (try? modelContext.fetch(mealDesc)) ?? []
         var needed: Set<String> = []
-        for meal in plan.meals ?? [] {
+        for meal in meals {
             for ingredient in meal.recipe?.ingredients ?? [] {
                 needed.insert(ingredient.canonicalFoodName.lowercased())
             }
@@ -826,7 +853,8 @@ final class NutritionTabViewModel {
     /// would miss them).
     private func scheduleDefrostReminders(
         for plan: WeeklyMealPlan,
-        notifications: any NotificationServiceProtocol
+        notifications: any NotificationServiceProtocol,
+        modelContext: ModelContext
     ) {
         notifications.cancelCategory("DEFROST_REMINDER")
         notifications.cancelCategory("PREP_START_REMINDER")
@@ -834,12 +862,20 @@ final class NutritionTabViewModel {
         let calendar = Calendar.current
         let now = Date()
 
-        // Snapshot every meal's notification-relevant fields BEFORE
-        // doing anything that might cause SwiftData to re-fetch (e.g.
-        // a downstream loadToday()). The previous version iterated the
-        // live plan.meals array while subsequent code re-fetched
-        // PlannedMeals; on slow plan-gen the live refs got invalidated
-        // mid-iteration and crashed with "BackingData.swift:1039 Fatal".
+        // Re-fetch meals by plan ID instead of reading `plan.meals`.
+        // The relationship cache can contain invalidated PlannedMeal
+        // refs right after persistPlan's delete-and-reinsert; the
+        // fresh fetch is the only reliable read.
+        let planID = plan.id
+        let mealDesc = FetchDescriptor<PlannedMeal>(
+            predicate: #Predicate<PlannedMeal> { meal in
+                meal.mealPlan?.id == planID
+            }
+        )
+        let freshMeals = (try? modelContext.fetch(mealDesc)) ?? []
+
+        // Snapshot every meal's notification-relevant fields before
+        // any further SwiftData I/O.
         struct PendingNotification {
             let mealID: UUID
             let mealName: String
@@ -847,7 +883,7 @@ final class NutritionTabViewModel {
             let prepStart: Date
             let defrosts: [(id: UUID, name: String, lead: Int)]
         }
-        let pending: [PendingNotification] = (plan.meals ?? []).map { meal in
+        let pending: [PendingNotification] = freshMeals.map { meal in
             let mealTime = MealScheduleHelpers.scheduledDate(for: meal, calendar: calendar)
             let prepStart = MealScheduleHelpers.prepStartDate(for: meal, calendar: calendar)
             let defrosts: [(UUID, String, Int)] = (meal.recipe?.ingredients ?? [])
@@ -863,7 +899,6 @@ final class NutritionTabViewModel {
         }
 
         for item in pending {
-            // Prep-start reminder — fires when it's time to start cooking.
             if item.prepStart > now, item.prepStart != item.mealTime {
                 notifications.schedulePrepStartReminder(
                     mealID: item.mealID,
@@ -871,8 +906,6 @@ final class NutritionTabViewModel {
                     prepStartDate: item.prepStart
                 )
             }
-            // Overdue check-in — fires 15min past mealTime if the meal is
-            // still unmarked. Cancelled by markMealEaten/markMealSkipped.
             if item.mealTime > now {
                 notifications.scheduleOverdueMealReminder(
                     mealID: item.mealID,
@@ -881,7 +914,6 @@ final class NutritionTabViewModel {
                     lateMinutes: 15
                 )
             }
-            // Defrost reminders — one per freezer ingredient.
             for defrost in item.defrosts {
                 guard let fireDate = calendar.date(byAdding: .hour, value: -defrost.lead, to: item.mealTime) else {
                     continue
