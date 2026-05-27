@@ -273,12 +273,22 @@ struct NutritionTodayView: View {
                     PlannedMealCardView(
                         meal: meal,
                         onMarkEaten: {
-                            // Present the unified MarkEatenSheet — user
-                            // confirms when they actually ate and
-                            // optionally picks a meal-feel chip. The
-                            // sheet's onCommit calls markMealEaten with
-                            // the chosen time + writes the feedback row.
-                            markEatenMeal = meal
+                            // Smart default: if the tap lands within ±15 min
+                            // of the planned scheduled time, save silently —
+                            // the common case on a normal day. Outside that
+                            // window we present MarkEatenSheet so the user
+                            // can pick the actual eat-time (and optionally
+                            // a meal-feel chip or substitute).
+                            if PlannedMealTimingMatcher.isNearScheduled(meal: meal, now: Date()) {
+                                viewModel.markMealEaten(
+                                    meal,
+                                    modelContext: modelContext,
+                                    notifications: services.notifications
+                                )
+                                PantryDecrementService.decrement(for: meal, modelContext: modelContext)
+                            } else {
+                                markEatenMeal = meal
+                            }
                         },
                         onMarkSkipped: {
                             viewModel.markMealSkipped(

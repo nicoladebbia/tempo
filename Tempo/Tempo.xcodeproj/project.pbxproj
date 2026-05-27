@@ -447,6 +447,7 @@
 		FA7E7514ED95B5A5C738A967 /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B9A3BCA3AB54AD01D0758E3 /* DesignTokens.swift */; };
 		FB9AD9EC9831F3BC29371B34 /* WorkoutCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 434489B67B26E92709DA90A0 /* WorkoutCardView.swift */; };
 		FBBC31B616B9C2C5E5B1AAE1 /* MockSubscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EFA99C63FD77B49E143E535 /* MockSubscriptionService.swift */; };
+		FCD666F5F06CBF7DB861CCD9 /* PlannedMealTimingMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFCF7C06827FF0287A30F374 /* PlannedMealTimingMatcher.swift */; };
 		FD4973163870BBD7D2EF7579 /* FocusTimerActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDD957BD3C8595D5E0120DAA /* FocusTimerActivityAttributes.swift */; };
 		FD4F8D22C88FFFD22D088D8E /* SyncCoordinatorProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8F26E407787FCFF9954F0F0 /* SyncCoordinatorProtocol.swift */; };
 		FD98AD1B7C3EB40C66CF3830 /* RecipeParserService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F58BF5453C1F965727E89A1B /* RecipeParserService.swift */; };
@@ -993,6 +994,7 @@
 		FD97FCDDA933BD424B4D829D /* NotificationSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSetupView.swift; sourceTree = "<group>"; };
 		FE0859F42A2148684F033E8C /* testBodyQuadrantDetailMetricRow.1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = testBodyQuadrantDetailMetricRow.1.png; sourceTree = "<group>"; };
 		FF8C4D7FE36A0D663970BC3F /* TrainingEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingEngine.swift; sourceTree = "<group>"; };
+		FFCF7C06827FF0287A30F374 /* PlannedMealTimingMatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlannedMealTimingMatcher.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1698,6 +1700,7 @@
 				7E026D0CA8F35CC9670E0EC1 /* PantryDecrementService.swift */,
 				404B967C6C63A60F5FF3F175 /* PantryServiceProtocol.swift */,
 				B61E27D4D0D5FDB241C668A3 /* PhotoAnalysisService.swift */,
+				FFCF7C06827FF0287A30F374 /* PlannedMealTimingMatcher.swift */,
 				18AEB5FCE2B2E0638199194E /* ReceiptServiceProtocol.swift */,
 				30BAAE5E8871F724400475AB /* ReceiptStructuringDTOs.swift */,
 				F58BF5453C1F965727E89A1B /* RecipeParserService.swift */,
@@ -2833,6 +2836,7 @@
 				4C90EDA5FB263F008538B8F2 /* PlannedExercise.swift in Sources */,
 				C0C5B4ABBEBDEB5DCBB237DB /* PlannedMeal.swift in Sources */,
 				4D17E625F1B90E1A78D99FC3 /* PlannedMealCardView.swift in Sources */,
+				FCD666F5F06CBF7DB861CCD9 /* PlannedMealTimingMatcher.swift in Sources */,
 				DC8BEFF95B9D8BFDCE98C8A9 /* PlannedSet.swift in Sources */,
 				3975296BE7F3EBF731E6E5D0 /* PreferenceExtractor.swift in Sources */,
 				A729173831A880BF9AD2C2FC /* PreferenceExtractorAdapter.swift in Sources */,
