@@ -72,15 +72,28 @@ final class RecoveryAIInsightService: @unchecked Sendable {
             return cached
         }
 
+        // Phase 7: conditional late-meal signal — only when meaningful
+        // (any meal >60 min late, or dinner <3h before sleep onset).
+        // Injected into the user message so it lands in the same place
+        // as the other "the user did X" facts.
+        let lateMealNote = Self.lateMealNote(
+            modelContext: modelContext,
+            sleepHoursLastNight: recovery.sleepHours
+        )
+
         // Longitudinal read when yesterday's context exists; otherwise the
         // today-only read (cold-start / reinstall / missed day).
         let prompt: String
         let system: String
         if let yctx = yesterdayContext(modelContext: modelContext) {
-            prompt = Self.buildLongitudinalPrompt(today: recovery, yesterday: yctx)
+            prompt = Self.buildLongitudinalPrompt(
+                today: recovery,
+                yesterday: yctx,
+                lateMealNote: lateMealNote
+            )
             system = Self.longitudinalSystemPrompt
         } else {
-            prompt = Self.buildPrompt(from: recovery)
+            prompt = Self.buildPrompt(from: recovery, lateMealNote: lateMealNote)
             system = Self.systemPrompt
         }
         let text: String
@@ -425,7 +438,7 @@ final class RecoveryAIInsightService: @unchecked Sendable {
     /// Builds a structured prompt containing every available WHOOP field for
     /// today. Missing optionals are omitted rather than sent as "nil" so the
     /// model only reasons over real measurements.
-    static func buildPrompt(from r: DailyRecovery) -> String {
+    static func buildPrompt(from r: DailyRecovery, lateMealNote: String? = nil) -> String {
         var lines: [String] = []
         func add(_ label: String, _ value: String?) {
             if let value, !value.isEmpty { lines.append("- \(label): \(value)") }
@@ -451,6 +464,7 @@ final class RecoveryAIInsightService: @unchecked Sendable {
         add("Average heart rate", r.avgHR.map { String(format: "%.0f bpm", $0) })
         add("Max heart rate", r.maxHR.map { String(format: "%.0f bpm", $0) })
         add("Calories burned", r.caloriesBurned.map { String(format: "%.0f kcal", $0) })
+        if let lateMealNote { add("Meal timing", lateMealNote) }
 
         return """
         Today's WHOOP data for this user:
@@ -505,7 +519,8 @@ final class RecoveryAIInsightService: @unchecked Sendable {
     /// omitted so the model only reasons over real data.
     static func buildLongitudinalPrompt(
         today: DailyRecovery,
-        yesterday y: YesterdayContext
+        yesterday y: YesterdayContext,
+        lateMealNote: String? = nil
     ) -> String {
         var yLines: [String] = []
         func add(_ label: String, _ value: String?) {
@@ -541,6 +556,7 @@ final class RecoveryAIInsightService: @unchecked Sendable {
         addT("Sleep consistency", today.sleepConsistency.map { String(format: "%.0f%%", $0) })
         addT("Sleep debt", today.sleepDebt.map { String(format: "%.1f h", $0) })
         addT("Day strain", today.strain.map { String(format: "%.1f", $0) })
+        if let lateMealNote { addT("Meal timing", lateMealNote) }
 
         let tip = (y.tipGiven?.isEmpty == false)
             ? y.tipGiven!
@@ -611,5 +627,68 @@ final class RecoveryAIInsightService: @unchecked Sendable {
 
         logger.warning("\(DebugTrace.prefix)[recovery_insight] final: failed err=\(lastError.map { String(describing: $0) } ?? "unknown")")
         throw RecoveryAIInsightError.apiFailed(lastError ?? APIError.unknown(statusCode: -1))
+    }
+
+    // MARK: - Late-meal signal (Phase 7)
+
+    /// Returns a short summary string when today's meals show a timing
+    /// deviation Coach should know about, otherwise nil. Triggers:
+    ///   - Any planned meal eaten >60 min late.
+    ///   - The day's last eaten meal landed <3h before yesterday's
+    ///     sleep onset (derived from sleepHoursLastNight + bedtime).
+    /// Returning nil keeps the prompt quiet on normal-day timing so
+    /// the model doesn't get a noisy "your dinner was 5 min late" line.
+    @MainActor
+    static func lateMealNote(
+        modelContext: ModelContext,
+        sleepHoursLastNight _: Double?
+    ) -> String? {
+        let cal = Calendar.current
+        let dayStart = cal.startOfDay(for: Date())
+        guard let dayEnd = cal.date(byAdding: .day, value: 1, to: dayStart) else {
+            return nil
+        }
+        let descriptor = FetchDescriptor<PlannedMeal>(
+            predicate: #Predicate<PlannedMeal> { meal in
+                meal.dayDate >= dayStart && meal.dayDate < dayEnd
+            },
+            sortBy: [SortDescriptor(\.mealNumber)]
+        )
+        guard let meals = try? modelContext.fetch(descriptor) else { return nil }
+
+        // (a) Pick the worst-late meal (>60 min) across all eaten rows.
+        let lateOffenders: [(PlannedMeal, Int)] = meals.compactMap { meal in
+            guard let delta = PlannedMealTimingMatcher.minutesLate(for: meal),
+                  delta > 60
+            else { return nil }
+            return (meal, delta)
+        }
+        if let worst = lateOffenders.max(by: { $0.1 < $1.1 }) {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "HH:mm"
+            let plannedStr = worst.0.scheduledTime
+            let actualStr = worst.0.actualEatenAt.map { formatter.string(from: $0) } ?? "?"
+            return "Late \(worst.0.mealName.lowercased()): ate \(actualStr) (planned \(plannedStr), +\(worst.1)m)"
+        }
+
+        // (b) Late-night eating proxy: the latest eaten meal landed after
+        // 21:00. Full sleep-onset correlation needs a real sleep
+        // timestamp; this hour-based heuristic is the right scope for
+        // Phase 7 without pulling Whoop sleep onset into the service.
+        let lateHourMeal = meals
+            .compactMap { meal -> (PlannedMeal, Date)? in
+                guard let actual = meal.actualEatenAt else { return nil }
+                return (meal, actual)
+            }
+            .max(by: { $0.1 < $1.1 })
+        if let (meal, eatenAt) = lateHourMeal,
+           cal.component(.hour, from: eatenAt) >= 21
+        {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "HH:mm"
+            return "Late-night \(meal.mealName.lowercased()) at \(formatter.string(from: eatenAt)) — close to sleep"
+        }
+
+        return nil
     }
 }
