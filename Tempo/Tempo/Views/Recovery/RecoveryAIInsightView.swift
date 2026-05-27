@@ -160,6 +160,9 @@ struct RecoveryAIInsightView: View {
 
         do {
             paragraph = try await svc.paragraph(for: recovery, modelContext: modelContext)
+        } catch is CancellationError {
+            // View was torn down or task replaced — a fresh call will run
+            // on re-appear. Don't surface a stale "cancelled" error.
         } catch {
             errorText = (error as? RecoveryAIInsightError)?.errorDescription
                 ?? error.localizedDescription
@@ -179,6 +182,9 @@ struct RecoveryAIInsightView: View {
 
         do {
             paragraph = try await svc.regenerateToday(for: recovery, modelContext: modelContext)
+        } catch is CancellationError {
+            // Same suppression as load() — the successor call (if any) will
+            // populate paragraph; no need to show a transient error.
         } catch {
             errorText = (error as? RecoveryAIInsightError)?.errorDescription
                 ?? error.localizedDescription

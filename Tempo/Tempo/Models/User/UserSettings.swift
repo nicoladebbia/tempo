@@ -168,7 +168,6 @@ final class UserSettings {
         ))
     }
 
-
     /// Coach voice mode — typed accessor over coachVoiceModeRaw.
     @Transient
     var coachVoiceMode: CoachVoiceMode {

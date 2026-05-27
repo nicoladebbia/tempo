@@ -758,6 +758,17 @@ final class DashboardViewModel {
         }
     }
 
+    /// Returns true for `CancellationError` or `NSURLErrorCancelled` (-999)
+    /// — the two flavors of "parent task torn down" that surface when the
+    /// Dashboard view detaches mid-fetch. Treated as "no new data" rather
+    /// than a real failure.
+    private static func isCancellation(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        let nsError = error as NSError
+        return nsError.domain == NSURLErrorDomain
+            && nsError.code == NSURLErrorCancelled
+    }
+
     // Body of refresh() lifted into its own method so we can wrap the entire
     // call chain in a TaskLocal correlation ID. Every downstream log line that
     // calls DebugTrace.prefix will be tagged with the same [T:abc123] marker.
@@ -774,10 +785,19 @@ final class DashboardViewModel {
         #if DEBUG
             print("\(DebugTrace.prefix)[Dashboard] Whoop state: \(whoop.connectionState), isDemoMode: \(whoop.isDemoMode)")
         #endif
+        // Track cancellation so the caller can bail before clobbering a
+        // previously-good `body` with HealthKit fallbacks. A tab-switch /
+        // view-detach triggers NSURLErrorCancelled on every in-flight
+        // request simultaneously; we should leave the prior snapshot in
+        // place rather than render -1 sentinels on the user's dashboard.
+        var whoopRecoveryCancelled = false
+        var whoopSleepCancelled = false
+        var whoopCycleCancelled = false
         if whoop.connectionState == .connected {
             do { recovery = try await whoop.fetchRecovery(for: today) }
             catch {
                 recovery = nil
+                whoopRecoveryCancelled = Self.isCancellation(error)
                 #if DEBUG
                     print("\(DebugTrace.prefix)[Dashboard] Whoop recovery fetch failed: \(error)")
                 #endif
@@ -785,6 +805,7 @@ final class DashboardViewModel {
             do { whoopSleepData = try await whoop.fetchSleep(for: today) }
             catch {
                 whoopSleepData = nil
+                whoopSleepCancelled = Self.isCancellation(error)
                 #if DEBUG
                     print("\(DebugTrace.prefix)[Dashboard] Whoop sleep fetch failed: \(error)")
                 #endif
@@ -792,9 +813,20 @@ final class DashboardViewModel {
             do { cycle = try await whoop.fetchCycle(for: today) }
             catch {
                 cycle = nil
+                whoopCycleCancelled = Self.isCancellation(error)
                 #if DEBUG
                     print("\(DebugTrace.prefix)[Dashboard] Whoop cycle fetch failed: \(error)")
                 #endif
+            }
+            // All three cancelled in the same refresh = parent Task was
+            // torn down. Leave `body` as-is so the user doesn't see a
+            // blank/HK-fallback card flash.
+            if whoopRecoveryCancelled, whoopSleepCancelled, whoopCycleCancelled {
+                #if DEBUG
+                    print("\(DebugTrace.prefix)[Dashboard] All Whoop fetches cancelled — preserving prior body")
+                #endif
+                loadState = .loaded
+                return
             }
         } else {
             recovery = nil

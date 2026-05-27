@@ -318,7 +318,7 @@ final class MockGroceryListService: GroceryListServiceProtocol {
     @discardableResult
     func reapplyPantry(_ pantry: any PantryServiceProtocol) throws -> Int {
         // Mock pantry isn't wired; treat as a no-op so tests stay stable.
-        return 0
+        0
     }
 
     func exportToReminders(_ list: GroceryList) async throws {

@@ -504,47 +504,7 @@ extension CoachContextSnapshot {
             lines.append("")
         }
 
-        lines.append("<today-live>")
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd (EEEE)"
-        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
-        lines.append("Date: \(dateFormatter.string(from: todayLive.date))")
-        if let dayType = todayLive.dayType {
-            lines.append("Day type: \(dayType.rawValue)")
-        }
-        if let r = todayLive.recoveryScore {
-            let zone = todayLive.recoveryZone.map { " (\($0))" } ?? ""
-            lines.append(String(format: "Whoop recovery: %.0f%%\(zone)", r))
-        }
-        if let hrv = todayLive.hrvMs {
-            lines.append(String(format: "HRV: %.1fms", hrv))
-        }
-        if let rhr = todayLive.restingHR {
-            lines.append(String(format: "RHR: %.0fbpm", rhr))
-        }
-        if let sleep = todayLive.sleepHoursLastNight {
-            lines.append(String(format: "Last night sleep: %.1fh", sleep))
-        }
-        if let steps = todayLive.stepsSoFar {
-            lines.append("Steps so far: \(steps)")
-        }
-        lines.append("Planned meals: \(todayLive.plannedMealCount)")
-        if let target = todayLive.targetKcal {
-            lines.append("Logged kcal: \(todayLive.loggedKcalSoFar) / \(target)")
-        } else {
-            lines.append("Logged kcal: \(todayLive.loggedKcalSoFar)")
-        }
-        if let title = todayLive.workoutTitle {
-            let when = todayLive.workoutTime.map { " @ \($0)" } ?? ""
-            lines.append("Planned workout: \(title)\(when)")
-        }
-        if !calendarEvents.isEmpty {
-            let events = calendarEvents
-                .map { "\($0.title) \($0.startHHmm)–\($0.endHHmm)" }
-                .joined(separator: ", ")
-            lines.append("Calendar events today: \(events)")
-        }
-        lines.append("</today-live>")
+        lines.append(contentsOf: renderTodayLiveBlock())
         lines.append("")
 
         let dayCompactFormatter = DateFormatter()
@@ -591,5 +551,53 @@ extension CoachContextSnapshot {
         }
 
         return lines.joined(separator: "\n")
+    }
+
+    /// Renders the `<today-live>` block as a list of lines (caller appends
+    /// the trailing blank). Extracted from renderRaw to keep that function
+    /// below the cyclomatic-complexity limit.
+    private func renderTodayLiveBlock() -> [String] {
+        var lines: [String] = ["<today-live>"]
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd (EEEE)"
+        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+        lines.append("Date: \(dateFormatter.string(from: todayLive.date))")
+        if let dayType = todayLive.dayType {
+            lines.append("Day type: \(dayType.rawValue)")
+        }
+        if let r = todayLive.recoveryScore {
+            let zone = todayLive.recoveryZone.map { " (\($0))" } ?? ""
+            lines.append(String(format: "Whoop recovery: %.0f%%\(zone)", r))
+        }
+        if let hrv = todayLive.hrvMs {
+            lines.append(String(format: "HRV: %.1fms", hrv))
+        }
+        if let rhr = todayLive.restingHR {
+            lines.append(String(format: "RHR: %.0fbpm", rhr))
+        }
+        if let sleep = todayLive.sleepHoursLastNight {
+            lines.append(String(format: "Last night sleep: %.1fh", sleep))
+        }
+        if let steps = todayLive.stepsSoFar {
+            lines.append("Steps so far: \(steps)")
+        }
+        lines.append("Planned meals: \(todayLive.plannedMealCount)")
+        if let target = todayLive.targetKcal {
+            lines.append("Logged kcal: \(todayLive.loggedKcalSoFar) / \(target)")
+        } else {
+            lines.append("Logged kcal: \(todayLive.loggedKcalSoFar)")
+        }
+        if let title = todayLive.workoutTitle {
+            let when = todayLive.workoutTime.map { " @ \($0)" } ?? ""
+            lines.append("Planned workout: \(title)\(when)")
+        }
+        if !calendarEvents.isEmpty {
+            let events = calendarEvents
+                .map { "\($0.title) \($0.startHHmm)–\($0.endHHmm)" }
+                .joined(separator: ", ")
+            lines.append("Calendar events today: \(events)")
+        }
+        lines.append("</today-live>")
+        return lines
     }
 }

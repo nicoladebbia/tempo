@@ -198,8 +198,17 @@ final class VoiceTranscriber {
         silenceTimer = nil
         audioEngine.stop()
         audioEngine.inputNode.removeTap(onBus: 0)
+        // Signal end-of-audio so the recognition task drains naturally.
+        // Calling `cancel()` after `endAudio()` makes Apple's internal
+        // accumulator complain ("update accumulator after completion"
+        // warnings) because results queued behind endAudio can't be
+        // delivered. Only `cancel()` when the task hasn't finished —
+        // i.e. when we genuinely need to abandon mid-stream rather
+        // than wait for the final result.
         recognitionRequest?.endAudio()
-        recognitionTask?.cancel()
+        if let task = recognitionTask, task.state != .completed && task.state != .finishing {
+            task.finish()
+        }
         recognitionRequest = nil
         recognitionTask = nil
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)

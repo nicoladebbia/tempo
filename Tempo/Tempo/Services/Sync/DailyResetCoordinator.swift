@@ -150,7 +150,6 @@ enum DailyResetCoordinator {
         return streak
     }
 
-
     /// Coach v2.1 maintenance — runs alongside the existing daily reset.
     ///
     ///   1) BehaviorObserver.observe — scans last 7 days of meals,
@@ -219,7 +218,6 @@ enum DailyResetCoordinator {
             logger.info("Coach purge: deleted \(purged) stale conversations")
         }
     }
-
 
     /// Internal helper extracted for testing. Returns the count of
     /// purged rows so callers (and tests) can log + assert.
