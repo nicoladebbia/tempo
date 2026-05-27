@@ -53,6 +53,7 @@
 		1BD718793C4154B8D4E3F84C /* GroceryListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 224834D08E1BFBE2C96971F6 /* GroceryListView.swift */; };
 		1D06D58BE7C61B4BAD9A4401 /* DayPlannerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBAFACACA82C00921BE8ADD /* DayPlannerService.swift */; };
 		1D9AD0B9277AFBD123CD83B8 /* CoachInterviewService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14751D08B082F1E97F2C74D4 /* CoachInterviewService.swift */; };
+		1F07DE3C84E81FCE3C0E74A2 /* CoachService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDDC3A104E1B0E16EAE707F /* CoachService.swift */; };
 		1F11E5940ED036979CF059D8 /* TempoWidgetEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE7BDA5C36C3762695DDD533 /* TempoWidgetEntryView.swift */; };
 		1F3AD3F9102BB66597F1A248 /* GroceryListGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C894CB5C08BFCA6334837838 /* GroceryListGeneratorTests.swift */; };
 		1F8795C432CE3C7E545846AD /* AnalyticsEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A86C7BEF8CF5E677A435D50 /* AnalyticsEvents.swift */; };
@@ -75,6 +76,7 @@
 		2E978D47831F02C897C3E6C9 /* MealPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AD6C7012CCDF878B2C41265 /* MealPreset.swift */; };
 		2EB6A739EEB35D06134926D2 /* XPEngineProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A300B1153B724961360B8C /* XPEngineProtocol.swift */; };
 		2FD90060C6E6B435B160C7FA /* PhotoAnalysisService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B61E27D4D0D5FDB241C668A3 /* PhotoAnalysisService.swift */; };
+		304B3DFBA4DBD7862D4328E3 /* CoachServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4C45AF8F0174848643AC105 /* CoachServiceTests.swift */; };
 		30559A3450A96F99BE0A4D87 /* DebugTrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3F8D3874146880249B5802D /* DebugTrace.swift */; };
 		313C3E974D6C484A252DE914 /* StreakCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E12F8C9AD532F04BF678536 /* StreakCalendarView.swift */; };
 		3173E661E04307834C2F449A /* WeeklyRecoverySummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3258B0C665468D65B76F193 /* WeeklyRecoverySummaryView.swift */; };
@@ -581,6 +583,7 @@
 		3ED1546739FA6FE300F85A98 /* WatchConnectivityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchConnectivityService.swift; sourceTree = "<group>"; };
 		3FAF1EA16142A7D5B1CCD340 /* RecoveryTodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryTodayView.swift; sourceTree = "<group>"; };
 		3FBAFACACA82C00921BE8ADD /* DayPlannerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayPlannerService.swift; sourceTree = "<group>"; };
+		3FDDC3A104E1B0E16EAE707F /* CoachService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachService.swift; sourceTree = "<group>"; };
 		404B967C6C63A60F5FF3F175 /* PantryServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PantryServiceProtocol.swift; sourceTree = "<group>"; };
 		40E4F5D82ABA944C2EA51644 /* DailyScoreEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyScoreEntry.swift; sourceTree = "<group>"; };
 		434489B67B26E92709DA90A0 /* WorkoutCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutCardView.swift; sourceTree = "<group>"; };
@@ -751,6 +754,7 @@
 		A31496282C73D8993EE5235D /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		A4030EBDAFF58A610CEFF18E /* MockNutritionCoachService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockNutritionCoachService.swift; sourceTree = "<group>"; };
 		A4C1AD08D1639423D10D0AC8 /* ArenaEnums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArenaEnums.swift; sourceTree = "<group>"; };
+		A4C45AF8F0174848643AC105 /* CoachServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachServiceTests.swift; sourceTree = "<group>"; };
 		A4E3490179FC169FBA2AABD6 /* GoalSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalSetupView.swift; sourceTree = "<group>"; };
 		A587D1123A8A6F8AAA57223B /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		A5BB9711F551CF1985C24BC3 /* AccountabilityCopy.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = AccountabilityCopy.json; sourceTree = "<group>"; };
@@ -1522,6 +1526,7 @@
 				7AA62C74B8140770502A34CE /* CoachContextAssemblerTests.swift */,
 				EBBAC841700DF2913C4D75F5 /* CoachConversationTests.swift */,
 				55649A7CB5C3E7107AD0AC41 /* CoachInterviewServiceTests.swift */,
+				A4C45AF8F0174848643AC105 /* CoachServiceTests.swift */,
 				04F74AB9672C62B51FE03F8E /* CoachToolsTests.swift */,
 				CC92309AFC4CA26A8386B484 /* LearnedPreferenceTests.swift */,
 				6AA2BF524DFEA40B8DC09D67 /* OutcomeGraderTests.swift */,
@@ -1743,6 +1748,7 @@
 				8122466846CE7F386EE05ACD /* CoachContextAssembler.swift */,
 				9312A3DF30B2051038869E06 /* CoachConversation.swift */,
 				14751D08B082F1E97F2C74D4 /* CoachInterviewService.swift */,
+				3FDDC3A104E1B0E16EAE707F /* CoachService.swift */,
 				92D3A8599DF88C6309EA3F37 /* CoachTools.swift */,
 				C5F69F78D519760976F185C4 /* LearnedOutcome.swift */,
 				5A3CA597A2FE3A91DD5F887E /* LearnedPreference.swift */,
@@ -2419,6 +2425,7 @@
 				820A038F312A97A144E299CD /* CoachContextAssemblerTests.swift in Sources */,
 				129D8129AAAC63C750E11385 /* CoachConversationTests.swift in Sources */,
 				F254478827D0C0AABD02507E /* CoachInterviewServiceTests.swift in Sources */,
+				304B3DFBA4DBD7862D4328E3 /* CoachServiceTests.swift in Sources */,
 				48E2965EE5A8FD999A62B804 /* CoachToolsTests.swift in Sources */,
 				573DD6B3F3F34FD715B81ECC /* FoodCanonicalizerTests.swift in Sources */,
 				1F3AD3F9102BB66597F1A248 /* GroceryListGeneratorTests.swift in Sources */,
@@ -2537,6 +2544,7 @@
 				9F3197A36CDAD5A69A0E7DD0 /* CoachConversation.swift in Sources */,
 				1D9AD0B9277AFBD123CD83B8 /* CoachInterviewService.swift in Sources */,
 				D3FB45C1CD53C4150DE2BBD0 /* CoachInterviewView.swift in Sources */,
+				1F07DE3C84E81FCE3C0E74A2 /* CoachService.swift in Sources */,
 				32FF0ABDF7B87B6706CFF4FE /* CoachTools.swift in Sources */,
 				A2F529337AB3F368478A4DC4 /* Color+Tempo.swift in Sources */,
 				9573B28ABEDA1B18CE629AC4 /* ContentView.swift in Sources */,
