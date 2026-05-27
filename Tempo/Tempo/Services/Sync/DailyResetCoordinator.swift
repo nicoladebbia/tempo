@@ -127,6 +127,16 @@ enum DailyResetCoordinator {
         // and dashboard land on a populated record.
         _ = engine.loadTodayNonNegotiables(modelContext: context)
 
+        // Macro carryover capture (Phase F) — finalize each prior day's
+        // (target − actual) into a 5-day-spread row and tick any active
+        // rows forward. captureCarryoverIfNeeded is idempotent + handles
+        // missing-plan / nothing-logged days defensively.
+        if let cal = Optional(Calendar.current),
+           let yesterday = cal.date(byAdding: .day, value: -1, to: today)
+        {
+            MacroCarryoverService.captureCarryoverIfNeeded(for: yesterday, in: context)
+        }
+
         // Coach v2.1 maintenance — observer + health-check + grader (when
         // a provider is registered) + conversation purge.
         await runCoachMaintenance(in: context, today: today)

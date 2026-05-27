@@ -111,6 +111,19 @@ enum NutritionTargetCalculator {
         )
         let profile = (try? context.fetch(profileDescriptor))?.first
 
-        return targetsForToday(todayMeals: filtered, dietaryProfile: profile)
+        let base = targetsForToday(todayMeals: filtered, dietaryProfile: profile)
+        // Layer in the 5-day carryover spread (Phase F). Reads any
+        // unexpired MacroCarryover rows and adds their per-day share
+        // to today's base targets. Empty when nothing is in flight.
+        let adjustment = MacroCarryoverService.activeAdjustmentForToday(in: context)
+        guard adjustment.hasActiveCarryover else {
+            return base
+        }
+        return Targets(
+            calories: max(0, base.calories + Int(adjustment.calories.rounded())),
+            protein: max(0, base.protein + Int(adjustment.protein.rounded())),
+            carbs: max(0, base.carbs + Int(adjustment.carbs.rounded())),
+            fat: max(0, base.fat + Int(adjustment.fat.rounded()))
+        )
     }
 }

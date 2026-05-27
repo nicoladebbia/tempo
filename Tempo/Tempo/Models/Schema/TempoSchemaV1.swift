@@ -57,6 +57,7 @@ enum TempoSchemaV1: VersionedSchema {
             PlannedMeal.self,
             MealPreset.self,
             MealFeedback.self,
+            MacroCarryover.self,
             PantryItem.self,
             Receipt.self,
             ReceiptLineItem.self,
