@@ -29,9 +29,9 @@ struct VoiceExtractionResult: Codable, Sendable {
     let questions: [VoiceClarifyingQuestion]
 }
 
-/// One fully-resolved food item. `logged_at` is accepted from Haiku but not
-/// surfaced — the existing MealLog save path stamps the timestamp, same as
-/// Search/Photo/Scan.
+/// One fully-resolved food item. `logged_at` is parsed from Haiku's
+/// ISO8601 string (Phase 3) so downstream callers can persist the
+/// user's real eat-time instead of stamping `Date()` at save.
 struct VoiceResolvedItem: Decodable, Sendable {
     let name: String
     let quantityG: Double
@@ -40,6 +40,10 @@ struct VoiceResolvedItem: Decodable, Sendable {
     let carbsG: Double
     let fatG: Double
     let confidence: String?
+    /// When the user said they ate the item, parsed from "logged_at"
+    /// (ISO8601) in Haiku's response. nil when Haiku couldn't extract
+    /// a time — callers default to now.
+    let loggedAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case name
@@ -52,6 +56,20 @@ struct VoiceResolvedItem: Decodable, Sendable {
         case loggedAt = "logged_at"
     }
 
+    /// Shared ISO8601 parser. The Haiku prompt asks for `"ISO8601"`; in
+    /// practice Claude emits either "2026-05-27T13:42:00Z" or the
+    /// shorter local form. We try both before giving up.
+    nonisolated(unsafe) private static let iso8601: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+    nonisolated(unsafe) private static let iso8601WithFractional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         name = try c.decode(String.self, forKey: .name)
@@ -61,6 +79,14 @@ struct VoiceResolvedItem: Decodable, Sendable {
         carbsG = try c.decodeIfPresent(Double.self, forKey: .carbsG) ?? 0
         fatG = try c.decodeIfPresent(Double.self, forKey: .fatG) ?? 0
         confidence = try c.decodeIfPresent(String.self, forKey: .confidence)
+        if let raw = try c.decodeIfPresent(String.self, forKey: .loggedAt),
+           !raw.isEmpty
+        {
+            loggedAt = Self.iso8601.date(from: raw)
+                ?? Self.iso8601WithFractional.date(from: raw)
+        } else {
+            loggedAt = nil
+        }
     }
 
     var isLowConfidence: Bool {
@@ -249,5 +275,17 @@ final class VoiceMealLogService {
         let errDetail = firstDecodeError.map { String(describing: $0) } ?? "no decode error"
         logger.error("[\(feature)] parse failed: \(response.prefix(200)) | \(errDetail, privacy: .public)")
         throw VoiceMealLogError.parseFailed(errDetail)
+    }
+}
+
+// MARK: - Aggregate eat-time
+
+extension Array where Element == VoiceResolvedItem {
+    /// Earliest non-nil `loggedAt` across the resolved items, or nil when
+    /// none of them carry a time. Used by the voice flow's persistence
+    /// callers (when wired) so the MealLog/PlannedMeal eat-time mirrors
+    /// what the user actually said.
+    var earliestLoggedAt: Date? {
+        compactMap(\.loggedAt).min()
     }
 }
