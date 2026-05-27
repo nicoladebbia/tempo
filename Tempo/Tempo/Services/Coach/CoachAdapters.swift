@@ -404,9 +404,21 @@ struct CoachToolDispatcherAdapter: CoachToolDispatcher {
     }
 
     static func parseDate(_ raw: String) throws -> Date {
-        let isoNoTime = ISO8601DateFormatter()
-        isoNoTime.formatOptions = [.withFullDate, .withDashSeparatorInDate]
-        if let date = isoNoTime.date(from: raw) { return date }
+        // Bare YYYY-MM-DD strings ("2026-05-27") are interpreted in the
+        // user's local calendar, not UTC. The previous ISO8601 path put
+        // them at UTC midnight which, after Calendar.current.startOfDay,
+        // rolled back to the prior day in positive offsets — the
+        // grader's day-range queries then missed the matching rows.
+        if raw.count == 10, raw.contains("-") {
+            let formatter = DateFormatter()
+            formatter.calendar = Calendar(identifier: .gregorian)
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.timeZone = .current
+            formatter.dateFormat = "yyyy-MM-dd"
+            if let date = formatter.date(from: raw) {
+                return date
+            }
+        }
         let isoFull = ISO8601DateFormatter()
         if let date = isoFull.date(from: raw) { return date }
         throw DispatchError.malformedDate(raw)

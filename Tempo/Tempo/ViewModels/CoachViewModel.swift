@@ -61,15 +61,21 @@ final class CoachViewModel {
 
     private let service: CoachService
     private let interviewGateProvider: () -> InterviewGate
+    /// Post-chat preference extractor. Fired in a background Task on
+    /// `endConversation`. nil → skip extraction (default; Phase 8
+    /// CoachTabView injects a real APIClient-backed adapter).
+    private let extractorClient: PreferenceExtractionAIClient?
 
     // MARK: - Init
 
     init(
         service: CoachService,
-        interviewGateProvider: @escaping () -> InterviewGate = { .needsInterview }
+        interviewGateProvider: @escaping () -> InterviewGate = { .needsInterview },
+        extractorClient: PreferenceExtractionAIClient? = nil
     ) {
         self.service = service
         self.interviewGateProvider = interviewGateProvider
+        self.extractorClient = extractorClient
     }
 
     // MARK: - Public — lifecycle
@@ -159,11 +165,38 @@ final class CoachViewModel {
     func endConversation(context: ModelContext) {
         guard let conv = activeConversation else { return }
         conv.isActive = false
+        // Snapshot the transcript before clearing — extractor runs in a
+        // background Task and shouldn't race UI state.
+        let transcript = Self.transcript(from: conv)
         try? context.save()
         service.clearUndoStack()
         activeConversation = nil
         messages = []
         undoLabel = nil
+
+        if let extractorClient {
+            // Silent fire-and-forget per the Phase 4c spec ("silent log +
+            // skip, don't retry"). RunReport is logged for debugging but
+            // not surfaced to UI — Phase 8 PostHog logs the count.
+            Task { [extractorClient] in
+                _ = try? await PreferenceExtractor.extract(
+                    from: transcript,
+                    using: extractorClient,
+                    context: context
+                )
+            }
+        }
+    }
+
+    /// Builds a CoachTranscript from a finished conversation. Skips any
+    /// system_summary pseudo-messages — they're not user/agent turns.
+    static func transcript(from conversation: CoachConversation) -> CoachTranscript {
+        let turns = conversation.messages.compactMap { msg -> CoachTranscript.Turn? in
+            guard msg.role == "user" || msg.role == "assistant" else { return nil }
+            guard let text = msg.text, !text.isEmpty else { return nil }
+            return CoachTranscript.Turn(role: msg.role, text: text)
+        }
+        return CoachTranscript(id: conversation.id, turns: turns)
     }
 
     /// Manually set budget state (e.g., from a "AI usage" event coming

@@ -25,6 +25,13 @@ import SwiftData
 enum DailyResetCoordinator {
     private static let logger = Logger(subsystem: "app.tempo", category: "DailyReset")
     private static let lastRunKey = "tempo.dailyReset.lastRun"
+
+    /// Coach v2.1 — provider injected at app startup so the daily reset
+    /// can grade pending outcomes. nil → skip the grader step (the
+    /// observer + health-check + purge still run unconditionally).
+    /// Per Phase 8a wiring. Set once from the app delegate / scene entry.
+    @MainActor
+    static var coachEvidenceProvider: (any OutcomeEvidenceProvider)?
     private static let skipBackfillKey = "tempo.skipBackfill.completed"
 
     /// One-shot migration: NonNegotiableProgress entries that look skipped
@@ -120,8 +127,9 @@ enum DailyResetCoordinator {
         // and dashboard land on a populated record.
         _ = engine.loadTodayNonNegotiables(modelContext: context)
 
-        // Coach v2.1 maintenance — observer + health-check + conversation purge.
-        runCoachMaintenance(in: context, today: today)
+        // Coach v2.1 maintenance — observer + health-check + grader (when
+        // a provider is registered) + conversation purge.
+        await runCoachMaintenance(in: context, today: today)
 
         try? context.save()
         defaults.set(today, forKey: lastRunKey)
@@ -162,7 +170,7 @@ enum DailyResetCoordinator {
     private static func runCoachMaintenance(
         in context: ModelContext,
         today: Date
-    ) {
+    ) async {
         do {
             let observerReport = try BehaviorObserver.observe(
                 modelContext: context,
@@ -185,6 +193,25 @@ enum DailyResetCoordinator {
             )
         } catch {
             logger.error("Coach health-check failed: \(error.localizedDescription)")
+        }
+
+        // OutcomeGrader runs only when an evidence provider is registered
+        // (set once at app startup by Phase 8 wiring). Without a provider
+        // the grader can't fetch real evidence, so pending rows linger
+        // until next run — harmless.
+        if let provider = coachEvidenceProvider {
+            do {
+                let gradeReport = try await OutcomeGrader.run(
+                    in: context,
+                    today: today,
+                    provider: provider
+                )
+                logger.info(
+                    "Coach grader: graded=\(gradeReport.graded) skipped=\(gradeReport.skippedNotYetDue) unclear=\(gradeReport.unclearDueToMissingEvidence)"
+                )
+            } catch {
+                logger.error("Coach grader failed: \(error.localizedDescription)")
+            }
         }
 
         let purged = purgeStaleCoachConversations(in: context, today: today)
