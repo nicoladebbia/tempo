@@ -113,10 +113,17 @@ struct FuelQuadrantDetailView: View {
                         )
                         .rotationEffect(.degrees(-90))
 
+                    // Sized to fit comfortably inside the 120pt ring even
+                    // at 4-digit kcal. tempoScoreDisplay (the previous
+                    // token) was huge enough that "1,541" overflowed even
+                    // with minimumScaleFactor. tempoTitle1 + tight scale
+                    // floor leaves headroom for 9,999.
                     Text(data.formattedCalories)
-                        .font(.tempoScoreDisplay)
+                        .font(.tempoTitle1)
+                        .fontWeight(.bold)
                         .foregroundStyle(Color.tempoTextPrimary)
-                        .minimumScaleFactor(0.6)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
                 }
                 .frame(width: 120, height: 120)
 

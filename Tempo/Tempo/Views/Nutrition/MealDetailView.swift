@@ -66,7 +66,15 @@ struct MealDetailView: View {
                 if !prepChecklistItems.isEmpty {
                     prepChecklistSection
                 }
-                if let recipe = meal.recipe {
+                // When a meal was overridden by the user (NL log, voice
+                // log, manual log, or "Ate something else" substitute) we
+                // prefer the user's actual foods over the AI recipe.
+                // Signal: linkedMealLogID is non-nil AND the meal.foods
+                // array is populated. Otherwise the planned recipe is
+                // still what the user is making, so render that.
+                if shouldRenderActualFoods {
+                    noRecipeFallback
+                } else if let recipe = meal.recipe {
                     macrosSummarySection(recipe: recipe)
                     ingredientsSection(recipe: recipe)
                     stepsSection(recipe: recipe)
@@ -198,6 +206,16 @@ struct MealDetailView: View {
         )
     }
 
+    /// True when the user replaced the AI-generated dish with their own
+    /// log (NL, voice, manual, or substitute via MarkEatenSheet). In
+    /// that state the recipe-card content is misleading — the user
+    /// didn't make those ingredients or follow those steps — so we
+    /// render the actual logged foods instead. Falls back to recipe
+    /// rendering when nothing was overridden.
+    private var shouldRenderActualFoods: Bool {
+        meal.linkedMealLogID != nil && !meal.foods.isEmpty
+    }
+
     // MARK: - Header
 
     private var header: some View {
@@ -238,7 +256,13 @@ struct MealDetailView: View {
                 let phase = SchedulePhase(meal: meal, now: now, display: display)
                 VStack(alignment: .leading, spacing: TempoSpacing.md) {
                     statusLine(phase: phase, now: now, display: display)
-                    timelineTrack(now: now, display: display, phase: phase)
+                    // The Prep / Eat / Finish ladder describes future
+                    // steps — for an already-eaten or skipped meal those
+                    // chips are stale noise. Status line above already
+                    // shows "Eaten at HH:mm" or "Skipped".
+                    if !phase.isResolved {
+                        timelineTrack(now: now, display: display, phase: phase)
+                    }
                     if case .overdue = phase {
                         overdueActions
                     }
