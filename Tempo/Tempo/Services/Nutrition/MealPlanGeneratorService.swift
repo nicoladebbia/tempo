@@ -207,31 +207,39 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             MealRequest(mealID: meal.id, mealName: meal.mealName, foods: meal.foods)
         }
 
-        // Fan out — capped concurrency would be safer for rate limits, but
-        // 21 parallel Haiku requests are well within Anthropic's per-key limit.
-        let results = await withTaskGroup(of: (UUID, ParsedRecipe?).self) { group in
-            for request in requests {
-                group.addTask { [weak self] in
-                    guard let self else {
-                        return (request.mealID, nil)
+        // Capped fan-out. Previously we fired all 28 recipes in parallel,
+        // which routinely tripped the backend's 429 rate limit and
+        // stretched attachRecipes wall-time non-deterministically — that
+        // stretched window was the timing for the SwiftData invalidation
+        // crash on plan regen. Batches of 4 stay under the rate limit
+        // while keeping total wall-time roughly the same.
+        let concurrency = 4
+        var collected: [UUID: ParsedRecipe] = [:]
+        for chunk in requests.chunked(into: concurrency) {
+            let batch = await withTaskGroup(of: (UUID, ParsedRecipe?).self) { group in
+                for request in chunk {
+                    group.addTask { [weak self] in
+                        guard let self else {
+                            return (request.mealID, nil)
+                        }
+                        let parsed = await self.generateRecipeJSON(
+                            mealName: request.mealName,
+                            foods: request.foods,
+                            skillLevel: skillLevel,
+                            exclusions: exclusions
+                        )
+                        return (request.mealID, parsed)
                     }
-                    let parsed = await self.generateRecipeJSON(
-                        mealName: request.mealName,
-                        foods: request.foods,
-                        skillLevel: skillLevel,
-                        exclusions: exclusions
-                    )
-                    return (request.mealID, parsed)
                 }
-            }
-            var collected: [UUID: ParsedRecipe] = [:]
-            for await (id, parsed) in group {
-                if let parsed {
-                    collected[id] = parsed
+                var local: [UUID: ParsedRecipe] = [:]
+                for await (id, parsed) in group {
+                    if let parsed { local[id] = parsed }
                 }
+                return local
             }
-            return collected
+            collected.merge(batch) { _, new in new }
         }
+        let results = collected
 
         // Attach recipes to meals on the main actor.
         var attached = 0
@@ -991,6 +999,20 @@ enum MealPlanGeneratorError: Error, LocalizedError {
             "Meal plan validation failed: \(msg)"
         case let .persistenceFailed(msg):
             "Could not save meal plan: \(msg)"
+        }
+    }
+}
+
+// MARK: - Chunked helper
+
+extension Array {
+    /// Splits the array into sub-arrays of at most `size` elements,
+    /// preserving order. Used by attachRecipes to throttle the
+    /// concurrent Haiku fan-out.
+    func chunked(into size: Int) -> [[Element]] {
+        guard size > 0 else { return [self] }
+        return stride(from: 0, to: count, by: size).map {
+            Array(self[$0 ..< Swift.min($0 + size, count)])
         }
     }
 }
