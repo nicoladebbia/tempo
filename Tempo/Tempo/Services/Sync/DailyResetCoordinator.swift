@@ -25,6 +25,13 @@ import SwiftData
 enum DailyResetCoordinator {
     private static let logger = Logger(subsystem: "app.tempo", category: "DailyReset")
     private static let lastRunKey = "tempo.dailyReset.lastRun"
+
+    /// Coach v2.1 — provider injected at app startup so the daily reset
+    /// can grade pending outcomes. nil → skip the grader step (the
+    /// observer + health-check + purge still run unconditionally).
+    /// Per Phase 8a wiring. Set once from the app delegate / scene entry.
+    @MainActor
+    static var coachEvidenceProvider: (any OutcomeEvidenceProvider)?
     private static let skipBackfillKey = "tempo.skipBackfill.completed"
 
     /// One-shot migration: NonNegotiableProgress entries that look skipped
@@ -120,6 +127,10 @@ enum DailyResetCoordinator {
         // and dashboard land on a populated record.
         _ = engine.loadTodayNonNegotiables(modelContext: context)
 
+        // Coach v2.1 maintenance — observer + health-check + grader (when
+        // a provider is registered) + conversation purge.
+        await runCoachMaintenance(in: context, today: today)
+
         try? context.save()
         defaults.set(today, forKey: lastRunKey)
         logger.info("Daily reset complete for \(priorDays.count) prior day(s)")
@@ -137,5 +148,101 @@ enum DailyResetCoordinator {
         let streak = Streak(type: type)
         context.insert(streak)
         return streak
+    }
+
+
+    /// Coach v2.1 maintenance — runs alongside the existing daily reset.
+    ///
+    ///   1) BehaviorObserver.observe — scans last 7 days of meals,
+    ///      proposes/reinforces/flags observed preferences, applies
+    ///      one day of decay across active rows.
+    ///   2) PreferenceHealthCheck.scan — flags high-confidence prefs
+    ///      contradicted by recent outcomes, clears flags when behavior
+    ///      recovers.
+    ///   3) Conversation purge — soft-deletes CoachConversation rows
+    ///      older than 30 days unless isStarred=true.
+    ///
+    /// OutcomeGrader.run is intentionally NOT wired here — it needs a
+    /// real OutcomeEvidenceProvider (HK + SwiftData reads) that lives
+    /// in a follow-up commit. The grader runs cleanly via its own entry
+    /// once that provider is built.
+    @MainActor
+    private static func runCoachMaintenance(
+        in context: ModelContext,
+        today: Date
+    ) async {
+        do {
+            let observerReport = try BehaviorObserver.observe(
+                modelContext: context,
+                today: today
+            )
+            logger.info(
+                "Coach observer: proposed=\(observerReport.proposed) reinforced=\(observerReport.reinforced) contradictionsFlagged=\(observerReport.contradictionsFlagged) decayed=\(observerReport.decayed) deactivated=\(observerReport.deactivatedByDecay)"
+            )
+        } catch {
+            logger.error("Coach observer failed: \(error.localizedDescription)")
+        }
+
+        do {
+            let healthReport = try PreferenceHealthCheck.scan(
+                in: context,
+                today: today
+            )
+            logger.info(
+                "Coach health-check: flagged=\(healthReport.flagged) cleared=\(healthReport.clearedExistingFlag) examined=\(healthReport.examined)"
+            )
+        } catch {
+            logger.error("Coach health-check failed: \(error.localizedDescription)")
+        }
+
+        // OutcomeGrader runs only when an evidence provider is registered
+        // (set once at app startup by Phase 8 wiring). Without a provider
+        // the grader can't fetch real evidence, so pending rows linger
+        // until next run — harmless.
+        if let provider = coachEvidenceProvider {
+            do {
+                let gradeReport = try await OutcomeGrader.run(
+                    in: context,
+                    today: today,
+                    provider: provider
+                )
+                logger.info(
+                    "Coach grader: graded=\(gradeReport.graded) skipped=\(gradeReport.skippedNotYetDue) unclear=\(gradeReport.unclearDueToMissingEvidence)"
+                )
+            } catch {
+                logger.error("Coach grader failed: \(error.localizedDescription)")
+            }
+        }
+
+        let purged = purgeStaleCoachConversations(in: context, today: today)
+        if purged > 0 {
+            logger.info("Coach purge: deleted \(purged) stale conversations")
+        }
+    }
+
+
+    /// Internal helper extracted for testing. Returns the count of
+    /// purged rows so callers (and tests) can log + assert.
+    @MainActor
+    @discardableResult
+    static func purgeStaleCoachConversations(
+        in context: ModelContext,
+        today: Date,
+        maxAgeDays: Int = 30
+    ) -> Int {
+        let calendar = Calendar.current
+        guard let cutoff = calendar.date(byAdding: .day, value: -maxAgeDays, to: today) else {
+            return 0
+        }
+        let descriptor = FetchDescriptor<CoachConversation>(
+            predicate: #Predicate<CoachConversation> { conv in
+                !conv.isStarred && conv.lastMessageAt < cutoff
+            }
+        )
+        let stale = (try? context.fetch(descriptor)) ?? []
+        for row in stale {
+            context.delete(row)
+        }
+        return stale.count
     }
 }

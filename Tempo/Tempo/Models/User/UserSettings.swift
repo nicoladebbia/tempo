@@ -87,6 +87,25 @@ final class UserSettings {
 
     var examModeEndDate: Date?
 
+    // MARK: - Coach (v2.1)
+
+    /// True once the user has completed the Coach interview OR explicitly
+    /// skipped after answering at least one question. False on first open.
+    var coachInterviewCompleted: Bool = false
+
+    /// True only if the user tapped "Skip rest" before answering ANY
+    /// question. Partial completions set `coachInterviewCompleted` instead
+    /// — partial priors are still useful.
+    var coachInterviewSkipped: Bool = false
+
+    /// When the user finished (or skipped from) the interview. Used by the
+    /// "Re-do Coach interview" affordance to show how stale the priors are.
+    var coachInterviewCompletedAt: Date?
+
+    /// Mic mode for Coach chat input. "tapToggle" (default) or "holdToRecord".
+    /// Per Coach v2.1 plan Q2 decision.
+    var coachVoiceModeRaw: String = "tapToggle"
+
     // MARK: - Timestamps
 
     var updatedAt: Date
@@ -147,6 +166,14 @@ final class UserSettings {
             hour: bedtimeTargetMinutes / 60,
             minute: bedtimeTargetMinutes % 60
         ))
+    }
+
+
+    /// Coach voice mode — typed accessor over coachVoiceModeRaw.
+    @Transient
+    var coachVoiceMode: CoachVoiceMode {
+        get { CoachVoiceMode(rawValue: coachVoiceModeRaw) ?? .tapToggle }
+        set { coachVoiceModeRaw = newValue.rawValue }
     }
 
     // MARK: - Init
