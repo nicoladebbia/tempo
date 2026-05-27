@@ -46,6 +46,16 @@ struct NutritionLogView: View {
     /// means no sheet; non-nil presents ParsedFoodReviewSheet.
     @State
     private var parsedFoodsForReview: [ParsedFoodItem]?
+    /// Meal type Claude inferred from the user's text (e.g. "lunch" when
+    /// they wrote "I had lunch"). Used to pre-select the review sheet's
+    /// segmented picker so the user only confirms instead of choosing.
+    @State
+    private var parsedMealTypeHint: MealType?
+    /// Eat-time Claude inferred from the user's text (e.g. "at 1pm").
+    /// Falls through to `Date()` at persist time when nil — matches
+    /// pre-Phase-2 behavior.
+    @State
+    private var parsedEatenAtHint: Date?
 
     private let columns = [
         GridItem(.flexible(), spacing: TempoSpacing.md),
@@ -77,9 +87,14 @@ struct NutritionLogView: View {
         )) { payload in
             ParsedFoodReviewSheet(
                 items: payload.items,
-                defaultMealType: Self.defaultMealTypeForNow(),
+                defaultMealType: parsedMealTypeHint
+                    ?? Self.defaultMealTypeForNow(parsedEatenAtHint ?? Date()),
                 onConfirm: { mealType in
-                    persistParsedItems(payload.items, type: mealType)
+                    persistParsedItems(
+                        payload.items,
+                        type: mealType,
+                        eatenAt: parsedEatenAtHint ?? Date()
+                    )
                 },
                 onCancel: { parsedFoodsForReview = nil }
             )
@@ -324,17 +339,22 @@ struct NutritionLogView: View {
             defer { isParsing = false }
             do {
                 let service = NaturalLanguageLoggingService(apiClient: services.apiClient)
-                let items = try await service.parseNaturalLanguage(text)
-                guard !items.isEmpty else {
+                let parsed = try await service.parseNaturalLanguageWithTiming(text)
+                guard !parsed.items.isEmpty else {
                     toast = ToastData(
                         message: "Couldn't parse that. Try being more specific.",
                         style: .info
                     )
                     return
                 }
+                // Stash the Claude-inferred meal-type and eat-time so the
+                // review sheet defaults correctly and persist writes the
+                // real eat-time into PlannedMeal.actualEatenAt.
+                parsedMealTypeHint = parsed.mealType.flatMap(Self.mealType(fromHint:))
+                parsedEatenAtHint = parsed.eatenAt
                 // Present the parsed items for confirmation. The user picks
                 // a meal type and taps Confirm — only THEN do we persist.
-                parsedFoodsForReview = items
+                parsedFoodsForReview = parsed.items
             } catch {
                 toast = ToastData(
                     message: "Parse failed: \(error.localizedDescription)",
@@ -347,7 +367,7 @@ struct NutritionLogView: View {
     /// Defaults the meal-type chooser in the review sheet based on the
     /// user's local time-of-day. Breakfast, lunch, and dinner windows
     /// match the prompt anchor times used in MealPlanPrompts.
-    private static func defaultMealTypeForNow(date: Date = Date()) -> MealType {
+    private static func defaultMealTypeForNow(_ date: Date = Date()) -> MealType {
         // Tighter breakfast window (was < 11) — at 10:30 most people are
         // logging lunch, not breakfast. Late-evening (after 22) defaults
         // to snack because the user is more likely doing a late bite than
@@ -362,6 +382,19 @@ struct NutritionLogView: View {
         }
     }
 
+    /// Maps NL parser's canonical lowercase string ("breakfast" / "lunch"
+    /// / "dinner" / "snack") to a typed MealType. Returns nil for
+    /// unrecognised strings so the caller falls back to time-of-day.
+    private static func mealType(fromHint raw: String) -> MealType? {
+        switch raw {
+        case "breakfast": .breakfast
+        case "lunch": .lunch
+        case "dinner": .dinner
+        case "snack": .snack
+        default: nil
+        }
+    }
+
     /// Persist the user-confirmed parsed items to MealLog. Done inline
     /// (instead of routing through MealLoggingService.logMeal) because
     /// the service's `async` signature would require sending ModelContext
@@ -370,7 +403,11 @@ struct NutritionLogView: View {
     /// anyway; only the HealthKit sync needs async, and that can fire
     /// from a follow-on Task with the saved MealLog (which IS Sendable).
     @MainActor
-    private func persistParsedItems(_ items: [ParsedFoodItem], type: MealType) {
+    private func persistParsedItems(
+        _ items: [ParsedFoodItem],
+        type: MealType,
+        eatenAt: Date = Date()
+    ) {
         // Map ParsedFoodItem (NL service per-item shape) onto MealFoodItem.
         let inputs = items.map { item in
             MealFoodItemInput(
@@ -395,6 +432,9 @@ struct NutritionLogView: View {
         let totalFat = items.reduce(into: 0.0) { $0 += $1.fatG }
 
         // 1) MealLog — canonical history record. Drives Dashboard.
+        // `dayDate` stays anchored to today's calendar day; `loggedAt`
+        // is overridden to the user's real eat-time so the Fuel "last
+        // meal X ago" and Coach context read the truth.
         let mealLog = MealLog(
             type: type,
             dayDate: Date(),
@@ -402,6 +442,7 @@ struct NutritionLogView: View {
             photo: nil,
             items: foodItems
         )
+        mealLog.loggedAt = eatenAt
         modelContext.insert(mealLog)
 
         // 2) PlannedMeal — the row Today renders. CRITICAL: if today already
@@ -423,7 +464,21 @@ struct NutritionLogView: View {
         }
         let targetMealNumber = type.sortOrder + 1
 
-        if let existing = viewModel.todayMeals.first(where: { $0.mealNumber == targetMealNumber }) {
+        // Phase 2: match the parsed log to a planned slot. Prefer the
+        // existing same-type slot (replace-in-place), but if the user
+        // typed "snack" and there are multiple snacks today, use the
+        // matcher to pick the one closest to `eatenAt`.
+        let candidates = viewModel.todayMeals.filter { $0.mealNumber == targetMealNumber }
+        let matched = candidates.count == 1
+            ? candidates.first
+            : PlannedMealTimingMatcher.bestMatch(
+                for: candidates,
+                mealType: type.displayName,
+                eatenAt: eatenAt,
+                now: Date()
+            )
+
+        if let existing = matched {
             // Replace-in-place. Keep scheduledTime/mealName from the plan
             // so the row stays in its original chronological slot; flip
             // status to .eaten and overwrite foods + totals + the
@@ -435,18 +490,19 @@ struct NutritionLogView: View {
             existing.totalFat = totalFat
             existing.statusRaw = MealStatus.eaten.rawValue
             existing.linkedMealLogID = mealLog.id
-            existing.actualEatenAt = Date()
+            existing.actualEatenAt = eatenAt
         } else {
             // No planned slot for this MealType (e.g. user is logging a
             // 4th meal on a 3-meal-plan day). Insert a new PlannedMeal
-            // mirroring logFromPreset's pattern.
+            // mirroring logFromPreset's pattern. scheduledTime mirrors
+            // the user's eat-time so the row sorts into the right slot.
             let timeFormatter = DateFormatter()
             timeFormatter.dateFormat = "HH:mm"
             let plannedMeal = PlannedMeal(
                 dayDate: Date(),
                 mealNumber: targetMealNumber,
                 mealName: type.displayName,
-                scheduledTime: timeFormatter.string(from: Date()),
+                scheduledTime: timeFormatter.string(from: eatenAt),
                 foods: plannedFoods,
                 totalCalories: totalCals,
                 totalProtein: totalProt,
@@ -454,7 +510,7 @@ struct NutritionLogView: View {
                 totalFat: totalFat,
                 status: .eaten,
                 linkedMealLogID: mealLog.id,
-                actualEatenAt: Date(),
+                actualEatenAt: eatenAt,
                 mealPlan: viewModel.weeklyPlan
             )
             modelContext.insert(plannedMeal)

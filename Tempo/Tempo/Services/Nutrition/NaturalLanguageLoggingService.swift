@@ -29,6 +29,21 @@ struct ParsedFoodItem: Identifiable {
     }
 }
 
+// MARK: - ParsedMealLog
+
+/// Aggregate result of a natural-language parse. Carries the food items
+/// plus any timing/type signal Claude pulled out of the text — used by
+/// NutritionLogView to match the log to a PlannedMeal (Phase 2). Both
+/// `mealType` and `eatenAt` are nil when the user didn't mention them.
+struct ParsedMealLog {
+    let items: [ParsedFoodItem]
+    /// "breakfast" / "lunch" / "dinner" / "snack", lowercase, or nil.
+    let mealType: String?
+    /// Wall-clock eat-time parsed from "at 1pm" / "this morning". nil
+    /// when the text contained no time reference; callers default to now.
+    let eatenAt: Date?
+}
+
 // MARK: - NaturalLanguageLoggingService
 
 /// Parses free-text food descriptions into structured food items using Claude Haiku,
@@ -73,6 +88,14 @@ final class NaturalLanguageLoggingService: @unchecked Sendable {
     /// Cross-references results against FoodMacroDatabase: if the database has the food,
     /// its macros are used instead of Claude's estimate (more accurate).
     func parseNaturalLanguage(_ text: String) async throws -> [ParsedFoodItem] {
+        try await parseNaturalLanguageWithTiming(text).items
+    }
+
+    /// Richer variant that also surfaces the parsed meal type + eat-time
+    /// when Claude could infer them from the user's text. Falls back to
+    /// the same item list as `parseNaturalLanguage(_:)`. New callers
+    /// (Phase 2) use this to match the log to a PlannedMeal.
+    func parseNaturalLanguageWithTiming(_ text: String) async throws -> ParsedMealLog {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw NaturalLanguageLoggingError.emptyInput
         }
@@ -80,18 +103,13 @@ final class NaturalLanguageLoggingService: @unchecked Sendable {
         isProcessing = true
         defer { isProcessing = false }
 
-        // Build and send prompt
         let response = try await sendParseRequest(text)
-
-        // Parse JSON response
-        let rawItems = try parseResponse(response)
-
-        // Cross-reference with FoodMacroDatabase
+        let (rawItems, mealType, eatenAt) = try parseResponse(response)
         let verifiedItems = crossReferenceWithDatabase(rawItems)
 
-        logger.info("Parsed \(verifiedItems.count) food items from: \"\(text.prefix(50))\"")
+        logger.info("Parsed \(verifiedItems.count) food items from: \"\(text.prefix(50))\"; type=\(mealType ?? "nil") at=\(eatenAt?.description ?? "nil")")
 
-        return verifiedItems
+        return ParsedMealLog(items: verifiedItems, mealType: mealType, eatenAt: eatenAt)
     }
 
     // MARK: - Private Helpers
@@ -126,17 +144,21 @@ final class NaturalLanguageLoggingService: @unchecked Sendable {
         \(sanitized)
         </user_food_description>
 
-        Return ONLY valid JSON (start with [, no markdown, no code blocks) matching this schema:
-        [
-            {
-                "name": "string (food name, lowercase, e.g. 'cooked pasta', 'white rice', 'banana'). Include the cooking state when it changes calories — 'cooked pasta' vs 'dry pasta'.",
-                "quantityGrams": number (the weight you assumed — cooked unless the user said otherwise),
-                "calories": number (total for the quantity, MATCHING the cooking state in `name`),
-                "proteinG": number (total grams),
-                "carbsG": number (total grams),
-                "fatG": number (total grams)
-            }
-        ]
+        Return ONLY valid JSON (start with {, no markdown, no code blocks) matching this schema:
+        {
+            "meal_type": "breakfast | lunch | dinner | snack | null  (null when the text gives no hint)",
+            "eaten_at": "HH:mm in 24-hour local time, or null when no time mentioned. Resolve fuzzy references: 'this morning' → 08:00, 'lunchtime' → 12:30, 'late dinner' → 21:30, 'an hour ago' → null (we'll default to now).",
+            "items": [
+                {
+                    "name": "string (food name, lowercase, e.g. 'cooked pasta', 'white rice', 'banana'). Include the cooking state when it changes calories — 'cooked pasta' vs 'dry pasta'.",
+                    "quantityGrams": number (the weight you assumed — cooked unless the user said otherwise),
+                    "calories": number (total for the quantity, MATCHING the cooking state in `name`),
+                    "proteinG": number (total grams),
+                    "carbsG": number (total grams),
+                    "fatG": number (total grams)
+                }
+            ]
+        }
 
         Rules:
         - Use common food names that match a nutrition database. Prefix with cooking state when relevant: "cooked pasta", "cooked rice", "grilled chicken breast".
@@ -189,18 +211,45 @@ final class NaturalLanguageLoggingService: @unchecked Sendable {
         )
     }
 
-    /// Parse Claude's JSON response into raw food items.
-    private func parseResponse(_ response: String) throws -> [RawParsedFood] {
+    /// Parse Claude's JSON response into (items, optional meal_type,
+    /// optional eaten_at). Backward-compatible with the legacy
+    /// flat-array shape — older responses just return (items, nil, nil).
+    private func parseResponse(_ response: String) throws -> ([RawParsedFood], String?, Date?) {
         let decoder = JSONDecoder()
 
-        // Try direct parse as array
+        // Prefer the new object shape with meal_type / eaten_at.
+        if let startIndex = response.firstIndex(of: "{"),
+           let endIndex = response.lastIndex(of: "}")
+        {
+            let jsonString = String(response[startIndex ... endIndex])
+            if let data = jsonString.data(using: .utf8) {
+                struct Envelope: Codable {
+                    let mealType: String?
+                    let eatenAt: String?
+                    let items: [RawParsedFood]?
+                    let foods: [RawParsedFood]?
+                    enum CodingKeys: String, CodingKey {
+                        case mealType = "meal_type"
+                        case eatenAt = "eaten_at"
+                        case items, foods
+                    }
+                }
+                if let env = try? decoder.decode(Envelope.self, from: data),
+                   let items = env.items ?? env.foods
+                {
+                    return (items, normalizedMealType(env.mealType), parseEatenAt(env.eatenAt))
+                }
+            }
+        }
+
+        // Legacy array shape — direct parse.
         if let data = response.data(using: .utf8),
            let result = try? decoder.decode([RawParsedFood].self, from: data)
         {
-            return result
+            return (result, nil, nil)
         }
 
-        // Extract JSON array between [ and ]
+        // Legacy array shape — extract between [ and ].
         if let startIndex = response.firstIndex(of: "["),
            let endIndex = response.lastIndex(of: "]")
         {
@@ -209,30 +258,51 @@ final class NaturalLanguageLoggingService: @unchecked Sendable {
                let result = try? decoder.decode([RawParsedFood].self, from: data)
             {
                 logger.info("[nl_parse] JSON array extracted from wrapped response")
-                return result
-            }
-        }
-
-        // Try as wrapped object with items/foods key
-        if let startIndex = response.firstIndex(of: "{"),
-           let endIndex = response.lastIndex(of: "}")
-        {
-            let jsonString = String(response[startIndex ... endIndex])
-            if let data = jsonString.data(using: .utf8) {
-                struct Wrapper: Codable {
-                    let items: [RawParsedFood]?
-                    let foods: [RawParsedFood]?
-                }
-                if let wrapper = try? decoder.decode(Wrapper.self, from: data),
-                   let items = wrapper.items ?? wrapper.foods
-                {
-                    return items
-                }
+                return (result, nil, nil)
             }
         }
 
         logger.error("[nl_parse] Failed to parse JSON: \(response.prefix(200))")
         throw NaturalLanguageLoggingError.parseFailed("Could not parse food items from response")
+    }
+
+    /// Coerce Claude's meal_type to one of the four canonical values.
+    /// "Lunchtime" / "BREAKFAST" / "post-workout snack" → "lunch" /
+    /// "breakfast" / "snack". Unknown → nil.
+    private func normalizedMealType(_ raw: String?) -> String? {
+        guard let lowered = raw?.lowercased().trimmingCharacters(in: .whitespacesAndNewlines),
+              !lowered.isEmpty, lowered != "null"
+        else {
+            return nil
+        }
+        if lowered.contains("breakfast") { return "breakfast" }
+        if lowered.contains("lunch") { return "lunch" }
+        if lowered.contains("dinner") { return "dinner" }
+        if lowered.contains("snack") { return "snack" }
+        return nil
+    }
+
+    /// Parse "HH:mm" into a Date anchored to today's calendar day, in
+    /// the user's local timezone. nil for malformed / null / empty.
+    private func parseEatenAt(_ raw: String?) -> Date? {
+        guard let value = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty, value.lowercased() != "null"
+        else {
+            return nil
+        }
+        let parts = value.split(separator: ":")
+        guard parts.count == 2,
+              let hour = Int(parts[0]),
+              let minute = Int(parts[1]),
+              (0 ... 23).contains(hour),
+              (0 ... 59).contains(minute)
+        else {
+            return nil
+        }
+        var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        components.hour = hour
+        components.minute = minute
+        return Calendar.current.date(from: components)
     }
 
     /// Cross-reference parsed items against FoodMacroDatabase.
