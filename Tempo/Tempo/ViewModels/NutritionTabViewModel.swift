@@ -398,6 +398,12 @@ final class NutritionTabViewModel {
             notifications: notifications
         )
 
+        // Same-day macro rebalance: if the user ate a substitute (planned
+        // macros zeroed) or the planned meal's macros otherwise diverge
+        // from target, bump the remaining .planned meals proportionally
+        // so the day still hits its target macros.
+        applyMacroRebalance(modelContext: modelContext)
+
         try? modelContext.save()
         HapticManager.notification(.success)
         notifications?.cancelDefrostReminders(forMealID: mealID)
@@ -478,6 +484,61 @@ final class NutritionTabViewModel {
                     )
                 }
             }
+        }
+    }
+
+    /// Same-day macro rebalance hook fired after Mark Eaten. Reads
+    /// today's eaten + remaining .planned meals, computes the residual
+    /// target delta via MealRebalancer, and applies per-meal additive
+    /// adjustments. No-ops when the residual is below threshold so a
+    /// 95%-on-target day doesn't get juggled.
+    private func applyMacroRebalance(modelContext: ModelContext) {
+        let consumed = MealRebalancer.Macros(
+            calories: todayMeals
+                .filter { $0.status == .eaten }
+                .reduce(0.0) { $0 + $1.totalCalories },
+            protein: todayMeals
+                .filter { $0.status == .eaten }
+                .reduce(0.0) { $0 + $1.totalProtein },
+            carbs: todayMeals
+                .filter { $0.status == .eaten }
+                .reduce(0.0) { $0 + $1.totalCarbs },
+            fat: todayMeals
+                .filter { $0.status == .eaten }
+                .reduce(0.0) { $0 + $1.totalFat }
+        )
+        let remaining = todayMeals.filter { $0.status == .planned }
+        guard !remaining.isEmpty else { return }
+        let plannedMacros = remaining.map { meal in
+            MealRebalancer.PlannedMealMacros(
+                id: meal.id,
+                calories: meal.totalCalories,
+                protein: meal.totalProtein,
+                carbs: meal.totalCarbs,
+                fat: meal.totalFat
+            )
+        }
+        let targets = NutritionTargetCalculator.targetsForToday(in: modelContext)
+        let dayTargets = MealRebalancer.Targets(
+            calories: Double(targets.calories),
+            protein: Double(targets.protein),
+            carbs: Double(targets.carbs),
+            fat: Double(targets.fat)
+        )
+        let adjustments = MealRebalancer.rebalance(
+            dayTargets: dayTargets,
+            consumed: consumed,
+            remaining: plannedMacros
+        )
+        // Apply non-zero adjustments. Each PlannedMeal lookup is O(N)
+        // but N ≤ 6 in practice (max meals/day), so a dictionary index
+        // isn't worth the noise.
+        for adj in adjustments where !adj.isZero {
+            guard let meal = remaining.first(where: { $0.id == adj.mealID }) else { continue }
+            meal.totalCalories = max(0, meal.totalCalories + adj.calories)
+            meal.totalProtein = max(0, meal.totalProtein + adj.protein)
+            meal.totalCarbs = max(0, meal.totalCarbs + adj.carbs)
+            meal.totalFat = max(0, meal.totalFat + adj.fat)
         }
     }
 

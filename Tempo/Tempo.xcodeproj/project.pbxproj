@@ -83,6 +83,7 @@
 		2D2BA4459936D7722A43145A /* AppearanceSettingsDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504B683A2B4F6C327ED92476 /* AppearanceSettingsDetailView.swift */; };
 		2E978D47831F02C897C3E6C9 /* MealPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AD6C7012CCDF878B2C41265 /* MealPreset.swift */; };
 		2EB6A739EEB35D06134926D2 /* XPEngineProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A300B1153B724961360B8C /* XPEngineProtocol.swift */; };
+		2F3B5738E7BB31A19A8276DF /* MacroCarryoverService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23A167A34D6EDAC0924D73D9 /* MacroCarryoverService.swift */; };
 		2FBA3980A84F23FE60064EF5 /* CoachMemoryGrouping.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC8C2632DC447A0FAE3C3630 /* CoachMemoryGrouping.swift */; };
 		2FD90060C6E6B435B160C7FA /* PhotoAnalysisService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B61E27D4D0D5FDB241C668A3 /* PhotoAnalysisService.swift */; };
 		304B3DFBA4DBD7862D4328E3 /* CoachServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4C45AF8F0174848643AC105 /* CoachServiceTests.swift */; };
@@ -153,6 +154,7 @@
 		55A17AD70DB0B92BC0AB7220 /* MealPlanGeneratorService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B8B7FCFCF4322BA2DE412B4 /* MealPlanGeneratorService.swift */; };
 		55DF8142F5C47320F5739100 /* Double+Formatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCA19F6669555D8B7B7E201F /* Double+Formatting.swift */; };
 		55F70911DA2E8237F98B0199 /* ExerciseLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8094D8380452850D0E377C20 /* ExerciseLibraryView.swift */; };
+		56B9FFDAA3D23052B3EDA894 /* MealRebalancer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6462FAD4A1F5F90E8763A82 /* MealRebalancer.swift */; };
 		5706A03676F43998082CD81F /* WhoopConnectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABB0BB8259BA2837EC1102A9 /* WhoopConnectView.swift */; };
 		573DD6B3F3F34FD715B81ECC /* FoodCanonicalizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BB2DDAEBD50F39B0100EAED /* FoodCanonicalizerTests.swift */; };
 		576112CDA6EA87188130DEFA /* WeeklySelfGradeCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A53F15C75B9680AE4B57F082 /* WeeklySelfGradeCard.swift */; };
@@ -295,6 +297,7 @@
 		9F7B3BD137FB731474942C62 /* MealPlanIntake.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50876FCCD136AB86EA89B9C1 /* MealPlanIntake.swift */; };
 		9FE802599C3695339C1ED4C4 /* Achievement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FAE3523520739AC6679517A /* Achievement.swift */; };
 		9FECAB7DFA08585ADB49896C /* MoveQuadrantDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFBB22EB2A96D0E5BE372E11 /* MoveQuadrantDetailView.swift */; };
+		A0BCFA6734EF5EC57B2E6EE2 /* MacroCarryover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 931F764CBA37FAB20D930007 /* MacroCarryover.swift */; };
 		A0CB9EFB42027EF8C7BEE188 /* WorkoutPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF7A70F4976A041F87B6FB15 /* WorkoutPlan.swift */; };
 		A129BCE268A7C4CA06D533A7 /* SyncEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE3A2335BEAF9420CA3826BB /* SyncEnums.swift */; };
 		A1C67999688B13C310FEEEEA /* OnboardingCompleteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EAAFFEBE1DE9A7E669FA531 /* OnboardingCompleteView.swift */; };
@@ -580,6 +583,7 @@
 		220E13D7DB7C67369BB60111 /* NextMealCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextMealCardView.swift; sourceTree = "<group>"; };
 		224834D08E1BFBE2C96971F6 /* GroceryListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroceryListView.swift; sourceTree = "<group>"; };
 		23815CF8C735524072A79ED4 /* FoodSearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodSearchService.swift; sourceTree = "<group>"; };
+		23A167A34D6EDAC0924D73D9 /* MacroCarryoverService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacroCarryoverService.swift; sourceTree = "<group>"; };
 		24769F0E2A22F6E962AE8DC1 /* PreferenceRetrieverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferenceRetrieverTests.swift; sourceTree = "<group>"; };
 		24BAE23220CE56DDEBA885D6 /* PendingOutcome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingOutcome.swift; sourceTree = "<group>"; };
 		250E8EFC7C3DBF426C48CD78 /* SetFeedbackSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetFeedbackSheet.swift; sourceTree = "<group>"; };
@@ -767,6 +771,7 @@
 		92D1D8E18ECB82729A3F6ABC /* CoachChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachChatView.swift; sourceTree = "<group>"; };
 		92D3A8599DF88C6309EA3F37 /* CoachTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachTools.swift; sourceTree = "<group>"; };
 		9312A3DF30B2051038869E06 /* CoachConversation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachConversation.swift; sourceTree = "<group>"; };
+		931F764CBA37FAB20D930007 /* MacroCarryover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacroCarryover.swift; sourceTree = "<group>"; };
 		9354789CD22E8064188D8E5B /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		9492EE850B765197321370E3 /* MockWhoopService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockWhoopService.swift; sourceTree = "<group>"; };
 		95440962533954510637504A /* MealFoodItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealFoodItem.swift; sourceTree = "<group>"; };
@@ -945,6 +950,7 @@
 		E48EFB1AFEE4717EC2A91B77 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		E55F74B6AA6A7D4C4AECBDF2 /* DrillSergeantBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrillSergeantBubble.swift; sourceTree = "<group>"; };
 		E5B5A520F2F5D39EEA65C809 /* OfflineBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineBannerView.swift; sourceTree = "<group>"; };
+		E6462FAD4A1F5F90E8763A82 /* MealRebalancer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealRebalancer.swift; sourceTree = "<group>"; };
 		EA21E0682ABDE1512254EA20 /* VoiceMealLogService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceMealLogService.swift; sourceTree = "<group>"; };
 		EBACF78684EF42013E744E6C /* AcademicSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcademicSetupView.swift; sourceTree = "<group>"; };
 		EBBAC841700DF2913C4D75F5 /* CoachConversationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachConversationTests.swift; sourceTree = "<group>"; };
@@ -1446,6 +1452,7 @@
 				6D59FB13E90C14A92ED92096 /* CachedFood.swift */,
 				5B9423F06A6B475E607E2C6B /* DietaryProfile.swift */,
 				C9CCF4B7D9CC50534C6C341D /* GroceryList.swift */,
+				931F764CBA37FAB20D930007 /* MacroCarryover.swift */,
 				ADA19E1B5A1C9F50B9DC4047 /* MealFeedback.swift */,
 				95440962533954510637504A /* MealFoodItem.swift */,
 				26E754E56F8ECB91C6DF5338 /* MealLog.swift */,
@@ -1679,9 +1686,11 @@
 				D0AA5EB7B8C54BB429B02FAA /* LocalGroceryListService.swift */,
 				8AA3F6B3C87DCA2B7FEE76E4 /* LocalPantryService.swift */,
 				45D9C3FDC0108C649DB56710 /* LocalRecipeService.swift */,
+				23A167A34D6EDAC0924D73D9 /* MacroCarryoverService.swift */,
 				A25B6E5B757BBB1DCCDD169F /* MealLoggingService.swift */,
 				7B8B7FCFCF4322BA2DE412B4 /* MealPlanGeneratorService.swift */,
 				CF5717AF297C5078BD098368 /* MealPlanPrompts.swift */,
+				E6462FAD4A1F5F90E8763A82 /* MealRebalancer.swift */,
 				97D7FCCD40C096FC2A91F1A9 /* MealRecipePrompts.swift */,
 				6E59B35B2D6DB2E2F22C9EBD /* MealRedistributionPrompts.swift */,
 				61323DBB73764C73B7BE54C5 /* MealRedistributionService.swift */,
@@ -2750,6 +2759,8 @@
 				4FF9DB0FFF3B9E71B518C41E /* LockdownMainView.swift in Sources */,
 				B7C17482392D54F9CA3D7F02 /* LockdownTabView.swift in Sources */,
 				8DBBF0C0A227134A529E232D /* Logger+Tempo.swift in Sources */,
+				A0BCFA6734EF5EC57B2E6EE2 /* MacroCarryover.swift in Sources */,
+				2F3B5738E7BB31A19A8276DF /* MacroCarryoverService.swift in Sources */,
 				DF5B57D8AE453DD1E520EA5F /* MarkEatenSheet.swift in Sources */,
 				3B685F0938A690BA7DA6A21A /* MealDetailView.swift in Sources */,
 				CB2B49A4C64993DD61CF7FAC /* MealFeedback.swift in Sources */,
@@ -2763,6 +2774,7 @@
 				17C50549FF8AFCCDCF477948 /* MealPlanIntakeWizardView.swift in Sources */,
 				742A0F4D66DB8B6713C6A4C9 /* MealPlanPrompts.swift in Sources */,
 				2E978D47831F02C897C3E6C9 /* MealPreset.swift in Sources */,
+				56B9FFDAA3D23052B3EDA894 /* MealRebalancer.swift in Sources */,
 				7EF8DED4AD36868215402603 /* MealRecipePrompts.swift in Sources */,
 				D7C5AB018FC96F541C276E60 /* MealRedistributionPrompts.swift in Sources */,
 				05B510E6FC04BADD836FE104 /* MealRedistributionService.swift in Sources */,
