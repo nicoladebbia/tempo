@@ -50,6 +50,14 @@ struct MealDetailView: View {
     @State
     private var actualWakeTime: Date?
 
+    /// Drives the eat-time editor sheet. Flipped on by the "Edit time"
+    /// button in the .eaten branch of statusLine. The sheet binds to
+    /// `eatTimeEdit` and commits via `commitEatTimeEdit()` on dismiss.
+    @State
+    private var presentEatTimeEditor: Bool = false
+    @State
+    private var eatTimeEdit: Date = .now
+
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: TempoSpacing.xl) {
@@ -80,6 +88,89 @@ struct MealDetailView: View {
             }
             .presentationDetents([.medium, .large])
         }
+        .sheet(isPresented: $presentEatTimeEditor) {
+            eatTimeEditorSheet
+                .presentationDetents([.height(280)])
+        }
+    }
+
+    // MARK: - Eat-time editor
+
+    /// Minimal time-only DatePicker sheet for fixing the recorded
+    /// `actualEatenAt` after the fact. Saves to PlannedMeal AND, when a
+    /// linked MealLog exists, updates that row's `loggedAt` too so the
+    /// Fuel "last meal" line and Coach context stay coherent.
+    private var eatTimeEditorSheet: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+                Text("Set the time you actually ate \(meal.mealName.lowercased()).")
+                    .font(.tempoCallout)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                DatePicker(
+                    "Eaten at",
+                    selection: $eatTimeEdit,
+                    in: ...Date(),
+                    displayedComponents: .hourAndMinute
+                )
+                .datePickerStyle(.wheel)
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
+                Button {
+                    commitEatTimeEdit()
+                    presentEatTimeEditor = false
+                    HapticManager.notification(.success)
+                } label: {
+                    Text("Save")
+                        .font(.tempoCallout)
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .foregroundStyle(Color.tempoTextInverse)
+                        .background(Color.tempoSignal)
+                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, TempoSpacing.screenEdge)
+            .padding(.top, TempoSpacing.lg)
+            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.md)
+            .background(Color.tempoBgPrimary)
+            .navigationTitle("Edit eat time")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { presentEatTimeEditor = false }
+                }
+            }
+        }
+    }
+
+    /// Persists the chosen `eatTimeEdit` to PlannedMeal.actualEatenAt and
+    /// the linked MealLog (if any). Bound to today's date — the picker
+    /// only exposes hour/minute, so we keep the calendar day stable.
+    @MainActor
+    private func commitEatTimeEdit() {
+        let cal = Calendar.current
+        let dayStart = cal.startOfDay(for: meal.dayDate)
+        let hour = cal.component(.hour, from: eatTimeEdit)
+        let minute = cal.component(.minute, from: eatTimeEdit)
+        var components = cal.dateComponents([.year, .month, .day], from: dayStart)
+        components.hour = hour
+        components.minute = minute
+        guard let normalized = cal.date(from: components) else { return }
+        meal.actualEatenAt = normalized
+
+        // Keep the linked MealLog row in sync so the Fuel card and Coach
+        // context don't disagree with the planned-meal display.
+        if let logID = meal.linkedMealLogID {
+            let descriptor = FetchDescriptor<MealLog>(
+                predicate: #Predicate<MealLog> { $0.id == logID }
+            )
+            if let log = try? modelContext.fetch(descriptor).first {
+                log.loggedAt = normalized
+            }
+        }
+        try? modelContext.save()
     }
 
     /// Pull the user's planned wake from `UserSettings` and today's actual
@@ -192,16 +283,32 @@ struct MealDetailView: View {
                 .fontWeight(.semibold)
                 .foregroundStyle(Color.tempoAmber)
         case let .eaten(at):
-            if let at {
-                Text("Eaten at \(Self.clockFormatter.string(from: at)).")
-                    .font(.tempoBody)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.tempoSuccess)
-            } else {
-                Text("Eaten.")
-                    .font(.tempoBody)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.tempoSuccess)
+            HStack(spacing: TempoSpacing.sm) {
+                if let at {
+                    Text("Eaten at \(Self.clockFormatter.string(from: at)).")
+                        .font(.tempoBody)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.tempoSuccess)
+                } else {
+                    Text("Eaten.")
+                        .font(.tempoBody)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.tempoSuccess)
+                }
+                Spacer(minLength: 0)
+                Button {
+                    eatTimeEdit = at ?? Date()
+                    presentEatTimeEditor = true
+                    HapticManager.lightImpact()
+                } label: {
+                    Label("Edit time", systemImage: "clock.arrow.circlepath")
+                        .font(.tempoCaption1)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.tempoSignal)
+                        .labelStyle(.titleAndIcon)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Edit eat time")
             }
         case .skipped:
             Text("Skipped — macros redistributed.")
@@ -675,17 +782,96 @@ struct MealDetailView: View {
 
     // MARK: - Fallback
 
+    @ViewBuilder
     private var noRecipeFallback: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            sectionLabel("RECIPE")
-            Text("AI couldn't generate a recipe for this meal. Regenerate the weekly plan to retry.")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+        let foods = meal.foods
+        if !foods.isEmpty {
+            // Quick-log / NL-logged / preset-logged meals don't have a
+            // generated Recipe but DO have a PlannedFood array. Render
+            // them per-food with macros so the detail view actually
+            // tells the user what they ate, not just a static
+            // "regenerate" message.
+            VStack(alignment: .leading, spacing: TempoSpacing.md) {
+                foodsTotalsCard(foods: foods)
+                foodsListCard(foods: foods)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: TempoSpacing.md) {
+                sectionLabel("RECIPE")
+                Text("AI couldn't generate a recipe for this meal. Regenerate the weekly plan to retry.")
+                    .font(.tempoBody)
+                    .foregroundStyle(Color.tempoTextSecondary)
+            }
+            .padding(TempoSpacing.buttonPaddingV)
+            .background(Color.tempoSurfaceCard)
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+            .tempoShadow(.card)
+        }
+    }
+
+    /// Summary card: total calories + P/C/F across the foods array.
+    /// Mirrors recipe `macrosSummarySection` shape so a user can't tell
+    /// they're on the no-recipe path unless they look.
+    private func foodsTotalsCard(foods: [PlannedFood]) -> some View {
+        let totalKcal = foods.reduce(0.0) { $0 + $1.calories }
+        let totalP = foods.reduce(0.0) { $0 + $1.proteinG }
+        let totalC = foods.reduce(0.0) { $0 + $1.carbsG }
+        let totalF = foods.reduce(0.0) { $0 + $1.fatG }
+        return VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            sectionLabel("TOTALS")
+            HStack(spacing: TempoSpacing.md) {
+                Text("\(Int(totalKcal)) kcal")
+                    .font(.tempoTitle3)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.tempoViolet)
+                Spacer()
+                macroBadge("P", value: Int(totalP), color: Color.tempoMacroProtein)
+                macroBadge("C", value: Int(totalC), color: Color.tempoMacroCarbs)
+                macroBadge("F", value: Int(totalF), color: Color.tempoMacroFat)
+            }
         }
         .padding(TempoSpacing.buttonPaddingV)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
         .tempoShadow(.card)
+    }
+
+    private func foodsListCard(foods: [PlannedFood]) -> some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            sectionLabel("WHAT YOU ATE")
+            ForEach(Array(foods.enumerated()), id: \.offset) { _, food in
+                HStack(spacing: TempoSpacing.sm) {
+                    Circle()
+                        .fill(Color.tempoViolet.opacity(0.4))
+                        .frame(width: 6, height: 6)
+                    Text(food.name)
+                        .font(.tempoBody)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                    Spacer()
+                    Text("\(Int(food.quantityGrams))g")
+                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .foregroundStyle(Color.tempoTextTertiary)
+                    Text("\(Int(food.calories)) kcal")
+                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(Color.tempoTextSecondary)
+                }
+                .padding(.vertical, 2)
+            }
+        }
+        .padding(TempoSpacing.buttonPaddingV)
+        .background(Color.tempoSurfaceCard)
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tempoShadow(.card)
+    }
+
+    private func macroBadge(_ label: String, value: Int, color: Color) -> some View {
+        Text("\(label): \(value)g")
+            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+            .foregroundStyle(color)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(color.opacity(0.12))
+            .clipShape(Capsule())
     }
 
     // MARK: - Shared row + label
