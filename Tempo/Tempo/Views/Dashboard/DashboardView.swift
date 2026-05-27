@@ -531,9 +531,16 @@ struct DashboardView: View {
             } else if data.isConnected {
                 VStack(alignment: .leading, spacing: TempoSpacing.sm) {
                     HStack(alignment: .firstTextBaseline, spacing: 2) {
+                        // Score-display font is fine for 2-digit values
+                        // but blows the card layout once we hit 1,000+ kcal.
+                        // Drop to tempoTitle1 + a single-line minimumScaleFactor
+                        // so 9,999 still fits without overflowing the card.
                         Text(data.formattedCalories)
-                            .font(.tempoScoreDisplaySmall)
+                            .font(.tempoTitle1)
+                            .fontWeight(.bold)
                             .foregroundStyle(Color.tempoTextPrimary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
                             .contentTransition(.numericText(countsDown: false))
                             .animation(.spring(response: 0.4, dampingFraction: 0.8), value: data.formattedCalories)
                         Text("kcal")
