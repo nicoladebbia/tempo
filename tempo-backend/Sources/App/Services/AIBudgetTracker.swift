@@ -42,6 +42,7 @@ actor AIBudgetTracker {
 
     private var cachedYearMonth: String?
     private var cachedSpendCents: Int = 0
+    private var cachedCoachSpendCents: Int = 0
     private var cachedThreshold: ThrottleLevel = .none
 
     // MARK: - Public API
@@ -49,16 +50,60 @@ actor AIBudgetTracker {
     /// Returns true if a call with the given worst-case cost can proceed.
     /// Callers pass the estimate BEFORE making the HTTP request.
     func canMakeCall(estimatedCostCents: Int, on req: Request) async -> Bool {
+        await canMakeCall(estimatedCostCents: estimatedCostCents, caller: nil, on: req)
+    }
+
+    /// Caller-aware budget gate. When caller has a configured sub-cap
+    /// (e.g. "coach" → AIConfig.coachMonthlyBudgetCents), enforces BOTH the
+    /// global cap AND the sub-cap. A call must satisfy both to proceed.
+    /// Per Coach v2.1 plan §04-ai-architecture.md "Cost ceilings".
+    func canMakeCall(
+        estimatedCostCents: Int,
+        caller: String?,
+        on req: Request
+    ) async -> Bool {
         do {
             try await refreshIfNeeded(on: req)
-            let projected = cachedSpendCents + max(0, estimatedCostCents)
-            return projected <= AIConfig.monthlyBudgetCents
+            let estimate = max(0, estimatedCostCents)
+            let projectedGlobal = cachedSpendCents + estimate
+            guard projectedGlobal <= AIConfig.monthlyBudgetCents else {
+                return false
+            }
+            if let subCap = subCap(for: caller) {
+                let projectedSub = subSpend(for: caller) + estimate
+                guard projectedSub <= subCap else {
+                    req.logger.warning(
+                        "AIBudgetTracker: caller=\(caller ?? "?") sub-cap exhausted: projected=\(projectedSub)c cap=\(subCap)c"
+                    )
+                    return false
+                }
+            }
+            return true
         } catch {
             // Fail open: if the DB is unreachable we don't want to bring down
             // every AI feature. The circuit breaker + post-call recordSpend
             // will catch true overruns shortly after.
             req.logger.error("AIBudgetTracker: refresh failed: \(error.localizedDescription)")
             return true
+        }
+    }
+
+    /// Returns the configured sub-cap for a caller, or nil for callers
+    /// without sub-cap enforcement.
+    private func subCap(for caller: String?) -> Int? {
+        guard let caller else { return nil }
+        switch caller.lowercased() {
+        case "coach": return AIConfig.coachMonthlyBudgetCents
+        default: return nil
+        }
+    }
+
+    /// Returns the cached sub-spend for a caller. Used inside the actor only.
+    private func subSpend(for caller: String?) -> Int {
+        guard let caller else { return 0 }
+        switch caller.lowercased() {
+        case "coach": return cachedCoachSpendCents
+        default: return 0
         }
     }
 
@@ -72,6 +117,26 @@ actor AIBudgetTracker {
         outputTokens: Int,
         on req: Request
     ) async -> ThrottleLevel {
+        await recordSpend(
+            model: model,
+            inputTokens: inputTokens,
+            outputTokens: outputTokens,
+            caller: nil,
+            on: req
+        )
+    }
+
+    /// Caller-aware spend recorder. When caller has a sub-cap (e.g. "coach"),
+    /// increments the per-feature spend column alongside the global one in a
+    /// single SQL upsert. Per Coach v2.1 plan §04-ai-architecture.md.
+    @discardableResult
+    func recordSpend(
+        model: String,
+        inputTokens: Int,
+        outputTokens: Int,
+        caller: String?,
+        on req: Request
+    ) async -> ThrottleLevel {
         let costMicrodollars = costInMicrodollars(
             model: model,
             inputTokens: inputTokens,
@@ -80,13 +145,19 @@ actor AIBudgetTracker {
         let costCents = max(1, costMicrodollars / 10_000)
 
         let ym = Self.currentYearMonth()
+        let countAgainstCoach = (caller?.lowercased() == "coach")
 
         do {
-            try await upsert(yearMonth: ym, deltaCents: costCents, on: req)
+            try await upsert(
+                yearMonth: ym,
+                deltaCents: costCents,
+                coachDeltaCents: countAgainstCoach ? costCents : 0,
+                on: req
+            )
             try await refreshIfNeeded(on: req, force: true)
         } catch {
             req.logger.error(
-                "AIBudgetTracker: persist failed model=\(model) cost=\(costCents)c err=\(error.localizedDescription)"
+                "AIBudgetTracker: persist failed model=\(model) caller=\(caller ?? "-") cost=\(costCents)c err=\(error.localizedDescription)"
             )
         }
 
@@ -97,8 +168,12 @@ actor AIBudgetTracker {
             try? await persistThreshold(yearMonth: ym, level: level, on: req)
         }
 
+        let callerTag = caller.map { " caller=\($0)" } ?? ""
+        let coachTag = countAgainstCoach
+            ? " coach=\(cachedCoachSpendCents)c"
+            : ""
         req.logger.info(
-            "AI usage: model=\(model) in=\(inputTokens) out=\(outputTokens) cost=\(costCents)c spend=\(cachedSpendCents)/\(AIConfig.monthlyBudgetCents)c level=\(level.rawValue)%"
+            "AI usage: model=\(model)\(callerTag) in=\(inputTokens) out=\(outputTokens) cost=\(costCents)c spend=\(cachedSpendCents)/\(AIConfig.monthlyBudgetCents)c\(coachTag) level=\(level.rawValue)%"
         )
 
         return level
@@ -204,6 +279,7 @@ actor AIBudgetTracker {
         if let row = try await AIMonthlySpend.find(ym, on: req.db) {
             cachedYearMonth = ym
             cachedSpendCents = row.spendCents
+            cachedCoachSpendCents = row.coachSpendCents
             cachedThreshold = ThrottleLevel(rawValue: row.thresholdApplied) ?? .none
         } else {
             // First call of the month — insert a zero row so the upsert path
@@ -212,11 +288,17 @@ actor AIBudgetTracker {
             try? await fresh.create(on: req.db)
             cachedYearMonth = ym
             cachedSpendCents = 0
+            cachedCoachSpendCents = 0
             cachedThreshold = .none
         }
     }
 
-    private func upsert(yearMonth: String, deltaCents: Int, on req: Request) async throws {
+    private func upsert(
+        yearMonth: String,
+        deltaCents: Int,
+        coachDeltaCents: Int,
+        on req: Request
+    ) async throws {
         // Postgres-flavoured atomic increment via raw SQL — avoids the
         // read-modify-write race that a Fluent .save() would introduce when
         // multiple replicas record spend simultaneously.
@@ -224,24 +306,30 @@ actor AIBudgetTracker {
             // Fallback for non-SQL drivers (shouldn't happen with Fluent+Postgres).
             if let row = try await AIMonthlySpend.find(yearMonth, on: req.db) {
                 row.spendCents += deltaCents
+                row.coachSpendCents += coachDeltaCents
                 try await row.save(on: req.db)
             } else {
-                let row = AIMonthlySpend(yearMonth: yearMonth, spendCents: deltaCents)
+                let row = AIMonthlySpend(
+                    yearMonth: yearMonth,
+                    spendCents: deltaCents,
+                    coachSpendCents: coachDeltaCents
+                )
                 try await row.create(on: req.db)
             }
             return
         }
 
-        // yearMonth is "YYYY-MM" (no SQL-special chars) and deltaCents is Int —
+        // yearMonth is "YYYY-MM" (no SQL-special chars) and the deltas are Int —
         // safe to inline. SQLKit's parameter-binding syntax isn't worth the
-        // ceremony for two trusted values.
+        // ceremony for trusted values.
         try await sql.raw(
             SQLQueryString(stringLiteral: """
-            INSERT INTO ai_monthly_spend (year_month, spend_cents, threshold_applied, created_at, updated_at)
-            VALUES ('\(yearMonth)', \(deltaCents), 0, NOW(), NOW())
+            INSERT INTO ai_monthly_spend (year_month, spend_cents, coach_spend_cents, threshold_applied, created_at, updated_at)
+            VALUES ('\(yearMonth)', \(deltaCents), \(coachDeltaCents), 0, NOW(), NOW())
             ON CONFLICT (year_month) DO UPDATE
-              SET spend_cents = ai_monthly_spend.spend_cents + EXCLUDED.spend_cents,
-                  updated_at  = NOW()
+              SET spend_cents       = ai_monthly_spend.spend_cents + EXCLUDED.spend_cents,
+                  coach_spend_cents = ai_monthly_spend.coach_spend_cents + EXCLUDED.coach_spend_cents,
+                  updated_at        = NOW()
             """)
         ).run()
     }
