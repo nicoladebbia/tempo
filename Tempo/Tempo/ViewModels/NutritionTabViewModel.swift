@@ -1151,15 +1151,27 @@ final class NutritionTabViewModel {
             feedbackPresence = [:]
             return
         }
-        // Predicate body can only hold a single expression and can't unwrap
-        // optionals inline. Fetching all rows and filtering in-memory is
-        // fine here — feedback volume is bounded by meals-per-week.
-        let descriptor = FetchDescriptor<MealFeedback>()
-        let rows = (try? modelContext.fetch(descriptor)) ?? []
+        // CRITICAL: do NOT iterate MealFeedback and read row.plannedMeal?.id.
+        // The relationship can point at a PlannedMeal that was cascade-
+        // deleted during plan regen — even with deleteRule: .nullify the
+        // in-memory ref stays dangling until the next re-fault, and
+        // accessing .id on the invalidated child crashes with
+        // SwiftData "BackingData.swift:1039 Fatal".
+        //
+        // Instead, for each candidate mealID fetch MealFeedback rows
+        // whose plannedMeal predicate matches that ID. SwiftData's
+        // predicate engine handles the relationship safely server-side,
+        // and any feedback rows tied to deleted meals (which can't
+        // match a still-existing mealID) are skipped automatically.
         var presence: [UUID: Bool] = [:]
-        for row in rows {
-            if let pid = row.plannedMeal?.id, mealIDs.contains(pid) {
-                presence[pid] = true
+        for mealID in mealIDs {
+            let descriptor = FetchDescriptor<MealFeedback>(
+                predicate: #Predicate<MealFeedback> { row in
+                    row.plannedMeal?.id == mealID
+                }
+            )
+            if let count = try? modelContext.fetchCount(descriptor), count > 0 {
+                presence[mealID] = true
             }
         }
         feedbackPresence = presence
