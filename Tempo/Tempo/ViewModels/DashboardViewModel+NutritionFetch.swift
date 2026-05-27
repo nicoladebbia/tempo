@@ -26,6 +26,10 @@ struct NutritionTotalsToday {
     var carbsTarget: Int = 0
     var fatTarget: Int = 0
     var nextMeal: PlannedMeal?
+    /// Most recent eat-time across today's `MealLog.loggedAt` and
+    /// `PlannedMeal.actualEatenAt`. Drives the "Last meal Xh ago" line
+    /// in the Fuel card (Phase 5). Nil when nothing eaten today.
+    var lastEatenAt: Date?
     /// `false` when no `ModelContext` has been bound yet (zeros are
     /// "not connected", not "no consumption"). Views can use this to
     /// differentiate empty-state UI from "0 consumed" UI.
@@ -58,6 +62,7 @@ extension DashboardViewModel {
             totals.protein = Int(logs.reduce(0.0) { $0 + $1.totalProtein })
             totals.carbs = Int(logs.reduce(0.0) { $0 + $1.totalCarbs })
             totals.fat = Int(logs.reduce(0.0) { $0 + $1.totalFat })
+            totals.lastEatenAt = logs.map(\.loggedAt).max()
         }
 
         // Targets come from NutritionTargetCalculator — the SAME helper
@@ -93,6 +98,14 @@ extension DashboardViewModel {
         )
         if let plannedMeals = try? context.fetch(plannedDescriptor) {
             totals.nextMeal = MealScheduleHelpers.nextUpcomingMeal(in: plannedMeals)
+            // Roll planned-meal actualEatenAt into the last-eaten signal —
+            // Mark Eaten taps land on PlannedMeal, not MealLog, so without
+            // this the Fuel card would say "—" right after the user marked
+            // breakfast as eaten.
+            let plannedLast = plannedMeals.compactMap(\.actualEatenAt).max()
+            if let plannedLast {
+                totals.lastEatenAt = max(totals.lastEatenAt ?? plannedLast, plannedLast)
+            }
         }
 
         return totals

@@ -519,6 +519,14 @@ struct DashboardView: View {
                     }
                     progressBar(progress: data.calorieProgress, color: Color.tempoViolet)
                         .frame(height: 4)
+
+                    if data.lastEatenAt != nil {
+                        TimelineView(.everyMinute) { _ in
+                            Text("Last meal \(data.formattedLastEaten)")
+                                .font(.tempoCaption2)
+                                .foregroundStyle(Color.tempoTextTertiary)
+                        }
+                    }
                 }
             } else if data.isConnected {
                 VStack(alignment: .leading, spacing: TempoSpacing.sm) {
@@ -604,6 +612,17 @@ struct DashboardView: View {
                             (data.mealsLogged ?? 0) >= (data.mealsPlanned ?? 1)
                                 ? Color.tempoSuccess : Color.tempoTextSecondary
                         )
+
+                    // "Last meal Xh ago" — surfaces fasting / next-meal
+                    // timing at a glance. Wrapped in TimelineView so the
+                    // label updates every minute without a manual refresh.
+                    if data.lastEatenAt != nil {
+                        TimelineView(.everyMinute) { _ in
+                            Text("Last meal \(data.formattedLastEaten)")
+                                .font(.tempoCaption2)
+                                .foregroundStyle(Color.tempoTextTertiary)
+                        }
+                    }
                 }
             } else {
                 connectPrompt(

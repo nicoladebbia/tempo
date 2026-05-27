@@ -194,6 +194,27 @@ struct FuelQuadrantData {
     /// have all elapsed.
     var nextMeal: PlannedMeal?
 
+    // MARK: - Last Meal Timestamp
+
+    /// Most recent eat-time across today's PlannedMeal.actualEatenAt and
+    /// MealLog.loggedAt rows. Drives the "Last meal Xh ago" line in the
+    /// Fuel card. Nil when nothing logged yet today.
+    var lastEatenAt: Date?
+
+    /// Compact "Xh ago" / "X min ago" / "just now" / "—" formatter for
+    /// the Fuel card subhead. Recomputes on every read; SwiftUI's
+    /// `TimelineView(.everyMinute)` in the dashboard refreshes it.
+    var formattedLastEaten: String {
+        guard let last = lastEatenAt else { return "—" }
+        let seconds = max(0, Date().timeIntervalSince(last))
+        let minutes = Int(seconds / 60)
+        if minutes < 1 { return "just now" }
+        if minutes < 60 { return "\(minutes) min ago" }
+        let hours = minutes / 60
+        let remMin = minutes % 60
+        return remMin == 0 ? "\(hours)h ago" : "\(hours)h \(remMin)m ago"
+    }
+
     // MARK: - Macro Status
 
     var proteinStatus: NutritionEngine.MacroStatus {
@@ -1014,6 +1035,7 @@ final class DashboardViewModel {
         fuelData.activeCaloriesBurned = Int(energy)
         fuelData.estimatedBMR = 1800 // Will use real BMR when UserProfile is available
         fuelData.nextMeal = nutritionTotals.nextMeal
+        fuelData.lastEatenAt = nutritionTotals.lastEatenAt
         fuel = fuelData
 
         // Build Mind quadrant — exams from calendar, study data local
