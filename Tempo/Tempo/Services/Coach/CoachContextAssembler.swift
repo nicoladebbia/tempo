@@ -300,6 +300,39 @@ struct TodayLiveSnapshot: Equatable {
     let targetKcal: Int?
     let workoutTitle: String?
     let workoutTime: String?
+    /// Per-meal planned vs actual timing for today. Empty when no
+    /// PlannedMeals exist or none have been marked eaten yet. Coach
+    /// renders one line per eaten row so it can correlate behavior
+    /// (e.g. "you ate dinner 90 min late on training days").
+    var mealTimings: [PlannedMealTimingEntry] = []
+}
+
+/// One row in `TodayLiveSnapshot.mealTimings`. Keeping this as a value
+/// type (not a PlannedMeal reference) so the snapshot remains Sendable
+/// and Equatable for the assembler's caching.
+struct PlannedMealTimingEntry: Equatable {
+    let mealName: String
+    let scheduledHHmm: String
+    let actualHHmm: String?
+    let deltaMinutes: Int?
+
+    /// Convenience builder — pulls scheduled + actual from a PlannedMeal
+    /// and runs the matcher to get the delta. Returns nil when the
+    /// scheduledTime is malformed (shouldn't happen for plan-generated
+    /// meals, but defensive).
+    @MainActor
+    static func from(_ meal: PlannedMeal) -> PlannedMealTimingEntry? {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        let actualHHmm = meal.actualEatenAt.map { formatter.string(from: $0) }
+        let delta = PlannedMealTimingMatcher.minutesLate(for: meal)
+        return PlannedMealTimingEntry(
+            mealName: meal.mealName,
+            scheduledHHmm: meal.scheduledTime,
+            actualHHmm: actualHHmm,
+            deltaMinutes: delta
+        )
+    }
 }
 
 struct CalendarEventSummary: Equatable {
@@ -582,6 +615,20 @@ extension CoachContextSnapshot {
             lines.append("Steps so far: \(steps)")
         }
         lines.append("Planned meals: \(todayLive.plannedMealCount)")
+        // Phase 6: per-meal planned vs actual timing. Only emit when
+        // there's something to say so a routine on-schedule day doesn't
+        // bloat the prompt. Format: "Lunch: planned 12:30, ate 13:42 (+72m)"
+        for entry in todayLive.mealTimings where entry.actualHHmm != nil {
+            let actual = entry.actualHHmm ?? ""
+            let deltaSuffix: String
+            if let delta = entry.deltaMinutes {
+                let sign = delta >= 0 ? "+" : ""
+                deltaSuffix = " (\(sign)\(delta)m)"
+            } else {
+                deltaSuffix = ""
+            }
+            lines.append("\(entry.mealName): planned \(entry.scheduledHHmm), ate \(actual)\(deltaSuffix)")
+        }
         if let target = todayLive.targetKcal {
             lines.append("Logged kcal: \(todayLive.loggedKcalSoFar) / \(target)")
         } else {

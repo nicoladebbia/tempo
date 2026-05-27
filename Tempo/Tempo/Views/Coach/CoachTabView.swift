@@ -126,10 +126,15 @@ struct CoachTabView: View {
     /// it into this host belongs in a follow-up commit (Phase 8b sticks
     /// to memory UI).
     private func liveSnapshot() -> TodayLiveSnapshot {
-        let plannedMealCount = (
+        let todayMeals = ((
             try? modelContext.fetch(FetchDescriptor<PlannedMeal>())
-        )?.filter { Calendar.current.isDateInToday($0.dayDate) }.count ?? 0
-        return TodayLiveSnapshot(
+        ) ?? []).filter { Calendar.current.isDateInToday($0.dayDate) }
+        // Phase 6: per-meal planned vs actual timing rows, sorted by
+        // mealNumber so Coach reads breakfast → lunch → dinner.
+        let timings = todayMeals
+            .sorted { $0.mealNumber < $1.mealNumber }
+            .compactMap(PlannedMealTimingEntry.from(_:))
+        var snapshot = TodayLiveSnapshot(
             date: Date(),
             dayType: nil,
             recoveryScore: nil,
@@ -138,12 +143,14 @@ struct CoachTabView: View {
             restingHR: nil,
             sleepHoursLastNight: nil,
             stepsSoFar: nil,
-            plannedMealCount: plannedMealCount,
+            plannedMealCount: todayMeals.count,
             loggedKcalSoFar: 0,
             targetKcal: nil,
             workoutTitle: nil,
             workoutTime: nil
         )
+        snapshot.mealTimings = timings
+        return snapshot
     }
 
     // MARK: - Interview gate
