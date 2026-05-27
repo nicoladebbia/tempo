@@ -107,9 +107,7 @@ struct PlannedMealCardView: View {
                     .fontWeight(.semibold)
                     .foregroundStyle(Color.tempoTextPrimary)
 
-                Text(meal.scheduledTime)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                timeRow
             }
 
             Spacer()
@@ -144,6 +142,57 @@ struct PlannedMealCardView: View {
                 .animation(TempoAnimation.springMedium, value: isExpanded)
         }
     }
+
+    // MARK: - Time Row
+
+    /// Shows planned vs actual eat-time. When the meal hasn't been
+    /// eaten yet, just renders the scheduled time. When eaten, shows
+    /// both with the planned time struck through and the actual time
+    /// in the accent color — at a glance you can see if you stuck to
+    /// the plan, ate early, or ran late.
+    @ViewBuilder
+    private var timeRow: some View {
+        if let eaten = meal.actualEatenAt {
+            HStack(spacing: 4) {
+                Text(meal.scheduledTime)
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextTertiary)
+                    .strikethrough()
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(Color.tempoTextTertiary)
+                Text(Self.clockFormatter.string(from: eaten))
+                    .font(.tempoCaption1)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(deltaColor(eaten: eaten))
+            }
+        } else {
+            Text(meal.scheduledTime)
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoTextTertiary)
+        }
+    }
+
+    /// Green when within ±15 min of plan (on time), amber when 15–60 min
+    /// off, red when >60 min off in either direction. Tracks the same
+    /// ±15-min on-time window used by the smart-default in
+    /// NutritionTodayView so the colors and the "skip the sheet" rule
+    /// stay coherent.
+    private func deltaColor(eaten: Date) -> Color {
+        guard let scheduled = PlannedMealTimingMatcher.scheduledDate(for: meal, on: eaten) else {
+            return Color.tempoTextSecondary
+        }
+        let delta = abs(eaten.timeIntervalSince(scheduled))
+        if delta <= 15 * 60 { return Color.tempoSuccess }
+        if delta <= 60 * 60 { return Color.tempoWarning }
+        return Color.tempoError
+    }
+
+    private static let clockFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        return f
+    }()
 
     // MARK: - Status Badge
 
