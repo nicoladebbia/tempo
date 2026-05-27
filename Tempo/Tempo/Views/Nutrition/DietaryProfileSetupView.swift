@@ -170,7 +170,36 @@ struct DietaryProfileSetupView: View {
 
     private var bodyStatsSection: some View {
         VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            sectionLabel("BODY STATS")
+            HStack {
+                sectionLabel("BODY STATS")
+                Spacer()
+                // Manual pull. Useful when the user just weighed in on
+                // their Withings scale 30 seconds ago and the auto-sync
+                // .task already ran on screen open.
+                Button {
+                    Task {
+                        await syncFromHealthKit(force: true)
+                        HapticManager.notification(.success)
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "heart.text.square")
+                            .font(.tempoCaption1)
+                        Text("Refresh from Health")
+                            .font(.tempoCaption1)
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundStyle(Color.tempoSignal)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Refresh body stats from Apple Health")
+            }
+            // Caption when HK has data we used, including how fresh.
+            if let measurementDate = lastMeasurementDate {
+                Text("Last Apple Health measurement: \(Self.relativeTimeFormatter.localizedString(for: measurementDate, relativeTo: Date()))")
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextTertiary)
+            }
 
             // Weight
             VStack(alignment: .leading, spacing: TempoSpacing.xs) {
@@ -809,14 +838,49 @@ struct DietaryProfileSetupView: View {
         cookingSkill = profile.cookingSkill
     }
 
+    // MARK: - Formatters
+
+    /// Reused for the "X ago" caption under the Body Stats header.
+    /// Hoisted to a static so the View body doesn't construct a fresh
+    /// formatter on every render.
+    private static let relativeTimeFormatter: RelativeDateTimeFormatter = {
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .short
+        return f
+    }()
+
     // MARK: - HealthKit Sync (Withings Body Comp)
 
-    private func syncFromHealthKit() async {
+    private func syncFromHealthKit(force: Bool = false) async {
         do {
             let bodyComp = try await services.healthKit.fetchBodyComposition()
 
-            // Only update if we got data and no existing profile (don't overwrite manual edits)
+            // Three cases:
+            //   1. No existing profile → always pull (previous behaviour).
+            //   2. force == true → user tapped "Refresh from Health".
+            //   3. Existing profile + HK measurement strictly newer than
+            //      profile.updatedAt → pull, the user's scale recorded a
+            //      fresher reading since the last profile save (e.g.
+            //      Withings synced this morning). This is the bug fix:
+            //      previously the sync no-op'd on every existing profile,
+            //      so weight + body fat stayed frozen at onboarding values
+            //      forever.
+            let measurementDate = bodyComp.measurementDate
+            let shouldApply: Bool
             if existingProfile == nil {
+                shouldApply = true
+            } else if force {
+                shouldApply = true
+            } else if let measurementDate,
+                      let lastUpdated = existingProfile?.updatedAt,
+                      measurementDate > lastUpdated
+            {
+                shouldApply = true
+            } else {
+                shouldApply = false
+            }
+
+            if shouldApply {
                 if let w = bodyComp.weightKg {
                     weightKg = w
                 }
@@ -828,10 +892,11 @@ struct DietaryProfileSetupView: View {
                 }
             }
 
-            lastMeasurementDate = bodyComp.measurementDate
-            healthKitSynced = true
+            lastMeasurementDate = measurementDate
+            healthKitSynced = shouldApply
         } catch {
-            // HealthKit not authorized or no data — silently continue with defaults
+            // HealthKit not authorized or no data — silently continue
+            // with whatever the user has typed.
         }
     }
 
