@@ -323,6 +323,7 @@
 		AAA3DFCFB482F225B2312138 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A91643404852BD885F51A3FA /* Preview Assets.xcassets */; };
 		AB932222B84B7C4A066D5994 /* DailySnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 983283D8AFF723E0DAF94FBC /* DailySnapshot.swift */; };
 		AC60119867E95F604E23BB31 /* ScoringEngineProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A01D4969AC90CDBF27C63BEC /* ScoringEngineProtocol.swift */; };
+		AC7F2D240F5E6285CCF595A1 /* DashboardQuadrantData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33CA3E94F463EF165758C1D5 /* DashboardQuadrantData.swift */; };
 		ADA03E831DFC67453765AB22 /* AccountabilityViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 496CF146E908D191F82FD2D4 /* AccountabilityViewModel.swift */; };
 		AE5314C5233C71D9AC698677 /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = 64ADF0A1A72113591B1601F5 /* FirebaseCrashlytics */; };
 		AEEBAB68BD3B6FC1D46BD77A /* FocusHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67A65E4AB199DF8CA87302C7 /* FocusHistoryView.swift */; };
@@ -607,6 +608,7 @@
 		2F23FEAF81689F4ECAC8D940 /* XCUIApplication+Tempo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "XCUIApplication+Tempo.swift"; sourceTree = "<group>"; };
 		30BAAE5E8871F724400475AB /* ReceiptStructuringDTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiptStructuringDTOs.swift; sourceTree = "<group>"; };
 		32F48D53A60B60CAF9DB43D5 /* NutritionTargetSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionTargetSetupView.swift; sourceTree = "<group>"; };
+		33CA3E94F463EF165758C1D5 /* DashboardQuadrantData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardQuadrantData.swift; sourceTree = "<group>"; };
 		35D4E78FE175BDD66AD2A497 /* DashboardViewModel+NutritionFetch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DashboardViewModel+NutritionFetch.swift"; sourceTree = "<group>"; };
 		3678D318AC458ABED686A82C /* TermsAcceptanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsAcceptanceView.swift; sourceTree = "<group>"; };
 		37772590FDF7609BE7A5D5A0 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
@@ -1578,6 +1580,7 @@
 				496CF146E908D191F82FD2D4 /* AccountabilityViewModel.swift */,
 				54949B90A73092BDE0933B7F /* ArenaViewModel.swift */,
 				11D691551A01A1F04381523A /* CoachViewModel.swift */,
+				33CA3E94F463EF165758C1D5 /* DashboardQuadrantData.swift */,
 				FBF3D155993E4A01D42C6249 /* DashboardViewModel.swift */,
 				35D4E78FE175BDD66AD2A497 /* DashboardViewModel+NutritionFetch.swift */,
 				BA48C4ED42F6C19DABF93F66 /* FuelDayScheduleViewModel.swift */,
@@ -2676,6 +2679,7 @@
 				73A0AE8ADDD55B05E324C1ED /* DailyScoreEntry.swift in Sources */,
 				AB932222B84B7C4A066D5994 /* DailySnapshot.swift in Sources */,
 				D9E4C7EF26D3D7C363D56ED5 /* DashboardLoadingView.swift in Sources */,
+				AC7F2D240F5E6285CCF595A1 /* DashboardQuadrantData.swift in Sources */,
 				325C8C2C6263920E5CCB395C /* DashboardSettingsView.swift in Sources */,
 				06286645E143397C57EE6187 /* DashboardView.swift in Sources */,
 				74B53B7349F24ECAA1F853BF /* DashboardViewModel+NutritionFetch.swift in Sources */,
