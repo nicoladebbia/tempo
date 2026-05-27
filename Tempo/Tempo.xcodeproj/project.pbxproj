@@ -215,6 +215,7 @@
 		7628D368C74FABDCB9A0B476 /* HealthKitConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEDA29D2A659169A4BA72678 /* HealthKitConstants.swift */; };
 		763DF8DFC28E4186E1C6D42E /* DateFormatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 780C97DA0C11CEFA1B0DBB1C /* DateFormatters.swift */; };
 		76D38B3FBE7CD0D57733A76D /* TempoToast.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AA111EDE8D7F9FA86E85D0B /* TempoToast.swift */; };
+		76ED21826AB3B99A19DC961C /* CoachAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21E57C60F0B43DC575D1AC8A /* CoachAnalytics.swift */; };
 		772BD3105B7AB5A996B536FB /* TempoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7995A9B6697165811DE09D5 /* TempoTests.swift */; };
 		77B0D3AA92FF20EE1F350DAC /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B942A08219ED48198388A40 /* AppState.swift */; };
 		7822242B19A6BB7E050ED921 /* OnboardingPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E7E036F124A1068F1A60FB /* OnboardingPage.swift */; };
@@ -279,6 +280,7 @@
 		97A0C0032AC93965AA1D0D63 /* MockTrainingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64E0173E007D20A9D49D38BC /* MockTrainingEngine.swift */; };
 		97A7593FCCAF7FC72BBF4E62 /* TempoUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 501F8E8E3FD5CC7F4C68EAAF /* TempoUITests.swift */; };
 		982984177703DEFFE46DD641 /* DashboardPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8D058F8D445B3D73611C63C /* DashboardPage.swift */; };
+		98EED5987E62D1089FCD5E6A /* CoachAnalyticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E324BA52737378E9BAF7199 /* CoachAnalyticsTests.swift */; };
 		9918FE471A141DD42FD31E51 /* PhotoAnalysisView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2DEC35AD81BA8AD5DC65865 /* PhotoAnalysisView.swift */; };
 		994A685D910BC62D50A56430 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2948C055F4EB9AA21A8BFBD2 /* KeychainService.swift */; };
 		9A7F543609BDB9022A65BDCB /* LeftoverToleranceStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55472D5D5CCD171312F98826 /* LeftoverToleranceStepView.swift */; };
@@ -571,6 +573,7 @@
 		2133EB5FA48633966F9D3F1A /* TemporaryExclusionsStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemporaryExclusionsStepView.swift; sourceTree = "<group>"; };
 		2149CE481641E8287288817C /* PlannedSet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlannedSet.swift; sourceTree = "<group>"; };
 		214BEF6F7BDB24D37AAB7F8A /* CalendarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarService.swift; sourceTree = "<group>"; };
+		21E57C60F0B43DC575D1AC8A /* CoachAnalytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachAnalytics.swift; sourceTree = "<group>"; };
 		220E13D7DB7C67369BB60111 /* NextMealCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextMealCardView.swift; sourceTree = "<group>"; };
 		224834D08E1BFBE2C96971F6 /* GroceryListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroceryListView.swift; sourceTree = "<group>"; };
 		23815CF8C735524072A79ED4 /* FoodSearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodSearchService.swift; sourceTree = "<group>"; };
@@ -594,6 +597,7 @@
 		2DA192F7676E95F697C1600D /* VoiceTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceTranscriber.swift; sourceTree = "<group>"; };
 		2DFD38718076016374454F67 /* UserProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfile.swift; sourceTree = "<group>"; };
 		2E12F8C9AD532F04BF678536 /* StreakCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreakCalendarView.swift; sourceTree = "<group>"; };
+		2E324BA52737378E9BAF7199 /* CoachAnalyticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachAnalyticsTests.swift; sourceTree = "<group>"; };
 		2EAFD46CD590E4AC787B1793 /* ArenaTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArenaTabView.swift; sourceTree = "<group>"; };
 		2EB8E7B2302CA87C19465CAA /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		2ED0527B188D9FBA91B55BD7 /* TodayWorkoutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayWorkoutView.swift; sourceTree = "<group>"; };
@@ -1587,6 +1591,7 @@
 			children = (
 				453C46F0BEFAED6CA4B52548 /* BehaviorObserverTests.swift */,
 				5EFB4726746BC215DFE6123A /* CoachAdaptersTests.swift */,
+				2E324BA52737378E9BAF7199 /* CoachAnalyticsTests.swift */,
 				7AA62C74B8140770502A34CE /* CoachContextAssemblerTests.swift */,
 				EBBAC841700DF2913C4D75F5 /* CoachConversationTests.swift */,
 				BB498A2B5CC5AC5911CFE847 /* CoachDailyResetPurgeTests.swift */,
@@ -1823,6 +1828,7 @@
 			children = (
 				C3F13D8B901A974DB3A3A9D8 /* BehaviorObserver.swift */,
 				4D61A7FCBA52B27F71A468AA /* CoachAdapters.swift */,
+				21E57C60F0B43DC575D1AC8A /* CoachAnalytics.swift */,
 				4E623581F73F49335F9BE66C /* CoachChatProxyDTOs.swift */,
 				8122466846CE7F386EE05ACD /* CoachContextAssembler.swift */,
 				9312A3DF30B2051038869E06 /* CoachConversation.swift */,
@@ -2506,6 +2512,7 @@
 				3A49CBB5AFDC2D2988CF3A39 /* AccountabilityEngineTests.swift in Sources */,
 				0DB24BEF600B2337002D5885 /* BehaviorObserverTests.swift in Sources */,
 				FE23AA5BB530DD8212F81922 /* CoachAdaptersTests.swift in Sources */,
+				98EED5987E62D1089FCD5E6A /* CoachAnalyticsTests.swift in Sources */,
 				820A038F312A97A144E299CD /* CoachContextAssemblerTests.swift in Sources */,
 				129D8129AAAC63C750E11385 /* CoachConversationTests.swift in Sources */,
 				068A679F85857F8FF6917E26 /* CoachDailyResetPurgeTests.swift in Sources */,
@@ -2634,6 +2641,7 @@
 				B6643208673080AC8FE3B3A6 /* ChallengesView.swift in Sources */,
 				5DA1533F4B4E5557C0888C6A /* CircularRingView.swift in Sources */,
 				BD77DB9730A54E5FA4DB6F20 /* CoachAdapters.swift in Sources */,
+				76ED21826AB3B99A19DC961C /* CoachAnalytics.swift in Sources */,
 				EAB57A135AE94AC803A94487 /* CoachChatProxyDTOs.swift in Sources */,
 				2729E04CB0D11FB0345E1D63 /* CoachChatView.swift in Sources */,
 				830B57F9AACF74B9F2804BF3 /* CoachContextAssembler.swift in Sources */,
