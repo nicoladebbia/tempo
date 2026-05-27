@@ -319,9 +319,32 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
     // Search window: 6 PM yesterday → 12 PM today (sleep crosses midnight).
     // Handles both iOS 16+ granular stages and legacy .asleep/.inBed format.
 
+    /// Short-lived cache for fetchSleepAnalysis so MealDetailView /
+    /// DashboardViewModel / FuelDayScheduleViewModel don't each fire a
+    /// fresh HealthKit query in the same 60-second window. Keyed by
+    /// the startOfDay of the requested date — overnight sleep is the
+    /// same regardless of when in the day you ask.
+    /// Uses OSAllocatedUnfairLock (iOS 16+) since NSLock is unavailable
+    /// from async contexts under strict concurrency.
+    private static let sleepCacheTTL: TimeInterval = 60
+    private static let sleepCache = OSAllocatedUnfairLock<[Date: (SleepData, Date)]>(initialState: [:])
+
     func fetchSleepAnalysis(for date: Date) async throws -> SleepData {
         let sleepType = HKCategoryType(.sleepAnalysis)
         let calendar = Calendar.current
+
+        // Cache lookup keyed by calendar-day. A 60s TTL is enough to
+        // absorb rapid tab-switch / view-remount churn without serving
+        // stale data when the user actually wakes mid-day.
+        let cacheKey = calendar.startOfDay(for: date)
+        if let cached = Self.sleepCache.withLock({ cache -> SleepData? in
+            guard let (value, ts) = cache[cacheKey],
+                  Date().timeIntervalSince(ts) < Self.sleepCacheTTL
+            else { return nil }
+            return value
+        }) {
+            return cached
+        }
 
         // Sleep window: 6 PM previous evening to 12 PM target date
         let yesterday = calendar.date(byAdding: .day, value: -1, to: date)!
@@ -341,11 +364,13 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
 
         guard !samples.isEmpty else {
             Logger.healthkit.debug("fetchSleepAnalysis: no sleep data for \(date)")
-            return SleepData(
+            let empty = SleepData(
                 totalHours: 0, deepSleepMinutes: 0, remSleepMinutes: 0,
                 lightSleepMinutes: 0, awakeMinutes: 0, sleepEfficiency: 0,
                 bedtime: nil, wakeTime: nil
             )
+            Self.sleepCache.withLock { $0[cacheKey] = (empty, Date()) }
+            return empty
         }
 
         // Group by source to handle overlapping samples from multiple apps
@@ -403,7 +428,7 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
         Logger.healthkit
             .debug("fetchSleepAnalysis: \(String(format: "%.1f", totalHours))h total, efficiency \(String(format: "%.0f", efficiency))%")
 
-        return SleepData(
+        let result = SleepData(
             totalHours: totalHours,
             deepSleepMinutes: Int(deepSleep / 60),
             remSleepMinutes: Int(remSleep / 60),
@@ -413,6 +438,8 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
             bedtime: bedtime,
             wakeTime: wakeTime
         )
+        Self.sleepCache.withLock { $0[cacheKey] = (result, Date()) }
+        return result
     }
 
     // MARK: - Sleep Source Priority
