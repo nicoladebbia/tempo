@@ -759,6 +759,32 @@ final class NutritionTabViewModel {
                         split: settings.trainingSplit,
                         footballDays: settings.footballDays
                     )
+                    // Hydrate the persisted grocery preferences when the
+                    // caller didn't supply them (non-wizard regen) so the
+                    // Sonnet prompt always sees the latest budget cap +
+                    // store list. The wizard's own commitAndAdvance keeps
+                    // these in sync, so the values here are the source of
+                    // truth.
+                    let persistedGrocery = GroceryIntent(
+                        willShopThisWeek: enrichedIntake.groceryIntent?.willShopThisWeek ?? true,
+                        budgetCapUSD: settings.groceryBudgetCapUSD,
+                        preferredStores: settings.groceryPreferredStores
+                    )
+                    if let existing = enrichedIntake.groceryIntent {
+                        // Wizard already populated — only fill in blanks.
+                        var merged = existing
+                        if merged.budgetCapUSD == nil {
+                            merged.budgetCapUSD = persistedGrocery.budgetCapUSD
+                        }
+                        if merged.preferredStores.isEmpty {
+                            merged.preferredStores = persistedGrocery.preferredStores
+                        }
+                        enrichedIntake.groceryIntent = merged
+                    } else if persistedGrocery.budgetCapUSD != nil
+                        || !persistedGrocery.preferredStores.isEmpty
+                    {
+                        enrichedIntake.groceryIntent = persistedGrocery
+                    }
                 }
 
                 let plan = try await generator.generateWeeklyPlan(

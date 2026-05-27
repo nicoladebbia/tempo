@@ -106,6 +106,20 @@ final class UserSettings {
     /// Per Coach v2.1 plan Q2 decision.
     var coachVoiceModeRaw: String = "tapToggle"
 
+    // MARK: - Grocery preferences (persisted across regens)
+
+    /// Weekly grocery budget cap in USD. Nil = no cap. Persisted here
+    /// (not on the in-memory MealPlanIntake struct) so the user doesn't
+    /// have to re-enter their budget every regen. Read by the wizard's
+    /// GroceryIntentStepView at onAppear; written back on advance.
+    var groceryBudgetCapUSD: Int?
+
+    /// CSV of preferred grocery store names ("Publix, Trader Joe's").
+    /// Stored raw to keep the schema flat — the @Transient
+    /// `groceryPreferredStores: [String]` accessor below splits + joins.
+    /// Same lifecycle reasoning as groceryBudgetCapUSD.
+    var groceryPreferredStoresRaw: String = ""
+
     // MARK: - Timestamps
 
     var updatedAt: Date
@@ -173,6 +187,26 @@ final class UserSettings {
     var coachVoiceMode: CoachVoiceMode {
         get { CoachVoiceMode(rawValue: coachVoiceModeRaw) ?? .tapToggle }
         set { coachVoiceModeRaw = newValue.rawValue }
+    }
+
+    /// Preferred grocery stores as a typed array. Splits/joins the raw
+    /// CSV. Empty array when the user hasn't set any. Setting via this
+    /// accessor trims whitespace + drops empties so a trailing comma
+    /// doesn't produce a phantom store.
+    @Transient
+    var groceryPreferredStores: [String] {
+        get {
+            groceryPreferredStoresRaw
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        }
+        set {
+            groceryPreferredStoresRaw = newValue
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: ", ")
+        }
     }
 
     // MARK: - Init
