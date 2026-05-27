@@ -12,6 +12,10 @@ import SwiftUI
 struct GroceryIntentStepView: View {
     @Bindable
     var coordinator: WizardCoordinator
+    /// Used by onAppear to pre-fill the fields from UserSettings. The
+    /// write-back to UserSettings happens at wizard submit (see
+    /// NutritionWeeklyPlanView.onComplete) so a cancel mid-wizard
+    /// doesn't leak partial budget/store state.
     @Environment(\.modelContext)
     private var modelContext
     @State
@@ -91,20 +95,17 @@ struct GroceryIntentStepView: View {
         current.preferredStores = parsedStores
         coordinator.intake.groceryIntent = current
 
-        // Persist to UserSettings so the next regen pre-fills the wizard.
-        if let settings = loadSettings() {
-            settings.groceryBudgetCapUSD = parsedCap
-            settings.groceryPreferredStores = parsedStores
-            try? modelContext.save()
-        }
-
+        // NOTE: persistence to UserSettings deliberately deferred to the
+        // wizard's final submit (NutritionWeeklyPlanView's onComplete).
+        // Writing here would leak partial state if the user cancels on
+        // a later step (e.g. types broccoli + cancels — previous version
+        // had already saved budget cap and stores by then).
         coordinator.advance()
     }
 
-    /// Singleton-ish UserSettings lookup. Returns nil before the first
-    /// settings row exists (early onboarding), which is fine — the
-    /// wizard just no-ops the persistence and falls back to the
-    /// in-memory intake.
+    /// Singleton-ish UserSettings lookup for the onAppear pre-fill.
+    /// Returns nil before the first settings row exists (early
+    /// onboarding) — the fields just stay empty in that case.
     private func loadSettings() -> UserSettings? {
         let descriptor = FetchDescriptor<UserSettings>()
         return (try? modelContext.fetch(descriptor))?.first

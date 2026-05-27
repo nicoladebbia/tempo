@@ -113,6 +113,21 @@ struct NutritionWeeklyPlanView: View {
                 snapshot: snapshot,
                 onComplete: { intake in
                     wizardSnapshot = nil
+                    // Persist grocery preferences AFTER the user
+                    // confirms the whole wizard. Previously
+                    // GroceryIntentStepView wrote to UserSettings the
+                    // moment the user advanced past it, which leaked
+                    // partial state when the user cancelled on a later
+                    // step (e.g. typed broccoli on Temporary Exclusions
+                    // then cancelled — budget cap was already saved).
+                    let descriptor = FetchDescriptor<UserSettings>()
+                    if let settings = (try? modelContext.fetch(descriptor))?.first,
+                       let grocery = intake.groceryIntent
+                    {
+                        settings.groceryBudgetCapUSD = grocery.budgetCapUSD
+                        settings.groceryPreferredStores = grocery.preferredStores
+                        try? modelContext.save()
+                    }
                     viewModel.generatePlan(
                         modelContext: modelContext,
                         whoop: services.whoop,
