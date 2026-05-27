@@ -303,6 +303,41 @@ enum MealPlanPrompts {
         """
     }
 
+    /// Optional expiring-pantry block. Empty when no items are within the
+    /// urgency window (≤7 days). Encourages the planner to consume soon-to-expire
+    /// ingredients before they spoil (FIFO).
+    ///
+    /// `expiringSoon` is a sorted list of (canonical name, daysToExpire), already
+    /// filtered to items with daysToExpire in 0...7.
+    static func expiringSoonBlock(_ expiringSoon: [(name: String, days: Int)]) -> String {
+        guard !expiringSoon.isEmpty else {
+            return ""
+        }
+        let lines = expiringSoon
+            .map { entry -> String in
+                let timing: String
+                switch entry.days {
+                case 0: timing = "expires today"
+                case 1: timing = "expires tomorrow"
+                default: timing = "expires in \(entry.days) days"
+                }
+                return "- \(entry.name) (\(timing))"
+            }
+            .joined(separator: "\n")
+
+        return """
+
+        <expiring_pantry_items>
+        \(lines)
+
+        When designing meals for this week, prefer recipes that consume the items above before \
+        they expire. Treat items expiring today or tomorrow as hard priority for the first 1-2 days \
+        of the plan. Do not include any of these items in meals scheduled for days after their \
+        expiry. If a listed item conflicts with the user's dietary restrictions, ignore it.
+        </expiring_pantry_items>
+        """
+    }
+
     // MARK: - Weekly Plan Prompt
 
     /// Generate a full weekly meal plan with exact macros per day type.
@@ -356,7 +391,8 @@ enum MealPlanPrompts {
         preferences: String,
         intake: MealPlanIntake? = nil,
         observedMealTimes: ObservedMealTimes? = nil,
-        feedbackDigest: FeedbackDigest? = nil
+        feedbackDigest: FeedbackDigest? = nil,
+        expiringSoon: [(name: String, days: Int)] = []
     ) -> (system: String, user: String) {
         let system = """
         You are the nutrition arm of Tempo, a drill-sergeant life operating system for student-athletes. \
@@ -408,6 +444,7 @@ enum MealPlanPrompts {
         </preferences>
         \(weeklyIntakeBlock(intake))
         \(observedTimesBlock(observedMealTimes))
+        \(expiringSoonBlock(expiringSoon))
         \(feedbackBlock(feedbackDigest))
 
         <meal_structure>

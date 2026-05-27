@@ -14,6 +14,11 @@ struct RecipeSuggestionInputs: Sendable {
     /// Canonical food names currently in the pantry (non-archived, quantity > 0).
     let pantryCanonicalNames: Set<String>
 
+    /// Optional days-to-expire map keyed by canonical pantry name.
+    /// Negative = already expired (treated as non-urgent — don't suggest spoiled food).
+    /// Missing key or empty map = no urgency weighting (backward-compatible).
+    let pantryExpiryByName: [String: Int]
+
     /// Optional remaining macros from NutritionEngine for ranking by macro fit.
     /// All values in their natural unit (kcal, grams). Nil → skip macro ranking.
     let remainingCalories: Int?
@@ -39,6 +44,7 @@ struct RecipeSuggestionInputs: Sendable {
 
     init(
         pantryCanonicalNames: Set<String>,
+        pantryExpiryByName: [String: Int] = [:],
         remainingCalories: Int? = nil,
         remainingProtein: Int? = nil,
         remainingCarbs: Int? = nil,
@@ -48,6 +54,7 @@ struct RecipeSuggestionInputs: Sendable {
         maxMissingIngredients: Int? = nil
     ) {
         self.pantryCanonicalNames = pantryCanonicalNames
+        self.pantryExpiryByName = pantryExpiryByName
         self.remainingCalories = remainingCalories
         self.remainingProtein = remainingProtein
         self.remainingCarbs = remainingCarbs
@@ -72,7 +79,11 @@ struct RecipeSuggestion: Identifiable, Sendable {
     let coverageScore: Double
     /// 0.0–1.0 macro alignment (1.0 = recipe matches remaining macros exactly).
     let macroAlignmentScore: Double
-    /// Composite ranking score (coverage weighted 60%, macros 40%).
+    /// 0.0–1.0 expiry urgency. Max over the recipe's *present* ingredients of
+    /// `urgencyOf(daysToExpire)`. 0 when no expiry data, no urgent items, or
+    /// all available items are well-fresh.
+    let expiryUrgencyScore: Double
+    /// Composite ranking score: 0.5 coverage + 0.3 macros + 0.2 urgency.
     let totalScore: Double
 
     init(
@@ -80,7 +91,8 @@ struct RecipeSuggestion: Identifiable, Sendable {
         presentIngredients: [String],
         missingIngredients: [String],
         coverageScore: Double,
-        macroAlignmentScore: Double
+        macroAlignmentScore: Double,
+        expiryUrgencyScore: Double
     ) {
         self.id = UUID()
         self.recipeID = recipe.id
@@ -89,7 +101,8 @@ struct RecipeSuggestion: Identifiable, Sendable {
         self.missingIngredients = missingIngredients
         self.coverageScore = coverageScore
         self.macroAlignmentScore = macroAlignmentScore
-        self.totalScore = coverageScore * 0.6 + macroAlignmentScore * 0.4
+        self.expiryUrgencyScore = expiryUrgencyScore
+        self.totalScore = coverageScore * 0.5 + macroAlignmentScore * 0.3 + expiryUrgencyScore * 0.2
     }
 }
 
@@ -145,13 +158,15 @@ enum RecipeSuggestionEngine {
 
             let coverage = Double(present.count) / Double(required.count)
             let macroScore = macroAlignmentScore(for: recipe, inputs: inputs)
+            let urgency = expiryUrgencyScore(presentNames: present, expiryMap: inputs.pantryExpiryByName)
 
             suggestions.append(.init(
                 recipe: recipe,
                 presentIngredients: present,
                 missingIngredients: missing,
                 coverageScore: coverage,
-                macroAlignmentScore: macroScore
+                macroAlignmentScore: macroScore,
+                expiryUrgencyScore: urgency
             ))
         }
 
@@ -195,5 +210,36 @@ enum RecipeSuggestionEngine {
         }
         let diff = abs(actual - target)
         return min(1.0, diff / target)
+    }
+
+    // MARK: - Expiry urgency
+
+    /// Score for one pantry item by days-to-expire.
+    /// Already expired (< 0) → 0.0 (don't surface spoiled food).
+    /// 0-1 days → 1.0; 2-3 days → 0.7; 4-7 days → 0.3; 8+ days → 0.0.
+    static func urgencyOf(daysToExpire: Int) -> Double {
+        if daysToExpire < 0 { return 0.0 }
+        if daysToExpire <= 1 { return 1.0 }
+        if daysToExpire <= 3 { return 0.7 }
+        if daysToExpire <= 7 { return 0.3 }
+        return 0.0
+    }
+
+    /// Recipe-level urgency = max urgency across its present ingredients.
+    /// Per-ingredient max (not mean) — if one ingredient expires tomorrow, the
+    /// recipe should rank up even if others are fresh. Empty map or no urgent
+    /// items → 0.0.
+    private static func expiryUrgencyScore(
+        presentNames: [String],
+        expiryMap: [String: Int]
+    ) -> Double {
+        guard !expiryMap.isEmpty else { return 0.0 }
+        var best = 0.0
+        for name in presentNames {
+            guard let days = expiryMap[name] else { continue }
+            let u = urgencyOf(daysToExpire: days)
+            if u > best { best = u }
+        }
+        return best
     }
 }
