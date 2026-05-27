@@ -707,9 +707,21 @@ final class NutritionTabViewModel {
         notifications: (any NotificationServiceProtocol)? = nil,
         intake: MealPlanIntake? = nil
     ) {
-        guard let profile = dietaryProfile else {
+        // CRITICAL: re-fetch the DietaryProfile from SwiftData rather than
+        // trusting the VM's cached `dietaryProfile`. When the user edits
+        // the profile in DietaryProfileSetupView and triggers regen, the
+        // cached property still holds the pre-save snapshot — that's why
+        // the projection screen and the actual plan disagreed on kcal
+        // (the projection used the live @State values; the plan used the
+        // VM's stale cache). Reading from SwiftData every regen makes
+        // the two surfaces share the same inputs.
+        let profileDescriptor = FetchDescriptor<DietaryProfile>(
+            predicate: #Predicate<DietaryProfile> { $0.isActive == true }
+        )
+        guard let profile = (try? modelContext.fetch(profileDescriptor))?.first else {
             return
         }
+        dietaryProfile = profile
 
         isGeneratingPlan = true
         planGenerationError = nil
@@ -723,11 +735,19 @@ final class NutritionTabViewModel {
                 // APIClient instead of the deleted ClaudeAPIClient.
                 let generator = MealPlanGeneratorService(apiClient: apiClient)
 
-                // Fetch Whoop TDEE if available
-                var whoopTDEE: Double?
-                if let cycle = try? await whoop.fetchCycle(for: Date()) {
-                    whoopTDEE = cycle.caloriesBurned
-                }
+                // Whoop "TDEE" intentionally nil. The previous version
+                // fed `cycle.caloriesBurned` — a SINGLE day's burned
+                // calories — into TDEECalculator's `whoopAverageTDEE`
+                // input, which expects a 7-day rolling average. The
+                // formula `0.6 * (whoop * 0.9) + 0.4 * mifflin` then
+                // dragged the resulting TDEE down to ~1900 on a lazy
+                // day, even when the Mifflin baseline was ~2900. That's
+                // why the projection said 3285 kcal but the plan came
+                // out at ~2000. Until a proper 7-day average is wired
+                // (would need fetchCycleBatch), we use Mifflin only —
+                // identical to what the projection screen does.
+                let whoopTDEE: Double? = nil
+                _ = whoop // silence unused-parameter warning; kept for API parity
 
                 // Enrich the intake with the user's actual weekly training
                 // schedule from UserSettings so the AI generates day-types
