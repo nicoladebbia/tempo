@@ -68,6 +68,8 @@ enum TempoSchemaV1: VersionedSchema {
             // Coach (v2.1)
             LearnedPreference.self,
             LearnedOutcome.self,
+            CoachConversation.self,
+            PendingOutcome.self,
         ]
     }
 }
