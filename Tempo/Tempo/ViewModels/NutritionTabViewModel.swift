@@ -492,23 +492,37 @@ final class NutritionTabViewModel {
     /// target delta via MealRebalancer, and applies per-meal additive
     /// adjustments. No-ops when the residual is below threshold so a
     /// 95%-on-target day doesn't get juggled.
+    ///
+    /// Re-fetches the PlannedMeals from `modelContext` by date predicate
+    /// instead of trusting the cached `todayMeals` array — the cached
+    /// array can hold stale refs after a plan regen, which crashes on
+    /// SwiftData property access ("BackingData.swift:1039 Fatal").
     private func applyMacroRebalance(modelContext: ModelContext) {
-        let consumed = MealRebalancer.Macros(
-            calories: todayMeals
-                .filter { $0.status == .eaten }
-                .reduce(0.0) { $0 + $1.totalCalories },
-            protein: todayMeals
-                .filter { $0.status == .eaten }
-                .reduce(0.0) { $0 + $1.totalProtein },
-            carbs: todayMeals
-                .filter { $0.status == .eaten }
-                .reduce(0.0) { $0 + $1.totalCarbs },
-            fat: todayMeals
-                .filter { $0.status == .eaten }
-                .reduce(0.0) { $0 + $1.totalFat }
+        let cal = Calendar.current
+        let todayStart = cal.startOfDay(for: Date())
+        guard let tomorrowStart = cal.date(byAdding: .day, value: 1, to: todayStart) else {
+            return
+        }
+        let descriptor = FetchDescriptor<PlannedMeal>(
+            predicate: #Predicate<PlannedMeal> { meal in
+                meal.dayDate >= todayStart && meal.dayDate < tomorrowStart
+            }
         )
-        let remaining = todayMeals.filter { $0.status == .planned }
+        guard let freshMeals = try? modelContext.fetch(descriptor),
+              !freshMeals.isEmpty
+        else {
+            return
+        }
+        let eaten = freshMeals.filter { $0.status == .eaten }
+        let remaining = freshMeals.filter { $0.status == .planned }
         guard !remaining.isEmpty else { return }
+
+        let consumed = MealRebalancer.Macros(
+            calories: eaten.reduce(0.0) { $0 + $1.totalCalories },
+            protein: eaten.reduce(0.0) { $0 + $1.totalProtein },
+            carbs: eaten.reduce(0.0) { $0 + $1.totalCarbs },
+            fat: eaten.reduce(0.0) { $0 + $1.totalFat }
+        )
         let plannedMacros = remaining.map { meal in
             MealRebalancer.PlannedMealMacros(
                 id: meal.id,
@@ -530,9 +544,6 @@ final class NutritionTabViewModel {
             consumed: consumed,
             remaining: plannedMacros
         )
-        // Apply non-zero adjustments. Each PlannedMeal lookup is O(N)
-        // but N ≤ 6 in practice (max meals/day), so a dictionary index
-        // isn't worth the noise.
         for adj in adjustments where !adj.isZero {
             guard let meal = remaining.first(where: { $0.id == adj.mealID }) else { continue }
             meal.totalCalories = max(0, meal.totalCalories + adj.calories)
@@ -741,6 +752,16 @@ final class NutritionTabViewModel {
                 )
 
                 weeklyPlan = plan
+                // CRITICAL: refresh todayMeals BEFORE the notification +
+                // pantry-gap passes. Plan-gen's delete-and-reinsert of
+                // PlannedMeals can leave any stale ref in scope pointing
+                // at deleted backing data; scheduleDefrostReminders +
+                // computePantryGap iterate the plan's meals and would
+                // crash with "BackingData.swift:1039 Fatal" on access.
+                // Moving loadToday up forces the re-fault while we still
+                // have a clean stack. The scheduler also snapshots the
+                // data it needs eagerly (see scheduleDefrostReminders).
+                loadToday(modelContext: modelContext)
                 if let notifications {
                     scheduleDefrostReminders(for: plan, notifications: notifications)
                 }
@@ -752,7 +773,6 @@ final class NutritionTabViewModel {
                 isGeneratingPlan = false
                 planGenerationStatusLabel = ""
                 HapticManager.notification(.success)
-                loadToday(modelContext: modelContext)
             } catch {
                 isGeneratingPlan = false
                 planGenerationStatusLabel = ""
@@ -813,49 +833,66 @@ final class NutritionTabViewModel {
         notifications.cancelCategory("OVERDUE_MEAL_REMINDER")
         let calendar = Calendar.current
         let now = Date()
-        for meal in plan.meals ?? [] {
-            let mealTime = MealScheduleHelpers.scheduledDate(for: meal, calendar: calendar)
 
-            // Prep-start reminder — fires when it's time to start cooking.
+        // Snapshot every meal's notification-relevant fields BEFORE
+        // doing anything that might cause SwiftData to re-fetch (e.g.
+        // a downstream loadToday()). The previous version iterated the
+        // live plan.meals array while subsequent code re-fetched
+        // PlannedMeals; on slow plan-gen the live refs got invalidated
+        // mid-iteration and crashed with "BackingData.swift:1039 Fatal".
+        struct PendingNotification {
+            let mealID: UUID
+            let mealName: String
+            let mealTime: Date
+            let prepStart: Date
+            let defrosts: [(id: UUID, name: String, lead: Int)]
+        }
+        let pending: [PendingNotification] = (plan.meals ?? []).map { meal in
+            let mealTime = MealScheduleHelpers.scheduledDate(for: meal, calendar: calendar)
             let prepStart = MealScheduleHelpers.prepStartDate(for: meal, calendar: calendar)
-            if prepStart > now, prepStart != mealTime {
+            let defrosts: [(UUID, String, Int)] = (meal.recipe?.ingredients ?? [])
+                .filter(\.requiresDefrostReminder)
+                .map { ($0.id, $0.displayName, $0.defrostLeadTimeHours) }
+            return PendingNotification(
+                mealID: meal.id,
+                mealName: meal.mealName,
+                mealTime: mealTime,
+                prepStart: prepStart,
+                defrosts: defrosts
+            )
+        }
+
+        for item in pending {
+            // Prep-start reminder — fires when it's time to start cooking.
+            if item.prepStart > now, item.prepStart != item.mealTime {
                 notifications.schedulePrepStartReminder(
-                    mealID: meal.id,
-                    mealName: meal.mealName,
-                    prepStartDate: prepStart
+                    mealID: item.mealID,
+                    mealName: item.mealName,
+                    prepStartDate: item.prepStart
                 )
             }
-
-            // Overdue check-in — fires 15min past mealTime if the meal is still
-            // unmarked. Cancelled by markMealEaten/markMealSkipped.
-            if mealTime > now {
+            // Overdue check-in — fires 15min past mealTime if the meal is
+            // still unmarked. Cancelled by markMealEaten/markMealSkipped.
+            if item.mealTime > now {
                 notifications.scheduleOverdueMealReminder(
-                    mealID: meal.id,
-                    mealName: meal.mealName,
-                    scheduledTime: mealTime,
+                    mealID: item.mealID,
+                    mealName: item.mealName,
+                    scheduledTime: item.mealTime,
                     lateMinutes: 15
                 )
             }
-
             // Defrost reminders — one per freezer ingredient.
-            guard let ingredients = meal.recipe?.ingredients else {
-                continue
-            }
-            for ingredient in ingredients where ingredient.requiresDefrostReminder {
-                let lead = ingredient.defrostLeadTimeHours
-                guard let fireDate = calendar.date(byAdding: .hour, value: -lead, to: mealTime) else {
+            for defrost in item.defrosts {
+                guard let fireDate = calendar.date(byAdding: .hour, value: -defrost.lead, to: item.mealTime) else {
                     continue
                 }
-                // Skip reminders that would fire in the past (meal in <leadTime).
-                guard fireDate > now else {
-                    continue
-                }
+                guard fireDate > now else { continue }
                 notifications.scheduleDefrostReminder(
-                    mealID: meal.id,
-                    ingredientID: ingredient.id,
-                    ingredientName: ingredient.displayName,
-                    mealName: meal.mealName,
-                    leadTimeHours: lead,
+                    mealID: item.mealID,
+                    ingredientID: defrost.id,
+                    ingredientName: defrost.name,
+                    mealName: item.mealName,
+                    leadTimeHours: defrost.lead,
                     fireDate: fireDate
                 )
             }
