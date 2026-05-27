@@ -30,15 +30,35 @@ struct CoachChatView: View {
     /// Three empty-state seed prompts (mix: simple / deeper / preference-teach
     /// per the v2.1 plan answers). Caller can override; default below.
     var emptyStateSeeds: [String] = CoachChatView.defaultSeeds
+    /// Voice controller. Defaults to the real VoiceTranscriber adapter;
+    /// tests and previews inject `StubCoachVoiceController`.
+    var voice: any CoachVoiceControlling
+    /// Mic interaction mode. Sourced from UserSettings.coachVoiceMode
+    /// at the call site; default tapToggle per the locked Q2 decision.
+    var voiceMode: CoachVoiceMode = .tapToggle
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @State private var inputText: String = ""
     @State private var endChatConfirm = false
-    /// Reserved for Phase 7c — flipped by the mic button + bound to
-    /// the recording indicator. Voice transcript flows through this
-    /// State too once wired.
-    @State private var isRecording: Bool = false
+    /// Snapshot of the last partial transcript pushed into the field so
+    /// the user can still type alongside the live mic stream without
+    /// having the field overwritten on every partial tick.
+    @State private var lastVoicePartial: String = ""
+
+    init(
+        viewModel: CoachViewModel,
+        systemPromptBuilder: @escaping () -> String,
+        emptyStateSeeds: [String] = CoachChatView.defaultSeeds,
+        voice: any CoachVoiceControlling = CoachVoiceController(),
+        voiceMode: CoachVoiceMode = .tapToggle
+    ) {
+        self.viewModel = viewModel
+        self.systemPromptBuilder = systemPromptBuilder
+        self.emptyStateSeeds = emptyStateSeeds
+        self.voice = voice
+        self.voiceMode = voiceMode
+    }
 
     /// Default empty-state seeds — one simple action, one deeper ask,
     /// one preference-teaching example per the locked Q3 design.
@@ -61,11 +81,18 @@ struct CoachChatView: View {
             CoachInputBar(
                 text: $inputText,
                 isThinking: viewModel.isThinking,
-                isRecording: $isRecording,
+                isRecording: voice.isListening,
                 isDisabled: viewModel.budgetState == .critical,
                 onSend: { send() },
-                onMicTap: { /* Phase 7c */ }
+                onMicPressBegan: { handleMicPressBegan() },
+                onMicPressEnded: { handleMicPressEnded() }
             )
+            .onChange(of: voice.transcribedText) { _, newValue in
+                pushVoicePartialIntoField(newValue)
+            }
+            .onChange(of: voice.isListening) { _, listening in
+                if !listening { lastVoicePartial = "" }
+            }
         }
         .background(Color.tempoBgPrimary.ignoresSafeArea())
         .alert("End this chat?", isPresented: $endChatConfirm) {
@@ -270,12 +297,56 @@ struct CoachChatView: View {
             .background(Color.tempoBgPrimary)
     }
 
+    // MARK: - Voice
+
+    /// `onMicPressBegan` is fired by the input bar:
+    ///   - tap-toggle mode: on first tap (toggles start), on second tap
+    ///     (signals stop — the input bar suppresses the began event).
+    ///   - hold-to-record mode: on touch-down. The matching
+    ///     `onMicPressEnded` fires on lift to stop.
+    private func handleMicPressBegan() {
+        if voice.isListening {
+            // Already listening → tap-toggle stops; hold-to-record path
+            // doesn't hit this branch because hold uses the gesture-end
+            // callback to stop.
+            voice.stop()
+            return
+        }
+        Task { await voice.start() }
+    }
+
+    /// Fired only by hold-to-record mode when the user lifts their
+    /// finger. Tap-toggle ignores this (start/stop both come through
+    /// `onMicPressBegan`).
+    private func handleMicPressEnded() {
+        guard voiceMode == .holdToRecord else { return }
+        voice.stop()
+    }
+
+    /// Merge live voice partials into the text field without clobbering
+    /// what the user has already typed. We track the last partial we
+    /// pushed in so subsequent partials replace just that suffix.
+    private func pushVoicePartialIntoField(_ partial: String) {
+        guard voice.isListening else { return }
+        // Strip the previous partial off the tail (if present), then
+        // append the new partial. This lets the user keep manual edits
+        // on the prefix while voice continues to extend the tail.
+        var base = inputText
+        if !lastVoicePartial.isEmpty, base.hasSuffix(lastVoicePartial) {
+            base.removeLast(lastVoicePartial.count)
+        }
+        inputText = base + partial
+        lastVoicePartial = partial
+    }
+
     // MARK: - Send action
 
     private func send() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
+        if voice.isListening { voice.stop() }
         inputText = ""
+        lastVoicePartial = ""
         Task {
             await viewModel.sendMessage(
                 text,
@@ -517,21 +588,19 @@ struct CoachEmptyState: View {
 struct CoachInputBar: View {
     @Binding var text: String
     let isThinking: Bool
-    @Binding var isRecording: Bool
+    /// Read-only flag mirroring the voice controller's `isListening`.
+    let isRecording: Bool
     let isDisabled: Bool
     let onSend: () -> Void
-    let onMicTap: () -> Void
+    /// Fires on tap-down. Tap-toggle interprets this as start/stop.
+    let onMicPressBegan: () -> Void
+    /// Fires on touch release. Hold-to-record uses this to stop;
+    /// tap-toggle ignores it.
+    let onMicPressEnded: () -> Void
 
     var body: some View {
         HStack(spacing: TempoSpacing.sm) {
-            Button { onMicTap() } label: {
-                Image(systemName: isRecording ? "mic.fill" : "mic")
-                    .foregroundStyle(isRecording ? Color.tempoError : Color.tempoTextSecondary)
-                    .imageScale(.large)
-                    .accessibilityLabel(Text(isRecording ? "Stop recording" : "Start recording"))
-            }
-            .buttonStyle(.plain)
-            .disabled(isDisabled)
+            micButton
 
             TextField("Type a message…", text: $text, axis: .vertical)
                 .lineLimit(1...4)
@@ -566,6 +635,33 @@ struct CoachInputBar: View {
                 .frame(height: 0.5)
         }
     }
+
+    private var micButton: some View {
+        // The same view powers both modes. Tap-toggle uses the regular
+        // tap action (Began fires once). Hold-to-record relies on a
+        // DragGesture(minimumDistance: 0) to differentiate press vs
+        // release so the caller can map .ended → stop.
+        Image(systemName: isRecording ? "mic.fill" : "mic")
+            .foregroundStyle(isRecording ? Color.tempoError : Color.tempoTextSecondary)
+            .imageScale(.large)
+            .accessibilityLabel(Text(isRecording ? "Stop recording" : "Start recording"))
+            .padding(.horizontal, TempoSpacing.xs)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        guard !pressInFlight else { return }
+                        pressInFlight = true
+                        if !isDisabled { onMicPressBegan() }
+                    }
+                    .onEnded { _ in
+                        pressInFlight = false
+                        if !isDisabled { onMicPressEnded() }
+                    }
+            )
+    }
+
+    @State private var pressInFlight: Bool = false
 
     private var canSend: Bool {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

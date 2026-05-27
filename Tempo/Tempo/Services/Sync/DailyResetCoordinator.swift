@@ -120,6 +120,9 @@ enum DailyResetCoordinator {
         // and dashboard land on a populated record.
         _ = engine.loadTodayNonNegotiables(modelContext: context)
 
+        // Coach v2.1 maintenance — observer + health-check + conversation purge.
+        runCoachMaintenance(in: context, today: today)
+
         try? context.save()
         defaults.set(today, forKey: lastRunKey)
         logger.info("Daily reset complete for \(priorDays.count) prior day(s)")
@@ -137,5 +140,82 @@ enum DailyResetCoordinator {
         let streak = Streak(type: type)
         context.insert(streak)
         return streak
+    }
+
+
+    /// Coach v2.1 maintenance — runs alongside the existing daily reset.
+    ///
+    ///   1) BehaviorObserver.observe — scans last 7 days of meals,
+    ///      proposes/reinforces/flags observed preferences, applies
+    ///      one day of decay across active rows.
+    ///   2) PreferenceHealthCheck.scan — flags high-confidence prefs
+    ///      contradicted by recent outcomes, clears flags when behavior
+    ///      recovers.
+    ///   3) Conversation purge — soft-deletes CoachConversation rows
+    ///      older than 30 days unless isStarred=true.
+    ///
+    /// OutcomeGrader.run is intentionally NOT wired here — it needs a
+    /// real OutcomeEvidenceProvider (HK + SwiftData reads) that lives
+    /// in a follow-up commit. The grader runs cleanly via its own entry
+    /// once that provider is built.
+    @MainActor
+    private static func runCoachMaintenance(
+        in context: ModelContext,
+        today: Date
+    ) {
+        do {
+            let observerReport = try BehaviorObserver.observe(
+                modelContext: context,
+                today: today
+            )
+            logger.info(
+                "Coach observer: proposed=\(observerReport.proposed) reinforced=\(observerReport.reinforced) contradictionsFlagged=\(observerReport.contradictionsFlagged) decayed=\(observerReport.decayed) deactivated=\(observerReport.deactivatedByDecay)"
+            )
+        } catch {
+            logger.error("Coach observer failed: \(error.localizedDescription)")
+        }
+
+        do {
+            let healthReport = try PreferenceHealthCheck.scan(
+                in: context,
+                today: today
+            )
+            logger.info(
+                "Coach health-check: flagged=\(healthReport.flagged) cleared=\(healthReport.clearedExistingFlag) examined=\(healthReport.examined)"
+            )
+        } catch {
+            logger.error("Coach health-check failed: \(error.localizedDescription)")
+        }
+
+        let purged = purgeStaleCoachConversations(in: context, today: today)
+        if purged > 0 {
+            logger.info("Coach purge: deleted \(purged) stale conversations")
+        }
+    }
+
+
+    /// Internal helper extracted for testing. Returns the count of
+    /// purged rows so callers (and tests) can log + assert.
+    @MainActor
+    @discardableResult
+    static func purgeStaleCoachConversations(
+        in context: ModelContext,
+        today: Date,
+        maxAgeDays: Int = 30
+    ) -> Int {
+        let calendar = Calendar.current
+        guard let cutoff = calendar.date(byAdding: .day, value: -maxAgeDays, to: today) else {
+            return 0
+        }
+        let descriptor = FetchDescriptor<CoachConversation>(
+            predicate: #Predicate<CoachConversation> { conv in
+                !conv.isStarred && conv.lastMessageAt < cutoff
+            }
+        )
+        let stale = (try? context.fetch(descriptor)) ?? []
+        for row in stale {
+            context.delete(row)
+        }
+        return stale.count
     }
 }
