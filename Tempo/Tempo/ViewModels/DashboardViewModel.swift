@@ -746,9 +746,22 @@ final class DashboardViewModel {
     // Move quadrant: real steps, energy, workouts, HR from HealthKit.
 
     private var isRefreshing = false
+    /// Timestamp of the last successful refresh. Used to debounce rapid
+    /// re-invocations from SwiftUI lifecycle churn (`.task` re-launching
+    /// on view re-evaluation, `.onChange(of: connectionState)` racing with
+    /// the cold-launch refresh, tab switches re-mounting the view). The
+    /// stale fetches would just get cancelled by URLSession and clutter
+    /// the log; skipping them is cheaper than firing-then-cancelling.
+    private var lastRefreshAt: Date?
+    private static let refreshDebounceInterval: TimeInterval = 2.0
 
     func refresh() async {
         guard !isRefreshing else {
+            return
+        }
+        if let lastRefreshAt,
+           Date().timeIntervalSince(lastRefreshAt) < Self.refreshDebounceInterval
+        {
             return
         }
         isRefreshing = true
@@ -756,6 +769,7 @@ final class DashboardViewModel {
         await DebugTrace.$refreshID.withValue(DebugTrace.newID()) {
             await refreshBody()
         }
+        lastRefreshAt = Date()
     }
 
     /// Returns true for `CancellationError` or `NSURLErrorCancelled` (-999)
