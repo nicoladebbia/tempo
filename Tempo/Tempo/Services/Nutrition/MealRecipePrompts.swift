@@ -118,9 +118,15 @@ enum MealRecipePrompts {
         let totalCarbs = Int(foods.reduce(0.0) { $0 + $1.carbsG }.rounded())
         let totalFat = Int(foods.reduce(0.0) { $0 + $1.fatG }.rounded())
 
+        // The caller (MealPlanGeneratorService.attachRecipes) merges
+        // the user's permanent allergies + disliked foods with this
+        // week's temporary exclusions before passing them in. From
+        // Haiku's perspective they're all "do not use" — the weekly-
+        // plan-level prompt has already separated strict-allergy from
+        // soft-dislike at the meal-design step. Keep this line firm.
         let exclusionBlock = exclusions.isEmpty
             ? ""
-            : "\nTemporary exclusions (avoid as primary ingredients): \(exclusions.joined(separator: ", "))."
+            : "\nDo NOT use any of these ingredients: \(exclusions.joined(separator: ", ")). Substitute or restructure the recipe if needed."
 
         return """
         Meal: \(mealName)

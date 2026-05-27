@@ -202,7 +202,20 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             let foods: [PlannedFood]
         }
         let skillLevel = profile.cookingSkill.displayName
-        let exclusions = intake?.temporaryExclusions ?? []
+        // Recipe-level exclusions need to include the user's permanent
+        // dislikes + allergies as well as this week's temporary
+        // exclusions. Previously we only passed `temporaryExclusions`,
+        // so Haiku could happily put broccoli in a recipe even when the
+        // user had marked it as a permanent dislike on the DietaryProfile
+        // — the weekly-plan-level prompt avoided it at the meal level,
+        // but the per-recipe Haiku call had no idea.
+        let exclusions: [String] = {
+            var combined = intake?.temporaryExclusions ?? []
+            combined.append(contentsOf: profile.allergies)
+            combined.append(contentsOf: profile.dislikedFoods)
+            return Array(Set(combined.map { $0.trimmingCharacters(in: .whitespaces) }))
+                .filter { !$0.isEmpty }
+        }()
         let requests: [MealRequest] = meals.map { meal in
             MealRequest(mealID: meal.id, mealName: meal.mealName, foods: meal.foods)
         }
