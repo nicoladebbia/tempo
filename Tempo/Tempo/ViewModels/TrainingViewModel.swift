@@ -168,22 +168,45 @@ final class TrainingViewModel {
             loadWeekPlan(modelContext: modelContext)
         }
         let today = Calendar.current.startOfDay(for: Date())
+        guard let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today) else {
+            // Pathological calendar — fall through to a fresh generate.
+            return generateAndPersist(for: today, modelContext: modelContext)
+        }
         let weekPlanForToday = weekPlans.first { Calendar.current.isDate($0.date, inSameDayAs: today) }
 
+        // RANGE predicate (not `== today`) so we also catch any legacy row
+        // persisted with a non-midnight date. The Dashboard's Move quadrant
+        // uses the SAME range — using `== today` here while Dashboard used a
+        // range is exactly how "Pull on Dashboard, Rest in Training" happened:
+        // two rows for one day, each surface picking a different one.
         let descriptor = FetchDescriptor<WorkoutPlan>(
-            predicate: #Predicate { $0.date == today }
+            predicate: #Predicate<WorkoutPlan> { plan in
+                plan.date >= today && plan.date < tomorrow
+            },
+            sortBy: [SortDescriptor(\.date, order: .reverse)]
         )
-        let existing = (try? modelContext.fetch(descriptor).first)
+        let allToday = (try? modelContext.fetch(descriptor)) ?? []
 
-        if let existing {
-            // Crashed sessions are sacred — never replace mid-workout state.
+        // Pick the canonical survivor: an in-progress session wins (sacred),
+        // otherwise the most recent. Any OTHER today-rows are duplicates and
+        // get deleted so there is exactly one WorkoutPlan per day.
+        let survivor = allToday.first { $0.status == .inProgress } ?? allToday.first
+        if allToday.count > 1 {
+            for dupe in allToday where dupe !== survivor {
+                modelContext.delete(dupe)
+            }
+            try? modelContext.save()
+        }
+
+        if let existing = survivor {
             if existing.status == .inProgress {
                 return ResolvedTodayPlan(plan: existing, isCrashedInProgress: true)
             }
             if let canonical = weekPlanForToday, canonical.type != existing.type {
                 // Persisted plan disagrees with the Week Plan (e.g. user
-                // changed Football Days). Replace with the canonical version
-                // so Today + Week Plan + Dashboard all match.
+                // changed Football Days, or it was a stale row). Replace
+                // with the canonical version so Today + Week Plan +
+                // Dashboard all match.
                 modelContext.delete(existing)
                 populateExercises(for: canonical, modelContext: modelContext)
                 modelContext.insert(canonical)
@@ -201,8 +224,12 @@ final class TrainingViewModel {
             return ResolvedTodayPlan(plan: canonical, isCrashedInProgress: false)
         }
 
-        // Fallback: Week Plan generator returned nothing for today. Use the
-        // single-day generator as a safety net.
+        return generateAndPersist(for: today, modelContext: modelContext)
+    }
+
+    /// Single-day generate-and-persist fallback used when the Week Plan
+    /// produced nothing for today.
+    private func generateAndPersist(for _: Date, modelContext: ModelContext) -> ResolvedTodayPlan {
         let footballDays = loadFootballDays(modelContext: modelContext)
         let split = loadTrainingSplit(modelContext: modelContext)
         let recoveryScore = loadRecoveryScore(modelContext: modelContext)

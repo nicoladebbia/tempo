@@ -678,10 +678,21 @@ final class DashboardViewModel {
         let descriptor = FetchDescriptor<WorkoutPlan>(
             predicate: #Predicate { plan in
                 plan.date >= today && plan.date < tomorrow
-            }
+            },
+            sortBy: [SortDescriptor(\.date, order: .reverse)]
         )
 
-        guard let todayPlan = try? modelContext.fetch(descriptor).first else {
+        // Pick the SAME survivor TrainingViewModel.ensureTodayPlanPersisted
+        // would keep: an in-progress session wins, else the most recent.
+        // Using a plain `.first` on an unsorted fetch is what let the
+        // Dashboard show "Pull" while Training showed "Rest" — two rows
+        // existed and each side grabbed a different one. The ensurer now
+        // de-dups to a single row, and this matching selection guarantees
+        // we read that exact one.
+        let todayPlans = (try? modelContext.fetch(descriptor)) ?? []
+        guard let todayPlan = todayPlans.first(where: { $0.status == .inProgress })
+            ?? todayPlans.first
+        else {
             // No plan found — keep existing HealthKit-based move data
             return
         }
