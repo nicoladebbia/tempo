@@ -133,6 +133,9 @@ actor APIClient {
         didRefreshToken: Bool = false
     ) async throws -> T {
         do {
+            #if DEBUG
+                let started = Date()
+            #endif
             let (data, response) = try await session.data(for: request)
 
             guard let httpResponse = response as? HTTPURLResponse else {
@@ -140,7 +143,7 @@ actor APIClient {
             }
 
             #if DEBUG
-                logResponse(httpResponse, data: data)
+                logResponse(httpResponse, data: data, elapsed: Date().timeIntervalSince(started))
             #endif
 
             // Cache ETag
@@ -272,9 +275,10 @@ actor APIClient {
             logger.debug("→ \(request.httpMethod ?? "?") \(request.url?.absoluteString ?? "")")
         }
 
-        private func logResponse(_ response: HTTPURLResponse, data: Data) {
+        private func logResponse(_ response: HTTPURLResponse, data: Data, elapsed: TimeInterval) {
             let size = ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .memory)
-            logger.debug("← \(response.statusCode) [\(size)] \(response.url?.absoluteString ?? "")")
+            let ms = String(format: "%.0f", elapsed * 1000)
+            logger.debug("← \(response.statusCode) [\(size)] \(ms)ms \(response.url?.absoluteString ?? "")")
         }
     #endif
 }

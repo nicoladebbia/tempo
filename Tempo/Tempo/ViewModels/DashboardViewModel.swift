@@ -310,10 +310,15 @@ final class DashboardViewModel {
         }
         isRefreshing = true
         defer { isRefreshing = false }
+        let started = Date()
         await DebugTrace.$refreshID.withValue(DebugTrace.newID()) {
             await refreshBody()
         }
         lastRefreshAt = Date()
+        #if DEBUG
+            let elapsedMs = Date().timeIntervalSince(started) * 1000
+            print("\(DebugTrace.prefix)[Dashboard] refresh() complete in \(String(format: "%.0f", elapsedMs))ms")
+        #endif
     }
 
     /// Returns true for `CancellationError` or `NSURLErrorCancelled` (-999)
@@ -648,6 +653,13 @@ final class DashboardViewModel {
     // Shows workout type and completion from SwiftData WorkoutPlan.
 
     func refreshTrainingStatus(modelContext: ModelContext) {
+        #if DEBUG
+            let started = Date()
+            defer {
+                let elapsedMs = Date().timeIntervalSince(started) * 1000
+                print("\(DebugTrace.prefix)[Dashboard] refreshTrainingStatus in \(String(format: "%.0f", elapsedMs))ms")
+            }
+        #endif
         let today = Calendar.current.startOfDay(for: Date())
         let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today)!
 

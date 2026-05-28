@@ -211,6 +211,9 @@ struct DashboardView: View {
             // calories + eat-times match immediately instead of waiting
             // for the next cold refresh.
             guard hasAppeared else { return }
+            #if DEBUG
+                print("[Dashboard] .tempoNutritionLogged received → refresh()")
+            #endif
             Task { await viewModel?.refresh() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .tempoWorkoutChanged)) { _ in
@@ -218,6 +221,9 @@ struct DashboardView: View {
             // tab. Re-pull the Move quadrant so its workout status matches
             // the Training tab without waiting for a cold refresh.
             guard hasAppeared else { return }
+            #if DEBUG
+                print("[Dashboard] .tempoWorkoutChanged received → refreshTrainingStatus")
+            #endif
             viewModel?.refreshTrainingStatus(modelContext: modelContext)
         }
         .sheet(isPresented: $showSettings) {
