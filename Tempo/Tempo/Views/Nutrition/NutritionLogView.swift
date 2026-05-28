@@ -57,6 +57,29 @@ struct NutritionLogView: View {
     @State
     private var parsedEatenAtHint: Date?
 
+    /// Set when a parsed log contains a food already present in the
+    /// matched meal. Presents the Add-vs-Edit alert; the buttons resume
+    /// the persist with the chosen DuplicateResolution.
+    @State
+    private var duplicatePrompt: DuplicateFoodPrompt?
+
+    /// Captures everything needed to finish the persist after the user
+    /// picks Add or Edit. Identifiable so `.alert(item:)` can present it.
+    private struct DuplicateFoodPrompt: Identifiable {
+        let id = UUID()
+        let items: [ParsedFoodItem]
+        let type: MealType
+        let eatenAt: Date
+        /// Lowercased names of foods that already exist in the meal — used
+        /// for the alert copy ("You already have oat milk").
+        let duplicateNames: [String]
+    }
+
+    private enum DuplicateResolution {
+        case add // sum quantities — "another glass"
+        case edit // replace the matching food entry — "fix the first one"
+    }
+
     private let columns = [
         GridItem(.flexible(), spacing: TempoSpacing.md),
         GridItem(.flexible(), spacing: TempoSpacing.md),
@@ -100,6 +123,27 @@ struct NutritionLogView: View {
             )
         }
         .tempoToast($toast)
+        .alert(
+            "Already logged",
+            isPresented: Binding(
+                get: { duplicatePrompt != nil },
+                set: { if !$0 { duplicatePrompt = nil } }
+            ),
+            presenting: duplicatePrompt
+        ) { prompt in
+            Button("Add another") {
+                commitParsed(prompt.items, type: prompt.type, eatenAt: prompt.eatenAt, resolution: .add)
+                duplicatePrompt = nil
+            }
+            Button("Edit existing") {
+                commitParsed(prompt.items, type: prompt.type, eatenAt: prompt.eatenAt, resolution: .edit)
+                duplicatePrompt = nil
+            }
+            Button("Cancel", role: .cancel) { duplicatePrompt = nil }
+        } message: { prompt in
+            let names = prompt.duplicateNames.joined(separator: ", ")
+            Text("You already have \(names) in this meal. Add another portion, or edit the existing one?")
+        }
     }
 
     // MARK: - Natural Language Input
@@ -408,7 +452,56 @@ struct NutritionLogView: View {
         type: MealType,
         eatenAt: Date = Date()
     ) {
-        // Map ParsedFoodItem (NL service per-item shape) onto MealFoodItem.
+        // Duplicate detection: if the matched meal is already eaten AND
+        // the new log contains a food whose name already exists in that
+        // meal, ask the user whether they're adding another portion or
+        // editing the existing one. Otherwise commit straight through.
+        let targetMealNumber = type.sortOrder + 1
+        let candidates = viewModel.todayMeals.filter { $0.mealNumber == targetMealNumber }
+        let matched = candidates.count == 1
+            ? candidates.first
+            : PlannedMealTimingMatcher.bestMatch(
+                for: candidates,
+                mealType: type.displayName,
+                eatenAt: eatenAt,
+                now: Date()
+            )
+
+        if let existing = matched, existing.status == .eaten {
+            let existingNames = Set(existing.foods.map { $0.name.lowercased() })
+            let dupes = items
+                .map { $0.name.lowercased() }
+                .filter { existingNames.contains($0) }
+            if !dupes.isEmpty {
+                duplicatePrompt = DuplicateFoodPrompt(
+                    items: items,
+                    type: type,
+                    eatenAt: eatenAt,
+                    duplicateNames: Array(Set(dupes))
+                )
+                return
+            }
+        }
+
+        // No duplicate → default behaviour. .add for an already-eaten
+        // meal (append new distinct foods), implicit replace for a
+        // still-planned slot is handled inside commitParsed.
+        commitParsed(items, type: type, eatenAt: eatenAt, resolution: .add)
+    }
+
+    /// Performs the actual MealLog + PlannedMeal write. `resolution`
+    /// only matters when the matched meal is already eaten and the new
+    /// log duplicates an existing food:
+    ///   - .add  → append/sum (a second portion)
+    ///   - .edit → replace the matching food entry in place, leaving
+    ///             other foods untouched
+    @MainActor
+    private func commitParsed(
+        _ items: [ParsedFoodItem],
+        type: MealType,
+        eatenAt: Date,
+        resolution: DuplicateResolution
+    ) {
         let inputs = items.map { item in
             MealFoodItemInput(
                 foodId: item.id,
@@ -431,10 +524,6 @@ struct NutritionLogView: View {
         let totalCarbs = items.reduce(into: 0.0) { $0 += $1.carbsG }
         let totalFat = items.reduce(into: 0.0) { $0 += $1.fatG }
 
-        // 1) MealLog — canonical history record. Drives Dashboard.
-        // `dayDate` stays anchored to today's calendar day; `loggedAt`
-        // is overridden to the user's real eat-time so the Fuel "last
-        // meal X ago" and Coach context read the truth.
         let mealLog = MealLog(
             type: type,
             dayDate: Date(),
@@ -445,13 +534,6 @@ struct NutritionLogView: View {
         mealLog.loggedAt = eatenAt
         modelContext.insert(mealLog)
 
-        // 2) PlannedMeal — the row Today renders. CRITICAL: if today already
-        //    has a planned meal of this MealType (e.g. plan says lunch =
-        //    chicken+rice but the user ate pasta), we REPLACE the planned
-        //    row in place rather than inserting a duplicate. The user's
-        //    mental model is "I'm logging today's lunch", not "I'm adding
-        //    a 5th meal". mealNumber = MealType.sortOrder + 1 matches the
-        //    AI generator's prompt convention (1=Breakfast, 2=Lunch, …).
         let plannedFoods = items.map { item in
             PlannedFood(
                 name: item.name,
@@ -463,11 +545,6 @@ struct NutritionLogView: View {
             )
         }
         let targetMealNumber = type.sortOrder + 1
-
-        // Phase 2: match the parsed log to a planned slot. Prefer the
-        // existing same-type slot (replace-in-place), but if the user
-        // typed "snack" and there are multiple snacks today, use the
-        // matcher to pick the one closest to `eatenAt`.
         let candidates = viewModel.todayMeals.filter { $0.mealNumber == targetMealNumber }
         let matched = candidates.count == 1
             ? candidates.first
@@ -480,30 +557,34 @@ struct NutritionLogView: View {
 
         if let existing = matched {
             if existing.status == .eaten {
-                // The meal was ALREADY logged once today — the user is
-                // adding a second item (e.g. logged oat milk earlier,
-                // now logging pistachios for the same breakfast). APPEND
-                // foods + ADD to totals rather than overwriting, which
-                // would silently delete the first item.
-                let merged = existing.foods + plannedFoods
-                existing.foodsJSON = try? JSONEncoder().encode(merged)
-                existing.totalCalories += totalCals
-                existing.totalProtein += totalProt
-                existing.totalCarbs += totalCarbs
-                existing.totalFat += totalFat
-                // Keep the earliest eat-time; a later add shouldn't push
-                // the recorded time forward.
+                let newNames = Set(plannedFoods.map { $0.name.lowercased() })
+                switch resolution {
+                case .edit:
+                    // Replace any existing food whose name matches one in
+                    // the new log; keep all other foods. Then recompute
+                    // totals from the merged set so calories stay honest.
+                    let kept = existing.foods.filter {
+                        !newNames.contains($0.name.lowercased())
+                    }
+                    let merged = kept + plannedFoods
+                    existing.foodsJSON = try? JSONEncoder().encode(merged)
+                    recomputeTotals(on: existing, from: merged)
+                case .add:
+                    // Append everything — a second portion / new item.
+                    let merged = existing.foods + plannedFoods
+                    existing.foodsJSON = try? JSONEncoder().encode(merged)
+                    existing.totalCalories += totalCals
+                    existing.totalProtein += totalProt
+                    existing.totalCarbs += totalCarbs
+                    existing.totalFat += totalFat
+                }
                 if let prior = existing.actualEatenAt {
                     existing.actualEatenAt = min(prior, eatenAt)
                 } else {
                     existing.actualEatenAt = eatenAt
                 }
-                // linkedMealLogID points at the FIRST log; leave it.
             } else {
-                // First log of the day for this slot — the user is telling
-                // us what they actually ate instead of the AI-planned dish.
-                // Replace foods + totals; keep scheduledTime/mealName so the
-                // row stays in its chronological slot.
+                // First log of the day — replace the AI-planned dish.
                 existing.foodsJSON = try? JSONEncoder().encode(plannedFoods)
                 existing.totalCalories = totalCals
                 existing.totalProtein = totalProt
@@ -514,10 +595,6 @@ struct NutritionLogView: View {
                 existing.actualEatenAt = eatenAt
             }
         } else {
-            // No planned slot for this MealType (e.g. user is logging a
-            // 4th meal on a 3-meal-plan day). Insert a new PlannedMeal
-            // mirroring logFromPreset's pattern. scheduledTime mirrors
-            // the user's eat-time so the row sorts into the right slot.
             let timeFormatter = DateFormatter()
             timeFormatter.dateFormat = "HH:mm"
             let plannedMeal = PlannedMeal(
@@ -554,6 +631,17 @@ struct NutritionLogView: View {
         naturalLanguageInput = ""
         parsedFoodsForReview = nil
         viewModel.loadToday(modelContext: modelContext)
+    }
+
+    /// Recomputes a PlannedMeal's macro totals from a foods array. Used
+    /// by the .edit resolution where summing deltas wouldn't be correct
+    /// (we removed the old entry and added a new one).
+    @MainActor
+    private func recomputeTotals(on meal: PlannedMeal, from foods: [PlannedFood]) {
+        meal.totalCalories = foods.reduce(0) { $0 + $1.calories }
+        meal.totalProtein = foods.reduce(0) { $0 + $1.proteinG }
+        meal.totalCarbs = foods.reduce(0) { $0 + $1.carbsG }
+        meal.totalFat = foods.reduce(0) { $0 + $1.fatG }
     }
 }
 
