@@ -223,15 +223,25 @@ struct WeeklyMealReviewView: View {
             meal.status == .eaten || meal.status == .skipped
         }
 
-        // Predicate body must be a single expression; fetch-all + filter
-        // is canonical here (last-7-days feedback volume is bounded).
-        let mealIDs = Set(meals.map(\.id))
-        let fbDescriptor = FetchDescriptor<MealFeedback>()
-        let rows = (try? modelContext.fetch(fbDescriptor)) ?? []
+        // CRITICAL: do NOT iterate every MealFeedback row and read
+        // row.plannedMeal?.id. After a daily reset / plan regen,
+        // MealFeedback rows can point at cascade-deleted PlannedMeals;
+        // even with deleteRule: .nullify the in-memory ref stays
+        // dangling until re-fault, and reading .id crashes with
+        // "SwiftData/BackingData.swift:1039 Fatal" (same class as the
+        // refreshFeedbackPresence crash). Fetch per-mealID with a
+        // predicate so SwiftData resolves the relationship server-side
+        // and dangling rows simply don't match.
+        let mealIDs = meals.map(\.id)
         var map: [UUID: MealFeedback] = [:]
-        for row in rows {
-            if let pid = row.plannedMeal?.id, mealIDs.contains(pid) {
-                map[pid] = row
+        for mealID in mealIDs {
+            let fbDescriptor = FetchDescriptor<MealFeedback>(
+                predicate: #Predicate<MealFeedback> { row in
+                    row.plannedMeal?.id == mealID
+                }
+            )
+            if let row = (try? modelContext.fetch(fbDescriptor))?.first {
+                map[mealID] = row
             }
         }
         feedbackByMealID = map
