@@ -644,10 +644,26 @@ final class DashboardViewModel {
 
         // Steps: HealthKit only (Whoop does not expose steps natively).
         // Calories + strain: Whoop only (via backend proxy `fetchCycle`).
-        // When Whoop is unavailable, these stay nil so the Move block
+        //
+        // When all three Whoop fetches were CANCELLED (tab-switch storm),
+        // `cycle` is nil — but that's not "no data", it's "we didn't get
+        // to fetch it". Preserve the prior strain + active calories so a
+        // cancelled refresh doesn't blank them out (same preserve-prior
+        // rule the Body quadrant uses). Only fall to nil when Whoop is
+        // genuinely unavailable (disconnected), where nil correctly
         // renders "--" instead of a misleading zero.
-        let whoopCalories = cycle.map { Int($0.caloriesBurned) }
-        let whoopStrain = cycle?.dayStrain
+        let whoopCalories: Int?
+        let whoopStrain: Double?
+        if let cycle {
+            whoopCalories = Int(cycle.caloriesBurned)
+            whoopStrain = cycle.dayStrain
+        } else if allWhoopCancelled {
+            whoopCalories = move.activeCalories
+            whoopStrain = move.strain
+        } else {
+            whoopCalories = nil
+            whoopStrain = nil
+        }
 
         move = MoveQuadrantData(
             workoutStatus: workoutStatus,
