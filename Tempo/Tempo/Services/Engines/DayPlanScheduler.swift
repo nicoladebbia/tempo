@@ -36,6 +36,13 @@ extension Notification.Name {
     /// observes this and re-generates the active WeeklyMealPlan so the
     /// Plan tab's day-types track the user's real training week.
     static let tempoTrainingSettingsChanged = Notification.Name("tempo.training.settingsChanged")
+
+    /// Posted whenever a meal is logged, marked eaten, or its macros
+    /// change (Quick Log, Mark Eaten, substitute, edit eat-time). The
+    /// Dashboard observes this to re-run its Fuel quadrant refresh so the
+    /// dashboard and the Nutrition tab never show divergent calories /
+    /// eat-times. Decouples the two view models without sharing state.
+    static let tempoNutritionLogged = Notification.Name("tempo.nutrition.logged")
 }
 
 @MainActor

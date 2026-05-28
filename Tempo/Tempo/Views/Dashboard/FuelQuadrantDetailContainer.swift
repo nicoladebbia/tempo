@@ -37,5 +37,11 @@ struct FuelQuadrantDetailContainer: View {
             }
             await scheduleVM?.refresh(modelContext: modelContext)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .tempoNutritionLogged)) { _ in
+            // Re-pull the annotated rows when a meal is logged elsewhere
+            // so this detail sheet's calories + eat-times stay live while
+            // it's open.
+            Task { await scheduleVM?.refresh(modelContext: modelContext) }
+        }
     }
 }

@@ -346,15 +346,30 @@ struct FuelQuadrantDetailView: View {
                     .lineLimit(1)
 
                 HStack(spacing: 6) {
-                    Text(TempoDateFormatters.timeOnly.string(from: row.displayedTime))
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .monospacedDigit()
-
-                    if row.shiftMinutes != 0 {
-                        Text("(was \(TempoDateFormatters.timeOnly.string(from: row.originalTime)))")
+                    // When the meal has been eaten, show the ACTUAL eat
+                    // time — that's the truth the user logged, and it
+                    // must match the Nutrition tab. Only fall back to the
+                    // planned/shifted displayedTime for not-yet-eaten meals.
+                    if let eatenAt = row.meal.actualEatenAt {
+                        Text(TempoDateFormatters.timeOnly.string(from: eatenAt))
+                            .font(.tempoCaption1)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.tempoSuccess)
+                            .monospacedDigit()
+                        Text("(planned \(TempoDateFormatters.timeOnly.string(from: row.displayedTime)))")
                             .font(.tempoCaption2)
                             .foregroundStyle(Color.tempoTextTertiary)
+                    } else {
+                        Text(TempoDateFormatters.timeOnly.string(from: row.displayedTime))
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                            .monospacedDigit()
+
+                        if row.shiftMinutes != 0 {
+                            Text("(was \(TempoDateFormatters.timeOnly.string(from: row.originalTime)))")
+                                .font(.tempoCaption2)
+                                .foregroundStyle(Color.tempoTextTertiary)
+                        }
                     }
                 }
 

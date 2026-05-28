@@ -631,6 +631,9 @@ struct NutritionLogView: View {
         naturalLanguageInput = ""
         parsedFoodsForReview = nil
         viewModel.loadToday(modelContext: modelContext)
+        // Tell the Dashboard (separate VM) to re-pull its Fuel quadrant
+        // so its calories + eat-times match the Nutrition tab immediately.
+        NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
     }
 
     /// Recomputes a PlannedMeal's macro totals from a foods array. Used

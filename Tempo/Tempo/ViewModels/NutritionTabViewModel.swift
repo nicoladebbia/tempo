@@ -419,6 +419,8 @@ final class NutritionTabViewModel {
             object: nil,
             userInfo: ["reason": DayPlanReason.mealEatenOffSchedule.rawValue]
         )
+        // Keep the Dashboard Fuel quadrant in sync with this change.
+        NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
     }
 
     /// Recompute and persist shifted scheduled times for the remaining meals

@@ -205,6 +205,14 @@ struct DashboardView: View {
                 }
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .tempoNutritionLogged)) { _ in
+            // A meal was logged / marked eaten in the Nutrition tab (a
+            // separate VM). Re-pull the Fuel quadrant so the Dashboard's
+            // calories + eat-times match immediately instead of waiting
+            // for the next cold refresh.
+            guard hasAppeared else { return }
+            Task { await viewModel?.refresh() }
+        }
         .sheet(isPresented: $showSettings) {
             NavigationStack {
                 DashboardSettingsView()
