@@ -343,11 +343,17 @@ final class DashboardViewModel {
         #if DEBUG
             print("\(DebugTrace.prefix)[Dashboard] Whoop state: \(whoop.connectionState), isDemoMode: \(whoop.isDemoMode)")
         #endif
-        // Track cancellation so the caller can bail before clobbering a
-        // previously-good `body` with HealthKit fallbacks. A tab-switch /
-        // view-detach triggers NSURLErrorCancelled on every in-flight
-        // request simultaneously; we should leave the prior snapshot in
-        // place rather than render -1 sentinels on the user's dashboard.
+        // Track cancellation so we can preserve the previously-good `body`
+        // quadrant instead of clobbering it with HealthKit fallbacks. A
+        // tab-switch / view-detach triggers NSURLErrorCancelled on every
+        // in-flight Whoop request simultaneously.
+        //
+        // IMPORTANT: only the BODY quadrant depends on Whoop. The Fuel /
+        // Mind / Move quadrants (nutrition totals, study, steps) must
+        // still rebuild on a cancelled-Whoop refresh — otherwise logging
+        // a meal then returning to the Dashboard leaves the Fuel kcal
+        // frozen, because the all-cancelled path used to early-return
+        // before fetchNutritionTotalsForToday ran.
         var whoopRecoveryCancelled = false
         var whoopSleepCancelled = false
         var whoopCycleCancelled = false
@@ -375,16 +381,6 @@ final class DashboardViewModel {
                 #if DEBUG
                     print("\(DebugTrace.prefix)[Dashboard] Whoop cycle fetch failed: \(error)")
                 #endif
-            }
-            // All three cancelled in the same refresh = parent Task was
-            // torn down. Leave `body` as-is so the user doesn't see a
-            // blank/HK-fallback card flash.
-            if whoopRecoveryCancelled, whoopSleepCancelled, whoopCycleCancelled {
-                #if DEBUG
-                    print("\(DebugTrace.prefix)[Dashboard] All Whoop fetches cancelled — preserving prior body")
-                #endif
-                loadState = .loaded
-                return
             }
         } else {
             recovery = nil
@@ -479,23 +475,36 @@ final class DashboardViewModel {
         let dataSource: BiometricDataSource = hasWhoopData ? .whoop :
             (healthKitConnected ? .healthKit : .none)
 
-        body = BodyQuadrantData(
-            recoveryScore: recovery?.score,
-            hrv: bodyHRV,
-            rhr: bodyRHR,
-            sleepHours: sleepHours > 0 ? sleepHours : nil,
-            sleepPerformance: sleepPerf > 0 ? sleepPerf : nil,
-            strain: cycle?.dayStrain,
-            spo2: recovery?.spo2,
-            isConnected: hasWhoopData || healthKitConnected,
-            lastSync: now,
-            dataSource: dataSource
-        )
-        #if DEBUG
-            print(
-                "\(DebugTrace.prefix)[Dashboard] Body built: recovery=\(recovery?.score ?? -1), hrv=\(bodyHRV ?? -1), rhr=\(bodyRHR ?? -1), sleep=\(sleepHours)h, strain=\(cycle?.dayStrain ?? -1), source=\(dataSource.rawValue), connected=\(hasWhoopData || healthKitConnected)"
+        // Preserve the prior Body snapshot only when ALL Whoop calls were
+        // cancelled (tab-switch storm). In that case recovery/sleep/cycle
+        // are all nil and rebuilding would flash a blank/HK-fallback card.
+        // Everything below this (Fuel/Mind/Move) still rebuilds.
+        let allWhoopCancelled = whoopRecoveryCancelled
+            && whoopSleepCancelled
+            && whoopCycleCancelled
+        if !allWhoopCancelled {
+            body = BodyQuadrantData(
+                recoveryScore: recovery?.score,
+                hrv: bodyHRV,
+                rhr: bodyRHR,
+                sleepHours: sleepHours > 0 ? sleepHours : nil,
+                sleepPerformance: sleepPerf > 0 ? sleepPerf : nil,
+                strain: cycle?.dayStrain,
+                spo2: recovery?.spo2,
+                isConnected: hasWhoopData || healthKitConnected,
+                lastSync: now,
+                dataSource: dataSource
             )
-        #endif
+            #if DEBUG
+                print(
+                    "\(DebugTrace.prefix)[Dashboard] Body built: recovery=\(recovery?.score ?? -1), hrv=\(bodyHRV ?? -1), rhr=\(bodyRHR ?? -1), sleep=\(sleepHours)h, strain=\(cycle?.dayStrain ?? -1), source=\(dataSource.rawValue), connected=\(hasWhoopData || healthKitConnected)"
+                )
+            #endif
+        } else {
+            #if DEBUG
+                print("\(DebugTrace.prefix)[Dashboard] All Whoop fetches cancelled — preserving prior body, rebuilding Fuel/Mind/Move")
+            #endif
+        }
 
         // Build Fuel quadrant with recovery-adjusted targets.
         // Targets come from NutritionTarget if present; defaults are used otherwise.

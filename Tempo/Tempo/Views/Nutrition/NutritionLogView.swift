@@ -479,18 +479,40 @@ struct NutritionLogView: View {
             )
 
         if let existing = matched {
-            // Replace-in-place. Keep scheduledTime/mealName from the plan
-            // so the row stays in its original chronological slot; flip
-            // status to .eaten and overwrite foods + totals + the
-            // actualEatenAt/linkedMealLogID provenance fields.
-            existing.foodsJSON = try? JSONEncoder().encode(plannedFoods)
-            existing.totalCalories = totalCals
-            existing.totalProtein = totalProt
-            existing.totalCarbs = totalCarbs
-            existing.totalFat = totalFat
-            existing.statusRaw = MealStatus.eaten.rawValue
-            existing.linkedMealLogID = mealLog.id
-            existing.actualEatenAt = eatenAt
+            if existing.status == .eaten {
+                // The meal was ALREADY logged once today — the user is
+                // adding a second item (e.g. logged oat milk earlier,
+                // now logging pistachios for the same breakfast). APPEND
+                // foods + ADD to totals rather than overwriting, which
+                // would silently delete the first item.
+                let merged = existing.foods + plannedFoods
+                existing.foodsJSON = try? JSONEncoder().encode(merged)
+                existing.totalCalories += totalCals
+                existing.totalProtein += totalProt
+                existing.totalCarbs += totalCarbs
+                existing.totalFat += totalFat
+                // Keep the earliest eat-time; a later add shouldn't push
+                // the recorded time forward.
+                if let prior = existing.actualEatenAt {
+                    existing.actualEatenAt = min(prior, eatenAt)
+                } else {
+                    existing.actualEatenAt = eatenAt
+                }
+                // linkedMealLogID points at the FIRST log; leave it.
+            } else {
+                // First log of the day for this slot — the user is telling
+                // us what they actually ate instead of the AI-planned dish.
+                // Replace foods + totals; keep scheduledTime/mealName so the
+                // row stays in its chronological slot.
+                existing.foodsJSON = try? JSONEncoder().encode(plannedFoods)
+                existing.totalCalories = totalCals
+                existing.totalProtein = totalProt
+                existing.totalCarbs = totalCarbs
+                existing.totalFat = totalFat
+                existing.statusRaw = MealStatus.eaten.rawValue
+                existing.linkedMealLogID = mealLog.id
+                existing.actualEatenAt = eatenAt
+            }
         } else {
             // No planned slot for this MealType (e.g. user is logging a
             // 4th meal on a 3-meal-plan day). Insert a new PlannedMeal
