@@ -358,12 +358,13 @@ extension NutritionTabViewModel {
 
     // MARK: - APIClient helper
 
-    private func phase7APIClient(from _: ServiceContainer) -> APIClient? {
-        // ServiceContainer doesn't expose APIClient directly; LiveReceiptService
-        // is constructed lazily by views that have access to one via @Environment.
-        // We return nil here — receipts run through MockReceiptService until a
-        // view wires the live path. The Mock writes to SwiftData identically.
-        nil
+    private func phase7APIClient(from services: ServiceContainer) -> APIClient? {
+        // ServiceContainer exposes a configured, auth-attaching APIClient.
+        // Returning it here lets attachPhase7Services build the real
+        // LiveReceiptService (vision OCR → structuring → pantry) instead
+        // of leaving receiptService nil, which made the Pantry Scan button
+        // show "Scan unavailable — open the Pantry tab first" forever.
+        services.apiClient
     }
 }
 
