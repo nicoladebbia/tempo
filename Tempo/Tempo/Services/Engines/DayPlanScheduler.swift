@@ -43,6 +43,13 @@ extension Notification.Name {
     /// dashboard and the Nutrition tab never show divergent calories /
     /// eat-times. Decouples the two view models without sharing state.
     static let tempoNutritionLogged = Notification.Name("tempo.nutrition.logged")
+
+    /// Posted when a workout's persisted state changes (started, saved/
+    /// completed, or a crashed session discarded). The Dashboard observes
+    /// this to re-run refreshTrainingStatus so the Move quadrant matches
+    /// the Training tab without waiting for a cold refresh. Same
+    /// decoupling pattern as tempoNutritionLogged.
+    static let tempoWorkoutChanged = Notification.Name("tempo.workout.changed")
 }
 
 @MainActor

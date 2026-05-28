@@ -32,6 +32,15 @@ enum DailyResetCoordinator {
     /// Per Phase 8a wiring. Set once from the app delegate / scene entry.
     @MainActor
     static var coachEvidenceProvider: (any OutcomeEvidenceProvider)?
+
+    /// Ensures today's WorkoutPlan is persisted so the Dashboard's Move
+    /// quadrant (which only READS the row) finds the same plan the
+    /// Training tab generates — even if the user never opens Training.
+    /// Injected once at app startup from a services-bound TrainingViewModel
+    /// (same pattern as coachEvidenceProvider). nil → skip (Dashboard
+    /// falls back to its own HealthKit-based move data).
+    @MainActor
+    static var workoutPlanEnsurer: (@MainActor (ModelContext) -> Void)?
     private static let skipBackfillKey = "tempo.skipBackfill.completed"
 
     /// One-shot migration: NonNegotiableProgress entries that look skipped
@@ -126,6 +135,15 @@ enum DailyResetCoordinator {
         // Ensure today's DailyAccountability exists so the morning briefing
         // and dashboard land on a populated record.
         _ = engine.loadTodayNonNegotiables(modelContext: context)
+
+        // Ensure today's WorkoutPlan is persisted (Move-quadrant source of
+        // truth). Without this, opening the Dashboard before the Training
+        // tab leaves no plan row → Move shows "no workout" while Training
+        // would show the generated session. The ensurer is the Training
+        // tab's own generate-and-persist path, injected at app startup.
+        if let ensureWorkout = workoutPlanEnsurer {
+            ensureWorkout(context)
+        }
 
         // Macro carryover capture (Phase F) — finalize each prior day's
         // (target − actual) into a 5-day-spread row and tick any active

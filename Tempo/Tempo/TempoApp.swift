@@ -69,6 +69,23 @@ struct TempoApp: App {
         // Per BUILD_PLAN — register BG tasks before scene activation per Apple
         // guidance, then arm the daily reset handler.
         let containerRef = container
+        // Inject the workout-plan ensurer so the daily reset (and any
+        // first-launch Dashboard open) persists today's WorkoutPlan via
+        // the Training tab's own generate-and-persist path. Keeps the
+        // Dashboard Move quadrant and the Training tab on one source of
+        // truth. A throwaway TrainingViewModel is fine — the ensure path
+        // is stateless w.r.t. the VM's session state.
+        let trainingEngineRef = serviceContainer.trainingEngine
+        let whoopRef = serviceContainer.whoop
+        let healthKitRef = serviceContainer.healthKit
+        DailyResetCoordinator.workoutPlanEnsurer = { @MainActor modelContext in
+            let vm = TrainingViewModel(
+                trainingEngine: trainingEngineRef,
+                whoop: whoopRef,
+                healthKit: healthKitRef
+            )
+            vm.ensureTodayPlanPersisted(modelContext: modelContext)
+        }
         serviceContainer.backgroundSync.dailyResetHandler = { @Sendable in
             await DailyResetCoordinator.runIfNeeded(container: containerRef)
         }

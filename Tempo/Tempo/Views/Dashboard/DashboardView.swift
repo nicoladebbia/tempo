@@ -213,6 +213,13 @@ struct DashboardView: View {
             guard hasAppeared else { return }
             Task { await viewModel?.refresh() }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .tempoWorkoutChanged)) { _ in
+            // A workout was started / completed / discarded in the Training
+            // tab. Re-pull the Move quadrant so its workout status matches
+            // the Training tab without waiting for a cold refresh.
+            guard hasAppeared else { return }
+            viewModel?.refreshTrainingStatus(modelContext: modelContext)
+        }
         .sheet(isPresented: $showSettings) {
             NavigationStack {
                 DashboardSettingsView()
