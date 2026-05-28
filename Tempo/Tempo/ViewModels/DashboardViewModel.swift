@@ -523,6 +523,18 @@ final class DashboardViewModel {
             #endif
         }
 
+        // Persist today's DailyRecovery from the live Whoop fetch. The
+        // Dashboard runs on most launches, so it becomes the canonical
+        // writer of the day's recovery row. Without this, opening the
+        // Dashboard before the Recovery tab left no DailyRecovery for
+        // today → the workout ensurer's Week Plan generated with a
+        // default (green) zone → "Pull" on a 47%-recovery day that
+        // should be "Mobility". One persisted score → every recovery-
+        // dependent surface (Week Plan, Recovery tab, Move) agrees.
+        if let recovery, let context = fuelContext {
+            upsertDailyRecovery(recovery, sleepHours: sleepHours, context: context)
+        }
+
         // Build Fuel quadrant with recovery-adjusted targets.
         // Targets come from NutritionTarget if present; defaults are used otherwise.
         let baseCalTarget = nutritionTotals.calorieTarget
@@ -659,6 +671,42 @@ final class DashboardViewModel {
         refreshInsights()
     }
 
+    /// Upserts today's DailyRecovery row from the live Whoop fetch so the
+    /// Dashboard is the canonical writer of the day's recovery score.
+    /// Idempotent: updates the existing today row in place, else inserts.
+    private func upsertDailyRecovery(
+        _ recovery: WhoopRecoveryData,
+        sleepHours: Double,
+        context: ModelContext
+    ) {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        guard let tomorrow = cal.date(byAdding: .day, value: 1, to: today) else { return }
+        let descriptor = FetchDescriptor<DailyRecovery>(
+            predicate: #Predicate<DailyRecovery> { row in
+                row.date >= today && row.date < tomorrow
+            }
+        )
+        let existing = (try? context.fetch(descriptor))?.first
+        if let existing {
+            existing.recoveryScore = recovery.score
+            existing.recoveryZoneRaw = RecoveryZone(score: recovery.score).rawValue
+            existing.hrvRmssd = recovery.hrvRmssd
+            existing.restingHR = recovery.restingHeartRate
+            if sleepHours > 0 { existing.sleepHours = sleepHours }
+        } else {
+            let row = DailyRecovery(
+                date: today,
+                recoveryScore: recovery.score,
+                hrvRmssd: recovery.hrvRmssd,
+                restingHR: recovery.restingHeartRate,
+                sleepHours: sleepHours > 0 ? sleepHours : nil
+            )
+            context.insert(row)
+        }
+        try? context.save()
+    }
+
     // MARK: - Training Status Connection
 
     // Per BUILD_PLAN step 9.8 — Connect training data to Dashboard Move quadrant.
@@ -672,6 +720,17 @@ final class DashboardViewModel {
                 print("\(DebugTrace.prefix)[Dashboard] refreshTrainingStatus in \(String(format: "%.0f", elapsedMs))ms")
             }
         #endif
+        // Run the SAME ensure path the Training tab uses BEFORE reading.
+        // The Dashboard used to only read the persisted row, so it showed
+        // a stale plan ("Pull") when the Training tab had regenerated a
+        // recovery-adjusted plan ("Mobility" on a low-recovery day) and
+        // the daily reset had already run (so the ensurer wasn't going to
+        // fire on its own). Calling the ensurer here de-dups today's rows
+        // AND reconciles the persisted plan against the current Week Plan
+        // (which reflects today's live recovery), so Dashboard and
+        // Training resolve to the identical canonical plan.
+        DailyResetCoordinator.workoutPlanEnsurer?(modelContext)
+
         let today = Calendar.current.startOfDay(for: Date())
         let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today)!
 
@@ -682,13 +741,10 @@ final class DashboardViewModel {
             sortBy: [SortDescriptor(\.date, order: .reverse)]
         )
 
-        // Pick the SAME survivor TrainingViewModel.ensureTodayPlanPersisted
-        // would keep: an in-progress session wins, else the most recent.
-        // Using a plain `.first` on an unsorted fetch is what let the
-        // Dashboard show "Pull" while Training showed "Rest" — two rows
-        // existed and each side grabbed a different one. The ensurer now
-        // de-dups to a single row, and this matching selection guarantees
-        // we read that exact one.
+        // Pick the SAME survivor the ensurer keeps: an in-progress session
+        // wins, else the most recent. After the ensurer call above there
+        // should be exactly one row, but the matching selection keeps this
+        // robust if a write lands between the ensure and the fetch.
         let todayPlans = (try? modelContext.fetch(descriptor)) ?? []
         guard let todayPlan = todayPlans.first(where: { $0.status == .inProgress })
             ?? todayPlans.first
