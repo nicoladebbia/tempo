@@ -508,27 +508,49 @@ final class TrainingViewModel {
         // exercise that had at least one completed working set. Warmup sets
         // are excluded (they are never marked completed). This is the trend
         // signal future workout generation reads.
+        //
+        // SNAPSHOT the relationship data into plain value structs BEFORE
+        // we start inserting ExerciseHistory rows. Iterating
+        // plan.orderedExercises + dereferencing .sets while mutating the
+        // same context is the SwiftData-invalidation pattern that crashed
+        // nutrition 3×. Reading everything up-front means no live
+        // relationship is touched during the insert loop.
         let sessionDate = plan.finishedAt ?? Date()
-        for plannedEx in plan.orderedExercises {
-            guard let exercise = plannedEx.exercise else { continue }
+        struct HistorySnapshot {
+            let exercise: Exercise
+            let totalVolume: Double
+            let best1RM: Double?
+            let bestSetWeight: Double?
+            let bestSetReps: Int?
+            let setsPerformed: Int
+        }
+        let snapshots: [HistorySnapshot] = plan.orderedExercises.compactMap { plannedEx in
+            guard let exercise = plannedEx.exercise else { return nil }
             let completedSets = (plannedEx.sets ?? []).filter { $0.completed && !$0.isWarmup }
-            guard !completedSets.isEmpty else { continue }
-
+            guard !completedSets.isEmpty else { return nil }
             let totalVolume = completedSets.reduce(0.0) { acc, set in
                 guard let w = set.actualWeight, let r = set.actualReps else { return acc }
                 return acc + (w * Double(r))
             }
             let best = completedSets.max { ($0.actualWeight ?? 0) < ($1.actualWeight ?? 0) }
-            let best1RM = completedSets.compactMap(\.estimated1RM).max()
-
-            let history = ExerciseHistory(
-                date: sessionDate,
-                estimated1RM: best1RM,
+            return HistorySnapshot(
+                exercise: exercise,
                 totalVolume: totalVolume,
+                best1RM: completedSets.compactMap(\.estimated1RM).max(),
                 bestSetWeight: best?.actualWeight,
                 bestSetReps: best?.actualReps,
-                setsPerformed: completedSets.count,
-                exercise: exercise
+                setsPerformed: completedSets.count
+            )
+        }
+        for snap in snapshots {
+            let history = ExerciseHistory(
+                date: sessionDate,
+                estimated1RM: snap.best1RM,
+                totalVolume: snap.totalVolume,
+                bestSetWeight: snap.bestSetWeight,
+                bestSetReps: snap.bestSetReps,
+                setsPerformed: snap.setsPerformed,
+                exercise: snap.exercise
             )
             modelContext.insert(history)
         }

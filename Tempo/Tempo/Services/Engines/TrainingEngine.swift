@@ -261,7 +261,12 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         // First pass: identify football days, T-1, T+1
         var dayMeta: [(date: Date, isFootball: Bool, isTMinus1: Bool, isTPlus1: Bool)] = []
         for offset in 0 ..< 7 {
-            let date = cal.date(byAdding: .day, value: offset, to: startDate)!
+            // Calendar.date(byAdding:) only returns nil on pathological
+            // calendars; guard rather than force-unwrap so a boundary
+            // date (DST, leap) can't crash week-plan generation.
+            guard let date = cal.date(byAdding: .day, value: offset, to: startDate) else {
+                continue
+            }
             let weekday = cal.component(.weekday, from: date)
             dayMeta.append((
                 date: date,
