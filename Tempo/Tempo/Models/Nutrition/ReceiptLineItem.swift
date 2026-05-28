@@ -19,20 +19,40 @@ enum ReceiptLineUnit: String, Codable, CaseIterable, Sendable {
     case ounces = "oz"
     case kilograms = "kg"
     case grams = "g"
+    case milliliters = "ml"
+    case liters = "l"
     case each
     case unit
+    // Container/multipack units. The backend structuring prompt can emit
+    // these for items the receipt sells by package rather than by weight
+    // (e.g. a 4-pack of Oikos, a can of beans, a jar of salsa, a bottle
+    // of oil). Without these cases the decoder fell back to `.unit` →
+    // `.pieces`, collapsing "4-pack" into "4 pieces" and losing the
+    // package semantics.
+    case pack
+    case can
+    case bottle
+    case jar
 
-    /// Map to a PantryUnit for ingest. Pounds + ounces convert later via
-    /// quantityGrams, but the chosen pantry unit follows the receipt verbatim
-    /// — a `lb` receipt line creates a `pounds` pantry entry.
+    /// Map to a PantryUnit for ingest. Weight units (lb/oz/kg/g) and
+    /// volume units (ml/l) convert later via quantityGrams, but the chosen
+    /// pantry unit follows the receipt verbatim — a `lb` receipt line
+    /// creates a `pounds` pantry entry, a `pack` line creates a `packs`
+    /// entry, etc.
     var asPantryUnit: PantryUnit {
         switch self {
         case .pounds: .pounds
         case .ounces: .ounces
         case .kilograms: .kilograms
         case .grams: .grams
+        case .milliliters: .milliliters
+        case .liters: .liters
         case .each,
              .unit: .pieces
+        case .pack: .packs
+        case .can: .cans
+        case .bottle: .bottles
+        case .jar: .jars
         }
     }
 }
