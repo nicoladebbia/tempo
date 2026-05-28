@@ -363,7 +363,19 @@ final class DashboardViewModel {
         var whoopSleepCancelled = false
         var whoopCycleCancelled = false
         if whoop.connectionState == .connected {
-            do { recovery = try await whoop.fetchRecovery(for: today) }
+            // Fire the three Whoop reads CONCURRENTLY. Previously they ran
+            // sequentially (recovery → sleep → cycle), which made the cold-
+            // launch dashboard refresh ~3× one round-trip (~1.8s measured).
+            // They're independent endpoints, so async let runs them in
+            // parallel — same pattern the HealthKit block below already
+            // uses. Each is awaited in its own do/catch so one failure /
+            // cancellation doesn't abort the others and the per-call
+            // cancellation flags stay accurate.
+            async let recoveryFetch = whoop.fetchRecovery(for: today)
+            async let sleepFetch = whoop.fetchSleep(for: today)
+            async let cycleFetch = whoop.fetchCycle(for: today)
+
+            do { recovery = try await recoveryFetch }
             catch {
                 recovery = nil
                 whoopRecoveryCancelled = Self.isCancellation(error)
@@ -371,7 +383,7 @@ final class DashboardViewModel {
                     print("\(DebugTrace.prefix)[Dashboard] Whoop recovery fetch failed: \(error)")
                 #endif
             }
-            do { whoopSleepData = try await whoop.fetchSleep(for: today) }
+            do { whoopSleepData = try await sleepFetch }
             catch {
                 whoopSleepData = nil
                 whoopSleepCancelled = Self.isCancellation(error)
@@ -379,7 +391,7 @@ final class DashboardViewModel {
                     print("\(DebugTrace.prefix)[Dashboard] Whoop sleep fetch failed: \(error)")
                 #endif
             }
-            do { cycle = try await whoop.fetchCycle(for: today) }
+            do { cycle = try await cycleFetch }
             catch {
                 cycle = nil
                 whoopCycleCancelled = Self.isCancellation(error)
