@@ -45,6 +45,10 @@ struct CalendarEvent {
     let endDate: Date
     let isAllDay: Bool
     let calendarName: String?
+    /// EKEvent.location — used by meal-timing to decide whether a
+    /// conflicting event forces a "portable only" meal. nil / empty /
+    /// containing "home" means the user can cook through it.
+    var location: String? = nil
 }
 
 // MARK: - CalendarExam

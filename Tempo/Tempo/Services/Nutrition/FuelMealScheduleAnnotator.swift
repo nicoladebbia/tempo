@@ -15,6 +15,22 @@ struct BusyBlock: Sendable, Equatable {
     let start: Date
     let end: Date
     let title: String
+    /// Event location, if any. Drives the "can I cook through this?"
+    /// decision: nil / empty / "home" → not portable-forcing.
+    var location: String? = nil
+
+    /// True when this event would force a portable meal — i.e. it's
+    /// somewhere the user can't cook. nil/empty location or a location
+    /// that reads as home means they CAN cook, so the meal isn't forced
+    /// portable just because the times overlap.
+    var forcesPortable: Bool {
+        guard let loc = location?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !loc.isEmpty
+        else {
+            return false // no location → assume home / cookable
+        }
+        return !loc.lowercased().contains("home")
+    }
 }
 
 // MARK: - FuelMealRow
@@ -147,6 +163,11 @@ enum FuelMealScheduleAnnotator {
             let displayed = original.addingTimeInterval(shift)
 
             let conflict = busyBlocks.first { block in
+                // Only events the user can't cook through force a portable
+                // meal. A "Chin Tucks" event at home (or any event with no
+                // location) shouldn't flag the meal portable just because
+                // the times overlap — the user is home and can cook.
+                guard block.forcesPortable else { return false }
                 if displayed >= block.start, displayed <= block.end {
                     return true
                 }

@@ -81,7 +81,8 @@ final class CalendarService: CalendarServiceProtocol, @unchecked Sendable {
                 startDate: event.startDate,
                 endDate: event.endDate,
                 isAllDay: event.isAllDay,
-                calendarName: event.calendar.title
+                calendarName: event.calendar.title,
+                location: event.location
             )
         }
 
@@ -389,7 +390,8 @@ final class CalendarService: CalendarServiceProtocol, @unchecked Sendable {
                 startDate: event.startDate,
                 endDate: event.endDate,
                 isAllDay: event.isAllDay,
-                calendarName: event.calendar.title
+                calendarName: event.calendar.title,
+                location: event.location
             )
         }
     }

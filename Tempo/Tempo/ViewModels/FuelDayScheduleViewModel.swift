@@ -99,7 +99,7 @@ final class FuelDayScheduleViewModel {
                 let events = try await calendar.fetchEvents(for: range)
                 return events
                     .filter { !$0.isAllDay }
-                    .map { BusyBlock(start: $0.startDate, end: $0.endDate, title: $0.title) }
+                    .map { BusyBlock(start: $0.startDate, end: $0.endDate, title: $0.title, location: $0.location) }
             } catch {
                 return []
             }
