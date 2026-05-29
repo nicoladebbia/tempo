@@ -19,10 +19,23 @@ enum DebugTrace {
         String(UUID().uuidString.prefix(6))
     }
 
-    // Returns "" when no refresh ID is set so log lines outside a refresh
-    // cycle stay clean. Inside one, returns "[T:abc123] ".
+    // Monotonic reference captured at first access (≈ process launch). Used to
+    // stamp every traced log line with milliseconds-since-launch so the gaps
+    // between Whoop fetch "rounds" are measurable from the console — the only
+    // way to tell a concurrent-in-flight duplicate (gap ≈ 0) apart from a
+    // genuine TTL-expired re-fetch (gap > 30s) across slow tab navigation.
+    private static let launchClock = ContinuousClock.now
+
+    static var elapsedMs: Int {
+        Int(launchClock.duration(to: .now) / .milliseconds(1))
+    }
+
+    // Returns "[+1234ms] " when outside a refresh cycle, "[+1234ms T:abc123] "
+    // inside one. The launch-elapsed stamp is always present so every line is
+    // time-orderable; the refresh ID groups one cycle's lines together.
     static var prefix: String {
-        guard let id = refreshID else { return "" }
-        return "[T:\(id)] "
+        let t = "+\(elapsedMs)ms"
+        guard let id = refreshID else { return "[\(t)] " }
+        return "[\(t) T:\(id)] "
     }
 }

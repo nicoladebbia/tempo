@@ -68,10 +68,17 @@ extension NutritionTabViewModel {
     ) {
         let logger = Logger.nutrition
 
-        if pantryService == nil {
-            pantryService = LocalPantryService(modelContext: modelContext)
-            services.pantry = pantryService
-        }
+        // Idempotent: three sibling Nutrition sub-views (Pantry, GroceryList,
+        // RecipeSuggestions) each call this from their `.task`. Once the
+        // services are wired and the initial reloads have run, bail — otherwise
+        // the four reload*() calls below re-hit SwiftData on every sibling
+        // mount (and the log line double-fires). `pantryService` is the first
+        // thing set unconditionally below, so it doubles as the
+        // "already attached" sentinel.
+        guard pantryService == nil else { return }
+
+        pantryService = LocalPantryService(modelContext: modelContext)
+        services.pantry = pantryService
         if receiptService == nil, let api = phase7APIClient(from: services) {
             receiptService = LiveReceiptService(modelContext: modelContext, apiClient: api)
             services.receipts = receiptService
