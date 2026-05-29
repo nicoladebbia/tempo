@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./.claude/hooks/pre-write-guard.sh",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-write-guard.sh\"",
             "timeout": 10
           }
         ]
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./.claude/hooks/pre-bash-guard.sh",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-bash-guard.sh\"",
             "timeout": 10
           }
         ]
@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./.claude/hooks/post-write-validate.sh",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-write-validate.sh\"",
             "timeout": 30
           }
         ]
@@ -39,7 +39,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./.claude/hooks/stop-guard.sh",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/stop-guard.sh\"",
             "timeout": 15
           }
         ]

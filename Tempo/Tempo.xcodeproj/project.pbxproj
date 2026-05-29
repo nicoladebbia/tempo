@@ -196,6 +196,7 @@
 		6BDB8B61726187715C639A4C /* TempoSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1E65C1ADEA63F79B03903FC /* TempoSnapshotTests.swift */; };
 		6BEDADDCEF83B12005C95CB0 /* CoachViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F859E605E2B5AE51BF7585CF /* CoachViewModelTests.swift */; };
 		6C2F571B554D0E0AA4FDDAD2 /* RecoveryTodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FAF1EA16142A7D5B1CCD340 /* RecoveryTodayView.swift */; };
+		6DC496142556CD5E82C1CBF1 /* Inject in Frameworks */ = {isa = PBXBuildFile; productRef = 90CD821CB10484BF66BA1514 /* Inject */; };
 		6DFF7595281F8F673DB6D64D /* MindQuadrantDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90C1F73A5246EA787C32EEBE /* MindQuadrantDetailView.swift */; };
 		6FEC5D35C4269D82177F0BBC /* StreakDotsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8526AED40421CE129D69C792 /* StreakDotsView.swift */; };
 		7007FEDD94A8699687D08EB4 /* TrainingSplit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13B8FFED271B3698DBC73838 /* TrainingSplit.swift */; };
@@ -1013,6 +1014,7 @@
 				4C3624309BEDFA2D7F6E2FCF /* PostHog in Frameworks */,
 				AE5314C5233C71D9AC698677 /* FirebaseCrashlytics in Frameworks */,
 				C67FE1C0A497FA70E1F5D90C /* Lottie in Frameworks */,
+				6DC496142556CD5E82C1CBF1 /* Inject in Frameworks */,
 				C33F00CED1FE8F774EF1C316 /* WeatherKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -2293,6 +2295,7 @@
 				CE56BC8136A4008A89FE68F7 /* PostHog */,
 				64ADF0A1A72113591B1601F5 /* FirebaseCrashlytics */,
 				96FAF1565271D68778EA8DA8 /* Lottie */,
+				90CD821CB10484BF66BA1514 /* Inject */,
 			);
 			productName = Tempo;
 			productReference = AE6263597B3354C508BBC7D4 /* Tempo.app */;
@@ -2382,6 +2385,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				9E28DD26F273AA51C8F9C344 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				CFC435941CF6159DE813FBDD /* XCRemoteSwiftPackageReference "Inject" */,
 				994F1E23641289C127656209 /* XCRemoteSwiftPackageReference "lottie-ios" */,
 				F481E80EA356976DD4A05C9E /* XCRemoteSwiftPackageReference "posthog-ios" */,
 				50CE7ED7B4ABBE1725F8322F /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */,
@@ -3469,6 +3473,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0.0;
+				OTHER_LDFLAGS = "$(inherited) -Xlinker -interposable";
 				PRODUCT_BUNDLE_IDENTIFIER = app.tempo.Tempo.dev;
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -3644,6 +3649,14 @@
 				minimumVersion = 11.0.0;
 			};
 		};
+		CFC435941CF6159DE813FBDD /* XCRemoteSwiftPackageReference "Inject" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/krzysztofzablocki/Inject.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.2.4;
+			};
+		};
 		F481E80EA356976DD4A05C9E /* XCRemoteSwiftPackageReference "posthog-ios" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/PostHog/posthog-ios";
@@ -3659,6 +3672,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 9E28DD26F273AA51C8F9C344 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseCrashlytics;
+		};
+		90CD821CB10484BF66BA1514 /* Inject */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CFC435941CF6159DE813FBDD /* XCRemoteSwiftPackageReference "Inject" */;
+			productName = Inject;
 		};
 		96FAF1565271D68778EA8DA8 /* Lottie */ = {
 			isa = XCSwiftPackageProductDependency;

@@ -13,6 +13,14 @@ Native iOS app (Swift/SwiftUI) that unifies fitness, nutrition, recovery, academ
 - `/build-status` — Show progress: phases complete, next step, blockers.
 - `/build-step 3.2` — Show details for a specific step, optionally execute it.
 
+## Hot Reload (Inject) — what auto-applies vs what needs ⌘R (IMPORTANT)
+Tempo has Inject hot-reload wired (dev-only; `@ObserveInjection`+`.enableInjection()` in `ContentView.swift`, `-interposable` Debug linker flag in `project.yml`). When the InjectionIII app is running and watching `Tempo/`, **saving a `.swift` file injects it into the running simulator in ~1s — including saves made by your Edit/Write tools.** But this only works for a narrow class of change, and you MUST tell Nicola which case applies after every UI edit:
+
+- **Injects live (no rebuild):** changes confined to a SwiftUI view `body` — colors, padding, fonts, text, spacing, conditional layout, card↔list swaps. Tell Nicola: "saved — should hot-reload in the sim."
+- **Needs ⌘R rebuild (Inject will NOT catch it):** new/changed stored properties or `@State`, new types, changed function signatures, new files, `@Model`/SwiftData schema changes, anything in services/view-models structure, or anything touching app launch / data loading / navigation state. Tell Nicola explicitly: "this needs a ⌘R — Inject won't pick it up."
+- **Multi-file edits:** after editing 2+ files in one change (e.g. a view AND its view model), do NOT trust the partial injection — tell Nicola to ⌘R once. Inject may inject one file mid-edit and show a broken intermediate state.
+- **Never call a hot-injected screen "verified."** Inject reloads view code but does not restart the app or re-run launch logic. A structural change that *looks* right after injection is not proven — per global rule L145, only a full ⌘R relaunch exercises the real path. State "necessary but not sufficient — needs a clean ⌘R to verify" for anything structural.
+
 ## Architecture
 - **iOS:** SwiftUI + SwiftData + HealthKit + EventKit (iOS 17.4+ per feasibility audit)
 - **Backend:** Vapor (Swift) + PostgreSQL + Redis
@@ -37,6 +45,17 @@ Native iOS app (Swift/SwiftUI) that unifies fitness, nutrition, recovery, academ
 - All strings from `docs/UX_COPY_BIBLE.md`
 - All state machines from `docs/STATE_MACHINES.md`
 - **One asset catalog per target.** Tempo target = `Tempo/Tempo/Assets.xcassets` only. New colors go in `Tempo/Tempo/Assets.xcassets/Colors/`. Multiple `.xcassets` in the same target generates duplicate symbols in `GeneratedAssetSymbols.swift`. Every catalog folder needs a `Contents.json` at its root.
+
+## Shared-Model Changes — Cross-Surface Verification (CRITICAL)
+Tempo's 5 modules read overlapping data. The Fuel quadrant and the Nutrition surfaces read the same nutrition model; Body and Move both read training/recovery state. The recurring bug: a change lands on ONE surface and silently desyncs the others, or fixing one screen breaks a sibling that reads the same source.
+
+**The rule: before declaring done on ANY edit to a shared data model, `@Observable` service, or SwiftData entity, you MUST:**
+1. **Enumerate every screen/view that reads it.** Use `mcp__serena__find_referencing_symbols` on the model/property (LSP-accurate — not a grep guess) to list all readers. Name them explicitly in your response.
+2. **Re-verify EACH reader** still renders correctly with the change — not just the one you were asked about. If Fuel changed, check the Nutrition surface too, and vice versa.
+3. **Run the `architecture-guard` agent** (`.claude/agents/architecture-guard.md`) when the edit touches 2+ modules. That's what it's for.
+4. **State the blast radius in your summary:** "Changed X. Readers: [list]. Verified: [list]. Unverified: [list]." Never write "done" while any reader is unverified — per global rule L145, one green surface verifies only that surface.
+
+A change that compiles is NOT a change that's connected. The compile check passes while two screens show different numbers. Enumerate-the-readers is the only thing that catches it.
 
 ## Critical References (Read Before Coding)
 - `docs/CROSS_DOC_AUDIT.md` — 47 known inconsistencies across docs. Always check canonical values here.

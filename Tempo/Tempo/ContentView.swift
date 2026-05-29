@@ -6,6 +6,7 @@
 //
 //
 
+import Inject
 import SwiftData
 import SwiftUI
 
@@ -19,6 +20,9 @@ struct ContentView: View {
     private var services
     @Environment(\.modelContext)
     private var modelContext
+    // Hot reload (dev only, no-op in Release). Edit a SwiftUI view body and
+    // save → InjectionIII pushes it into the running sim in ~1s, no rebuild.
+    @ObserveInjection var inject
 
     var body: some View {
         Group {
@@ -30,6 +34,7 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .enableInjection()
     }
 
     /// Creates a UserProfile from onboarding data if one doesn't exist yet.
