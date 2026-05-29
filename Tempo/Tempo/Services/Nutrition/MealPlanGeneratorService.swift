@@ -410,44 +410,67 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         windowDays: Int = 14
     ) -> MealPlanPrompts.ObservedMealTimes? {
         let calendar = Calendar.current
-        guard let windowStart = calendar.date(
-            byAdding: .day,
-            value: -windowDays,
-            to: calendar.startOfDay(for: Date())
-        ) else {
-            return nil
-        }
-        let descriptor = FetchDescriptor<PlannedMeal>(
-            predicate: #Predicate<PlannedMeal> { meal in
-                meal.dayDate >= windowStart
+
+        // Wake anchor: the user's planned wake from UserSettings (minutes
+        // from midnight). The display layer (FuelMealScheduleAnnotator)
+        // already shifts for ACTUAL wake deviations day-to-day; for plan
+        // generation the typical wake is the right anchor.
+        let wakeMinutes = (try? modelContext.fetch(FetchDescriptor<UserSettings>()).first?.wakeTimeMinutes) ?? 420
+
+        // Learned signal: average actualEatenAt per mealNumber over the
+        // window, ≥2 observations required.
+        var learned: [Int: Int] = [:] // mealNumber → minutes-from-midnight
+        if let windowStart = calendar.date(
+            byAdding: .day, value: -windowDays, to: calendar.startOfDay(for: Date())
+        ) {
+            let descriptor = FetchDescriptor<PlannedMeal>(
+                predicate: #Predicate<PlannedMeal> { meal in
+                    meal.dayDate >= windowStart
+                }
+            )
+            let meals = ((try? modelContext.fetch(descriptor)) ?? [])
+                .filter { $0.actualEatenAt != nil }
+            var minutesByMealNumber: [Int: [Int]] = [:]
+            for meal in meals {
+                guard let eaten = meal.actualEatenAt else { continue }
+                let comps = calendar.dateComponents([.hour, .minute], from: eaten)
+                minutesByMealNumber[meal.mealNumber, default: []]
+                    .append((comps.hour ?? 0) * 60 + (comps.minute ?? 0))
             }
-        )
-        let candidates = (try? modelContext.fetch(descriptor)) ?? []
-        let meals = candidates.filter { $0.actualEatenAt != nil }
-        guard !meals.isEmpty else {
-            return nil
+            for (number, mins) in minutesByMealNumber where mins.count >= 2 {
+                learned[number] = mins.reduce(0, +) / mins.count
+            }
         }
 
-        // Group by mealNumber, average the minutes-from-midnight of each
-        // actualEatenAt. Need ≥2 observations per slot before we treat it as
-        // signal — one late breakfast shouldn't move tomorrow's anchor.
-        var minutesByMealNumber: [Int: [Int]] = [:]
-        for meal in meals {
-            guard let eaten = meal.actualEatenAt else {
-                continue
-            }
-            let comps = calendar.dateComponents([.hour, .minute], from: eaten)
-            let total = (comps.hour ?? 0) * 60 + (comps.minute ?? 0)
-            minutesByMealNumber[meal.mealNumber, default: []].append(total)
+        // For each of the 4 canonical slots, prefer the learned time;
+        // otherwise fall back to wake-anchored defaults with soft
+        // ceilings. We ALWAYS return a value (never nil) so the backend's
+        // own 08:00/12:30/16:00/19:30 defaults never fire — those ignore
+        // the user's wake entirely. Soft ceilings only bind when no
+        // learned signal exists; a late calendar event (soccer) is
+        // handled at display/shift time, not here.
+        //
+        //   1 Breakfast : wake + 60m
+        //   2 Lunch     : wake + 300m, capped at 13:30
+        //   3 Snack     : wake + 480m, capped at 16:30
+        //   4 Dinner    : wake + 720m, capped at 21:00
+        func clampToCeiling(_ minutes: Int, ceiling: Int) -> Int {
+            min(minutes, ceiling)
         }
+        let defaults: [Int: Int] = [
+            1: wakeMinutes + 60,
+            2: clampToCeiling(wakeMinutes + 300, ceiling: 13 * 60 + 30),
+            3: clampToCeiling(wakeMinutes + 480, ceiling: 16 * 60 + 30),
+            4: clampToCeiling(wakeMinutes + 720, ceiling: 21 * 60),
+        ]
+
         var result: [Int: String] = [:]
-        for (number, mins) in minutesByMealNumber where mins.count >= 2 {
-            let avg = mins.reduce(0, +) / mins.count
-            let h = avg / 60
-            let m = avg % 60
-            result[number] = String(format: "%02d:%02d", h, m)
+        for number in 1 ... 4 {
+            let minutes = learned[number] ?? defaults[number] ?? (wakeMinutes + 60)
+            let clamped = max(0, min(minutes, 23 * 60 + 59))
+            result[number] = String(format: "%02d:%02d", clamped / 60, clamped % 60)
         }
-        return result.isEmpty ? nil : result
+        return result
     }
 
     /// Pulls non-archived PantryItems expiring within the next 7 days, sorted
