@@ -40,6 +40,23 @@ enum MealShiftPlanner {
     /// past this hour:minute. Compression kicks in if it would.
     static let defaultBedtimeCap: (hour: Int, minute: Int) = (22, 0)
 
+    /// Soft per-slot ceilings (minutes from midnight), keyed by mealNumber.
+    /// A shift won't push a meal past its ceiling UNLESS a real calendar
+    /// event sits in the way (e.g. soccer 20:00–21:30 legitimately moves
+    /// dinner to ~21:45). Breakfast (1) is uncapped — it tracks wake.
+    ///   2 Lunch  ≤ 13:30
+    ///   3 Snack  ≤ 16:30
+    ///   4 Dinner ≤ 21:00
+    static let softCeilings: [Int: Int] = [
+        2: 13 * 60 + 30,
+        3: 16 * 60 + 30,
+        4: 21 * 60,
+    ]
+
+    /// Buffer after an away-from-home calendar event before the meal can
+    /// happen — time to get home + settle. 30 min.
+    static let postEventBufferSeconds: TimeInterval = 30 * 60
+
     /// Compute new times for meals scheduled AFTER `eatenMealID`. Returns
     /// an empty array when no shift is needed (delta < threshold) or when
     /// no remaining meals exist.
@@ -55,6 +72,7 @@ enum MealShiftPlanner {
         eatenMealID: UUID,
         actualEatTime: Date,
         bedtimeCap: (hour: Int, minute: Int) = defaultBedtimeCap,
+        busyBlocks: [BusyBlock] = [],
         calendar: Calendar = .current
     ) -> [MealShiftResult] {
         // Order by mealNumber so "after" is well-defined.
@@ -127,6 +145,59 @@ enum MealShiftPlanner {
                     shifted = shifted.map { ($0.meal, capDate) }
                 }
             }
+        }
+
+        // Soft-ceiling + calendar-override pass. For each shifted meal:
+        //   - If an away-from-home busy block (forcesPortable) sits at or
+        //     around the meal's time, anchor the meal AFTER the block
+        //     (+buffer). A real event always wins over the soft ceiling —
+        //     soccer 20:00–21:30 → dinner ~22:00, not clamped to 21:00.
+        //   - Otherwise, if the meal exceeds its soft ceiling, pull it
+        //     back to the ceiling so a late wake/shift doesn't drag lunch
+        //     to mid-afternoon.
+        let dayStartForCeil = calendar.startOfDay(for: actualEatTime)
+        shifted = shifted.map { entry in
+            let mealNumber = entry.meal.mealNumber
+            // Calendar override: does an away event overlap this meal?
+            if let block = busyBlocks.first(where: { block in
+                block.forcesPortable
+                    && entry.date >= block.start.addingTimeInterval(-postEventBufferSeconds)
+                    && entry.date <= block.end.addingTimeInterval(postEventBufferSeconds)
+            }) {
+                let afterEvent = block.end.addingTimeInterval(postEventBufferSeconds)
+                // Only push later, never earlier than the already-shifted time.
+                return (entry.meal, max(entry.date, afterEvent))
+            }
+            // Soft ceiling (no overriding event).
+            guard let ceilingMinutes = softCeilings[mealNumber],
+                  let ceilingDate = calendar.date(
+                      bySettingHour: ceilingMinutes / 60,
+                      minute: ceilingMinutes % 60,
+                      second: 0,
+                      of: dayStartForCeil
+                  )
+            else {
+                return entry
+            }
+            return (entry.meal, min(entry.date, ceilingDate))
+        }
+
+        // Monotonic-ordering guard. The independent ceiling clamp + event
+        // override above could, in a pathological shift, pull a later meal
+        // to the same time as (or before) an earlier one. Walk the list in
+        // mealNumber order and push each meal to at least 30 min after the
+        // previous, so meals never collapse or invert. `shifted` is already
+        // in mealNumber order (built from `remaining`, itself ordered).
+        let minGap: TimeInterval = 30 * 60
+        var previousDate: Date?
+        for index in shifted.indices {
+            if let prev = previousDate {
+                let earliest = prev.addingTimeInterval(minGap)
+                if shifted[index].date < earliest {
+                    shifted[index].date = earliest
+                }
+            }
+            previousDate = shifted[index].date
         }
 
         // Build results with HH:mm strings.
