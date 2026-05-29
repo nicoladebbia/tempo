@@ -488,57 +488,6 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
         }
     }
 
-    // MARK: - Scheduled Sleep Window (probe)
-
-    /// PROBE: does iOS expose the user's Sleep Schedule (Health →
-    /// Edit Schedule / Sleep Focus) as future-anchored `.inBed` samples?
-    /// When a schedule is set, iOS pre-writes `.inBed` samples for the
-    /// upcoming night(s). If readable, the scheduled wake/bedtime is a
-    /// far better meal-timing anchor than UserSettings.wakeTimeMinutes
-    /// (a stale onboarding number).
-    ///
-    /// Returns (bedtime, wakeTime) of the next scheduled window, or nil
-    /// when no future `.inBed` samples exist. Logs everything it sees so
-    /// we can confirm the behavior on a real device before wiring it in.
-    func fetchScheduledSleepWindow() async -> (bedtime: Date, wakeTime: Date)? {
-        let sleepType = HKCategoryType(.sleepAnalysis)
-        let now = Date()
-        // Window: now → +36h. Covers tonight's scheduled bedtime and
-        // tomorrow morning's scheduled wake.
-        let end = now.addingTimeInterval(36 * 3600)
-        let predicate = HKQuery.predicateForSamples(
-            withStart: now,
-            end: end,
-            options: .strictStartDate
-        )
-        let samples = (try? await fetchCategorySamples(type: sleepType, predicate: predicate)) ?? []
-
-        // Keep only .inBed samples (the schedule writes inBed, not asleep).
-        let inBed = samples.filter {
-            HKCategoryValueSleepAnalysis(rawValue: $0.value) == .inBed
-        }
-
-        #if DEBUG
-            Logger.healthkit.debug(
-                "fetchScheduledSleepWindow: total future sleep samples=\(samples.count), inBed=\(inBed.count)"
-            )
-            for s in inBed.prefix(4) {
-                Logger.healthkit.debug(
-                    "  scheduled inBed: \(s.startDate) → \(s.endDate)"
-                )
-            }
-        #endif
-
-        // The earliest future inBed sample is tonight's scheduled window.
-        guard let first = inBed.sorted(by: { $0.startDate < $1.startDate }).first else {
-            #if DEBUG
-                Logger.healthkit.debug("fetchScheduledSleepWindow: no future inBed samples — schedule not exposed via this path")
-            #endif
-            return nil
-        }
-        return (bedtime: first.startDate, wakeTime: first.endDate)
-    }
-
     // MARK: - Fetch Body Composition
 
     // Reads weight, body fat %, lean mass, and height from HealthKit.

@@ -84,6 +84,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
     func generateWeeklyPlan(
         profile: DietaryProfile,
         whoopTDEE: Double?,
+        wakeMinutesOverride: Int? = nil,
         modelContext: ModelContext,
         intake: MealPlanIntake? = nil,
         onStatus: ((GenerationState) -> Void)? = nil
@@ -119,7 +120,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         // Pull the user's rolling 14-day actual eat-times per mealNumber so
         // the AI anchors the new plan to their real rhythm rather than the
         // 07:30/12:30/19:30/16:00 schema defaults.
-        let observed = observedMealTimes(modelContext: modelContext)
+        let observed = observedMealTimes(modelContext: modelContext, wakeMinutesOverride: wakeMinutesOverride)
         let feedback = recentFeedbackDigest(modelContext: modelContext)
         let expiringSoon = expiringPantryItems(modelContext: modelContext)
         if !expiringSoon.isEmpty {
@@ -407,15 +408,20 @@ final class MealPlanGeneratorService: @unchecked Sendable {
     /// to the schema defaults (07:30 / 12:30 / 19:30 / 16:00).
     private func observedMealTimes(
         modelContext: ModelContext,
-        windowDays: Int = 14
+        windowDays: Int = 14,
+        wakeMinutesOverride: Int? = nil
     ) -> MealPlanPrompts.ObservedMealTimes? {
         let calendar = Calendar.current
 
-        // Wake anchor: the user's planned wake from UserSettings (minutes
-        // from midnight). The display layer (FuelMealScheduleAnnotator)
-        // already shifts for ACTUAL wake deviations day-to-day; for plan
-        // generation the typical wake is the right anchor.
-        let wakeMinutes = (try? modelContext.fetch(FetchDescriptor<UserSettings>()).first?.wakeTimeMinutes) ?? 420
+        // Wake anchor priority:
+        //   1. Whoop's actual wake (wakeMinutesOverride) — the user's real
+        //      rhythm. iOS won't share the Health Sleep Schedule, so Whoop
+        //      is the best signal we have.
+        //   2. UserSettings.wakeTimeMinutes — the onboarding/planned wake.
+        //   3. 07:00 default.
+        let wakeMinutes = wakeMinutesOverride
+            ?? (try? modelContext.fetch(FetchDescriptor<UserSettings>()).first?.wakeTimeMinutes)
+            ?? 420
 
         // Learned signal: average actualEatenAt per mealNumber over the
         // window, ≥2 observations required.

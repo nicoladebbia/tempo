@@ -707,6 +707,14 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
         let awakeMilli: Int64 = stages?.totalAwakeTimeMilli ?? 0
         let totalSleepMilli = lightMilli + deepMilli + remMilli
 
+        // Parse the actual sleep window (bedtime = record.start, wake =
+        // record.end). This is the meal-timing anchor — the user's real
+        // rhythm, since iOS won't share the Health Sleep Schedule.
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let bedtime = record.start.flatMap { isoFormatter.date(from: $0) }
+        let wakeTime = record.end.flatMap { isoFormatter.date(from: $0) }
+
         return WhoopSleepData(
             totalHours: Double(totalSleepMilli) / 3_600_000.0,
             sleepScore: score.sleepPerformancePercentage ?? 0,
@@ -717,7 +725,9 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
             lightSleepMinutes: Int(lightMilli / 60000),
             awakeMinutes: Int(awakeMilli / 60000),
             respiratoryRate: score.respiratoryRate ?? 0,
-            date: date
+            date: date,
+            bedtime: bedtime,
+            wakeTime: wakeTime
         )
     }
 
@@ -1256,6 +1266,10 @@ private struct WhoopAPIRecoveryScore: Codable, Sendable {
 
 private struct WhoopAPISleepRecord: Codable, Sendable {
     let createdAt: String?
+    /// ISO8601 sleep onset / wake. Whoop returns these as `start` / `end`
+    /// on each sleep record; used as the meal-timing wake anchor.
+    let start: String?
+    let end: String?
     let nap: Bool?
     let scoreState: String?
     let score: WhoopAPISleepScore?

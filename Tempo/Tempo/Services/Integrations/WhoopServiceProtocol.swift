@@ -75,6 +75,12 @@ struct WhoopSleepData: Sendable {
     let awakeMinutes: Int
     let respiratoryRate: Double
     let date: Date
+    /// When the user fell asleep / woke, parsed from the Whoop record's
+    /// start/end. Nil for batch fallbacks that don't carry them. Used as
+    /// the meal-timing anchor (the user's real rhythm) since iOS doesn't
+    /// expose the Health Sleep Schedule to apps.
+    var bedtime: Date? = nil
+    var wakeTime: Date? = nil
 }
 
 // MARK: - WhoopWorkoutData

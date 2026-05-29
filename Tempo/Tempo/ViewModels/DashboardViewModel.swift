@@ -435,13 +435,6 @@ final class DashboardViewModel {
         async let hkSleep = healthKit.fetchSleepAnalysis(for: today)
         async let hkWorkouts = healthKit.fetchWorkouts(for: today)
 
-        #if DEBUG
-            // PROBE (one-shot): log whether iOS exposes the user's Sleep
-            // Schedule as future inBed samples. If it does, we'll wire it
-            // as the meal-timing anchor. Fire-and-forget; result is logged.
-            Task { _ = await healthKit.fetchScheduledSleepWindow() }
-        #endif
-
         steps = (try? await hkSteps) ?? 0
         energy = (try? await hkActiveEnergy) ?? 0
         heartRates = (try? await hkHeartRate) ?? []

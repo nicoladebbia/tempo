@@ -18,9 +18,6 @@ protocol HealthKitServiceProtocol: Sendable {
     func fetchHRV(for date: Date) async throws -> Double?
     func fetchRestingHeartRate(for date: Date) async throws -> Double?
     func fetchSleepAnalysis(for date: Date) async throws -> SleepData
-    /// Next scheduled sleep window from the user's Health Sleep Schedule,
-    /// if iOS exposes it as future `.inBed` samples. nil otherwise.
-    func fetchScheduledSleepWindow() async -> (bedtime: Date, wakeTime: Date)?
     func fetchWorkouts(for date: Date) async throws -> [WorkoutSample]
     func fetchBodyComposition() async throws -> BodyCompositionData
     func writeWorkout(_ workout: WorkoutSample) async throws

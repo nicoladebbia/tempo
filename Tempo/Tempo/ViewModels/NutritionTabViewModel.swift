@@ -749,7 +749,18 @@ final class NutritionTabViewModel {
                 // (would need fetchCycleBatch), we use Mifflin only —
                 // identical to what the projection screen does.
                 let whoopTDEE: Double? = nil
-                _ = whoop // silence unused-parameter warning; kept for API parity
+
+                // Whoop wake time → meal anchor. iOS won't share the Health
+                // Sleep Schedule, but Whoop knows when the user actually
+                // woke. Use last night's Whoop wake (minutes from midnight)
+                // to anchor meal times; nil falls back to UserSettings wake.
+                var whoopWakeMinutes: Int?
+                if let sleep = try? await whoop.fetchSleep(for: Date()),
+                   let wake = sleep.wakeTime
+                {
+                    let comps = Calendar.current.dateComponents([.hour, .minute], from: wake)
+                    whoopWakeMinutes = (comps.hour ?? 0) * 60 + (comps.minute ?? 0)
+                }
 
                 // Enrich the intake with the user's actual weekly training
                 // schedule from UserSettings so the AI generates day-types
@@ -792,6 +803,7 @@ final class NutritionTabViewModel {
                 let plan = try await generator.generateWeeklyPlan(
                     profile: profile,
                     whoopTDEE: whoopTDEE,
+                    wakeMinutesOverride: whoopWakeMinutes,
                     modelContext: modelContext,
                     intake: enrichedIntake,
                     onStatus: { [weak self] state in
