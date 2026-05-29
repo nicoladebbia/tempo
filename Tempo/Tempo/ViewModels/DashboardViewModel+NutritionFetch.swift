@@ -51,19 +51,18 @@ extension DashboardViewModel {
         let todayStart = Calendar.current.startOfDay(for: Date())
         let tomorrowStart = Calendar.current.date(byAdding: .day, value: 1, to: todayStart) ?? todayStart
 
-        let mealDescriptor = FetchDescriptor<MealLog>(
-            predicate: #Predicate<MealLog> { log in
-                log.dayDate >= todayStart && log.dayDate < tomorrowStart
-            }
-        )
-        if let logs = try? context.fetch(mealDescriptor) {
-            totals.mealsLogged = logs.count
-            totals.calories = Int(logs.reduce(0.0) { $0 + $1.totalCalories })
-            totals.protein = Int(logs.reduce(0.0) { $0 + $1.totalProtein })
-            totals.carbs = Int(logs.reduce(0.0) { $0 + $1.totalCarbs })
-            totals.fat = Int(logs.reduce(0.0) { $0 + $1.totalFat })
-            totals.lastEatenAt = logs.map(\.loggedAt).max()
-        }
+        // CONSUMED macros come from EATEN PlannedMeals — the exact same
+        // source the Nutrition tab's todayCaloriesConsumed uses. Previously
+        // the Dashboard summed MealLog.totalCalories instead, which diverged
+        // from the tab: Mark Eaten flips PlannedMeal.status = .eaten without
+        // creating a MealLog, so a marked-eaten meal counted on the tab but
+        // not the Dashboard. Macro rebalance + 5-day carryover also write
+        // PlannedMeal, never MealLog — three systems on PlannedMeal, the
+        // Dashboard was the lone outlier. Now all surfaces agree.
+        // (See the targets comment below — this closes the consumed half of
+        // that same "two surfaces, two numbers" bug.)
+        // The eaten-meal sum + lastEatenAt are computed in the PlannedMeal
+        // fetch block below.
 
         // Targets come from NutritionTargetCalculator — the SAME helper
         // Nutrition Today uses — so the two surfaces never disagree on the
@@ -98,14 +97,21 @@ extension DashboardViewModel {
         )
         if let plannedMeals = try? context.fetch(plannedDescriptor) {
             totals.nextMeal = MealScheduleHelpers.nextUpcomingMeal(in: plannedMeals)
-            // Roll planned-meal actualEatenAt into the last-eaten signal —
-            // Mark Eaten taps land on PlannedMeal, not MealLog, so without
-            // this the Fuel card would say "—" right after the user marked
-            // breakfast as eaten.
-            let plannedLast = plannedMeals.compactMap(\.actualEatenAt).max()
-            if let plannedLast {
-                totals.lastEatenAt = max(totals.lastEatenAt ?? plannedLast, plannedLast)
-            }
+
+            // Consumed macros = eaten PlannedMeals (matches the Nutrition
+            // tab exactly). A Quick Log without an active plan still creates
+            // a synthetic .eaten PlannedMeal, so plan-less logs are counted
+            // here too.
+            let eaten = plannedMeals.filter { $0.status == .eaten }
+            totals.mealsLogged = eaten.count
+            totals.calories = Int(eaten.reduce(0.0) { $0 + $1.totalCalories })
+            totals.protein = Int(eaten.reduce(0.0) { $0 + $1.totalProtein })
+            totals.carbs = Int(eaten.reduce(0.0) { $0 + $1.totalCarbs })
+            totals.fat = Int(eaten.reduce(0.0) { $0 + $1.totalFat })
+
+            // Last-eaten timestamp from PlannedMeal.actualEatenAt (Mark
+            // Eaten + Quick Log both set it).
+            totals.lastEatenAt = eaten.compactMap(\.actualEatenAt).max()
         }
 
         return totals
