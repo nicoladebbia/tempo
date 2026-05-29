@@ -56,6 +56,14 @@ final class MockHealthKitService: HealthKitServiceProtocol, @unchecked Sendable 
         )
     }
 
+    func fetchScheduledSleepWindow() async -> (bedtime: Date, wakeTime: Date)? {
+        let calendar = Calendar.current
+        let bedtime = calendar.date(bySettingHour: 23, minute: 0, second: 0, of: Date())
+        let wakeTime = calendar.date(bySettingHour: 7, minute: 0, second: 0, of: Date().addingTimeInterval(86400))
+        guard let bedtime, let wakeTime else { return nil }
+        return (bedtime: bedtime, wakeTime: wakeTime)
+    }
+
     func fetchBodyComposition() async throws -> BodyCompositionData {
         BodyCompositionData(
             weightKg: 75.2,
