@@ -75,9 +75,13 @@ struct ProgressChartsView: View {
         .background(Color.tempoBgPrimary)
         .navigationTitle("Progress")
         .navigationBarTitleDisplayMode(.inline)
-        .task {
-            purgeOrphanedHistory()
-        }
+        // NOTE: purgeOrphanedHistory() was removed from here — it was DELETING
+        // valid ExerciseHistory on every Progress open whenever the matching
+        // WorkoutPlan wasn't marked .completed (data-loss bug). History is the
+        // permanent record and is independent of the ephemeral WorkoutPlan;
+        // orphan cleanup belongs at explicit user deletion (WorkoutHistoryView),
+        // not on view appearance. The function body is left dead pending its
+        // removal once the write-path + plan-churn fixes land.
     }
 
     // ExerciseHistory has no relationship back to WorkoutPlan, so historically a
