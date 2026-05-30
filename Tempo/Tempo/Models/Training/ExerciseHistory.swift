@@ -28,6 +28,14 @@ final class ExerciseHistory {
 
     var setsPerformed: Int?
 
+    // Scalar back-reference to the WorkoutPlan that produced this row. NOT a
+    // relationship — ExerciseHistory is the permanent training record and must
+    // outlive the ephemeral daily plan. The ID enables exact, idempotent dedup
+    // on save and exact cleanup on explicit workout deletion, without
+    // re-coupling the two lifecycles. Optional so it stays a lightweight
+    // SwiftData migration (nil on legacy rows written before this field).
+    var workoutPlanID: UUID?
+
     // MARK: - Relationships
 
     @Relationship(deleteRule: .nullify)
@@ -43,6 +51,7 @@ final class ExerciseHistory {
         bestSetWeight: Double? = nil,
         bestSetReps: Int? = nil,
         setsPerformed: Int? = nil,
+        workoutPlanID: UUID? = nil,
         exercise: Exercise? = nil
     ) {
         self.id = id
@@ -52,6 +61,7 @@ final class ExerciseHistory {
         self.bestSetWeight = bestSetWeight
         self.bestSetReps = bestSetReps
         self.setsPerformed = setsPerformed
+        self.workoutPlanID = workoutPlanID
         self.exercise = exercise
     }
 }

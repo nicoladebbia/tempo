@@ -109,6 +109,13 @@ struct TrainingTabView: View {
         }
         .onChange(of: viewModel?.sessionState) { _, newState in
             if case .summary = newState {
+                // Persist completion the moment the session reaches summary —
+                // NOT on the SAVE button. Previously history was written only
+                // if the user tapped "SAVE & CLOSE"; swiping the summary away
+                // (or any non-button exit) silently lost the whole session.
+                // persistCompletion is idempotent, so the SAVE button calling
+                // it again is a no-op.
+                viewModel?.persistCompletion(modelContext: modelContext)
                 showActiveWorkout = false
                 showSummary = true
             }

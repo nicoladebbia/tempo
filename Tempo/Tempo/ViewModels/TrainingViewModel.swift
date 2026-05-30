@@ -196,12 +196,21 @@ final class TrainingViewModel {
         )
         let allToday = (try? modelContext.fetch(descriptor)) ?? []
 
-        // Pick the canonical survivor: an in-progress session wins (sacred),
-        // otherwise the most recent. Any OTHER today-rows are duplicates and
-        // get deleted so there is exactly one WorkoutPlan per day.
-        let survivor = allToday.first { $0.status == .inProgress } ?? allToday.first
+        // Pick the canonical survivor by SACREDNESS, not recency: an
+        // in-progress session wins, then a completed one (it holds the day's
+        // logged training + its ExerciseHistory), then the most recent planned
+        // row. Picking by recency let a fresh .planned dupe outrank — and then
+        // delete — a .completed plan, destroying that day's history.
+        let survivor = allToday.first { $0.status == .inProgress }
+            ?? allToday.first { $0.status == .completed }
+            ?? allToday.first
         if allToday.count > 1 {
             for dupe in allToday where dupe !== survivor {
+                // NEVER delete a plan that holds real training. Only planned/
+                // skipped scaffolding rows are safe to collapse as duplicates.
+                guard dupe.status != .completed, dupe.status != .inProgress else {
+                    continue
+                }
                 modelContext.delete(dupe)
             }
             try? modelContext.save()
@@ -211,18 +220,22 @@ final class TrainingViewModel {
             if existing.status == .inProgress {
                 return ResolvedTodayPlan(plan: existing, isCrashedInProgress: true)
             }
-            if let canonical = weekPlanForToday, canonical.type != existing.type {
-                // Persisted plan disagrees with the Week Plan (e.g. user
-                // changed Football Days, or it was a stale row). Replace
-                // with the canonical version so Today + Week Plan +
-                // Dashboard all match.
+            if existing.status == .planned,
+               let canonical = weekPlanForToday, canonical.type != existing.type {
+                // Only a still-PLANNED row may be replaced when it disagrees
+                // with the Week Plan (e.g. user changed Football Days, or it
+                // was a stale row). A completed or in-progress plan is sacred —
+                // it records what was actually trained, so it survives even if
+                // its type no longer matches the forward-looking template.
+                // Deleting it here was a data-loss path (orphaned its history).
                 modelContext.delete(existing)
                 populateExercises(for: canonical, modelContext: modelContext)
                 modelContext.insert(canonical)
                 try? modelContext.save()
                 return ResolvedTodayPlan(plan: canonical, isCrashedInProgress: false)
             }
-            // Matches Week Plan type — keep it (preserves logged sets).
+            // Keep it — matches the Week Plan type, OR holds real training
+            // (completed/in-progress) and must be preserved regardless of type.
             return ResolvedTodayPlan(plan: existing, isCrashedInProgress: false)
         }
 
@@ -567,14 +580,42 @@ final class TrainingViewModel {
 
     // Per STATE_MACHINES.md — summary → saved
 
-   func saveWorkout(modelContext: ModelContext) async {
+    /// Persist the completed workout: flip status to `.completed` and write one
+    /// ExerciseHistory row per exercise that had a completed working set.
+    ///
+    /// IDEMPOTENT — safe to call more than once for the same plan. This is the
+    /// crux of the data-loss fix: completion is persisted as soon as the
+    /// session reaches `.summary` (auto, not button-gated), AND the SAVE button
+    /// still calls it; the guard + dedup make the second call a no-op instead
+    /// of doubling history rows. Returns true if it wrote (first call), false
+    /// if it was already persisted.
+    @discardableResult
+    func persistCompletion(modelContext: ModelContext) -> Bool {
         guard let plan = todayPlan else {
-            return
+            return false
+        }
+        // Already persisted (e.g. auto-save on .summary entry ran, now the
+        // SAVE button fires). Don't write twice.
+        guard plan.status != .completed else {
+            return false
         }
 
+        let planID = plan.id
         plan.status = .completed
         plan.finishedAt = Date()
         plan.durationMinutes = Int(elapsedSeconds / 60)
+
+        // Defensive: if any ExerciseHistory already carries this plan's ID
+        // (a prior partial/duplicate write), remove it before re-inserting so
+        // the store can never accumulate duplicate rows for one session.
+        let staleDescriptor = FetchDescriptor<ExerciseHistory>(
+            predicate: #Predicate<ExerciseHistory> { $0.workoutPlanID == planID }
+        )
+        if let stale = try? modelContext.fetch(staleDescriptor) {
+            for row in stale {
+                modelContext.delete(row)
+            }
+        }
 
         // Per build done_when #11 — write one ExerciseHistory record per
         // exercise that had at least one completed working set. Warmup sets
@@ -622,6 +663,7 @@ final class TrainingViewModel {
                 bestSetWeight: snap.bestSetWeight,
                 bestSetReps: snap.bestSetReps,
                 setsPerformed: snap.setsPerformed,
+                workoutPlanID: planID,
                 exercise: snap.exercise
             )
             modelContext.insert(history)
@@ -629,10 +671,9 @@ final class TrainingViewModel {
 
         // Persist to SwiftData
         try? modelContext.save()
-
-        // Write to HealthKit (via step 5.7)
-        // The HealthKit write is best-effort; don't block on failure
-        // (Full HealthKit workout writing is implemented in Phase 5)
+        #if DEBUG
+            print("\(DebugTrace.prefix)[Workout] persistCompletion: plan=\(planID) wrote \(snapshots.count) history rows, status=.completed")
+        #endif
 
         // Day-plan engine signal — a logged workout means subsequent
         // blocks (especially recovery + meals) may shift. DayPlanScheduler
@@ -645,6 +686,15 @@ final class TrainingViewModel {
         // Keep the Dashboard Move quadrant in sync with the just-completed
         // workout (status flipped to .completed above).
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
+        return true
+    }
+
+    func saveWorkout(modelContext: ModelContext) async {
+        // Completion may already be persisted (auto-saved on entering
+        // .summary). This call is idempotent; it writes only if it hasn't yet.
+        persistCompletion(modelContext: modelContext)
+
+        // Write to HealthKit (via step 5.7) — best-effort, Phase 5.
 
         sessionState = .saved
         resetState()
