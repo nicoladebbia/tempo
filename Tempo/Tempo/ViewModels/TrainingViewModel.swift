@@ -601,21 +601,6 @@ final class TrainingViewModel {
         }
 
         let planID = plan.id
-        plan.status = .completed
-        plan.finishedAt = Date()
-        plan.durationMinutes = Int(elapsedSeconds / 60)
-
-        // Defensive: if any ExerciseHistory already carries this plan's ID
-        // (a prior partial/duplicate write), remove it before re-inserting so
-        // the store can never accumulate duplicate rows for one session.
-        let staleDescriptor = FetchDescriptor<ExerciseHistory>(
-            predicate: #Predicate<ExerciseHistory> { $0.workoutPlanID == planID }
-        )
-        if let stale = try? modelContext.fetch(staleDescriptor) {
-            for row in stale {
-                modelContext.delete(row)
-            }
-        }
 
         // Per build done_when #11 — write one ExerciseHistory record per
         // exercise that had at least one completed working set. Warmup sets
@@ -623,12 +608,18 @@ final class TrainingViewModel {
         // signal future workout generation reads.
         //
         // SNAPSHOT the relationship data into plain value structs BEFORE
-        // we start inserting ExerciseHistory rows. Iterating
-        // plan.orderedExercises + dereferencing .sets while mutating the
-        // same context is the SwiftData-invalidation pattern that crashed
-        // nutrition 3×. Reading everything up-front means no live
-        // relationship is touched during the insert loop.
-        let sessionDate = plan.finishedAt ?? Date()
+        // we mutate the context. Iterating plan.orderedExercises +
+        // dereferencing .sets while mutating the same context is the
+        // SwiftData-invalidation pattern that crashed nutrition 3×. Reading
+        // everything up-front means no live relationship is touched during
+        // the insert loop.
+        //
+        // CRUCIAL: compute snapshots BEFORE flipping status. A session with
+        // zero completed working sets is NOT a completed workout — auto-save
+        // now fires on every .summary entry (incl. an early "Finish" tap or
+        // the instant-finish bug), and Step 1 makes a .completed plan sacred.
+        // Flipping status with no sets would mint a phantom completed plan
+        // that can never be regenerated, locking the day. Guard against it.
         struct HistorySnapshot {
             let exercise: Exercise
             let totalVolume: Double
@@ -654,6 +645,32 @@ final class TrainingViewModel {
                 bestSetReps: best?.actualReps,
                 setsPerformed: completedSets.count
             )
+        }
+
+        guard !snapshots.isEmpty else {
+            // Nothing was actually logged — do NOT mark the plan completed.
+            // Leave it .planned/.inProgress so the day stays open.
+            #if DEBUG
+                print("\(DebugTrace.prefix)[Workout] persistCompletion: plan=\(planID) NO completed working sets — not marking complete")
+            #endif
+            return false
+        }
+
+        plan.status = .completed
+        plan.finishedAt = Date()
+        plan.durationMinutes = Int(elapsedSeconds / 60)
+        let sessionDate = plan.finishedAt ?? Date()
+
+        // Defensive: if any ExerciseHistory already carries this plan's ID
+        // (a prior partial/duplicate write), remove it before re-inserting so
+        // the store can never accumulate duplicate rows for one session.
+        let staleDescriptor = FetchDescriptor<ExerciseHistory>(
+            predicate: #Predicate<ExerciseHistory> { $0.workoutPlanID == planID }
+        )
+        if let stale = try? modelContext.fetch(staleDescriptor) {
+            for row in stale {
+                modelContext.delete(row)
+            }
         }
         for snap in snapshots {
             let history = ExerciseHistory(
