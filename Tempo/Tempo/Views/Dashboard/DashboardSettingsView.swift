@@ -6,6 +6,7 @@
 //
 //
 
+import CoreLocation
 import SwiftData
 import SwiftUI
 import UIKit
@@ -48,6 +49,8 @@ struct DashboardSettingsView: View {
     @State private var showPaywall = false
     @State private var isRestoring = false
     @State private var restoreError: String?
+    // Refreshed on appear — location auth can change in iOS Settings while away.
+    @State private var locationStatus: CLAuthorizationStatus = CLLocationManager().authorizationStatus
 
     var body: some View {
         List {
@@ -164,8 +167,23 @@ struct DashboardSettingsView: View {
                     )
                 }
                 .buttonStyle(.plain)
+
+                Button {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                } label: {
+                    integrationRow(
+                        icon: "cloud.sun.fill",
+                        label: "Weather (Location)",
+                        status: locationStatusText,
+                        statusColor: locationStatusColor
+                    )
+                }
+                .buttonStyle(.plain)
             }
             .listRowBackground(Color.tempoSurfaceCard)
+            .onAppear { locationStatus = CLLocationManager().authorizationStatus }
 
             Section("Modes") {
                 NavigationLink {
@@ -440,6 +458,23 @@ struct DashboardSettingsView: View {
 
     private var healthKitStatusColor: Color {
         healthKitAuthorized ? .tempoSuccess : .tempoTextTertiary
+    }
+
+    private var locationStatusText: String {
+        switch locationStatus {
+        case .authorizedWhenInUse, .authorizedAlways: "Authorized"
+        case .denied, .restricted: "Denied"
+        case .notDetermined: "Not Set Up"
+        @unknown default: "Not Set Up"
+        }
+    }
+
+    private var locationStatusColor: Color {
+        switch locationStatus {
+        case .authorizedWhenInUse, .authorizedAlways: .tempoSuccess
+        case .denied, .restricted: .tempoError
+        default: .tempoTextTertiary
+        }
     }
 }
 

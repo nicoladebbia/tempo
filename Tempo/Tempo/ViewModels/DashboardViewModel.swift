@@ -205,15 +205,13 @@ final class DashboardViewModel {
     }
 
     private func getCurrentLocation() async -> CLLocation? {
-        // Check for cached location from CLLocationManager
-        // Returns nil if location services not authorized (graceful degradation)
-        let manager = CLLocationManager()
-        if manager.authorizationStatus == .authorizedWhenInUse ||
-            manager.authorizationStatus == .authorizedAlways
-        {
-            return manager.location
-        }
-        return nil
+        // Fetch one fresh location fix ONLY if the user has already granted
+        // location access. We deliberately do NOT trigger the permission prompt
+        // here — weather is a passive header ornament, so an unsolicited
+        // launch-time popup is the wrong UX. Authorization is requested later
+        // via an explicit user action (settings toggle). Until then, weather
+        // simply stays hidden for users who haven't opted in.
+        await OneShotLocationProvider().requestLocationIfAuthorized()
     }
 
     // MARK: - Non-Negotiables
@@ -1666,4 +1664,53 @@ final class DashboardViewModel {
     }
 
     // Native nutrition fetch lives in DashboardViewModel+NutritionFetch.swift.
+}
+
+// MARK: - OneShotLocationProvider
+
+/// Bridges `CLLocationManager`'s delegate callbacks into a single `async`
+/// call that returns one location fix WHEN access is already authorized. It
+/// never triggers the permission prompt (see `requestLocationIfAuthorized`).
+/// The manager is retained for the lifetime of the request (held by the
+/// provider, which is held by the in-flight continuation closure), avoiding
+/// the "fresh manager's `.location` is always nil" bug.
+private final class OneShotLocationProvider: NSObject, CLLocationManagerDelegate {
+    private let manager = CLLocationManager()
+    private var continuation: CheckedContinuation<CLLocation?, Never>?
+
+    /// Returns a single location fix only if access is ALREADY granted; returns
+    /// nil otherwise WITHOUT triggering the system permission prompt. Use this
+    /// for passive/background features that must not interrupt the user with an
+    /// unsolicited authorization dialog. Safe to call from `@MainActor`;
+    /// resumes exactly once.
+    func requestLocationIfAuthorized() async -> CLLocation? {
+        switch manager.authorizationStatus {
+        case .authorizedWhenInUse, .authorizedAlways:
+            return await withCheckedContinuation { continuation in
+                self.continuation = continuation
+                manager.delegate = self
+                manager.desiredAccuracy = kCLLocationAccuracyKilometer
+                manager.requestLocation()
+            }
+        default:
+            // Not yet determined, denied, or restricted — do not prompt.
+            return nil
+        }
+    }
+
+    private func finish(with location: CLLocation?) {
+        manager.delegate = nil
+        continuation?.resume(returning: location)
+        continuation = nil
+    }
+
+    // MARK: CLLocationManagerDelegate
+
+    func locationManager(_: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        finish(with: locations.last)
+    }
+
+    func locationManager(_: CLLocationManager, didFailWithError _: Error) {
+        finish(with: nil)
+    }
 }
