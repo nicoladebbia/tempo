@@ -7,7 +7,6 @@
 //
 
 import Charts
-import OSLog
 import SwiftData
 import SwiftUI
 
@@ -17,8 +16,10 @@ import SwiftUI
 // Per WIREFRAMES.md Screen 21 — Progress chart per exercise.
 
 struct ProgressChartsView: View {
-    @Environment(\.modelContext)
-    private var modelContext
+    // modelContext intentionally removed — this view is now read-only. The
+    // only writer was the deleted purge; reintroducing context access here
+    // would invite another on-appearance mutation of history. Deletions
+    // happen in WorkoutHistoryView.
     @Query(sort: \ExerciseHistory.date, order: .reverse)
     private var allHistory: [ExerciseHistory]
     @Query(sort: \Exercise.name)
@@ -75,61 +76,14 @@ struct ProgressChartsView: View {
         .background(Color.tempoBgPrimary)
         .navigationTitle("Progress")
         .navigationBarTitleDisplayMode(.inline)
-        // NOTE: purgeOrphanedHistory() was removed from here — it was DELETING
-        // valid ExerciseHistory on every Progress open whenever the matching
-        // WorkoutPlan wasn't marked .completed (data-loss bug). History is the
-        // permanent record and is independent of the ephemeral WorkoutPlan;
-        // orphan cleanup belongs at explicit user deletion (WorkoutHistoryView),
-        // not on view appearance. The function body is left dead pending its
-        // removal once the write-path + plan-churn fixes land.
-    }
-
-    // ExerciseHistory has no relationship back to WorkoutPlan, so historically a
-    // user could delete a workout from History and leave behind ExerciseHistory
-    // rows that still showed in Progress. WorkoutHistoryView.deleteWorkout() now
-    // cascades correctly for new deletions, but pre-existing orphans linger.
-    // Purge them on Progress appearance: any history row whose (day, exercise.id)
-    // doesn't correspond to a completed WorkoutPlan is dead weight.
-    private func purgeOrphanedHistory() {
-        let historySnapshot = Array(allHistory)
-        guard !historySnapshot.isEmpty else {
-            Logger.training.info("[purge] no history rows, nothing to do")
-            return
-        }
-        let cal = Calendar.current
-        var validKeys = Set<String>()
-        for plan in workoutPlans where plan.status == .completed {
-            let day = cal.startOfDay(for: plan.finishedAt ?? plan.date)
-            for plannedEx in plan.orderedExercises {
-                if let exID = plannedEx.exercise?.id {
-                    validKeys.insert("\(day.timeIntervalSince1970)|\(exID.uuidString)")
-                }
-            }
-        }
-        Logger.training.info("[purge] historySnapshot.count=\(historySnapshot.count) validKeys.count=\(validKeys.count) completedPlans=\(workoutPlans.filter { $0.status == .completed }.count)")
-
-        var toDelete: [ExerciseHistory] = []
-        for entry in historySnapshot {
-            let day = cal.startOfDay(for: entry.date)
-            let key = "\(day.timeIntervalSince1970)|\(entry.exercise?.id.uuidString ?? "nil")"
-            if !validKeys.contains(key) {
-                toDelete.append(entry)
-                Logger.training.debug("[purge] orphan vol=\(entry.totalVolume) ex=\(entry.exercise?.name ?? "nil") day=\(day)")
-            }
-        }
-        guard !toDelete.isEmpty else {
-            Logger.training.info("[purge] no orphans found")
-            return
-        }
-        for entry in toDelete {
-            modelContext.delete(entry)
-        }
-        do {
-            try modelContext.save()
-            Logger.training.info("[purge] deleted \(toDelete.count) orphan ExerciseHistory rows")
-        } catch {
-            Logger.training.error("[purge] save failed: \(error.localizedDescription)")
-        }
+        // NOTE: there is deliberately NO orphan-purge on appearance. A prior
+        // purgeOrphanedHistory() ran here and DELETED valid ExerciseHistory on
+        // every Progress open whenever the matching WorkoutPlan wasn't marked
+        // .completed — a data-loss bug. ExerciseHistory is the permanent
+        // training record and is independent of the ephemeral daily
+        // WorkoutPlan (no schema relationship); its validity is never derived
+        // from plan status. Orphan cleanup happens only at explicit user
+        // deletion in WorkoutHistoryView.deleteWorkout(), keyed by workoutPlanID.
     }
 
     // MARK: - Overview Tab
