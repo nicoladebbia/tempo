@@ -60,7 +60,16 @@ enum WorkoutSessionState: Codable, Equatable {
 final class TrainingViewModel {
     // MARK: - State
 
-    var sessionState: WorkoutSessionState = .idle
+    var sessionState: WorkoutSessionState = .idle {
+        didSet {
+            #if DEBUG
+                if oldValue != sessionState {
+                    print("\(DebugTrace.prefix)[Workout] sessionState: \(oldValue) → \(sessionState) | exIdx=\(currentExerciseIndex) setIdx=\(currentSetIndex)")
+                }
+            #endif
+        }
+    }
+
     var todayPlan: WorkoutPlan?
     var weekPlans: [WorkoutPlan] = []
     var isLoading = true
@@ -334,6 +343,9 @@ final class TrainingViewModel {
         }
         let sets = first.orderedSets
         let firstWorkingIndex = sets.firstIndex { !$0.isWarmup } ?? 0
+        #if DEBUG
+            print("\(DebugTrace.prefix)[Workout] advancePastWarmup: totalSets=\(sets.count) warmups=\(sets.filter(\.isWarmup).count) → firstWorkingIndex=\(firstWorkingIndex)")
+        #endif
         currentExerciseIndex = 0
         currentSetIndex = firstWorkingIndex
         sessionState = .exercise(.setActive(exerciseIndex: 0, setIndex: firstWorkingIndex))
@@ -445,6 +457,10 @@ final class TrainingViewModel {
         // Determine next state
         let isLastSet = currentSetIndex >= sets.count - 1
         let isLastExercise = currentExerciseIndex >= exercises.count - 1
+        #if DEBUG
+            let warmupCount = sets.filter(\.isWarmup).count
+            print("\(DebugTrace.prefix)[Workout] logSet: exIdx=\(currentExerciseIndex)/\(exercises.count) setIdx=\(currentSetIndex)/\(sets.count) (warmups=\(warmupCount)) → isLastSet=\(isLastSet) isLastExercise=\(isLastExercise)")
+        #endif
 
         if isLastSet, isLastExercise {
             // Per STATE_MACHINES.md — last set of last exercise → cooldown
