@@ -60,6 +60,9 @@ final class RecoveryAIInsightService: @unchecked Sendable {
     // even if every awaiting view has gone away. Mirrors WhoopService's
     // inFlightRefresh pattern. @MainActor-isolated, so no lock needed.
     @MainActor private var dailyInFlight: (day: Date, task: Task<String, Error>)?
+    // Same single-flight protection for the Monday weekly recap path — without
+    // it, a Monday launch storms the proxy exactly like the daily path did.
+    @MainActor private var weeklyInFlight: (week: Date, task: Task<String, Error>)?
 
     init(apiClient: APIClient) {
         self.apiClient = apiClient
@@ -345,6 +348,13 @@ final class RecoveryAIInsightService: @unchecked Sendable {
             return cached.body
         }
 
+        // Single-flight: join an in-flight recap for this week rather than
+        // starting a second paid call.
+        if let inflight = weeklyInFlight, inflight.week == monday {
+            logger.info("[weekly_recap] joining in-flight recap for week of \(monday)")
+            return try await inflight.task.value
+        }
+
         // Trailing 7 days: the week that just ended (the 7 days before today).
         guard let windowStart = cal.date(byAdding: .day, value: -7, to: cal.startOfDay(for: now)) else {
             return nil
@@ -388,18 +398,28 @@ final class RecoveryAIInsightService: @unchecked Sendable {
             runs: runs,
             accountability: accountability
         )
-        let text = try await sendWithRetry(system: Self.weeklySystemPrompt, prompt: prompt)
 
-        let insight = RecoveryInsight(
-            date: monday,
-            type: .aiWeeklyRecap,
-            title: "Last Week",
-            body: text,
-            confidence: 1.0
-        )
-        modelContext.insert(insight)
-        try? modelContext.save()
-        return text
+        // Shared task: network + cache-write + slot-clear as one unit, so the
+        // recap completes-and-caches once even if the awaiting view tore down.
+        let task = Task { @MainActor [weak self] () throws -> String in
+            guard let self else { throw CancellationError() }
+            defer {
+                if self.weeklyInFlight?.week == monday { self.weeklyInFlight = nil }
+            }
+            let text = try await self.sendWithRetry(system: Self.weeklySystemPrompt, prompt: prompt)
+            let insight = RecoveryInsight(
+                date: monday,
+                type: .aiWeeklyRecap,
+                title: "Last Week",
+                body: text,
+                confidence: 1.0
+            )
+            modelContext.insert(insight)
+            try? modelContext.save()
+            return text
+        }
+        weeklyInFlight = (week: monday, task: task)
+        return try await task.value
     }
 
     static let weeklySystemPrompt = """
