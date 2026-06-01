@@ -819,6 +819,17 @@ final class DashboardViewModel {
         let isTrainingDay = status == .planned || status == .completed
         let isRestDayNow = status == .restDay
         if let baseCalTarget = fuel.calorieTarget, baseCalTarget > 0 {
+            // Today's logged non-gym activity (football etc.) feeds the real
+            // sweat-based hydration bonus. Sum across all of today's sessions so
+            // a two-session day isn't undercounted. Nil when nothing logged.
+            let todayStart = Calendar.current.startOfDay(for: Date())
+            let activityDesc = FetchDescriptor<ActivitySession>(
+                predicate: #Predicate<ActivitySession> { $0.date == todayStart }
+            )
+            let todaySessions = (try? modelContext.fetch(activityDesc)) ?? []
+            let activityCal = todaySessions.compactMap(\.caloriesBurned).reduce(0, +)
+            let activityMin = todaySessions.compactMap(\.durationMinutes).reduce(0, +)
+
             let baseTargets = fuel.adjustedTargets
             let recomputed = NutritionEngine.adjustedTargets(
                 baseCalories: baseTargets?.baseCalorieTarget ?? baseCalTarget,
@@ -828,7 +839,9 @@ final class DashboardViewModel {
                 recoveryZone: body.recoveryZone,
                 currentStrain: body.strain,
                 isTrainingDay: isTrainingDay,
-                isRestDay: isRestDayNow
+                isRestDay: isRestDayNow,
+                activityCaloriesBurned: activityCal > 0 ? activityCal : nil,
+                activityDurationMin: activityMin > 0 ? activityMin : nil
             )
             fuel.adjustedTargets = recomputed
             fuel.calorieTarget = recomputed.calorieTarget

@@ -365,6 +365,12 @@ final class RecoveryEngine: RecoveryEngineProtocol, @unchecked Sendable {
 
     // Per MODULE_RECOVERY.md Section 8.5
 
+    // NOTE: this produces DailyPrescription.hydrationTargetMl, surfaced via
+    // RecoveryViewModel.formattedHydration — which is currently NOT rendered by
+    // any view. The hydration number the user sees comes from NutritionEngine
+    // (Fuel quadrant). If you ever wire this path into a view, route its
+    // activity bonus through `HydrationMath` too, or the two surfaces will
+    // disagree (the desync bug class Tempo's CLAUDE.md guards against).
     private func generateHydrationTarget(
         recoveryScore: Double,
         plannedTraining: Bool,

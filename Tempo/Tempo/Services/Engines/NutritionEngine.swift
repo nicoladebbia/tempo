@@ -62,7 +62,13 @@ enum NutritionEngine {
         currentStrain: Double?,
         isTrainingDay: Bool,
         isRestDay: Bool,
-        baseHydrationMl: Int = 2500
+        baseHydrationMl: Int = 2500,
+        // Logged activity (any source: gym, run, football…) for today, used to
+        // replace the crude strain>14 hydration cliff with a real sweat
+        // estimate. Both nil on a no-activity day → falls back cleanly to the
+        // recovery-zone-only behavior.
+        activityCaloriesBurned: Double? = nil,
+        activityDurationMin: Double? = nil
     ) -> AdjustedNutritionTargets {
         var calories = baseCalories
         var protein = baseProtein
@@ -117,10 +123,17 @@ enum NutritionEngine {
             explanation = "Standard targets. No recovery adjustments needed."
         }
 
-        // High strain bonus hydration
-        if let strain = currentStrain, strain > 14 {
-            hydration = Int(Double(hydration) * 1.15)
-        }
+        // Activity hydration: replace the old binary strain>14 ×1.15 cliff with
+        // a real sweat estimate from the logged session's calories + duration
+        // (HydrationMath — the same math the training card shows). Additive on
+        // the recovery-adjusted base. When there's no logged activity, the
+        // bonus is 0 and hydration is recovery-zone-driven only (no regression).
+        // The recovery-zone multipliers above are intentionally KEPT — they
+        // model recovery state, not activity.
+        hydration += HydrationMath.activityBonusMl(
+            caloriesBurned: activityCaloriesBurned,
+            durationMinutes: activityDurationMin
+        )
 
         return AdjustedNutritionTargets(
             calorieTarget: calories,
