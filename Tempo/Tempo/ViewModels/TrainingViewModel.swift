@@ -1368,7 +1368,11 @@ final class TrainingViewModel {
                     return
                 }
                 if self.tickRestTimer() {
-                    // Reached zero — advance.
+                    // Reached zero — tear the timer down BEFORE advancing so a
+                    // foreground event during the next set can't see a stale
+                    // restEndDate/restTimerTask and fire advanceAfterRest a
+                    // second time (which would silently skip that set).
+                    self.stopRestTimer()
                     self.advanceAfterRest()
                     return
                 }
@@ -1411,10 +1415,12 @@ final class TrainingViewModel {
     /// any music the user is playing, including when the screen is locked.
     private static func activateRestAudioSession() {
         let session = AVAudioSession.sharedInstance()
+        // .duckOthers lowers (not stops) the user's music while a cue plays.
+        // It is mutually exclusive with .mixWithOthers, so we use it alone.
         try? session.setCategory(
             .playback,
             mode: .spokenAudio,
-            options: [.duckOthers, .mixWithOthers]
+            options: [.duckOthers]
         )
         try? session.setActive(true, options: [])
     }
@@ -1450,27 +1456,39 @@ final class TrainingViewModel {
         guard current < lastCuedSecond else {
             return
         }
-        // Walk every threshold crossed since the last tick (covers gaps caused
-        // by backgrounding) and fire the most urgent cue for each.
-        for second in stride(from: lastCuedSecond - 1, through: max(current, 0), by: -1) {
-            switch second {
-            case 10:
-                Self.playBeep()
-                Self.speak("Ten seconds")
-            case 3:
-                Self.speak("Three")
-            case 2:
-                Self.speak("Two")
-            case 1:
-                Self.speak("One")
-            case 0:
-                // Haptic at T-0 is owned by advanceAfterRest to avoid a double buzz.
-                Self.speak("Go")
-            default:
-                break
-            }
+        defer { lastCuedSecond = current }
+
+        let target = max(current, 0)
+        // Normal 0.2s ticks cross one threshold at a time. If many thresholds
+        // were crossed at once (the app was backgrounded), DON'T replay them as
+        // a misleading "ten… three… two" burst — fire only the single most
+        // urgent cue for where we actually are now.
+        if lastCuedSecond - 1 - target > 1 {
+            cue(for: target)
+            return
         }
-        lastCuedSecond = current
+        for second in stride(from: lastCuedSecond - 1, through: target, by: -1) {
+            cue(for: second)
+        }
+    }
+
+    private func cue(for second: Int) {
+        switch second {
+        case 10:
+            Self.playBeep()
+            Self.speak("Ten seconds")
+        case 3:
+            Self.speak("Three")
+        case 2:
+            Self.speak("Two")
+        case 1:
+            Self.speak("One")
+        case 0:
+            // Haptic at T-0 is owned by advanceAfterRest to avoid a double buzz.
+            Self.speak("Go")
+        default:
+            break
+        }
     }
 
     private func stopRestTimer() {
