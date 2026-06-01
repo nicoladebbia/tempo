@@ -316,9 +316,18 @@ struct WorkoutHistoryView: View {
                 Divider()
                     .background(Color.tempoTextTertiary.opacity(0.2))
 
-                VStack(spacing: TempoSpacing.xs) {
-                    ForEach(workout.orderedExercises, id: \.id) { plannedEx in
-                        exerciseDetailRow(plannedEx)
+                Group {
+                    if workout.orderedExercises.isEmpty,
+                       let session = activitySession(for: workout) {
+                        // Non-gym session (football etc.) — no exercises to
+                        // list; show the Whoop activity detail instead.
+                        activityDetail(session)
+                    } else {
+                        VStack(spacing: TempoSpacing.xs) {
+                            ForEach(workout.orderedExercises, id: \.id) { plannedEx in
+                                exerciseDetailRow(plannedEx)
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal, TempoSpacing.cardPadding)
@@ -329,6 +338,64 @@ struct WorkoutHistoryView: View {
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
         .tempoShadow(.card)
+    }
+
+    // MARK: - Activity (non-gym) Detail
+
+    private func activitySession(for workout: WorkoutPlan) -> ActivitySession? {
+        allActivitySessions.first { $0.workoutPlanID == workout.id }
+    }
+
+    @ViewBuilder
+    private func activityDetail(_ session: ActivitySession) -> some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            HStack(spacing: TempoSpacing.lg) {
+                if let strain = session.strain {
+                    activityMetric(String(format: "%.1f", strain), "Strain")
+                }
+                if let mins = session.durationMinutes {
+                    activityMetric("\(Int(mins))m", "Duration")
+                }
+                if let hr = session.averageHeartRate {
+                    activityMetric("\(Int(hr))", "Avg HR")
+                }
+                if let cal = session.caloriesBurned {
+                    activityMetric("\(Int(cal))", "Cal")
+                }
+            }
+
+            if let range = HydrationMath.sweatLossLitres(
+                caloriesBurned: session.caloriesBurned,
+                durationMinutes: session.durationMinutes
+            ) {
+                HStack(spacing: TempoSpacing.xs) {
+                    Image(systemName: "drop.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.tempoElectric)
+                    Text(String(format: "~%.1f–%.1f L lost", range.lowerBound, range.upperBound))
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                }
+            }
+
+            if session.source == "manual" {
+                Text("Logged manually — no Whoop data.")
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextTertiary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func activityMetric(_ value: String, _ label: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.tempoHeadline)
+                .foregroundStyle(Color.tempoTextPrimary)
+            Text(label)
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextTertiary)
+        }
     }
 
     // MARK: - Exercise Detail Row
