@@ -28,6 +28,12 @@ final class WorkoutPlan {
 
     var notes: String?
 
+    /// Whether the user completed (or worked through) the guided general
+    /// warm-up + mobility block for this session. The block logs no sets — this
+    /// flag is the only record that it happened, shown in the summary/history.
+    /// Defaulted, so SwiftData migrates it automatically (no manual migration).
+    var warmupCompleted: Bool = false
+
     var startedAt: Date?
 
     var finishedAt: Date?

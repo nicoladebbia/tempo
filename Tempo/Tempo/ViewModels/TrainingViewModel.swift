@@ -437,6 +437,10 @@ final class TrainingViewModel {
         #endif
         currentExerciseIndex = 0
         currentSetIndex = firstWorkingIndex
+        // Record warm-up as completed only if the user actually worked through
+        // all the moves (not if they hit "Skip whole warm-up").
+        let moveCount = warmupRoutine?.moves.count ?? 0
+        plan.warmupCompleted = moveCount > 0 && warmupMoveIndex >= moveCount
         // Clock starts here — warm-up time is NOT counted in session duration.
         // Stamp plan.startedAt here too (not at warmup entry) so the persisted
         // start time and crash-recovery elapsed math both exclude warm-up.

@@ -36,6 +36,18 @@ struct WorkoutSummaryView: View {
                 // Stats grid
                 statsGrid
 
+                // Warm-up marker (the guided mobility block logs no sets).
+                if viewModel.todayPlan?.warmupCompleted == true {
+                    HStack(spacing: TempoSpacing.xs) {
+                        Image(systemName: "checkmark.seal.fill")
+                            .foregroundStyle(Color.tempoRecoveryGreen)
+                        Text("Warm-up completed")
+                            .font(.tempoSubheadline)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+
                 // Per-exercise summary
                 exerciseSummary
 
