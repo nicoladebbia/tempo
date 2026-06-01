@@ -1187,6 +1187,48 @@ final class TrainingViewModel {
         return "Set \(currentSetIndex + 1) of \(total)"
     }
 
+    /// Context for the rest screen: what the user is resting *toward*.
+    /// During between-sets rest this is the current exercise; during the rest
+    /// before the next exercise it is the upcoming exercise (so the screen can
+    /// preview its name + how-to instead of mislabelling it "Current:").
+    struct RestContext {
+        let exercise: Exercise?
+        /// True when rest leads into a different exercise (show full how-to).
+        let isExerciseTransition: Bool
+        /// Short label, e.g. "Next: Set 2 of 4" or "Up next".
+        let label: String
+        let instructions: String?
+        let cues: [String]
+    }
+
+    var restContext: RestContext {
+        let exercises = todayPlan?.orderedExercises ?? []
+        if pendingRestAction == .nextExercise {
+            let nextIndex = currentExerciseIndex + 1
+            let next = nextIndex < exercises.count ? exercises[nextIndex] : nil
+            let ex = next?.exercise
+            return RestContext(
+                exercise: ex,
+                isExerciseTransition: true,
+                label: ex.map { "Up next: \($0.name)" } ?? "Up next",
+                instructions: ex?.instructions,
+                cues: ex?.cues ?? []
+            )
+        } else {
+            let ex = currentExercise?.exercise
+            // Resting between sets — the next set is currentSetIndex + 1.
+            let total = currentExercise?.orderedSets.count ?? 0
+            let nextSetNumber = min(currentSetIndex + 2, total)
+            return RestContext(
+                exercise: ex,
+                isExerciseTransition: false,
+                label: ex.map { "\($0.name) · next: set \(nextSetNumber) of \(total)" } ?? "",
+                instructions: nil,
+                cues: []
+            )
+        }
+    }
+
     var workoutTypeDisplayName: String {
         todayPlan?.type.displayName ?? "Rest"
     }
@@ -1390,19 +1432,7 @@ final class TrainingViewModel {
     }
 
     /// Extends the current rest timer by the given number of seconds.
-    func extendRest(by seconds: TimeInterval) {
-        guard restTimerRemaining > 0, let end = restEndDate else {
-            return
-        }
-        restEndDate = end.addingTimeInterval(seconds)
-        restTimerTotal += seconds
-        restTimerRemaining += seconds
-        // Re-arm cues for the new, longer window.
-        lastCuedSecond = Int(restTimerRemaining.rounded(.up)) + 1
-
-        // Reschedule notification with updated remaining time
-        scheduleRestTimerNotification(seconds: restTimerRemaining)
-    }
+    
 
     // MARK: - Rest Timer Notifications
 
