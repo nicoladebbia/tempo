@@ -106,6 +106,9 @@ final class TrainingViewModel {
         case foundUntagged(WhoopActivitySummary)
         /// No Whoop activity today — offer manual attestation.
         case none
+        /// User said the found activity wasn't this sport — stop prompting,
+        /// but still allow a manual "I played" log.
+        case dismissed
         /// Today's session was already confirmed + saved.
         case saved(WhoopActivitySummary?)
     }
@@ -854,13 +857,39 @@ final class TrainingViewModel {
         let todayStart = cal.startOfDay(for: Date())
         let todays = activities.filter { cal.isDate($0.startTime, inSameDayAs: todayStart) }
 
-        if let tagged = todays.first(where: { $0.sportID == expectedSportID }) {
-            nonGymActivityState = .foundTagged(Self.summary(from: tagged))
+        let tagged = todays.filter { $0.sportID == expectedSportID }
+        if !tagged.isEmpty {
+            // Sum ALL matching sessions for the day — two football sessions
+            // must not silently drop one. Strain/calories/duration aggregate;
+            // avg HR is duration-weighted; startTime is the earliest.
+            nonGymActivityState = .foundTagged(Self.aggregate(tagged))
         } else if let any = todays.max(by: { $0.strain < $1.strain }) {
+            // Untagged is ambiguous — don't sum unrelated activities. Show the
+            // single highest-strain one and let the user confirm or reject it.
             nonGymActivityState = .foundUntagged(Self.summary(from: any))
         } else {
             nonGymActivityState = .none
         }
+    }
+
+    /// Combine multiple same-day activities into one summary so no session is
+    /// lost. Strain / calories / duration sum; avg HR is duration-weighted;
+    /// sportID + startTime come from the earliest session.
+    private static func aggregate(_ items: [WhoopWorkoutData]) -> WhoopActivitySummary {
+        let totalStrain = items.reduce(0) { $0 + $1.strain }
+        let totalCal = items.reduce(0) { $0 + $1.caloriesBurned }
+        let totalMin = items.reduce(0) { $0 + $1.durationMinutes }
+        let hrNumerator = items.reduce(0) { $0 + $1.averageHeartRate * $1.durationMinutes }
+        let avgHR = totalMin > 0 ? hrNumerator / totalMin : (items.first?.averageHeartRate ?? 0)
+        let earliest = items.min { $0.startTime < $1.startTime }
+        return WhoopActivitySummary(
+            strain: totalStrain,
+            averageHeartRate: avgHR,
+            durationMinutes: totalMin,
+            caloriesBurned: totalCal,
+            sportID: earliest?.sportID ?? items.first?.sportID ?? -1,
+            startTime: earliest?.startTime ?? Date()
+        )
     }
 
     /// Confirm the non-gym session and persist it. `summary` is the Whoop
@@ -882,6 +911,13 @@ final class TrainingViewModel {
         }
         persistNonGymCompletion(whoop: whoopData, modelContext: modelContext)
         nonGymActivityState = .saved(summary)
+    }
+
+    /// User rejected the found activity ("not football"). Stop prompting about
+    /// the Whoop activity for today; they can still log manually. Not persisted
+    /// across launches — re-fetches next session, which is fine (rare case).
+    func dismissNonGymActivity() {
+        nonGymActivityState = .dismissed
     }
 
     private static func summary(from w: WhoopWorkoutData) -> WhoopActivitySummary {

@@ -845,9 +845,17 @@ struct TodayWorkoutView: View {
                     .multilineTextAlignment(.center)
                 activityStatsRow(summary)
                 confirmButton(title: "YES, LOG IT", summary: summary)
+                Button {
+                    HapticManager.impact(.light)
+                    viewModel.dismissNonGymActivity()
+                } label: {
+                    Text("No — that wasn't \(plan.type.displayName.lowercased())")
+                        .font(.tempoSubheadline)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                }
             }
 
-        case .none:
+        case .none, .dismissed:
             confirmButton(
                 title: "LOG THAT I PLAYED",
                 summary: nil
