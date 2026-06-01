@@ -511,43 +511,51 @@ struct ActiveWorkoutView: View {
     // MARK: - Cooldown Content
 
     private var cooldownContent: some View {
-        VStack(spacing: TempoSpacing.xxl) {
-            Spacer()
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: TempoSpacing.xl) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 80))
+                    .foregroundStyle(Color.tempoRecoveryGreen)
+                    .padding(.top, TempoSpacing.xxl)
 
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 80))
-                .foregroundStyle(Color.tempoRecoveryGreen)
+                Text("WORKOUT COMPLETE!")
+                    .font(.tempoTitle1)
+                    .foregroundStyle(Color.tempoTextPrimary)
 
-            Text("WORKOUT COMPLETE!")
-                .font(.tempoTitle1)
-                .foregroundStyle(Color.tempoTextPrimary)
+                if !viewModel.detectedPRs.isEmpty {
+                    VStack(spacing: TempoSpacing.sm) {
+                        Image(systemName: "trophy.fill")
+                            .font(.system(size: 32))
+                            .foregroundStyle(Color.tempoPRGold)
 
-            if !viewModel.detectedPRs.isEmpty {
-                VStack(spacing: TempoSpacing.sm) {
-                    Image(systemName: "trophy.fill")
-                        .font(.system(size: 32))
-                        .foregroundStyle(Color.tempoPRGold)
-
-                    Text("\(viewModel.detectedPRs.count) PR\(viewModel.detectedPRs.count > 1 ? "s" : "") Hit!")
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        Text("\(viewModel.detectedPRs.count) PR\(viewModel.detectedPRs.count > 1 ? "s" : "") Hit!")
+                            .font(.tempoHeadline)
+                            .foregroundStyle(Color.tempoTextPrimary)
+                    }
                 }
-            }
 
-            Button {
-                viewModel.skipCooldown()
-            } label: {
-                Text("VIEW SUMMARY")
-                    .font(.tempoHeadline)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 56)
-                    .background(Color.tempoSignal)
-                    .foregroundStyle(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
-            }
-            .padding(.horizontal, TempoSpacing.screenEdge)
+                // The last working set goes straight to cooldown (no rest), so
+                // its feedback panel never showed during a rest. Surface it here
+                // so RPE/notes for the final set can still be captured.
+                if viewModel.currentFeedback != nil {
+                    InlineSetFeedbackView(viewModel: viewModel)
+                }
 
-            Spacer()
+                Button {
+                    viewModel.skipCooldown()
+                } label: {
+                    Text("VIEW SUMMARY")
+                        .font(.tempoHeadline)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                        .background(Color.tempoSignal)
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+                }
+                .padding(.horizontal, TempoSpacing.screenEdge)
+                .padding(.bottom, TempoSpacing.xxl)
+            }
+            .frame(maxWidth: .infinity)
         }
     }
 

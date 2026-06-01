@@ -1506,29 +1506,56 @@ final class TrainingViewModel {
 
     // MARK: - Rest Timer Notifications
 
+    /// IDs for the multi-cue rest notifications (T-10, T-3, T-2, T-1, T-0).
+    private static let restCueNotificationIDs = [
+        "tempo.rest.cue.10",
+        "tempo.rest.cue.3",
+        "tempo.rest.cue.2",
+        "tempo.rest.cue.1",
+        "tempo.rest.timer", // T-0 — keeps the original ID
+    ]
+
+    /// Schedule notification SOUNDS at each countdown beat so the cues are
+    /// audible through earphones even with the phone LOCKED / in a pocket —
+    /// the app's in-process AVSpeechSynthesizer cues only fire while the app is
+    /// foregrounded (iOS suspends the timer Task on lock). These notifications
+    /// are the locked-phone path; the in-app voice is the screen-on path.
     private func scheduleRestTimerNotification(seconds: TimeInterval) {
         let center = UNUserNotificationCenter.current()
-        // Cancel any existing rest timer notification first
-        center.removePendingNotificationRequests(withIdentifiers: [Self.restTimerNotificationID])
+        center.removePendingNotificationRequests(withIdentifiers: Self.restCueNotificationIDs)
 
-        let content = UNMutableNotificationContent()
-        content.title = "Rest Over"
-        content.body = "Time to hit your next set."
-        content.sound = .default
-        content.interruptionLevel = .timeSensitive
+        // (offsetFromEnd, id, title, body) — fire each at `seconds - offset`.
+        let cues: [(Double, String, String, String)] = [
+            (10, "tempo.rest.cue.10", "10 seconds", "Get ready — 10 seconds left."),
+            (3, "tempo.rest.cue.3", "3", "Rest ending…"),
+            (2, "tempo.rest.cue.2", "2", "Rest ending…"),
+            (1, "tempo.rest.cue.1", "1", "Rest ending…"),
+            (0, Self.restTimerNotificationID, "Rest Over", "Time to hit your next set."),
+        ]
 
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: max(1, seconds), repeats: false)
-        let request = UNNotificationRequest(
-            identifier: Self.restTimerNotificationID,
-            content: content,
-            trigger: trigger
-        )
-        center.add(request) { _ in }
+        for (offset, id, title, body) in cues {
+            let fireAt = seconds - offset
+            // Skip cues whose fire time is in the past (short rests have no T-10).
+            guard fireAt >= 1 || offset == 0 else {
+                continue
+            }
+            let content = UNMutableNotificationContent()
+            content.title = title
+            content.body = body
+            content.sound = .default
+            content.interruptionLevel = .timeSensitive
+
+            let trigger = UNTimeIntervalNotificationTrigger(
+                timeInterval: max(1, fireAt),
+                repeats: false
+            )
+            center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger)) { _ in }
+        }
     }
 
     private func cancelRestTimerNotification() {
         UNUserNotificationCenter.current()
-            .removePendingNotificationRequests(withIdentifiers: [Self.restTimerNotificationID])
+            .removePendingNotificationRequests(withIdentifiers: Self.restCueNotificationIDs)
     }
 
     // MARK: - Elapsed Timer
