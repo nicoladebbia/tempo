@@ -1402,6 +1402,9 @@ final class TrainingViewModel {
         // Configure the audio session so voice/beep cues play (and duck music)
         // even when the screen is locked.
         Self.activateRestAudioSession()
+        // Preload the countdown clips so playback at fire-time has no disk
+        // latency (loading on the T-3 tick would reintroduce the lag we avoid).
+        CueAudioPlayer.shared.preload([.tenSeconds, .three, .two, .one, .go])
 
         // Schedule a local notification so the user can lock their phone.
         scheduleRestTimerNotification(seconds: duration)
@@ -1472,7 +1475,10 @@ final class TrainingViewModel {
         }
         // Audio session is activated once in startWorkout for the whole warm-up
         // (re-activating per move would re-duck the user's music each time).
-        Self.speak(warmupMoveIndex == 0 ? "Warm up. \(move.name)" : "Next: \(move.name)")
+        // Warm-up move names are a closed, authored set → pre-renderable clip,
+        // with the Apple voice as fallback.
+        let spoken = warmupMoveIndex == 0 ? "Warm up. \(move.name)" : "Next: \(move.name)"
+        CueAudioPlayer.shared.play(.warmupMove(slug: move.slug, spoken: spoken))
 
         guard let seconds = move.durationSeconds, seconds > 0 else {
             // Rep-based move — no countdown, advance is manual.
@@ -1557,21 +1563,10 @@ final class TrainingViewModel {
     }
 
     // MARK: Rest Audio Cues
-
-    /// Retained synthesizer — a local instance would be deallocated mid-utterance.
-    private static let speechSynth = AVSpeechSynthesizer()
-
-    /// Best available offline English voice. Prefers a downloaded
-    /// premium/enhanced voice (much more natural than the default compact one),
-    /// falling back through enhanced → any en-US → system default. The user can
-    /// download premium voices in iOS Settings › Accessibility › Spoken Content.
-    private static let preferredVoice: AVSpeechSynthesisVoice? = {
-        let english = AVSpeechSynthesisVoice.speechVoices()
-            .filter { $0.language.hasPrefix("en") }
-        return english.first { $0.quality == .premium }
-            ?? english.first { $0.quality == .enhanced }
-            ?? AVSpeechSynthesisVoice(language: "en-US")
-    }()
+    //
+    // Voice cues are played by CueAudioPlayer (premium pre-rendered clips for
+    // the closed vocabulary; Apple-speech fallback for dynamic exercise names).
+    // This VM owns only the audio-session activation and the system beep.
 
     /// Configure the shared audio session so cues are audible and DUCK (not stop)
     /// any music the user is playing, including when the screen is locked.
@@ -1591,22 +1586,6 @@ final class TrainingViewModel {
     private static func deactivateRestAudioSession() {
         let session = AVAudioSession.sharedInstance()
         try? session.setActive(false, options: [.notifyOthersOnDeactivation])
-    }
-
-    /// Speak a short cue. Hops to a fresh main-actor Task so the synthesizer's
-    /// audio setup doesn't run as a forced-sync inside the timer tick (which
-    /// produced "unsafeForcedSync from a Swift Concurrent context" warnings).
-    /// AVSpeechSynthesizer is main-actor API, so it stays on the main actor.
-    private static func speak(_ phrase: String) {
-        Task { @MainActor in
-            let utterance = AVSpeechUtterance(string: phrase)
-            // Slightly slower than default reads more clearly over gym noise.
-            utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.95
-            utterance.volume = 1.0
-            utterance.postUtteranceDelay = 0
-            utterance.voice = preferredVoice
-            speechSynth.speak(utterance)
-        }
     }
 
     private static func playBeep() {
@@ -1641,29 +1620,35 @@ final class TrainingViewModel {
     private func cue(for second: Int) {
         switch second {
         case 12:
-            // Fire the "ten seconds" warning a couple of seconds early so the
-            // spoken phrase actually lands around the 10s mark (speech has
-            // startup latency; saying it AT 10 lands at ~8).
+            // "ten seconds" warning. A premium clip starts in ms, so fire it at
+            // T-10; the Apple-speech fallback needs ~2s spin-up, so fire at T-12.
+            if CueAudioPlayer.shared.hasClip(.tenSeconds) {
+                break // handled at case 10 below for clip path
+            }
             Self.playBeep()
-            Self.speak("Get ready — ten seconds")
+            CueAudioPlayer.shared.play(.tenSeconds)
+        case 10:
+            // Clip path only (speech path already fired at 12).
+            if CueAudioPlayer.shared.hasClip(.tenSeconds) {
+                Self.playBeep()
+                CueAudioPlayer.shared.play(.tenSeconds)
+            }
         case 3:
-            Self.speak("Three")
+            CueAudioPlayer.shared.play(.three)
         case 2:
-            Self.speak("Two")
+            CueAudioPlayer.shared.play(.two)
         case 1:
-            Self.speak("One")
+            CueAudioPlayer.shared.play(.one)
         case 0:
-            // Announce what's next by name instead of a bare "Go".
+            // Announce what's next by name. Exercise names are an OPEN set
+            // (custom exercises), so they always use the Apple fallback via
+            // .dynamic; the generic "go" has a premium clip.
             // Haptic at T-0 is owned by advanceAfterRest to avoid a double buzz.
             let ctx = restContext
             if let name = ctx.exercise?.name {
-                if ctx.isExerciseTransition {
-                    Self.speak("Next up: \(name)")
-                } else {
-                    Self.speak("Go — \(name)")
-                }
+                CueAudioPlayer.shared.play(.dynamic(ctx.isExerciseTransition ? "Next up: \(name)" : "Go — \(name)"))
             } else {
-                Self.speak("Go")
+                CueAudioPlayer.shared.play(.go)
             }
         default:
             break

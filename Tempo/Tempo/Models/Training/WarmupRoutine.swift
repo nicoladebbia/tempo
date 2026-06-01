@@ -52,6 +52,21 @@ struct WarmupMove: Identifiable, Equatable {
         self.isTendonPrep = isTendonPrep
         self.durationSeconds = durationSeconds
     }
+
+    /// Stable, filename-safe identifier for the pre-rendered audio clip
+    /// (e.g. "Band pull-aparts" → "band_pull_aparts"). Deterministic so the
+    /// generation script and the runtime lookup agree.
+    var slug: String {
+        let lowered = name.lowercased()
+        let allowed = lowered.map { ch -> Character in
+            ch.isLetter || ch.isNumber ? ch : "_"
+        }
+        var s = String(allowed)
+        while s.contains("__") {
+            s = s.replacingOccurrences(of: "__", with: "_")
+        }
+        return s.trimmingCharacters(in: CharacterSet(charactersIn: "_"))
+    }
 }
 
 // MARK: - WarmupRoutine
