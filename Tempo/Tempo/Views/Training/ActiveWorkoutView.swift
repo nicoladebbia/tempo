@@ -192,6 +192,27 @@ struct ActiveWorkoutView: View {
     private var setActiveContent: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: TempoSpacing.xl) {
+                // Ramp-up banner — makes it unmistakable that this is a warm-up
+                // set (not a working set), on EVERY exercise that has them
+                // (e.g. Lat Pulldown), not just the first.
+                if currentSetIsWarmup {
+                    VStack(spacing: TempoSpacing.xxs) {
+                        Text("RAMP-UP SET")
+                            .font(.tempoCaption1)
+                            .tracking(TempoTracking.drillLabel)
+                            .foregroundStyle(Color.tempoSignal)
+                        Text("Warm up to your working weight — these don't count toward your sets.")
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(TempoSpacing.sm)
+                    .background(Color.tempoSignal.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                    .padding(.horizontal, TempoSpacing.screenEdge)
+                }
+
                 // Exercise info
                 exerciseHeader
 
@@ -252,7 +273,7 @@ struct ActiveWorkoutView: View {
                     )
                     HapticManager.notification(.success)
                 } label: {
-                    Text("Finish Set")
+                    Text(currentSetIsWarmup ? "Finish Warm-Up Set" : "Finish Set")
                         .font(.tempoHeadline)
                         .frame(maxWidth: .infinity)
                         .frame(height: 56)
@@ -265,6 +286,11 @@ struct ActiveWorkoutView: View {
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.vertical, TempoSpacing.lg)
         }
+    }
+
+    /// Whether the set currently being entered is a warm-up (ramp) set.
+    private var currentSetIsWarmup: Bool {
+        viewModel.currentSet?.isWarmup ?? false
     }
 
     // MARK: - Warmup Content
