@@ -213,6 +213,24 @@ struct ActiveWorkoutView: View {
                     .padding(.horizontal, TempoSpacing.screenEdge)
                 }
 
+                // Tier 2.3 — pain caution: a recent note flagged this exercise.
+                if let exID = viewModel.currentExercise?.exercise?.id,
+                   viewModel.painFlaggedExercises.contains(exID) {
+                    HStack(spacing: TempoSpacing.xs) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(Color.tempoWarning)
+                        Text("You noted pain here recently — weight held, go easy and stop if it hurts.")
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(TempoSpacing.sm)
+                    .background(Color.tempoWarning.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                    .padding(.horizontal, TempoSpacing.screenEdge)
+                }
+
                 // Exercise info
                 exerciseHeader
 

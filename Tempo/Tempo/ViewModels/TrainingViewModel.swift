@@ -148,6 +148,11 @@ final class TrainingViewModel {
 
     // MARK: - Guided Warm-Up
 
+    /// Exercise IDs with a recent pain/injury note (Tier 2.3). Cached when the
+    /// plan is populated / loaded so the session UI can show a caution without
+    /// re-scanning every render. Empty when none.
+    var painFlaggedExercises: Set<UUID> = []
+
     /// The resolved routine for today's workout, shown in the guided warm-up.
     var warmupRoutine: WarmupRoutine?
     /// Index of the move the user is currently on in the guided warm-up.
@@ -205,6 +210,11 @@ final class TrainingViewModel {
         if resolved.isCrashedInProgress {
             sessionState = .crashedRecovery
         }
+
+        // Tier 2.3 — refresh the pain-flag cache for the session UI (covers
+        // plans that were already populated in a prior load, where
+        // populateExercises didn't run this time).
+        painFlaggedExercises = painFlaggedExerciseIDs(modelContext: modelContext)
 
         // Check deload week status
         let deloadSettings = loadDeloadSettings(modelContext: modelContext)
@@ -1844,6 +1854,11 @@ final class TrainingViewModel {
         // Pair compound + isolation targeting different muscle groups (e.g. bench + lateral raise).
         let supersetPairs = assignSupersetGroups(selected)
 
+        // Tier 2.3 — exercises with a recent pain/injury note stay conservative
+        // (no weight increase) until the note clears. Cached for the session UI.
+        let painFlagged = painFlaggedExerciseIDs(modelContext: modelContext)
+        painFlaggedExercises = painFlagged
+
         // Build PlannedExercise + PlannedSet objects with target weights
         // Intelligent volume prescription:
         //   Primary compound (index 0): 4 working sets
@@ -1877,7 +1892,15 @@ final class TrainingViewModel {
             // Use progressive overload from history, or sensible defaults
             let history = exercise.history ?? []
             let overload = trainingEngine.calculateProgressiveOverload(for: exercise, history: history)
-            let weight: Double = overload.weight > 0 ? overload.weight : defaultWeight(for: exercise)
+            var weight: Double = overload.weight > 0 ? overload.weight : defaultWeight(for: exercise)
+
+            // Tier 2.3 — recent pain note on this exercise → never prescribe
+            // MORE than last session's weight (hold conservative until it clears).
+            if painFlagged.contains(exercise.id),
+               let lastWeight = history.sorted(by: { $0.date > $1.date }).first?.bestSetWeight,
+               lastWeight > 0 {
+                weight = min(weight, lastWeight)
+            }
 
             // Apply recovery adjustment and deload multiplier if applicable
             let deloadMultiplier = isDeloadWeek ? trainingEngine.deloadWeightMultiplier() : 1.0
@@ -1937,6 +1960,42 @@ final class TrainingViewModel {
             }
             planned.sets = plannedSets
         }
+    }
+
+    // MARK: - Injury / Pain Note Scan (Tier 2.3)
+
+    /// Pain/injury keywords scanned in user notes. Lowercased, substring match.
+    private static let painKeywords = [
+        "hurt", "pain", "painful", "tweak", "strain", "pinch", "pinched",
+        "sore", "injury", "injured", "tendon", "ache", "aching", "sharp",
+    ]
+
+    /// Recently (last `days`) flagged exercise IDs — any USER-PROVIDED note
+    /// mentioning pain, mapped back to its exercise via the still-intact
+    /// plannedSet relationship. Transient (scanned fresh each call, no stored
+    /// flag) so it always reflects the latest notes and adds no migration.
+    /// Pruned/legacy feedback whose relationship is nil is simply skipped.
+    func painFlaggedExerciseIDs(within days: Int = 21, modelContext: ModelContext) -> Set<UUID> {
+        let cutoff = Calendar.current.date(byAdding: .day, value: -days, to: Date()) ?? .distantPast
+        let descriptor = FetchDescriptor<SetFeedback>(
+            predicate: #Predicate<SetFeedback> { $0.userProvidedFeedback && $0.capturedAt >= cutoff }
+        )
+        guard let rows = try? modelContext.fetch(descriptor) else {
+            return []
+        }
+        var flagged: Set<UUID> = []
+        for row in rows {
+            guard let note = row.note?.lowercased(), !note.isEmpty else {
+                continue
+            }
+            guard Self.painKeywords.contains(where: { note.contains($0) }) else {
+                continue
+            }
+            if let exID = row.plannedSet?.plannedExercise?.exercise?.id {
+                flagged.insert(exID)
+            }
+        }
+        return flagged
     }
 
     /// Assigns superset group IDs to compatible exercise pairs.
