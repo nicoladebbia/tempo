@@ -77,6 +77,16 @@ enum FormQuality: String, Codable, CaseIterable, Sendable {
     var isNegativeSignal: Bool {
         self == .sloppy || self == .failed
     }
+
+    /// Severity ordering for picking the WORST form across a session's sets
+    /// (clean < sloppy < failed).
+    var severityRank: Int {
+        switch self {
+        case .clean: 0
+        case .sloppy: 1
+        case .failed: 2
+        }
+    }
 }
 
 // MARK: - SetFeedback
@@ -131,6 +141,14 @@ final class SetFeedback {
 
     /// Optional free-text note ("left knee tweaked", "felt strong").
     var note: String?
+
+    /// True once the USER actually edited any field. The row is created eagerly
+    /// in logSet with neutral defaults (rpe 7 / moderate / clean) so save-on-
+    /// change survives skip/auto-advance — but those defaults are NOT real
+    /// signal. Tier-2 personalization aggregates only rows where this is true,
+    /// so untouched sets don't pollute the trend (a default `.clean` must never
+    /// read as "form was perfect"). Additive-defaulted → lightweight migration.
+    var userProvidedFeedback: Bool = false
 
     // MARK: - Typed Accessors
 

@@ -616,6 +616,10 @@ final class TrainingViewModel {
         guard let feedback = currentFeedback else {
             return
         }
+        // Any call here means the user actually interacted with the inline
+        // feedback panel — mark it real signal so Tier-2 aggregation counts it
+        // (eager-created defaults stay userProvidedFeedback=false).
+        feedback.userProvidedFeedback = true
         if let rpe {
             feedback.rpe = max(1, min(10, rpe))
             lastCompletedSet?.rpe = feedback.rpe
@@ -753,6 +757,18 @@ final class TrainingViewModel {
         // the instant-finish bug), and Step 1 makes a .completed plan sacred.
         // Flipping status with no sets would mint a phantom completed plan
         // that can never be regenerated, locking the day. Guard against it.
+        // Up-front map of USER-PROVIDED feedback by setID (eager-default rows
+        // with userProvidedFeedback==false are excluded — they are not signal).
+        // Built before the snapshot loop so no live relationship is touched mid-
+        // mutation (the SwiftData-invalidation discipline above).
+        let enteredFeedback: [UUID: SetFeedback] = {
+            let descriptor = FetchDescriptor<SetFeedback>(
+                predicate: #Predicate<SetFeedback> { $0.userProvidedFeedback }
+            )
+            let rows = (try? modelContext.fetch(descriptor)) ?? []
+            return Dictionary(rows.map { ($0.setID, $0) }) { first, _ in first }
+        }()
+
         struct HistorySnapshot {
             let exercise: Exercise
             let totalVolume: Double
@@ -760,6 +776,9 @@ final class TrainingViewModel {
             let bestSetWeight: Double?
             let bestSetReps: Int?
             let setsPerformed: Int
+            let avgRPE: Double?
+            let worstFormRaw: String?
+            let feedbackSampleCount: Int
         }
         let snapshots: [HistorySnapshot] = plan.orderedExercises.compactMap { plannedEx in
             guard let exercise = plannedEx.exercise else { return nil }
@@ -770,13 +789,24 @@ final class TrainingViewModel {
                 return acc + (w * Double(r))
             }
             let best = completedSets.max { ($0.actualWeight ?? 0) < ($1.actualWeight ?? 0) }
+
+            // Aggregate ONLY user-provided feedback for this exercise's working
+            // sets. No entered feedback → nil/0 ("no signal", engine uses reps).
+            let fb = completedSets.compactMap { enteredFeedback[$0.id] }
+            let avgRPE: Double? = fb.isEmpty ? nil
+                : Double(fb.map(\.rpe).reduce(0, +)) / Double(fb.count)
+            let worstForm = fb.map(\.formQuality).max { $0.severityRank < $1.severityRank }
+
             return HistorySnapshot(
                 exercise: exercise,
                 totalVolume: totalVolume,
                 best1RM: completedSets.compactMap(\.estimated1RM).max(),
                 bestSetWeight: best?.actualWeight,
                 bestSetReps: best?.actualReps,
-                setsPerformed: completedSets.count
+                setsPerformed: completedSets.count,
+                avgRPE: avgRPE,
+                worstFormRaw: worstForm?.rawValue,
+                feedbackSampleCount: fb.count
             )
         }
 
@@ -813,6 +843,9 @@ final class TrainingViewModel {
                 bestSetWeight: snap.bestSetWeight,
                 bestSetReps: snap.bestSetReps,
                 setsPerformed: snap.setsPerformed,
+                avgRPE: snap.avgRPE,
+                worstFormRaw: snap.worstFormRaw,
+                feedbackSampleCount: snap.feedbackSampleCount,
                 workoutPlanID: planID,
                 exercise: snap.exercise
             )
