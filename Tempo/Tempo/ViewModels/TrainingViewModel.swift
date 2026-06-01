@@ -7,6 +7,7 @@
 //
 
 import AudioToolbox
+import AVFoundation
 import Foundation
 import SwiftData
 import SwiftUI
@@ -131,6 +132,13 @@ final class TrainingViewModel {
     var restTimerRemaining: TimeInterval = 0
     var restTimerTotal: TimeInterval = 0
     private var restTimerTask: Task<Void, Never>?
+    /// Wall-clock instant the current rest period completes. The timer is
+    /// anchored to this Date (not a per-tick decrement) so it stays correct
+    /// when the app is backgrounded and the driving Task is suspended.
+    private var restEndDate: Date?
+    /// Highest integer second for which a countdown cue has already fired,
+    /// so re-syncing on foreground does not replay cues. Starts at Int.max.
+    private var lastCuedSecond: Int = Int.max
 
     // MARK: - Elapsed Timer
 
@@ -1238,60 +1246,159 @@ final class TrainingViewModel {
 
     private static let restTimerNotificationID = "tempo.rest.timer"
 
-   private func startRestTimer(duration: TimeInterval, nextAction: RestNextAction) {
+    private func startRestTimer(duration: TimeInterval, nextAction: RestNextAction) {
         stopRestTimer()
         restTimerTotal = duration
         restTimerRemaining = duration
         pendingRestAction = nextAction
 
-        // Schedule a local notification so the user can lock their phone
+        // Anchor to a wall-clock end instant. Every tick (and every foreground
+        // re-sync) recomputes `restTimerRemaining` from this Date, so the timer
+        // never freezes while the app is backgrounded.
+        let end = Date().addingTimeInterval(duration)
+        restEndDate = end
+        // Arm the countdown cues: nothing has fired yet for this rest period.
+        lastCuedSecond = Int(duration.rounded(.up)) + 1
+
+        // Configure the audio session so voice/beep cues play (and duck music)
+        // even when the screen is locked.
+        Self.activateRestAudioSession()
+
+        // Schedule a local notification so the user can lock their phone.
         scheduleRestTimerNotification(seconds: duration)
 
         restTimerTask = Task { @MainActor [weak self] in
-            while let self, restTimerRemaining > 0 {
-                try? await Task.sleep(for: .seconds(1))
-                guard !Task.isCancelled else {
+            while true {
+                try? await Task.sleep(for: .seconds(0.2))
+                guard !Task.isCancelled, let self else {
                     return
                 }
-                let previous = restTimerRemaining
-                restTimerRemaining = max(0, restTimerRemaining - 1)
-                // T-10s audible cue: fire once as the timer crosses 11→10
-                // (only when the rest period is long enough to have a T-10).
-                if previous > 10, restTimerRemaining == 10 {
-                    Self.playRestCue()
+                if self.tickRestTimer() {
+                    // Reached zero — advance.
+                    self.advanceAfterRest()
+                    return
                 }
             }
-            guard !Task.isCancelled else {
-                return
-            }
-            // Timer complete (T-0): second beep + haptic, then advance.
-            Self.playRestCue()
-            HapticManager.notification(.warning)
-            self?.advanceAfterRest()
         }
     }
 
-    /// Short system tone used for the rest-timer T-10s and T-0s cues so the
-    /// user can rest with the phone locked. `AudioToolbox` is a system
-    /// framework (no SPM dependency). 1057 is a short, crisp tone.
-    private static func playRestCue() {
+    /// Recomputes `restTimerRemaining` from the wall-clock anchor and fires any
+    /// countdown cues that were crossed since the last tick. Returns `true` when
+    /// the rest period has elapsed (caller should advance).
+    @discardableResult
+    private func tickRestTimer() -> Bool {
+        guard let end = restEndDate else {
+            return false
+        }
+        let remaining = max(0, end.timeIntervalSinceNow)
+        restTimerRemaining = remaining
+        fireCuesIfNeeded(remaining: remaining)
+        return remaining <= 0
+    }
+
+    /// Re-sync the rest timer after returning to the foreground. If the rest
+    /// period already elapsed while backgrounded, advance immediately.
+    func syncRestTimer() {
+        guard restEndDate != nil, restTimerTask != nil else {
+            return
+        }
+        if tickRestTimer() {
+            stopRestTimer()
+            advanceAfterRest()
+        }
+    }
+
+    // MARK: Rest Audio Cues
+
+    /// Retained synthesizer — a local instance would be deallocated mid-utterance.
+    private static let speechSynth = AVSpeechSynthesizer()
+
+    /// Configure the shared audio session so cues are audible and DUCK (not stop)
+    /// any music the user is playing, including when the screen is locked.
+    private static func activateRestAudioSession() {
+        let session = AVAudioSession.sharedInstance()
+        try? session.setCategory(
+            .playback,
+            mode: .spokenAudio,
+            options: [.duckOthers, .mixWithOthers]
+        )
+        try? session.setActive(true, options: [])
+    }
+
+    /// Release the audio session so the user's music returns to full volume.
+    private static func deactivateRestAudioSession() {
+        let session = AVAudioSession.sharedInstance()
+        try? session.setActive(false, options: [.notifyOthersOnDeactivation])
+    }
+
+    /// Speak a short cue, falling back to a system beep if speech is unavailable.
+    private static func speak(_ phrase: String) {
+        let utterance = AVSpeechUtterance(string: phrase)
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate
+        utterance.volume = 1.0
+        utterance.postUtteranceDelay = 0
+        if let voice = AVSpeechSynthesisVoice(language: "en-US") {
+            utterance.voice = voice
+        }
+        speechSynth.speak(utterance)
+    }
+
+    private static func playBeep() {
         AudioServicesPlaySystemSound(1057)
+    }
+
+    /// Fire countdown cues exactly once as the remaining time crosses each
+    /// threshold. Driven from the wall-clock tick, so cues still fire on the
+    /// correct second after the app returns from the background.
+    private func fireCuesIfNeeded(remaining: TimeInterval) {
+        // Only consider whole-second thresholds we have not already cued.
+        let current = Int(remaining.rounded(.up))
+        guard current < lastCuedSecond else {
+            return
+        }
+        // Walk every threshold crossed since the last tick (covers gaps caused
+        // by backgrounding) and fire the most urgent cue for each.
+        for second in stride(from: lastCuedSecond - 1, through: max(current, 0), by: -1) {
+            switch second {
+            case 10:
+                Self.playBeep()
+                Self.speak("Ten seconds")
+            case 3:
+                Self.speak("Three")
+            case 2:
+                Self.speak("Two")
+            case 1:
+                Self.speak("One")
+            case 0:
+                // Haptic at T-0 is owned by advanceAfterRest to avoid a double buzz.
+                Self.speak("Go")
+            default:
+                break
+            }
+        }
+        lastCuedSecond = current
     }
 
     private func stopRestTimer() {
         restTimerTask?.cancel()
         restTimerTask = nil
         restTimerRemaining = 0
+        restEndDate = nil
+        lastCuedSecond = Int.max
         cancelRestTimerNotification()
+        Self.deactivateRestAudioSession()
     }
 
     /// Extends the current rest timer by the given number of seconds.
     func extendRest(by seconds: TimeInterval) {
-        guard restTimerRemaining > 0 else {
+        guard restTimerRemaining > 0, let end = restEndDate else {
             return
         }
-        restTimerRemaining += seconds
+        restEndDate = end.addingTimeInterval(seconds)
         restTimerTotal += seconds
+        restTimerRemaining += seconds
+        // Re-arm cues for the new, longer window.
+        lastCuedSecond = Int(restTimerRemaining.rounded(.up)) + 1
 
         // Reschedule notification with updated remaining time
         scheduleRestTimerNotification(seconds: restTimerRemaining)

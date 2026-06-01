@@ -21,6 +21,8 @@ struct ActiveWorkoutView: View {
     private var modelContext
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.scenePhase)
+    private var scenePhase
 
     @State
     private var inputWeight: Double = 0
@@ -119,6 +121,12 @@ struct ActiveWorkoutView: View {
         .onAppear { loadCurrentSetInputs() }
         .onChange(of: viewModel.currentExerciseIndex) { _, _ in loadCurrentSetInputs() }
         .onChange(of: viewModel.currentSetIndex) { _, _ in loadCurrentSetInputs() }
+        // Re-sync the wall-clock rest timer when returning from the background,
+        // so a timer that elapsed (or ran down) while the app was backgrounded
+        // reflects real time instead of freezing.
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active { viewModel.syncRestTimer() }
+        }
         // Per build done_when #12 — present SetFeedbackSheet for the set just
         // completed via Finish Set. Cleared on dismiss; not re-prompted.
         .sheet(
