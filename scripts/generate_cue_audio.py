@@ -31,8 +31,10 @@ import urllib.request
 OUT_DIR = os.path.join(
     os.path.dirname(__file__), "..", "Tempo", "Tempo", "Resources", "CueAudio"
 )
-# Default voice — a calm, clear one. Override with --voice.
-DEFAULT_VOICE = "21m00Tcm4TlvDq8ikWAM"  # "Rachel" (ElevenLabs stock)
+# Default voice — "Harry - Fierce Warrior" (premade; works on free tier and
+# fits Tempo's drill-sergeant tone). Override with --voice. NOTE: library
+# voices (non-premade) require a paid plan via the API (free → HTTP 402).
+DEFAULT_VOICE = "SOYHLrjzK2X1ezoPC6cr"  # Harry — Fierce Warrior
 
 # Countdown vocabulary → (clip slug, spoken text). Matches WarmupCue.clipName.
 COUNTDOWN = {
