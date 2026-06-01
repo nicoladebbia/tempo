@@ -36,6 +36,18 @@ struct WorkoutSummaryView: View {
                 // Stats grid
                 statsGrid
 
+                // Warm-up marker (the guided mobility block logs no sets).
+                if viewModel.todayPlan?.warmupCompleted == true {
+                    HStack(spacing: TempoSpacing.xs) {
+                        Image(systemName: "checkmark.seal.fill")
+                            .foregroundStyle(Color.tempoRecoveryGreen)
+                        Text("Warm-up completed")
+                            .font(.tempoSubheadline)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+
                 // Per-exercise summary
                 exerciseSummary
 
@@ -106,7 +118,7 @@ struct WorkoutSummaryView: View {
 
                     Spacer()
 
-                    Text(String(format: "%.1f kg", pr.value))
+                    Text(formattedWeight(pr.value, decimals: 1))
                         .font(.tempoHeadline)
                         .foregroundStyle(Color.tempoTextPrimary)
                 }
@@ -195,7 +207,7 @@ struct WorkoutSummaryView: View {
                    let weight = best.actualWeight,
                    let reps = best.actualReps
                 {
-                    Text("Best: \(Int(weight))kg x \(reps)")
+                    Text("Best: \(formattedWeight(weight)) x \(reps)")
                         .font(.tempoCaption1)
                         .foregroundStyle(Color.tempoTextSecondary)
                 }
@@ -206,7 +218,7 @@ struct WorkoutSummaryView: View {
             // Volume for this exercise
             let vol = plannedEx.totalVolume
             if vol > 0 {
-                Text("\(Int(vol)) kg")
+                Text(formattedWeight(vol))
                     .font(.tempoCaption1)
                     .foregroundStyle(Color.tempoTextTertiary)
             }
@@ -221,6 +233,18 @@ struct WorkoutSummaryView: View {
         .padding(TempoSpacing.md)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+    }
+
+    // MARK: - Weight Formatting
+
+    /// Format a kg-stored weight in the user's display unit. Keeps the summary
+    /// consistent with the timer-bar volume (which already converts) — fixes the
+    /// bug where per-set/per-exercise rows were hardcoded "kg" while the volume
+    /// header showed the user's actual unit.
+    private func formattedWeight(_ kg: Double, decimals: Int = 0) -> String {
+        let value = WeightUnit.kg.convert(kg, to: viewModel.weightUnit)
+        let unit = viewModel.weightUnit.abbreviation
+        return String(format: "%.\(decimals)f %@", value, unit)
     }
 
     // MARK: - Save Button

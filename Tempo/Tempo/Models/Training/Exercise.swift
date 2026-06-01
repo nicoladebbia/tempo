@@ -99,6 +99,22 @@ final class Exercise {
         }
     }
 
+    /// Filename-safe slug for the pre-rendered exercise-name audio clip
+    /// (cue_ex_<slug>). Mirrors WarmupMove.slug and the generator's slug() so
+    /// runtime lookup and the bundled clips agree. Built-in library names have
+    /// clips; custom exercises won't, and fall back to the Apple voice.
+    var audioSlug: String {
+        let lowered = name.lowercased()
+        let mapped = lowered.map { ch -> Character in
+            ch.isLetter || ch.isNumber ? ch : "_"
+        }
+        var s = String(mapped)
+        while s.contains("__") {
+            s = s.replacingOccurrences(of: "__", with: "_")
+        }
+        return s.trimmingCharacters(in: CharacterSet(charactersIn: "_"))
+    }
+
     @Transient
     var currentEstimated1RM: Double? {
         history?

@@ -28,6 +28,12 @@ final class WorkoutPlan {
 
     var notes: String?
 
+    /// Whether the user completed (or worked through) the guided general
+    /// warm-up + mobility block for this session. The block logs no sets — this
+    /// flag is the only record that it happened, shown in the summary/history.
+    /// Defaulted, so SwiftData migrates it automatically (no manual migration).
+    var warmupCompleted: Bool = false
+
     var startedAt: Date?
 
     var finishedAt: Date?
@@ -58,13 +64,17 @@ final class WorkoutPlan {
 
     @Transient
     var totalSets: Int {
-        (exercises ?? []).reduce(0) { $0 + ($1.sets?.count ?? 0) }
+        // Working sets only — warmup ramp sets are not counted toward the
+        // "X / Y sets" progress (exercise 0's warmups are skipped, never
+        // logged, so counting them stranded the total at e.g. 19/21).
+        (exercises ?? []).reduce(0) { $0 + ($1.sets ?? []).filter { !$0.isWarmup }.count }
     }
 
     @Transient
     var completedSets: Int {
+        // Working sets only, to match totalSets.
         (exercises ?? []).reduce(0) { total, ex in
-            total + (ex.sets ?? []).filter(\.completed).count
+            total + (ex.sets ?? []).filter { !$0.isWarmup && $0.completed }.count
         }
     }
 

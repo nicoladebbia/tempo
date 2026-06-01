@@ -110,6 +110,31 @@ enum Equipment: String, Codable, CaseIterable {
     case none
 }
 
+
+extension Equipment {
+    /// Whether the logged weight is loaded symmetrically on a bar, so the UI can
+    /// show a per-side plate hint. Dumbbells/cables/machines are logged as the
+    /// single displayed number with no per-side split.
+    var isBarLoaded: Bool {
+        switch self {
+        case .barbell, .ezBar, .trapBar, .smithMachine: true
+        default: false
+        }
+    }
+
+    /// Approximate bar weight in kg, used only to derive the per-side plate hint
+    /// from the total logged load. Smith machines are counterbalanced and vary
+    /// widely, so they report 0 (hint shows total ÷ 2 with no bar subtracted).
+    var barWeightKg: Double {
+        switch self {
+        case .barbell: 20
+        case .ezBar: 10
+        case .trapBar: 25
+        default: 0
+        }
+    }
+}
+
 // MARK: - MovementPattern
 
 enum MovementPattern: String, Codable, CaseIterable {

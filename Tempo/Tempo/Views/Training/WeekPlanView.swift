@@ -329,30 +329,25 @@ struct WeekPlanView: View {
     }
 
     private var mobilityRoutine: some View {
-        let movements: [(name: String, duration: String)] = [
-            ("Foam roll — thoracic spine", "2 min"),
-            ("90/90 hip switches", "8 reps/side"),
-            ("World's greatest stretch", "5 reps/side"),
-            ("Deep squat hold + reach", "1 min"),
-            ("Couch stretch", "1 min/side"),
-            ("Cat-cow + scapular CARs", "10 reps"),
-        ]
+        // Single source of warm-up/mobility content (shared with the in-session
+        // warm-up block). A mobility day uses the full-body routine.
+        let moves = WarmupRoutine.routine(for: .fullBody).moves
         return VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            ForEach(Array(movements.enumerated()), id: \.offset) { index, item in
+            ForEach(Array(moves.enumerated()), id: \.element.id) { index, move in
                 HStack(spacing: TempoSpacing.sm) {
                     Text("\(index + 1)")
                         .font(.tempoCaption2)
                         .foregroundStyle(Color.tempoTextTertiary)
                         .frame(width: 16, alignment: .trailing)
 
-                    Text(item.name)
+                    Text(move.name)
                         .font(.tempoBody)
                         .foregroundStyle(Color.tempoTextPrimary)
                         .lineLimit(1)
 
                     Spacer()
 
-                    Text(item.duration)
+                    Text(move.dose)
                         .font(.tempoCaption2)
                         .foregroundStyle(Color.tempoTextSecondary)
                 }

@@ -7,6 +7,7 @@
 //
 
 import AudioToolbox
+import AVFoundation
 import Foundation
 import SwiftData
 import SwiftUI
@@ -85,9 +86,15 @@ final class TrainingViewModel {
     var detectedPRs: [PersonalRecord] = []
 
     /// The working set just completed via `logSet`. The session view observes
-    /// this to present `SetFeedbackSheet` for that exact set. Reset to nil
-    /// once feedback is captured or the sheet is dismissed.
+    /// this to know which set the inline feedback panel edits.
     var lastCompletedSet: PlannedSet?
+
+    /// SetFeedback row for the just-completed working set. Created eagerly in
+    /// `logSet` with neutral defaults so a row always exists even if the user
+    /// skips rest instantly; the inline feedback panel edits it in place
+    /// (save-on-change), so nothing is lost when the rest timer auto-advances.
+    /// Nil for warmup sets (no feedback collected on warmups).
+    var currentFeedback: SetFeedback?
 
     /// User weight-unit preference, loaded from UserSettings in loadToday.
     /// All stored weights are kg; this is display-only conversion.
@@ -131,6 +138,27 @@ final class TrainingViewModel {
     var restTimerRemaining: TimeInterval = 0
     var restTimerTotal: TimeInterval = 0
     private var restTimerTask: Task<Void, Never>?
+    /// Wall-clock instant the current rest period completes. The timer is
+    /// anchored to this Date (not a per-tick decrement) so it stays correct
+    /// when the app is backgrounded and the driving Task is suspended.
+    private var restEndDate: Date?
+    /// Highest integer second for which a countdown cue has already fired,
+    /// so re-syncing on foreground does not replay cues. Starts at Int.max.
+    private var lastCuedSecond: Int = Int.max
+
+    // MARK: - Guided Warm-Up
+
+    /// The resolved routine for today's workout, shown in the guided warm-up.
+    var warmupRoutine: WarmupRoutine?
+    /// Index of the move the user is currently on in the guided warm-up.
+    var warmupMoveIndex: Int = 0
+    /// Remaining seconds on the current TIMED warm-up move (0 for rep-based).
+    var warmupMoveRemaining: TimeInterval = 0
+    /// Wall-clock end instant for the current timed warm-up move — Date-anchored
+    /// exactly like the rest timer so it survives backgrounding (the user walks
+    /// around the gym during warm-up).
+    private var warmupMoveEndDate: Date?
+    private var warmupMoveTask: Task<Void, Never>?
 
     // MARK: - Elapsed Timer
 
@@ -349,24 +377,38 @@ final class TrainingViewModel {
         }
 
         plan.status = .inProgress
-        plan.startedAt = Date()
-        workoutStartTime = Date()
         elapsedSeconds = 0
         totalPauseDuration = 0
         currentExerciseIndex = 0
         currentSetIndex = 0
         detectedPRs = []
 
-        // Per STATE_MACHINES.md §1 lines 153–154: idle → warmup if the first
-        // exercise has warmup sets, else idle → exercise.setActive directly.
-        let firstExercise = plan.orderedExercises.first
-        let hasWarmup = (firstExercise?.orderedSets ?? []).contains { $0.isWarmup }
-        if hasWarmup {
+        // Always enter the warmup state for a gym workout so the guided
+        // workout-specific warm-up + mobility block (WarmupRoutine) is shown
+        // before the first working set — independent of whether the first
+        // exercise carries ramp sets. advancePastWarmup handles the
+        // no-ramp-set case (firstWorkingIndex = 0). Non-gym types never reach
+        // startWorkout's gym flow.
+        if plan.type.isGymWorkout {
+            // Resolve the guided warm-up routine and start at the first move.
+            // Do NOT stamp startedAt / workoutStartTime yet — the session clock
+            // (and the persisted start time, incl. on crash recovery) begins at
+            // the first WORKING set so warm-up is not counted as duration. Both
+            // are set in advancePastWarmup.
+            warmupRoutine = WarmupRoutine.routine(for: plan.type)
+            warmupMoveIndex = 0
+            // Activate the audio session ONCE for the whole warm-up so cues
+            // duck music without re-ducking on every move transition.
+            Self.activateRestAudioSession()
             sessionState = .warmup(exerciseIndex: 0, warmupSetIndex: 0)
+            startWarmupMoveTimerForCurrent()
         } else {
+            plan.startedAt = Date()
+            workoutStartTime = Date()
             sessionState = .exercise(.setActive(exerciseIndex: 0, setIndex: 0))
+            // Non-gym sessions have no warm-up block — start the clock now.
+            startElapsedTimer()
         }
-        startElapsedTimer()
         // Move quadrant should flip planned → in-progress on the Dashboard.
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
     }
@@ -382,6 +424,7 @@ final class TrainingViewModel {
         guard case .warmup = sessionState, let plan = todayPlan else {
             return
         }
+        stopWarmupMoveTimer()
         let exercises = plan.orderedExercises
         guard let first = exercises.first else {
             sessionState = .cooldown
@@ -394,6 +437,19 @@ final class TrainingViewModel {
         #endif
         currentExerciseIndex = 0
         currentSetIndex = firstWorkingIndex
+        // Record warm-up as completed only if the user actually worked through
+        // all the moves (not if they hit "Skip whole warm-up").
+        let moveCount = warmupRoutine?.moves.count ?? 0
+        plan.warmupCompleted = moveCount > 0 && warmupMoveIndex >= moveCount
+        // Clock starts here — warm-up time is NOT counted in session duration.
+        // Stamp plan.startedAt here too (not at warmup entry) so the persisted
+        // start time and crash-recovery elapsed math both exclude warm-up.
+        let now = Date()
+        todayPlan?.startedAt = now
+        workoutStartTime = now
+        elapsedSeconds = 0
+        totalPauseDuration = 0
+        startElapsedTimer()
         sessionState = .exercise(.setActive(exerciseIndex: 0, setIndex: firstWorkingIndex))
     }
 
@@ -454,7 +510,6 @@ final class TrainingViewModel {
     func logSet(
         weight: Double,
         reps: Int,
-        rpe: Int?,
         modelContext: ModelContext
     ) {
         guard let plan = todayPlan else {
@@ -475,19 +530,33 @@ final class TrainingViewModel {
         let set = sets[currentSetIndex]
         set.actualWeight = weight
         set.actualReps = reps
-        set.rpe = rpe
         set.completed = true
         set.completedAt = Date()
 
-        // Surface the just-completed set so the session view can present
-        // SetFeedbackSheet for exactly this set (Phase 3, done_when #12).
+        // Surface the just-completed set so the session view's inline feedback
+        // panel edits exactly this set.
         lastCompletedSet = set
+
+        // Eagerly create the feedback row for WORKING sets with neutral
+        // defaults. RPE is collected end-of-set only (no set-active prompt),
+        // and the inline panel edits this row save-on-change — so even an
+        // instant "Skip Rest" leaves a persisted, sensible record.
+        if set.isWarmup {
+            currentFeedback = nil
+        } else {
+            let feedback = SetFeedback(plannedSet: set, rpe: 7)
+            modelContext.insert(feedback)
+            set.rpe = feedback.rpe
+            currentFeedback = feedback
+        }
 
         // Persist immediately (crash recovery)
         try? modelContext.save()
 
-        // PR detection
-        if let exercise = plannedExercise.exercise {
+        // PR detection — working sets only. Warmup ramp sets must never trigger
+        // a PR (this is why duplicate/low PRs appeared, e.g. two "Face Pull" PRs:
+        // the warmup set and the working set each fired).
+        if !set.isWarmup, let exercise = plannedExercise.exercise {
             if let pr = trainingEngine.detectPersonalRecord(
                 exercise: exercise,
                 weight: weight,
@@ -531,6 +600,37 @@ final class TrainingViewModel {
                 remainingSeconds: restDuration
             ))
         }
+    }
+
+    /// Write-through update for the inline set-feedback panel. Every field
+    /// change persists immediately so the record survives the rest timer
+    /// auto-advancing or the user skipping rest. Mirrors RPE onto the set so
+    /// engine/history code that reads `PlannedSet.rpe` stays consistent.
+    func updateFeedback(
+        rpe: Int? = nil,
+        breath: BreathDifficulty? = nil,
+        form: FormQuality? = nil,
+        note: String? = nil,
+        modelContext: ModelContext
+    ) {
+        guard let feedback = currentFeedback else {
+            return
+        }
+        if let rpe {
+            feedback.rpe = max(1, min(10, rpe))
+            lastCompletedSet?.rpe = feedback.rpe
+        }
+        if let breath {
+            feedback.breathDifficulty = breath
+        }
+        if let form {
+            feedback.formQuality = form
+        }
+        if let note {
+            let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
+            feedback.note = trimmed.isEmpty ? nil : trimmed
+        }
+        try? modelContext.save()
     }
 
     // MARK: - Skip Rest
@@ -1049,6 +1149,7 @@ final class TrainingViewModel {
         }
 
         stopRestTimer()
+        stopWarmupMoveTimer()
         stopElapsedTimer()
         sessionState = .paused(previousState: previousState, pauseStartTime: Date())
     }
@@ -1065,6 +1166,10 @@ final class TrainingViewModel {
         switch previousState {
         case let .warmup(ei, si):
             sessionState = .warmup(exerciseIndex: ei, warmupSetIndex: si)
+            // Re-arm the guided warm-up move timer; the elapsed clock does not
+            // run during warm-up, so don't start it here.
+            startWarmupMoveTimerForCurrent()
+            return
         case let .exercise(sub):
             sessionState = .exercise(sub)
         case .cooldown:
@@ -1179,6 +1284,48 @@ final class TrainingViewModel {
         return "Set \(currentSetIndex + 1) of \(total)"
     }
 
+    /// Context for the rest screen: what the user is resting *toward*.
+    /// During between-sets rest this is the current exercise; during the rest
+    /// before the next exercise it is the upcoming exercise (so the screen can
+    /// preview its name + how-to instead of mislabelling it "Current:").
+    struct RestContext {
+        let exercise: Exercise?
+        /// True when rest leads into a different exercise (show full how-to).
+        let isExerciseTransition: Bool
+        /// Short label, e.g. "Next: Set 2 of 4" or "Up next".
+        let label: String
+        let instructions: String?
+        let cues: [String]
+    }
+
+    var restContext: RestContext {
+        let exercises = todayPlan?.orderedExercises ?? []
+        if pendingRestAction == .nextExercise {
+            let nextIndex = currentExerciseIndex + 1
+            let next = nextIndex < exercises.count ? exercises[nextIndex] : nil
+            let ex = next?.exercise
+            return RestContext(
+                exercise: ex,
+                isExerciseTransition: true,
+                label: ex.map { "Up next: \($0.name)" } ?? "Up next",
+                instructions: ex?.instructions,
+                cues: ex?.cues ?? []
+            )
+        } else {
+            let ex = currentExercise?.exercise
+            // Resting between sets — the next set is currentSetIndex + 1.
+            let total = currentExercise?.orderedSets.count ?? 0
+            let nextSetNumber = min(currentSetIndex + 2, total)
+            return RestContext(
+                exercise: ex,
+                isExerciseTransition: false,
+                label: ex.map { "\($0.name) · next: set \(nextSetNumber) of \(total)" } ?? "",
+                instructions: nil,
+                cues: []
+            )
+        }
+    }
+
     var workoutTypeDisplayName: String {
         todayPlan?.type.displayName ?? "Rest"
     }
@@ -1238,90 +1385,336 @@ final class TrainingViewModel {
 
     private static let restTimerNotificationID = "tempo.rest.timer"
 
-   private func startRestTimer(duration: TimeInterval, nextAction: RestNextAction) {
+    private func startRestTimer(duration: TimeInterval, nextAction: RestNextAction) {
         stopRestTimer()
         restTimerTotal = duration
         restTimerRemaining = duration
         pendingRestAction = nextAction
 
-        // Schedule a local notification so the user can lock their phone
+        // Anchor to a wall-clock end instant. Every tick (and every foreground
+        // re-sync) recomputes `restTimerRemaining` from this Date, so the timer
+        // never freezes while the app is backgrounded.
+        let end = Date().addingTimeInterval(duration)
+        restEndDate = end
+        // Arm the countdown cues: nothing has fired yet for this rest period.
+        lastCuedSecond = Int(duration.rounded(.up)) + 1
+
+        // Configure the audio session so voice/beep cues play (and duck music)
+        // even when the screen is locked.
+        Self.activateRestAudioSession()
+        // Preload the countdown clips so playback at fire-time has no disk
+        // latency (loading on the T-3 tick would reintroduce the lag we avoid).
+        CueAudioPlayer.shared.preload([.tenSeconds, .three, .two, .one, .go])
+
+        // Schedule a local notification so the user can lock their phone.
         scheduleRestTimerNotification(seconds: duration)
 
         restTimerTask = Task { @MainActor [weak self] in
-            while let self, restTimerRemaining > 0 {
-                try? await Task.sleep(for: .seconds(1))
-                guard !Task.isCancelled else {
+            while true {
+                try? await Task.sleep(for: .seconds(0.2))
+                guard !Task.isCancelled, let self else {
                     return
                 }
-                let previous = restTimerRemaining
-                restTimerRemaining = max(0, restTimerRemaining - 1)
-                // T-10s audible cue: fire once as the timer crosses 11→10
-                // (only when the rest period is long enough to have a T-10).
-                if previous > 10, restTimerRemaining == 10 {
-                    Self.playRestCue()
+                if self.tickRestTimer() {
+                    // Reached zero — tear the timer down BEFORE advancing so a
+                    // foreground event during the next set can't see a stale
+                    // restEndDate/restTimerTask and fire advanceAfterRest a
+                    // second time (which would silently skip that set).
+                    self.stopRestTimer()
+                    self.advanceAfterRest()
+                    return
                 }
             }
-            guard !Task.isCancelled else {
-                return
-            }
-            // Timer complete (T-0): second beep + haptic, then advance.
-            Self.playRestCue()
-            HapticManager.notification(.warning)
-            self?.advanceAfterRest()
         }
     }
 
-    /// Short system tone used for the rest-timer T-10s and T-0s cues so the
-    /// user can rest with the phone locked. `AudioToolbox` is a system
-    /// framework (no SPM dependency). 1057 is a short, crisp tone.
-    private static func playRestCue() {
+    /// Recomputes `restTimerRemaining` from the wall-clock anchor and fires any
+    /// countdown cues that were crossed since the last tick. Returns `true` when
+    /// the rest period has elapsed (caller should advance).
+    @discardableResult
+    private func tickRestTimer() -> Bool {
+        guard let end = restEndDate else {
+            return false
+        }
+        let remaining = max(0, end.timeIntervalSinceNow)
+        restTimerRemaining = remaining
+        fireCuesIfNeeded(remaining: remaining)
+        return remaining <= 0
+    }
+
+    /// Re-sync the rest timer after returning to the foreground. If the rest
+    /// period already elapsed while backgrounded, advance immediately.
+    func syncRestTimer() {
+        guard restEndDate != nil, restTimerTask != nil else {
+            return
+        }
+        if tickRestTimer() {
+            stopRestTimer()
+            advanceAfterRest()
+        }
+    }
+
+    // MARK: - Guided Warm-Up Flow
+
+    /// The move the user is currently on in the guided warm-up, if any.
+    var currentWarmupMove: WarmupMove? {
+        guard let moves = warmupRoutine?.moves, warmupMoveIndex < moves.count else {
+            return nil
+        }
+        return moves[warmupMoveIndex]
+    }
+
+    /// Start (or arm) the timer for the current warm-up move. Timed moves run a
+    /// Date-anchored countdown that auto-advances and survives backgrounding;
+    /// rep-based moves run no timer (the user taps Next). Announces the move by
+    /// voice so the user knows what to do without looking.
+    func startWarmupMoveTimerForCurrent() {
+        stopWarmupMoveTimer()
+        guard let move = currentWarmupMove else {
+            return
+        }
+        // Audio session is activated once in startWorkout for the whole warm-up.
+        // The voice is intentionally SILENT on move announcements — Harry only
+        // speaks the rest-timer countdown (T-10 warning + 3-2-1-go). Move names
+        // are shown on screen, not spoken.
+
+        guard let seconds = move.durationSeconds, seconds > 0 else {
+            // Rep-based move — no countdown, advance is manual.
+            warmupMoveRemaining = 0
+            warmupMoveEndDate = nil
+            return
+        }
+        warmupMoveRemaining = TimeInterval(seconds)
+        let end = Date().addingTimeInterval(TimeInterval(seconds))
+        warmupMoveEndDate = end
+        warmupMoveTask = Task { @MainActor [weak self] in
+            while true {
+                try? await Task.sleep(for: .seconds(0.2))
+                guard !Task.isCancelled, let self else {
+                    return
+                }
+                if self.tickWarmupMove() {
+                    // Tear down BEFORE advancing so a scenePhase resync can't
+                    // double-advance the same move (mirrors the rest-timer fix).
+                    self.stopWarmupMoveTimer()
+                    self.advanceWarmupMove()
+                    return
+                }
+            }
+        }
+    }
+
+    @discardableResult
+    private func tickWarmupMove() -> Bool {
+        guard let end = warmupMoveEndDate else {
+            return false
+        }
+        warmupMoveRemaining = max(0, end.timeIntervalSinceNow)
+        return warmupMoveRemaining <= 0
+    }
+
+    /// Re-sync the warm-up move timer after returning to the foreground.
+    /// A nil `warmupMoveTask` means the current move is rep-based (no timer was
+    /// created), so there is nothing to re-sync — this no-op is correct, not a
+    /// missed paused/crashed timer.
+    func syncWarmupTimer() {
+        guard warmupMoveEndDate != nil, warmupMoveTask != nil else {
+            return
+        }
+        if tickWarmupMove() {
+            stopWarmupMoveTimer()
+            advanceWarmupMove()
+        }
+    }
+
+    /// Advance to the next warm-up move, or into the working sets when the
+    /// routine is finished. Idempotent: guarded on still being in .warmup.
+    func advanceWarmupMove() {
+        guard case .warmup = sessionState else {
+            return
+        }
+        let moveCount = warmupRoutine?.moves.count ?? 0
+        let next = warmupMoveIndex + 1
+        if next < moveCount {
+            warmupMoveIndex = next
+            startWarmupMoveTimerForCurrent()
+        } else {
+            // Routine done — fall through to the ramp-set preview / working sets.
+            stopWarmupMoveTimer()
+            // Stay in .warmup so the ramp preview + "Start Working Sets" shows;
+            // the view switches to the ramp preview once moves are exhausted.
+            warmupMoveIndex = moveCount
+        }
+    }
+
+    /// Skip the current warm-up move immediately.
+    func skipWarmupMove() {
+        stopWarmupMoveTimer()
+        advanceWarmupMove()
+    }
+
+    private func stopWarmupMoveTimer() {
+        warmupMoveTask?.cancel()
+        warmupMoveTask = nil
+        warmupMoveRemaining = 0
+        warmupMoveEndDate = nil
+    }
+
+    // MARK: Rest Audio Cues
+    //
+    // Voice cues are played by CueAudioPlayer (premium pre-rendered clips for
+    // the closed vocabulary; Apple-speech fallback for dynamic exercise names).
+    // This VM owns only the audio-session activation and the system beep.
+
+    /// Configure the shared audio session so cues are audible and DUCK (not stop)
+    /// any music the user is playing, including when the screen is locked.
+    private static func activateRestAudioSession() {
+        let session = AVAudioSession.sharedInstance()
+        // .duckOthers lowers (not stops) the user's music while a cue plays.
+        // It is mutually exclusive with .mixWithOthers, so we use it alone.
+        try? session.setCategory(
+            .playback,
+            mode: .spokenAudio,
+            options: [.duckOthers]
+        )
+        try? session.setActive(true, options: [])
+    }
+
+    /// Release the audio session so the user's music returns to full volume.
+    private static func deactivateRestAudioSession() {
+        let session = AVAudioSession.sharedInstance()
+        try? session.setActive(false, options: [.notifyOthersOnDeactivation])
+    }
+
+    private static func playBeep() {
         AudioServicesPlaySystemSound(1057)
+    }
+
+    /// Fire countdown cues exactly once as the remaining time crosses each
+    /// threshold. Driven from the wall-clock tick, so cues still fire on the
+    /// correct second after the app returns from the background.
+    private func fireCuesIfNeeded(remaining: TimeInterval) {
+        // Only consider whole-second thresholds we have not already cued.
+        let current = Int(remaining.rounded(.up))
+        guard current < lastCuedSecond else {
+            return
+        }
+        defer { lastCuedSecond = current }
+
+        let target = max(current, 0)
+        // Normal 0.2s ticks cross one threshold at a time. If many thresholds
+        // were crossed at once (the app was backgrounded), DON'T replay them as
+        // a misleading "ten… three… two" burst — fire only the single most
+        // urgent cue for where we actually are now.
+        if lastCuedSecond - 1 - target > 1 {
+            cue(for: target)
+            return
+        }
+        for second in stride(from: lastCuedSecond - 1, through: target, by: -1) {
+            cue(for: second)
+        }
+    }
+
+    private func cue(for second: Int) {
+        switch second {
+        case 12:
+            // "ten seconds" warning. A premium clip starts in ms, so fire it at
+            // T-10; the Apple-speech fallback needs ~2s spin-up, so fire at T-12.
+            if CueAudioPlayer.shared.hasClip(.tenSeconds) {
+                break // handled at case 10 below for clip path
+            }
+            Self.playBeep()
+            CueAudioPlayer.shared.play(.tenSeconds)
+        case 10:
+            // Clip path only (speech path already fired at 12).
+            if CueAudioPlayer.shared.hasClip(.tenSeconds) {
+                Self.playBeep()
+                CueAudioPlayer.shared.play(.tenSeconds)
+            }
+        case 3:
+            CueAudioPlayer.shared.play(.three)
+        case 2:
+            CueAudioPlayer.shared.play(.two)
+        case 1:
+            CueAudioPlayer.shared.play(.one)
+        case 0:
+            // Announce what's next by name. Exercise names are an OPEN set
+            // (custom exercises), so they always use the Apple fallback via
+            // .dynamic; the generic "go" has a premium clip.
+            // Haptic at T-0 is owned by advanceAfterRest to avoid a double buzz.
+            // Countdown only: always "Go" — the exercise name is shown on the
+            // next screen, not spoken. (Voice scope is the countdown alone.)
+            CueAudioPlayer.shared.play(.go)
+        default:
+            break
+        }
     }
 
     private func stopRestTimer() {
         restTimerTask?.cancel()
         restTimerTask = nil
         restTimerRemaining = 0
+        restEndDate = nil
+        lastCuedSecond = Int.max
         cancelRestTimerNotification()
+        Self.deactivateRestAudioSession()
     }
 
     /// Extends the current rest timer by the given number of seconds.
-    func extendRest(by seconds: TimeInterval) {
-        guard restTimerRemaining > 0 else {
-            return
-        }
-        restTimerRemaining += seconds
-        restTimerTotal += seconds
-
-        // Reschedule notification with updated remaining time
-        scheduleRestTimerNotification(seconds: restTimerRemaining)
-    }
+    
 
     // MARK: - Rest Timer Notifications
 
+    /// IDs for the multi-cue rest notifications (T-10, T-3, T-2, T-1, T-0).
+    private static let restCueNotificationIDs = [
+        "tempo.rest.cue.10",
+        "tempo.rest.cue.3",
+        "tempo.rest.cue.2",
+        "tempo.rest.cue.1",
+        "tempo.rest.timer", // T-0 — keeps the original ID
+    ]
+
+    /// Schedule notification SOUNDS at each countdown beat so the cues are
+    /// audible through earphones even with the phone LOCKED / in a pocket —
+    /// the app's in-process AVSpeechSynthesizer cues only fire while the app is
+    /// foregrounded (iOS suspends the timer Task on lock). These notifications
+    /// are the locked-phone path; the in-app voice is the screen-on path.
     private func scheduleRestTimerNotification(seconds: TimeInterval) {
         let center = UNUserNotificationCenter.current()
-        // Cancel any existing rest timer notification first
-        center.removePendingNotificationRequests(withIdentifiers: [Self.restTimerNotificationID])
+        center.removePendingNotificationRequests(withIdentifiers: Self.restCueNotificationIDs)
 
-        let content = UNMutableNotificationContent()
-        content.title = "Rest Over"
-        content.body = "Time to hit your next set."
-        content.sound = .default
-        content.interruptionLevel = .timeSensitive
+        // (offsetFromEnd, id, title, body) — fire each at `seconds - offset`.
+        let cues: [(Double, String, String, String)] = [
+            (10, "tempo.rest.cue.10", "10 seconds", "Get ready — 10 seconds left."),
+            (3, "tempo.rest.cue.3", "3", "Rest ending…"),
+            (2, "tempo.rest.cue.2", "2", "Rest ending…"),
+            (1, "tempo.rest.cue.1", "1", "Rest ending…"),
+            (0, Self.restTimerNotificationID, "Rest Over", "Time to hit your next set."),
+        ]
 
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: max(1, seconds), repeats: false)
-        let request = UNNotificationRequest(
-            identifier: Self.restTimerNotificationID,
-            content: content,
-            trigger: trigger
-        )
-        center.add(request) { _ in }
+        for (offset, id, title, body) in cues {
+            let fireAt = seconds - offset
+            // Skip cues whose fire time is in the past (short rests have no T-10).
+            guard fireAt >= 1 || offset == 0 else {
+                continue
+            }
+            let content = UNMutableNotificationContent()
+            content.title = title
+            content.body = body
+            content.sound = .default
+            content.interruptionLevel = .timeSensitive
+
+            let trigger = UNTimeIntervalNotificationTrigger(
+                timeInterval: max(1, fireAt),
+                repeats: false
+            )
+            center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger)) { _ in }
+        }
     }
 
     private func cancelRestTimerNotification() {
         UNUserNotificationCenter.current()
-            .removePendingNotificationRequests(withIdentifiers: [Self.restTimerNotificationID])
+            .removePendingNotificationRequests(withIdentifiers: Self.restCueNotificationIDs)
     }
 
     // MARK: - Elapsed Timer
@@ -1355,7 +1748,10 @@ final class TrainingViewModel {
         elapsedSeconds = 0
         totalPauseDuration = 0
         detectedPRs = []
+        warmupRoutine = nil
+        warmupMoveIndex = 0
         stopRestTimer()
+        stopWarmupMoveTimer()
         stopElapsedTimer()
     }
 

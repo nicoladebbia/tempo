@@ -21,13 +21,13 @@ struct ActiveWorkoutView: View {
     private var modelContext
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.scenePhase)
+    private var scenePhase
 
     @State
     private var inputWeight: Double = 0
     @State
     private var inputReps: Double = 8
-    @State
-    private var inputRPE: Int?
     @State
     private var showFinishConfirmation = false
     @Query
@@ -49,6 +49,32 @@ struct ActiveWorkoutView: View {
     /// Upper bound in the display unit (≈ 500 kg).
     private var weightRangeMax: Double {
         weightUnit == .kg ? 500 : 1100
+    }
+
+    /// Per-side plate hint for bar-loaded lifts, e.g. "20 kg/side + 20 kg bar".
+    /// `inputWeight` is in the display unit; bar math is done in kg then shown
+    /// in the user's unit. Nil for dumbbells/cables/machines/bodyweight.
+    private var perSideHint: String? {
+        guard let equipment = viewModel.currentExercise?.exercise?.equipment,
+              equipment.isBarLoaded
+        else {
+            return nil
+        }
+        let totalKg = weightUnit.convert(inputWeight, to: .kg)
+        let bar = equipment.barWeightKg
+        guard totalKg >= bar else {
+            return nil
+        }
+        let perSideKg = (totalKg - bar) / 2
+        let perSide = WeightUnit.kg.convert(perSideKg, to: weightUnit)
+        let unit = weightUnit.abbreviation
+        let perSideStr = String(format: weightUnit == .kg ? "%.1f" : "%.0f", perSide)
+        if bar > 0 {
+            let barStr = String(format: weightUnit == .kg ? "%.0f" : "%.0f",
+                                WeightUnit.kg.convert(bar, to: weightUnit))
+            return "\(perSideStr) \(unit)/side + \(barStr) \(unit) bar"
+        }
+        return "\(perSideStr) \(unit)/side"
     }
 
     var body: some View {
@@ -119,18 +145,13 @@ struct ActiveWorkoutView: View {
         .onAppear { loadCurrentSetInputs() }
         .onChange(of: viewModel.currentExerciseIndex) { _, _ in loadCurrentSetInputs() }
         .onChange(of: viewModel.currentSetIndex) { _, _ in loadCurrentSetInputs() }
-        // Per build done_when #12 — present SetFeedbackSheet for the set just
-        // completed via Finish Set. Cleared on dismiss; not re-prompted.
-        .sheet(
-            isPresented: Binding(
-                get: { viewModel.lastCompletedSet != nil },
-                set: { presented in
-                    if !presented { viewModel.lastCompletedSet = nil }
-                }
-            )
-        ) {
-            if let set = viewModel.lastCompletedSet {
-                SetFeedbackSheet(plannedSet: set)
+        // Re-sync the wall-clock rest timer when returning from the background,
+        // so a timer that elapsed (or ran down) while the app was backgrounded
+        // reflects real time instead of freezing.
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                viewModel.syncRestTimer()
+                viewModel.syncWarmupTimer()
             }
         }
     }
@@ -171,6 +192,27 @@ struct ActiveWorkoutView: View {
     private var setActiveContent: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: TempoSpacing.xl) {
+                // Ramp-up banner — makes it unmistakable that this is a warm-up
+                // set (not a working set), on EVERY exercise that has them
+                // (e.g. Lat Pulldown), not just the first.
+                if currentSetIsWarmup {
+                    VStack(spacing: TempoSpacing.xxs) {
+                        Text("RAMP-UP SET")
+                            .font(.tempoCaption1)
+                            .tracking(TempoTracking.drillLabel)
+                            .foregroundStyle(Color.tempoSignal)
+                        Text("Warm up to your working weight — these don't count toward your sets.")
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(TempoSpacing.sm)
+                    .background(Color.tempoSignal.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                    .padding(.horizontal, TempoSpacing.screenEdge)
+                }
+
                 // Exercise info
                 exerciseHeader
 
@@ -179,9 +221,11 @@ struct ActiveWorkoutView: View {
                     .font(.tempoCaption1)
                     .foregroundStyle(Color.tempoTextSecondary)
 
-                // Weight input
+                // Weight input — the logged number is TOTAL load including the
+                // bar. For bar-loaded lifts we show a per-side plate hint so
+                // there's no ambiguity about what to actually put on.
                 VStack(spacing: TempoSpacing.sm) {
-                    Text("WEIGHT")
+                    Text("WEIGHT — total incl. bar")
                         .font(.tempoCaption2)
                         .foregroundStyle(Color.tempoTextTertiary)
                     NumberStepperView(
@@ -191,6 +235,11 @@ struct ActiveWorkoutView: View {
                         format: weightUnit == .kg ? "%.1f" : "%.0f",
                         unit: weightUnit.abbreviation
                     )
+                    if let hint = perSideHint {
+                        Text(hint)
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                    }
                 }
 
                 // Reps input
@@ -207,8 +256,8 @@ struct ActiveWorkoutView: View {
                     )
                 }
 
-                // RPE selector (optional)
-                rpeSelector
+                // RPE is collected end-of-set in the inline feedback panel
+                // (under the rest timer), not here — one prompt, not two.
 
                 // Set progress
                 setProgress
@@ -220,12 +269,11 @@ struct ActiveWorkoutView: View {
                     viewModel.logSet(
                         weight: weightKg,
                         reps: Int(inputReps),
-                        rpe: inputRPE,
                         modelContext: modelContext
                     )
                     HapticManager.notification(.success)
                 } label: {
-                    Text("Finish Set")
+                    Text(currentSetIsWarmup ? "Finish Warm-Up Set" : "Finish Set")
                         .font(.tempoHeadline)
                         .frame(maxWidth: .infinity)
                         .frame(height: 56)
@@ -240,62 +288,162 @@ struct ActiveWorkoutView: View {
         }
     }
 
+    /// Whether the set currently being entered is a warm-up (ramp) set.
+    private var currentSetIsWarmup: Bool {
+        viewModel.currentSet?.isWarmup ?? false
+    }
+
     // MARK: - Warmup Content
 
-    // Per STATE_MACHINES.md §1 and build done_when #7 — display-only warmup
-    // prompt. Lists the first exercise's warmup sets as target guidance;
-    // "Ready — Start Working Sets" skips straight to the first working set
-    // (warmup is never logged). Weights shown in the user's unit, matching
-    // the set-input stepper.
+    // A guided, workout-SPECIFIC 10–15 min warm-up + mobility block shown before
+    // the first working set. Content comes from WarmupRoutine (single source,
+    // shared with the WeekPlanView mobility card). Includes elbow/biceps-tendon
+    // prep on every day. After the routine, the first exercise's ramp-set
+    // targets are previewed, then "Start Working Sets" enters the lift.
+    // This block logs nothing — it is deliberately not part of WorkoutSessionState.
 
     private var warmupContent: some View {
+        Group {
+            if let move = viewModel.currentWarmupMove {
+                warmupMovePlayer(move)
+            } else {
+                warmupRampPreview
+            }
+        }
+    }
+
+    /// Guided step-through: one move at a time, big and readable. Timed moves
+    /// show a countdown that auto-advances; rep-based moves show a Next button.
+    private func warmupMovePlayer(_ move: WarmupMove) -> some View {
+        let routine = viewModel.warmupRoutine
+        let total = routine?.moves.count ?? 0
+        let isTimed = (move.durationSeconds ?? 0) > 0
+
+        return ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+                    Text("WARM-UP · MOVE \(viewModel.warmupMoveIndex + 1) OF \(total)")
+                        .font(.tempoCaption2)
+                        .tracking(TempoTracking.drillLabel)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                    Text(move.name)
+                        .font(.tempoTitle1)
+                        .foregroundStyle(move.isTendonPrep ? Color.tempoSignal : Color.tempoTextPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(move.dose)
+                        .font(.tempoHeadline)
+                        .monospacedDigit()
+                        .foregroundStyle(Color.tempoTextSecondary)
+                }
+
+                if isTimed {
+                    Text(warmupCountdownLabel)
+                        .font(.tempoDataLarge)
+                        .monospacedDigit()
+                        .foregroundStyle(Color.tempoTextPrimary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
+
+                Text(move.howTo)
+                    .font(.tempoBody)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let cue = move.cue {
+                    HStack(alignment: .top, spacing: TempoSpacing.xs) {
+                        Image(systemName: "lightbulb.fill")
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoSignal)
+                        Text(cue)
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                Button {
+                    viewModel.skipWarmupMove()
+                    HapticManager.notification(.success)
+                } label: {
+                    Text(isTimed ? "Skip →" : "Done — Next →")
+                        .font(.tempoHeadline)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                        .background(Color.tempoSignal)
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+                }
+
+                Button {
+                    viewModel.advancePastWarmup()
+                    HapticManager.selection()
+                } label: {
+                    Text("Skip whole warm-up")
+                        .font(.tempoSubheadline)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .padding(.horizontal, TempoSpacing.screenEdge)
+            .padding(.vertical, TempoSpacing.xl)
+        }
+    }
+
+    private var warmupCountdownLabel: String {
+        let s = Int(viewModel.warmupMoveRemaining.rounded())
+        return String(format: "%d:%02d", s / 60, s % 60)
+    }
+
+    /// After the routine: preview the first exercise's ramp sets and start.
+    private var warmupRampPreview: some View {
         let firstExercise = viewModel.todayPlan?.orderedExercises.first
         let warmupSets = (firstExercise?.orderedSets ?? []).filter(\.isWarmup)
 
         return ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.xl) {
-                VStack(spacing: TempoSpacing.xs) {
-                    Text("WARM-UP")
+            VStack(alignment: .leading, spacing: TempoSpacing.xl) {
+                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+                    Text("WARM-UP DONE")
                         .font(.tempoCaption1)
                         .tracking(TempoTracking.drillLabel)
                         .foregroundStyle(Color.tempoTextTertiary)
-
-                    Text(firstExercise?.exercise?.name ?? "First Exercise")
+                    Text("Ramp up: \(firstExercise?.exercise?.name ?? "")")
                         .font(.tempoTitle2)
                         .foregroundStyle(Color.tempoTextPrimary)
-                        .multilineTextAlignment(.center)
+                }
+                .padding(.top, TempoSpacing.lg)
+                .padding(.horizontal, TempoSpacing.screenEdge)
 
-                    Text("Two warm-up sets. Ramp up, then hit your working sets.")
+                if !warmupSets.isEmpty {
+                    VStack(spacing: TempoSpacing.sm) {
+                        ForEach(Array(warmupSets.enumerated()), id: \.element.id) { index, set in
+                            HStack {
+                                Text("Ramp set \(index + 1)")
+                                    .font(.tempoHeadline)
+                                    .foregroundStyle(Color.tempoTextSecondary)
+                                Spacer()
+                                Text(warmupTargetLabel(set))
+                                    .font(.tempoHeadline)
+                                    .monospacedDigit()
+                                    .foregroundStyle(Color.tempoTextPrimary)
+                            }
+                            .padding(TempoSpacing.cardPadding)
+                            .background(Color.tempoSurfaceCard)
+                            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+                        }
+                    }
+                    .padding(.horizontal, TempoSpacing.screenEdge)
+                } else {
+                    Text("No ramp sets for this exercise — go straight to your working sets.")
                         .font(.tempoBody)
                         .foregroundStyle(Color.tempoTextSecondary)
-                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, TempoSpacing.screenEdge)
                 }
-                .padding(.top, TempoSpacing.xl)
-
-                VStack(spacing: TempoSpacing.sm) {
-                    ForEach(Array(warmupSets.enumerated()), id: \.element.id) { index, set in
-                        HStack {
-                            Text("Set \(index + 1)")
-                                .font(.tempoHeadline)
-                                .foregroundStyle(Color.tempoTextSecondary)
-                            Spacer()
-                            Text(warmupTargetLabel(set))
-                                .font(.tempoHeadline)
-                                .monospacedDigit()
-                                .foregroundStyle(Color.tempoTextPrimary)
-                        }
-                        .padding(TempoSpacing.cardPadding)
-                        .background(Color.tempoSurfaceCard)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
-                    }
-                }
-                .padding(.horizontal, TempoSpacing.screenEdge)
 
                 Button {
                     viewModel.advancePastWarmup()
                     HapticManager.notification(.success)
                 } label: {
-                    Text("Ready — Start Working Sets")
+                    Text("Start Working Sets")
                         .font(.tempoHeadline)
                         .frame(maxWidth: .infinity)
                         .frame(height: 56)
@@ -308,6 +456,8 @@ struct ActiveWorkoutView: View {
             .padding(.vertical, TempoSpacing.lg)
         }
     }
+
+    
 
     private func warmupTargetLabel(_ set: PlannedSet) -> String {
         if let w = set.targetWeight, w > 0 {
@@ -333,32 +483,6 @@ struct ActiveWorkoutView: View {
             }
         }
         .padding(.top, TempoSpacing.md)
-    }
-
-    // MARK: - RPE Selector
-
-    private var rpeSelector: some View {
-        VStack(spacing: TempoSpacing.sm) {
-            Text("RPE (optional)")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
-
-            HStack(spacing: TempoSpacing.xs) {
-                ForEach(6 ... 10, id: \.self) { rpe in
-                    Button {
-                        inputRPE = inputRPE == rpe ? nil : rpe
-                    } label: {
-                        Text("\(rpe)")
-                            .font(.tempoCaption1)
-                            .fontWeight(.medium)
-                            .frame(width: 40, height: 40)
-                            .background(inputRPE == rpe ? Color.tempoSignal : Color.tempoSurfaceCard)
-                            .foregroundStyle(inputRPE == rpe ? .white : Color.tempoTextPrimary)
-                            .clipShape(Circle())
-                    }
-                }
-            }
-        }
     }
 
     // MARK: - Set Progress
@@ -457,43 +581,51 @@ struct ActiveWorkoutView: View {
     // MARK: - Cooldown Content
 
     private var cooldownContent: some View {
-        VStack(spacing: TempoSpacing.xxl) {
-            Spacer()
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: TempoSpacing.xl) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 80))
+                    .foregroundStyle(Color.tempoRecoveryGreen)
+                    .padding(.top, TempoSpacing.xxl)
 
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 80))
-                .foregroundStyle(Color.tempoRecoveryGreen)
+                Text("WORKOUT COMPLETE!")
+                    .font(.tempoTitle1)
+                    .foregroundStyle(Color.tempoTextPrimary)
 
-            Text("WORKOUT COMPLETE!")
-                .font(.tempoTitle1)
-                .foregroundStyle(Color.tempoTextPrimary)
+                if !viewModel.detectedPRs.isEmpty {
+                    VStack(spacing: TempoSpacing.sm) {
+                        Image(systemName: "trophy.fill")
+                            .font(.system(size: 32))
+                            .foregroundStyle(Color.tempoPRGold)
 
-            if !viewModel.detectedPRs.isEmpty {
-                VStack(spacing: TempoSpacing.sm) {
-                    Image(systemName: "trophy.fill")
-                        .font(.system(size: 32))
-                        .foregroundStyle(Color.tempoPRGold)
-
-                    Text("\(viewModel.detectedPRs.count) PR\(viewModel.detectedPRs.count > 1 ? "s" : "") Hit!")
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        Text("\(viewModel.detectedPRs.count) PR\(viewModel.detectedPRs.count > 1 ? "s" : "") Hit!")
+                            .font(.tempoHeadline)
+                            .foregroundStyle(Color.tempoTextPrimary)
+                    }
                 }
-            }
 
-            Button {
-                viewModel.skipCooldown()
-            } label: {
-                Text("VIEW SUMMARY")
-                    .font(.tempoHeadline)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 56)
-                    .background(Color.tempoSignal)
-                    .foregroundStyle(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
-            }
-            .padding(.horizontal, TempoSpacing.screenEdge)
+                // The last working set goes straight to cooldown (no rest), so
+                // its feedback panel never showed during a rest. Surface it here
+                // so RPE/notes for the final set can still be captured.
+                if viewModel.currentFeedback != nil {
+                    InlineSetFeedbackView(viewModel: viewModel)
+                }
 
-            Spacer()
+                Button {
+                    viewModel.skipCooldown()
+                } label: {
+                    Text("VIEW SUMMARY")
+                        .font(.tempoHeadline)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                        .background(Color.tempoSignal)
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+                }
+                .padding(.horizontal, TempoSpacing.screenEdge)
+                .padding(.bottom, TempoSpacing.xxl)
+            }
+            .frame(maxWidth: .infinity)
         }
     }
 
@@ -603,6 +735,5 @@ struct ActiveWorkoutView: View {
         if let targetReps = viewModel.currentSet?.targetReps {
             inputReps = Double(targetReps)
         }
-        inputRPE = nil
     }
 }

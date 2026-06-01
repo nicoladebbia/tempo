@@ -300,6 +300,17 @@ struct WorkoutHistoryView: View {
                             .foregroundStyle(Color.tempoTextSecondary)
                         }
 
+                        // Warm-up completed marker
+                        if workout.warmupCompleted {
+                            HStack(spacing: TempoSpacing.xxs) {
+                                Image(systemName: "checkmark.seal.fill")
+                                    .font(.system(size: 11))
+                                Text("Warm-up")
+                                    .font(.tempoCaption1)
+                            }
+                            .foregroundStyle(Color.tempoRecoveryGreen)
+                        }
+
                         Spacer()
 
                         Image(systemName: isExpanded ? "chevron.up" : "chevron.down")

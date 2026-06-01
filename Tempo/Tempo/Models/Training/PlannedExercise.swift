@@ -43,20 +43,34 @@ final class PlannedExercise {
         guard let sets, !sets.isEmpty else {
             return false
         }
-        return sets.allSatisfy(\.completed)
+        // Completeness is gated by WORKING sets only. Warmup sets are guidance,
+        // not work — an exercise whose working sets are all logged is done even
+        // if a warmup set was skipped. (Fixes the missing checkmark on lifts
+        // that carry warmup sets, e.g. Barbell Row.)
+        let workingSets = sets.filter { !$0.isWarmup }
+        guard !workingSets.isEmpty else {
+            return sets.allSatisfy(\.completed)
+        }
+        return workingSets.allSatisfy(\.completed)
     }
 
     @Transient
     var bestSet: PlannedSet? {
+        // Working sets only — a warmup ramp set must never be reported as the
+        // "best" set of an exercise.
         (sets ?? [])
-            .filter { $0.completed && $0.actualWeight != nil }
+            .filter { !$0.isWarmup && $0.completed && $0.actualWeight != nil }
             .max { ($0.actualWeight ?? 0) < ($1.actualWeight ?? 0) }
     }
 
     @Transient
     var totalVolume: Double {
+        // Working sets only — warmup ramp sets are not "volume". (Without this
+        // filter, every compound after the first inflates its volume, since
+        // its warmup sets flow through logSet as completed sets.)
         (sets ?? []).reduce(0) { total, set in
-            guard set.completed,
+            guard !set.isWarmup,
+                  set.completed,
                   let w = set.actualWeight,
                   let r = set.actualReps
             else {
