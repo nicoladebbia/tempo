@@ -56,15 +56,21 @@ final class PlannedExercise {
 
     @Transient
     var bestSet: PlannedSet? {
+        // Working sets only — a warmup ramp set must never be reported as the
+        // "best" set of an exercise.
         (sets ?? [])
-            .filter { $0.completed && $0.actualWeight != nil }
+            .filter { !$0.isWarmup && $0.completed && $0.actualWeight != nil }
             .max { ($0.actualWeight ?? 0) < ($1.actualWeight ?? 0) }
     }
 
     @Transient
     var totalVolume: Double {
+        // Working sets only — warmup ramp sets are not "volume". (Without this
+        // filter, every compound after the first inflates its volume, since
+        // its warmup sets flow through logSet as completed sets.)
         (sets ?? []).reduce(0) { total, set in
-            guard set.completed,
+            guard !set.isWarmup,
+                  set.completed,
                   let w = set.actualWeight,
                   let r = set.actualReps
             else {

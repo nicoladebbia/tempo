@@ -511,8 +511,10 @@ final class TrainingViewModel {
         // Persist immediately (crash recovery)
         try? modelContext.save()
 
-        // PR detection
-        if let exercise = plannedExercise.exercise {
+        // PR detection — working sets only. Warmup ramp sets must never trigger
+        // a PR (this is why duplicate/low PRs appeared, e.g. two "Face Pull" PRs:
+        // the warmup set and the working set each fired).
+        if !set.isWarmup, let exercise = plannedExercise.exercise {
             if let pr = trainingEngine.detectPersonalRecord(
                 exercise: exercise,
                 weight: weight,
