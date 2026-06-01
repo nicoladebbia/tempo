@@ -163,6 +163,22 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
 
         let currentWeight = recentSessions.first?.bestSetWeight ?? 0
 
+        // Tier 2 — feedback gate. The MOST RECENT session that carries real
+        // user feedback (feedbackSampleCount > 0) can veto a progression: if it
+        // felt maximal (avgRPE >= 9) or form broke down (sloppy/failed), HOLD
+        // even when reps were hit. Sessions with no entered feedback (legacy
+        // rows, or sets the user didn't annotate) carry nil aggregates and are
+        // skipped here — never treated as RPE 0 — so behaviour is unchanged
+        // when there's no signal.
+        if let lastFeedback = recentSessions.first(where: { $0.feedbackSampleCount > 0 }) {
+            let rpeTooHigh = (lastFeedback.avgRPE ?? 0) >= 9
+            let formBroke = lastFeedback.worstFormRaw
+                .flatMap(FormQuality.init(rawValue:))?.isNegativeSignal ?? false
+            if rpeTooHigh || formBroke {
+                return (weight: currentWeight, reps: defaultReps)
+            }
+        }
+
         // Per MODULE_TRAINING.md Section 16.1 — Count successful sessions
         // A session is successful if best set hit target reps at target weight
         var successCount = 0
@@ -172,7 +188,9 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
             }
         }
 
-        // Per MODULE_TRAINING.md Section 16.1 — Decision
+        // Per MODULE_TRAINING.md Section 16.1 — Decision. RPE only gates WHETHER
+        // to progress (above); the increment itself is unchanged (no double
+        // jumps), per the Tier-2 decision.
         if successCount >= 2 {
             // Increase weight
             return (weight: currentWeight + increment, reps: defaultReps)
