@@ -377,8 +377,6 @@ final class TrainingViewModel {
         }
 
         plan.status = .inProgress
-        plan.startedAt = Date()
-        workoutStartTime = Date()
         elapsedSeconds = 0
         totalPauseDuration = 0
         currentExerciseIndex = 0
@@ -393,18 +391,24 @@ final class TrainingViewModel {
         // startWorkout's gym flow.
         if plan.type.isGymWorkout {
             // Resolve the guided warm-up routine and start at the first move.
+            // Do NOT stamp startedAt / workoutStartTime yet — the session clock
+            // (and the persisted start time, incl. on crash recovery) begins at
+            // the first WORKING set so warm-up is not counted as duration. Both
+            // are set in advancePastWarmup.
             warmupRoutine = WarmupRoutine.routine(for: plan.type)
             warmupMoveIndex = 0
+            // Activate the audio session ONCE for the whole warm-up so cues
+            // duck music without re-ducking on every move transition.
+            Self.activateRestAudioSession()
             sessionState = .warmup(exerciseIndex: 0, warmupSetIndex: 0)
             startWarmupMoveTimerForCurrent()
         } else {
+            plan.startedAt = Date()
+            workoutStartTime = Date()
             sessionState = .exercise(.setActive(exerciseIndex: 0, setIndex: 0))
             // Non-gym sessions have no warm-up block — start the clock now.
             startElapsedTimer()
         }
-        // NOTE: for gym workouts the elapsed clock starts at the first working
-        // set (advancePastWarmup), so warm-up time is not counted as session
-        // duration.
         // Move quadrant should flip planned → in-progress on the Dashboard.
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
     }
@@ -434,7 +438,11 @@ final class TrainingViewModel {
         currentExerciseIndex = 0
         currentSetIndex = firstWorkingIndex
         // Clock starts here — warm-up time is NOT counted in session duration.
-        workoutStartTime = Date()
+        // Stamp plan.startedAt here too (not at warmup entry) so the persisted
+        // start time and crash-recovery elapsed math both exclude warm-up.
+        let now = Date()
+        todayPlan?.startedAt = now
+        workoutStartTime = now
         elapsedSeconds = 0
         totalPauseDuration = 0
         startElapsedTimer()
@@ -1458,9 +1466,8 @@ final class TrainingViewModel {
         guard let move = currentWarmupMove else {
             return
         }
-        // Activate the audio session so the warm-up voice cues are audible and
-        // duck music (rest timer normally does this; warm-up happens first).
-        Self.activateRestAudioSession()
+        // Audio session is activated once in startWorkout for the whole warm-up
+        // (re-activating per move would re-duck the user's music each time).
         Self.speak(warmupMoveIndex == 0 ? "Warm up. \(move.name)" : "Next: \(move.name)")
 
         guard let seconds = move.durationSeconds, seconds > 0 else {
@@ -1499,6 +1506,9 @@ final class TrainingViewModel {
     }
 
     /// Re-sync the warm-up move timer after returning to the foreground.
+    /// A nil `warmupMoveTask` means the current move is rep-based (no timer was
+    /// created), so there is nothing to re-sync — this no-op is correct, not a
+    /// missed paused/crashed timer.
     func syncWarmupTimer() {
         guard warmupMoveEndDate != nil, warmupMoveTask != nil else {
             return
