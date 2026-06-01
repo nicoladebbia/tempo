@@ -26,6 +26,8 @@ struct ProgressChartsView: View {
     private var exercises: [Exercise]
     @Query(sort: \WorkoutPlan.date, order: .reverse)
     private var workoutPlans: [WorkoutPlan]
+    @Query(sort: \ActivitySession.date, order: .reverse)
+    private var activitySessions: [ActivitySession]
 
     @State
     private var selectedTab: ProgressTab = .overview
@@ -34,6 +36,7 @@ struct ProgressChartsView: View {
         case overview = "Overview"
         case exercises = "Exercises"
         case muscles = "Muscles"
+        case activity = "Activity"
     }
 
     private var hasAnyData: Bool {
@@ -69,6 +72,8 @@ struct ProgressChartsView: View {
                         exercisesTab
                     case .muscles:
                         muscleGroupsTab
+                    case .activity:
+                        activityTab
                     }
                 }
             }
@@ -391,6 +396,98 @@ struct ProgressChartsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+    }
+
+    // MARK: - Activity Tab (non-gym: football / sprint / conditioning)
+
+    private var activityTab: some View {
+        VStack(spacing: TempoSpacing.lg) {
+            if activitySessions.isEmpty {
+                EmptyStateView(
+                    icon: "figure.run",
+                    title: "No Activity Yet",
+                    message: "Log a football, run, or conditioning session to track it here."
+                )
+                .padding(.top, TempoSpacing.xxxl)
+            } else {
+                // All-time totals
+                HStack(spacing: 0) {
+                    activityTotal("\(activitySessions.count)", "Sessions")
+                    activityTotal("\(Int(totalActiveMinutes))m", "Active")
+                    activityTotal(String(format: "%.0f", totalActivityStrain), "Total Strain")
+                }
+                .padding(TempoSpacing.cardPadding)
+                .frame(maxWidth: .infinity)
+                .background(Color.tempoSurfaceCard)
+                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+
+                // Recent sessions
+                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+                    Text("RECENT SESSIONS")
+                        .font(.tempoCaption1)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.tempoTextTertiary)
+
+                    ForEach(activitySessions.prefix(20), id: \.id) { session in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(activityTypeLabel(session))
+                                    .font(.tempoBody)
+                                    .fontWeight(.medium)
+                                    .foregroundStyle(Color.tempoTextPrimary)
+                                Text(session.date, format: .dateTime.weekday(.abbreviated).month(.abbreviated).day())
+                                    .font(.tempoCaption2)
+                                    .foregroundStyle(Color.tempoTextTertiary)
+                            }
+                            Spacer()
+                            VStack(alignment: .trailing, spacing: 2) {
+                                if let strain = session.strain {
+                                    Text(String(format: "%.1f strain", strain))
+                                        .font(.tempoCaption1)
+                                        .foregroundStyle(Color.tempoTextSecondary)
+                                }
+                                if let mins = session.durationMinutes {
+                                    Text("\(Int(mins)) min")
+                                        .font(.tempoCaption2)
+                                        .foregroundStyle(Color.tempoTextTertiary)
+                                }
+                            }
+                        }
+                        .padding(.vertical, TempoSpacing.xs)
+                    }
+                }
+                .padding(TempoSpacing.cardPadding)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.tempoSurfaceCard)
+                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+            }
+        }
+        .padding(.horizontal, TempoSpacing.screenEdge)
+        .padding(.bottom, TempoSpacing.xxxl)
+    }
+
+    private var totalActiveMinutes: Double {
+        activitySessions.compactMap(\.durationMinutes).reduce(0, +)
+    }
+
+    private var totalActivityStrain: Double {
+        activitySessions.compactMap(\.strain).reduce(0, +)
+    }
+
+    private func activityTotal(_ value: String, _ label: String) -> some View {
+        VStack(spacing: 4) {
+            Text(value)
+                .font(.tempoTitle2)
+                .foregroundStyle(Color.tempoTextPrimary)
+            Text(label)
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextTertiary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func activityTypeLabel(_ session: ActivitySession) -> String {
+        WorkoutType(rawValue: session.workoutType)?.displayName ?? session.workoutType.capitalized
     }
 
     // MARK: - Helpers
