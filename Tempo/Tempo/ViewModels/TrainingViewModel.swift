@@ -241,6 +241,34 @@ final class TrainingViewModel {
     /// today's workout. Idempotent: an existing matching plan is returned
     /// untouched (preserving logged sets); a stale-type plan is replaced
     /// with the canonical Week Plan version.
+// MARK: - Plan Resolution Guard (Tier 3.1, pure + unit-tested)
+
+    /// Whether an existing persisted day-row should be KEPT or REPLACED when the
+    /// forward-looking week template disagrees with it (e.g. after the user
+    /// edits football days / split). This is the data-loss invariant: a
+    /// `.completed` or `.inProgress` row is SACRED — it records real training (and
+    /// owns ExerciseHistory) — and must never be replaced, regardless of type.
+    /// Only a still-`.planned` row may be replaced, and only when its type
+    /// actually differs from the template.
+    enum PlanResolution: Equatable {
+        case keep
+        case replace
+    }
+
+    nonisolated static func planResolution(
+        existingStatus: WorkoutStatus,
+        existingType: WorkoutType,
+        templateType: WorkoutType
+    ) -> PlanResolution {
+        switch existingStatus {
+        case .planned:
+            return existingType == templateType ? .keep : .replace
+        default:
+            // completed / inProgress / skipped — sacred, never replace.
+            return .keep
+        }
+    }
+
     @discardableResult
     func ensureTodayPlanPersisted(modelContext: ModelContext) -> ResolvedTodayPlan {
         // Week Plan must be loaded first so Today and Week Plan agree.
@@ -291,14 +319,18 @@ final class TrainingViewModel {
             if existing.status == .inProgress {
                 return ResolvedTodayPlan(plan: existing, isCrashedInProgress: true)
             }
-            if existing.status == .planned,
-               let canonical = weekPlanForToday, canonical.type != existing.type {
-                // Only a still-PLANNED row may be replaced when it disagrees
-                // with the Week Plan (e.g. user changed Football Days, or it
-                // was a stale row). A completed or in-progress plan is sacred —
-                // it records what was actually trained, so it survives even if
-                // its type no longer matches the forward-looking template.
-                // Deleting it here was a data-loss path (orphaned its history).
+            if let canonical = weekPlanForToday,
+               Self.planResolution(
+                   existingStatus: existing.status,
+                   existingType: existing.type,
+                   templateType: canonical.type
+               ) == .replace {
+                // Only a still-PLANNED row whose type differs may be replaced
+                // (e.g. user changed Football Days). A completed/in-progress plan
+                // is sacred — planResolution returns .keep for it — so it
+                // survives even if its type no longer matches the template.
+                // (This was a data-loss path before the guard: deleting a
+                // completed plan orphaned its history.)
                 modelContext.delete(existing)
                 populateExercises(for: canonical, modelContext: modelContext)
                 modelContext.insert(canonical)
