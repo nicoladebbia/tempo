@@ -32,19 +32,25 @@ struct WarmupMove: Identifiable, Equatable {
     let cue: String?
     /// True for the elbow/biceps-tendon prep layered into every day.
     let isTendonPrep: Bool
+    /// Structured duration in seconds for TIMED moves (the guided flow runs a
+    /// countdown and auto-advances). Nil = rep-based: the user reads `dose` and
+    /// taps Next when done (no timer can know how long curls take).
+    let durationSeconds: Int?
 
     init(
         name: String,
         dose: String,
         howTo: String,
         cue: String? = nil,
-        isTendonPrep: Bool = false
+        isTendonPrep: Bool = false,
+        durationSeconds: Int? = nil
     ) {
         self.name = name
         self.dose = dose
         self.howTo = howTo
         self.cue = cue
         self.isTendonPrep = isTendonPrep
+        self.durationSeconds = durationSeconds
     }
 }
 
@@ -73,7 +79,8 @@ struct WarmupRoutine {
                     name: "Arm circles + band pass-throughs",
                     dose: "1 min + 10 reps",
                     howTo: "Big slow arm circles forward and back to raise shoulder temperature, then hold a band shoulder-width and pass it overhead front-to-back with straight arms.",
-                    cue: "Keep elbows long — don't bend to cheat the pass."
+                    cue: "Keep elbows long — don't bend to cheat the pass.",
+                    durationSeconds: 60
                 ),
                 WarmupMove(
                     name: "Scapular pull-ups / scap retractions",
@@ -101,7 +108,8 @@ struct WarmupRoutine {
                     name: "Arm circles + shoulder dislocates",
                     dose: "1 min + 10 reps",
                     howTo: "Arm circles to warm the shoulders, then with a band held wide, pass it from in front of your hips up and over behind you with straight arms, widening grip if it's tight.",
-                    cue: "Only go as wide as you can WITHOUT shrugging."
+                    cue: "Only go as wide as you can WITHOUT shrugging.",
+                    durationSeconds: 60
                 ),
                 WarmupMove(
                     name: "Scapular push-ups",
@@ -157,7 +165,8 @@ struct WarmupRoutine {
                     name: "Arm circles + band pass-throughs",
                     dose: "1 min + 10 reps",
                     howTo: "Arm circles both directions, then band pass-throughs overhead front-to-back with straight arms to open the shoulders for both pressing and pulling.",
-                    cue: "Keep elbows long."
+                    cue: "Keep elbows long.",
+                    durationSeconds: 60
                 ),
                 WarmupMove(
                     name: "Band pull-aparts",
@@ -185,7 +194,8 @@ struct WarmupRoutine {
                     name: "Easy cardio (bike/row/jog)",
                     dose: "3 min",
                     howTo: "Light continuous effort to raise core temperature and heart rate before loading.",
-                    cue: "Conversational pace — you're warming up, not training."
+                    cue: "Conversational pace — you're warming up, not training.",
+                    durationSeconds: 180
                 ),
                 WarmupMove(
                     name: "World's greatest stretch",
@@ -213,13 +223,15 @@ struct WarmupRoutine {
                     name: "Easy cardio",
                     dose: "3 min",
                     howTo: "Light bike, row or brisk walk to raise heart rate and core temperature.",
-                    cue: "Conversational pace."
+                    cue: "Conversational pace.",
+                    durationSeconds: 180
                 ),
                 WarmupMove(
                     name: "Full-body mobility flow",
                     dose: "5 min",
                     howTo: "Move every major joint through its range: neck, shoulders, T-spine, hips, knees, ankles.",
-                    cue: "Smooth and controlled."
+                    cue: "Smooth and controlled.",
+                    durationSeconds: 300
                 ),
             ]
         }
@@ -239,7 +251,8 @@ struct WarmupRoutine {
             dose: "30s + 30s",
             howTo: "Circle the wrists both directions, then gently extend one arm, palm up, and use the other hand to draw the fingers back, stretching the forearm flexors and the biceps-tendon line.",
             cue: "Stretch to mild tension, never pain.",
-            isTendonPrep: true
+            isTendonPrep: true,
+            durationSeconds: 60
         ),
         WarmupMove(
             name: "Light biceps-tendon glides",

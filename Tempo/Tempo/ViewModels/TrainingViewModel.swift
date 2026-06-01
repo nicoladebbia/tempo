@@ -146,6 +146,20 @@ final class TrainingViewModel {
     /// so re-syncing on foreground does not replay cues. Starts at Int.max.
     private var lastCuedSecond: Int = Int.max
 
+    // MARK: - Guided Warm-Up
+
+    /// The resolved routine for today's workout, shown in the guided warm-up.
+    var warmupRoutine: WarmupRoutine?
+    /// Index of the move the user is currently on in the guided warm-up.
+    var warmupMoveIndex: Int = 0
+    /// Remaining seconds on the current TIMED warm-up move (0 for rep-based).
+    var warmupMoveRemaining: TimeInterval = 0
+    /// Wall-clock end instant for the current timed warm-up move — Date-anchored
+    /// exactly like the rest timer so it survives backgrounding (the user walks
+    /// around the gym during warm-up).
+    private var warmupMoveEndDate: Date?
+    private var warmupMoveTask: Task<Void, Never>?
+
     // MARK: - Elapsed Timer
 
     private var elapsedTimerTask: Task<Void, Never>?
@@ -378,11 +392,19 @@ final class TrainingViewModel {
         // no-ramp-set case (firstWorkingIndex = 0). Non-gym types never reach
         // startWorkout's gym flow.
         if plan.type.isGymWorkout {
+            // Resolve the guided warm-up routine and start at the first move.
+            warmupRoutine = WarmupRoutine.routine(for: plan.type)
+            warmupMoveIndex = 0
             sessionState = .warmup(exerciseIndex: 0, warmupSetIndex: 0)
+            startWarmupMoveTimerForCurrent()
         } else {
             sessionState = .exercise(.setActive(exerciseIndex: 0, setIndex: 0))
+            // Non-gym sessions have no warm-up block — start the clock now.
+            startElapsedTimer()
         }
-        startElapsedTimer()
+        // NOTE: for gym workouts the elapsed clock starts at the first working
+        // set (advancePastWarmup), so warm-up time is not counted as session
+        // duration.
         // Move quadrant should flip planned → in-progress on the Dashboard.
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
     }
@@ -398,6 +420,7 @@ final class TrainingViewModel {
         guard case .warmup = sessionState, let plan = todayPlan else {
             return
         }
+        stopWarmupMoveTimer()
         let exercises = plan.orderedExercises
         guard let first = exercises.first else {
             sessionState = .cooldown
@@ -410,6 +433,11 @@ final class TrainingViewModel {
         #endif
         currentExerciseIndex = 0
         currentSetIndex = firstWorkingIndex
+        // Clock starts here — warm-up time is NOT counted in session duration.
+        workoutStartTime = Date()
+        elapsedSeconds = 0
+        totalPauseDuration = 0
+        startElapsedTimer()
         sessionState = .exercise(.setActive(exerciseIndex: 0, setIndex: firstWorkingIndex))
     }
 
@@ -1109,6 +1137,7 @@ final class TrainingViewModel {
         }
 
         stopRestTimer()
+        stopWarmupMoveTimer()
         stopElapsedTimer()
         sessionState = .paused(previousState: previousState, pauseStartTime: Date())
     }
@@ -1125,6 +1154,10 @@ final class TrainingViewModel {
         switch previousState {
         case let .warmup(ei, si):
             sessionState = .warmup(exerciseIndex: ei, warmupSetIndex: si)
+            // Re-arm the guided warm-up move timer; the elapsed clock does not
+            // run during warm-up, so don't start it here.
+            startWarmupMoveTimerForCurrent()
+            return
         case let .exercise(sub):
             sessionState = .exercise(sub)
         case .cooldown:
@@ -1406,6 +1439,109 @@ final class TrainingViewModel {
         }
     }
 
+    // MARK: - Guided Warm-Up Flow
+
+    /// The move the user is currently on in the guided warm-up, if any.
+    var currentWarmupMove: WarmupMove? {
+        guard let moves = warmupRoutine?.moves, warmupMoveIndex < moves.count else {
+            return nil
+        }
+        return moves[warmupMoveIndex]
+    }
+
+    /// Start (or arm) the timer for the current warm-up move. Timed moves run a
+    /// Date-anchored countdown that auto-advances and survives backgrounding;
+    /// rep-based moves run no timer (the user taps Next). Announces the move by
+    /// voice so the user knows what to do without looking.
+    func startWarmupMoveTimerForCurrent() {
+        stopWarmupMoveTimer()
+        guard let move = currentWarmupMove else {
+            return
+        }
+        // Activate the audio session so the warm-up voice cues are audible and
+        // duck music (rest timer normally does this; warm-up happens first).
+        Self.activateRestAudioSession()
+        Self.speak(warmupMoveIndex == 0 ? "Warm up. \(move.name)" : "Next: \(move.name)")
+
+        guard let seconds = move.durationSeconds, seconds > 0 else {
+            // Rep-based move — no countdown, advance is manual.
+            warmupMoveRemaining = 0
+            warmupMoveEndDate = nil
+            return
+        }
+        warmupMoveRemaining = TimeInterval(seconds)
+        let end = Date().addingTimeInterval(TimeInterval(seconds))
+        warmupMoveEndDate = end
+        warmupMoveTask = Task { @MainActor [weak self] in
+            while true {
+                try? await Task.sleep(for: .seconds(0.2))
+                guard !Task.isCancelled, let self else {
+                    return
+                }
+                if self.tickWarmupMove() {
+                    // Tear down BEFORE advancing so a scenePhase resync can't
+                    // double-advance the same move (mirrors the rest-timer fix).
+                    self.stopWarmupMoveTimer()
+                    self.advanceWarmupMove()
+                    return
+                }
+            }
+        }
+    }
+
+    @discardableResult
+    private func tickWarmupMove() -> Bool {
+        guard let end = warmupMoveEndDate else {
+            return false
+        }
+        warmupMoveRemaining = max(0, end.timeIntervalSinceNow)
+        return warmupMoveRemaining <= 0
+    }
+
+    /// Re-sync the warm-up move timer after returning to the foreground.
+    func syncWarmupTimer() {
+        guard warmupMoveEndDate != nil, warmupMoveTask != nil else {
+            return
+        }
+        if tickWarmupMove() {
+            stopWarmupMoveTimer()
+            advanceWarmupMove()
+        }
+    }
+
+    /// Advance to the next warm-up move, or into the working sets when the
+    /// routine is finished. Idempotent: guarded on still being in .warmup.
+    func advanceWarmupMove() {
+        guard case .warmup = sessionState else {
+            return
+        }
+        let moveCount = warmupRoutine?.moves.count ?? 0
+        let next = warmupMoveIndex + 1
+        if next < moveCount {
+            warmupMoveIndex = next
+            startWarmupMoveTimerForCurrent()
+        } else {
+            // Routine done — fall through to the ramp-set preview / working sets.
+            stopWarmupMoveTimer()
+            // Stay in .warmup so the ramp preview + "Start Working Sets" shows;
+            // the view switches to the ramp preview once moves are exhausted.
+            warmupMoveIndex = moveCount
+        }
+    }
+
+    /// Skip the current warm-up move immediately.
+    func skipWarmupMove() {
+        stopWarmupMoveTimer()
+        advanceWarmupMove()
+    }
+
+    private func stopWarmupMoveTimer() {
+        warmupMoveTask?.cancel()
+        warmupMoveTask = nil
+        warmupMoveRemaining = 0
+        warmupMoveEndDate = nil
+    }
+
     // MARK: Rest Audio Cues
 
     /// Retained synthesizer — a local instance would be deallocated mid-utterance.
@@ -1618,7 +1754,10 @@ final class TrainingViewModel {
         elapsedSeconds = 0
         totalPauseDuration = 0
         detectedPRs = []
+        warmupRoutine = nil
+        warmupMoveIndex = 0
         stopRestTimer()
+        stopWarmupMoveTimer()
         stopElapsedTimer()
     }
 

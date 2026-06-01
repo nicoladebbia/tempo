@@ -149,7 +149,10 @@ struct ActiveWorkoutView: View {
         // so a timer that elapsed (or ran down) while the app was backgrounded
         // reflects real time instead of freezing.
         .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active { viewModel.syncRestTimer() }
+            if newPhase == .active {
+                viewModel.syncRestTimer()
+                viewModel.syncWarmupTimer()
+            }
         }
     }
 
@@ -274,52 +277,126 @@ struct ActiveWorkoutView: View {
     // This block logs nothing — it is deliberately not part of WorkoutSessionState.
 
     private var warmupContent: some View {
+        Group {
+            if let move = viewModel.currentWarmupMove {
+                warmupMovePlayer(move)
+            } else {
+                warmupRampPreview
+            }
+        }
+    }
+
+    /// Guided step-through: one move at a time, big and readable. Timed moves
+    /// show a countdown that auto-advances; rep-based moves show a Next button.
+    private func warmupMovePlayer(_ move: WarmupMove) -> some View {
+        let routine = viewModel.warmupRoutine
+        let total = routine?.moves.count ?? 0
+        let isTimed = (move.durationSeconds ?? 0) > 0
+
+        return ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+                    Text("WARM-UP · MOVE \(viewModel.warmupMoveIndex + 1) OF \(total)")
+                        .font(.tempoCaption2)
+                        .tracking(TempoTracking.drillLabel)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                    Text(move.name)
+                        .font(.tempoTitle1)
+                        .foregroundStyle(move.isTendonPrep ? Color.tempoSignal : Color.tempoTextPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(move.dose)
+                        .font(.tempoHeadline)
+                        .monospacedDigit()
+                        .foregroundStyle(Color.tempoTextSecondary)
+                }
+
+                if isTimed {
+                    Text(warmupCountdownLabel)
+                        .font(.tempoDataLarge)
+                        .monospacedDigit()
+                        .foregroundStyle(Color.tempoTextPrimary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
+
+                Text(move.howTo)
+                    .font(.tempoBody)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let cue = move.cue {
+                    HStack(alignment: .top, spacing: TempoSpacing.xs) {
+                        Image(systemName: "lightbulb.fill")
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoSignal)
+                        Text(cue)
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                Button {
+                    viewModel.skipWarmupMove()
+                    HapticManager.notification(.success)
+                } label: {
+                    Text(isTimed ? "Skip →" : "Done — Next →")
+                        .font(.tempoHeadline)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                        .background(Color.tempoSignal)
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+                }
+
+                Button {
+                    viewModel.advancePastWarmup()
+                    HapticManager.selection()
+                } label: {
+                    Text("Skip whole warm-up")
+                        .font(.tempoSubheadline)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .padding(.horizontal, TempoSpacing.screenEdge)
+            .padding(.vertical, TempoSpacing.xl)
+        }
+    }
+
+    private var warmupCountdownLabel: String {
+        let s = Int(viewModel.warmupMoveRemaining.rounded())
+        return String(format: "%d:%02d", s / 60, s % 60)
+    }
+
+    /// After the routine: preview the first exercise's ramp sets and start.
+    private var warmupRampPreview: some View {
         let firstExercise = viewModel.todayPlan?.orderedExercises.first
         let warmupSets = (firstExercise?.orderedSets ?? []).filter(\.isWarmup)
-        let routine = WarmupRoutine.routine(for: viewModel.todayPlan?.type ?? .fullBody)
 
         return ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: TempoSpacing.xl) {
                 VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                    Text("WARM-UP · \(routine.estimatedDuration)")
+                    Text("WARM-UP DONE")
                         .font(.tempoCaption1)
                         .tracking(TempoTracking.drillLabel)
                         .foregroundStyle(Color.tempoTextTertiary)
-
-                    Text(routine.title)
+                    Text("Ramp up: \(firstExercise?.exercise?.name ?? "")")
                         .font(.tempoTitle2)
                         .foregroundStyle(Color.tempoTextPrimary)
-
-                    Text("Work through these before you load up. The last two prep your elbows and biceps tendon — don't skip them.")
-                        .font(.tempoSubheadline)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.top, TempoSpacing.lg)
                 .padding(.horizontal, TempoSpacing.screenEdge)
 
-                // Routine moves with detailed how-to.
-                VStack(spacing: TempoSpacing.sm) {
-                    ForEach(Array(routine.moves.enumerated()), id: \.element.id) { index, move in
-                        warmupMoveCard(index: index + 1, move: move)
-                    }
-                }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-
-                // First-exercise ramp-set preview (these get logged in-session).
                 if !warmupSets.isEmpty {
-                    VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                        Text("THEN RAMP UP: \(firstExercise?.exercise?.name ?? "")")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                    VStack(spacing: TempoSpacing.sm) {
                         ForEach(Array(warmupSets.enumerated()), id: \.element.id) { index, set in
                             HStack {
                                 Text("Ramp set \(index + 1)")
-                                    .font(.tempoSubheadline)
+                                    .font(.tempoHeadline)
                                     .foregroundStyle(Color.tempoTextSecondary)
                                 Spacer()
                                 Text(warmupTargetLabel(set))
-                                    .font(.tempoSubheadline)
+                                    .font(.tempoHeadline)
                                     .monospacedDigit()
                                     .foregroundStyle(Color.tempoTextPrimary)
                             }
@@ -329,13 +406,18 @@ struct ActiveWorkoutView: View {
                         }
                     }
                     .padding(.horizontal, TempoSpacing.screenEdge)
+                } else {
+                    Text("No ramp sets for this exercise — go straight to your working sets.")
+                        .font(.tempoBody)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                        .padding(.horizontal, TempoSpacing.screenEdge)
                 }
 
                 Button {
                     viewModel.advancePastWarmup()
                     HapticManager.notification(.success)
                 } label: {
-                    Text("Ready — Start Working Sets")
+                    Text("Start Working Sets")
                         .font(.tempoHeadline)
                         .frame(maxWidth: .infinity)
                         .frame(height: 56)
@@ -349,45 +431,7 @@ struct ActiveWorkoutView: View {
         }
     }
 
-    private func warmupMoveCard(index: Int, move: WarmupMove) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            HStack(spacing: TempoSpacing.sm) {
-                Text("\(index)")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .frame(width: 16, alignment: .trailing)
-                Text(move.name)
-                    .font(.tempoHeadline)
-                    .foregroundStyle(move.isTendonPrep ? Color.tempoSignal : Color.tempoTextPrimary)
-                Spacer()
-                Text(move.dose)
-                    .font(.tempoCaption1)
-                    .monospacedDigit()
-                    .foregroundStyle(Color.tempoTextSecondary)
-            }
-            Text(move.howTo)
-                .font(.tempoFootnote)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.leading, 24)
-            if let cue = move.cue {
-                HStack(alignment: .top, spacing: TempoSpacing.xs) {
-                    Image(systemName: "lightbulb.fill")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoSignal)
-                    Text(cue)
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(.leading, 24)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
-    }
+    
 
     private func warmupTargetLabel(_ set: PlannedSet) -> String {
         if let w = set.targetWeight, w > 0 {
