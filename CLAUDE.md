@@ -21,6 +21,14 @@ Tempo has Inject hot-reload wired (dev-only; `@ObserveInjection`+`.enableInjecti
 - **Multi-file edits:** after editing 2+ files in one change (e.g. a view AND its view model), do NOT trust the partial injection — tell Nicola to ⌘R once. Inject may inject one file mid-edit and show a broken intermediate state.
 - **Never call a hot-injected screen "verified."** Inject reloads view code but does not restart the app or re-run launch logic. A structural change that *looks* right after injection is not proven — per global rule L145, only a full ⌘R relaunch exercises the real path. State "necessary but not sufficient — needs a clean ⌘R to verify" for anything structural.
 
+## Stale Build on Device — CHECK FIRST when "it's still broken" (CRITICAL)
+Nicola runs Tempo on his **physical iPhone** ("iPhone di Nicola"), not the simulator. `xcodebuild -destination 'platform=iOS Simulator'` (or `generic/platform=iOS`) **compiles but installs NOTHING on the device** — the phone keeps running whatever Xcode last ⌘R'd. This means a "still broken / my change isn't showing / all the old problems persist" report is, by default, a **stale binary**, NOT a code bug. This trap cost ~half a session (2026-05-31): repeated code-spelunking on a device running pre-change code.
+
+**Before diagnosing any "still broken" / "didn't work" / "nothing changed" report:**
+1. **Confirm the build is fresh on the device.** The deterministic tell: a DEBUG `print` you added produces **zero log lines** at the moment it should fire (e.g. zero `[Workout]` lines after starting a workout) → the instrumented code is NOT on the device → stale build. Stop; tell Nicola to ⌘R (device destination), do not touch code.
+2. **CLI builds prove compilation ONLY.** `xcodebuild ... build` succeeding ≠ the change is on the phone, ≠ runtime-verified. NEVER write "verified"/"fixed"/"working" off a CLI build — only off an on-device observation after a confirmed fresh ⌘R (per global rule L145).
+3. `xcrun devicectl list devices` reveals a connected physical device; if one is present, assume device-not-sim is the run target unless Nicola says otherwise.
+
 ## Architecture
 - **iOS:** SwiftUI + SwiftData + HealthKit + EventKit (iOS 17.4+ per feasibility audit)
 - **Backend:** Vapor (Swift) + PostgreSQL + Redis
