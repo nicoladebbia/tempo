@@ -266,54 +266,70 @@ struct ActiveWorkoutView: View {
 
     // MARK: - Warmup Content
 
-    // Per STATE_MACHINES.md §1 and build done_when #7 — display-only warmup
-    // prompt. Lists the first exercise's warmup sets as target guidance;
-    // "Ready — Start Working Sets" skips straight to the first working set
-    // (warmup is never logged). Weights shown in the user's unit, matching
-    // the set-input stepper.
+    // A guided, workout-SPECIFIC 10–15 min warm-up + mobility block shown before
+    // the first working set. Content comes from WarmupRoutine (single source,
+    // shared with the WeekPlanView mobility card). Includes elbow/biceps-tendon
+    // prep on every day. After the routine, the first exercise's ramp-set
+    // targets are previewed, then "Start Working Sets" enters the lift.
+    // This block logs nothing — it is deliberately not part of WorkoutSessionState.
 
     private var warmupContent: some View {
         let firstExercise = viewModel.todayPlan?.orderedExercises.first
         let warmupSets = (firstExercise?.orderedSets ?? []).filter(\.isWarmup)
+        let routine = WarmupRoutine.routine(for: viewModel.todayPlan?.type ?? .fullBody)
 
         return ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.xl) {
-                VStack(spacing: TempoSpacing.xs) {
-                    Text("WARM-UP")
+            VStack(alignment: .leading, spacing: TempoSpacing.xl) {
+                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+                    Text("WARM-UP · \(routine.estimatedDuration)")
                         .font(.tempoCaption1)
                         .tracking(TempoTracking.drillLabel)
                         .foregroundStyle(Color.tempoTextTertiary)
 
-                    Text(firstExercise?.exercise?.name ?? "First Exercise")
+                    Text(routine.title)
                         .font(.tempoTitle2)
                         .foregroundStyle(Color.tempoTextPrimary)
-                        .multilineTextAlignment(.center)
 
-                    Text("Two warm-up sets. Ramp up, then hit your working sets.")
-                        .font(.tempoBody)
+                    Text("Work through these before you load up. The last two prep your elbows and biceps tendon — don't skip them.")
+                        .font(.tempoSubheadline)
                         .foregroundStyle(Color.tempoTextSecondary)
-                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(.top, TempoSpacing.xl)
+                .padding(.top, TempoSpacing.lg)
+                .padding(.horizontal, TempoSpacing.screenEdge)
 
+                // Routine moves with detailed how-to.
                 VStack(spacing: TempoSpacing.sm) {
-                    ForEach(Array(warmupSets.enumerated()), id: \.element.id) { index, set in
-                        HStack {
-                            Text("Set \(index + 1)")
-                                .font(.tempoHeadline)
-                                .foregroundStyle(Color.tempoTextSecondary)
-                            Spacer()
-                            Text(warmupTargetLabel(set))
-                                .font(.tempoHeadline)
-                                .monospacedDigit()
-                                .foregroundStyle(Color.tempoTextPrimary)
-                        }
-                        .padding(TempoSpacing.cardPadding)
-                        .background(Color.tempoSurfaceCard)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+                    ForEach(Array(routine.moves.enumerated()), id: \.element.id) { index, move in
+                        warmupMoveCard(index: index + 1, move: move)
                     }
                 }
                 .padding(.horizontal, TempoSpacing.screenEdge)
+
+                // First-exercise ramp-set preview (these get logged in-session).
+                if !warmupSets.isEmpty {
+                    VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+                        Text("THEN RAMP UP: \(firstExercise?.exercise?.name ?? "")")
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                        ForEach(Array(warmupSets.enumerated()), id: \.element.id) { index, set in
+                            HStack {
+                                Text("Ramp set \(index + 1)")
+                                    .font(.tempoSubheadline)
+                                    .foregroundStyle(Color.tempoTextSecondary)
+                                Spacer()
+                                Text(warmupTargetLabel(set))
+                                    .font(.tempoSubheadline)
+                                    .monospacedDigit()
+                                    .foregroundStyle(Color.tempoTextPrimary)
+                            }
+                            .padding(TempoSpacing.cardPadding)
+                            .background(Color.tempoSurfaceCard)
+                            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+                        }
+                    }
+                    .padding(.horizontal, TempoSpacing.screenEdge)
+                }
 
                 Button {
                     viewModel.advancePastWarmup()
@@ -331,6 +347,46 @@ struct ActiveWorkoutView: View {
             }
             .padding(.vertical, TempoSpacing.lg)
         }
+    }
+
+    private func warmupMoveCard(index: Int, move: WarmupMove) -> some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+            HStack(spacing: TempoSpacing.sm) {
+                Text("\(index)")
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextTertiary)
+                    .frame(width: 16, alignment: .trailing)
+                Text(move.name)
+                    .font(.tempoHeadline)
+                    .foregroundStyle(move.isTendonPrep ? Color.tempoSignal : Color.tempoTextPrimary)
+                Spacer()
+                Text(move.dose)
+                    .font(.tempoCaption1)
+                    .monospacedDigit()
+                    .foregroundStyle(Color.tempoTextSecondary)
+            }
+            Text(move.howTo)
+                .font(.tempoFootnote)
+                .foregroundStyle(Color.tempoTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, 24)
+            if let cue = move.cue {
+                HStack(alignment: .top, spacing: TempoSpacing.xs) {
+                    Image(systemName: "lightbulb.fill")
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoSignal)
+                    Text(cue)
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.leading, 24)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(TempoSpacing.cardPadding)
+        .background(Color.tempoSurfaceCard)
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
     }
 
     private func warmupTargetLabel(_ set: PlannedSet) -> String {

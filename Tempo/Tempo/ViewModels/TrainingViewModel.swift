@@ -371,11 +371,13 @@ final class TrainingViewModel {
         currentSetIndex = 0
         detectedPRs = []
 
-        // Per STATE_MACHINES.md §1 lines 153–154: idle → warmup if the first
-        // exercise has warmup sets, else idle → exercise.setActive directly.
-        let firstExercise = plan.orderedExercises.first
-        let hasWarmup = (firstExercise?.orderedSets ?? []).contains { $0.isWarmup }
-        if hasWarmup {
+        // Always enter the warmup state for a gym workout so the guided
+        // workout-specific warm-up + mobility block (WarmupRoutine) is shown
+        // before the first working set — independent of whether the first
+        // exercise carries ramp sets. advancePastWarmup handles the
+        // no-ramp-set case (firstWorkingIndex = 0). Non-gym types never reach
+        // startWorkout's gym flow.
+        if plan.type.isGymWorkout {
             sessionState = .warmup(exerciseIndex: 0, warmupSetIndex: 0)
         } else {
             sessionState = .exercise(.setActive(exerciseIndex: 0, setIndex: 0))
