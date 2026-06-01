@@ -87,7 +87,14 @@ struct TodayWorkoutView: View {
                     } else if viewModel.isRestDay {
                         restDayContent
                     } else if let plan = viewModel.todayPlan {
-                        workoutContent(plan: plan)
+                        if plan.type.isGymWorkout {
+                            workoutContent(plan: plan)
+                        } else {
+                            // Non-gym training day (football, run, sprint,
+                            // conditioning) — no exercises to log, so show a
+                            // type-appropriate card instead of empty gym content.
+                            nonGymContent(plan: plan)
+                        }
                     } else {
                         emptyState
                     }
@@ -97,8 +104,10 @@ struct TodayWorkoutView: View {
             }
             .background(Color.tempoBgPrimary)
 
-            // Floating Start Workout button
-            if !viewModel.isRestDay, viewModel.todayPlan != nil, !viewModel.isLoading {
+            // Floating Start Workout button — ONLY on a loggable gym day.
+            // Non-gym days (rest, mobility, football, run, sprint, conditioning)
+            // have nothing to log, so no button is shown.
+            if viewModel.canStartWorkout, !viewModel.isLoading {
                 startWorkoutButton
             }
         }
@@ -759,6 +768,69 @@ struct TodayWorkoutView: View {
                 .foregroundStyle(Color.tempoTextPrimary)
                 .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
             }
+        }
+    }
+
+    // MARK: - Non-Gym Training Day Content
+
+    // Shown for training days that aren't loggable gym sessions — football,
+    // run, sprint, conditioning. These have no exercises/sets to log, so there
+    // is no "Start Workout" button; this card just tells the user what today is.
+    private func nonGymContent(plan: WorkoutPlan) -> some View {
+        VStack(spacing: TempoSpacing.xxl) {
+            Spacer().frame(height: TempoSpacing.xxxl)
+
+            TimelineView(.everyMinute) { context in
+                Text(context.date, format: .dateTime.weekday(.wide).month(.wide).day())
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextTertiary)
+            }
+
+            Text(plan.type.displayName.uppercased())
+                .font(.tempoTitle1)
+                .foregroundStyle(Color.tempoTextPrimary)
+
+            Image(systemName: nonGymIcon(for: plan.type))
+                .font(.system(size: 60))
+                .foregroundStyle(Color.tempoTextTertiary)
+
+            VStack(spacing: TempoSpacing.sm) {
+                Text(nonGymMessage(for: plan.type))
+                    .font(.tempoBody)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                    .multilineTextAlignment(.center)
+
+                if let nextType = nextWorkoutType {
+                    VStack(spacing: TempoSpacing.xxs) {
+                        Text("Next workout: Tomorrow")
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                        Text(nextType.uppercased())
+                            .font(.tempoHeadline)
+                            .foregroundStyle(Color.tempoTextPrimary)
+                    }
+                }
+            }
+        }
+    }
+
+    private func nonGymIcon(for type: WorkoutType) -> String {
+        switch type {
+        case .football: "sportscourt.fill"
+        case .run: "figure.run"
+        case .sprint: "figure.run.treadmill"
+        case .conditioning: "bolt.heart.fill"
+        default: "figure.mixed.cardio"
+        }
+    }
+
+    private func nonGymMessage(for type: WorkoutType) -> String {
+        switch type {
+        case .football: "Football today. Bring the intensity on the pitch."
+        case .run: "Run day. Log it from Health — no sets to track here."
+        case .sprint: "Sprint work today. Warm up properly before you go."
+        case .conditioning: "Conditioning today. Push the engine, not the barbell."
+        default: "Training today."
         }
     }
 

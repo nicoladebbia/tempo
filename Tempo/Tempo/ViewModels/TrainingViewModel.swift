@@ -954,6 +954,18 @@ final class TrainingViewModel {
         return plan.type == .rest || plan.type == .mobility
     }
 
+    /// Whether today's plan is a loggable gym session — the ONLY case where a
+    /// "Start Workout" button makes sense. Non-gym days (football, run, sprint,
+    /// conditioning, mobility, rest) have no exercises to log, so the button is
+    /// hidden for them. This is stricter than `!isRestDay`, which only excludes
+    /// rest/mobility and wrongly left the button visible on football/run days.
+    var canStartWorkout: Bool {
+        guard let plan = todayPlan else {
+            return false
+        }
+        return plan.type.isGymWorkout
+    }
+
     var recoveryAdjustmentText: String? {
         guard let plan = todayPlan else {
             return nil
