@@ -717,6 +717,82 @@ final class TrainingViewModel {
         resetState()
     }
 
+    // MARK: - Non-Gym Completion (football / sprint / conditioning)
+
+    /// Mark today's NON-GYM training day complete and save a permanent
+    /// `ActivitySession` record. This is the deliberate sibling of
+    /// `persistCompletion` — non-gym days have zero working sets, so they must
+    /// NOT route through the gym path (whose `guard !snapshots.isEmpty` would
+    /// refuse to complete them). Idempotent: a second call is a no-op.
+    ///
+    /// `whoop` carries the confirmed Whoop activity (branches a/b); pass nil
+    /// for a manual attestation with no Whoop data (branch c). `sportID`
+    /// preserves the original Whoop sport id even when the user re-labels an
+    /// untagged activity as football, so the saved data stays honest.
+    @discardableResult
+    func persistNonGymCompletion(
+        whoop: WhoopWorkoutData?,
+        modelContext: ModelContext
+    ) -> Bool {
+        guard let plan = todayPlan else {
+            return false
+        }
+        guard plan.status != .completed else {
+            return false // already saved — don't write twice
+        }
+
+        let planID = plan.id
+
+        // Dedup: drop any ActivitySession already tied to this plan before
+        // inserting, so one plan maps to exactly one session (mirrors the
+        // stale-row cleanup in persistCompletion).
+        let staleDescriptor = FetchDescriptor<ActivitySession>(
+            predicate: #Predicate<ActivitySession> { $0.workoutPlanID == planID }
+        )
+        if let stale = try? modelContext.fetch(staleDescriptor) {
+            for row in stale {
+                modelContext.delete(row)
+            }
+        }
+
+        let session = ActivitySession(
+            date: Date(),
+            startTime: whoop?.startTime ?? Date(),
+            workoutType: plan.type.rawValue,
+            sportID: whoop?.sportID ?? -1,
+            source: whoop == nil ? "manual" : "whoop",
+            workoutPlanID: planID,
+            strain: whoop?.strain,
+            averageHeartRate: whoop?.averageHeartRate,
+            maxHeartRate: whoop?.maxHeartRate,
+            caloriesBurned: whoop?.caloriesBurned,
+            durationMinutes: whoop?.durationMinutes
+        )
+        modelContext.insert(session)
+
+        plan.status = .completed
+        plan.finishedAt = Date()
+        if let mins = whoop?.durationMinutes {
+            plan.durationMinutes = Int(mins)
+        }
+
+        try? modelContext.save()
+        #if DEBUG
+            print("\(DebugTrace.prefix)[Workout] persistNonGymCompletion: plan=\(planID) type=\(plan.type.rawValue) source=\(session.source) strain=\(session.strain.map { String($0) } ?? "nil")")
+        #endif
+
+        // Same cross-surface signals as the gym path — without these the
+        // Dashboard Move quadrant and the day-plan / recovery cascade won't
+        // react to the completed non-gym session.
+        NotificationCenter.default.post(
+            name: .tempoDayPlanReplanRequested,
+            object: nil,
+            userInfo: ["reason": DayPlanReason.workoutLogged.rawValue]
+        )
+        NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
+        return true
+    }
+
     // MARK: - Reorder Exercises
 
     func moveExercises(from source: IndexSet, to destination: Int) {
