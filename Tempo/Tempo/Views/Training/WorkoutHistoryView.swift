@@ -272,11 +272,14 @@ struct WorkoutHistoryView: View {
                                     .font(.system(size: 11))
                                 Text("\(duration) min")
                                     .font(.tempoCaption1)
+                                    .lineLimit(1)
+                                    .fixedSize()
                             }
                             .foregroundStyle(Color.tempoTextSecondary)
                         }
 
-                        // Exercise count
+                        // Exercise count — keep on one line (don't let "6
+                        // exercises" wrap to a second row).
                         let exerciseCount = workout.orderedExercises.count
                         if exerciseCount > 0 {
                             HStack(spacing: TempoSpacing.xxs) {
@@ -284,6 +287,8 @@ struct WorkoutHistoryView: View {
                                     .font(.system(size: 11))
                                 Text("\(exerciseCount) exercises")
                                     .font(.tempoCaption1)
+                                    .lineLimit(1)
+                                    .fixedSize()
                             }
                             .foregroundStyle(Color.tempoTextSecondary)
                         }
@@ -296,6 +301,8 @@ struct WorkoutHistoryView: View {
                                     .font(.system(size: 11))
                                 Text(formatVolume(vol))
                                     .font(.tempoCaption1)
+                                    .lineLimit(1)
+                                    .fixedSize()
                             }
                             .foregroundStyle(Color.tempoTextSecondary)
                         }
@@ -307,6 +314,8 @@ struct WorkoutHistoryView: View {
                                     .font(.system(size: 11))
                                 Text("Warm-up")
                                     .font(.tempoCaption1)
+                                    .lineLimit(1)
+                                    .fixedSize()
                             }
                             .foregroundStyle(Color.tempoRecoveryGreen)
                         }
@@ -434,7 +443,23 @@ struct WorkoutHistoryView: View {
             VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
                 ForEach(plannedEx.orderedSets, id: \.id) { set in
                     HStack(spacing: TempoSpacing.xs) {
-                        if set.completed, let weight = set.actualWeight, let reps = set.actualReps {
+                        if set.isWarmup {
+                            // Warm-up / ramp set — show the ramp target (not the
+                            // blank "--" it was before), tagged and lighter.
+                            let w = set.actualWeight ?? set.targetWeight ?? 0
+                            let r = set.actualReps ?? set.targetReps
+                            let dispW = WeightUnit.kg.convert(w, to: weightUnit)
+                            Text("\(Int(dispW))x\(r)")
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(Color.tempoTextTertiary)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 2)
+                                .background(Color.tempoBgSecondary.opacity(0.5))
+                                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xs, style: .continuous))
+                            Text("Warm-up")
+                                .font(.tempoCaption2)
+                                .foregroundStyle(Color.tempoTextTertiary)
+                        } else if set.completed, let weight = set.actualWeight, let reps = set.actualReps {
                             let dispW = WeightUnit.kg.convert(weight, to: weightUnit)
                             Text("\(Int(dispW))x\(reps)")
                                 .font(.system(size: 11, design: .monospaced))
@@ -453,9 +478,9 @@ struct WorkoutHistoryView: View {
                                 .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xs, style: .continuous))
                         }
 
-                        // Feedback line — only when a linked SetFeedback
-                        // exists. Legacy sessions show nothing (no backfill).
-                        if let fb = feedbackBySetID[set.id] {
+                        // Feedback line — only for working sets with a linked
+                        // SetFeedback. Warm-ups have none.
+                        if !set.isWarmup, let fb = feedbackBySetID[set.id] {
                             Text("RPE \(fb.rpe) · \(fb.breathDifficulty.displayName) · \(fb.formQuality.displayName)")
                                 .font(.tempoCaption2)
                                 .foregroundStyle(Color.tempoTextTertiary)

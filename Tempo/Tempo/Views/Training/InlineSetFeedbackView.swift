@@ -29,6 +29,7 @@ struct InlineSetFeedbackView: View {
     @State private var form: FormQuality = .clean
     @State private var noteExpanded = false
     @State private var note: String = ""
+    @FocusState private var noteFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: TempoSpacing.lg) {
@@ -86,11 +87,23 @@ struct InlineSetFeedbackView: View {
                         axis: .vertical
                     )
                     .lineLimit(2 ... 4)
+                    .focused($noteFocused)
+                    .submitLabel(.done)
                     .padding(TempoSpacing.cardPadding)
                     .background(Color.tempoSurfaceCard)
                     .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
                     .onChange(of: note) { _, newValue in
                         viewModel.updateFeedback(note: newValue, modelContext: modelContext)
+                    }
+                    .toolbar {
+                        // The note keyboard had no way to dismiss — add a Done
+                        // button above the keyboard.
+                        ToolbarItemGroup(placement: .keyboard) {
+                            Spacer()
+                            Button("Done") { noteFocused = false }
+                                .font(.tempoHeadline)
+                                .foregroundStyle(Color.tempoSignal)
+                        }
                     }
                 }
             } else {

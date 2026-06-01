@@ -1617,17 +1617,17 @@ final class TrainingViewModel {
 
     private func cue(for second: Int) {
         switch second {
-        case 12:
-            // "ten seconds" warning. A premium clip starts in ms, so fire it at
-            // T-10; the Apple-speech fallback needs ~2s spin-up, so fire at T-12.
+        case 11:
+            // Premium clip path: "Almost time... ten seconds, get set." is ~3.3s
+            // with "ten seconds" landing ~1.3s in, so firing at T-11 puts the
+            // words "ten seconds" right at the 10s mark. Clip plays in ms.
             if CueAudioPlayer.shared.hasClip(.tenSeconds) {
-                break // handled at case 10 below for clip path
+                CueAudioPlayer.shared.play(.tenSeconds)
             }
-            Self.playBeep()
-            CueAudioPlayer.shared.play(.tenSeconds)
-        case 10:
-            // Clip path only (speech path already fired at 12).
-            if CueAudioPlayer.shared.hasClip(.tenSeconds) {
+        case 12:
+            // Apple-speech fallback only (no clip): speech needs ~2s spin-up, so
+            // fire at T-12 with a beep.
+            if !CueAudioPlayer.shared.hasClip(.tenSeconds) {
                 Self.playBeep()
                 CueAudioPlayer.shared.play(.tenSeconds)
             }
@@ -1638,12 +1638,9 @@ final class TrainingViewModel {
         case 1:
             CueAudioPlayer.shared.play(.one)
         case 0:
-            // Announce what's next by name. Exercise names are an OPEN set
-            // (custom exercises), so they always use the Apple fallback via
-            // .dynamic; the generic "go" has a premium clip.
-            // Haptic at T-0 is owned by advanceAfterRest to avoid a double buzz.
-            // Countdown only: always "Go" — the exercise name is shown on the
-            // next screen, not spoken. (Voice scope is the countdown alone.)
+            // Countdown only: "Go". Exercise name is shown on the next screen,
+            // not spoken (voice is scoped to the countdown). Haptic at T-0 is
+            // owned by advanceAfterRest to avoid a double buzz.
             CueAudioPlayer.shared.play(.go)
         default:
             break
