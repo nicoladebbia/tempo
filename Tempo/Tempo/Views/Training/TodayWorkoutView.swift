@@ -879,16 +879,48 @@ struct TodayWorkoutView: View {
     }
 
     private func activityStatsRow(_ s: TrainingViewModel.WhoopActivitySummary) -> some View {
-        HStack(spacing: TempoSpacing.lg) {
-            activityStat(value: String(format: "%.1f", s.strain), label: "Strain")
-            activityStat(value: "\(Int(s.durationMinutes))m", label: "Duration")
-            activityStat(value: "\(Int(s.averageHeartRate))", label: "Avg HR")
-            activityStat(value: "\(Int(s.caloriesBurned))", label: "Cal")
+        VStack(spacing: TempoSpacing.sm) {
+            HStack(spacing: TempoSpacing.lg) {
+                activityStat(value: String(format: "%.1f", s.strain), label: "Strain")
+                activityStat(value: "\(Int(s.durationMinutes))m", label: "Duration")
+                activityStat(value: "\(Int(s.averageHeartRate))", label: "Avg HR")
+                activityStat(value: "\(Int(s.caloriesBurned))", label: "Cal")
+            }
+            sweatHydrationNote(s)
         }
         .padding(.vertical, TempoSpacing.md)
         .frame(maxWidth: .infinity)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+    }
+
+    // Estimated sweat loss + hydration guidance from the same HydrationMath
+    // the daily target uses. Shown as a range (rough estimate), with an
+    // electrolyte nudge for larger losses.
+    @ViewBuilder
+    private func sweatHydrationNote(_ s: TrainingViewModel.WhoopActivitySummary) -> some View {
+        if let range = HydrationMath.sweatLossLitres(
+            caloriesBurned: s.caloriesBurned,
+            durationMinutes: s.durationMinutes
+        ) {
+            let needsElectrolytes = HydrationMath.needsElectrolytes(range.lowerBound)
+            VStack(spacing: 2) {
+                HStack(spacing: TempoSpacing.xs) {
+                    Image(systemName: "drop.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.tempoElectric)
+                    Text(String(format: "~%.1f–%.1f L lost — drink to replace", range.lowerBound, range.upperBound))
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                }
+                if needsElectrolytes {
+                    Text("Add electrolytes, not just water.")
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                }
+            }
+            .padding(.top, TempoSpacing.xxs)
+        }
     }
 
     private func activityStat(value: String, label: String) -> some View {
