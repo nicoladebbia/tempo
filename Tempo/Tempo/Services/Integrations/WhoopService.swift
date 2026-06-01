@@ -748,6 +748,10 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
         )
 
         let isoFormatter = ISO8601DateFormatter()
+        // Whoop timestamps include fractional seconds (e.g. 2026-05-31T20:00:00.000Z).
+        // Without this flag .date(from:) returns nil, so end was unparsed and
+        // duration fell back to 0 (the "0m" bug). Matches the other Whoop parses.
+        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return response.records.compactMap { record in
             let startTime = record.start.flatMap { isoFormatter.date(from: $0) } ?? date
             let endTime = record.end.flatMap { isoFormatter.date(from: $0) }
