@@ -28,6 +28,21 @@ final class ExerciseHistory {
 
     var setsPerformed: Int?
 
+    // MARK: - Feedback aggregates (Tier 2)
+    // Aggregated from the session's SetFeedback rows, counting ONLY rows the
+    // user actually filled in (userProvidedFeedback). All nullable/defaulted:
+    // nil/0 means "no real feedback this session" → the engine progresses on
+    // reps alone (legacy rows written before Tier 2 are also nil → same path).
+
+    /// Mean RPE across entered working-set feedback this session (nil = none).
+    var avgRPE: Double?
+
+    /// Worst form quality across entered feedback (FormQuality.rawValue, nil = none).
+    var worstFormRaw: String?
+
+    /// How many ENTERED feedback rows fed the aggregates above.
+    var feedbackSampleCount: Int = 0
+
     // Scalar back-reference to the WorkoutPlan that produced this row. NOT a
     // relationship — ExerciseHistory is the permanent training record and must
     // outlive the ephemeral daily plan. The ID enables exact, idempotent dedup
@@ -51,6 +66,9 @@ final class ExerciseHistory {
         bestSetWeight: Double? = nil,
         bestSetReps: Int? = nil,
         setsPerformed: Int? = nil,
+        avgRPE: Double? = nil,
+        worstFormRaw: String? = nil,
+        feedbackSampleCount: Int = 0,
         workoutPlanID: UUID? = nil,
         exercise: Exercise? = nil
     ) {
@@ -61,6 +79,9 @@ final class ExerciseHistory {
         self.bestSetWeight = bestSetWeight
         self.bestSetReps = bestSetReps
         self.setsPerformed = setsPerformed
+        self.avgRPE = avgRPE
+        self.worstFormRaw = worstFormRaw
+        self.feedbackSampleCount = feedbackSampleCount
         self.workoutPlanID = workoutPlanID
         self.exercise = exercise
     }
