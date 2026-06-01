@@ -37,6 +37,9 @@ struct WorkoutHistoryView: View {
     @Query
     private var allPRs: [PersonalRecord]
 
+    @Query
+    private var allActivitySessions: [ActivitySession]
+
     @Environment(\.modelContext)
     private var modelContext
 
@@ -202,6 +205,12 @@ struct WorkoutHistoryView: View {
         // 3. PRs attributed to this exact plan.
         for pr in allPRs where pr.workoutPlanID == workout.id {
             modelContext.delete(pr)
+        }
+        // 3b. Non-gym ActivitySession produced by this plan (football etc.).
+        //     Keyed by exact workoutPlanID — without this, deleting a football
+        //     session from history would orphan its ActivitySession record.
+        for session in allActivitySessions where session.workoutPlanID == workout.id {
+            modelContext.delete(session)
         }
         // 4. The plan itself (cascades to PlannedExercise → PlannedSet).
         modelContext.delete(workout)
