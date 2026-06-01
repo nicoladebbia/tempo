@@ -811,7 +811,106 @@ struct TodayWorkoutView: View {
                     }
                 }
             }
+
+            // Whoop activity confirm / saved summary.
+            nonGymActivitySection(plan: plan)
         }
+        .task(id: plan.id) {
+            await viewModel.loadNonGymActivity(modelContext: modelContext)
+        }
+    }
+
+    // The strain/HR confirm-and-save block beneath the non-gym card.
+    @ViewBuilder
+    private func nonGymActivitySection(plan: WorkoutPlan) -> some View {
+        switch viewModel.nonGymActivityState {
+        case .loading:
+            ProgressView()
+                .padding(.top, TempoSpacing.md)
+
+        case let .foundTagged(summary):
+            VStack(spacing: TempoSpacing.md) {
+                activityStatsRow(summary)
+                confirmButton(
+                    title: "CONFIRM — THAT WAS \(plan.type.displayName.uppercased())",
+                    summary: summary
+                )
+            }
+
+        case let .foundUntagged(summary):
+            VStack(spacing: TempoSpacing.md) {
+                Text("Found an activity today — was this \(plan.type.displayName.lowercased())?")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextTertiary)
+                    .multilineTextAlignment(.center)
+                activityStatsRow(summary)
+                confirmButton(title: "YES, LOG IT", summary: summary)
+            }
+
+        case .none:
+            confirmButton(
+                title: "LOG THAT I PLAYED",
+                summary: nil
+            )
+
+        case let .saved(summary):
+            VStack(spacing: TempoSpacing.sm) {
+                HStack(spacing: TempoSpacing.xs) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .foregroundStyle(Color.tempoRecoveryGreen)
+                    Text("Logged")
+                        .font(.tempoHeadline)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                }
+                if let summary {
+                    activityStatsRow(summary)
+                }
+            }
+            .padding(.top, TempoSpacing.md)
+        }
+    }
+
+    private func activityStatsRow(_ s: TrainingViewModel.WhoopActivitySummary) -> some View {
+        HStack(spacing: TempoSpacing.lg) {
+            activityStat(value: String(format: "%.1f", s.strain), label: "Strain")
+            activityStat(value: "\(Int(s.durationMinutes))m", label: "Duration")
+            activityStat(value: "\(Int(s.averageHeartRate))", label: "Avg HR")
+            activityStat(value: "\(Int(s.caloriesBurned))", label: "Cal")
+        }
+        .padding(.vertical, TempoSpacing.md)
+        .frame(maxWidth: .infinity)
+        .background(Color.tempoSurfaceCard)
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+    }
+
+    private func activityStat(value: String, label: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.tempoHeadline)
+                .foregroundStyle(Color.tempoTextPrimary)
+            Text(label)
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextTertiary)
+        }
+    }
+
+    private func confirmButton(
+        title: String,
+        summary: TrainingViewModel.WhoopActivitySummary?
+    ) -> some View {
+        Button {
+            HapticManager.notification(.success)
+            viewModel.confirmNonGymActivity(summary, modelContext: modelContext)
+        } label: {
+            Text(title)
+                .font(.tempoHeadline)
+                .frame(maxWidth: .infinity)
+                .frame(height: 52)
+                .background(Color.tempoSignal)
+                .foregroundStyle(.white)
+                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+        }
+        .padding(.top, TempoSpacing.sm)
     }
 
     private func nonGymIcon(for type: WorkoutType) -> String {

@@ -93,6 +93,36 @@ final class TrainingViewModel {
     /// All stored weights are kg; this is display-only conversion.
     var weightUnit: WeightUnit = .kg
 
+    // MARK: - Non-Gym Activity (football / sprint / conditioning) confirm flow
+
+    /// Drives the non-gym day card. Resolved by `loadNonGymActivity` from Whoop
+    /// and from whether today's plan is already completed.
+    enum NonGymActivityState: Equatable {
+        case loading
+        /// A Whoop activity tagged as this sport (e.g. soccer) was found.
+        case foundTagged(WhoopActivitySummary)
+        /// A Whoop activity exists for today but isn't tagged as this sport —
+        /// ask "was this it?".
+        case foundUntagged(WhoopActivitySummary)
+        /// No Whoop activity today — offer manual attestation.
+        case none
+        /// Today's session was already confirmed + saved.
+        case saved(WhoopActivitySummary?)
+    }
+
+    /// Plain value snapshot of a Whoop activity for display + save (avoids
+    /// passing the Sendable struct around the view layer).
+    struct WhoopActivitySummary: Equatable {
+        let strain: Double
+        let averageHeartRate: Double
+        let durationMinutes: Double
+        let caloriesBurned: Double
+        let sportID: Int
+        let startTime: Date
+    }
+
+    var nonGymActivityState: NonGymActivityState = .loading
+
     // MARK: - Rest Timer
 
     var restTimerRemaining: TimeInterval = 0
@@ -791,6 +821,100 @@ final class TrainingViewModel {
         )
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
         return true
+    }
+
+    /// Resolve the non-gym day card state. If today's plan is already completed,
+    /// surface the saved summary; otherwise fetch today's Whoop activities and
+    /// branch tagged / untagged / none. Call from the card's `.task`.
+    func loadNonGymActivity(modelContext: ModelContext) async {
+        guard let plan = todayPlan else {
+            nonGymActivityState = .none
+            return
+        }
+
+        // Already saved — show the persisted summary, never re-prompt.
+        if plan.status == .completed {
+            let planID = plan.id
+            let descriptor = FetchDescriptor<ActivitySession>(
+                predicate: #Predicate<ActivitySession> { $0.workoutPlanID == planID }
+            )
+            let saved = (try? modelContext.fetch(descriptor))?.first
+            nonGymActivityState = .saved(saved.flatMap(Self.summary(from:)))
+            return
+        }
+
+        nonGymActivityState = .loading
+
+        // Whoop sport id for the plan's type (soccer == 1). Used to recognise a
+        // tagged match; everything else is "untagged".
+        let expectedSportID = Self.whoopSportID(for: plan.type)
+
+        let activities = (try? await whoop.fetchWorkouts(for: Date())) ?? []
+        let cal = Calendar.current
+        let todayStart = cal.startOfDay(for: Date())
+        let todays = activities.filter { cal.isDate($0.startTime, inSameDayAs: todayStart) }
+
+        if let tagged = todays.first(where: { $0.sportID == expectedSportID }) {
+            nonGymActivityState = .foundTagged(Self.summary(from: tagged))
+        } else if let any = todays.max(by: { $0.strain < $1.strain }) {
+            nonGymActivityState = .foundUntagged(Self.summary(from: any))
+        } else {
+            nonGymActivityState = .none
+        }
+    }
+
+    /// Confirm the non-gym session and persist it. `summary` is the Whoop
+    /// activity to attach, or nil for a manual "I did it" with no Whoop data.
+    func confirmNonGymActivity(
+        _ summary: WhoopActivitySummary?,
+        modelContext: ModelContext
+    ) {
+        let whoopData: WhoopWorkoutData? = summary.map {
+            WhoopWorkoutData(
+                strain: $0.strain,
+                averageHeartRate: $0.averageHeartRate,
+                maxHeartRate: 0,
+                caloriesBurned: $0.caloriesBurned,
+                durationMinutes: $0.durationMinutes,
+                sportID: $0.sportID,
+                startTime: $0.startTime
+            )
+        }
+        persistNonGymCompletion(whoop: whoopData, modelContext: modelContext)
+        nonGymActivityState = .saved(summary)
+    }
+
+    private static func summary(from w: WhoopWorkoutData) -> WhoopActivitySummary {
+        WhoopActivitySummary(
+            strain: w.strain,
+            averageHeartRate: w.averageHeartRate,
+            durationMinutes: w.durationMinutes,
+            caloriesBurned: w.caloriesBurned,
+            sportID: w.sportID,
+            startTime: w.startTime
+        )
+    }
+
+    private static func summary(from s: ActivitySession) -> WhoopActivitySummary? {
+        guard let strain = s.strain else { return nil } // manual entry: no metrics
+        return WhoopActivitySummary(
+            strain: strain,
+            averageHeartRate: s.averageHeartRate ?? 0,
+            durationMinutes: s.durationMinutes ?? 0,
+            caloriesBurned: s.caloriesBurned ?? 0,
+            sportID: s.sportID,
+            startTime: s.startTime
+        )
+    }
+
+    /// Whoop sport id for a Tempo workout type. Only football maps to a known
+    /// Whoop sport (soccer == 1) today; the rest fall back to -1 (no tagged
+    /// match expected, so they take the untagged/none branches).
+    private static func whoopSportID(for type: WorkoutType) -> Int {
+        switch type {
+        case .football: 1 // Whoop "Soccer"
+        default: -1
+        }
     }
 
     // MARK: - Reorder Exercises
