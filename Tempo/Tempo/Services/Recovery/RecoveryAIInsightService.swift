@@ -53,6 +53,14 @@ final class RecoveryAIInsightService: @unchecked Sendable {
 
     @MainActor var lastFinalState: FinalState?
 
+    // Per-day single-flight slot for the daily paragraph. A second trigger for
+    // the same day JOINS the in-flight task instead of starting a new paid
+    // Haiku call — this is what stops the remount/expired-token retry storm.
+    // The task BODY does network + cache-write, so it completes and caches once
+    // even if every awaiting view has gone away. Mirrors WhoopService's
+    // inFlightRefresh pattern. @MainActor-isolated, so no lock needed.
+    @MainActor private var dailyInFlight: (day: Date, task: Task<String, Error>)?
+
     init(apiClient: APIClient) {
         self.apiClient = apiClient
     }
@@ -72,10 +80,19 @@ final class RecoveryAIInsightService: @unchecked Sendable {
             return cached
         }
 
+        let today = Calendar.current.startOfDay(for: Date())
+
+        // Single-flight: if a generation for today is already running, JOIN it
+        // rather than starting a second paid call. Awaiting `task.value` does
+        // NOT cancel the shared task — so even if this caller's view tore down
+        // and re-triggered, both resolve to the one in-flight result.
+        if let inflight = dailyInFlight, inflight.day == today {
+            logger.info("\(DebugTrace.prefix)[recovery_insight] joining in-flight generation for today")
+            return try await inflight.task.value
+        }
+
         // Phase 7: conditional late-meal signal — only when meaningful
         // (any meal >60 min late, or dinner <3h before sleep onset).
-        // Injected into the user message so it lands in the same place
-        // as the other "the user did X" facts.
         let lateMealNote = Self.lateMealNote(
             modelContext: modelContext,
             sleepHoursLastNight: recovery.sleepHours
@@ -96,10 +113,41 @@ final class RecoveryAIInsightService: @unchecked Sendable {
             prompt = Self.buildPrompt(from: recovery, lateMealNote: lateMealNote)
             system = Self.systemPrompt
         }
-        let text: String
+
+        // The task BODY does network + cache-write + slot-clear, as one unit.
+        // This is the crux: the cache is written INSIDE the shared task, so it
+        // completes-and-caches exactly once regardless of which awaiter is
+        // still listening. The slot is cleared HERE (task completion), NOT in a
+        // caller `defer` — a caller whose view tore down gets cancelled while
+        // awaiting, and clearing on that cancel would let the next trigger
+        // start a second call, defeating the dedup. @MainActor throughout, so
+        // modelContext + slot access are safe.
+        let task = Task { @MainActor [weak self] () throws -> String in
+            guard let self else { throw CancellationError() }
+            defer {
+                if self.dailyInFlight?.day == today { self.dailyInFlight = nil }
+            }
+            let text = try await self.sendWithRetry(system: system, prompt: prompt)
+            let insight = RecoveryInsight(
+                date: today,
+                type: .aiDailyParagraph,
+                title: "Today's Read",
+                body: text,
+                confidence: 1.0
+            )
+            modelContext.insert(insight)
+            try? modelContext.save()
+            return text
+        }
+        dailyInFlight = (day: today, task: task)
+
+        // Await the shared task. If THIS caller is cancelled (view teardown),
+        // the await throws but the shared task keeps running to completion and
+        // caches — the next trigger hits the cache, not a new call.
         do {
-            text = try await sendWithRetry(system: system, prompt: prompt)
+            let text = try await task.value
             lastFinalState = .apiSuccess
+            return text
         } catch is CancellationError {
             lastFinalState = .cancelled
             throw CancellationError()
@@ -107,18 +155,6 @@ final class RecoveryAIInsightService: @unchecked Sendable {
             lastFinalState = .failed
             throw error
         }
-
-        let insight = RecoveryInsight(
-            date: Calendar.current.startOfDay(for: Date()),
-            type: .aiDailyParagraph,
-            title: "Today's Read",
-            body: text,
-            confidence: 1.0
-        )
-        modelContext.insert(insight)
-        try? modelContext.save()
-
-        return text
     }
 
     /// Deletes today's cached `.aiDailyParagraph` row and re-generates it,
