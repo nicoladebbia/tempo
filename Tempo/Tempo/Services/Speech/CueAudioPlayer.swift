@@ -55,7 +55,7 @@ enum WarmupCue {
     /// What the Apple voice says when no clip is available.
     var spoken: String {
         switch self {
-        case .tenSeconds: "Get ready — ten seconds"
+        case .tenSeconds: "Almost time — ten seconds, get set"
         case .three: "Three"
         case .two: "Two"
         case .one: "One"

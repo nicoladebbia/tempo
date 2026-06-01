@@ -37,8 +37,11 @@ OUT_DIR = os.path.join(
 DEFAULT_VOICE = "SOYHLrjzK2X1ezoPC6cr"  # Harry — Fierce Warrior
 
 # Countdown vocabulary → (clip slug, spoken text). Matches WarmupCue.clipName.
+# The ten-seconds cue ENDS on "ten seconds, get set" — it is fired early so the
+# "ten seconds" lands right as the 10s countdown begins (see lead-time in
+# TrainingViewModel.cue). Trailing punctuation adds a natural slow cadence.
 COUNTDOWN = {
-    "cue_ten_seconds": "Get ready. Ten seconds.",
+    "cue_ten_seconds": "Almost time... ten seconds, get set.",
     "cue_three": "Three.",
     "cue_two": "Two.",
     "cue_one": "One.",
@@ -80,12 +83,17 @@ def warmup_move_names(routine_path: str) -> list[str]:
     return seen
 
 
-def synth(text: str, out_path: str, voice: str, key: str) -> None:
+def synth(text: str, out_path: str, voice: str, key: str, speed: float = 1.0) -> None:
+    import json as _json
+
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice}"
-    body = (
-        '{"text": %s, "model_id": "eleven_multilingual_v2", '
-        '"voice_settings": {"stability": 0.5, "similarity_boost": 0.75}}'
-    ) % _json_str(text)
+    payload = {
+        "text": text,
+        "model_id": "eleven_multilingual_v2",
+        # speed < 1.0 slows delivery (range ~0.7–1.2). Clearer over gym noise.
+        "voice_settings": {"stability": 0.5, "similarity_boost": 0.75, "speed": speed},
+    }
+    body = _json.dumps(payload)
     req = urllib.request.Request(
         url,
         data=body.encode("utf-8"),
@@ -110,6 +118,10 @@ def _json_str(s: str) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--voice", default=DEFAULT_VOICE)
+    ap.add_argument(
+        "--only", nargs="*", default=None,
+        help="regenerate only these clip slugs (e.g. cue_ten_seconds)",
+    )
     args = ap.parse_args()
 
     key = os.environ.get("ELEVENLABS_API_KEY")
@@ -136,10 +148,20 @@ def main() -> int:
     for name in exercise_names(exercises):
         clips[f"cue_ex_{slug(name)}"] = f"Next up. {name}."
 
+    # Per-clip speed: the ten-seconds cue is slowed for a calmer, clearer
+    # "get set"; everything else at normal pace.
+    speeds = {"cue_ten_seconds": 0.85}
+
+    if args.only:
+        clips = {k: v for k, v in clips.items() if k in set(args.only)}
+        if not clips:
+            print(f"--only matched nothing: {args.only}", file=sys.stderr)
+            return 1
+
     print(f"Generating {len(clips)} clips → {OUT_DIR}")
     for clip_slug, text in clips.items():
         out = os.path.join(OUT_DIR, clip_slug + ".mp3")
-        synth(text, out, args.voice, key)
+        synth(text, out, args.voice, key, speed=speeds.get(clip_slug, 1.0))
     print("Done. Commit Tempo/Tempo/Resources/CueAudio/*.mp3 and run xcodegen.")
     return 0
 
