@@ -186,6 +186,9 @@ final class RecoveryAIInsightService: @unchecked Sendable {
         var trainedExercises: Int
         var trainingVolume: Double
         var ranKm: Double?
+        /// Total Whoop strain from non-gym sessions (football, sprint,
+        /// conditioning) logged yesterday — nil when none.
+        var activityStrain: Double?
         var nonNegotiablesDone: Int?
         var nonNegotiablesTotal: Int?
     }
@@ -245,6 +248,15 @@ final class RecoveryAIInsightService: @unchecked Sendable {
         )
         if let runs = try? modelContext.fetch(runDesc), !runs.isEmpty {
             ctx.ranKm = runs.reduce(0) { $0 + $1.distanceMeters } / 1000.0
+        }
+        // Non-gym sessions (football etc.) — ActivitySession.date is
+        // day-normalized like ExerciseHistory, so an exact-day match works.
+        let activityDesc = FetchDescriptor<ActivitySession>(
+            predicate: #Predicate { $0.date == yStart }
+        )
+        if let sessions = try? modelContext.fetch(activityDesc), !sessions.isEmpty {
+            let strain = sessions.compactMap(\.strain).reduce(0, +)
+            ctx.activityStrain = strain > 0 ? strain : nil
         }
 
         // Adherence — DailyAccountability.date is day-normalized.
@@ -540,6 +552,9 @@ final class RecoveryAIInsightService: @unchecked Sendable {
         }
         if let km = y.ranKm, km > 0 {
             add("Run", String(format: "%.1f km", km))
+        }
+        if let strain = y.activityStrain, strain > 0 {
+            add("Activity strain", String(format: "%.1f (football/sprint/conditioning)", strain))
         }
         if let done = y.nonNegotiablesDone, let total = y.nonNegotiablesTotal, total > 0 {
             add("Non-negotiables hit", "\(done)/\(total)")
