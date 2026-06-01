@@ -39,6 +39,11 @@ final class ServiceContainer {
     var recipes: (any RecipeServiceProtocol)?
     var groceryList: (any GroceryListServiceProtocol)?
     let nutritionIntelligence: NutritionIntelligenceService
+    /// Long-lived owner of the recovery AI insight generation. MUST be a single
+    /// shared instance (not per-view) so its per-day single-flight dedup
+    /// survives view remounts — otherwise rapid `.task` re-fires each spawn a
+    /// fresh paid Haiku call (the retry-storm bug).
+    let recoveryInsight: RecoveryAIInsightService
     let appState: AppState
 
     init(
@@ -83,6 +88,7 @@ final class ServiceContainer {
         self.subscriptions = subscriptions
         self.nutrition = nutrition
         self.nutritionIntelligence = NutritionIntelligenceService()
+        self.recoveryInsight = RecoveryAIInsightService(apiClient: apiClient)
         appState = AppState(authService: authService)
     }
 

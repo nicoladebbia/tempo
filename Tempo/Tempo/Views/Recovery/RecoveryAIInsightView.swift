@@ -19,7 +19,9 @@ struct RecoveryAIInsightView: View {
     @Environment(\.modelContext)
     private var modelContext
 
-    @State private var service: RecoveryAIInsightService?
+    // Shared, long-lived instance from the container — NOT per-view. Its
+    // per-day single-flight dedup must survive this view's remounts.
+    private var service: RecoveryAIInsightService { services.recoveryInsight }
     @State private var paragraph: String?
     @State private var isLoading = false
     @State private var errorText: String?
@@ -56,7 +58,7 @@ struct RecoveryAIInsightView: View {
                     // to users — they'd spam it and drive API cost up. The
                     // per-day cache is the cost control in release builds.
                     Spacer()
-                    if let state = service?.lastFinalState {
+                    if let state = service.lastFinalState {
                         Text(state.rawValue)
                             .font(.system(size: 9, weight: .medium, design: .monospaced))
                             .foregroundStyle(badgeColor(for: state))
@@ -145,8 +147,7 @@ struct RecoveryAIInsightView: View {
     private func load() async {
         guard let recovery else { return }
 
-        let svc = service ?? RecoveryAIInsightService(apiClient: services.apiClient)
-        service = svc
+        let svc = service
 
         // Cache hit → no spinner, no API call.
         if let cached = svc.cachedParagraph(modelContext: modelContext) {
@@ -173,8 +174,7 @@ struct RecoveryAIInsightView: View {
     private func regenerate() async {
         guard let recovery, !isLoading else { return }
 
-        let svc = service ?? RecoveryAIInsightService(apiClient: services.apiClient)
-        service = svc
+        let svc = service
 
         isLoading = true
         errorText = nil
@@ -193,8 +193,7 @@ struct RecoveryAIInsightView: View {
 
     @MainActor
     private func loadWeeklyRecap() async {
-        let svc = service ?? RecoveryAIInsightService(apiClient: services.apiClient)
-        service = svc
+        let svc = service
 
         isLoadingWeekly = true
         defer { isLoadingWeekly = false }
