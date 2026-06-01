@@ -1645,9 +1645,12 @@ final class TrainingViewModel {
             // .dynamic; the generic "go" has a premium clip.
             // Haptic at T-0 is owned by advanceAfterRest to avoid a double buzz.
             let ctx = restContext
-            if let name = ctx.exercise?.name {
-                CueAudioPlayer.shared.play(.dynamic(ctx.isExerciseTransition ? "Next up: \(name)" : "Go — \(name)"))
+            if ctx.isExerciseTransition, let ex = ctx.exercise {
+                // New exercise — announce it by name (built-in names have a
+                // premium clip; custom exercises fall back to the Apple voice).
+                CueAudioPlayer.shared.play(.exerciseName(slug: ex.audioSlug, spoken: "Next up: \(ex.name)"))
             } else {
+                // Another set of the same exercise — just "Go".
                 CueAudioPlayer.shared.play(.go)
             }
         default:

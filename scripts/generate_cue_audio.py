@@ -52,6 +52,21 @@ def slug(name: str) -> str:
     return s.strip("_")
 
 
+def exercise_names(exercises_json: str) -> list[str]:
+    """Built-in (seeded) exercise names — a closed set. Custom exercises the
+    user adds later have no clip and use the Apple fallback at runtime."""
+    import json
+
+    data = json.load(open(exercises_json))
+    items = data if isinstance(data, list) else data.get("exercises", [])
+    out = []
+    for it in items:
+        n = it.get("name")
+        if n and n not in out:
+            out.append(n)
+    return out
+
+
 def warmup_move_names(routine_path: str) -> list[str]:
     text = open(routine_path).read()
     names = re.findall(r'name:\s*"([^"]+)"', text)
@@ -108,9 +123,18 @@ def main() -> int:
         "..", "Tempo", "Tempo", "Models", "Training", "WarmupRoutine.swift",
     )
 
+    exercises = os.path.join(
+        os.path.dirname(__file__),
+        "..", "Tempo", "Tempo", "Resources", "Exercises.json",
+    )
+
     clips: dict[str, str] = dict(COUNTDOWN)
     for name in warmup_move_names(routine):
         clips[f"cue_move_{slug(name)}"] = name + "."
+    # Built-in exercise names — announced as "Next up: X" at the end of an
+    # inter-exercise rest. Closed set (custom exercises fall back to Apple).
+    for name in exercise_names(exercises):
+        clips[f"cue_ex_{slug(name)}"] = f"Next up. {name}."
 
     print(f"Generating {len(clips)} clips → {OUT_DIR}")
     for clip_slug, text in clips.items():

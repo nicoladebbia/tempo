@@ -28,8 +28,11 @@ enum WarmupCue {
     /// A fixed warm-up move announcement (move names are authored in
     /// WarmupRoutine — a closed set we control, so they can be pre-rendered).
     case warmupMove(slug: String, spoken: String)
-    /// Dynamic free text (e.g. a working-set exercise name from the open
-    /// library). Never has a clip — always spoken.
+    /// A built-in exercise-name announcement ("Next up: X"). Built-in library
+    /// names are pre-rendered (cue_ex_<slug>); custom exercises have no clip and
+    /// fall through to `spoken` via the Apple voice.
+    case exerciseName(slug: String, spoken: String)
+    /// Dynamic free text with no clip — always spoken.
     case dynamic(String)
 
     /// Bundled clip resource name (without extension), or nil if always-spoken.
@@ -41,6 +44,7 @@ enum WarmupCue {
         case .one: "cue_one"
         case .go: "cue_go"
         case let .warmupMove(slug, _): "cue_move_\(slug)"
+        case let .exerciseName(slug, _): "cue_ex_\(slug)"
         case .dynamic: nil
         }
     }
@@ -54,6 +58,7 @@ enum WarmupCue {
         case .one: "One"
         case .go: "Go"
         case let .warmupMove(_, spoken): spoken
+        case let .exerciseName(_, spoken): spoken
         case let .dynamic(text): text
         }
     }
