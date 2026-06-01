@@ -801,11 +801,8 @@ final class TrainingViewModel {
             let best = completedSets.max { ($0.actualWeight ?? 0) < ($1.actualWeight ?? 0) }
 
             // Aggregate ONLY user-provided feedback for this exercise's working
-            // sets. No entered feedback → nil/0 ("no signal", engine uses reps).
-            let fb = completedSets.compactMap { enteredFeedback[$0.id] }
-            let avgRPE: Double? = fb.isEmpty ? nil
-                : Double(fb.map(\.rpe).reduce(0, +)) / Double(fb.count)
-            let worstForm = fb.map(\.formQuality).max { $0.severityRank < $1.severityRank }
+            // sets (pure helper, unit-tested). No entered feedback → nil/0.
+            let agg = Self.aggregateFeedback(completedSets: completedSets, enteredFeedback: enteredFeedback)
 
             return HistorySnapshot(
                 exercise: exercise,
@@ -814,9 +811,9 @@ final class TrainingViewModel {
                 bestSetWeight: best?.actualWeight,
                 bestSetReps: best?.actualReps,
                 setsPerformed: completedSets.count,
-                avgRPE: avgRPE,
-                worstFormRaw: worstForm?.rawValue,
-                feedbackSampleCount: fb.count
+                avgRPE: agg.avgRPE,
+                worstFormRaw: agg.worstFormRaw,
+                feedbackSampleCount: agg.count
             )
         }
 
@@ -1996,6 +1993,26 @@ final class TrainingViewModel {
             }
         }
         return flagged
+    }
+
+    // MARK: - Feedback Aggregation (Tier 2.1, pure + unit-tested)
+
+    /// Aggregate a session's USER-PROVIDED feedback for one exercise's completed
+    /// working sets into the values stored on ExerciseHistory. Pure (no context,
+    /// no VM state) so it's unit-testable without a device. `enteredFeedback` is
+    /// keyed by `PlannedSet.id` and must already be filtered to
+    /// userProvidedFeedback==true rows. Zero matches → (nil, nil, 0) = "no signal".
+    nonisolated static func aggregateFeedback(
+        completedSets: [PlannedSet],
+        enteredFeedback: [UUID: SetFeedback]
+    ) -> (avgRPE: Double?, worstFormRaw: String?, count: Int) {
+        let fb = completedSets.compactMap { enteredFeedback[$0.id] }
+        guard !fb.isEmpty else {
+            return (nil, nil, 0)
+        }
+        let avgRPE = Double(fb.map(\.rpe).reduce(0, +)) / Double(fb.count)
+        let worstForm = fb.map(\.formQuality).max { $0.severityRank < $1.severityRank }
+        return (avgRPE, worstForm?.rawValue, fb.count)
     }
 
     /// Assigns superset group IDs to compatible exercise pairs.

@@ -75,6 +75,7 @@
 		1B0F731B517744F7A43CB598 /* PersonalRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 193D846D23A581EEC1EF738C /* PersonalRecord.swift */; };
 		1B22AB034036B4108EA6D7E3 /* Exercise.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2B54A1A7480F07957A6AA35 /* Exercise.swift */; };
 		1BC5725A11339D154E874037 /* cue_ex_kettlebell_swing.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 927698CA62276B950C4D8166 /* cue_ex_kettlebell_swing.mp3 */; };
+		1BCAD5E29AAD95B6884ABF2D /* FeedbackAggregationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB86663592C39AC8B698E164 /* FeedbackAggregationTests.swift */; };
 		1BD718793C4154B8D4E3F84C /* GroceryListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 224834D08E1BFBE2C96971F6 /* GroceryListView.swift */; };
 		1C19A17B494776A91005BB54 /* cue_ex_single_arm_dumbbell_row.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 1AA4EAF3C57CBE406CD7C548 /* cue_ex_single_arm_dumbbell_row.mp3 */; };
 		1C2128B18202A68FFB668B29 /* cue_ex_chin_up.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = E62FCAA9CB994889111AAAAB /* cue_ex_chin_up.mp3 */; };
@@ -1163,6 +1164,7 @@
 		BB128A672DFE3334BF71688E /* ScoreRingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreRingView.swift; sourceTree = "<group>"; };
 		BB498A2B5CC5AC5911CFE847 /* CoachDailyResetPurgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachDailyResetPurgeTests.swift; sourceTree = "<group>"; };
 		BB851B96C9D1AA1E5E76164F /* QuickLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickLogView.swift; sourceTree = "<group>"; };
+		BB86663592C39AC8B698E164 /* FeedbackAggregationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackAggregationTests.swift; sourceTree = "<group>"; };
 		BBAD135EB05D4B3B092D8D48 /* cue_ex_romanian_deadlift.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_romanian_deadlift.mp3; sourceTree = "<group>"; };
 		BCD572B21D780A0A5D8B9349 /* PreferenceExtractorAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferenceExtractorAdapter.swift; sourceTree = "<group>"; };
 		BCD7DCBBE0BF690D1AFFBBEF /* cue_ex_v_bar_pulldown.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_v_bar_pulldown.mp3; sourceTree = "<group>"; };
@@ -1745,6 +1747,7 @@
 			children = (
 				A31496282C73D8993EE5235D /* .gitkeep */,
 				D4688A47205DFFEB4EAE9EA0 /* AccountabilityEngineTests.swift */,
+				BB86663592C39AC8B698E164 /* FeedbackAggregationTests.swift */,
 				3B98C74D0C6F400F29AFC5F2 /* HydrationMathTests.swift */,
 				2DF7950293219EF07907670C /* ProgressiveOverloadFeedbackTests.swift */,
 				B5D716D5E3223A9FA8FE3D40 /* RecoveryEngineTests.swift */,
@@ -3261,6 +3264,7 @@
 				48E2965EE5A8FD999A62B804 /* CoachToolsTests.swift in Sources */,
 				6BEDADDCEF83B12005C95CB0 /* CoachViewModelTests.swift in Sources */,
 				D186FF3472B352D7675AEA8C /* CoachVoiceControllerTests.swift in Sources */,
+				1BCAD5E29AAD95B6884ABF2D /* FeedbackAggregationTests.swift in Sources */,
 				573DD6B3F3F34FD715B81ECC /* FoodCanonicalizerTests.swift in Sources */,
 				1F3AD3F9102BB66597F1A248 /* GroceryListGeneratorTests.swift in Sources */,
 				E335AB95707FD6424BEE1CD2 /* HydrationMathTests.swift in Sources */,
