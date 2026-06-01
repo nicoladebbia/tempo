@@ -1473,12 +1473,10 @@ final class TrainingViewModel {
         guard let move = currentWarmupMove else {
             return
         }
-        // Audio session is activated once in startWorkout for the whole warm-up
-        // (re-activating per move would re-duck the user's music each time).
-        // Warm-up move names are a closed, authored set → pre-renderable clip,
-        // with the Apple voice as fallback.
-        let spoken = warmupMoveIndex == 0 ? "Warm up. \(move.name)" : "Next: \(move.name)"
-        CueAudioPlayer.shared.play(.warmupMove(slug: move.slug, spoken: spoken))
+        // Audio session is activated once in startWorkout for the whole warm-up.
+        // The voice is intentionally SILENT on move announcements — Harry only
+        // speaks the rest-timer countdown (T-10 warning + 3-2-1-go). Move names
+        // are shown on screen, not spoken.
 
         guard let seconds = move.durationSeconds, seconds > 0 else {
             // Rep-based move — no countdown, advance is manual.
@@ -1644,15 +1642,9 @@ final class TrainingViewModel {
             // (custom exercises), so they always use the Apple fallback via
             // .dynamic; the generic "go" has a premium clip.
             // Haptic at T-0 is owned by advanceAfterRest to avoid a double buzz.
-            let ctx = restContext
-            if ctx.isExerciseTransition, let ex = ctx.exercise {
-                // New exercise — announce it by name (built-in names have a
-                // premium clip; custom exercises fall back to the Apple voice).
-                CueAudioPlayer.shared.play(.exerciseName(slug: ex.audioSlug, spoken: "Next up: \(ex.name)"))
-            } else {
-                // Another set of the same exercise — just "Go".
-                CueAudioPlayer.shared.play(.go)
-            }
+            // Countdown only: always "Go" — the exercise name is shown on the
+            // next screen, not spoken. (Voice scope is the countdown alone.)
+            CueAudioPlayer.shared.play(.go)
         default:
             break
         }

@@ -29,8 +29,11 @@ enum WarmupCue {
     /// WarmupRoutine — a closed set we control, so they can be pre-rendered).
     case warmupMove(slug: String, spoken: String)
     /// A built-in exercise-name announcement ("Next up: X"). Built-in library
-    /// names are pre-rendered (cue_ex_<slug>); custom exercises have no clip and
-    /// fall through to `spoken` via the Apple voice.
+    /// names are pre-rendered (cue_ex_<slug>); custom exercises fall through to
+    /// `spoken` via the Apple voice.
+    /// NOTE: intentionally NOT called right now — voice is scoped to the
+    /// countdown only (Nicola's call). The clips + this case are retained so
+    /// re-enabling spoken exercise names is a one-line change in cue(for:).
     case exerciseName(slug: String, spoken: String)
     /// Dynamic free text with no clip — always spoken.
     case dynamic(String)
