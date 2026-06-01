@@ -102,47 +102,47 @@ struct RestTimerView: View {
     private var restPreview: some View {
         let ctx = viewModel.restContext
         if ctx.isExerciseTransition, let exercise = ctx.exercise {
-            // Next exercise — show its name + how-to so the user knows what to do.
-            ScrollView {
-                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    Text("UP NEXT")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                    Text(exercise.name)
-                        .font(.tempoTitle3)
-                        .foregroundStyle(Color.tempoTextPrimary)
+            // Next exercise — name + how-to. NOT its own ScrollView: it is plain
+            // content inside the single outer ScrollView so the whole rest page
+            // scrolls as one unit (the inner scroll made this card bounce on its
+            // own). Name matches the set-active header size.
+            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+                Text("UP NEXT")
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextTertiary)
+                Text(exercise.name)
+                    .font(.tempoTitle2)
+                    .foregroundStyle(Color.tempoTextPrimary)
 
-                    if let instructions = exercise.instructions, !instructions.isEmpty {
-                        Text(instructions)
-                            .font(.tempoSubheadline)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                if let instructions = exercise.instructions, !instructions.isEmpty {
+                    Text(instructions)
+                        .font(.tempoSubheadline)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-                    if !exercise.cues.isEmpty {
-                        VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                            ForEach(exercise.cues, id: \.self) { cue in
-                                HStack(alignment: .top, spacing: TempoSpacing.xs) {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.tempoCaption1)
-                                        .foregroundStyle(Color.tempoSignal)
-                                    Text(cue)
-                                        .font(.tempoFootnote)
-                                        .foregroundStyle(Color.tempoTextSecondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
+                if !exercise.cues.isEmpty {
+                    VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+                        ForEach(exercise.cues, id: \.self) { cue in
+                            HStack(alignment: .top, spacing: TempoSpacing.xs) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.tempoCaption1)
+                                    .foregroundStyle(Color.tempoSignal)
+                                Text(cue)
+                                    .font(.tempoFootnote)
+                                    .foregroundStyle(Color.tempoTextSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                         }
-                        .padding(.top, TempoSpacing.xxs)
                     }
+                    .padding(.top, TempoSpacing.xxs)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(TempoSpacing.md)
-                .background(Color.tempoSurfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-                .padding(.horizontal, TempoSpacing.screenEdge)
             }
-            .frame(maxHeight: 240)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(TempoSpacing.md)
+            .background(Color.tempoSurfaceCard)
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+            .padding(.horizontal, TempoSpacing.screenEdge)
         } else if !ctx.label.isEmpty {
             // Between sets — compact label, no need to re-explain the movement.
             Text(ctx.label)

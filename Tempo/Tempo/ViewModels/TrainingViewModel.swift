@@ -1411,6 +1411,18 @@ final class TrainingViewModel {
     /// Retained synthesizer — a local instance would be deallocated mid-utterance.
     private static let speechSynth = AVSpeechSynthesizer()
 
+    /// Best available offline English voice. Prefers a downloaded
+    /// premium/enhanced voice (much more natural than the default compact one),
+    /// falling back through enhanced → any en-US → system default. The user can
+    /// download premium voices in iOS Settings › Accessibility › Spoken Content.
+    private static let preferredVoice: AVSpeechSynthesisVoice? = {
+        let english = AVSpeechSynthesisVoice.speechVoices()
+            .filter { $0.language.hasPrefix("en") }
+        return english.first { $0.quality == .premium }
+            ?? english.first { $0.quality == .enhanced }
+            ?? AVSpeechSynthesisVoice(language: "en-US")
+    }()
+
     /// Configure the shared audio session so cues are audible and DUCK (not stop)
     /// any music the user is playing, including when the screen is locked.
     private static func activateRestAudioSession() {
@@ -1431,16 +1443,20 @@ final class TrainingViewModel {
         try? session.setActive(false, options: [.notifyOthersOnDeactivation])
     }
 
-    /// Speak a short cue, falling back to a system beep if speech is unavailable.
+    /// Speak a short cue. Hops to a fresh main-actor Task so the synthesizer's
+    /// audio setup doesn't run as a forced-sync inside the timer tick (which
+    /// produced "unsafeForcedSync from a Swift Concurrent context" warnings).
+    /// AVSpeechSynthesizer is main-actor API, so it stays on the main actor.
     private static func speak(_ phrase: String) {
-        let utterance = AVSpeechUtterance(string: phrase)
-        utterance.rate = AVSpeechUtteranceDefaultSpeechRate
-        utterance.volume = 1.0
-        utterance.postUtteranceDelay = 0
-        if let voice = AVSpeechSynthesisVoice(language: "en-US") {
-            utterance.voice = voice
+        Task { @MainActor in
+            let utterance = AVSpeechUtterance(string: phrase)
+            // Slightly slower than default reads more clearly over gym noise.
+            utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.95
+            utterance.volume = 1.0
+            utterance.postUtteranceDelay = 0
+            utterance.voice = preferredVoice
+            speechSynth.speak(utterance)
         }
-        speechSynth.speak(utterance)
     }
 
     private static func playBeep() {
@@ -1474,9 +1490,12 @@ final class TrainingViewModel {
 
     private func cue(for second: Int) {
         switch second {
-        case 10:
+        case 12:
+            // Fire the "ten seconds" warning a couple of seconds early so the
+            // spoken phrase actually lands around the 10s mark (speech has
+            // startup latency; saying it AT 10 lands at ~8).
             Self.playBeep()
-            Self.speak("Ten seconds")
+            Self.speak("Get ready — ten seconds")
         case 3:
             Self.speak("Three")
         case 2:
@@ -1484,8 +1503,18 @@ final class TrainingViewModel {
         case 1:
             Self.speak("One")
         case 0:
+            // Announce what's next by name instead of a bare "Go".
             // Haptic at T-0 is owned by advanceAfterRest to avoid a double buzz.
-            Self.speak("Go")
+            let ctx = restContext
+            if let name = ctx.exercise?.name {
+                if ctx.isExerciseTransition {
+                    Self.speak("Next up: \(name)")
+                } else {
+                    Self.speak("Go — \(name)")
+                }
+            } else {
+                Self.speak("Go")
+            }
         default:
             break
         }
