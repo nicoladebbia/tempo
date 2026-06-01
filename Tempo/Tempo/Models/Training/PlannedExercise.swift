@@ -43,7 +43,15 @@ final class PlannedExercise {
         guard let sets, !sets.isEmpty else {
             return false
         }
-        return sets.allSatisfy(\.completed)
+        // Completeness is gated by WORKING sets only. Warmup sets are guidance,
+        // not work — an exercise whose working sets are all logged is done even
+        // if a warmup set was skipped. (Fixes the missing checkmark on lifts
+        // that carry warmup sets, e.g. Barbell Row.)
+        let workingSets = sets.filter { !$0.isWarmup }
+        guard !workingSets.isEmpty else {
+            return sets.allSatisfy(\.completed)
+        }
+        return workingSets.allSatisfy(\.completed)
     }
 
     @Transient

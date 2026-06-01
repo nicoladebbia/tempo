@@ -51,6 +51,32 @@ struct ActiveWorkoutView: View {
         weightUnit == .kg ? 500 : 1100
     }
 
+    /// Per-side plate hint for bar-loaded lifts, e.g. "20 kg/side + 20 kg bar".
+    /// `inputWeight` is in the display unit; bar math is done in kg then shown
+    /// in the user's unit. Nil for dumbbells/cables/machines/bodyweight.
+    private var perSideHint: String? {
+        guard let equipment = viewModel.currentExercise?.exercise?.equipment,
+              equipment.isBarLoaded
+        else {
+            return nil
+        }
+        let totalKg = weightUnit.convert(inputWeight, to: .kg)
+        let bar = equipment.barWeightKg
+        guard totalKg >= bar else {
+            return nil
+        }
+        let perSideKg = (totalKg - bar) / 2
+        let perSide = WeightUnit.kg.convert(perSideKg, to: weightUnit)
+        let unit = weightUnit.abbreviation
+        let perSideStr = String(format: weightUnit == .kg ? "%.1f" : "%.0f", perSide)
+        if bar > 0 {
+            let barStr = String(format: weightUnit == .kg ? "%.0f" : "%.0f",
+                                WeightUnit.kg.convert(bar, to: weightUnit))
+            return "\(perSideStr) \(unit)/side + \(barStr) \(unit) bar"
+        }
+        return "\(perSideStr) \(unit)/side"
+    }
+
     var body: some View {
         ZStack {
             Color.tempoBgPrimary.ignoresSafeArea()
@@ -171,9 +197,11 @@ struct ActiveWorkoutView: View {
                     .font(.tempoCaption1)
                     .foregroundStyle(Color.tempoTextSecondary)
 
-                // Weight input
+                // Weight input — the logged number is TOTAL load including the
+                // bar. For bar-loaded lifts we show a per-side plate hint so
+                // there's no ambiguity about what to actually put on.
                 VStack(spacing: TempoSpacing.sm) {
-                    Text("WEIGHT")
+                    Text("WEIGHT — total incl. bar")
                         .font(.tempoCaption2)
                         .foregroundStyle(Color.tempoTextTertiary)
                     NumberStepperView(
@@ -183,6 +211,11 @@ struct ActiveWorkoutView: View {
                         format: weightUnit == .kg ? "%.1f" : "%.0f",
                         unit: weightUnit.abbreviation
                     )
+                    if let hint = perSideHint {
+                        Text(hint)
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                    }
                 }
 
                 // Reps input
