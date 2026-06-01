@@ -29,8 +29,6 @@ struct ActiveWorkoutView: View {
     @State
     private var inputReps: Double = 8
     @State
-    private var inputRPE: Int?
-    @State
     private var showFinishConfirmation = false
     @Query
     private var allSettings: [UserSettings]
@@ -127,20 +125,6 @@ struct ActiveWorkoutView: View {
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active { viewModel.syncRestTimer() }
         }
-        // Per build done_when #12 — present SetFeedbackSheet for the set just
-        // completed via Finish Set. Cleared on dismiss; not re-prompted.
-        .sheet(
-            isPresented: Binding(
-                get: { viewModel.lastCompletedSet != nil },
-                set: { presented in
-                    if !presented { viewModel.lastCompletedSet = nil }
-                }
-            )
-        ) {
-            if let set = viewModel.lastCompletedSet {
-                SetFeedbackSheet(plannedSet: set)
-            }
-        }
     }
 
     // MARK: - Timer Bar
@@ -215,8 +199,8 @@ struct ActiveWorkoutView: View {
                     )
                 }
 
-                // RPE selector (optional)
-                rpeSelector
+                // RPE is collected end-of-set in the inline feedback panel
+                // (under the rest timer), not here — one prompt, not two.
 
                 // Set progress
                 setProgress
@@ -228,7 +212,6 @@ struct ActiveWorkoutView: View {
                     viewModel.logSet(
                         weight: weightKg,
                         reps: Int(inputReps),
-                        rpe: inputRPE,
                         modelContext: modelContext
                     )
                     HapticManager.notification(.success)
@@ -341,32 +324,6 @@ struct ActiveWorkoutView: View {
             }
         }
         .padding(.top, TempoSpacing.md)
-    }
-
-    // MARK: - RPE Selector
-
-    private var rpeSelector: some View {
-        VStack(spacing: TempoSpacing.sm) {
-            Text("RPE (optional)")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
-
-            HStack(spacing: TempoSpacing.xs) {
-                ForEach(6 ... 10, id: \.self) { rpe in
-                    Button {
-                        inputRPE = inputRPE == rpe ? nil : rpe
-                    } label: {
-                        Text("\(rpe)")
-                            .font(.tempoCaption1)
-                            .fontWeight(.medium)
-                            .frame(width: 40, height: 40)
-                            .background(inputRPE == rpe ? Color.tempoSignal : Color.tempoSurfaceCard)
-                            .foregroundStyle(inputRPE == rpe ? .white : Color.tempoTextPrimary)
-                            .clipShape(Circle())
-                    }
-                }
-            }
-        }
     }
 
     // MARK: - Set Progress
@@ -611,6 +568,5 @@ struct ActiveWorkoutView: View {
         if let targetReps = viewModel.currentSet?.targetReps {
             inputReps = Double(targetReps)
         }
-        inputRPE = nil
     }
 }

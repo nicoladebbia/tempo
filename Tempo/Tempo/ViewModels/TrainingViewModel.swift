@@ -86,9 +86,15 @@ final class TrainingViewModel {
     var detectedPRs: [PersonalRecord] = []
 
     /// The working set just completed via `logSet`. The session view observes
-    /// this to present `SetFeedbackSheet` for that exact set. Reset to nil
-    /// once feedback is captured or the sheet is dismissed.
+    /// this to know which set the inline feedback panel edits.
     var lastCompletedSet: PlannedSet?
+
+    /// SetFeedback row for the just-completed working set. Created eagerly in
+    /// `logSet` with neutral defaults so a row always exists even if the user
+    /// skips rest instantly; the inline feedback panel edits it in place
+    /// (save-on-change), so nothing is lost when the rest timer auto-advances.
+    /// Nil for warmup sets (no feedback collected on warmups).
+    var currentFeedback: SetFeedback?
 
     /// User weight-unit preference, loaded from UserSettings in loadToday.
     /// All stored weights are kg; this is display-only conversion.
@@ -462,7 +468,6 @@ final class TrainingViewModel {
     func logSet(
         weight: Double,
         reps: Int,
-        rpe: Int?,
         modelContext: ModelContext
     ) {
         guard let plan = todayPlan else {
@@ -483,13 +488,25 @@ final class TrainingViewModel {
         let set = sets[currentSetIndex]
         set.actualWeight = weight
         set.actualReps = reps
-        set.rpe = rpe
         set.completed = true
         set.completedAt = Date()
 
-        // Surface the just-completed set so the session view can present
-        // SetFeedbackSheet for exactly this set (Phase 3, done_when #12).
+        // Surface the just-completed set so the session view's inline feedback
+        // panel edits exactly this set.
         lastCompletedSet = set
+
+        // Eagerly create the feedback row for WORKING sets with neutral
+        // defaults. RPE is collected end-of-set only (no set-active prompt),
+        // and the inline panel edits this row save-on-change — so even an
+        // instant "Skip Rest" leaves a persisted, sensible record.
+        if set.isWarmup {
+            currentFeedback = nil
+        } else {
+            let feedback = SetFeedback(plannedSet: set, rpe: 7)
+            modelContext.insert(feedback)
+            set.rpe = feedback.rpe
+            currentFeedback = feedback
+        }
 
         // Persist immediately (crash recovery)
         try? modelContext.save()
@@ -539,6 +556,37 @@ final class TrainingViewModel {
                 remainingSeconds: restDuration
             ))
         }
+    }
+
+    /// Write-through update for the inline set-feedback panel. Every field
+    /// change persists immediately so the record survives the rest timer
+    /// auto-advancing or the user skipping rest. Mirrors RPE onto the set so
+    /// engine/history code that reads `PlannedSet.rpe` stays consistent.
+    func updateFeedback(
+        rpe: Int? = nil,
+        breath: BreathDifficulty? = nil,
+        form: FormQuality? = nil,
+        note: String? = nil,
+        modelContext: ModelContext
+    ) {
+        guard let feedback = currentFeedback else {
+            return
+        }
+        if let rpe {
+            feedback.rpe = max(1, min(10, rpe))
+            lastCompletedSet?.rpe = feedback.rpe
+        }
+        if let breath {
+            feedback.breathDifficulty = breath
+        }
+        if let form {
+            feedback.formQuality = form
+        }
+        if let note {
+            let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
+            feedback.note = trimmed.isEmpty ? nil : trimmed
+        }
+        try? modelContext.save()
     }
 
     // MARK: - Skip Rest

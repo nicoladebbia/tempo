@@ -18,9 +18,20 @@ struct RestTimerView: View {
     var viewModel: TrainingViewModel
 
     var body: some View {
-        VStack(spacing: TempoSpacing.xxl) {
-            Spacer()
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: TempoSpacing.xl) {
+                restBody
+            }
+            .padding(.vertical, TempoSpacing.xl)
+            .frame(maxWidth: .infinity)
+        }
+        .frame(maxWidth: .infinity)
+        .background(Color.tempoBgPrimary)
+    }
 
+    @ViewBuilder
+    private var restBody: some View {
+        Group {
             // Countdown circle
             // Per MODULE_TRAINING.md — 200pt countdown circle
             ZStack {
@@ -50,6 +61,12 @@ struct RestTimerView: View {
                 }
             }
 
+            // Inline "how was that set?" — edits the eagerly-created feedback
+            // row save-on-change. Only for working sets (warmups have none).
+            if viewModel.currentFeedback != nil {
+                InlineSetFeedbackView(viewModel: viewModel)
+            }
+
             // What you're resting toward. Between sets: name + next set.
             // Before the next exercise: name + full how-to so the user is never
             // surprised by an exercise they don't know.
@@ -70,11 +87,7 @@ struct RestTimerView: View {
                     .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
-
-            Spacer()
         }
-        .frame(maxWidth: .infinity)
-        .background(Color.tempoBgPrimary)
     }
 
     // MARK: - Rest Preview

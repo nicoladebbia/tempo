@@ -81,10 +81,10 @@ enum FormQuality: String, Codable, CaseIterable, Sendable {
 
 // MARK: - SetFeedback
 
-/// User feedback on a single completed `PlannedSet`, captured by
-/// `SetFeedbackSheet` right after the set (on "Finish Set" or rest-timer
-/// expiry). Read by `TrainingViewModel` so future workout generation can
-/// incorporate historical difficulty signals.
+/// User feedback on a single completed `PlannedSet`. Created eagerly in
+/// `TrainingViewModel.logSet` and edited save-on-change by the inline
+/// `InlineSetFeedbackView` under the rest timer. Read by `TrainingViewModel`
+/// so future workout generation can incorporate historical difficulty signals.
 ///
 /// Design notes:
 /// - Linked to `PlannedSet` via a one-way `@Relationship(deleteRule:
