@@ -722,13 +722,16 @@ struct MealDetailView: View {
         //    where displayQuantity was never populated. Falls all the
         //    way back to "Xg <food>" when the canonical name isn't in
         //    the portions table.
-        if let qty = ingredient.displayQuantity, !qty.isEmpty {
-            parts.append(qty)
-        } else if ingredient.quantityGrams > 0 {
-            parts.append(FoodMacroDatabase.formatPortion(
-                food: ingredient.canonicalFoodName,
-                grams: ingredient.quantityGrams
-            ))
+        // Countable foods (eggs, bananas) read as whole units ("5 eggs"),
+        // overriding any gram-y AI label; non-countable foods keep the AI's
+        // household label and fall back to grams. See bestPortionLabel.
+        let portionLabel = FoodMacroDatabase.bestPortionLabel(
+            food: ingredient.canonicalFoodName,
+            grams: ingredient.quantityGrams,
+            aiLabel: ingredient.displayQuantity
+        )
+        if !portionLabel.isEmpty {
+            parts.append(portionLabel)
         }
         if let cal = ingredient.calories, cal > 0 {
             parts.append("\(Int(cal)) kcal")

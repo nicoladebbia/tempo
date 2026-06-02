@@ -25,32 +25,24 @@ struct PlannedMealCardView: View {
     /// The day list computes this from the VM's `feedbackPresence` map.
     var needsReview: Bool = false
 
-    @State
-    private var isExpanded: Bool = false
-
     // MARK: - Body
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header — always visible
-            headerRow
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    withAnimation(TempoAnimation.springMedium) {
-                        isExpanded.toggle()
-                    }
-                    HapticManager.selection()
-                }
-
-            // Expanded food detail
-            if isExpanded {
-                Divider()
-                    .background(Color.tempoDivider)
-                    .padding(.horizontal, TempoSpacing.sm)
-
-                foodDetailSection
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+            // Tapping the header opens the full recipe page (ingredients,
+            // cooking steps, schedule, macros) — the same MealDetailView the
+            // Dashboard Fuel card uses. Replaces the old inline ingredient
+            // expansion: the user wants the whole recipe, not a flat list.
+            NavigationLink {
+                MealDetailView(meal: meal)
+            } label: {
+                headerRow
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .simultaneousGesture(TapGesture().onEnded {
+                HapticManager.selection()
+            })
 
             // Macro summary pills — always visible
             macroSummaryRow
@@ -134,12 +126,10 @@ struct PlannedMealCardView: View {
             // Status badge
             statusBadge
 
-            // Expand chevron
-            Image(systemName: "chevron.down")
+            // Navigation chevron — tapping the row opens the full recipe page.
+            Image(systemName: "chevron.right")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(Color.tempoTextTertiary)
-                .rotationEffect(.degrees(isExpanded ? 180 : 0))
-                .animation(TempoAnimation.springMedium, value: isExpanded)
         }
     }
 
@@ -218,66 +208,7 @@ struct PlannedMealCardView: View {
 
     // MARK: - Food Detail
 
-    private var foodDetailSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            let foods = meal.foods
-            if foods.isEmpty {
-                Text("No foods listed.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .padding(.vertical, TempoSpacing.sm)
-            } else {
-                ForEach(Array(foods.enumerated()), id: \.element.name) { _, food in
-                    HStack(spacing: TempoSpacing.sm) {
-                        Circle()
-                            .fill(Color.tempoViolet.opacity(0.4))
-                            .frame(width: 6, height: 6)
-
-                        Text(food.name)
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextPrimary)
-
-                        Spacer()
-
-                        Text("\(Int(food.quantityGrams))g")
-                            .font(.system(size: 11, weight: .medium, design: .monospaced))
-                            .foregroundStyle(Color.tempoTextTertiary)
-
-                        Text("\(Int(food.calories)) kcal")
-                            .font(.system(size: 11, weight: .medium, design: .monospaced))
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    }
-                    .padding(.vertical, 2)
-                }
-            }
-
-            // Visible Mark Eaten action. Previously the only entry points
-            // for onMarkEaten were a hidden trailing swipe and a long-press
-            // contextMenu — neither discoverable. Surface a pill button at
-            // the bottom of the expanded row when the meal is still planned.
-            if meal.status == .planned, onMarkEaten != nil {
-                Button {
-                    HapticManager.notification(.success)
-                    onMarkEaten?()
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "checkmark.circle.fill")
-                        Text("Mark Eaten")
-                    }
-                    .font(.tempoCaption1.weight(.semibold))
-                    .foregroundStyle(Color.tempoSuccess)
-                    .padding(.horizontal, TempoSpacing.md)
-                    .padding(.vertical, 8)
-                    .frame(maxWidth: .infinity)
-                    .background(Color.tempoSuccess.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .padding(.top, TempoSpacing.sm)
-            }
-        }
-        .padding(.vertical, TempoSpacing.sm)
-    }
+    
 
     // MARK: - Macro Summary
 

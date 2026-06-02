@@ -188,7 +188,7 @@ struct NutritionTabView: View {
     private var sectionContent: some View {
         switch viewModel.selectedTab {
         case .today:
-            NutritionTodayView(viewModel: viewModel, showMealLogging: $showMealLogging)
+            NutritionTodayView(viewModel: viewModel)
         case .plan:
             VStack(spacing: 0) {
                 planQuickLinks

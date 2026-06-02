@@ -17,8 +17,6 @@ import SwiftUI
 struct NutritionTodayView: View {
     @Bindable
     var viewModel: NutritionTabViewModel
-    @Binding
-    var showMealLogging: Bool
     @Environment(\.modelContext)
     private var modelContext
     @Environment(ServiceContainer.self)
@@ -44,37 +42,32 @@ struct NutritionTodayView: View {
     private let fatColor = Color.tempoMacroFat
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: TempoSpacing.xl) {
-                    if let banner = viewModel.lastRedistributionBanner {
-                        redistributionBanner(banner)
-                    }
-                    macroRingsSection
-                    UseUpSoonCard(viewModel: viewModel)
-                    calorieProgressSection
-                    mealsListSection
-
-                    // AI disclaimer
-                    HStack(spacing: 6) {
-                        Image(systemName: "info.circle")
-                            .font(.caption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                        Text("AI-generated guidance. Not medical or dietetic advice. Consult a professional for personalized plans.")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                    }
-                    .padding(.vertical, TempoSpacing.sm)
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: TempoSpacing.xl) {
+                if let banner = viewModel.lastRedistributionBanner {
+                    redistributionBanner(banner)
                 }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.bottom, 100) // Room for FAB
-            }
+                macroRingsSection
+                UseUpSoonCard(viewModel: viewModel)
+                calorieProgressSection
+                mealsListSection
 
-            // Floating "Log a Meal" button
-            floatingLogButton
-                .padding(.trailing, TempoSpacing.screenEdge)
-                .padding(.bottom, TempoSpacing.bottomSafe)
+                // AI disclaimer
+                HStack(spacing: 6) {
+                    Image(systemName: "info.circle")
+                        .font(.caption2)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                    Text("AI-generated guidance. Not medical or dietetic advice. Consult a professional for personalized plans.")
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                }
+                .padding(.vertical, TempoSpacing.sm)
+            }
+            .padding(.horizontal, TempoSpacing.screenEdge)
+            .padding(.bottom, TempoSpacing.bottomSafe)
         }
+        // Meal logging now lives solely on the Log tab — the Today page's
+        // floating "Log a Meal" FAB was removed (redundant entry point).
         .task {
             // Refresh pantry + recipe suggestions so UseUpSoonCard has FIFO-ranked
             // candidates without requiring a visit to the Recipes tab first.
@@ -476,24 +469,7 @@ struct NutritionTodayView: View {
 
     // MARK: - Floating Log Button
 
-    private var floatingLogButton: some View {
-        Button {
-            showMealLogging = true
-            HapticManager.lightImpact()
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "plus")
-                    .font(.system(size: 16, weight: .bold))
-                Text("Log a Meal")
-                    .font(.system(size: 15, weight: .semibold))
-            }
-            .foregroundStyle(Color.tempoTextInverse)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 14)
-            .background(Color.tempoSignal)
-            .clipShape(Capsule())
-        }
-    }
+    
 }
 
 // MARK: - Preview
@@ -501,8 +477,7 @@ struct NutritionTodayView: View {
 #Preview {
     NavigationStack {
         NutritionTodayView(
-            viewModel: NutritionTabViewModel(),
-            showMealLogging: .constant(false)
+            viewModel: NutritionTabViewModel()
         )
     }
     .modelContainer(for: [PlannedMeal.self, WeeklyMealPlan.self, MealPreset.self, DietaryProfile.self], inMemory: true)

@@ -923,4 +923,41 @@ enum FoodMacroDatabase {
         }
         return "\(String(format: "%.0f", grams))g \(normalized)"
     }
+
+    /// True when a food is counted in whole natural units (eggs, bananas,
+    /// chicken breasts) rather than by mass. Used to decide whether a recipe
+    /// ingredient should read "5 eggs" instead of "346 g eggs". A food is
+    /// countable when it's in the portions table AND its recipe-side unit is
+    /// not a gram/volume measure (g, ml, cup, tbsp, etc. stay mass/volume).
+    static func isCountable(food: String) -> Bool {
+        let normalized = food.lowercased().trimmingCharacters(in: .whitespaces)
+        guard let portion = naturalPortions[normalized], !portion.isStaple else {
+            return false
+        }
+        let massOrVolumeUnits: Set<String> = [
+            "g", "kg", "ml", "l", "cup", "cups", "tbsp", "tsp", "oz", "lb",
+            "scoop", "scoops", "handful", "handfuls",
+        ]
+        return !massOrVolumeUnits.contains(portion.unit.lowercased())
+    }
+
+    /// The best human label for a recipe ingredient amount. For COUNTABLE
+    /// foods (eggs, bananas, breasts) the whole-unit form ("5 eggs") always
+    /// wins — even over an AI-provided `aiLabel` that may have emitted a gram
+    /// string ("346 g eggs"), which the user explicitly does not want. For
+    /// non-countable foods (rice, chicken mince, oil) a non-empty `aiLabel`
+    /// is preferred (it carries household context like "1 cup"), falling back
+    /// to `formatPortion` which renders grams.
+    static func bestPortionLabel(food: String, grams: Double, aiLabel: String?) -> String {
+        if isCountable(food: food), grams > 0 {
+            return formatPortion(food: food, grams: grams)
+        }
+        if let aiLabel, !aiLabel.isEmpty {
+            return aiLabel
+        }
+        if grams > 0 {
+            return formatPortion(food: food, grams: grams)
+        }
+        return aiLabel ?? ""
+    }
 }
