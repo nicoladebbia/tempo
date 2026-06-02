@@ -43,6 +43,13 @@ struct DietaryProfileSetupView: View {
 
     @State
     private var primaryGoal: DietaryGoal = .maintain
+    /// Target body weight (kg). Only meaningful when goal ≠ maintain. Defaults
+    /// to current weight until the user moves the slider.
+    @State
+    private var goalWeightKg: Double = 75
+    /// Desired weekly pace (kg/week). 0.25 = lean/slow, 0.5 = moderate.
+    @State
+    private var weeklyRateKg: Double = 0.5
 
     // MARK: - Dietary Restrictions
 
@@ -301,8 +308,63 @@ struct DietaryProfileSetupView: View {
             ForEach(DietaryGoal.allCases, id: \.self) { goal in
                 goalOption(goal)
             }
+
+            // Target weight + pace — only relevant when cutting or gaining.
+            // The rate drives the calorie deficit/surplus magnitude (it
+            // REPLACES the generic enum offset in TDEECalculator), so the AI
+            // plans toward the actual target rather than a one-size offset.
+            if primaryGoal != .maintain {
+                Divider()
+                    .background(Color.tempoDivider)
+                    .padding(.vertical, TempoSpacing.xs)
+                goalWeightControls
+            }
         }
         .tempoCard()
+    }
+
+    private var goalWeightControls: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            HStack {
+                Text("Target weight")
+                    .font(.tempoBody)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                Spacer()
+                Text(String(format: "%.1f kg", goalWeightKg))
+                    .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(Color.tempoViolet)
+            }
+            Slider(value: $goalWeightKg, in: 40 ... 150, step: 0.5)
+                .tint(Color.tempoViolet)
+
+            Text("Weekly pace")
+                .font(.tempoBody)
+                .foregroundStyle(Color.tempoTextPrimary)
+                .padding(.top, TempoSpacing.xs)
+            Picker("Weekly pace", selection: $weeklyRateKg) {
+                Text("Slow · 0.25 kg/wk").tag(0.25)
+                Text("Moderate · 0.5 kg/wk").tag(0.5)
+                Text("Fast · 0.75 kg/wk").tag(0.75)
+            }
+            .pickerStyle(.segmented)
+
+            Text(goalPaceHint)
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextTertiary)
+        }
+    }
+
+    /// One-line reassurance/warning under the pace picker. Direction is
+    /// inferred from goal weight vs current weight; an "already there" case is
+    /// surfaced so a stale goal weight doesn't silently mean "maintain".
+    private var goalPaceHint: String {
+        let diff = goalWeightKg - weightKg
+        if abs(diff) < 0.5 {
+            return "You're at your target — this will plan around maintenance."
+        }
+        let verb = diff < 0 ? "lose" : "gain"
+        let weeks = Int((abs(diff) / weeklyRateKg).rounded())
+        return "Plan to \(verb) \(String(format: "%.1f", abs(diff))) kg at \(String(format: "%.2g", weeklyRateKg)) kg/wk ≈ \(weeks) week\(weeks == 1 ? "" : "s")."
     }
 
     private func goalOption(_ goal: DietaryGoal) -> some View {
@@ -823,6 +885,10 @@ struct DietaryProfileSetupView: View {
             bodyFatPercent = String(format: "%.1f", bf)
         }
         primaryGoal = profile.primaryGoal
+        // Restore goal weight + pace; default goal weight to current weight
+        // when unset so the slider starts somewhere sensible.
+        goalWeightKg = profile.goalWeightKg ?? profile.currentWeightKg
+        weeklyRateKg = profile.weeklyRateKg ?? 0.5
         isLactoseFree = profile.isLactoseFree
         noCoffee = profile.noCoffee
         isGlutenFree = profile.isGlutenFree
@@ -915,6 +981,8 @@ struct DietaryProfileSetupView: View {
             existing.biologicalSex = biologicalSex
             existing.bodyFatPercent = bf
             existing.primaryGoal = primaryGoal
+            existing.goalWeightKg = primaryGoal == .maintain ? nil : goalWeightKg
+            existing.weeklyRateKg = primaryGoal == .maintain ? nil : weeklyRateKg
             existing.isLactoseFree = isLactoseFree
             existing.noCoffee = noCoffee
             existing.isGlutenFree = isGlutenFree
@@ -945,6 +1013,8 @@ struct DietaryProfileSetupView: View {
                 primaryGoal: primaryGoal,
                 bodyFatPercent: bf,
                 currentWeightKg: weightKg,
+                goalWeightKg: primaryGoal == .maintain ? nil : goalWeightKg,
+                weeklyRateKg: primaryGoal == .maintain ? nil : weeklyRateKg,
                 heightCm: heightCm,
                 age: age,
                 biologicalSex: biologicalSex,

@@ -50,7 +50,9 @@ enum TDEECalculator {
         bodyFatPercent: Double?,
         trainingFrequency: Int,
         whoopAverageTDEE: Double?,
-        goal: DietaryGoal
+        goal: DietaryGoal,
+        goalWeightKg: Double? = nil,
+        weeklyRateKg: Double? = nil
     ) -> TDEEResult {
         // ── Step 1: BMR ──────────────────────────────────────────
 
@@ -89,11 +91,20 @@ enum TDEECalculator {
         }
 
         // ── Step 4: Goal adjustment with safety rails ────────────
-
+        //
+        // When the user has set a goal weight AND a weekly rate, the rate
+        // sets the MAGNITUDE of the surplus/deficit and REPLACES the enum
+        // offset — they must never stack, or the deficit double-counts. The
+        // direction comes from goalWeight vs currentWeight. When no rate is
+        // set, fall back to the enum offset (legacy behavior). Either path
+        // goes through the same safety rails.
         let adjustedCalories = applyGoalAdjustment(
             tdee: tdee,
             goal: goal,
-            bodyFatPercent: bodyFatPercent
+            bodyFatPercent: bodyFatPercent,
+            currentWeightKg: weightKg,
+            goalWeightKg: goalWeightKg,
+            weeklyRateKg: weeklyRateKg
         )
 
         // ── Step 5: Macro targets per day type ───────────────────
@@ -159,46 +170,72 @@ enum TDEECalculator {
 
     // MARK: - Goal Adjustment
 
-    /// Apply calorie adjustment based on dietary goal, with safety limits.
-    /// - Cut: -300 to -500 based on BF% (higher BF = larger deficit allowed)
-    /// - Maintain: no change
-    /// - Lean Gain: +200 to +350 based on BF% (lower BF = larger surplus allowed)
-    /// Safety: max 25% deficit, max 15% surplus
+    /// Apply calorie adjustment based on goal, with safety limits.
+    ///
+    /// Two modes, mutually exclusive (never stacked):
+    /// - **Rate mode** (goalWeightKg + weeklyRateKg both set): the deficit/
+    ///   surplus MAGNITUDE is derived from the chosen weekly rate
+    ///   (1 kg body mass ≈ 7,700 kcal, so daily Δ = rate × 7700 / 7) and its
+    ///   SIGN from goalWeight vs currentWeight (below → deficit, above →
+    ///   surplus). This REPLACES the enum offset so the two never
+    ///   double-count. If already at goal weight (within 0.25 kg), no change.
+    /// - **Enum mode** (no rate): legacy ±offset from the cut/maintain/
+    ///   leanGain enum, scaled by BF%.
+    ///
+    /// Safety rails apply in both modes: max 25% deficit, max 15% surplus.
     private static func applyGoalAdjustment(
         tdee: Double,
         goal: DietaryGoal,
-        bodyFatPercent: Double?
+        bodyFatPercent: Double?,
+        currentWeightKg: Double,
+        goalWeightKg: Double?,
+        weeklyRateKg: Double?
     ) -> Int {
-        let rawAdjustment: Double = switch goal {
-        case .cut:
-            // Higher body fat -> larger deficit is safe
-            if let bf = bodyFatPercent {
-                if bf > 20 {
-                    -500
-                } else if bf > 15 {
-                    -400
-                } else {
-                    -300 // lean individuals: conservative cut
-                }
+        let rawAdjustment: Double
+
+        if let goalWeightKg, let weeklyRateKg, weeklyRateKg > 0 {
+            // Rate mode — magnitude from rate, direction from goal vs current.
+            let kcalPerKg = 7700.0
+            let dailyMagnitude = weeklyRateKg * kcalPerKg / 7.0
+            let diff = goalWeightKg - currentWeightKg
+            if abs(diff) < 0.25 {
+                rawAdjustment = 0 // effectively at goal — maintain
+            } else if diff < 0 {
+                rawAdjustment = -dailyMagnitude // need to lose → deficit
             } else {
-                -400 // default moderate cut
+                rawAdjustment = dailyMagnitude // need to gain → surplus
             }
-
-        case .maintain:
-            0
-
-        case .leanGain:
-            // Lower body fat -> can afford a larger surplus (less fat gain risk)
-            if let bf = bodyFatPercent {
-                if bf < 12 {
-                    350
-                } else if bf < 18 {
-                    250
+        } else {
+            // Enum mode — legacy offset scaled by body fat.
+            rawAdjustment = switch goal {
+            case .cut:
+                if let bf = bodyFatPercent {
+                    if bf > 20 {
+                        -500
+                    } else if bf > 15 {
+                        -400
+                    } else {
+                        -300 // lean individuals: conservative cut
+                    }
                 } else {
-                    200 // higher BF: conservative surplus
+                    -400 // default moderate cut
                 }
-            } else {
-                250 // default moderate surplus
+
+            case .maintain:
+                0
+
+            case .leanGain:
+                if let bf = bodyFatPercent {
+                    if bf < 12 {
+                        350
+                    } else if bf < 18 {
+                        250
+                    } else {
+                        200 // higher BF: conservative surplus
+                    }
+                } else {
+                    250 // default moderate surplus
+                }
             }
         }
 

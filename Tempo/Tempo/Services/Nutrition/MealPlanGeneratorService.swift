@@ -104,7 +104,9 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             bodyFatPercent: profile.bodyFatPercent,
             trainingFrequency: profile.trainingFrequency,
             whoopAverageTDEE: whoopTDEE,
-            goal: profile.primaryGoal
+            goal: profile.primaryGoal,
+            goalWeightKg: profile.goalWeightKg,
+            weeklyRateKg: profile.weeklyRateKg
         )
 
         logger.info("TDEE calculated: \(Int(tdeeResult.tdee)) kcal, adjusted: \(tdeeResult.adjustedCalories) kcal")

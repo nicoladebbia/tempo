@@ -40,6 +40,8 @@ So "reach the weight from onboarding" is not currently possible — the app has 
 
 **Effort:** FOUNDATIONAL (small migration + one onboarding field + prompt line). Highest intent-match — this is the "end goal" you named.
 
+**DECIDED (2026-06-02):** goal weight + **weekly rate** (e.g. 0.25/0.5 kg/wk). **CRITICAL implementation note:** the rate-derived deficit/surplus must REPLACE `TDEECalculator.applyGoalAdjustment`'s enum offset (±200/−400), NOT stack on it — else the deficit double-counts (same bug class as the carryover overlap). Reconcile INSIDE `TDEECalculator.calculate`: the `primaryGoal` enum becomes the *direction*, the rate sets the *magnitude*. Both callers (fallbackTargets, MealPlanGeneratorService) hit calculate, so centralize there. Verify: a profile with goal weight + rate is not adjusted twice.
+
 ---
 
 ## 2. Plan history retention — STOP destroying the learning signal [FOUNDATIONAL]
@@ -120,6 +122,8 @@ So "reach the weight from onboarding" is not currently possible — the app has 
 - **Chronological guarantee:** the generator/parser must sort meals by time so a 16:00 snack never renders after a 19:30 dinner (belt-and-suspenders; the Today sort already does minutes-of-day).
 
 **Effort:** MEDIUM (prompt meal-structure rules + possibly add training-time to schedule + parser ordering).
+
+**DECIDED (2026-06-02):** training time = a **daily check-in ask** ("playing soccer today? what time? gym? what time?"), NOT a static per-day schedule field — handles real-life variability. This **merges with the §4 morning "did you eat yesterday's plan?" check-in** into one daily interaction. The answer feeds snack placement for the day's meals. (Tier 2 — does not affect Tier 1.)
 
 ---
 

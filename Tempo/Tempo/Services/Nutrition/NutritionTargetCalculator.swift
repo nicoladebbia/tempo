@@ -103,7 +103,9 @@ enum NutritionTargetCalculator {
             bodyFatPercent: profile.bodyFatPercent,
             trainingFrequency: profile.trainingFrequency,
             whoopAverageTDEE: whoopAvgTDEE,
-            goal: profile.primaryGoal
+            goal: profile.primaryGoal,
+            goalWeightKg: profile.goalWeightKg,
+            weeklyRateKg: profile.weeklyRateKg
         )
         let macros = result.macroTargets
         return Targets(

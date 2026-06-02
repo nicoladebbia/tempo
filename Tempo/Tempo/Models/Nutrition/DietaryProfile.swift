@@ -48,6 +48,17 @@ final class DietaryProfile {
 
     var currentWeightKg: Double
 
+    /// Target body weight (kg). Optional — nil means the user hasn't set a
+    /// goal weight, in which case calorie adjustment falls back to the
+    /// primaryGoal enum offset. When set together with `weeklyRateKg`, the
+    /// rate sets the deficit/surplus magnitude and the goal-vs-current
+    /// direction sets its sign (see TDEECalculator.applyGoalAdjustment).
+    var goalWeightKg: Double?
+
+    /// Desired weekly weight-change pace (kg/week, always positive). Pairs
+    /// with `goalWeightKg`. nil → fall back to the enum offset.
+    var weeklyRateKg: Double?
+
     var heightCm: Double
 
     var age: Int
@@ -140,6 +151,8 @@ final class DietaryProfile {
         primaryGoal: DietaryGoal = .maintain,
         bodyFatPercent: Double? = nil,
         currentWeightKg: Double = 75,
+        goalWeightKg: Double? = nil,
+        weeklyRateKg: Double? = nil,
         heightCm: Double = 175,
         age: Int = 22,
         biologicalSex: BiologicalSex = .male,
@@ -164,6 +177,8 @@ final class DietaryProfile {
         primaryGoalRaw = primaryGoal.rawValue
         self.bodyFatPercent = bodyFatPercent
         self.currentWeightKg = currentWeightKg
+        self.goalWeightKg = goalWeightKg
+        self.weeklyRateKg = weeklyRateKg
         self.heightCm = heightCm
         self.age = age
         biologicalSexRaw = biologicalSex.rawValue
