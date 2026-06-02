@@ -107,6 +107,18 @@ struct TrainingTabView: View {
                 )
             }
         }
+        .onReceive(
+            // Tier 3.3 — re-personalize the training week when the schedule
+            // inputs change (football days / split edited in ScheduleEditorView).
+            // Debounced 0.6s so a burst of chip toggles regenerates once, matching
+            // the Nutrition observer. Skips while a workout is active so an edit
+            // can't disturb an in-progress session (the guard also protects this).
+            NotificationCenter.default.publisher(for: .tempoTrainingSettingsChanged)
+                .debounce(for: .seconds(0.6), scheduler: DispatchQueue.main)
+        ) { _ in
+            guard let viewModel, !(viewModel.sessionState.isActive) else { return }
+            viewModel.repersonalizeSchedule(modelContext: modelContext)
+        }
         .onChange(of: viewModel?.sessionState) { _, newState in
             if case .summary = newState {
                 // Persist completion the moment the session reaches summary —

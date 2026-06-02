@@ -406,6 +406,21 @@ final class TrainingViewModel {
         }
     }
 
+    /// Re-personalize the week after a schedule-input edit (football days /
+    /// split). Future days are ephemeral and regenerate from the new inputs;
+    /// today is re-resolved under the sacredness guard (planResolution) so a
+    /// completed/in-progress session is never disturbed. Posts
+    /// `.tempoWorkoutChanged` so the Dashboard Move quadrant + Today view refresh.
+    func repersonalizeSchedule(modelContext: ModelContext) {
+        // Rebuild the forward-looking week from the new UserSettings inputs.
+        loadWeekPlan(modelContext: modelContext)
+        // Re-resolve today: replaces a still-.planned today row whose type now
+        // disagrees with the new template; keeps completed/in-progress (sacred).
+        let resolved = ensureTodayPlanPersisted(modelContext: modelContext)
+        todayPlan = resolved.plan
+        NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
+    }
+
     // MARK: - Start Workout
 
     // Per STATE_MACHINES.md Section 1 — idle → warmup/exercise
