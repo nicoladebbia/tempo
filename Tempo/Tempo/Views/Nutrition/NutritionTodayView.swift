@@ -467,9 +467,6 @@ struct NutritionTodayView: View {
         viewModel.refreshFeedbackPresence(modelContext: modelContext)
     }
 
-    // MARK: - Floating Log Button
-
-    
 }
 
 // MARK: - Preview

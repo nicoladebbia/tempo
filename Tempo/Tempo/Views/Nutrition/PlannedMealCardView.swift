@@ -199,10 +199,6 @@ struct PlannedMealCardView: View {
         }
     }
 
-    // MARK: - Food Detail
-
-    
-
     // MARK: - Macro Summary
 
     private var macroSummaryRow: some View {

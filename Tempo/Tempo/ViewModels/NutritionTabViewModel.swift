@@ -192,7 +192,6 @@ final class NutritionTabViewModel {
         todayBaseTargets.calories
     }
 
-
     /// True when a generated plan covers today AND today actually has meals
     /// from it. Drives the no-plan empty state on the Today page: when false,
     /// the calorie/macro figures are a TDEE *estimate*, not a real plan

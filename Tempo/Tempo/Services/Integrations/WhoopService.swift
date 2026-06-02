@@ -812,7 +812,6 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
         )
     }
 
-
     func fetchCycleBatch(start: Date, end: Date) async throws -> [WhoopCycleData] {
         if isDemoMode {
             return try await [mockService.fetchCycle(for: end)]
@@ -845,7 +844,6 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
             )
         }
     }
-
 
     func ensureWeeklyTDEEAverage() async {
         // 7-day window ending today. Averaging is mandatory: a single day's

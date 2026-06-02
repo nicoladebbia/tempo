@@ -113,7 +113,6 @@ final class MockWhoopService: WhoopServiceProtocol, @unchecked Sendable {
         )
     }
 
-
     func fetchCycleBatch(start: Date, end: Date) async throws -> [WhoopCycleData] {
         // Seven days of plausible expenditure with some day-to-day variance so
         // the averaging path is exercised (rest days lower, training days
