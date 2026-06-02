@@ -70,6 +70,10 @@ final class NutritionTabViewModel {
     var recipeService: (any RecipeServiceProtocol)?
     var groceryService: (any GroceryListServiceProtocol)?
     var intelligence: NutritionIntelligenceService?
+    /// ModelContext captured at Phase 7 attach. Used by addPantryItem to
+    /// insert a PantryPriceEntry on manual adds (the pantry service's
+    /// mergeOrCreate doesn't own price history). Set in attachPhase7Services.
+    var pantryModelContext: ModelContext?
 
     // MARK: - Service instances
 

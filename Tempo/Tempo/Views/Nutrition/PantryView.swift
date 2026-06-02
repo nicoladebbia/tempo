@@ -72,7 +72,8 @@ struct PantryView: View {
                         rawName: item.name,
                         quantity: item.quantity,
                         unit: item.unit,
-                        storageLocation: item.location
+                        storageLocation: item.location,
+                        totalPaidUSD: item.totalPaidUSD
                     )
                 }
             }
@@ -181,6 +182,14 @@ struct PantryView: View {
                             .font(.tempoCaption2)
                             .foregroundStyle(Color.tempoTextTertiary)
                     }
+                    if let paid = viewModel.pantryState.latestPriceByFood[item.canonicalName], paid > 0 {
+                        Text("•")
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                        Text(String(format: "$%.2f", paid))
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                    }
                 }
             }
             Spacer()
@@ -230,6 +239,10 @@ struct StagedPantryItem: Identifiable, Hashable {
     var quantity: Double
     var unit: PantryUnit
     var location: PantryStorageLocation
+    /// Total USD paid for this purchase, optional. When set, the parent
+    /// materialises a PantryPriceEntry so the food's price history is tracked
+    /// even though manual adds have no receipt.
+    var totalPaidUSD: Double?
 }
 
 // MARK: - PantryManualAddSheet
@@ -246,6 +259,8 @@ private struct PantryManualAddSheet: View {
     @State private var quantityText = ""
     @State private var unit: PantryUnit = .grams
     @State private var location: PantryStorageLocation = .pantry
+    /// Optional total USD paid — locks this purchase's price into history.
+    @State private var priceText = ""
     @State private var transcriber = VoiceTranscriber()
 
     // Staging list — items the user has queued but not yet committed.
@@ -321,6 +336,8 @@ private struct PantryManualAddSheet: View {
                     Text(loc.displayName).tag(loc)
                 }
             }
+            TextField("Price paid (optional, USD)", text: $priceText)
+                .keyboardType(.decimalPad)
             Button {
                 stageCurrentRow()
             } label: {
@@ -357,6 +374,11 @@ private struct PantryManualAddSheet: View {
                     .foregroundStyle(Color.tempoTextTertiary)
             }
             Spacer()
+            if let paid = item.totalPaidUSD, paid > 0 {
+                Text(String(format: "$%.2f", paid))
+                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(Color.tempoTextSecondary)
+            }
         }
     }
 
@@ -379,7 +401,8 @@ private struct PantryManualAddSheet: View {
             name: name.trimmingCharacters(in: .whitespaces),
             quantity: qty,
             unit: unit,
-            location: location
+            location: location,
+            totalPaidUSD: Double(priceText.trimmingCharacters(in: .whitespaces))
         ))
         HapticManager.lightImpact()
         // Clear the form for the next row. Keep unit + location sticky so
@@ -387,6 +410,7 @@ private struct PantryManualAddSheet: View {
         // time. Stop the transcriber so the next row starts clean.
         name = ""
         quantityText = ""
+        priceText = ""
         transcriber.stop()
     }
 

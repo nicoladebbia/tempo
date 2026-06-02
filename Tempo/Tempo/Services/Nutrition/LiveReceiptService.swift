@@ -158,6 +158,30 @@ final class LiveReceiptService: ReceiptServiceProtocol {
                 sourceReceiptLineItemID: line.id
             )
             line.linkedPantryItemID = pantryItem.id
+
+            // Record the price as a standalone history entry — one INSERT per
+            // purchase, keyed by canonical food name so the time series
+            // survives this item being consumed/archived and re-bought later.
+            // mergeOrCreate may have MERGED into an existing item (quantity
+            // summed); the price entry is independent of that so restocks
+            // never overwrite prior prices. Only when the OCR actually parsed
+            // a price (> 0) — a $0 line carries no signal.
+            if line.totalPrice > 0 {
+                let priceEntry = PantryPriceEntry(
+                    canonicalFoodName: line.canonicalFoodName,
+                    displayName: line.displayName.isEmpty ? line.canonicalFoodName : line.displayName,
+                    purchaseDate: receipt.purchaseDate,
+                    totalPaidUSD: line.totalPrice,
+                    quantity: line.quantity,
+                    unit: line.resolvedPantryUnit,
+                    pricePerKg: line.pricePerKg,
+                    source: .receiptScan,
+                    store: receipt.store.isEmpty ? nil : receipt.store,
+                    sourcePantryItemID: pantryItem.id,
+                    sourceReceiptLineItemID: line.id
+                )
+                modelContext.insert(priceEntry)
+            }
         }
         // Mark the receipt as confirmed if every line is now ingested.
         let stillUningested = receipt.orderedLineItems.filter { !$0.isIngested }

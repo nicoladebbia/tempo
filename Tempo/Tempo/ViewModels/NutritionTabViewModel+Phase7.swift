@@ -22,6 +22,10 @@ final class NutritionPantryState {
     var loadError: String?
     /// True while a load is in flight.
     var isLoading: Bool = false
+    /// Most-recent locked-in total price (USD) per canonical food name, for
+    /// the per-item "last paid" label. Built in reloadPantry from
+    /// PantryPriceEntry — keyed by food so it survives item churn.
+    var latestPriceByFood: [String: Double] = [:]
 }
 
 // MARK: - NutritionReceiptState
@@ -67,6 +71,11 @@ extension NutritionTabViewModel {
         services: ServiceContainer
     ) {
         let logger = Logger.nutrition
+
+        // Capture the context for price-history inserts (addPantryItem). Set
+        // before the idempotency guard so it's always current even on the
+        // sibling re-mount that bails below.
+        pantryModelContext = modelContext
 
         // Idempotent: three sibling Nutrition sub-views (Pantry, GroceryList,
         // RecipeSuggestions) each call this from their `.task`. Once the
@@ -119,22 +128,63 @@ extension NutritionTabViewModel {
         } catch {
             pantryState.loadError = error.localizedDescription
         }
+
+        // Build the latest-price-per-food map for the per-item "last paid"
+        // label. Keyed by canonical food name (not item) so it survives churn.
+        if let context = pantryModelContext {
+            let descriptor = FetchDescriptor<PantryPriceEntry>(
+                sortBy: [SortDescriptor(\.purchaseDate, order: .reverse)]
+            )
+            if let entries = try? context.fetch(descriptor) {
+                var latest: [String: Double] = [:]
+                // Descending by date → first seen per food is the most recent.
+                for entry in entries where latest[entry.canonicalFoodName] == nil {
+                    latest[entry.canonicalFoodName] = entry.totalPaidUSD
+                }
+                pantryState.latestPriceByFood = latest
+            }
+        }
     }
 
-    func addPantryItem(rawName: String, quantity: Double, unit: PantryUnit, storageLocation: PantryStorageLocation) {
+    func addPantryItem(
+        rawName: String,
+        quantity: Double,
+        unit: PantryUnit,
+        storageLocation: PantryStorageLocation,
+        totalPaidUSD: Double? = nil
+    ) {
         guard let service = pantryService else {
             return
         }
         do {
-            try service.mergeOrCreate(
+            let now = Date()
+            let item = try service.mergeOrCreate(
                 rawName: rawName,
                 quantity: quantity,
                 unit: unit,
                 storageLocation: storageLocation,
-                purchaseDate: Date(),
+                purchaseDate: now,
                 purchaseSource: .manual,
                 sourceReceiptLineItemID: nil
             )
+            // Lock the price into history when supplied. One INSERT per
+            // purchase keyed by the canonical food name (not the item), so the
+            // time series survives this item being consumed/archived. Uses the
+            // merged item's canonicalName so manual + scan history share a key.
+            if let totalPaidUSD, totalPaidUSD > 0, let context = pantryModelContext {
+                let entry = PantryPriceEntry(
+                    canonicalFoodName: item.canonicalName,
+                    displayName: item.displayName,
+                    purchaseDate: now,
+                    totalPaidUSD: totalPaidUSD,
+                    quantity: quantity,
+                    unit: unit,
+                    source: .manual,
+                    sourcePantryItemID: item.id
+                )
+                context.insert(entry)
+                try? context.save()
+            }
             reloadPantry()
         } catch {
             pantryState.loadError = error.localizedDescription
