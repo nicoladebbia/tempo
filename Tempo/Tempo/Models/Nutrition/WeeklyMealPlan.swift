@@ -63,6 +63,24 @@ final class WeeklyMealPlan {
         return result
     }
 
+    /// True when today's calendar date falls within `[startDate, endDate]`
+    /// inclusive. Both bounds are normalized to start-of-day at init, so a
+    /// plan dated May 25–31 covers all of May 31. This is the single source
+    /// of truth for "is this plan current" — `isActive` alone is NOT enough,
+    /// because a plan stays `isActive` until the next generation deletes it,
+    /// so an out-of-range past plan would otherwise read as the active plan.
+    @Transient
+    var coversToday: Bool {
+        coversDate(Date())
+    }
+
+    /// True when `date`'s calendar day falls within `[startDate, endDate]`
+    /// inclusive.
+    func coversDate(_ date: Date) -> Bool {
+        let day = Calendar.current.startOfDay(for: date)
+        return day >= startDate && day <= endDate
+    }
+
     // MARK: - Init
 
     init(

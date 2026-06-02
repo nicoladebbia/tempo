@@ -173,6 +173,15 @@ final class NutritionTabViewModel {
         ).calories
     }
 
+
+    /// True when a generated plan covers today AND today actually has meals
+    /// from it. Drives the no-plan empty state on the Today page: when false,
+    /// the calorie/macro figures are a TDEE *estimate*, not a real plan
+    /// target, and the UI should say so + offer to generate a plan.
+    var hasActivePlanForToday: Bool {
+        weeklyPlan?.coversToday == true && !todayMeals.isEmpty
+    }
+
     var todayProteinConsumed: Int {
         todayMeals
             .filter { $0.status == .eaten }
@@ -345,7 +354,13 @@ final class NutritionTabViewModel {
                 }
             refreshFeedbackPresence(modelContext: modelContext)
 
-            // Fetch active WeeklyMealPlan
+            // Fetch the active WeeklyMealPlan that ACTUALLY covers today.
+            // `isActive` alone is insufficient: a plan stays active until the
+            // next generation deletes it, so an out-of-range past plan (e.g.
+            // dated May 25–31 viewed on June 2) would otherwise read as the
+            // current plan and drive a stale Today/Plan view. The date-range
+            // filter (`coversToday`) runs in Swift after the fetch — the
+            // bounds are non-optional start-of-day Dates so it's reliable.
             let planDescriptor = FetchDescriptor<WeeklyMealPlan>(
                 predicate: #Predicate<WeeklyMealPlan> { plan in
                     plan.isActive == true
@@ -353,7 +368,7 @@ final class NutritionTabViewModel {
                 sortBy: [SortDescriptor(\.generatedAt, order: .reverse)]
             )
             let plans = try modelContext.fetch(planDescriptor)
-            weeklyPlan = plans.first
+            weeklyPlan = plans.first { $0.coversToday }
 
             // Fetch all presets
             let presetDescriptor = FetchDescriptor<MealPreset>(
