@@ -99,9 +99,6 @@ struct ActiveWorkoutView: View {
                 case let .exercise(.betweenExercises(_, toIndex)):
                     exerciseTransition(toIndex: toIndex)
 
-                case .cooldown:
-                    cooldownContent
-
                 case .paused:
                     pausedOverlay
 
@@ -109,7 +106,10 @@ struct ActiveWorkoutView: View {
                     crashRecoveryContent
 
                 default:
-                    EmptyView()
+                    // Transient states (cooldown/summary/saved/discarded/idle):
+                    // the cover is being dismissed — show the app background, not
+                    // a blank "broken"-looking view, during the teardown frame.
+                    Color.tempoBgPrimary
                 }
             }
         }
@@ -150,6 +150,10 @@ struct ActiveWorkoutView: View {
             Text("Save keeps the sets you've logged. Discard throws this session away — the day stays open to redo.")
         }
         .onAppear { loadCurrentSetInputs() }
+        // NOTE: cover teardown on .discarded is owned SOLELY by TrainingTabView
+        // (it owns showActiveWorkout). No child dismiss() here — two owners
+        // racing was the earlier blank-flash bug. The router's neutral-background
+        // default covers the single teardown frame.
         .onChange(of: viewModel.currentExerciseIndex) { _, _ in loadCurrentSetInputs() }
         .onChange(of: viewModel.currentSetIndex) { _, _ in loadCurrentSetInputs() }
         // Re-sync the wall-clock rest timer when returning from the background,
@@ -599,57 +603,6 @@ struct ActiveWorkoutView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity)
-    }
-
-    // MARK: - Cooldown Content
-
-    private var cooldownContent: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.xl) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 80))
-                    .foregroundStyle(Color.tempoRecoveryGreen)
-                    .padding(.top, TempoSpacing.xxl)
-
-                Text("WORKOUT COMPLETE!")
-                    .font(.tempoTitle1)
-                    .foregroundStyle(Color.tempoTextPrimary)
-
-                if !viewModel.detectedPRs.isEmpty {
-                    VStack(spacing: TempoSpacing.sm) {
-                        Image(systemName: "trophy.fill")
-                            .font(.system(size: 32))
-                            .foregroundStyle(Color.tempoPRGold)
-
-                        Text("\(viewModel.detectedPRs.count) PR\(viewModel.detectedPRs.count > 1 ? "s" : "") Hit!")
-                            .font(.tempoHeadline)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                    }
-                }
-
-                // The last working set goes straight to cooldown (no rest), so
-                // its feedback panel never showed during a rest. Surface it here
-                // so RPE/notes for the final set can still be captured.
-                if viewModel.currentFeedback != nil {
-                    InlineSetFeedbackView(viewModel: viewModel)
-                }
-
-                Button {
-                    viewModel.skipCooldown()
-                } label: {
-                    Text("VIEW SUMMARY")
-                        .font(.tempoHeadline)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 56)
-                        .background(Color.tempoSignal)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
-                }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.bottom, TempoSpacing.xxl)
-            }
-            .frame(maxWidth: .infinity)
-        }
     }
 
     // MARK: - Paused Overlay

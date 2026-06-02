@@ -849,12 +849,6 @@ final class TrainingViewModel {
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
     }
 
-    // MARK: - Skip Cooldown → Summary
-
-    func skipCooldown() {
-        sessionState = .summary
-    }
-
     // MARK: - Save Workout
 
     // Per STATE_MACHINES.md — summary → saved
