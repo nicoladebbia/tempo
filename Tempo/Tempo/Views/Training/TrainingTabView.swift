@@ -130,6 +130,19 @@ struct TrainingTabView: View {
                 viewModel?.persistCompletion(modelContext: modelContext)
                 showActiveWorkout = false
                 showSummary = true
+            } else if case .discarded = newState {
+                // Discard → close the workout cover and reload today so the
+                // session settles back to a fresh, restartable state (the day
+                // was kept .planned). Driven from here, not a dismiss() inside
+                // the cover, so teardown can't race the reset into a blank screen.
+                showActiveWorkout = false
+                showSummary = false
+                if let viewModel {
+                    Task { @MainActor in
+                        await viewModel.loadToday(modelContext: modelContext)
+                        viewModel.sessionState = .idle
+                    }
+                }
             }
         }
     }

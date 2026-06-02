@@ -110,7 +110,6 @@ enum Equipment: String, Codable, CaseIterable {
     case none
 }
 
-
 extension Equipment {
     /// Whether the logged weight is loaded symmetrically on a bar, so the UI can
     /// show a per-side plate hint. Dumbbells/cables/machines are logged as the

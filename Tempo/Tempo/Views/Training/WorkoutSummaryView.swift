@@ -28,6 +28,13 @@ struct WorkoutSummaryView: View {
                 // Header
                 headerSection
 
+                // Last-set feedback — the final working set goes straight to the
+                // summary (no rest, no cooldown screen), so its RPE/note is
+                // captured here. Save-on-change like the in-session panel.
+                if viewModel.currentFeedback != nil {
+                    InlineSetFeedbackView(viewModel: viewModel)
+                }
+
                 // PR badges (if any)
                 if !viewModel.detectedPRs.isEmpty {
                     prSection

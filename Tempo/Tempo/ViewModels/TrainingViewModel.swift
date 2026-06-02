@@ -144,7 +144,7 @@ final class TrainingViewModel {
     private var restEndDate: Date?
     /// Highest integer second for which a countdown cue has already fired,
     /// so re-syncing on foreground does not replay cues. Starts at Int.max.
-    private var lastCuedSecond: Int = Int.max
+    private var lastCuedSecond = Int.max
 
     // MARK: - Guided Warm-Up
 
@@ -234,14 +234,7 @@ final class TrainingViewModel {
         let isCrashedInProgress: Bool
     }
 
-    /// Ensures today's WorkoutPlan exists and is PERSISTED, returning it.
-    /// Extracted from loadToday so DailyResetCoordinator can call the exact
-    /// same path — the Dashboard's Move quadrant only reads the persisted
-    /// row, so this guarantees Dashboard and Training never disagree about
-    /// today's workout. Idempotent: an existing matching plan is returned
-    /// untouched (preserving logged sets); a stale-type plan is replaced
-    /// with the canonical Week Plan version.
-// MARK: - Plan Resolution Guard (Tier 3.1, pure + unit-tested)
+    // MARK: - Plan Resolution Guard (Tier 3.1, pure + unit-tested)
 
     /// Whether an existing persisted day-row should be KEPT or REPLACED when the
     /// forward-looking week template disagrees with it (e.g. after the user
@@ -269,6 +262,13 @@ final class TrainingViewModel {
         }
     }
 
+    /// Ensures today's WorkoutPlan exists and is PERSISTED, returning it.
+    /// Extracted from loadToday so DailyResetCoordinator can call the exact
+    /// same path — the Dashboard's Move quadrant only reads the persisted
+    /// row, so this guarantees Dashboard and Training never disagree about
+    /// today's workout. Idempotent: an existing matching plan is returned
+    /// untouched (preserving logged sets); a stale-type plan is replaced
+    /// with the canonical Week Plan version.
     @discardableResult
     func ensureTodayPlanPersisted(modelContext: ModelContext) -> ResolvedTodayPlan {
         // Week Plan must be loaded first so Today and Week Plan agree.
@@ -635,9 +635,10 @@ final class TrainingViewModel {
         #endif
 
         if isLastSet, isLastExercise {
-            // Per STATE_MACHINES.md — last set of last exercise → cooldown
-            sessionState = .cooldown
+            // Workout complete → straight to summary (cooldown screen removed;
+            // the last set's feedback is editable at the top of the summary).
             stopElapsedTimer()
+            sessionState = .summary
         } else if isLastSet {
             // Per STATE_MACHINES.md — between exercises
             let restDuration = restDuration(for: plannedExercise)
@@ -692,6 +693,49 @@ final class TrainingViewModel {
             feedback.note = trimmed.isEmpty ? nil : trimmed
         }
         try? modelContext.save()
+
+        // If the workout is ALREADY persisted (the last set's feedback is now
+        // edited in the summary, after persistCompletion ran on .summary entry),
+        // recompute that exercise's ExerciseHistory aggregate so the edit isn't
+        // silently dropped from the Tier-2 signal.
+        if todayPlan?.status == .completed {
+            recomputeHistoryAggregate(for: lastCompletedSet?.plannedExercise, modelContext: modelContext)
+        }
+    }
+
+    /// Recompute one exercise's persisted ExerciseHistory feedback aggregate
+    /// from the latest user-provided SetFeedback. Used when the last set's
+    /// feedback is entered in the summary, after the history row was already
+    /// written on .summary entry.
+    private func recomputeHistoryAggregate(for plannedExercise: PlannedExercise?, modelContext: ModelContext) {
+        guard let plannedExercise,
+              let exercise = plannedExercise.exercise,
+              let planID = todayPlan?.id
+        else {
+            return
+        }
+        let exerciseID = exercise.id
+        let descriptor = FetchDescriptor<ExerciseHistory>(
+            predicate: #Predicate<ExerciseHistory> { $0.workoutPlanID == planID }
+        )
+        guard let rows = try? modelContext.fetch(descriptor) else {
+            return
+        }
+        guard let row = rows.first(where: { $0.exercise?.id == exerciseID }) else {
+            return
+        }
+        let completedSets = (plannedExercise.sets ?? []).filter { $0.completed && !$0.isWarmup }
+        let fbDescriptor = FetchDescriptor<SetFeedback>(
+            predicate: #Predicate<SetFeedback> { $0.userProvidedFeedback }
+        )
+        let entered = Dictionary(
+            ((try? modelContext.fetch(fbDescriptor)) ?? []).map { ($0.setID, $0) }
+        ) { first, _ in first }
+        let agg = Self.aggregateFeedback(completedSets: completedSets, enteredFeedback: entered)
+        row.avgRPE = agg.avgRPE
+        row.worstFormRaw = agg.worstFormRaw
+        row.feedbackSampleCount = agg.count
+        try? modelContext.save()
     }
 
     // MARK: - Skip Rest
@@ -742,7 +786,9 @@ final class TrainingViewModel {
                     ))
                 }
             } else {
-                sessionState = .cooldown
+                // Workout complete after the last inter-exercise rest.
+                stopElapsedTimer()
+                sessionState = .summary
             }
             HapticManager.notification(.warning)
         }
@@ -752,22 +798,55 @@ final class TrainingViewModel {
 
     // Per STATE_MACHINES.md — any active state → cooldown → summary
 
+    /// Finish the session early (user tapped Finish before all sets). Saving is
+    /// the caller's choice — see `discardActiveWorkout`. This path goes straight
+    /// to the summary (no cooldown screen); persistCompletion (fired on .summary
+    /// entry by the tab) saves only the working sets actually logged.
     func finishWorkout() {
         stopRestTimer()
+        stopWarmupMoveTimer()
         stopElapsedTimer()
-        sessionState = .cooldown
-
-        // Auto-advance to summary after a brief delay
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(1))
-            sessionState = .summary
-        }
+        sessionState = .summary
     }
 
-    // MARK: - Skip Cooldown → Summary
-
-    func skipCooldown() {
-        sessionState = .summary
+    /// Discard the in-progress session: mark the day skipped, drop any sets
+    /// logged this session WITHOUT writing ExerciseHistory, and reset. The day
+    /// stays open to redo. Used by the Finish → "Discard" choice.
+    func discardActiveWorkout(modelContext: ModelContext) {
+        // Allow discard from any live state (active / paused / cooldown).
+        switch sessionState {
+        case .warmup, .exercise, .cooldown, .paused:
+            break
+        default:
+            return
+        }
+        stopRestTimer()
+        stopWarmupMoveTimer()
+        stopElapsedTimer()
+        if let plan = todayPlan {
+            // Roll back this session's logged sets so a re-do starts clean.
+            // Keep the plan .planned (NOT .skipped/.completed) so the day stays
+            // OPEN TO REDO, exactly as the dialog promises — and writes no
+            // ExerciseHistory.
+            for ex in plan.orderedExercises {
+                for set in ex.orderedSets where set.completed {
+                    set.completed = false
+                    set.actualWeight = nil
+                    set.actualReps = nil
+                    set.completedAt = nil
+                }
+            }
+            plan.status = .planned
+            plan.startedAt = nil
+        }
+        try? modelContext.save()
+        currentFeedback = nil
+        lastCompletedSet = nil
+        detectedPRs = []
+        // Momentary .discarded so TrainingTabView dismisses the cover, then it
+        // reloads today and the state settles back to .idle (ready to restart).
+        sessionState = .discarded
+        NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
     }
 
     // MARK: - Save Workout
@@ -1458,12 +1537,19 @@ final class TrainingViewModel {
             return nil
         }
         let sets = exercise.orderedSets
-        // Return the last completed set's weight, or the target weight
-        if currentSetIndex > 0 {
-            let prevSet = sets[currentSetIndex - 1]
-            return prevSet.actualWeight ?? prevSet.targetWeight
+        guard currentSetIndex < sets.count else {
+            return sets.last?.targetWeight
         }
-        return sets.first?.targetWeight
+        // Carry from the most recent WORKING set (skip ramps) so the first
+        // working set pre-fills the working weight, not the 75% ramp. Fall back
+        // to the current set's own target if no prior working set exists.
+        for i in stride(from: currentSetIndex - 1, through: 0, by: -1) {
+            let prev = sets[i]
+            if !prev.isWarmup {
+                return prev.actualWeight ?? prev.targetWeight
+            }
+        }
+        return sets[currentSetIndex].targetWeight
     }
 
     // MARK: - Rest Timer
@@ -1743,9 +1829,6 @@ final class TrainingViewModel {
         cancelRestTimerNotification()
         Self.deactivateRestAudioSession()
     }
-
-    /// Extends the current rest timer by the given number of seconds.
-    
 
     // MARK: - Rest Timer Notifications
 

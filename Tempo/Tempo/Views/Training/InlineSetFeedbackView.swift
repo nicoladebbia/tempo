@@ -7,6 +7,7 @@
 
 import SwiftData
 import SwiftUI
+import UIKit
 
 // MARK: - InlineSetFeedbackView
 
@@ -78,9 +79,25 @@ struct InlineSetFeedbackView: View {
             // Optional note (collapsed by default) — write-through on edit.
             if noteExpanded {
                 VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    Text("Note")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                    HStack {
+                        Text("Note")
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                        Spacer()
+                        // Always-visible "Done" while editing — the field is
+                        // multi-line (Return = newline) and the keyboard toolbar
+                        // proved unreliable on-device, so this guaranteed button
+                        // force-resigns the keyboard via UIKit.
+                        if noteFocused {
+                            Button("Done") {
+                                noteFocused = false
+                                Self.dismissKeyboard()
+                            }
+                            .font(.tempoCaption1)
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.tempoSignal)
+                        }
+                    }
                     TextField(
                         "Anything worth remembering?",
                         text: $note,
@@ -88,22 +105,11 @@ struct InlineSetFeedbackView: View {
                     )
                     .lineLimit(2 ... 4)
                     .focused($noteFocused)
-                    .submitLabel(.done)
                     .padding(TempoSpacing.cardPadding)
                     .background(Color.tempoSurfaceCard)
                     .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
                     .onChange(of: note) { _, newValue in
                         viewModel.updateFeedback(note: newValue, modelContext: modelContext)
-                    }
-                    .toolbar {
-                        // The note keyboard had no way to dismiss — add a Done
-                        // button above the keyboard.
-                        ToolbarItemGroup(placement: .keyboard) {
-                            Spacer()
-                            Button("Done") { noteFocused = false }
-                                .font(.tempoHeadline)
-                                .foregroundStyle(Color.tempoSignal)
-                        }
                     }
                 }
             } else {
@@ -122,6 +128,28 @@ struct InlineSetFeedbackView: View {
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
         .padding(.horizontal, TempoSpacing.screenEdge)
         .onAppear(perform: seedFromFeedback)
+        // Keyboard-accessory "Done" as well (belt-and-suspenders with the visible
+        // in-panel Done button above, which is the guaranteed path on device).
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    noteFocused = false
+                    Self.dismissKeyboard()
+                }
+                .font(.tempoHeadline)
+                .foregroundStyle(Color.tempoSignal)
+            }
+        }
+    }
+
+    /// Force-resign the first responder via UIKit — reliable regardless of the
+    /// SwiftUI view hierarchy (the @FocusState/keyboard-toolbar path proved
+    /// flaky on device for this nested, non-Form panel).
+    private static func dismissKeyboard() {
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil
+        )
     }
 
     /// Seed local controls from the eagerly-created feedback row so the panel
