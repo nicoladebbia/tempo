@@ -70,13 +70,18 @@ final class FuelDayScheduleViewModel {
         let tomorrowStart = cal.date(byAdding: .day, value: 1, to: todayStart) ?? todayStart
 
         // 1. Today's PlannedMeals (sorted by mealNumber for stable order).
+        //    Keep only meals from the ACTIVE plan (or unbound manual logs) —
+        //    archived past plans are retained for history/personalization but
+        //    must NOT surface here, or an overlapping-week regen would show
+        //    each meal twice. (Same filter the Nutrition Today tab applies.)
         let mealDescriptor = FetchDescriptor<PlannedMeal>(
             predicate: #Predicate<PlannedMeal> { meal in
                 meal.dayDate >= todayStart && meal.dayDate < tomorrowStart
             },
             sortBy: [SortDescriptor(\.mealNumber)]
         )
-        let meals = (try? modelContext.fetch(mealDescriptor)) ?? []
+        let meals = ((try? modelContext.fetch(mealDescriptor)) ?? [])
+            .filter { $0.mealPlan?.isActive == true || $0.mealPlan == nil }
 
         // 2. Planned wake (defaults to 07:00 = 420 if no settings yet).
         let settingsDescriptor = FetchDescriptor<UserSettings>()

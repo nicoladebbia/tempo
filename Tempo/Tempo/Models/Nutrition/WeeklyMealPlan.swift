@@ -28,6 +28,14 @@ final class WeeklyMealPlan {
 
     var isActive: Bool
 
+    /// True once a newer plan has superseded this one. Archived plans are
+    /// retained (not deleted) so the personalization engine can read what the
+    /// user actually ate/skipped + their feedback for past weeks, and the
+    /// "Past Plans" history view can surface them. They are excluded from every
+    /// active/today query (which filter on `isActive`). Defaults false so the
+    /// SwiftData field add is a lightweight migration.
+    var isArchived: Bool = false
+
     var generatedAt: Date
 
     // MARK: - Relationships

@@ -95,7 +95,13 @@ extension DashboardViewModel {
             },
             sortBy: [SortDescriptor(\.mealNumber)]
         )
-        if let plannedMeals = try? context.fetch(plannedDescriptor) {
+        if let fetchedMeals = try? context.fetch(plannedDescriptor) {
+            // Active plan (or unbound manual logs) only — archived past plans
+            // are retained for history but must not double-count today's meals
+            // / consumed macros. Matches the Nutrition Today + Fuel filters.
+            let plannedMeals = fetchedMeals.filter {
+                $0.mealPlan?.isActive == true || $0.mealPlan == nil
+            }
             totals.nextMeal = MealScheduleHelpers.nextUpcomingMeal(in: plannedMeals)
 
             // Consumed macros = eaten PlannedMeals (matches the Nutrition

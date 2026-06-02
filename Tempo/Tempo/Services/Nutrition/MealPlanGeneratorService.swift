@@ -853,22 +853,43 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             dayTypeAssignments[weekdayNumber] = day.dayType
         }
 
-        // Delete any existing active plans. Cascade-delete on
-        // WeeklyMealPlan.meals (deleteRule: .cascade) wipes their PlannedMeals
-        // too — without this, the Today query (filtered only by dayDate)
-        // surfaced today's PlannedMeals from every prior regen, showing
-        // each meal slot duplicated 2× / 3× / Nth-times.
+        // ARCHIVE (don't delete) existing active plans. The personalization
+        // engine needs last week's ACTUAL behavior — eaten/skipped statuses,
+        // actualEatenAt, and recipes — which a hard delete would cascade-wipe
+        // (WeeklyMealPlan → PlannedMeal → Recipe are all .cascade). Marking
+        // isActive=false + isArchived=true retains the rows.
         //
-        // Previous behavior was `existing.isActive = false`, which kept the
-        // stale rows forever. Delete is correct: an inactive plan is never
-        // re-read by any code path, and history rows live on MealLog/
-        // MealFeedback which are NOT cascade-deleted from WeeklyMealPlan.
+        // Safe against the old duplicate-meals bug ONLY because every TODAY/
+        // active surface now filters `meal.mealPlan?.isActive == true`
+        // (NutritionTabViewModel.loadToday/refreshTodayMeals,
+        // targetsForToday(in:), FuelDayScheduleViewModel,
+        // DashboardViewModel+NutritionFetch). Archived plans' meals fail that
+        // filter, so an overlapping-week regen no longer double-renders.
         let existingDescriptor = FetchDescriptor<WeeklyMealPlan>(
             predicate: #Predicate<WeeklyMealPlan> { $0.isActive }
         )
         if let existingPlans = try? modelContext.fetch(existingDescriptor) {
             for existing in existingPlans {
-                modelContext.delete(existing)
+                existing.isActive = false
+                existing.isArchived = true
+            }
+        }
+
+        // Prune archived plans older than the retention window (12 weeks) so
+        // the local store stays bounded. Pruning a WeeklyMealPlan cascades to
+        // its PlannedMeals + Recipes; MealFeedback (.nullify, denormalized
+        // recipeID) survives regardless, so older feedback signal is kept.
+        let retentionCutoff = Calendar.current.date(
+            byAdding: .weekOfYear, value: -12, to: Date()
+        ) ?? Date.distantPast
+        let staleDescriptor = FetchDescriptor<WeeklyMealPlan>(
+            predicate: #Predicate<WeeklyMealPlan> { plan in
+                plan.isArchived && plan.endDate < retentionCutoff
+            }
+        )
+        if let stalePlans = try? modelContext.fetch(staleDescriptor) {
+            for stale in stalePlans {
+                modelContext.delete(stale)
             }
         }
 
