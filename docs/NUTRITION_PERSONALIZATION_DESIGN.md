@@ -156,7 +156,7 @@ So "reach the weight from onboarding" is not currently possible — the app has 
 
 ## Proposed sequencing (after approval)
 
-**Tier 1 — FOUNDATIONAL (cheap, high-intent):** §1 goal weight · §2a archive retention (data) · §3 pantry-stock-in-prompt.
+**Tier 1 — FOUNDATIONAL ✅ BUILT (2026-06-02):** §1 goal weight ✅ · §2a archive retention (data) ✅ · §3 pantry-stock-in-prompt ✅. 48 nutrition unit tests green. NOT yet device-verified (no plan generated — needs a real Sunday run + ⌘R to confirm the goal-weight calorie target, archived-plan history, and pantry-first generation on-device). §2b Past Plans VIEW still pending (Tier 2).
 **Tier 2 — MEDIUM:** §4 daily-adjust/carryover replace + missed-log notif · §6 meal count/timing · §7 Settings page + Saturday notif · §2b Past Plans view · §5 per-day Whoop.
 **Tier 3 — HEAVY:** §8 per-muscle protein.
 
