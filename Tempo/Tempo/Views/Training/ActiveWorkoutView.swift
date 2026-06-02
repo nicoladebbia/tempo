@@ -475,8 +475,6 @@ struct ActiveWorkoutView: View {
         }
     }
 
-    
-
     private func warmupTargetLabel(_ set: PlannedSet) -> String {
         if let w = set.targetWeight, w > 0 {
             let display = WeightUnit.kg.convert(w, to: weightUnit)
@@ -742,12 +740,19 @@ struct ActiveWorkoutView: View {
     // MARK: - Helpers
 
     private func loadCurrentSetInputs() {
-        // Per MODULE_TRAINING.md — sticky weight from previous set.
-        // stickyWeight is kg-stored; convert to the display unit and snap to
-        // the stepper grid so the first +/- tap lands on a clean increment
-        // (a 60 kg sticky → 132.28 lb would otherwise step to 137.28).
-        if let stickyKg = viewModel.stickyWeight {
-            let display = WeightUnit.kg.convert(stickyKg, to: weightUnit)
+        // Warm-up (ramp) sets pre-fill their OWN target (the 50%/75% ramp
+        // weight) — NOT the sticky/previous weight, which would carry the
+        // working weight onto the ramps and make them identical. Working sets
+        // use sticky (carry the weight you actually lifted forward).
+        // stickyWeight/target is kg-stored; convert to the display unit and snap
+        // to the stepper grid so the first +/- tap lands on a clean increment.
+        let sourceKg: Double? = if viewModel.currentSet?.isWarmup == true {
+            viewModel.currentSet?.targetWeight
+        } else {
+            viewModel.stickyWeight
+        }
+        if let kg = sourceKg {
+            let display = WeightUnit.kg.convert(kg, to: weightUnit)
             inputWeight = (display / weightStep).rounded() * weightStep
         }
         if let targetReps = viewModel.currentSet?.targetReps {

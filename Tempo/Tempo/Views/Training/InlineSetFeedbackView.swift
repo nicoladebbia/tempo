@@ -78,9 +78,23 @@ struct InlineSetFeedbackView: View {
             // Optional note (collapsed by default) — write-through on edit.
             if noteExpanded {
                 VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    Text("Note")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                    HStack {
+                        Text("Note")
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                        Spacer()
+                        // Explicit in-panel Done — the multi-line (axis: .vertical)
+                        // field treats Return as a newline, and a .keyboard
+                        // toolbar doesn't render reliably outside a NavigationStack
+                        // (this panel lives under the rest timer). A visible button
+                        // that resigns focus is the reliable dismiss.
+                        if noteFocused {
+                            Button("Done") { noteFocused = false }
+                                .font(.tempoCaption1)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(Color.tempoSignal)
+                        }
+                    }
                     TextField(
                         "Anything worth remembering?",
                         text: $note,
@@ -88,22 +102,11 @@ struct InlineSetFeedbackView: View {
                     )
                     .lineLimit(2 ... 4)
                     .focused($noteFocused)
-                    .submitLabel(.done)
                     .padding(TempoSpacing.cardPadding)
                     .background(Color.tempoSurfaceCard)
                     .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
                     .onChange(of: note) { _, newValue in
                         viewModel.updateFeedback(note: newValue, modelContext: modelContext)
-                    }
-                    .toolbar {
-                        // The note keyboard had no way to dismiss — add a Done
-                        // button above the keyboard.
-                        ToolbarItemGroup(placement: .keyboard) {
-                            Spacer()
-                            Button("Done") { noteFocused = false }
-                                .font(.tempoHeadline)
-                                .foregroundStyle(Color.tempoSignal)
-                        }
                     }
                 }
             } else {

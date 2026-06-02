@@ -144,7 +144,7 @@ final class TrainingViewModel {
     private var restEndDate: Date?
     /// Highest integer second for which a countdown cue has already fired,
     /// so re-syncing on foreground does not replay cues. Starts at Int.max.
-    private var lastCuedSecond: Int = Int.max
+    private var lastCuedSecond = Int.max
 
     // MARK: - Guided Warm-Up
 
@@ -234,14 +234,7 @@ final class TrainingViewModel {
         let isCrashedInProgress: Bool
     }
 
-    /// Ensures today's WorkoutPlan exists and is PERSISTED, returning it.
-    /// Extracted from loadToday so DailyResetCoordinator can call the exact
-    /// same path — the Dashboard's Move quadrant only reads the persisted
-    /// row, so this guarantees Dashboard and Training never disagree about
-    /// today's workout. Idempotent: an existing matching plan is returned
-    /// untouched (preserving logged sets); a stale-type plan is replaced
-    /// with the canonical Week Plan version.
-// MARK: - Plan Resolution Guard (Tier 3.1, pure + unit-tested)
+    // MARK: - Plan Resolution Guard (Tier 3.1, pure + unit-tested)
 
     /// Whether an existing persisted day-row should be KEPT or REPLACED when the
     /// forward-looking week template disagrees with it (e.g. after the user
@@ -269,6 +262,13 @@ final class TrainingViewModel {
         }
     }
 
+    /// Ensures today's WorkoutPlan exists and is PERSISTED, returning it.
+    /// Extracted from loadToday so DailyResetCoordinator can call the exact
+    /// same path — the Dashboard's Move quadrant only reads the persisted
+    /// row, so this guarantees Dashboard and Training never disagree about
+    /// today's workout. Idempotent: an existing matching plan is returned
+    /// untouched (preserving logged sets); a stale-type plan is replaced
+    /// with the canonical Week Plan version.
     @discardableResult
     func ensureTodayPlanPersisted(modelContext: ModelContext) -> ResolvedTodayPlan {
         // Week Plan must be loaded first so Today and Week Plan agree.
@@ -1458,12 +1458,19 @@ final class TrainingViewModel {
             return nil
         }
         let sets = exercise.orderedSets
-        // Return the last completed set's weight, or the target weight
-        if currentSetIndex > 0 {
-            let prevSet = sets[currentSetIndex - 1]
-            return prevSet.actualWeight ?? prevSet.targetWeight
+        guard currentSetIndex < sets.count else {
+            return sets.last?.targetWeight
         }
-        return sets.first?.targetWeight
+        // Carry from the most recent WORKING set (skip ramps) so the first
+        // working set pre-fills the working weight, not the 75% ramp. Fall back
+        // to the current set's own target if no prior working set exists.
+        for i in stride(from: currentSetIndex - 1, through: 0, by: -1) {
+            let prev = sets[i]
+            if !prev.isWarmup {
+                return prev.actualWeight ?? prev.targetWeight
+            }
+        }
+        return sets[currentSetIndex].targetWeight
     }
 
     // MARK: - Rest Timer
@@ -1743,9 +1750,6 @@ final class TrainingViewModel {
         cancelRestTimerNotification()
         Self.deactivateRestAudioSession()
     }
-
-    /// Extends the current rest timer by the given number of seconds.
-    
 
     // MARK: - Rest Timer Notifications
 
