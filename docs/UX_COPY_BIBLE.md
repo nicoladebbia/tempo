@@ -168,6 +168,13 @@ Primary source files referenced throughout (cited by file + symbol, never line n
 
 > **Status: NOT IMPLEMENTED as a verifiable bank.** Nutrition intake-wizard step copy is authored inline in the wizard step views; the documented §17 keys were not confirmed string-by-string.
 
+### 17.1 Missed-Log Reminder (§4 daily-adjust) — IMPLEMENTED
+
+Fired at morning daily-reset when yesterday read as a *probable missed log* (logged < 50% of target calories **and** ≥1 planned meal left unmarked). The macro-refund engine carries nothing for such a day; this nudge tells the user to log if they ate. Source: `NotificationService.scheduleMissedLogReminder()`, category `MEAL_REMINDER`, `.timeSensitive`.
+
+- **Title:** "Did you eat yesterday?"
+- **Body:** "Your log came up almost empty with meals left unmarked. If you ate, log it — I'm not carrying a fake deficit into today."
+
 ---
 
 ## Appendix — As-Built Summary

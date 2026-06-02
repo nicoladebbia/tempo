@@ -41,6 +41,16 @@ enum DailyResetCoordinator {
     /// falls back to its own HealthKit-based move data).
     @MainActor
     static var workoutPlanEnsurer: (@MainActor (ModelContext) -> Void)?
+
+    /// §4: fired by the macro-refund capture when yesterday reads as a
+    /// PROBABLE MISSED LOG (intake implausibly low while a planned meal
+    /// went unmarked). Injected once at app startup from a Notification
+    /// service binding (same pattern as the ensurers above) so the
+    /// coordinator stays decoupled from NotificationService and the
+    /// capture stays unit-testable. nil → no notification (capture still
+    /// correctly carries nothing for the missed-log day).
+    @MainActor
+    static var missedLogNotifier: (@MainActor () -> Void)?
     private static let skipBackfillKey = "tempo.skipBackfill.completed"
 
     /// One-shot migration: NonNegotiableProgress entries that look skipped
@@ -145,14 +155,20 @@ enum DailyResetCoordinator {
             ensureWorkout(context)
         }
 
-        // Macro carryover capture (Phase F) — finalize each prior day's
-        // (target − actual) into a 5-day-spread row and tick any active
-        // rows forward. captureCarryoverIfNeeded is idempotent + handles
-        // missing-plan / nothing-logged days defensively.
+        // Macro refund capture (§4) — finalize yesterday into at most one
+        // capped single-day refund row, or fire the missed-log notifier
+        // when the day reads as a forgotten log. captureCarryoverIfNeeded
+        // is idempotent + handles missing-plan / nothing-logged days
+        // defensively and carries nothing for surpluses.
         if let cal = Optional(Calendar.current),
            let yesterday = cal.date(byAdding: .day, value: -1, to: today)
         {
-            MacroCarryoverService.captureCarryoverIfNeeded(for: yesterday, in: context)
+            let notifier = missedLogNotifier
+            MacroCarryoverService.captureCarryoverIfNeeded(
+                for: yesterday,
+                in: context,
+                onMissedLog: { notifier?() }
+            )
         }
 
         // Coach v2.1 maintenance — observer + health-check + grader (when

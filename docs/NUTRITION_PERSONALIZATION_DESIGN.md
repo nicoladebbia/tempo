@@ -82,7 +82,19 @@ So "reach the weight from onboarding" is not currently possible — the app has 
 
 ---
 
-## 4. Daily adjust + MacroCarryover — ONE system, conservative, Whoop-gated missed-log [MEDIUM]
+## 4. Daily adjust + MacroCarryover — ONE system, conservative, missed-log gate [MEDIUM] — ✅ BUILT (2026-06-02)
+
+**BUILT (2026-06-02):** Repurposed `MacroCarryover` IN PLACE (no new service, no SwiftData migration — kills the double-counting landmine by construction) into a CONSERVATIVE single-day refund + missed-log gate. The old 5-day spread is gone (`spreadDays` now defaults to 1; the row applies its full capped share once, then expires on the next tick). Rules, in `captureCarryoverIfNeeded`:
+- **Missed-log gate (the key piece):** intake `< 0.5 × target calories` AND ≥1 planned meal still `.planned` → fire `onMissedLog` notifier, carry NOTHING. This is the *partial*-log case (logged breakfast+dinner, forgot lunch → fake ~deficit) the old zero-logs-only guard sailed past. Target source = summed PlannedMeal macros (so it already reflects §1's goal-weight deficit; §1/§4 stay orthogonal — §1 sets the baseline toward goal weight, §4 refunds un-executed calories). TDEE branch not needed: the day's plan target IS the sync, offline-safe threshold.
+- **Surplus → never carried** (only nudge up, never down — all goals).
+- **Deficit → capped at `maxRefundCalories` (150)**, macros scaled by the same ratio so the refund stays internally consistent.
+- **Notification** wired via an injected `missedLogNotifier` closure (`DailyResetCoordinator` stays decoupled from `NotificationService`; capture stays unit-testable). Copy: see `UX_COPY_BIBLE.md` §17.1; fires `.timeSensitive`+`bypassBudget` so the morning-reset 30-min anti-spam guard doesn't swallow it. Wording reflects it fires next-morning about YESTERDAY, not intraday.
+- **Tests:** `MacroCarryoverServiceTests` (8 cases) pins partial-missed-log→notify+no-row, real-deficit→capped+single-day, surplus→no-carry, zero-logs→preserved skip, sub-threshold→no-row, scaling, single-day expiry, plausible-intake-with-unmarked-meal→not-missed. All green.
+- **Cross-surface:** the read path (`activeAdjustmentForToday` → `targetsForToday(in:)`) is UNCHANGED; only which rows get created changed. Readers: Nutrition Today (`NutritionTabViewModel:565`) + Dashboard Fuel (`DashboardViewModel+NutritionFetch:75`). A missed-log day returns `base` (zero adjustment) to BOTH — no phantom deficit leaks. NOT yet device-verified (needs a real daily-reset on-device to observe the notification + a refunded target after a logged-deficit day).
+
+**Original design below (retained for context):**
+
+### 4. (original) Daily adjust + MacroCarryover — ONE system, conservative, Whoop-gated missed-log [MEDIUM]
 
 **Finding + the hard problem:** `MacroCarryoverService` exists and its **entire job** is spreading (target − actual) over 5 days — which is **exactly what you rejected** ("if a day has 3k but I log 2500, it can't give 500 the next day"). Its forgot-to-log guard only skips when **ZERO** logs exist; your scenario is *partial* (logged breakfast+dinner, forgot lunch → shows 1000, looks like a fake ~2000 deficit) and **sails past the guard**.
 
@@ -181,13 +193,13 @@ Per-purchase price tracking (total paid USD, locked at purchase date) for cost-t
 
 **Tier 1 — FOUNDATIONAL ✅ BUILT (2026-06-02):** §1 goal weight ✅ · §2a archive retention (data) ✅ · §3 pantry-stock-in-prompt ✅. 48 nutrition unit tests green. NOT yet device-verified (no plan generated — needs a real Sunday run + ⌘R to confirm the goal-weight calorie target, archived-plan history, and pantry-first generation on-device). §2b Past Plans VIEW still pending (Tier 2).
 **Tier 1.5 — FOUNDATIONAL ✅ BUILT:** §10 pantry price history (done 2026-06-02).
-**Tier 2 — MEDIUM:** §4 daily-adjust/carryover replace + missed-log notif · §6 meal count/timing · §7 Settings page + Saturday notif · §2b Past Plans view · §5 per-day Whoop · §9 kitchen equipment + spices (home-only).
+**Tier 2 — MEDIUM:** §4 daily-adjust/carryover replace + missed-log notif ✅ BUILT (2026-06-02) · §6 meal count/timing · §7 Settings page + Saturday notif · §2b Past Plans view · §5 per-day Whoop · §9 kitchen equipment + spices (home-only).
 **Tier 3 — HEAVY:** §8 per-muscle protein · §9 location-aware equipment (school/microwave).
 
 Each tier = its own build phase, tested + verified before the next (never stack untested). Weekly Sonnet call stays the only paid path; everything in §4 is free local logic.
 
 ## Open questions for Nicola
 - §1: also collect a **target date / weekly rate**, or just goal weight + let the safety-railed default rate apply?
-- §4: confirm REPLACE MacroCarryover (vs coexist).
+- §4: ✅ RESOLVED — REPLACED in place (spreadDays→1, no new service, no migration). Built 2026-06-02.
 - §6: is per-day training **time** stored in UserSettings today, or do we add it? (Affects snack-placement effort.)
 - Prune policy §2: 8 weeks of history OK, or keep more/less?

@@ -393,6 +393,37 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         )
     }
 
+    // MARK: - Missed-Log Reminder (§4)
+
+    static let missedLogReminderID = "missed_log_yesterday"
+
+    /// Fired at morning daily-reset when yesterday read as a PROBABLE
+    /// MISSED LOG (intake implausibly low while a planned meal went
+    /// unmarked). This is NOT a real-deficit notice — the macro refund
+    /// deliberately carries nothing for such a day. The copy makes clear
+    /// it is about YESTERDAY and that the gap won't be pushed onto today.
+    ///
+    /// Fires ~now (a few seconds out so the trigger is in the future).
+    /// Uses `.timeSensitive` + `bypassBudget` because the daily-reset run
+    /// often coincides with the morning briefing / recovery notification,
+    /// and the generic 30-min anti-spam guard (which exempts only
+    /// `.timeSensitive`) would otherwise silently swallow it.
+    func scheduleMissedLogReminder() {
+        let fireDate = Date().addingTimeInterval(5)
+        scheduleNotification(
+            id: Self.missedLogReminderID,
+            title: "Did you eat yesterday?",
+            body: "Your log came up almost empty with meals left unmarked. If you ate, log it — I'm not carrying a fake deficit into today.",
+            date: fireDate,
+            categoryID: "MEAL_REMINDER",
+            threadID: "tempo.missedlog",
+            interruptionLevel: .timeSensitive,
+            budgetCost: 0.3,
+            priority: 4,
+            bypassBudget: true
+        )
+    }
+
     // MARK: - Recovery Notification
 
     // Per BUILD_PLAN step 12.4 — Fires for red/yellow recovery zones.

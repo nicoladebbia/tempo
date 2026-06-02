@@ -86,6 +86,13 @@ struct TempoApp: App {
             )
             vm.ensureTodayPlanPersisted(modelContext: modelContext)
         }
+        // §4: let the daily reset fire a missed-log nudge when yesterday
+        // reads as a forgotten log. Decoupled via a closure so the
+        // coordinator doesn't depend on NotificationService directly.
+        let notificationsRef = serviceContainer.notifications
+        DailyResetCoordinator.missedLogNotifier = { @MainActor in
+            (notificationsRef as? NotificationService)?.scheduleMissedLogReminder()
+        }
         serviceContainer.backgroundSync.dailyResetHandler = { @Sendable in
             await DailyResetCoordinator.runIfNeeded(container: containerRef)
         }
