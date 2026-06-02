@@ -187,6 +187,86 @@ final class PantryServiceTests: XCTestCase {
         XCTAssertEqual(all.first?.quantity, 800)
     }
 
+    // MARK: - setOrCreate (voice stock-take SET path)
+
+    func testSetOrCreate_createsWhenAbsent() throws {
+        let item = try service.setOrCreate(
+            rawName: "Spaghetti",
+            quantity: 750,
+            unit: .grams,
+            storageLocation: .pantry,
+            purchaseDate: Date(),
+            purchaseSource: .manual
+        )
+        XCTAssertEqual(item.quantity, 750)
+        XCTAssertEqual(try service.fetchAll().count, 1)
+    }
+
+    func testSetOrCreate_replacesQuantityNotIncrements() throws {
+        // Existing tracked stock: 1000 g of spaghetti.
+        _ = try service.mergeOrCreate(
+            rawName: "Spaghetti",
+            quantity: 1000,
+            unit: .grams,
+            storageLocation: .pantry,
+            purchaseDate: nil,
+            purchaseSource: .manual,
+            sourceReceiptLineItemID: nil
+        )
+        // Voice stock-take: "I have 750 g of spaghetti" → REPLACE, not +750.
+        let set = try service.setOrCreate(
+            rawName: "Spaghetti",
+            quantity: 750,
+            unit: .grams,
+            storageLocation: .pantry,
+            purchaseDate: nil,
+            purchaseSource: .manual
+        )
+        XCTAssertEqual(set.quantity, 750, "SET must REPLACE the quantity, not add to it")
+        XCTAssertEqual(try service.fetchAll().count, 1, "Same canonical+unit → one row, not a duplicate")
+    }
+
+    func testSetOrCreate_doesNotTouchAcrossUnits() throws {
+        // 2 packs of spaghetti tracked.
+        _ = try service.mergeOrCreate(
+            rawName: "Spaghetti",
+            quantity: 2,
+            unit: .packs,
+            storageLocation: .pantry,
+            purchaseDate: nil,
+            purchaseSource: .manual,
+            sourceReceiptLineItemID: nil
+        )
+        // Voice SET in grams must NOT overwrite the packs row — different unit,
+        // different dimension. Creates a separate grams row instead.
+        let set = try service.setOrCreate(
+            rawName: "Spaghetti",
+            quantity: 750,
+            unit: .grams,
+            storageLocation: .pantry,
+            purchaseDate: nil,
+            purchaseSource: .manual
+        )
+        let all = try service.fetchAll()
+        XCTAssertEqual(all.count, 2, "grams SET must not collapse into the packs row")
+        XCTAssertEqual(set.unit, .grams)
+        // The original packs row is untouched.
+        let packsRow = all.first { $0.unit == .packs }
+        XCTAssertEqual(packsRow?.quantity, 2)
+    }
+
+    func testSetOrCreate_floorsNegativeAtZero() throws {
+        let item = try service.setOrCreate(
+            rawName: "Rice",
+            quantity: -50,
+            unit: .grams,
+            storageLocation: .pantry,
+            purchaseDate: nil,
+            purchaseSource: .manual
+        )
+        XCTAssertEqual(item.quantity, 0, "A negative SET quantity floors at zero")
+    }
+
     // MARK: - Quantity adjustments
 
     func testAdjustQuantity_floorsAtZero() throws {

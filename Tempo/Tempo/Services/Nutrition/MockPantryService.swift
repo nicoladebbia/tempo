@@ -72,6 +72,42 @@ final class MockPantryService: PantryServiceProtocol {
         return new
     }
 
+
+    @discardableResult
+    func setOrCreate(
+        rawName: String,
+        quantity: Double,
+        unit: PantryUnit,
+        storageLocation: PantryStorageLocation,
+        purchaseDate: Date?,
+        purchaseSource: PantryPurchaseSource
+    ) throws -> PantryItem {
+        let canonical = FoodCanonicalizer.canonicalize(rawName)
+        if let existing = items.first(where: {
+            !$0.isArchived && $0.canonicalName == canonical && $0.unit == unit
+        }) {
+            existing.quantity = max(0, quantity)
+            existing.updatedAt = Date()
+            if existing.purchaseDate == nil {
+                existing.purchaseDate = purchaseDate
+            }
+            return existing
+        }
+        let display = FoodCanonicalizer.displayName(rawName)
+        let new = PantryItem(
+            canonicalName: canonical,
+            displayName: display.isEmpty ? rawName : display,
+            quantity: max(0, quantity),
+            unit: unit,
+            storageLocation: storageLocation,
+            purchaseDate: purchaseDate,
+            purchaseSource: purchaseSource,
+            sourceReceiptLineItemID: nil
+        )
+        items.append(new)
+        return new
+    }
+
     func adjustQuantity(of item: PantryItem, by delta: Double) throws {
         if delta >= 0 {
             item.increment(by: delta)

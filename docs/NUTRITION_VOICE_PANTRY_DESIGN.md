@@ -1,6 +1,7 @@
 # Voice-to-Pantry — Design Doc
 
-> **Status: PROPOSAL — needs Nicola's approval before any code.**
+> **Status: Tier 1 ✅ BUILT (2026-06-02) — NOT yet device-verified.**
+> Built: `setOrCreate` (protocol + LocalPantryService + MockPantryService) with 4 unit tests green; `VoicePantryService` (Haiku extract/resolve clone, `caller` tags voice_pantry_extract/resolve); `VoicePantryView` (phase-machine clone with the destructive-SET old→new confirm card, per-item SET/ADD toggle, low-confidence→ADD enforced); `setPantryItem` VM method; Pantry-tab mic entry → fullScreenCover. Clean build, full TempoTests green except the 7 known pre-existing failures (unrelated). Cross-surface verified: GroceryListGenerator / MealPlanGeneratorService / PantryDecrementService all read `.quantity` as a current value — SET-safe. **NOT device-verified:** the Haiku aggregation (500+250=750), intent classification, live toggle, and old→new swap need a ⌘R on-device run with a real spoken sentence (per L145 / "compiles ≠ connected").
 > Author: Claude (Opus 4.8), 2026-06-02. Companion to `NUTRITION_PERSONALIZATION_DESIGN.md`.
 > Constraint: weekly plan stays the only Sonnet call. This feature uses **Haiku via the existing server-side nutrition proxy** (no Anthropic key in the binary), gated to at most 2 calls per voice session — same cost profile as `VoiceMealLogView`, which already ships.
 >
@@ -113,12 +114,36 @@ Each tier tested + verified before the next. Weekly Sonnet call stays the only h
 
 ---
 
-## Open questions for Nicola
+## DECIDED (2026-06-02, Nicola: "leave your choosing in each, the best")
 
-- §4: default voice entry to **SET** (stock-take: "I have 750 g") or **ADD** (purchase: "I bought 750 g")? Recommendation: phrase-driven default, per-item toggle in confirm.
-- §4: when a spoken item's unit differs from the existing tracked unit (grams vs. packs), keep them as **two separate rows** (recommended) or force a conversion?
-- §3: brand-new `VoicePantryView` screen reached from the Pantry tab's "Scan"-style button, or keep it inside the existing Add-to-Pantry sheet (upgrade the stub mic in place)? Recommendation: a dedicated full-screen flow like `VoiceMealLogView`, with the sheet's mic as a secondary entry.
-- Scope check: is the spoken-example (multi-pack pasta + fractional bottle) the Tier 1 acceptance test, or do you want a broader first cut?
+All open questions resolved with the recommended option, plus a refined build finding:
+
+- **SET vs ADD:** phrase-driven — "I have…" → **SET (replace)**, "I bought…" → **ADD (increment)**; per-item toggle in the confirm card, **default SET** (stock-take matches the spoken example). The wire model carries `intent`.
+- **Unit mismatch:** **two separate rows** — grams never merges into packs. (Already enforced: `mergeOrCreate` matches on canonical name AND unit; the new `setOrCreate` mirrors that.)
+- **Surface:** dedicated full-screen `VoicePantryView` (like `VoiceMealLogView`), reached from the Pantry tab; the existing stub mic becomes a secondary entry into it.
+- **Tier 1 acceptance:** the spoken multi-pack-pasta + fractional-bottle example, end-to-end.
+
+### Refined finding — the save path ALREADY EXISTS (build is smaller than §3/§4 implied)
+
+Verified in code: `NutritionTabViewModel.addPantryItem(rawName:quantity:unit:storageLocation:totalPaidUSD:)` → `pantryService.mergeOrCreate(...)` already does **canonicalize + merge-on-(canonical name + unit) + increment + price-history**. The voice flow does NOT reimplement any of it — it calls `addPantryItem` per confirmed ADD item, exactly like the scan and manual flows.
+
+So the ONLY genuinely new client logic is **SET**: `mergeOrCreate` is increment-only. A new `setOrCreate` (protocol + `LocalPantryService` + `MockPantryService`) mirrors `mergeOrCreate`'s match but REPLACES the quantity. Everything else is UI/prompt cloning.
+
+### SET is destructive — the confirm card rule (advisor-flagged landmine)
+
+The meal-log confirm card shows only the NEW item because logging is purely additive — nothing is overwritten. **SET overwrites tracked stock**, so cloning that card 1:1 loses the one affordance SET needs. The confirm row for a SET item MUST render **old → new** (e.g. `pasta: 1000 g → 750 g`), so a Haiku mis-parse ("half a pack" → 750 instead of 250) is caught before it destroys good data. This is part of the view's definition of done, not polish.
+
+Corollary: an **ambiguous or low-confidence item must never silently SET** — default it to ADD or force manual review. SET is the destructive branch.
+
+### Cross-surface (SET is a new way quantity can DECREASE outside decrement/archive)
+
+Readers of `PantryItem.quantity`: the plan prompt (pantry stock → generation, §3 of personalization doc), `GroceryListGenerator` (needs − stock), `PantryDecrementService`, expiring-items. Verified they read the current number, not a monotonic series — SET is safe for all. Stated per the CLAUDE.md shared-model rule.
+
+### Build sequence (test-first per CLAUDE.md)
+
+1. `setOrCreate` (protocol + local + mock) + its unit tests, **green before consumers** — SET-on-match replaces, no-match creates, grams-vs-packs stays separate.
+2. `VoicePantryService` — Haiku extract/resolve clone; `unit` constrained to `PantryUnit` raw values; aggregation in the prompt; `components` breakdown + `intent` + `confidence` in the wire model.
+3. `VoicePantryView` — phase-machine clone with the **old→new SET confirm card**, per-item SET/ADD toggle, low-confidence manual escape. Wired from the Pantry tab; stub mic repointed.
 ```
 **Verdict:** STRONG — build it; ~80% is reuse of shipped code, the new 20% (aggregation + merge) is well-bounded.
 **Confidence:** high

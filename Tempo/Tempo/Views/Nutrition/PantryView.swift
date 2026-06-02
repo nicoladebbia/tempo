@@ -23,6 +23,8 @@ struct PantryView: View {
     private var showCaptureSheet = false
     @State
     private var showManualAddSheet = false
+    @State
+    private var showVoiceSheet = false
 
     var body: some View {
         ScrollView {
@@ -78,6 +80,9 @@ struct PantryView: View {
                 }
             }
         }
+        .fullScreenCover(isPresented: $showVoiceSheet) {
+            VoicePantryView(viewModel: viewModel)
+        }
         .refreshable {
             viewModel.reloadPantry()
         }
@@ -99,6 +104,13 @@ struct PantryView: View {
                     .foregroundStyle(Color.tempoTextPrimary)
             }
             Spacer()
+            Button {
+                showVoiceSheet = true
+            } label: {
+                Image(systemName: "mic.fill")
+            }
+            .buttonStyle(.tempoSecondary)
+            .accessibilityLabel("Add to pantry by voice")
             Button {
                 showCaptureSheet = true
             } label: {

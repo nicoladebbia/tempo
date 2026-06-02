@@ -41,6 +41,20 @@ protocol PantryServiceProtocol: Sendable {
         sourceReceiptLineItemID: UUID?
     ) throws -> PantryItem
 
+    /// SET a raw item's quantity (voice stock-take). If a non-archived item with
+    /// the same canonical name + unit exists, its quantity is REPLACED (not
+    /// incremented). Otherwise a new item is created. Mirrors mergeOrCreate's
+    /// match so a grams statement never overwrites a packs row.
+    @discardableResult
+    func setOrCreate(
+        rawName: String,
+        quantity: Double,
+        unit: PantryUnit,
+        storageLocation: PantryStorageLocation,
+        purchaseDate: Date?,
+        purchaseSource: PantryPurchaseSource
+    ) throws -> PantryItem
+
     /// Update a tracked item's quantity. Pass a negative delta to decrement.
     /// Floors quantity at zero.
     func adjustQuantity(of item: PantryItem, by delta: Double) throws

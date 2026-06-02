@@ -191,6 +191,33 @@ extension NutritionTabViewModel {
         }
     }
 
+    /// SET a pantry item's quantity (voice stock-take). Mirrors addPantryItem
+    /// but routes through `setOrCreate` (REPLACE, not increment) and carries no
+    /// price history — a stock statement ("I have 750 g") is not a purchase.
+    func setPantryItem(
+        rawName: String,
+        quantity: Double,
+        unit: PantryUnit,
+        storageLocation: PantryStorageLocation
+    ) {
+        guard let service = pantryService else {
+            return
+        }
+        do {
+            _ = try service.setOrCreate(
+                rawName: rawName,
+                quantity: quantity,
+                unit: unit,
+                storageLocation: storageLocation,
+                purchaseDate: Date(),
+                purchaseSource: .manual
+            )
+            reloadPantry()
+        } catch {
+            pantryState.loadError = error.localizedDescription
+        }
+    }
+
     func archivePantryItem(_ item: PantryItem) {
         guard let service = pantryService else {
             return

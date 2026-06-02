@@ -123,6 +123,64 @@ final class LocalPantryService: PantryServiceProtocol {
         return new
     }
 
+
+    @discardableResult
+    func setOrCreate(
+        rawName: String,
+        quantity: Double,
+        unit: PantryUnit,
+        storageLocation: PantryStorageLocation,
+        purchaseDate: Date?,
+        purchaseSource: PantryPurchaseSource
+    ) throws -> PantryItem {
+        // SET semantics (voice stock-take, §voice-pantry): REPLACE the tracked
+        // quantity of an existing canonical+unit match instead of incrementing.
+        // "I have 750 g of pasta" is a current-total statement, not a purchase.
+        // Match rule is identical to mergeOrCreate (canonical name AND unit), so
+        // a grams statement never overwrites a packs row — they stay separate.
+        let canonical = FoodCanonicalizer.canonicalize(rawName)
+        let display = FoodCanonicalizer.displayName(rawName)
+
+        let rawUnit = unit.rawValue
+        var descriptor = FetchDescriptor<PantryItem>(
+            predicate: #Predicate<PantryItem> { item in
+                item.isArchived == false
+                    && item.canonicalName == canonical
+                    && item.unitRaw == rawUnit
+            }
+        )
+        descriptor.fetchLimit = 1
+
+        if let existing = try modelContext.fetch(descriptor).first {
+            let previous = existing.quantity
+            existing.quantity = max(0, quantity)
+            existing.updatedAt = Date()
+            if existing.purchaseDate == nil {
+                existing.purchaseDate = purchaseDate
+            }
+            try modelContext.save()
+            logger.info(
+                "Pantry set: \(canonical, privacy: .public) \(previous) → \(existing.quantity)\(unit.displayName, privacy: .public)"
+            )
+            return existing
+        }
+
+        let new = PantryItem(
+            canonicalName: canonical,
+            displayName: display.isEmpty ? rawName : display,
+            quantity: max(0, quantity),
+            unit: unit,
+            storageLocation: storageLocation,
+            purchaseDate: purchaseDate,
+            purchaseSource: purchaseSource,
+            sourceReceiptLineItemID: nil
+        )
+        modelContext.insert(new)
+        try modelContext.save()
+        logger.info("Pantry set-create: \(canonical, privacy: .public) \(quantity)\(unit.displayName, privacy: .public)")
+        return new
+    }
+
     func adjustQuantity(of item: PantryItem, by delta: Double) throws {
         if delta >= 0 {
             item.increment(by: delta)
