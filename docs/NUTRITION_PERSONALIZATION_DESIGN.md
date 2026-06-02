@@ -154,11 +154,35 @@ So "reach the weight from onboarding" is not currently possible — the app has 
 
 ---
 
+## 9. Kitchen equipment + spices/condiments → recipe tailoring [MEDIUM] — NEW, design only
+
+**Ask (2026-06-02):** the AI should know what cooking tools the user owns (rice cooker, oven, microwave, blender, air fryer…) and tailor recipes to them — faster, better-tasting, using the right appliance. Plus season with spices/condiments (salt, pepper, sriracha…) when it improves taste, buy missing ones once, then track them as owned.
+
+**DECISIONS (with Nicola):**
+- **Home equipment only for now.** Model the appliances the user has at home; the AI tailors recipes to that set (e.g. "you have a rice cooker → batch rice hands-off", "blender → smoothie/sauce"). **Location-awareness DEFERRED** (the "at school I only have a microwave" case → per-location equipment sets + tying meals to a location via the daily check-in. Real feature, later tier.)
+- **Spices/condiments = a separate "staples" list, NOT quantity-decremented.** You own them; the AI seasons freely from what's listed. If a recipe needs one you lack → flag to buy ONCE → add to the staples list when bought. No gram-tracking of salt. Reuses the existing `FoodMacroDatabase` `isStaple` concept + the pantry decrement already SKIPS staples — so this aligns with existing behavior.
+
+**Design:**
+- New model `KitchenEquipment` (or a simple enum-backed owned-set on a settings record): name + an `isAvailable` flag. Seed a standard list (oven, stovetop, microwave, rice cooker, air fryer, blender, food processor, slow cooker, toaster, kettle…) the user toggles.
+- Staples: either a lightweight `PantryStaple` model (name, owned bool) or reuse `PantryItem` with a "staple" storage location / flag and no quantity semantics. Lean: a dedicated owned-staples list keyed by canonical name (cheap, queryable, distinct from quantitied pantry).
+- New **Settings → "Kitchen" page**: equipment toggles + staples list (add/remove). This is also the natural future home for the deferred per-location equipment sets.
+- **Prompt wiring:** add an `<equipment>` block (available appliances) + a `<staples_on_hand>` block to `weeklyPlanPrompt`, with directives: "only use appliances the user owns", "season using owned staples; if a dish needs a staple not listed, add it to the grocery list ONCE". The recipe-generation (Haiku) prompt likely needs the equipment too so cooking steps match the appliance.
+- **Grocery/pantry flow:** a missing staple a recipe needs → grocery list (one-time) → on purchase/confirm, added to the staples list (not the quantitied pantry). Ties into the existing grocery generator.
+
+**Effort:** MEDIUM (2 small models + a settings page + 2 prompt blocks + grocery hook). No AI cost in design.
+
+**Open Qs:** (a) staples as their own model vs. a flag on PantryItem? (lean: own model). (b) seed equipment list — confirm the appliance set. (c) does the recipe-step (Haiku) prompt get equipment too, or only the weekly planner?
+
+## 10. Pantry price history [FOUNDATIONAL] — ✅ BUILT (2026-06-02)
+
+Per-purchase price tracking (total paid USD, locked at purchase date) for cost-trend / savings analysis. `PantryPriceEntry` @Model keyed by canonicalFoodName (survives item churn); one INSERT per purchase. Receipt-scan auto-fills from the OCR prices it already extracts; manual add has an optional price field; pantry rows show the latest locked price. Spend/savings **chart deferred** (capture-only scope). Pinned by PantryPriceEntryTests. See commit.
+
 ## Proposed sequencing (after approval)
 
 **Tier 1 — FOUNDATIONAL ✅ BUILT (2026-06-02):** §1 goal weight ✅ · §2a archive retention (data) ✅ · §3 pantry-stock-in-prompt ✅. 48 nutrition unit tests green. NOT yet device-verified (no plan generated — needs a real Sunday run + ⌘R to confirm the goal-weight calorie target, archived-plan history, and pantry-first generation on-device). §2b Past Plans VIEW still pending (Tier 2).
-**Tier 2 — MEDIUM:** §4 daily-adjust/carryover replace + missed-log notif · §6 meal count/timing · §7 Settings page + Saturday notif · §2b Past Plans view · §5 per-day Whoop.
-**Tier 3 — HEAVY:** §8 per-muscle protein.
+**Tier 1.5 — FOUNDATIONAL ✅ BUILT:** §10 pantry price history (done 2026-06-02).
+**Tier 2 — MEDIUM:** §4 daily-adjust/carryover replace + missed-log notif · §6 meal count/timing · §7 Settings page + Saturday notif · §2b Past Plans view · §5 per-day Whoop · §9 kitchen equipment + spices (home-only).
+**Tier 3 — HEAVY:** §8 per-muscle protein · §9 location-aware equipment (school/microwave).
 
 Each tier = its own build phase, tested + verified before the next (never stack untested). Weekly Sonnet call stays the only paid path; everything in §4 is free local logic.
 
