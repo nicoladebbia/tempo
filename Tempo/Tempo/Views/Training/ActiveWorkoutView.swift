@@ -134,17 +134,20 @@ struct ActiveWorkoutView: View {
                 }
             }
         }
-        .confirmationDialog("Finish Workout?", isPresented: $showFinishConfirmation, titleVisibility: .visible) {
+        // Centered alert (not a popover/action sheet) for the finish choice.
+        .alert("Finish Workout?", isPresented: $showFinishConfirmation) {
             Button("Save what I did") {
                 viewModel.finishWorkout()
             }
             Button("Discard workout", role: .destructive) {
+                // Discard rolls back + resets; TrainingTabView observes
+                // .discarded and dismisses the cover (don't dismiss here too,
+                // which raced the reset and left a blank screen).
                 viewModel.discardActiveWorkout(modelContext: modelContext)
-                dismiss()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Save keeps the sets you've logged and ends the session. Discard throws this session away — the day stays open to redo.")
+            Text("Save keeps the sets you've logged. Discard throws this session away — the day stays open to redo.")
         }
         .onAppear { loadCurrentSetInputs() }
         .onChange(of: viewModel.currentExerciseIndex) { _, _ in loadCurrentSetInputs() }

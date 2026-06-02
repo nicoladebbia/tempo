@@ -813,15 +813,21 @@ final class TrainingViewModel {
     /// logged this session WITHOUT writing ExerciseHistory, and reset. The day
     /// stays open to redo. Used by the Finish → "Discard" choice.
     func discardActiveWorkout(modelContext: ModelContext) {
-        guard sessionState.isActive || sessionState == .cooldown else {
+        // Allow discard from any live state (active / paused / cooldown).
+        switch sessionState {
+        case .warmup, .exercise, .cooldown, .paused:
+            break
+        default:
             return
         }
         stopRestTimer()
         stopWarmupMoveTimer()
         stopElapsedTimer()
         if let plan = todayPlan {
-            // Roll back this session's logged sets so a re-do starts clean, and
-            // mark the day skipped. NOT marked .completed → no ExerciseHistory.
+            // Roll back this session's logged sets so a re-do starts clean.
+            // Keep the plan .planned (NOT .skipped/.completed) so the day stays
+            // OPEN TO REDO, exactly as the dialog promises — and writes no
+            // ExerciseHistory.
             for ex in plan.orderedExercises {
                 for set in ex.orderedSets where set.completed {
                     set.completed = false
@@ -830,14 +836,16 @@ final class TrainingViewModel {
                     set.completedAt = nil
                 }
             }
-            plan.status = .skipped
+            plan.status = .planned
             plan.startedAt = nil
         }
         try? modelContext.save()
         currentFeedback = nil
         lastCompletedSet = nil
+        detectedPRs = []
+        // Momentary .discarded so TrainingTabView dismisses the cover, then it
+        // reloads today and the state settles back to .idle (ready to restart).
         sessionState = .discarded
-        resetState()
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
     }
 
