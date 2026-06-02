@@ -42,7 +42,7 @@ extension DashboardViewModel {
     /// Pull today's logged macros, active nutrition target, and the next
     /// upcoming `PlannedMeal` from SwiftData. Used by `refresh()` to assemble
     /// the Fuel quadrant. Returns zero-values when no model context is bound.
-    func fetchNutritionTotalsForToday() -> NutritionTotalsToday {
+    func fetchNutritionTotalsForToday(whoopAvgTDEE: Double? = nil) -> NutritionTotalsToday {
         guard let context = fuelContext else {
             return NutritionTotalsToday()
         }
@@ -72,7 +72,7 @@ extension DashboardViewModel {
         // summed PlannedMeal.totalCalories from the active plan (~3,536).
         // Same user, same day, two different numbers. Fixed by the shared
         // calculator.
-        let targets = NutritionTargetCalculator.targetsForToday(in: context)
+        let targets = NutritionTargetCalculator.targetsForToday(in: context, whoopAvgTDEE: whoopAvgTDEE)
         totals.calorieTarget = targets.calories
         totals.proteinTarget = targets.protein
         totals.carbsTarget = targets.carbs

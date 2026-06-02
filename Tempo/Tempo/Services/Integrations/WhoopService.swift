@@ -20,6 +20,7 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
     private(set) var connectionState: WhoopConnectionState = .disconnected
     private(set) var isDemoMode: Bool = false
     private(set) var lastSyncDate: Date?
+    private(set) var weeklyTDEEAverage: Double?
     private(set) var profileFirstName: String?
     private(set) var profileLastName: String?
 
@@ -811,6 +812,58 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
         )
     }
 
+
+    func fetchCycleBatch(start: Date, end: Date) async throws -> [WhoopCycleData] {
+        if isDemoMode {
+            return try await [mockService.fetchCycle(for: end)]
+        }
+
+        let (startStr, endStr) = isoRange(start, end)
+        let response: WhoopAPIResponse<WhoopAPICycleRecord> = try await whoopGet(
+            path: "/cycle",
+            queryItems: [
+                URLQueryItem(name: "start", value: startStr),
+                URLQueryItem(name: "end", value: endStr),
+            ]
+        )
+
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        return response.records.compactMap { record in
+            guard record.scoreState == "SCORED", let score = record.score else {
+                return nil
+            }
+            let recordDate = record.start.flatMap { isoFormatter.date(from: $0) } ?? end
+            return WhoopCycleData(
+                strain: score.strain ?? 0,
+                averageHeartRate: Double(score.averageHeartRate ?? 0),
+                maxHeartRate: Double(score.maxHeartRate ?? 0),
+                caloriesBurned: (score.kilojoule ?? 0) / 4.184,
+                dayStrain: score.strain ?? 0,
+                date: recordDate
+            )
+        }
+    }
+
+
+    func ensureWeeklyTDEEAverage() async {
+        // 7-day window ending today. Averaging is mandatory: a single day's
+        // burn fed as the "average" dragged a prior TDEE to ~1900 on rest days
+        // because TDEECalculator weights Whoop at 60%.
+        let cal = Calendar.current
+        let end = Date()
+        let start = cal.date(byAdding: .day, value: -6, to: cal.startOfDay(for: end)) ?? end
+        do {
+            let cycles = try await fetchCycleBatch(start: start, end: end)
+            let burns = cycles.map(\.caloriesBurned).filter { $0 > 0 }
+            weeklyTDEEAverage = burns.isEmpty ? nil : burns.reduce(0, +) / Double(burns.count)
+        } catch {
+            logger.warning("weeklyTDEEAverage refresh failed: \(error.localizedDescription, privacy: .public)")
+            weeklyTDEEAverage = nil
+        }
+    }
+
     // MARK: - Sync All
 
     func syncAll() async throws {
@@ -1326,6 +1379,9 @@ private struct WhoopAPIWorkoutScore: Codable {
 private struct WhoopAPICycleRecord: Codable, Sendable {
     let scoreState: String?
     let score: WhoopAPICycleScore?
+    /// Cycle start timestamp (ISO8601). Used to date each cycle when
+    /// averaging a window; optional because single-day fetches don't need it.
+    let start: String?
 }
 
 // MARK: - WhoopAPICycleScore

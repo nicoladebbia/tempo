@@ -154,6 +154,14 @@ final class NutritionTabViewModel {
     private(set) var recoveryNutritionGuidance: String?
     private(set) var isLoadingRecovery: Bool = false
 
+    /// Local MIRROR of `WhoopService.weeklyTDEEAverage` (the shared source of
+    /// truth) so the sync target computeds can read it without a service
+    /// handle. Populated in loadRecoveryData after ensureWeeklyTDEEAverage().
+    /// The Dashboard Fuel surface reads the same service value, so both
+    /// surfaces agree on the no-plan TDEE estimate. nil → calculator falls
+    /// back to Mifflin/Katch cleanly.
+    private(set) var cachedWhoopAvgTDEE: Double?
+
     // MARK: - Computed
 
     var todayCaloriesConsumed: Int {
@@ -162,15 +170,26 @@ final class NutritionTabViewModel {
             .reduce(0) { $0 + Int($1.totalCalories) }
     }
 
+    /// Single source of truth for today's calorie + macro targets, shared by
+    /// the calorie and the three macro-target properties so they always agree
+    /// and the calculation runs once per access cluster. When today has plan
+    /// meals the numbers ARE the meal sum; otherwise they're the precise
+    /// TDEECalculator estimate, blended with the 7-day Whoop average when
+    /// `cachedWhoopAvgTDEE` is populated (see loadRecoveryData).
+    private var todayBaseTargets: NutritionTargetCalculator.Targets {
+        NutritionTargetCalculator.targetsForToday(
+            todayMeals: todayMeals,
+            dietaryProfile: dietaryProfile,
+            whoopAvgTDEE: cachedWhoopAvgTDEE
+        )
+    }
+
     var todayCalorieTarget: Int {
         // Delegates to NutritionTargetCalculator so this VM and the
         // Dashboard's Fuel quadrant compute the same number from the same
         // inputs. See NutritionTargetCalculator.swift for the full
         // primary-vs-fallback logic and why this matters.
-        NutritionTargetCalculator.targetsForToday(
-            todayMeals: todayMeals,
-            dietaryProfile: dietaryProfile
-        ).calories
+        todayBaseTargets.calories
     }
 
 
@@ -189,10 +208,7 @@ final class NutritionTabViewModel {
     }
 
     var todayProteinTarget: Int {
-        NutritionTargetCalculator.targetsForToday(
-            todayMeals: todayMeals,
-            dietaryProfile: dietaryProfile
-        ).protein
+        todayBaseTargets.protein
     }
 
     var todayCarbsConsumed: Int {
@@ -202,10 +218,7 @@ final class NutritionTabViewModel {
     }
 
     var todayCarbsTarget: Int {
-        NutritionTargetCalculator.targetsForToday(
-            todayMeals: todayMeals,
-            dietaryProfile: dietaryProfile
-        ).carbs
+        todayBaseTargets.carbs
     }
 
     var todayFatConsumed: Int {
@@ -215,10 +228,7 @@ final class NutritionTabViewModel {
     }
 
     var todayFatTarget: Int {
-        NutritionTargetCalculator.targetsForToday(
-            todayMeals: todayMeals,
-            dietaryProfile: dietaryProfile
-        ).fat
+        todayBaseTargets.fat
     }
 
     // MARK: - Recovery-Adjusted Targets (Phase 4)
@@ -549,7 +559,7 @@ final class NutritionTabViewModel {
                 fat: meal.totalFat
             )
         }
-        let targets = NutritionTargetCalculator.targetsForToday(in: modelContext)
+        let targets = NutritionTargetCalculator.targetsForToday(in: modelContext, whoopAvgTDEE: cachedWhoopAvgTDEE)
         let dayTargets = MealRebalancer.Targets(
             calories: Double(targets.calories),
             protein: Double(targets.protein),
@@ -1163,6 +1173,16 @@ final class NutritionTabViewModel {
                 Logger.nutrition.warning("Whoop sleep fetch failed: \(error.localizedDescription, privacy: .public)")
                 todaySleep = nil
             }
+
+            // Refresh the 7-day expenditure average on the SHARED WhoopService,
+            // then mirror it locally for the sync target computeds. The service
+            // is the single source of truth — the Dashboard Fuel surface reads
+            // the same `whoop.weeklyTDEEAverage`, so the two surfaces can never
+            // disagree on the no-plan TDEE estimate. ensureWeeklyTDEEAverage
+            // never throws (logs + nils on failure), so no do/catch here.
+            await whoop.ensureWeeklyTDEEAverage()
+            cachedWhoopAvgTDEE = whoop.weeklyTDEEAverage
+
             isLoadingRecovery = false
         }
     }

@@ -37,6 +37,26 @@ protocol WhoopServiceProtocol: Sendable {
     func fetchSleep(for date: Date) async throws -> WhoopSleepData
     func fetchWorkouts(for date: Date) async throws -> [WhoopWorkoutData]
     func fetchCycle(for date: Date) async throws -> WhoopCycleData
+    /// Fetch every scored physiological cycle whose start falls in
+    /// `[start, end]`. Used to average daily energy expenditure over a window
+    /// (e.g. 7-day TDEE) so a single lazy/rest day can't drag the estimate
+    /// down — feeding one day's burn as the "average" is a known failure mode.
+    func fetchCycleBatch(start: Date, end: Date) async throws -> [WhoopCycleData]
+
+    /// Cached 7-day rolling average of daily energy expenditure (kcal), or nil
+    /// until `ensureWeeklyTDEEAverage()` has populated it (or when Whoop is
+    /// disconnected / the fetch failed). Lives on the SHARED WhoopService so
+    /// every surface (Nutrition Today + Dashboard Fuel) reads ONE number and
+    /// they can never disagree on the no-plan TDEE estimate — a VM-local cache
+    /// would desync the two surfaces.
+    var weeklyTDEEAverage: Double? { get }
+
+    /// Compute and cache `weeklyTDEEAverage` from the last 7 cycles. Idempotent
+    /// and cheap to call from any surface's load path; one ranged /cycle call
+    /// over already-synced data. Safe to await repeatedly — it just refreshes
+    /// the cached value. Never throws: failures leave the cache nil and are
+    /// logged, so callers don't need a do/catch around it.
+    func ensureWeeklyTDEEAverage() async
     func syncAll() async throws
     func checkConnectionOnLaunch() async
 

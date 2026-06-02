@@ -458,7 +458,13 @@ final class DashboardViewModel {
         #endif
 
         // Aggregate today's MealLog records from SwiftData (native nutrition).
-        let nutritionTotals = fetchNutritionTotalsForToday()
+        // Refresh the shared 7-day Whoop TDEE average so the no-plan Fuel
+        // calorie/macro estimate matches Nutrition Today exactly — both read
+        // `whoop.weeklyTDEEAverage`. ensureWeeklyTDEEAverage never throws.
+        if whoop.connectionState == .connected {
+            await whoop.ensureWeeklyTDEEAverage()
+        }
+        let nutritionTotals = fetchNutritionTotalsForToday(whoopAvgTDEE: whoop.weeklyTDEEAverage)
 
         let now = Date()
         let healthKitConnected = steps > 0 || !heartRates.isEmpty || hrv != nil
