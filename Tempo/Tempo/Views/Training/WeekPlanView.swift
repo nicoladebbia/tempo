@@ -21,6 +21,8 @@ struct WeekPlanView: View {
     private var modelContext
     @State
     private var expandedPlanID: UUID?
+    @State
+    private var showScheduleEditor = false
 
     private let dayAbbreviations = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
     private let calendar = Calendar.current
@@ -49,6 +51,20 @@ struct WeekPlanView: View {
         .background(Color.tempoBgPrimary)
         .navigationTitle("This Week")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showScheduleEditor = true
+                } label: {
+                    Label("Edit", systemImage: "slider.horizontal.3")
+                        .font(.tempoBody)
+                        .foregroundStyle(Color.tempoSignal)
+                }
+            }
+        }
+        .sheet(isPresented: $showScheduleEditor) {
+            ScheduleEditorView()
+        }
         .onAppear {
             viewModel.loadWeekPlan(modelContext: modelContext)
         }
