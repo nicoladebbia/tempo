@@ -49,23 +49,35 @@ struct PlannedMealCardView: View {
                 .padding(.top, TempoSpacing.sm)
         }
         .tempoCard()
-        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-            if meal.status == .planned {
+        // Review-pending dot — tap to leave feedback. Only on eaten meals
+        // without a MealFeedback row yet. Kept OUTSIDE the NavigationLink
+        // label as a top-trailing overlay: a Button nested inside a
+        // NavigationLink label mis-routes (the link swallows the tap), so the
+        // dot must be a sibling to receive its own tap reliably.
+        .overlay(alignment: .topTrailing) {
+            if needsReview {
                 Button {
-                    onMarkSkipped?()
+                    HapticManager.lightImpact()
+                    onReviewTap?()
                 } label: {
-                    Label("Skip", systemImage: "xmark")
+                    Image(systemName: "text.bubble")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.tempoAmber)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(Color.tempoAmber.opacity(0.15))
+                        .clipShape(Capsule())
                 }
-                .tint(Color.tempoError)
-
-                Button {
-                    onMarkEaten?()
-                } label: {
-                    Label("Eaten", systemImage: "checkmark")
-                }
-                .tint(Color.tempoSuccess)
+                .buttonStyle(.plain)
+                .padding(TempoSpacing.sm)
+                .accessibilityLabel("Leave feedback for \(meal.mealName)")
             }
         }
+        // The primary action is tap → MealDetailView, where the user marks
+        // the meal eaten (with the time/feel sheet). A long-press shortcut
+        // keeps Eaten/Skip one gesture away without cluttering the card or
+        // competing with the tap target. (Swipe actions were removed: they
+        // are a no-op outside a List, and the Today meals render in a VStack.)
         .contextMenu {
             if meal.status == .planned {
                 Button {
@@ -103,25 +115,6 @@ struct PlannedMealCardView: View {
             }
 
             Spacer()
-
-            // Review-pending dot — tap to leave feedback. Only visible for
-            // eaten meals that don't yet have a `MealFeedback` row.
-            if needsReview {
-                Button {
-                    HapticManager.lightImpact()
-                    onReviewTap?()
-                } label: {
-                    Image(systemName: "text.bubble")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.tempoAmber)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(Color.tempoAmber.opacity(0.15))
-                        .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Leave feedback for \(meal.mealName)")
-            }
 
             // Status badge
             statusBadge
