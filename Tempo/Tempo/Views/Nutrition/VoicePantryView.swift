@@ -34,21 +34,30 @@ struct VoicePantryView: View {
         case idle
         case recording
         case thinking
-        case clarifying
         case confirming
         case failed(String)
     }
 
+    /// A mutable, per-row editable copy of one resolved item. The confirm card
+    /// is now the SOLE correction surface (the clarifying-questions phase was
+    /// removed — it crashed on a model-generated "Other" option and forced a
+    /// blocking modal per item, wrong for a bulk stock-take). Everything the
+    /// user can fix lives here: quantity, unit, SET/ADD intent, and removal.
+    struct EditableItem: Identifiable {
+        let id = UUID()
+        var name: String
+        var quantityText: String
+        var unit: PantryUnit
+        var storage: PantryStorageLocation
+        var isSet: Bool
+        var components: [String]
+        var isLowConfidence: Bool
+
+        var quantity: Double { Double(quantityText) ?? 0 }
+    }
+
     @State private var phase: Phase = .idle
-    @State private var questions: [VoiceClarifyingQuestion] = []
-    @State private var questionIndex = 0
-    @State private var answers: [String: String] = [:]
-    @State private var resolved: [VoiceResolvedPantryItem] = []
-    /// Parallel mutable per-item intent (the immutable resolved items can't be
-    /// edited in place). `true` == SET, `false` == ADD. Seeded when entering
-    /// `.confirming`: defaults to the AI's intent, but a low-confidence item is
-    /// FORCED to ADD because SET is destructive.
-    @State private var effectiveSet: [Bool] = []
+    @State private var editable: [EditableItem] = []
 
     var body: some View {
         NavigationStack {
@@ -58,8 +67,6 @@ struct VoicePantryView: View {
                     micSection
                 case .thinking:
                     thinkingSection
-                case .clarifying:
-                    clarifyingSection
                 case .confirming:
                     confirmationSection
                 case let .failed(message):
@@ -84,12 +91,21 @@ struct VoicePantryView: View {
             if service == nil {
                 service = VoicePantryService(apiClient: services.apiClient)
             }
-            transcriber.silenceTimeout = 3.0
+            // No silence auto-stop + continuous mode: a pantry stock-take is a
+            // long list ("I have rice… pasta… olive oil…") with natural pauses.
+            // continuousMode keeps capturing across Apple's mid-speech segment
+            // finalizations; the user ends it by tapping Stop, not by pausing.
+            transcriber.silenceTimeout = 0
+            transcriber.continuousMode = true
         }
         .onChange(of: transcriber.isListening) { wasListening, nowListening in
-            // Auto-stop (3s silence) or manual stop ends recording → extract.
+            // Manual Stop (the user tapped it) ends recording → resolve straight
+            // to the editable confirm card (no clarifying phase, no auto-stop).
+            #if DEBUG
+                print("[VoicePantry] isListening \(wasListening)→\(nowListening) phase=\(phase) transcript=\"\(transcriber.transcribedText)\"")
+            #endif
             if wasListening, !nowListening, phase == .recording {
-                Task { await runExtraction() }
+                Task { await runResolve() }
             }
         }
     }
@@ -101,8 +117,8 @@ struct VoicePantryView: View {
             Spacer()
 
             Text(transcriber.isListening
-                ? "Listening… say what's in your pantry"
-                : "Tap the mic and say what's in your pantry")
+                ? "Listening… name everything, then tap stop"
+                : "Tap the mic and list what's in your pantry, one after another")
                 .font(.tempoHeadline)
                 .foregroundStyle(Color.tempoTextSecondary)
                 .multilineTextAlignment(.center)
@@ -142,10 +158,19 @@ struct VoicePantryView: View {
 
     private func toggleRecording() async {
         if transcriber.isListening {
-            transcriber.stop() // onChange triggers extraction
+            #if DEBUG
+                print("[VoicePantry] Stop tapped — transcript=\"\(transcriber.transcribedText)\"")
+            #endif
+            transcriber.stop() // onChange triggers resolve
         } else {
             phase = .recording
+            #if DEBUG
+                print("[VoicePantry] Start tapped — requesting mic…")
+            #endif
             await transcriber.start()
+            #if DEBUG
+                print("[VoicePantry] start() returned — isListening=\(transcriber.isListening) error=\(transcriber.error ?? "nil")")
+            #endif
             if transcriber.error != nil {
                 phase = .idle
             }
@@ -166,91 +191,54 @@ struct VoicePantryView: View {
         }
     }
 
-    private func runExtraction() async {
-        guard let service else { return }
+    // MARK: - Resolve → editable confirm card (no clarifying phase)
+
+    private func runResolve() async {
+        guard let service else {
+            #if DEBUG
+                print("[VoicePantry] runResolve ABORT — service is nil")
+            #endif
+            return
+        }
         let transcript = transcriber.transcribedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        #if DEBUG
+            print("[VoicePantry] runResolve — transcript=\"\(transcript)\" (\(transcript.count) chars)")
+        #endif
         guard !transcript.isEmpty else {
-            phase = .idle
+            #if DEBUG
+                print("[VoicePantry] runResolve ABORT — empty transcript")
+            #endif
+            // Don't vanish silently — tell the user nothing was captured so the
+            // screen never just sits there after a Stop.
+            phase = .failed("I didn't catch anything. Tap the mic and try again, speaking clearly.")
             return
         }
         phase = .thinking
         do {
-            questions = try await service.extract(transcript: transcript)
-            questionIndex = 0
-            answers = [:]
-            if questions.isEmpty {
-                await runResolve()
-            } else {
-                phase = .clarifying
+            // Empty answers — we skip the clarifying step entirely and let the
+            // user fix anything in the editable confirm card instead.
+            let resolved = try await service.resolve(transcript: transcript, answers: [:])
+            #if DEBUG
+                print("[VoicePantry] resolve returned \(resolved.count) item(s)")
+            #endif
+            // Build the mutable rows. Drop items with no usable unit (the AI
+            // left it blank/unknown) rather than fabricating grams. Default to
+            // the AI's intent, but FORCE ADD for low-confidence items — a
+            // destructive SET must never be the silent default on a guess.
+            editable = resolved.compactMap { item in
+                guard let unit = item.unit else { return nil }
+                return EditableItem(
+                    name: item.name,
+                    quantityText: formatQuantity(item.quantity),
+                    unit: unit,
+                    storage: item.storage,
+                    isSet: item.isSet && !item.isLowConfidence,
+                    components: item.components,
+                    isLowConfidence: item.isLowConfidence
+                )
             }
-        } catch {
-            phase = .failed(error.localizedDescription)
-        }
-    }
-
-    // MARK: - Clarifying (one question at a time, tappable answers only)
-
-    private var clarifyingSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-            Text("Question \(questionIndex + 1) of \(questions.count)")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
-
-            if questionIndex < questions.count {
-                let q = questions[questionIndex]
-                Text(q.question)
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoTextPrimary)
-
-                ForEach(q.options.prefix(4), id: \.self) { option in
-                    Button {
-                        answers[q.question] = option
-                        advanceQuestion()
-                    } label: {
-                        Text(option)
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(TempoSpacing.md)
-                            .background(Color.tempoSurfaceCard)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.tempoBorder, lineWidth: 1)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-
-            Spacer()
-        }
-    }
-
-    private func advanceQuestion() {
-        if questionIndex + 1 < questions.count {
-            questionIndex += 1
-        } else {
-            Task { await runResolve() }
-        }
-    }
-
-    // MARK: - Resolve + Confirmation
-
-    private func runResolve() async {
-        guard let service else { return }
-        phase = .thinking
-        do {
-            resolved = try await service.resolve(
-                transcript: transcriber.transcribedText,
-                answers: answers
-            )
-            // Seed the per-item SET/ADD state. Default to the AI's intent, but
-            // force ADD for low-confidence items — a destructive SET must never
-            // be the silent default on an uncertain parse.
-            effectiveSet = resolved.map { $0.isSet && !$0.isLowConfidence }
-            phase = resolved.isEmpty
-                ? .failed("No pantry items found.")
+            phase = editable.isEmpty
+                ? .failed("No pantry items found. Try again.")
                 : .confirming
         } catch {
             phase = .failed(error.localizedDescription)
@@ -262,27 +250,32 @@ struct VoicePantryView: View {
             Text("Confirm your pantry")
                 .font(.tempoTitle3)
                 .foregroundStyle(Color.tempoTextPrimary)
+            Text("Edit anything, remove what's wrong, then save.")
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoTextTertiary)
 
             ScrollView {
                 VStack(spacing: TempoSpacing.sm) {
-                    ForEach(Array(resolved.enumerated()), id: \.offset) { index, item in
-                        resolvedRow(item, index: index)
+                    // Bind by id so a per-row remove can't desync indices.
+                    ForEach($editable) { $row in
+                        editableRow($row)
                     }
                 }
             }
 
             Button {
-                saveResolvedItems()
+                saveEditableItems()
             } label: {
-                Text("Save to Pantry")
+                Text(editable.isEmpty ? "Nothing to save" : "Save \(editable.count) to Pantry")
             }
             .buttonStyle(.tempoPrimary)
+            .disabled(editable.isEmpty)
         }
     }
 
     @ViewBuilder
-    private func resolvedRow(_ item: VoiceResolvedPantryItem, index: Int) -> some View {
-        let isSet = index < effectiveSet.count ? effectiveSet[index] : false
+    private func editableRow(_ row: Binding<EditableItem>) -> some View {
+        let item = row.wrappedValue
         VStack(alignment: .leading, spacing: TempoSpacing.xs) {
             HStack {
                 Text(item.name)
@@ -294,6 +287,16 @@ struct VoicePantryView: View {
                         .font(.tempoCaption2)
                         .foregroundStyle(Color.tempoWarning)
                 }
+                // Per-row remove — drops just this item, never the whole flow.
+                Button {
+                    editable.removeAll { $0.id == item.id }
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoError)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Remove \(item.name)")
             }
 
             // Component breakdown the AI used to reach the aggregated total.
@@ -303,13 +306,42 @@ struct VoicePantryView: View {
                     .foregroundStyle(Color.tempoTextTertiary)
             }
 
-            // Quantity line: SET shows old → new (destructive overwrite),
-            // ADD shows the additive delta.
-            quantityLine(item, isSet: isSet)
+            // Editable quantity + unit.
+            HStack(spacing: TempoSpacing.sm) {
+                TextField("Qty", text: row.quantityText)
+                    .keyboardType(.decimalPad)
+                    .font(.tempoBody)
+                    .frame(maxWidth: 90)
+                    .padding(TempoSpacing.sm)
+                    .background(Color.tempoSurfaceCard)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.tempoBorder, lineWidth: 1))
 
-            // Per-item SET/ADD toggle. SET is disabled for low-confidence items
-            // so an uncertain parse can never become a silent overwrite.
-            Picker("Action", selection: setBinding(for: index)) {
+                Picker("Unit", selection: row.unit) {
+                    ForEach(PantryUnit.allCases, id: \.self) { u in
+                        Text(u.displayName).tag(u)
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+
+            // SET shows old → new (destructive overwrite); ADD shows the delta.
+            // Reactive to the edited quantity + unit.
+            if item.isSet {
+                let oldText = currentQuantity(name: item.name, unit: item.unit)
+                    .map { "\(formatQuantity($0)) \(item.unit.displayName)" } ?? "—"
+                Text("\(oldText) → \(formatQuantity(item.quantity)) \(item.unit.displayName)")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextSecondary)
+            } else {
+                Text("+\(formatQuantity(item.quantity)) \(item.unit.displayName)")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextSecondary)
+            }
+
+            // Per-item SET/ADD toggle. SET hidden for low-confidence items so an
+            // uncertain parse can never become a silent destructive overwrite.
+            Picker("Action", selection: intentBinding(row)) {
                 Text("Add").tag(false)
                 if !item.isLowConfidence {
                     Text("Set total").tag(true)
@@ -317,25 +349,6 @@ struct VoicePantryView: View {
             }
             .pickerStyle(.segmented)
             .disabled(item.isLowConfidence)
-
-            if item.isLowConfidence {
-                Button {
-                    transcriber.stop()
-                    dismiss()
-                } label: {
-                    Text("Edit manually")
-                        .font(.tempoCaption1)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.tempoSignal)
-                }
-                .buttonStyle(.plain)
-            }
-
-            if item.unit == nil {
-                Text("No usable unit — won't be saved.")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoError)
-            }
         }
         .padding(TempoSpacing.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -343,68 +356,42 @@ struct VoicePantryView: View {
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
     }
 
-    @ViewBuilder
-    private func quantityLine(_ item: VoiceResolvedPantryItem, isSet: Bool) -> some View {
-        let unitLabel = item.unit?.displayName ?? item.unitRaw
-        if isSet {
-            // Destructive overwrite — show the existing matching row's quantity
-            // so a mis-parse is caught before the old value is replaced.
-            let current = currentQuantity(for: item)
-            let oldText = current.map { "\(formatQuantity($0)) \(unitLabel)" } ?? "—"
-            Text("\(oldText) → \(formatQuantity(item.quantity)) \(unitLabel)")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-        } else {
-            Text("+\(formatQuantity(item.quantity)) \(unitLabel)")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-        }
-    }
-
     /// Current quantity of the existing pantry row that `setOrCreate` would
     /// overwrite. Matches the service's rule EXACTLY (canonical name AND unit)
     /// so the preview can't disagree with the save.
-    private func currentQuantity(for item: VoiceResolvedPantryItem) -> Double? {
-        guard let unit = item.unit else { return nil }
-        let canonical = FoodCanonicalizer.canonicalize(item.name)
+    private func currentQuantity(name: String, unit: PantryUnit) -> Double? {
+        let canonical = FoodCanonicalizer.canonicalize(name)
         return viewModel.pantryState.items.first {
             $0.canonicalName == canonical && $0.unit == unit
         }?.quantity
     }
 
-    private func setBinding(for index: Int) -> Binding<Bool> {
+    /// SET/ADD binding that can never flip a low-confidence row to SET.
+    private func intentBinding(_ row: Binding<EditableItem>) -> Binding<Bool> {
         Binding(
-            get: { index < effectiveSet.count ? effectiveSet[index] : false },
+            get: { row.wrappedValue.isSet },
             set: { newValue in
-                guard index < effectiveSet.count else { return }
-                // Belt-and-suspenders: never let a low-confidence row flip to SET.
-                if resolved[index].isLowConfidence {
-                    effectiveSet[index] = false
-                } else {
-                    effectiveSet[index] = newValue
-                }
+                row.wrappedValue.isSet = row.wrappedValue.isLowConfidence ? false : newValue
             }
         )
     }
 
-    private func saveResolvedItems() {
-        for (index, item) in resolved.enumerated() {
-            // Skip items the AI couldn't assign a usable unit to — don't
-            // fabricate grams for something it left blank/unknown.
-            guard let unit = item.unit else { continue }
-            let isSet = index < effectiveSet.count ? effectiveSet[index] : false
-            if isSet {
+    private func saveEditableItems() {
+        for item in editable {
+            // Skip rows the user zeroed out or left blank.
+            guard item.quantity > 0 else { continue }
+            if item.isSet {
                 viewModel.setPantryItem(
                     rawName: item.name,
                     quantity: item.quantity,
-                    unit: unit,
+                    unit: item.unit,
                     storageLocation: item.storage
                 )
             } else {
                 viewModel.addPantryItem(
                     rawName: item.name,
                     quantity: item.quantity,
-                    unit: unit,
+                    unit: item.unit,
                     storageLocation: item.storage,
                     totalPaidUSD: nil
                 )

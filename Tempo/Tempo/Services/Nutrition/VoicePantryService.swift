@@ -112,35 +112,13 @@ final class VoicePantryService {
         self.apiClient = apiClient
     }
 
-    // MARK: - Step 1: extract + clarifying questions
+    // MARK: - Resolve to structured pantry items
 
-    func extract(transcript: String) async throws -> [VoiceClarifyingQuestion] {
-        let clean = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !clean.isEmpty else { throw VoicePantryError.emptyTranscript }
-
-        let prompt = """
-        The user described what's in their pantry out loud: "\(clean)"
-
-        Identify each pantry item. For any item whose portion size OR container \
-        size is genuinely ambiguous (e.g. "the olive oil bottle — what's its \
-        full size?"), produce a multiple-choice clarifying question. Respond \
-        with JSON only: {"questions":[{"question":"...","options":["...","...",\
-        "...","..."]}]}. At most 4 questions total, each with at most 4 \
-        options. If nothing is ambiguous, return {"questions":[]}.
-        """
-
-        let text = try await send(
-            system: Self.extractSystemPrompt,
-            prompt: prompt,
-            feature: "voice_pantry_extract"
-        )
-        let parsed: VoiceExtractionResult = try parseJSON(
-            text, as: VoiceExtractionResult.self, feature: "voice_pantry_extract"
-        )
-        return Array(parsed.questions.prefix(4))
-    }
-
-    // MARK: - Step 2: resolve to structured pantry items
+    // Single-step: there is no clarifying-questions phase. Voice pantry entry
+    // resolves straight to the editable confirm card, where the user fixes
+    // anything (quantity, unit, SET/ADD, removal). The old extract() step was
+    // removed — sequential blocking questions were the wrong UX for a bulk
+    // stock-take and a model-generated "Other" option crashed the question UI.
 
     func resolve(
         transcript: String,
@@ -149,28 +127,29 @@ final class VoicePantryService {
         let clean = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else { throw VoicePantryError.emptyTranscript }
 
-        let answerLines = answers.isEmpty
-            ? "(no clarifications were needed)"
-            : answers.map { "- \($0.key) → \($0.value)" }.joined(separator: "\n")
-
         let prompt = """
         Spoken pantry stock-take: "\(clean)"
-
-        Clarifications the user picked:
-        \(answerLines)
 
         Return JSON only in this exact shape:
         {"items":[{"name":"","intent":"set|add","quantity":0,"unit":"",\
         "storage":"","components":["",""],"confidence":"high|low"}]}.
 
         Rules:
+        - LOCATION CONTEXT (important): the user walks through their kitchen by \
+        section. When they say "in the fridge…", "in the freezer…", or "in the \
+        pantry/cupboard…", EVERY item after that phrase belongs to that \
+        location UNTIL they name a different section. Carry the current section \
+        forward across multiple items. Example: "in the fridge I have milk, \
+        eggs and butter, in the freezer I have chicken and peas" → milk, eggs, \
+        butter are storage "fridge"; chicken, peas are storage "freezer". \
+        Items spoken before any section is named default to "pantry".
+        - "storage" MUST be one of: fridge, freezer, pantry, cupboard. Default \
+        to "pantry" only when no section applies.
         - AGGREGATE multiple mentions of the same item into ONE total. \
         "a full 500g pack and a half pack" → quantity 750, \
         components ["500g pack","half pack (250g)"].
         - "unit" MUST be exactly one of: g, kg, ml, l, pieces, servings, oz, \
         lb, cans, bottles, jars, packs.
-        - "storage" MUST be one of: pantry, fridge, freezer, cupboard. Default \
-        to "pantry" when unclear.
         - "components" is the breakdown you used to reach the total. Use [] if \
         the item was a single simple mention.
         - "intent": use "set" when the user phrases a CURRENT TOTAL ("I have…", \
@@ -193,19 +172,13 @@ final class VoicePantryService {
 
     // MARK: - Prompts
 
-    private static let extractSystemPrompt = """
-    You are Tempo's voice PANTRY parser. You receive a spoken description of \
-    what's in someone's pantry and find ambiguous portions or container sizes \
-    that need clarification. You ONLY output JSON. Clarifying questions must be \
-    multiple-choice (the user taps an option; they cannot type). Keep questions \
-    short and concrete.
-    """
-
     private static let resolveSystemPrompt = """
-    You are Tempo's voice PANTRY parser. Given a pantry stock-take and the \
-    user's clarification choices, output a structured JSON array of pantry \
-    items. Aggregate repeated mentions of the same item into one total. Output \
-    JSON only — no prose, no markdown fences.
+    You are Tempo's voice PANTRY parser. The user narrates their kitchen by \
+    section ("in the fridge I have… in the freezer I have…"). Output a \
+    structured JSON array of pantry items: aggregate repeated mentions into one \
+    total, and assign each item the storage location of the section it was \
+    spoken under (carry the current section forward until a new one is named). \
+    Output JSON only — no prose, no markdown fences.
     """
 
     // MARK: - Proxy call (mirrors NutritionCoachService.sendWithRetry)

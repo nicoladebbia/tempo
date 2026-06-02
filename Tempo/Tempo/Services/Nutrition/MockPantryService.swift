@@ -72,7 +72,6 @@ final class MockPantryService: PantryServiceProtocol {
         return new
     }
 
-
     @discardableResult
     func setOrCreate(
         rawName: String,

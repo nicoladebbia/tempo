@@ -41,6 +41,13 @@ final class VoiceTranscriber {
     /// for an immediate end.
     var silenceTimeout: TimeInterval = 4.0
 
+    /// Continuous-dictation mode. When true, the recognizer's periodic
+    /// `isFinal` segment-finalizations do NOT stop recording (Apple finalizes
+    /// a segment mid-speech and starts a fresh task; for a long pantry
+    /// stock-take we must keep going until the user taps Stop). When false
+    /// (meal-log's short-utterance default), the first `isFinal` ends capture.
+    var continuousMode: Bool = false
+
     private let logger = Logger(subsystem: "app.tempo", category: "VoiceTranscriber")
     /// Prefer the user's current locale (so an Italian user gets Italian
     /// recognition out of the box). Fall back to en_US when the system locale
@@ -56,6 +63,11 @@ final class VoiceTranscriber {
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private var silenceTimer: Timer?
+    /// Continuous-mode: text of each completed segment, joined for the full
+    /// transcript so a mid-speech recognizer rollover doesn't drop earlier
+    /// words. `currentSegment` is the in-progress segment (not yet committed).
+    private var committedSegments: [String] = []
+    private var currentSegment = ""
 
     /// Begin transcription. Idempotent — calls while listening are no-ops.
     func start() async {
@@ -64,6 +76,8 @@ final class VoiceTranscriber {
         }
         error = nil
         transcribedText = ""
+        committedSegments = []
+        currentSegment = ""
 
         guard await requestPermissions() else {
             error = "Speech recognition not authorized."
@@ -166,10 +180,25 @@ final class VoiceTranscriber {
                     return
                 }
                 if let transcript {
-                    self.transcribedText = transcript
-                    self.resetSilenceTimer()
-                    if isFinal {
-                        self.stop()
+                    if self.continuousMode {
+                        // Apple's recognizer rolls its internal segment over on
+                        // long utterances — `formattedString` SILENTLY resets to
+                        // just the new segment, often WITHOUT an isFinal flag
+                        // (observed: a 338-char transcript dropping to "Whatever"
+                        // on a non-final partial). A rollover shows up as the new
+                        // text not extending the previous segment. When that
+                        // happens, COMMIT the previous segment before adopting the
+                        // new one, so nothing earlier is lost.
+                        self.transcribedText = self.applyContinuousPartial(transcript, isFinal: isFinal)
+                        // Do NOT stop on isFinal in continuous mode — only the
+                        // user's Stop tap ends the session.
+                        self.resetSilenceTimer()
+                    } else {
+                        self.transcribedText = transcript
+                        self.resetSilenceTimer()
+                        if isFinal {
+                            self.stop()
+                        }
                     }
                 }
                 if let errorDescription {
@@ -183,9 +212,47 @@ final class VoiceTranscriber {
         resetSilenceTimer()
     }
 
+    /// Fraction of the current segment's length below which a new non-final
+    /// partial is treated as a recognizer ROLLOVER (segment reset) rather than
+    /// a revision. A fresh recognition session always starts short and grows,
+    /// so a rollover always shows up as a dramatic collapse. Ordinary
+    /// revisions (homophone/number fixes) change length only slightly and stay
+    /// in-segment. 0.6 = "lost >40% of the text" → rollover.
+    static let rolloverCollapseFraction = 0.6
+
+    /// Folds one continuous-mode partial into the segment accumulator and
+    /// returns the full assembled transcript. Pure over the segment state
+    /// (no audio, no actor hops) so the exact device partial stream can be
+    /// replayed in a unit test. See VoiceTranscriberContinuousTests.
+    @discardableResult
+    func applyContinuousPartial(_ transcript: String, isFinal: Bool) -> String {
+        let prev = currentSegment
+        // Collapse detection: a non-final partial that drops below
+        // rolloverCollapseFraction of the previous length is a rollover — bank
+        // the previous segment before adopting the new (fresh) one.
+        let collapsed = !prev.isEmpty
+            && Double(transcript.count) < Double(prev.count) * Self.rolloverCollapseFraction
+        if collapsed {
+            committedSegments.append(prev)
+        }
+        if isFinal {
+            committedSegments.append(transcript)
+            currentSegment = ""
+        } else {
+            currentSegment = transcript
+        }
+        let parts = committedSegments + (currentSegment.isEmpty ? [] : [currentSegment])
+        return parts.joined(separator: " ")
+    }
+
     /// Restarts the silence countdown. Called on every partial result.
+    /// A `silenceTimeout <= 0` disables auto-stop entirely — the caller is
+    /// responsible for stopping (used by voice pantry, where the user lists
+    /// many items with natural pauses and ends by tapping Stop).
     private func resetSilenceTimer() {
         silenceTimer?.invalidate()
+        silenceTimer = nil
+        guard silenceTimeout > 0 else { return }
         silenceTimer = Timer.scheduledTimer(withTimeInterval: silenceTimeout, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.stop()

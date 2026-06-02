@@ -123,7 +123,6 @@ final class LocalPantryService: PantryServiceProtocol {
         return new
     }
 
-
     @discardableResult
     func setOrCreate(
         rawName: String,
