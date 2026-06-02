@@ -134,13 +134,17 @@ struct ActiveWorkoutView: View {
                 }
             }
         }
-        .alert("Finish Workout?", isPresented: $showFinishConfirmation) {
-            Button("Save & Finish", role: .destructive) {
+        .confirmationDialog("Finish Workout?", isPresented: $showFinishConfirmation, titleVisibility: .visible) {
+            Button("Save what I did") {
                 viewModel.finishWorkout()
+            }
+            Button("Discard workout", role: .destructive) {
+                viewModel.discardActiveWorkout(modelContext: modelContext)
+                dismiss()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This ends and saves your session.")
+            Text("Save keeps the sets you've logged and ends the session. Discard throws this session away — the day stays open to redo.")
         }
         .onAppear { loadCurrentSetInputs() }
         .onChange(of: viewModel.currentExerciseIndex) { _, _ in loadCurrentSetInputs() }

@@ -139,14 +139,21 @@ struct WorkoutHistoryView: View {
 
             workoutCard(workout)
                 .offset(x: isSwiped ? -revealWidth - TempoSpacing.sm : 0)
-                .gesture(
-                    DragGesture(minimumDistance: 20)
+                // highPriorityGesture so a horizontal swipe is claimed as a
+                // swipe BEFORE the card's expand button registers a tap — the
+                // old .gesture let a slightly-moving tap expand the row instead
+                // of revealing Delete. A clean tap (no horizontal travel) still
+                // falls through to the button and expands.
+                .highPriorityGesture(
+                    DragGesture(minimumDistance: 24)
                         .onEnded { value in
+                            // Only act on a predominantly HORIZONTAL drag, so a
+                            // vertical scroll still scrolls the list.
+                            guard abs(value.translation.width) > abs(value.translation.height) else {
+                                return
+                            }
                             withAnimation(.snappy(duration: 0.25)) {
                                 if value.translation.width < -40 {
-                                    // Collapse this row before revealing
-                                    // Delete so the affordance can't stretch
-                                    // to the expanded detail height.
                                     if expandedWorkoutID == workout.id {
                                         expandedWorkoutID = nil
                                     }

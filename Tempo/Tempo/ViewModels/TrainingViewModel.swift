@@ -635,9 +635,10 @@ final class TrainingViewModel {
         #endif
 
         if isLastSet, isLastExercise {
-            // Per STATE_MACHINES.md — last set of last exercise → cooldown
-            sessionState = .cooldown
+            // Workout complete → straight to summary (cooldown screen removed;
+            // the last set's feedback is editable at the top of the summary).
             stopElapsedTimer()
+            sessionState = .summary
         } else if isLastSet {
             // Per STATE_MACHINES.md — between exercises
             let restDuration = restDuration(for: plannedExercise)
@@ -692,6 +693,49 @@ final class TrainingViewModel {
             feedback.note = trimmed.isEmpty ? nil : trimmed
         }
         try? modelContext.save()
+
+        // If the workout is ALREADY persisted (the last set's feedback is now
+        // edited in the summary, after persistCompletion ran on .summary entry),
+        // recompute that exercise's ExerciseHistory aggregate so the edit isn't
+        // silently dropped from the Tier-2 signal.
+        if todayPlan?.status == .completed {
+            recomputeHistoryAggregate(for: lastCompletedSet?.plannedExercise, modelContext: modelContext)
+        }
+    }
+
+    /// Recompute one exercise's persisted ExerciseHistory feedback aggregate
+    /// from the latest user-provided SetFeedback. Used when the last set's
+    /// feedback is entered in the summary, after the history row was already
+    /// written on .summary entry.
+    private func recomputeHistoryAggregate(for plannedExercise: PlannedExercise?, modelContext: ModelContext) {
+        guard let plannedExercise,
+              let exercise = plannedExercise.exercise,
+              let planID = todayPlan?.id
+        else {
+            return
+        }
+        let exerciseID = exercise.id
+        let descriptor = FetchDescriptor<ExerciseHistory>(
+            predicate: #Predicate<ExerciseHistory> { $0.workoutPlanID == planID }
+        )
+        guard let rows = try? modelContext.fetch(descriptor) else {
+            return
+        }
+        guard let row = rows.first(where: { $0.exercise?.id == exerciseID }) else {
+            return
+        }
+        let completedSets = (plannedExercise.sets ?? []).filter { $0.completed && !$0.isWarmup }
+        let fbDescriptor = FetchDescriptor<SetFeedback>(
+            predicate: #Predicate<SetFeedback> { $0.userProvidedFeedback }
+        )
+        let entered = Dictionary(
+            ((try? modelContext.fetch(fbDescriptor)) ?? []).map { ($0.setID, $0) }
+        ) { first, _ in first }
+        let agg = Self.aggregateFeedback(completedSets: completedSets, enteredFeedback: entered)
+        row.avgRPE = agg.avgRPE
+        row.worstFormRaw = agg.worstFormRaw
+        row.feedbackSampleCount = agg.count
+        try? modelContext.save()
     }
 
     // MARK: - Skip Rest
@@ -742,7 +786,9 @@ final class TrainingViewModel {
                     ))
                 }
             } else {
-                sessionState = .cooldown
+                // Workout complete after the last inter-exercise rest.
+                stopElapsedTimer()
+                sessionState = .summary
             }
             HapticManager.notification(.warning)
         }
@@ -752,16 +798,47 @@ final class TrainingViewModel {
 
     // Per STATE_MACHINES.md — any active state → cooldown → summary
 
+    /// Finish the session early (user tapped Finish before all sets). Saving is
+    /// the caller's choice — see `discardActiveWorkout`. This path goes straight
+    /// to the summary (no cooldown screen); persistCompletion (fired on .summary
+    /// entry by the tab) saves only the working sets actually logged.
     func finishWorkout() {
         stopRestTimer()
+        stopWarmupMoveTimer()
         stopElapsedTimer()
-        sessionState = .cooldown
+        sessionState = .summary
+    }
 
-        // Auto-advance to summary after a brief delay
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(1))
-            sessionState = .summary
+    /// Discard the in-progress session: mark the day skipped, drop any sets
+    /// logged this session WITHOUT writing ExerciseHistory, and reset. The day
+    /// stays open to redo. Used by the Finish → "Discard" choice.
+    func discardActiveWorkout(modelContext: ModelContext) {
+        guard sessionState.isActive || sessionState == .cooldown else {
+            return
         }
+        stopRestTimer()
+        stopWarmupMoveTimer()
+        stopElapsedTimer()
+        if let plan = todayPlan {
+            // Roll back this session's logged sets so a re-do starts clean, and
+            // mark the day skipped. NOT marked .completed → no ExerciseHistory.
+            for ex in plan.orderedExercises {
+                for set in ex.orderedSets where set.completed {
+                    set.completed = false
+                    set.actualWeight = nil
+                    set.actualReps = nil
+                    set.completedAt = nil
+                }
+            }
+            plan.status = .skipped
+            plan.startedAt = nil
+        }
+        try? modelContext.save()
+        currentFeedback = nil
+        lastCompletedSet = nil
+        sessionState = .discarded
+        resetState()
+        NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
     }
 
     // MARK: - Skip Cooldown → Summary
