@@ -146,4 +146,65 @@ final class MealPlanPromptsTests: XCTestCase {
         }
         XCTAssertLessThan(intakeIdx, structureIdx, "intake block must precede meal_structure")
     }
+
+    // MARK: - Pantry stock block (§3 pantry-first)
+
+    func testPantryStockBlock_emptyReturnsEmptyString() {
+        XCTAssertEqual(MealPlanPrompts.pantryStockBlock([]), "")
+    }
+
+    func testPantryStockBlock_listsItemsAndPantryFirstDirective() {
+        let block = MealPlanPrompts.pantryStockBlock([
+            "eggs — 9 pieces [Fridge]",
+            "rolled oats — 500 g [Pantry]",
+        ])
+        XCTAssertTrue(block.contains("<pantry_on_hand>"))
+        XCTAssertTrue(block.contains("eggs — 9 pieces [Fridge]"))
+        XCTAssertTrue(block.contains("rolled oats — 500 g [Pantry]"))
+        // The pantry-first intent + quantity-respect directive must be present.
+        XCTAssertTrue(block.lowercased().contains("already has"))
+        XCTAssertTrue(block.lowercased().contains("do not plan to use more"))
+        XCTAssertTrue(block.lowercased().contains("gap"))
+    }
+
+    func testWeeklyPlanPrompt_includesPantryStockWhenProvided() {
+        let restrictions = MealPlanPrompts.DietaryRestrictions(
+            isLactoseFree: false, noCoffee: false, isGlutenFree: false,
+            isVegetarian: false, isVegan: false, isHalal: false,
+            isNutFree: false, isShellFishAllergy: false,
+            allergies: [], dislikedFoods: []
+        )
+        let (_, userPrompt) = MealPlanPrompts.weeklyPlanPrompt(
+            targets: [:],
+            restrictions: restrictions,
+            preferences: "",
+            pantryStock: ["chicken breast — 3 pieces [Freezer]"]
+        )
+        XCTAssertTrue(userPrompt.contains("<pantry_on_hand>"))
+        XCTAssertTrue(userPrompt.contains("chicken breast — 3 pieces [Freezer]"))
+        // Pantry stock must precede meal_structure (it's input, not output).
+        guard let pantryIdx = userPrompt.range(of: "<pantry_on_hand>")?.lowerBound,
+              let structureIdx = userPrompt.range(of: "<meal_structure>")?.lowerBound
+        else {
+            XCTFail("Expected both <pantry_on_hand> and <meal_structure>")
+            return
+        }
+        XCTAssertLessThan(pantryIdx, structureIdx)
+    }
+
+    func testWeeklyPlanPrompt_omitsPantryStockWhenEmpty() {
+        let restrictions = MealPlanPrompts.DietaryRestrictions(
+            isLactoseFree: false, noCoffee: false, isGlutenFree: false,
+            isVegetarian: false, isVegan: false, isHalal: false,
+            isNutFree: false, isShellFishAllergy: false,
+            allergies: [], dislikedFoods: []
+        )
+        let (_, userPrompt) = MealPlanPrompts.weeklyPlanPrompt(
+            targets: [:],
+            restrictions: restrictions,
+            preferences: ""
+        )
+        XCTAssertFalse(userPrompt.contains("<pantry_on_hand>"),
+                       "No pantry block when stock is empty")
+    }
 }

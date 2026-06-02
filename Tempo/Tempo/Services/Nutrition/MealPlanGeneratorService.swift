@@ -128,6 +128,10 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         if !expiringSoon.isEmpty {
             logger.info("Expiring pantry items injected into plan prompt: \(expiringSoon.count)")
         }
+        let stock = pantryStock(modelContext: modelContext)
+        if !stock.isEmpty {
+            logger.info("Pantry stock injected into plan prompt: \(stock.count) items")
+        }
 
         let (systemPrompt, userPrompt) = MealPlanPrompts.weeklyPlanPrompt(
             targets: tdeeResult.dayTypeTargets,
@@ -136,7 +140,8 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             intake: intake,
             observedMealTimes: observed,
             feedbackDigest: feedback,
-            expiringSoon: expiringSoon
+            expiringSoon: expiringSoon,
+            pantryStock: stock
         )
 
         let response = try await sendWithRetry(
@@ -503,6 +508,38 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             }
             .sorted { lhs, rhs in lhs.1 < rhs.1 }
             .map { (name: $0.0, days: $0.1) }
+    }
+
+    /// Full non-archived pantry stock (qty > 0), as human-readable
+    /// "name — quantity unit" lines for the weekly-plan prompt. This lets the
+    /// AI build meals AROUND what the user already owns (the pantry-first goal)
+    /// rather than only avoiding expiry. Quantities render in whole units for
+    /// countable foods ("5 eggs") to match how the user thinks about stock and
+    /// how the pantry decrement counts them. Capped + grouped to bound tokens.
+    private func pantryStock(modelContext: ModelContext) -> [String] {
+        let descriptor = FetchDescriptor<PantryItem>(
+            predicate: #Predicate<PantryItem> { item in
+                !item.isArchived && item.quantity > 0
+            }
+        )
+        let items = (try? modelContext.fetch(descriptor)) ?? []
+        // Sort by storage location then name for a stable, scannable list.
+        return items
+            .sorted { lhs, rhs in
+                if lhs.storageLocationRaw != rhs.storageLocationRaw {
+                    return lhs.storageLocationRaw < rhs.storageLocationRaw
+                }
+                return lhs.canonicalName < rhs.canonicalName
+            }
+            .map { item in
+                let qty: String
+                if item.quantity == item.quantity.rounded() {
+                    qty = "\(Int(item.quantity))"
+                } else {
+                    qty = String(format: "%.1f", item.quantity)
+                }
+                return "\(item.canonicalName) — \(qty) \(item.unit.displayName) [\(item.storageLocation.displayName)]"
+            }
     }
 
     /// Aggregate the last `windowDays` of `MealFeedback` rows into a digest

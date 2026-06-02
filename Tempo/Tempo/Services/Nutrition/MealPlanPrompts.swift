@@ -338,6 +338,33 @@ enum MealPlanPrompts {
         """
     }
 
+    /// Full pantry stock the user already owns. Distinct from
+    /// `expiringSoonBlock` (urgency/FIFO) — this is the "build meals around
+    /// what's on hand" signal so the grocery list is genuinely just the gap.
+    /// `stock` is pre-formatted "name — qty unit [location]" lines.
+    static func pantryStockBlock(_ stock: [String]) -> String {
+        guard !stock.isEmpty else {
+            return ""
+        }
+        let lines = stock.map { "- \($0)" }.joined(separator: "\n")
+        return """
+
+        <pantry_on_hand>
+        \(lines)
+
+        These are the ingredients the user ALREADY HAS. Build the week's meals \
+        primarily around this stock — prefer recipes that consume what's on hand \
+        before specifying anything new to buy. Respect the quantities: do not \
+        plan to use more of an item than is listed (e.g. if 9 eggs are on hand, \
+        do not schedule 12 across the week — scale portions or spread them, using \
+        whole units for countable foods). Only introduce a new ingredient when a \
+        balanced meal genuinely needs something not in stock; the grocery list is \
+        meant to cover the GAP, not re-buy what's here. Ignore any item that \
+        conflicts with the user's dietary restrictions.
+        </pantry_on_hand>
+        """
+    }
+
     // MARK: - Weekly Plan Prompt
 
     /// Generate a full weekly meal plan with exact macros per day type.
@@ -392,7 +419,8 @@ enum MealPlanPrompts {
         intake: MealPlanIntake? = nil,
         observedMealTimes: ObservedMealTimes? = nil,
         feedbackDigest: FeedbackDigest? = nil,
-        expiringSoon: [(name: String, days: Int)] = []
+        expiringSoon: [(name: String, days: Int)] = [],
+        pantryStock: [String] = []
     ) -> (system: String, user: String) {
         let system = """
         You are the nutrition arm of Tempo, a drill-sergeant life operating system for student-athletes. \
@@ -444,6 +472,7 @@ enum MealPlanPrompts {
         </preferences>
         \(weeklyIntakeBlock(intake))
         \(observedTimesBlock(observedMealTimes))
+        \(pantryStockBlock(pantryStock))
         \(expiringSoonBlock(expiringSoon))
         \(feedbackBlock(feedbackDigest))
 
