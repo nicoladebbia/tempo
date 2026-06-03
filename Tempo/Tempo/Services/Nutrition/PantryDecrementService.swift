@@ -80,9 +80,48 @@ enum PantryDecrementService {
         return decrement(pairs: pairs, label: label, modelContext: modelContext)
     }
 
+    /// Re-credit the pantry by an arbitrary list of foods — the inverse of
+    /// `decrement(foods:)`, used when the user UNDOES a meal that had pulled
+    /// from pantry stock (e.g. logged an açai bowl to the wrong slot). Adds
+    /// the converted quantity back to each matching row.
+    ///
+    /// NOTE: this is an APPROXIMATE inverse, not an exact one. The decrement
+    /// floored at zero (`max(0, qty - delta)`), so if the meal had depleted an
+    /// item (needed 153 g, only 100 g on hand → 0), crediting the *requested*
+    /// grams back invents stock that never existed. We accept that drift: the
+    /// alternative (logging pre-decrement snapshots per meal) is far heavier,
+    /// and over-crediting a depleted staple is a smaller harm than stranding a
+    /// meal the user can't undo. Caller guards on `didDecrementPantry` so a
+    /// credit happens at most once per undo.
+    @discardableResult
+    static func credit(
+        foods: [PlannedFood],
+        label: String,
+        modelContext: ModelContext
+    ) -> [PantryDecrementResult] {
+        let pairs = foods.map { ($0.name, $0.quantityGrams) }
+        return apply(pairs: pairs, direction: .credit, label: label, modelContext: modelContext)
+    }
+
+    private enum Direction {
+        case decrement
+        case credit
+    }
+
     /// Shared per-item decrement loop over (canonicalName, grams) pairs.
     private static func decrement(
         pairs: [(String, Double)],
+        label: String,
+        modelContext: ModelContext
+    ) -> [PantryDecrementResult] {
+        apply(pairs: pairs, direction: .decrement, label: label, modelContext: modelContext)
+    }
+
+    /// Shared per-item pantry mutation over (canonicalName, grams) pairs.
+    /// `direction` selects subtract (floor at 0) vs add-back.
+    private static func apply(
+        pairs: [(String, Double)],
+        direction: Direction,
         label: String,
         modelContext: ModelContext
     ) -> [PantryDecrementResult] {
@@ -141,7 +180,13 @@ enum PantryDecrementService {
                 continue
             }
 
-            let newQty = max(0, pantryItem.quantity - delta)
+            let newQty: Double
+            switch direction {
+            case .decrement:
+                newQty = max(0, pantryItem.quantity - delta)
+            case .credit:
+                newQty = pantryItem.quantity + delta
+            }
             pantryItem.quantity = newQty
             pantryItem.updatedAt = Date()
 
@@ -160,14 +205,15 @@ enum PantryDecrementService {
             }
         }
 
+        let verb = direction == .credit ? "credit" : "decrement"
         do {
             try modelContext.save()
-            logger.info("Pantry decrement for \(label, privacy: .public): \(results.count) item(s)")
+            logger.info("Pantry \(verb, privacy: .public) for \(label, privacy: .public): \(results.count) item(s)")
         } catch {
             // A failed save leaves quantities mutated in memory but not on
             // disk; surfacing the error in the log makes a stale-pantry
             // bug debuggable instead of silently rolling back at relaunch.
-            logger.error("Pantry decrement save failed for \(label, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            logger.error("Pantry \(verb, privacy: .public) save failed for \(label, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
         return results
     }

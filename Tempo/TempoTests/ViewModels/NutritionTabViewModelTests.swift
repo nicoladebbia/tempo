@@ -24,6 +24,7 @@ final class NutritionTabViewModelTests: XCTestCase {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         container = try ModelContainer(
             for: PlannedMeal.self, WeeklyMealPlan.self, MealPreset.self, DietaryProfile.self,
+            MealFeedback.self, PantryItem.self,
             configurations: config
         )
         viewModel = NutritionTabViewModel()
@@ -152,5 +153,69 @@ final class NutritionTabViewModelTests: XCTestCase {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: date)
+    }
+
+    // MARK: - Undo meal eaten
+    //
+    // All three tests share the SINGLE setUp `container`. Standing up a SECOND
+    // in-memory container mid-test (both registering PlannedMeal) traps
+    // SwiftData on insert — that, not MealFeedback-in-schema, was the crash.
+
+    func testUndoMealEaten_revertsStatusClearsTimeAndDeletesFeedback() throws {
+        let ctx = container.mainContext
+        let meal = makePlanned(meal: 1, p: 20, c: 80, f: 10, kcal: 480, status: .eaten)
+        meal.actualEatenAt = Date()
+        ctx.insert(meal)
+        let feedback = MealFeedback(plannedMeal: meal, mealFeel: .clean)
+        ctx.insert(feedback)
+        try ctx.save()
+
+        viewModel.undoMealEaten(meal, modelContext: ctx)
+
+        XCTAssertEqual(meal.status, .planned, "Undo must revert to planned")
+        XCTAssertNil(meal.actualEatenAt, "Eaten time must be cleared")
+        let remaining = (try? ctx.fetch(FetchDescriptor<MealFeedback>())) ?? []
+        XCTAssertTrue(remaining.isEmpty, "The meal's feedback row must be deleted")
+    }
+
+    func testUndoMealEaten_reCreditsPantryWhenDecrementedThenResetsFlag() throws {
+        let ctx = container.mainContext
+        let meal = makePlanned(meal: 1, p: 5, c: 40, f: 2, kcal: 200, status: .eaten)
+        // Non-staple, grams unit so re-credit is direct: 1000 − 153 (eaten) =
+        // 847; undo adds 153 back → 1000.
+        meal.foods = [PlannedFood(name: "rice", quantityGrams: 153,
+                                  calories: 200, proteinG: 5, carbsG: 40, fatG: 2)]
+        meal.didDecrementPantry = true
+        let rice = PantryItem(canonicalName: "rice", displayName: "Rice",
+                              quantity: 847, unit: .grams, storageLocation: .pantry)
+        ctx.insert(meal)
+        ctx.insert(rice)
+        try ctx.save()
+
+        viewModel.undoMealEaten(meal, modelContext: ctx)
+
+        XCTAssertEqual(rice.quantity, 1000, accuracy: 0.001,
+                       "Undo must re-credit the 153g it had decremented")
+        XCTAssertFalse(meal.didDecrementPantry,
+                       "Flag reset so a re-log can decrement again")
+    }
+
+    func testUndoMealEaten_doesNotCreditPantryWhenNeverDecremented() throws {
+        let ctx = container.mainContext
+        // "Ate out" substitute: eaten but pantry never touched (flag false).
+        let meal = makePlanned(meal: 1, p: 5, c: 40, f: 2, kcal: 200, status: .eaten)
+        meal.foods = [PlannedFood(name: "rice", quantityGrams: 153,
+                                  calories: 200, proteinG: 5, carbsG: 40, fatG: 2)]
+        meal.didDecrementPantry = false
+        let rice = PantryItem(canonicalName: "rice", displayName: "Rice",
+                              quantity: 500, unit: .grams, storageLocation: .pantry)
+        ctx.insert(meal)
+        ctx.insert(rice)
+        try ctx.save()
+
+        viewModel.undoMealEaten(meal, modelContext: ctx)
+
+        XCTAssertEqual(rice.quantity, 500,
+                       "No decrement happened → undo must not invent stock")
     }
 }

@@ -453,6 +453,70 @@ final class NutritionTabViewModel {
         NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
     }
 
+    /// Undo a meal that was marked eaten — reverts it to `.planned` so the
+    /// user can re-log, fix a wrong slot (açai bowl logged to Breakfast
+    /// instead of Snack), or just take it back. The inverse of
+    /// `markMealEaten` for the parts that matter for correctness:
+    ///
+    ///   - status → `.planned`, `actualEatenAt` → nil. Because day/Fuel
+    ///     totals sum ONLY `.eaten` meals, this immediately removes the
+    ///     meal's macros from today's totals — no double-count when it's
+    ///     re-logged elsewhere.
+    ///   - Deletes this meal's `MealFeedback` row(s) so a stale "how did it
+    ///     feel" / substitute note doesn't linger on a meal that wasn't eaten.
+    ///   - Re-credits the pantry IF this meal had decremented it
+    ///     (`didDecrementPantry`), then resets the flag. Approximate inverse
+    ///     (see `PantryDecrementService.credit`), guarded so it runs once.
+    ///
+    /// Deliberately does NOT try to un-shift sibling meals or reverse the
+    /// macro rebalance that `markMealEaten` applied — that state-machine
+    /// reversal is fragile and not what "I logged this wrong" needs. The
+    /// user can regenerate the day if the timeline drifted.
+    func undoMealEaten(
+        _ meal: PlannedMeal,
+        modelContext: ModelContext
+    ) {
+        let mealID = meal.id
+
+        // Re-credit pantry before flipping state, while didDecrementPantry
+        // still tells us whether stock was pulled.
+        if meal.didDecrementPantry {
+            _ = PantryDecrementService.credit(
+                foods: meal.foods, label: meal.mealName, modelContext: modelContext
+            )
+            meal.didDecrementPantry = false
+        }
+
+        meal.status = .planned
+        meal.actualEatenAt = nil
+
+        // Delete any MealFeedback captured for this meal. Fetch via a
+        // SwiftData predicate on the relationship id — the SAME safe pattern
+        // refreshFeedbackPresence uses. Do NOT iterate rows in Swift and read
+        // row.plannedMeal?.id: that crashes on a dangling ref to a
+        // cascade-deleted meal (see the CRITICAL note in
+        // refreshFeedbackPresence). The predicate engine resolves it
+        // server-side.
+        let descriptor = FetchDescriptor<MealFeedback>(
+            predicate: #Predicate<MealFeedback> { row in
+                row.plannedMeal?.id == mealID
+            }
+        )
+        if let rows = try? modelContext.fetch(descriptor) {
+            for row in rows {
+                modelContext.delete(row)
+            }
+        }
+
+        try? modelContext.save()
+        HapticManager.notification(.success)
+        refreshTodayMeals(modelContext: modelContext)
+        refreshFeedbackPresence(modelContext: modelContext)
+
+        // Keep the Dashboard Fuel quadrant + day plan in sync.
+        NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
+    }
+
     /// Recompute and persist shifted scheduled times for the remaining meals
     /// of the day, then reschedule prep-start / defrost / meal-reminder
     /// notifications for the shifted meals so the user gets accurate pings.

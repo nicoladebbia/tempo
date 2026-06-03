@@ -55,6 +55,11 @@ struct MealDetailView: View {
     /// `eatTimeEdit` and commits via `commitEatTimeEdit()` on dismiss.
     @State
     private var presentEatTimeEditor: Bool = false
+
+    /// Drives the "Undo — not eaten" confirmation dialog in the `.eaten`
+    /// status branch.
+    @State
+    private var presentUndoConfirm: Bool = false
     @State
     private var eatTimeEdit: Date = .now
     /// When true, the Mark-Eaten sheet opens straight into the "Ate something
@@ -122,6 +127,18 @@ struct MealDetailView: View {
         .sheet(isPresented: $presentEatTimeEditor) {
             eatTimeEditorSheet
                 .presentationDetents([.height(280)])
+        }
+        .confirmationDialog(
+            "Undo this meal?",
+            isPresented: $presentUndoConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Mark as not eaten", role: .destructive) {
+                undoEaten()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This puts \(meal.mealName) back to planned and removes it from today's totals. Any pantry stock it used is added back.")
         }
         .overlay {
             if isResolvingSubstitute {
@@ -413,6 +430,23 @@ struct MealDetailView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Change what I ate")
+
+                // Undo — take the meal back to planned so a wrong log (e.g.
+                // logged to the wrong slot) can be fixed. Confirmed because it
+                // clears the eaten state, deletes feedback, and re-credits any
+                // pantry stock this meal pulled.
+                Button(role: .destructive) {
+                    presentUndoConfirm = true
+                    HapticManager.lightImpact()
+                } label: {
+                    Label("Undo — not eaten", systemImage: "arrow.uturn.backward")
+                        .font(.tempoCaption1)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.tempoError)
+                        .labelStyle(.titleAndIcon)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Undo, mark as not eaten")
             }
         case .skipped:
             Text("Skipped — macros redistributed.")
@@ -488,6 +522,18 @@ struct MealDetailView: View {
     private func resolveAsSubstitute() {
         openSheetToSubstitute = true
         presentMarkEatenSheet = true
+    }
+
+    /// Revert this meal to planned (the user logged it wrong — e.g. an açai
+    /// bowl marked under Breakfast instead of Snack). Routes through the
+    /// single `NutritionTabViewModel.undoMealEaten` implementation (status
+    /// reset, feedback deletion, guarded pantry re-credit, sync notification)
+    /// so the logic lives in ONE place. Operates on the shared SwiftData
+    /// context, so the meal object flips to .planned everywhere it's
+    /// observed; we then dismiss back to the list.
+    private func undoEaten() {
+        NutritionTabViewModel().undoMealEaten(meal, modelContext: modelContext)
+        dismiss()
     }
 
     /// Sheet's onCommit handler. Writes the chosen eat time, feel, and
