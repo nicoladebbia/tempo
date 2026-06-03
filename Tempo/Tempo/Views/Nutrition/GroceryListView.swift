@@ -155,7 +155,8 @@ struct GroceryListView: View {
         // unknown categories falling to the end. Without this the list was
         // pantry → grains → produce, which is the reverse of how anyone
         // actually moves through a grocery store.
-        let preferred = ["produce", "protein", "dairy", "frozen", "grains", "pantry"]
+        // "protein" kept for older lists; new lists split meat/seafood out.
+        let preferred = ["produce", "meat", "seafood", "protein", "dairy", "frozen", "grains", "oils", "pantry"]
         let present = Array(Set(list.orderedItems.map(\.category)))
         let known = preferred.filter { present.contains($0) }
         let unknown = present.filter { !preferred.contains($0) }.sorted()

@@ -228,6 +228,7 @@
 		55A17AD70DB0B92BC0AB7220 /* MealPlanGeneratorService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B8B7FCFCF4322BA2DE412B4 /* MealPlanGeneratorService.swift */; };
 		55DF8142F5C47320F5739100 /* Double+Formatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCA19F6669555D8B7B7E201F /* Double+Formatting.swift */; };
 		55F70911DA2E8237F98B0199 /* ExerciseLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8094D8380452850D0E377C20 /* ExerciseLibraryView.swift */; };
+		563F4DB1B83C9BA5F7CC9B8B /* GroceryReapplyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0577FF35A58CE2AD48423C5A /* GroceryReapplyTests.swift */; };
 		564875517F41F47D6D0C37E3 /* cue_ex_straight_arm_pulldown.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = F1E02A40EBC3CF55C0B667C6 /* cue_ex_straight_arm_pulldown.mp3 */; };
 		56544919F06E1CFD608DB9D3 /* cue_ex_glute_bridge.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = ABB11AC879C8B4BBE6EBE209 /* cue_ex_glute_bridge.mp3 */; };
 		568EF715E46B5D80E3055F5C /* cue_ex_overhead_press.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = DB819534E34F9FF1A1946DA7 /* cue_ex_overhead_press.mp3 */; };
@@ -438,6 +439,7 @@
 		A4578B5BC7C59629E95A772D /* NutritionTabViewModelPhase7Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D78697B6EAAA90BD0F682407 /* NutritionTabViewModelPhase7Tests.swift */; };
 		A48BF0C47450AA389A8DEF75 /* cue_ten_seconds.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = C5D3AC33C47D292FA00ECDF6 /* cue_ten_seconds.mp3 */; };
 		A4EC1EFD9778362891564452 /* AcademicSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBACF78684EF42013E744E6C /* AcademicSetupView.swift */; };
+		A513B71D6EDF0278CFB5421F /* GroceryCategoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FD30876E88721E7BF7082B5 /* GroceryCategoryTests.swift */; };
 		A54391FAFFC0E9286E93A5A2 /* DailyResetCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EC654613BBB455CE86BFF0A /* DailyResetCoordinator.swift */; };
 		A60618D3A5088EFE0689831D /* cue_move_scapular_push_ups_scap_pulls.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 641326FAA118F41692A06E4C /* cue_move_scapular_push_ups_scap_pulls.mp3 */; };
 		A6459590C12AA2D01E1F36D4 /* TempoWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5F0FE779EB5CA8BDAAA6B98 /* TempoWidgetBundle.swift */; };
@@ -716,6 +718,7 @@
 		04B8273227394850BB5243A0 /* cue_ex_lat_pulldown.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_lat_pulldown.mp3; sourceTree = "<group>"; };
 		04F74AB9672C62B51FE03F8E /* CoachToolsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachToolsTests.swift; sourceTree = "<group>"; };
 		055EB01D4176D858710B980E /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		0577FF35A58CE2AD48423C5A /* GroceryReapplyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroceryReapplyTests.swift; sourceTree = "<group>"; };
 		05CC8EFBDE7D4208DB46EC1F /* RecipeServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeServiceProtocol.swift; sourceTree = "<group>"; };
 		06B7EACC3C573749065D6F24 /* HeatmapCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeatmapCalendarView.swift; sourceTree = "<group>"; };
 		070EACE8EE54D1E51F44B535 /* OutcomeGrader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutcomeGrader.swift; sourceTree = "<group>"; };
@@ -947,6 +950,7 @@
 		5EFB4726746BC215DFE6123A /* CoachAdaptersTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachAdaptersTests.swift; sourceTree = "<group>"; };
 		5F7CBEEF11E3E5F143D990B1 /* cue_ex_standing_barbell_calf_raise.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_standing_barbell_calf_raise.mp3; sourceTree = "<group>"; };
 		5FA38BE062BD6A3D000FF29F /* cue_ex_t_bar_row.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_t_bar_row.mp3; sourceTree = "<group>"; };
+		5FD30876E88721E7BF7082B5 /* GroceryCategoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroceryCategoryTests.swift; sourceTree = "<group>"; };
 		5FEF9A28D1021198555FF807 /* HealthKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitService.swift; sourceTree = "<group>"; };
 		60D0974C719EF6B60CDABF5D /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		61323DBB73764C73B7BE54C5 /* MealRedistributionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealRedistributionService.swift; sourceTree = "<group>"; };
@@ -1745,7 +1749,9 @@
 				DC38A77AD620A2A05751C266 /* .gitkeep */,
 				8BB2DDAEBD50F39B0100EAED /* FoodCanonicalizerTests.swift */,
 				93D7F4DBD9EB186AEEF687CF /* FoodPortionLabelTests.swift */,
+				5FD30876E88721E7BF7082B5 /* GroceryCategoryTests.swift */,
 				C894CB5C08BFCA6334837838 /* GroceryListGeneratorTests.swift */,
+				0577FF35A58CE2AD48423C5A /* GroceryReapplyTests.swift */,
 				9C9AE303D1EB284CCBF7286A /* MacroCarryoverServiceTests.swift */,
 				09AFD987E2C8CA8FE0171129 /* MealPlanPromptsTests.swift */,
 				F6124AFBE368310C710C872A /* NutritionTargetCalculatorTests.swift */,
@@ -3318,7 +3324,9 @@
 				1BCAD5E29AAD95B6884ABF2D /* FeedbackAggregationTests.swift in Sources */,
 				573DD6B3F3F34FD715B81ECC /* FoodCanonicalizerTests.swift in Sources */,
 				6C55A146D24E6EDF5AFA1F65 /* FoodPortionLabelTests.swift in Sources */,
+				A513B71D6EDF0278CFB5421F /* GroceryCategoryTests.swift in Sources */,
 				1F3AD3F9102BB66597F1A248 /* GroceryListGeneratorTests.swift in Sources */,
+				563F4DB1B83C9BA5F7CC9B8B /* GroceryReapplyTests.swift in Sources */,
 				E335AB95707FD6424BEE1CD2 /* HydrationMathTests.swift in Sources */,
 				8989D01C44B10B70BFCC2E51 /* LearnedPreferenceTests.swift in Sources */,
 				E51946E881178D1492659FAC /* MacroCarryoverServiceTests.swift in Sources */,

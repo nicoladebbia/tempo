@@ -184,33 +184,49 @@ enum GroceryListGenerator {
 
     /// Coarse grocery-aisle categorization. Used for sort/group in the UI and
     /// matches the categories Apple Reminders shows.
+    /// Coarse grocery-aisle categorization. Used for sort/group in the UI so the
+    /// shopping list reads like a store walk (produce → meat → seafood → dairy
+    /// → grains → frozen → oils → pantry). Keyword-matched on the canonical
+    /// name; the long tail falls to "pantry" by design — we expand the
+    /// high-frequency foods, not every SKU.
     static func category(for canonicalName: String) -> String {
         let n = canonicalName.lowercased()
         let produce = [
-            "banana",
-            "berries",
-            "spinach",
-            "broccoli",
-            "asparagus",
-            "kiwi",
-            "avocado",
-            "orange",
-            "lemon",
-            "bell pepper",
-            "ginger",
-            "sweet potato",
+            "banana", "berries", "blueberr", "raspberr", "strawberr",
+            "spinach", "broccoli", "asparagus", "kiwi", "avocado",
+            "orange", "lemon", "lime", "bell pepper", "pepper", "ginger",
+            "sweet potato", "potato", "carrot", "onion", "garlic",
+            "tomato", "lettuce", "cucumber", "zucchini", "apple", "grape",
+            "mushroom", "kale", "celery", "corn",
         ]
-        let protein = ["chicken breast", "salmon", "ground beef", "ground turkey", "turkey breast", "protein powder", "eggs"]
-        let dairy = ["greek yogurt", "milk", "cheese"]
-        let grains = ["rice", "oats", "rice cakes"]
+        // Meat and seafood split out (the user shops these as distinct aisles).
+        let meat = [
+            "chicken", "beef", "ground beef", "turkey", "ground turkey",
+            "pork", "steak", "bacon", "sausage", "lamb", "ham", "veal",
+        ]
+        let seafood = [
+            "salmon", "shrimp", "tuna", "fish", "cod", "tilapia",
+            "shellfish", "crab", "lobster", "scallop", "prawn", "sardine",
+        ]
+        let dairy = [
+            "greek yogurt", "yogurt", "milk", "cheese", "ricotta",
+            "parmesan", "mozzarella", "butter", "cream", "eggs", "egg",
+        ]
+        let grains = [
+            "rice", "oats", "oat", "rice cakes", "pasta", "spaghetti",
+            "bread", "quinoa", "cereal", "flour", "tortilla", "couscous",
+        ]
         let frozen = ["frozen", "ice"]
-        let oils = ["olive oil"]
+        let oils = ["olive oil", "oil", "vinegar"]
 
         if produce.contains(where: n.contains) {
             return "produce"
         }
-        if protein.contains(where: n.contains) {
-            return "protein"
+        if meat.contains(where: n.contains) {
+            return "meat"
+        }
+        if seafood.contains(where: n.contains) {
+            return "seafood"
         }
         if dairy.contains(where: n.contains) {
             return "dairy"

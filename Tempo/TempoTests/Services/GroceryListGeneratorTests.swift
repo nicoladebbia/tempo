@@ -103,14 +103,15 @@ final class GroceryListGeneratorTests: XCTestCase {
     // MARK: - Categorization
 
     func testCategory_routesByName() {
-        XCTAssertEqual(GroceryListGenerator.category(for: "chicken breast"), "protein")
-        XCTAssertEqual(GroceryListGenerator.category(for: "salmon"), "protein")
+        // Meat + seafood are now distinct aisles (was a single "protein").
+        XCTAssertEqual(GroceryListGenerator.category(for: "chicken breast"), "meat")
+        XCTAssertEqual(GroceryListGenerator.category(for: "salmon"), "seafood")
         XCTAssertEqual(GroceryListGenerator.category(for: "greek yogurt"), "dairy")
         XCTAssertEqual(GroceryListGenerator.category(for: "rice"), "grains")
         XCTAssertEqual(GroceryListGenerator.category(for: "oats"), "grains")
         XCTAssertEqual(GroceryListGenerator.category(for: "spinach"), "produce")
         XCTAssertEqual(GroceryListGenerator.category(for: "olive oil"), "oils")
-        XCTAssertEqual(GroceryListGenerator.category(for: "quinoa"), "pantry")
+        XCTAssertEqual(GroceryListGenerator.category(for: "quinoa"), "grains") // now categorized
     }
 
     // MARK: - Italian fixtures via canonicalizer
