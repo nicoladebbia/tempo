@@ -37,6 +37,7 @@ enum MealPlanPrompts {
         let isHalal: Bool
         let isNutFree: Bool
         let isShellFishAllergy: Bool
+        let avoidAddedSugars: Bool
         let allergies: [String]
         let dislikedFoods: [String]
 
@@ -49,6 +50,7 @@ enum MealPlanPrompts {
             isHalal = profile.isHalal
             isNutFree = profile.isNutFree
             isShellFishAllergy = profile.isShellFishAllergy
+            avoidAddedSugars = profile.avoidAddedSugars
             allergies = profile.allergies
             dislikedFoods = profile.dislikedFoods
         }
@@ -62,6 +64,7 @@ enum MealPlanPrompts {
             isHalal: Bool = false,
             isNutFree: Bool = false,
             isShellFishAllergy: Bool = false,
+            avoidAddedSugars: Bool = false,
             allergies: [String] = [],
             dislikedFoods: [String] = []
         ) {
@@ -73,6 +76,7 @@ enum MealPlanPrompts {
             self.isHalal = isHalal
             self.isNutFree = isNutFree
             self.isShellFishAllergy = isShellFishAllergy
+            self.avoidAddedSugars = avoidAddedSugars
             self.allergies = allergies
             self.dislikedFoods = dislikedFoods
         }
@@ -118,6 +122,18 @@ enum MealPlanPrompts {
                     .append(
                         "- SHELLFISH ALLERGY (STRICT EXCLUSION): No shrimp, crab, lobster, mussels, clams, oysters, scallops, or any shellfish-derived ingredients."
                     )
+            }
+            if avoidAddedSugars {
+                lines.append(
+                    "- NO ADDED SUGARS (still satisfy a sweet tooth): avoid added, refined, "
+                        + "and processed sugars (table sugar, syrups, honey added as sweetener, "
+                        + "sweetened cereals/yogurts, pastries, sugary drinks). The user DOES want "
+                        + "sweet-tasting options — satisfy cravings with NATURALLY sweet whole foods "
+                        + "(fresh fruit, berries, dates in moderation), unsweetened dairy, and "
+                        + "naturally-sweet breakfasts (e.g. oats with banana/berries, Greek yogurt "
+                        + "with fruit, protein smoothies with no added sugar). Do NOT make the plan "
+                        + "bland or artificially sugar-free; favor whole-food sweetness. Skin/acne-conscious."
+                )
             }
             if !allergies.isEmpty {
                 // Strip newlines and angle brackets so a wizard paste can't

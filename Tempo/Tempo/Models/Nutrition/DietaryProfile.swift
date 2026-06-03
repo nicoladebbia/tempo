@@ -34,6 +34,13 @@ final class DietaryProfile {
 
     var isShellFishAllergy: Bool = false
 
+    /// "I want something sweet, but no added/refined sugars" (e.g. skin/acne
+    /// reasons). When set, the planner satisfies sweet cravings with naturally
+    /// sweet whole foods (fruit, berries) and avoids added/refined sugars and
+    /// sugary processed foods — it does NOT make the plan bland. Default false
+    /// (additive migration).
+    var avoidAddedSugars: Bool = false
+
     var cookingSkillRaw: String = "beginner"
 
     var allergiesJSON: Data?
@@ -139,6 +146,7 @@ final class DietaryProfile {
         id: UUID = UUID(),
         isLactoseFree: Bool = false,
         noCoffee: Bool = false,
+        avoidAddedSugars: Bool = false,
         isGlutenFree: Bool = false,
         isVegetarian: Bool = false,
         isVegan: Bool = false,
@@ -165,6 +173,7 @@ final class DietaryProfile {
         self.id = id
         self.isLactoseFree = isLactoseFree
         self.noCoffee = noCoffee
+        self.avoidAddedSugars = avoidAddedSugars
         self.isGlutenFree = isGlutenFree
         self.isVegetarian = isVegetarian
         self.isVegan = isVegan

@@ -58,6 +58,8 @@ struct DietaryProfileSetupView: View {
     @State
     private var noCoffee: Bool = false
     @State
+    private var avoidAddedSugars: Bool = false
+    @State
     private var isGlutenFree: Bool = false
     @State
     private var isVegetarian: Bool = false
@@ -427,6 +429,23 @@ struct DietaryProfileSetupView: View {
                     Text("No Coffee")
                         .font(.tempoBody)
                         .foregroundStyle(Color.tempoTextPrimary)
+                }
+            }
+            .tint(Color.tempoViolet)
+
+            Toggle(isOn: $avoidAddedSugars) {
+                HStack(spacing: TempoSpacing.sm) {
+                    Image(systemName: "drop.triangle")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color.tempoAmber)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("No Added Sugars")
+                            .font(.tempoBody)
+                            .foregroundStyle(Color.tempoTextPrimary)
+                        Text("Sweet from whole foods, not added sugar")
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                    }
                 }
             }
             .tint(Color.tempoViolet)
@@ -891,6 +910,7 @@ struct DietaryProfileSetupView: View {
         weeklyRateKg = profile.weeklyRateKg ?? 0.5
         isLactoseFree = profile.isLactoseFree
         noCoffee = profile.noCoffee
+        avoidAddedSugars = profile.avoidAddedSugars
         isGlutenFree = profile.isGlutenFree
         isVegetarian = profile.isVegetarian
         isVegan = profile.isVegan
@@ -985,6 +1005,7 @@ struct DietaryProfileSetupView: View {
             existing.weeklyRateKg = primaryGoal == .maintain ? nil : weeklyRateKg
             existing.isLactoseFree = isLactoseFree
             existing.noCoffee = noCoffee
+            existing.avoidAddedSugars = avoidAddedSugars
             existing.isGlutenFree = isGlutenFree
             existing.isVegetarian = isVegetarian
             existing.isVegan = isVegan
@@ -1001,6 +1022,7 @@ struct DietaryProfileSetupView: View {
             let profile = DietaryProfile(
                 isLactoseFree: isLactoseFree,
                 noCoffee: noCoffee,
+                avoidAddedSugars: avoidAddedSugars,
                 isGlutenFree: isGlutenFree,
                 isVegetarian: isVegetarian,
                 isVegan: isVegan,
