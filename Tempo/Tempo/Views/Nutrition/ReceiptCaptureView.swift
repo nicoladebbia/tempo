@@ -15,6 +15,9 @@ import UIKit
 struct ReceiptCaptureView: View {
     let receiptService: any ReceiptServiceProtocol
     let pantryService: any PantryServiceProtocol
+    /// Forwarded to ReceiptReviewView — fires after ingest so the pantry add
+    /// re-deducts from the active grocery list.
+    var onIngested: (() -> Void)?
 
     @Environment(\.dismiss)
     private var dismiss
@@ -51,7 +54,8 @@ struct ReceiptCaptureView: View {
                     ReceiptReviewView(
                         receipt: receipt,
                         receiptService: receiptService,
-                        pantryService: pantryService
+                        pantryService: pantryService,
+                        onIngested: onIngested
                     )
                     .onDisappear { dismiss() }
                 }

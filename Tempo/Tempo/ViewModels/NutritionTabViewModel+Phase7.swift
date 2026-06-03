@@ -188,6 +188,10 @@ extension NutritionTabViewModel {
                 try? context.save()
             }
             reloadPantry()
+            // The pantry just grew → re-deduct it from the active grocery list
+            // so anything you've now got drops off "to buy". No-op when there's
+            // no active list. Preserves already-checked items (see reapplyPantry).
+            reapplyPantryToGrocery()
         } catch {
             pantryState.loadError = error.localizedDescription
         }
@@ -217,6 +221,8 @@ extension NutritionTabViewModel {
                 brand: brand
             )
             reloadPantry()
+            // Stock-take updated the pantry → shrink the active grocery list.
+            reapplyPantryToGrocery()
         } catch {
             pantryState.loadError = error.localizedDescription
         }

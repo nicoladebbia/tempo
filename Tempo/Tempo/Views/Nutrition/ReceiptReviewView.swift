@@ -14,6 +14,9 @@ struct ReceiptReviewView: View {
     let receipt: Receipt
     let receiptService: any ReceiptServiceProtocol
     let pantryService: any PantryServiceProtocol
+    /// Fired after a successful ingest so the presenter can re-deduct the now-
+    /// fuller pantry from the active grocery list (bought items drop off "to buy").
+    var onIngested: (() -> Void)?
 
     @Environment(\.dismiss)
     private var dismiss
@@ -115,6 +118,7 @@ struct ReceiptReviewView: View {
         defer { isIngesting = false }
         do {
             try receiptService.ingestConfirmedLines(of: receipt, into: pantryService)
+            onIngested?()
             dismiss()
         } catch {
             ingestError = error.localizedDescription

@@ -60,7 +60,8 @@ struct PantryView: View {
             {
                 ReceiptCaptureView(
                     receiptService: receiptService,
-                    pantryService: pantryService
+                    pantryService: pantryService,
+                    onIngested: { viewModel.reapplyPantryToGrocery() }
                 )
             } else {
                 Text("Scan unavailable — open the Pantry tab first.")
