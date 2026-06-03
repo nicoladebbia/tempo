@@ -63,6 +63,12 @@ final class PlannedMeal: Identifiable {
 
     var linkedMealLogID: UUID?
 
+    /// True once this meal's pantry stock has been decremented (recipe
+    /// ingredients OR substitute foods). Guards against double-subtract: a
+    /// meal decrements the pantry AT MOST ONCE, even if the user re-marks it
+    /// eaten or corrects a substitute. Additive migration, default false.
+    var didDecrementPantry: Bool = false
+
     /// Wall-clock time the user actually ate this meal. Set by
     /// `NutritionTabViewModel.markMealEaten`. Drives the deterministic
     /// shift of subsequent meals (`MealShiftPlanner`) and feeds into

@@ -38,6 +38,10 @@ struct MarkEatenSheet: View {
     /// real macros from the food database.
     struct Substitute: Equatable, Sendable {
         let note: String
+        /// True when the user confirms they ate this from their own pantry
+        /// (so the parsed foods get decremented). Default false → "ate out" /
+        /// unknown, pantry untouched. Only an explicit tap decrements stock.
+        let usedPantry: Bool
     }
 
     @Environment(\.dismiss)
@@ -55,6 +59,10 @@ struct MarkEatenSheet: View {
     private var ateSomethingElse: Bool = false
     @State
     private var substituteText: String = ""
+    /// "Did you use your pantry, or eat out?" — when true, the parsed foods
+    /// are decremented from the pantry. Default false (ate out / unknown).
+    @State
+    private var usedPantry: Bool = false
 
     /// `startWithSubstitute: true` opens the sheet straight into the "Ate
     /// something else" lane — used by the meal screen's dedicated
@@ -275,7 +283,21 @@ struct MarkEatenSheet: View {
                         .background(Color.tempoBgPrimary)
                         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
                     }
-                    Text("We'll read the real macros from what you ate and log those for today. The planner will see that you swapped this dish.")
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("WHERE FROM?")
+                            .font(.tempoCaption2)
+                            .fontWeight(.semibold)
+                            .tracking(0.4)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                        Picker("Where from", selection: $usedPantry) {
+                            Text("Ate out").tag(false)
+                            Text("Used my pantry").tag(true)
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                    Text(usedPantry
+                        ? "We'll take what you ate off your pantry stock and log the real macros for today."
+                        : "We'll log the real macros for today. Your pantry stays as-is (you ate out / used something untracked).")
                         .font(.tempoCaption2)
                         .foregroundStyle(Color.tempoTextTertiary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -358,7 +380,7 @@ struct MarkEatenSheet: View {
         guard ateSomethingElse else { return nil }
         let trimmed = substituteText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
-        return Substitute(note: trimmed)
+        return Substitute(note: trimmed, usedPantry: usedPantry)
     }
 
     // MARK: - Helpers

@@ -278,7 +278,11 @@ struct NutritionTodayView: View {
                                     modelContext: modelContext,
                                     notifications: services.notifications
                                 )
-                                PantryDecrementService.decrement(for: meal, modelContext: modelContext)
+                                if !meal.didDecrementPantry {
+                                    PantryDecrementService.decrement(for: meal, modelContext: modelContext)
+                                    meal.didDecrementPantry = true
+                                    try? modelContext.save()
+                                }
                             } else {
                                 markEatenMeal = meal
                             }
@@ -439,23 +443,26 @@ struct NutritionTodayView: View {
                 meal, at: eatTime, modelContext: modelContext,
                 notifications: services.notifications
             )
-            PantryDecrementService.decrement(for: meal, modelContext: modelContext)
+            if !meal.didDecrementPantry {
+                PantryDecrementService.decrement(for: meal, modelContext: modelContext)
+                meal.didDecrementPantry = true
+            }
             if feel != nil {
                 let feedback = MealFeedback(plannedMeal: meal, mealFeel: feel)
                 modelContext.insert(feedback)
-                try? modelContext.save()
             }
+            try? modelContext.save()
             viewModel.refreshFeedbackPresence(modelContext: modelContext)
             return
         }
         // Substitute → parse "what you ate" into real foods + DB macros via the
         // NL pipeline and REPLACE the meal's foods/macros (same as the meal
         // detail screen). No MealLog (day totals sum PlannedMeal → double-count).
-        Task { await resolveSubstitute(meal: meal, note: substitute.note, feel: feel) }
+        Task { await resolveSubstitute(meal: meal, note: substitute.note, usedPantry: substitute.usedPantry, feel: feel) }
     }
 
     @MainActor
-    private func resolveSubstitute(meal: PlannedMeal, note: String, feel: MealFeel?) async {
+    private func resolveSubstitute(meal: PlannedMeal, note: String, usedPantry: Bool, feel: MealFeel?) async {
         let nl = NaturalLanguageLoggingService(apiClient: services.apiClient)
         do {
             let items = try await nl.parseNaturalLanguage(note)
@@ -476,6 +483,12 @@ struct NutritionTodayView: View {
                 meal, at: .now, modelContext: modelContext,
                 notifications: services.notifications
             )
+            if usedPantry, !meal.didDecrementPantry {
+                _ = PantryDecrementService.decrement(
+                    foods: meal.foods, label: meal.mealName, modelContext: modelContext
+                )
+                meal.didDecrementPantry = true
+            }
             let feedback = MealFeedback(plannedMeal: meal, mealFeel: feel, substituteNote: note)
             modelContext.insert(feedback)
             try? modelContext.save()

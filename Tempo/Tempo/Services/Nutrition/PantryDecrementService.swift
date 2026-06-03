@@ -60,6 +60,33 @@ enum PantryDecrementService {
         guard let ingredients = meal.recipe?.ingredients, !ingredients.isEmpty else {
             return []
         }
+        let pairs = ingredients
+            .filter { !$0.isOptional }
+            .map { ($0.canonicalFoodName, $0.quantityGrams) }
+        return decrement(pairs: pairs, label: meal.mealName, modelContext: modelContext)
+    }
+
+    /// Decrement the pantry by an arbitrary list of foods — used when a meal
+    /// was SUBSTITUTED (recipe cleared, actual foods in `meal.foods`) and the
+    /// user confirms they used pantry stock. Same per-item logic as the
+    /// recipe path (staple-skip, unit conversion, floor at zero).
+    @discardableResult
+    static func decrement(
+        foods: [PlannedFood],
+        label: String,
+        modelContext: ModelContext
+    ) -> [PantryDecrementResult] {
+        let pairs = foods.map { ($0.name, $0.quantityGrams) }
+        return decrement(pairs: pairs, label: label, modelContext: modelContext)
+    }
+
+    /// Shared per-item decrement loop over (canonicalName, grams) pairs.
+    private static func decrement(
+        pairs: [(String, Double)],
+        label: String,
+        modelContext: ModelContext
+    ) -> [PantryDecrementResult] {
+        guard !pairs.isEmpty else { return [] }
 
         // Fetch all non-archived pantry rows once and index by canonical
         // name. Pantry size is bounded (~50–150 items); a single fetch is
@@ -76,9 +103,9 @@ enum PantryDecrementService {
         }
 
         var results: [PantryDecrementResult] = []
-        for ingredient in ingredients where !ingredient.isOptional {
-            let canonical = ingredient.canonicalFoodName.lowercased()
-            let grams = ingredient.quantityGrams
+        for (rawName, rawGrams) in pairs {
+            let canonical = FoodCanonicalizer.canonicalize(rawName).lowercased()
+            let grams = rawGrams
             guard grams > 0 else { continue }
 
             // Staple? Don't decrement (you bought a jar of salt months ago).
@@ -135,12 +162,12 @@ enum PantryDecrementService {
 
         do {
             try modelContext.save()
-            logger.info("Pantry decrement for \(meal.mealName, privacy: .public): \(results.count) ingredient(s)")
+            logger.info("Pantry decrement for \(label, privacy: .public): \(results.count) item(s)")
         } catch {
             // A failed save leaves quantities mutated in memory but not on
             // disk; surfacing the error in the log makes a stale-pantry
             // bug debuggable instead of silently rolling back at relaunch.
-            logger.error("Pantry decrement save failed for \(meal.mealName, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            logger.error("Pantry decrement save failed for \(label, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
         return results
     }

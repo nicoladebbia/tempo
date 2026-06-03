@@ -500,9 +500,13 @@ struct MealDetailView: View {
         substitute: MarkEatenSheet.Substitute?
     ) {
         guard let substitute else {
-            // Plain "ate the planned meal" — synchronous, unchanged.
+            // Plain "ate the planned meal" — synchronous. Decrement once.
             recordEaten(at: eatTime, feel: feel)
-            PantryDecrementService.decrement(for: meal, modelContext: modelContext)
+            if !meal.didDecrementPantry {
+                PantryDecrementService.decrement(for: meal, modelContext: modelContext)
+                meal.didDecrementPantry = true
+                try? modelContext.save()
+            }
             HapticManager.notification(.success)
             return
         }
@@ -510,7 +514,7 @@ struct MealDetailView: View {
         // via the NL pipeline, then REPLACE the meal's foods/macros so the
         // detail screen shows what was actually eaten (not the old recipe, not
         // zeros). One Haiku call. Eat time defaults to now (no scrubber here).
-        Task { await resolveSubstitute(note: substitute.note, feel: feel) }
+        Task { await resolveSubstitute(note: substitute.note, usedPantry: substitute.usedPantry, feel: feel) }
     }
 
     /// Shared eaten-status write (status + time + notifications + feedback).
@@ -535,7 +539,7 @@ struct MealDetailView: View {
     }
 
     @MainActor
-    private func resolveSubstitute(note: String, feel: MealFeel?) async {
+    private func resolveSubstitute(note: String, usedPantry: Bool, feel: MealFeel?) async {
         if nlService == nil {
             nlService = NaturalLanguageLoggingService(apiClient: services.apiClient)
         }
@@ -569,9 +573,17 @@ struct MealDetailView: View {
             // foods (noRecipeFallback) instead of the original dish.
             meal.recipe = nil
             recordEaten(at: .now, feel: feel, substituteNote: note)
-            // Substitute means the planned ingredients were NOT used → no pantry
-            // decrement here (the "did you use pantry / eat out?" follow-up will
-            // own that decision).
+            // Decrement the pantry ONLY if the user said they used their own
+            // stock, and only once per meal (guard against re-edit
+            // double-subtract). "Ate out" / unknown leaves the pantry alone.
+            if usedPantry, !meal.didDecrementPantry {
+                let foods = meal.foods
+                _ = PantryDecrementService.decrement(
+                    foods: foods, label: meal.mealName, modelContext: modelContext
+                )
+                meal.didDecrementPantry = true
+                try? modelContext.save()
+            }
             HapticManager.notification(.success)
         } catch {
             substituteError = "Couldn't read that: \(error.localizedDescription). Your note is kept — try again."
