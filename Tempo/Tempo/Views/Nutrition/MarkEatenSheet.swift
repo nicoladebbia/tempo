@@ -57,6 +57,19 @@ struct MarkEatenSheet: View {
     @State
     private var substituteCaloriesText: String = ""
 
+    /// `startWithSubstitute: true` opens the sheet straight into the "Ate
+    /// something else" lane — used by the meal screen's dedicated
+    /// "Ate something else" button so the swap path is one tap, not buried.
+    init(
+        meal: PlannedMeal,
+        startWithSubstitute: Bool = false,
+        onCommit: @escaping (Date, MealFeel?, Substitute?) -> Void
+    ) {
+        self.meal = meal
+        self.onCommit = onCommit
+        _ateSomethingElse = State(initialValue: startWithSubstitute)
+    }
+
     /// Largest amount of backward fill we allow. 4h covers "I ate
     /// breakfast at 7:30, tapped at 11:30" without giving the user enough
     /// rope to backfill a different day's meal.

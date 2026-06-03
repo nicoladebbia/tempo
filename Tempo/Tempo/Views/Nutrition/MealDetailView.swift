@@ -57,6 +57,10 @@ struct MealDetailView: View {
     private var presentEatTimeEditor: Bool = false
     @State
     private var eatTimeEdit: Date = .now
+    /// When true, the Mark-Eaten sheet opens straight into the "Ate something
+    /// else" lane (set by the dedicated swap button below).
+    @State
+    private var openSheetToSubstitute: Bool = false
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -91,7 +95,7 @@ struct MealDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadWakeSignal() }
         .sheet(isPresented: $presentMarkEatenSheet) {
-            MarkEatenSheet(meal: meal) { eatTime, feel, substitute in
+            MarkEatenSheet(meal: meal, startWithSubstitute: openSheetToSubstitute) { eatTime, feel, substitute in
                 commitMarkEaten(at: eatTime, feel: feel, substitute: substitute)
             }
             .presentationDetents([.medium, .large])
@@ -263,8 +267,12 @@ struct MealDetailView: View {
                     if !phase.isResolved {
                         timelineTrack(now: now, display: display, phase: phase)
                     }
-                    if case .overdue = phase {
-                        overdueActions
+                    // Action row (Mark Eaten / Skip / Ate something else) for
+                    // ANY not-yet-resolved meal — not just overdue. Lets you
+                    // record what you ate (or a swap) even before the meal's
+                    // scheduled time, e.g. you ate breakfast early.
+                    if !phase.isResolved {
+                        mealActions
                     }
                 }
             }
@@ -347,31 +355,49 @@ struct MealDetailView: View {
     /// shift flow happens upstream when actions originate from the day
     /// list. From this screen we do the minimum honest thing: record the
     /// status, cancel pending notifications, save.
-    private var overdueActions: some View {
-        HStack(spacing: TempoSpacing.sm) {
-            Button {
-                resolveAsEaten()
-            } label: {
-                Label("Mark Eaten", systemImage: "checkmark.circle.fill")
-                    .font(.tempoCallout)
-                    .fontWeight(.semibold)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(Color.tempoSuccess.opacity(0.18))
-                    .foregroundStyle(Color.tempoSuccess)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+    private var mealActions: some View {
+        VStack(spacing: TempoSpacing.sm) {
+            HStack(spacing: TempoSpacing.sm) {
+                Button {
+                    resolveAsEaten()
+                } label: {
+                    Label("Mark Eaten", systemImage: "checkmark.circle.fill")
+                        .font(.tempoCallout)
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Color.tempoSuccess.opacity(0.18))
+                        .foregroundStyle(Color.tempoSuccess)
+                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                Button {
+                    resolveAsSkipped()
+                } label: {
+                    Label("Skip", systemImage: "xmark.circle.fill")
+                        .font(.tempoCallout)
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Color.tempoError.opacity(0.15))
+                        .foregroundStyle(Color.tempoError)
+                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+            // "Ate something else" — surfaces the substitute lane directly
+            // instead of burying it inside the Mark-Eaten sheet. Opens the
+            // same sheet pre-expanded to the swap section.
             Button {
-                resolveAsSkipped()
+                resolveAsSubstitute()
             } label: {
-                Label("Skip", systemImage: "xmark.circle.fill")
+                Label("Ate something else", systemImage: "arrow.triangle.swap")
                     .font(.tempoCallout)
                     .fontWeight(.semibold)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
-                    .background(Color.tempoError.opacity(0.15))
-                    .foregroundStyle(Color.tempoError)
+                    .background(Color.tempoSurfaceCard)
+                    .foregroundStyle(Color.tempoTextPrimary)
                     .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
             }
             .buttonStyle(.plain)
@@ -382,6 +408,13 @@ struct MealDetailView: View {
     /// Sheet's onCommit calls `commitMarkEaten` below with the chosen
     /// time + optional meal-feel chip.
     private func resolveAsEaten() {
+        openSheetToSubstitute = false
+        presentMarkEatenSheet = true
+    }
+
+    /// Opens the Mark-Eaten sheet straight into the "Ate something else" lane.
+    private func resolveAsSubstitute() {
+        openSheetToSubstitute = true
         presentMarkEatenSheet = true
     }
 
