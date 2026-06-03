@@ -43,10 +43,12 @@ struct PantryGapAlert: Identifiable, Equatable {
     let missingIngredients: [String]
 
     var summary: String {
+        // "Missing" = not in the pantry = you need to BUY it. So this routes to
+        // the grocery list, not the pantry (you don't already have these).
         if missingIngredients.count == 1 {
-            return "You're missing \(missingIngredients[0]). Add it to pantry?"
+            return "This plan needs \(missingIngredients[0]), which isn't in your pantry. Add it to your grocery list?"
         }
-        return "You're missing \(missingIngredients.count) ingredients for this plan. Add them to pantry?"
+        return "This plan needs \(missingIngredients.count) items you don't have in your pantry. Add them to your grocery list to buy?"
     }
 }
 
@@ -924,7 +926,20 @@ final class NutritionTabViewModel {
             }
         }
 
-        let missing = needed.subtracting(pantryNames).sorted()
+        // Exclude staples + water from the "missing" count. The grocery list
+        // already suppresses staples (you don't re-buy salt/oil/water every
+        // week), but this gap calc was counting them — inflating the number
+        // and producing nonsense like "missing: water". Mirror that gate here.
+        let missing = needed
+            .subtracting(pantryNames)
+            .filter { name in
+                if name == "water" { return false }
+                if let portion = FoodMacroDatabase.naturalPortions[name], portion.isStaple {
+                    return false
+                }
+                return true
+            }
+            .sorted()
         guard !missing.isEmpty else {
             return nil
         }

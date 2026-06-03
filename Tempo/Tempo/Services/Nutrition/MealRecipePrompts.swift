@@ -52,6 +52,13 @@ enum MealRecipePrompts {
        Use cups / tbsp / tsp for liquids and dry goods; pieces (egg, breast,
        carrot, banana) where the natural unit is a whole item; cans for
        canned legumes/tomatoes. NEVER output an empty string here.
+       9. BUT do NOT invent a whole-item count for a food that is already a
+       measured or processed form — "shredded", "diced", "ground", "sliced",
+       "minced", "chopped", a sauce, a powder, or anything sold/stored by
+       weight. For those, keep the gram/ml amount as the displayQuantity
+       (e.g. 80g shredded carrots → "80 g shredded carrots", NOT "1 carrot";
+       120g ground beef → "120 g ground beef"). Only use whole-item counts
+       for foods genuinely bought as whole units.
 
     JSON SCHEMA (strict):
     {

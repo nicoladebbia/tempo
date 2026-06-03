@@ -31,8 +31,10 @@ final class MealPlanPromptsTests: XCTestCase {
         XCTAssertTrue(block.contains("</weekly_intake>"))
         XCTAssertTrue(block.contains("Cookable days this week: 3"))
         XCTAssertTrue(block.contains("2-3 consecutive days"))
-        XCTAssertTrue(block.contains("First meal anchored at 08:00"))
-        XCTAssertTrue(block.contains("Last meal anchored at 20:00"))
+        // Eating window is now expressed as OUTER BOUNDS, not a per-meal
+        // anchor (so it doesn't fight the wake-derived observed_meal_times).
+        XCTAssertTrue(block.contains("no meal before 08:00"))
+        XCTAssertTrue(block.contains("or after 20:00"))
     }
 
     func testWeeklyIntakeBlock_omitsOptionalFieldsWhenAbsent() {
