@@ -98,10 +98,16 @@ enum GroceryListGenerator {
         }
 
         // Pantry-on-hand lookup for the staple gate. Key by canonical name.
+        // Brand-split (§voice-pantry) allows MULTIPLE rows per canonical name
+        // (two different "sauce" products), so this must tolerate duplicate
+        // keys — uniqueKeysWithValues TRAPS on them (device crash 2026-06-03).
+        // Keep the HIGHER-quantity row: this dict only feeds the staple gate's
+        // `onHand > 0` check, so a non-zero row should win over a zeroed one.
         let pantryByName = Dictionary(
-            uniqueKeysWithValues: input.pantry
+            input.pantry
                 .filter { !$0.isArchived }
-                .map { ($0.canonicalName.lowercased(), $0) }
+                .map { ($0.canonicalName.lowercased(), $0) },
+            uniquingKeysWith: { $0.quantity >= $1.quantity ? $0 : $1 }
         )
 
         // Drop fully-covered items, then rewrite remaining entries in

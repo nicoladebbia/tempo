@@ -118,6 +118,34 @@ final class GroceryListGeneratorTests: XCTestCase {
         )
     }
 
+    // Regression: the brand-split feature made it possible to have MULTIPLE
+    // pantry rows that canonicalize to the same name (e.g. two different
+    // "sauce" products). The staple-gate lookup used
+    // Dictionary(uniqueKeysWithValues:), which TRAPS on a duplicate key →
+    // generate() crashed the moment a real pantry held two same-canonical rows
+    // (device crash 2026-06-03, "Duplicate values for key: 'sauce'"). Must
+    // tolerate duplicates and still subtract BOTH rows' stock.
+    func testGenerate_duplicateCanonicalPantryRows_doesNotCrash() {
+        let plan = makePlan(foodsByMeal: [
+            [food("Sauce", 800)],
+        ])
+        let pantry = [
+            PantryItem(canonicalName: "sauce", displayName: "Chick-fil-A Sauce",
+                       brand: "Chick-fil-A", quantity: 473, unit: .milliliters),
+            PantryItem(canonicalName: "sauce", displayName: "Japanese Dipping Sauce",
+                       brand: "Kikkoman", quantity: 354, unit: .grams),
+        ]
+        // Pre-fix: this line traps. Post-fix: returns without crashing.
+        let aggregated = GroceryListGenerator.generate(from: .init(
+            mealPlan: plan, pantry: pantry, weekStartDate: Date()
+        ))
+        // 473 + 354 = 827 ml/g ≈ covers the 800g need → sauce drops off.
+        XCTAssertFalse(
+            aggregated.contains { $0.canonicalName == "sauce" },
+            "Both sauce rows' stock subtracted (473+354 > 800) → fully covered, dropped"
+        )
+    }
+
     func testGenerate_dropsFullyCovered() {
         let plan = makePlan(foodsByMeal: [
             [food("Salmon", 200)],
