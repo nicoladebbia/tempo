@@ -413,7 +413,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
     /// `mealNumber`. Reads `PlannedMeal.actualEatenAt` (set by `markMealEaten`).
     /// Returns nil/empty when there's no signal yet so the prompt falls back
     /// to the schema defaults (07:30 / 12:30 / 19:30 / 16:00).
-    private func observedMealTimes(
+    func observedMealTimes(
         modelContext: ModelContext,
         windowDays: Int = 14,
         wakeMinutesOverride: Int? = nil
@@ -470,11 +470,18 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         func clampToCeiling(_ minutes: Int, ceiling: Int) -> Int {
             min(minutes, ceiling)
         }
+        // mealNumber → time. NOTE the labels: 1 Breakfast, 2 Lunch,
+        // 3 DINNER (evening), 4 SNACK (afternoon). Chronologically the
+        // afternoon Snack falls BEFORE Dinner, so slot 4's time is earlier
+        // than slot 3's — the Plan/Today views sort by scheduledTime, not
+        // mealNumber, so this renders in the right order. (This fixes the
+        // prior swap where Dinner got the 16:30 afternoon slot and Snack
+        // got 21:00.)
         let defaults: [Int: Int] = [
-            1: wakeMinutes + 60,
-            2: clampToCeiling(wakeMinutes + 300, ceiling: 13 * 60 + 30),
-            3: clampToCeiling(wakeMinutes + 480, ceiling: 16 * 60 + 30),
-            4: clampToCeiling(wakeMinutes + 720, ceiling: 21 * 60),
+            1: wakeMinutes + 60, // Breakfast: wake + 1h
+            2: clampToCeiling(wakeMinutes + 300, ceiling: 13 * 60 + 30), // Lunch ≤13:30
+            3: clampToCeiling(wakeMinutes + 600, ceiling: 20 * 60 + 30), // Dinner (evening) ≤20:30
+            4: clampToCeiling(wakeMinutes + 420, ceiling: 17 * 60), // Snack (afternoon) ≤17:00
         ]
 
         var result: [Int: String] = [:]

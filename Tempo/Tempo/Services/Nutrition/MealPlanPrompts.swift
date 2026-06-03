@@ -313,8 +313,14 @@ enum MealPlanPrompts {
         <observed_meal_times>
         \(lines)
 
-        Use these as the scheduledTime defaults for the matching mealNumber. \
-        Override the 07:30 / 12:30 / 19:30 / 16:00 hints when an observation exists.
+        These are the user's REAL eating times, anchored to when they actually \
+        wake. You MUST set each meal's "scheduledTime" to the time given here \
+        for that mealNumber — use it verbatim for EVERY day of the week. Do NOT \
+        substitute generic times and do NOT average toward 07:30/12:30. \
+        mealNumber 4 ("Snack") is an AFTERNOON snack and mealNumber 3 \
+        ("Dinner") is the evening meal, so chronologically the day runs \
+        Breakfast < Lunch < Snack(#4) < Dinner(#3). Keep that clock order even \
+        though the Snack's mealNumber is higher.
         </observed_meal_times>
         """
     }
@@ -512,7 +518,7 @@ enum MealPlanPrompts {
                         {
                             "mealNumber": 1,
                             "mealName": "Breakfast",
-                            "scheduledTime": "07:30",
+                            "scheduledTime": "HH:mm (use the observed_meal_times value for this mealNumber)",
                             "foods": [
                                 {
                                     "name": "string (food name, lowercase)",
@@ -534,7 +540,11 @@ enum MealPlanPrompts {
         - dayType must be one of: strength, cardio, soccer, double, rest.
         - dayType assignment: when an <actual_training_schedule> block is provided above, you MUST use the mapping it specifies for each day. Only when no schedule is given fall back to a typical 3-4 training / 1-2 rest week with varied types.
         - mealNumber: 1 = Breakfast, 2 = Lunch, 3 = Dinner, 4 = Snack.
-        - scheduledTime format: "HH:mm" (24h). Breakfast ~07:30, Lunch ~12:30, Dinner ~19:30, Snack ~16:00.
+        - scheduledTime format: "HH:mm" (24h). When an <observed_meal_times> \
+        block is provided above, you MUST use its times verbatim for every day \
+        — they are anchored to the user's real wake time. Only when no observed \
+        block exists, fall back to Breakfast ~08:00, Lunch ~12:30, Snack ~16:00, \
+        Dinner ~19:30 (afternoon Snack #4 before evening Dinner #3).
         - Each food's macros must be realistic for the stated quantity. Reference standard per-100g values.
         - Each meal's total macros (sum of foods) must match the meal's share of the day's target within 5%.
         - Each day's total macros (sum of meals) must match the day type's target within 3%.

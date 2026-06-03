@@ -435,7 +435,15 @@ struct NutritionWeeklyPlanView: View {
         let dayStart = calendar.startOfDay(for: date)
         return (plan.meals ?? [])
             .filter { calendar.isDate($0.dayDate, inSameDayAs: dayStart) }
-            .sorted { $0.mealNumber < $1.mealNumber }
+            // Sort by clock time, not mealNumber — the afternoon Snack
+            // (mealNumber 4) falls before Dinner (mealNumber 3), so a
+            // mealNumber sort would render them out of order. Mirrors the
+            // Today view's time sort (NutritionTabViewModel.minutesOfDay).
+            .sorted {
+                let lhs = NutritionTabViewModel.minutesOfDay(from: $0.scheduledTime) ?? Int.max
+                let rhs = NutritionTabViewModel.minutesOfDay(from: $1.scheduledTime) ?? Int.max
+                return lhs < rhs
+            }
     }
 
     private func dayLabel(for date: Date) -> String {

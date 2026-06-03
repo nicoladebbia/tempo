@@ -144,7 +144,14 @@ struct EatingWindow: Sendable, Equatable {
     var formattedForPrompt: String {
         let firstFormatted = String(format: "%02d:00", firstMealHour)
         let lastFormatted = String(format: "%02d:00", lastMealHour)
-        return "First meal anchored at \(firstFormatted). Last meal anchored at \(lastFormatted)."
+        // OUTER BOUNDS, not the meal target. The actual meal times come from
+        // <observed_meal_times> (anchored to the user's real wake). This window
+        // only constrains: no meal scheduled before firstFormatted or after
+        // lastFormatted. Phrasing it as "anchored at 08:00" previously made the
+        // AI pin breakfast to 08:00, fighting the wake-derived time.
+        return "Eating window bounds: schedule no meal before \(firstFormatted) "
+            + "or after \(lastFormatted). Within those bounds, use the "
+            + "observed_meal_times exactly."
     }
 }
 
