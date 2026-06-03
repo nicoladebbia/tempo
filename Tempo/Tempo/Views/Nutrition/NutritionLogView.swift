@@ -28,6 +28,11 @@ struct NutritionLogView: View {
     private var naturalLanguageInput: String = ""
     @State
     private var showPhotoAnalysis = false
+    /// Foods confirmed in the photo-analysis sheet, stashed here so we can
+    /// present the review sheet AFTER the photo sheet finishes dismissing
+    /// (presenting synchronously inside the callback glitches sheet-over-sheet).
+    @State
+    private var photoFoodsPendingReview: [ParsedFoodItem]?
     @State
     private var toast: ToastData?
 
@@ -97,10 +102,37 @@ struct NutritionLogView: View {
             .padding(.bottom, TempoSpacing.bottomSafe)
         }
         .sheet(isPresented: $showPhotoAnalysis) {
-            PhotoAnalysisView { _ in }
-                .onDisappear {
-                    viewModel.loadToday(modelContext: modelContext)
+            PhotoAnalysisView { items in
+                // Convert the confirmed photo foods to ParsedFoodItem and
+                // stash them. quantityGrams is best-effort (vision portions
+                // like "1 cup" / "diced" aren't reliably grams) — it only
+                // drives the serving-size display; calories + macros are the
+                // payload and carry through exactly.
+                photoFoodsPendingReview = items.map { food in
+                    ParsedFoodItem(
+                        id: food.id.uuidString,
+                        name: food.name,
+                        quantityGrams: Self.gramsFromServingSize(food.servingSize),
+                        calories: Double(food.calories),
+                        proteinG: food.protein,
+                        carbsG: food.carbs,
+                        fatG: food.fat,
+                        isVerified: false
+                    )
                 }
+            }
+            .onDisappear {
+                // Hand off across the dismiss boundary: present the review
+                // sheet (meal-type picker + commitParsed) only once the photo
+                // sheet has fully dismissed, avoiding sheet-over-sheet glitches.
+                if let pending = photoFoodsPendingReview, !pending.isEmpty {
+                    parsedFoodsForReview = pending
+                    parsedMealTypeHint = nil
+                    parsedEatenAtHint = nil
+                    photoFoodsPendingReview = nil
+                }
+                viewModel.loadToday(modelContext: modelContext)
+            }
         }
         .sheet(item: Binding<ParsedFoodReviewPayload?>(
             get: { parsedFoodsForReview.map { ParsedFoodReviewPayload(items: $0) } },
@@ -487,6 +519,18 @@ struct NutritionLogView: View {
         // meal (append new distinct foods), implicit replace for a
         // still-planned slot is handled inside commitParsed.
         commitParsed(items, type: type, eatenAt: eatenAt, resolution: .add)
+    }
+
+    /// Best-effort grams from a vision serving-size string. Returns the
+    /// leading number only when the unit is grams ("250g", "250 g"); anything
+    /// else ("1 cup", "diced", "medium") yields 0 — quantityGrams is cosmetic
+    /// here (drives serving-size display only), so a 0 doesn't affect the
+    /// logged calories or macros.
+    static func gramsFromServingSize(_ serving: String) -> Double {
+        let lower = serving.lowercased()
+        guard lower.contains("g") else { return 0 }
+        let number = lower.prefix { $0.isNumber || $0 == "." }
+        return Double(number) ?? 0
     }
 
     /// Performs the actual MealLog + PlannedMeal write. `resolution`
