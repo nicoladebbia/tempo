@@ -86,6 +86,38 @@ final class GroceryListGeneratorTests: XCTestCase {
         XCTAssertNil(byName["oats"])
     }
 
+    // The bug: generate() only subtracted pantry stock when the pantry item's
+    // unit EXACTLY matched the (always-grams) aggregated need. A voice/scan
+    // pantry holds items in ml / lb / pieces, so they were silently NOT
+    // subtracted → the list told you to buy food you already had. The fix
+    // converts both sides to grams via gramsApprox (same as reapplyPantry).
+    func testGenerate_subtractsPantryAcrossUnits_gramConvertible() throws {
+        // Ground beef is non-staple (so the staple gate can't mask the result)
+        // and lb→g convertible. Need 2000g; pantry holds 2 lb (~907g) in a
+        // DIFFERENT unit than the grams need. Cross-unit subtraction must leave
+        // ~1093g to buy. Compare against the no-pantry baseline: if the
+        // subtraction is unit-blind (the bug), both are identical.
+        let plan = makePlan(foodsByMeal: [
+            [food("Ground Beef", 2000)],
+        ])
+        let baseline = GroceryListGenerator.generate(from: .init(
+            mealPlan: plan, pantry: [], weekStartDate: Date()
+        )).first { $0.canonicalName == "ground beef" }
+        let withPantry = GroceryListGenerator.generate(from: .init(
+            mealPlan: plan,
+            pantry: [PantryItem(canonicalName: "ground beef", displayName: "Ground Beef",
+                                quantity: 2, unit: .pounds)],
+            weekStartDate: Date()
+        )).first { $0.canonicalName == "ground beef" }
+
+        let base = try XCTUnwrap(baseline)
+        let withP = try XCTUnwrap(withPantry, "Still some to buy after partial cover")
+        XCTAssertLessThan(
+            withP.quantity, base.quantity,
+            "2 lb of pantry beef must reduce the 2000g need even though units differ"
+        )
+    }
+
     func testGenerate_dropsFullyCovered() {
         let plan = makePlan(foodsByMeal: [
             [food("Salmon", 200)],

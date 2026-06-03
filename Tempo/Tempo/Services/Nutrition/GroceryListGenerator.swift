@@ -74,13 +74,26 @@ enum GroceryListGenerator {
             }
         }
 
-        // Subtract pantry on-hand.
+        // Subtract pantry on-hand. The aggregated need is always in grams
+        // (above), but a pantry item may be in ANY unit (voice/scan stock is
+        // often ml / lb / pieces / packs). Convert the pantry quantity to
+        // grams via gramsApprox — the SAME cross-unit reconciliation
+        // reapplyPantry uses — instead of requiring unit equality, which
+        // silently skipped every non-gram pantry item (telling you to buy
+        // food you already had). When a pieces/packs food has no
+        // naturalPortions entry, gramsApprox returns nil → skip it
+        // (under-dedup is the safe failure: leave it on the list).
         for pantryItem in input.pantry where !pantryItem.isArchived {
             let canonical = pantryItem.canonicalName
-            guard var entry = aggregated[canonical], entry.unit == pantryItem.unit else {
+            guard var entry = aggregated[canonical] else {
                 continue
             }
-            entry.quantity = max(0, entry.quantity - pantryItem.quantity)
+            guard let onHandGrams = pantryItem.unit.gramsApprox(
+                quantity: pantryItem.quantity, foodName: canonical
+            ) else {
+                continue
+            }
+            entry.quantity = max(0, entry.quantity - onHandGrams)
             aggregated[canonical] = entry
         }
 
