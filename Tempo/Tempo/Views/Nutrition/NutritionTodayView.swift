@@ -434,37 +434,56 @@ struct NutritionTodayView: View {
         feel: MealFeel?,
         substitute: MarkEatenSheet.Substitute?
     ) {
-        if let substitute {
-            meal.totalCalories = substitute.calories ?? 0
-            // No per-macro estimate — only the calorie field exists in
-            // the quick-swap lane. Protein/carbs/fat are unknown.
-            meal.totalProtein = 0
-            meal.totalCarbs = 0
-            meal.totalFat = 0
-        }
-        viewModel.markMealEaten(
-            meal,
-            at: eatTime,
-            modelContext: modelContext,
-            notifications: services.notifications
-        )
-        // Pantry decrement runs only when the user actually ate the
-        // planned dish. A substitute means the planned ingredients are
-        // still on the shelf.
-        if substitute == nil {
-            PantryDecrementService.decrement(for: meal, modelContext: modelContext)
-        }
-        if feel != nil || substitute != nil {
-            let feedback = MealFeedback(
-                plannedMeal: meal,
-                mealFeel: feel,
-                substituteNote: substitute?.note,
-                substituteCalories: substitute?.calories
+        guard let substitute else {
+            viewModel.markMealEaten(
+                meal, at: eatTime, modelContext: modelContext,
+                notifications: services.notifications
             )
+            PantryDecrementService.decrement(for: meal, modelContext: modelContext)
+            if feel != nil {
+                let feedback = MealFeedback(plannedMeal: meal, mealFeel: feel)
+                modelContext.insert(feedback)
+                try? modelContext.save()
+            }
+            viewModel.refreshFeedbackPresence(modelContext: modelContext)
+            return
+        }
+        // Substitute → parse "what you ate" into real foods + DB macros via the
+        // NL pipeline and REPLACE the meal's foods/macros (same as the meal
+        // detail screen). No MealLog (day totals sum PlannedMeal → double-count).
+        Task { await resolveSubstitute(meal: meal, note: substitute.note, feel: feel) }
+    }
+
+    @MainActor
+    private func resolveSubstitute(meal: PlannedMeal, note: String, feel: MealFeel?) async {
+        let nl = NaturalLanguageLoggingService(apiClient: services.apiClient)
+        do {
+            let items = try await nl.parseNaturalLanguage(note)
+            guard !items.isEmpty else { return }
+            meal.foods = items.map {
+                PlannedFood(
+                    name: $0.name, quantityGrams: $0.quantityGrams,
+                    calories: $0.calories, proteinG: $0.proteinG,
+                    carbsG: $0.carbsG, fatG: $0.fatG
+                )
+            }
+            meal.totalCalories = items.reduce(0) { $0 + $1.calories }
+            meal.totalProtein = items.reduce(0) { $0 + $1.proteinG }
+            meal.totalCarbs = items.reduce(0) { $0 + $1.carbsG }
+            meal.totalFat = items.reduce(0) { $0 + $1.fatG }
+            meal.recipe = nil
+            viewModel.markMealEaten(
+                meal, at: .now, modelContext: modelContext,
+                notifications: services.notifications
+            )
+            let feedback = MealFeedback(plannedMeal: meal, mealFeel: feel, substituteNote: note)
             modelContext.insert(feedback)
             try? modelContext.save()
+            viewModel.refreshFeedbackPresence(modelContext: modelContext)
+        } catch {
+            // Parse failed — leave the meal untouched (planned, not eaten) so
+            // the user can retry. The Today row keeps its planned state.
         }
-        viewModel.refreshFeedbackPresence(modelContext: modelContext)
     }
 
 }

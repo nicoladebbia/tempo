@@ -62,6 +62,23 @@ struct MealDetailView: View {
     @State
     private var openSheetToSubstitute: Bool = false
 
+    /// Parses "what did you eat" text into real foods + DB macros for the
+    /// substitute lane. Built lazily from the shared apiClient.
+    @State
+    private var nlService: NaturalLanguageLoggingService?
+
+    /// True while a substitute note is being parsed through the NL pipeline.
+    /// The sheet has already dismissed by the time the parse runs, so the
+    /// spinner lives here on the detail screen. Drives a blocking overlay so
+    /// the user can't fire a second mark-eaten mid-parse.
+    @State
+    private var isResolvingSubstitute: Bool = false
+    /// Set when the NL parse fails or returns nothing. Surfaced as an alert.
+    /// On failure the meal is left fully intact (recipe + macros + planned
+    /// status) so the user loses nothing and can retry.
+    @State
+    private var substituteError: String?
+
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: TempoSpacing.xl) {
@@ -98,11 +115,50 @@ struct MealDetailView: View {
             MarkEatenSheet(meal: meal, startWithSubstitute: openSheetToSubstitute) { eatTime, feel, substitute in
                 commitMarkEaten(at: eatTime, feel: feel, substitute: substitute)
             }
-            .presentationDetents([.medium, .large])
+            // Open large when entering the substitute lane so the "what did you
+            // eat" field is on-screen, not clipped below a .medium fold.
+            .presentationDetents(openSheetToSubstitute ? [.large] : [.medium, .large])
         }
         .sheet(isPresented: $presentEatTimeEditor) {
             eatTimeEditorSheet
                 .presentationDetents([.height(280)])
+        }
+        .overlay {
+            if isResolvingSubstitute {
+                substituteResolvingOverlay
+            }
+        }
+        .alert(
+            "Couldn't log that",
+            isPresented: Binding(
+                get: { substituteError != nil },
+                set: { if !$0 { substituteError = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { substituteError = nil }
+        } message: {
+            Text(substituteError ?? "Try describing what you ate a bit differently.")
+        }
+    }
+
+    /// Blocking spinner shown while the substitute note is parsed. The sheet
+    /// is already gone, so this is the only feedback the user gets that work
+    /// is happening — keep it on top of the scroll content.
+    private var substituteResolvingOverlay: some View {
+        ZStack {
+            Color.tempoBgPrimary.opacity(0.7)
+                .ignoresSafeArea()
+            VStack(spacing: TempoSpacing.md) {
+                ProgressView()
+                    .tint(Color.tempoSignal)
+                Text("Logging what you ate…")
+                    .font(.tempoCallout)
+                    .foregroundStyle(Color.tempoTextSecondary)
+            }
+            .padding(TempoSpacing.lg)
+            .background(Color.tempoSurfaceCard)
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+            .tempoShadow(.card)
         }
     }
 
@@ -315,32 +371,48 @@ struct MealDetailView: View {
                 .fontWeight(.semibold)
                 .foregroundStyle(Color.tempoAmber)
         case let .eaten(at):
-            HStack(spacing: TempoSpacing.sm) {
-                if let at {
-                    Text("Eaten at \(Self.clockFormatter.string(from: at)).")
-                        .font(.tempoBody)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.tempoSuccess)
-                } else {
-                    Text("Eaten.")
-                        .font(.tempoBody)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.tempoSuccess)
+            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+                HStack(spacing: TempoSpacing.sm) {
+                    if let at {
+                        Text("Eaten at \(Self.clockFormatter.string(from: at)).")
+                            .font(.tempoBody)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.tempoSuccess)
+                    } else {
+                        Text("Eaten.")
+                            .font(.tempoBody)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.tempoSuccess)
+                    }
+                    Spacer(minLength: 0)
+                    Button {
+                        eatTimeEdit = at ?? Date()
+                        presentEatTimeEditor = true
+                        HapticManager.lightImpact()
+                    } label: {
+                        Label("Edit time", systemImage: "clock.arrow.circlepath")
+                            .font(.tempoCaption1)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.tempoSignal)
+                            .labelStyle(.titleAndIcon)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Edit eat time")
                 }
-                Spacer(minLength: 0)
+                // Correct what was eaten after the fact — re-opens the swap
+                // sheet so "actually I ate something else" works even once the
+                // meal is already marked eaten. commitMarkEaten re-records it.
                 Button {
-                    eatTimeEdit = at ?? Date()
-                    presentEatTimeEditor = true
-                    HapticManager.lightImpact()
+                    resolveAsSubstitute()
                 } label: {
-                    Label("Edit time", systemImage: "clock.arrow.circlepath")
+                    Label("Change what I ate", systemImage: "arrow.triangle.swap")
                         .font(.tempoCaption1)
                         .fontWeight(.semibold)
-                        .foregroundStyle(Color.tempoSignal)
+                        .foregroundStyle(Color.tempoTextSecondary)
                         .labelStyle(.titleAndIcon)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Edit eat time")
+                .accessibilityLabel("Change what I ate")
             }
         case .skipped:
             Text("Skipped — macros redistributed.")
@@ -427,34 +499,83 @@ struct MealDetailView: View {
         feel: MealFeel?,
         substitute: MarkEatenSheet.Substitute?
     ) {
-        if let substitute {
-            meal.totalCalories = substitute.calories ?? 0
-            meal.totalProtein = 0
-            meal.totalCarbs = 0
-            meal.totalFat = 0
+        guard let substitute else {
+            // Plain "ate the planned meal" — synchronous, unchanged.
+            recordEaten(at: eatTime, feel: feel)
+            PantryDecrementService.decrement(for: meal, modelContext: modelContext)
+            HapticManager.notification(.success)
+            return
         }
+        // Substitute lane: parse "what did you eat" into real foods + DB macros
+        // via the NL pipeline, then REPLACE the meal's foods/macros so the
+        // detail screen shows what was actually eaten (not the old recipe, not
+        // zeros). One Haiku call. Eat time defaults to now (no scrubber here).
+        Task { await resolveSubstitute(note: substitute.note, feel: feel) }
+    }
+
+    /// Shared eaten-status write (status + time + notifications + feedback).
+    @MainActor
+    private func recordEaten(at eatTime: Date, feel: MealFeel?, substituteNote: String? = nil) {
         meal.status = .eaten
         meal.actualEatenAt = eatTime
         try? modelContext.save()
         services.notifications.cancelDefrostReminders(forMealID: meal.id)
         services.notifications.cancelPrepStartReminder(forMealID: meal.id)
         services.notifications.cancelOverdueMealReminder(forMealID: meal.id)
-        // Pantry decrement runs only when the user actually ate the
-        // planned dish — substitute means planned ingredients weren't used.
-        if substitute == nil {
-            PantryDecrementService.decrement(for: meal, modelContext: modelContext)
-        }
-        if feel != nil || substitute != nil {
+        if feel != nil || substituteNote != nil {
             let feedback = MealFeedback(
                 plannedMeal: meal,
                 mealFeel: feel,
-                substituteNote: substitute?.note,
-                substituteCalories: substitute?.calories
+                substituteNote: substituteNote,
+                substituteCalories: nil
             )
             modelContext.insert(feedback)
             try? modelContext.save()
         }
-        HapticManager.notification(.success)
+    }
+
+    @MainActor
+    private func resolveSubstitute(note: String, feel: MealFeel?) async {
+        if nlService == nil {
+            nlService = NaturalLanguageLoggingService(apiClient: services.apiClient)
+        }
+        guard let nlService else { return }
+        isResolvingSubstitute = true
+        defer { isResolvingSubstitute = false }
+        do {
+            let items = try await nlService.parseNaturalLanguage(note)
+            guard !items.isEmpty else {
+                substituteError = "Couldn't recognize any food in \"\(note)\". Edit and try again."
+                return
+            }
+            // Replace the meal's foods + macros with what was actually eaten.
+            // Day/Fuel totals sum PlannedMeal.totalCalories (NOT MealLog), so we
+            // set them directly and create NO MealLog (would double-count).
+            meal.foods = items.map {
+                PlannedFood(
+                    name: $0.name,
+                    quantityGrams: $0.quantityGrams,
+                    calories: $0.calories,
+                    proteinG: $0.proteinG,
+                    carbsG: $0.carbsG,
+                    fatG: $0.fatG
+                )
+            }
+            meal.totalCalories = items.reduce(0) { $0 + $1.calories }
+            meal.totalProtein = items.reduce(0) { $0 + $1.proteinG }
+            meal.totalCarbs = items.reduce(0) { $0 + $1.carbsG }
+            meal.totalFat = items.reduce(0) { $0 + $1.fatG }
+            // Clear the planned recipe so the detail view renders the actual
+            // foods (noRecipeFallback) instead of the original dish.
+            meal.recipe = nil
+            recordEaten(at: .now, feel: feel, substituteNote: note)
+            // Substitute means the planned ingredients were NOT used → no pantry
+            // decrement here (the "did you use pantry / eat out?" follow-up will
+            // own that decision).
+            HapticManager.notification(.success)
+        } catch {
+            substituteError = "Couldn't read that: \(error.localizedDescription). Your note is kept — try again."
+        }
     }
 
     private func resolveAsSkipped() {

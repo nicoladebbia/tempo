@@ -27,16 +27,17 @@ struct MarkEatenSheet: View {
     let meal: PlannedMeal
     /// Called with `(actualEatTime, mealFeel?, substitute?)` when the user
     /// confirms. The caller is responsible for calling `markMealEaten(at:)`,
-    /// persisting any `MealFeedback` row, and zeroing the planned meal's
-    /// macros when `substitute` is non-nil.
+    /// persisting any `MealFeedback` row, and — when `substitute` is non-nil —
+    /// parsing the note through the NL pipeline to replace the planned meal's
+    /// foods + macros with what was actually eaten.
     let onCommit: (Date, MealFeel?, Substitute?) -> Void
 
     /// Captured when the user picks the "Ate something else" lane. Empty
-    /// strings or nil are filtered out by the caller. Calories is optional
-    /// — the planner is told "unknown" means user ate but didn't quantify.
+    /// strings are filtered out by the caller. Carries only the raw note —
+    /// the caller parses it through the NL pipeline downstream to compute
+    /// real macros from the food database.
     struct Substitute: Equatable, Sendable {
         let note: String
-        let calories: Double?
     }
 
     @Environment(\.dismiss)
@@ -54,8 +55,6 @@ struct MarkEatenSheet: View {
     private var ateSomethingElse: Bool = false
     @State
     private var substituteText: String = ""
-    @State
-    private var substituteCaloriesText: String = ""
 
     /// `startWithSubstitute: true` opens the sheet straight into the "Ate
     /// something else" lane — used by the meal screen's dedicated
@@ -80,9 +79,22 @@ struct MarkEatenSheet: View {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: TempoSpacing.lg) {
                     header
-                    timeScrubber
-                    feelChips
-                    substituteSection
+                    // When the user explicitly chose "Ate something else", the
+                    // "what did you eat" field is the point — put it ABOVE the
+                    // time scrubber so it's on-screen immediately (it was below
+                    // the fold at the .medium detent before).
+                    if ateSomethingElse {
+                        // No time scrubber in the substitute lane — the eat
+                        // time defaults to `.now` and the point of this lane
+                        // is "what did you eat," not "when." Keeps the field
+                        // and feel chips on-screen without scrolling.
+                        substituteSection
+                        feelChips
+                    } else {
+                        timeScrubber
+                        feelChips
+                        substituteSection
+                    }
                 }
                 .padding(.horizontal, TempoSpacing.screenEdge)
                 .padding(.top, TempoSpacing.md)
@@ -211,10 +223,10 @@ struct MarkEatenSheet: View {
 
     /// Collapsible "Ate something else" section. Collapsed = a single
     /// toggle row, so it doesn't visually compete with the primary flow.
-    /// Expanded = free-text "what did you eat?" + optional kcal field.
-    /// Submitting a non-empty note triggers the substitute commit path
-    /// in `saveButton.action` — the planned meal's macros are zeroed by
-    /// the caller's onCommit handler.
+    /// Expanded = free-text "what did you eat?" field. Submitting a
+    /// non-empty note triggers the substitute commit path in
+    /// `saveButton.action` — the caller parses the note through the NL
+    /// pipeline to compute real macros and swap the displayed foods.
     private var substituteSection: some View {
         VStack(alignment: .leading, spacing: TempoSpacing.sm) {
             Button {
@@ -263,21 +275,7 @@ struct MarkEatenSheet: View {
                         .background(Color.tempoBgPrimary)
                         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
                     }
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("ROUGH CALORIES (OPTIONAL)")
-                            .font(.tempoCaption2)
-                            .fontWeight(.semibold)
-                            .tracking(0.4)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                        TextField("e.g. 650", text: $substituteCaloriesText)
-                            .keyboardType(.numberPad)
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                            .padding(TempoSpacing.sm)
-                            .background(Color.tempoBgPrimary)
-                            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
-                    }
-                    Text("Saving with a substitute zeros the planned meal's macros for today. The planner will see that you swapped this dish.")
+                    Text("We'll read the real macros from what you ate and log those for today. The planner will see that you swapped this dish.")
                         .font(.tempoCaption2)
                         .foregroundStyle(Color.tempoTextTertiary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -360,8 +358,7 @@ struct MarkEatenSheet: View {
         guard ateSomethingElse else { return nil }
         let trimmed = substituteText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
-        let cals = Double(substituteCaloriesText.trimmingCharacters(in: .whitespacesAndNewlines))
-        return Substitute(note: trimmed, calories: cals)
+        return Substitute(note: trimmed)
     }
 
     // MARK: - Helpers
