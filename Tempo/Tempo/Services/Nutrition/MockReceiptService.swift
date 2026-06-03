@@ -100,7 +100,8 @@ final class MockReceiptService: ReceiptServiceProtocol {
                 storageLocation: .pantry,
                 purchaseDate: receipt.purchaseDate,
                 purchaseSource: .receiptScan,
-                sourceReceiptLineItemID: line.id
+                sourceReceiptLineItemID: line.id,
+                brand: ""
             )
             line.linkedPantryItemID = item.id
         }

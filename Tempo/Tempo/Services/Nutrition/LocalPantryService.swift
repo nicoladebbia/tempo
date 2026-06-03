@@ -71,23 +71,28 @@ final class LocalPantryService: PantryServiceProtocol {
         storageLocation: PantryStorageLocation,
         purchaseDate: Date?,
         purchaseSource: PantryPurchaseSource,
-        sourceReceiptLineItemID: UUID?
+        sourceReceiptLineItemID: UUID?,
+        brand: String = ""
     ) throws -> PantryItem {
         let canonical = FoodCanonicalizer.canonicalize(rawName)
         let display = FoodCanonicalizer.displayName(rawName)
 
-        // Find an existing non-archived item with the same canonical name + unit.
+        // Find existing non-archived items with the same canonical name + unit,
+        // then match on NORMALIZED brand in Swift (SwiftData #Predicate can't
+        // call the normalize helper). Different normalized brand → separate row.
         let rawUnit = unit.rawValue
-        var descriptor = FetchDescriptor<PantryItem>(
+        let normBrand = PantryItem.normalizeBrand(brand)
+        let descriptor = FetchDescriptor<PantryItem>(
             predicate: #Predicate<PantryItem> { item in
                 item.isArchived == false
                     && item.canonicalName == canonical
                     && item.unitRaw == rawUnit
             }
         )
-        descriptor.fetchLimit = 1
+        let candidates = (try? modelContext.fetch(descriptor)) ?? []
+        let existing = candidates.first { PantryItem.normalizeBrand($0.brand) == normBrand }
 
-        if let existing = try modelContext.fetch(descriptor).first {
+        if let existing {
             existing.increment(by: quantity)
             if existing.purchaseDate == nil {
                 existing.purchaseDate = purchaseDate
@@ -110,6 +115,7 @@ final class LocalPantryService: PantryServiceProtocol {
         let new = PantryItem(
             canonicalName: canonical,
             displayName: display.isEmpty ? rawName : display,
+            brand: brand,
             quantity: quantity,
             unit: unit,
             storageLocation: storageLocation,
@@ -130,27 +136,30 @@ final class LocalPantryService: PantryServiceProtocol {
         unit: PantryUnit,
         storageLocation: PantryStorageLocation,
         purchaseDate: Date?,
-        purchaseSource: PantryPurchaseSource
+        purchaseSource: PantryPurchaseSource,
+        brand: String = ""
     ) throws -> PantryItem {
         // SET semantics (voice stock-take, §voice-pantry): REPLACE the tracked
-        // quantity of an existing canonical+unit match instead of incrementing.
-        // "I have 750 g of pasta" is a current-total statement, not a purchase.
-        // Match rule is identical to mergeOrCreate (canonical name AND unit), so
-        // a grams statement never overwrites a packs row — they stay separate.
+        // quantity of an existing canonical+unit+brand match instead of
+        // incrementing. "I have 750 g of pasta" is a current-total statement,
+        // not a purchase. Match rule mirrors mergeOrCreate (canonical + unit +
+        // normalized brand) so different brands stay separate rows.
         let canonical = FoodCanonicalizer.canonicalize(rawName)
         let display = FoodCanonicalizer.displayName(rawName)
 
         let rawUnit = unit.rawValue
-        var descriptor = FetchDescriptor<PantryItem>(
+        let normBrand = PantryItem.normalizeBrand(brand)
+        let descriptor = FetchDescriptor<PantryItem>(
             predicate: #Predicate<PantryItem> { item in
                 item.isArchived == false
                     && item.canonicalName == canonical
                     && item.unitRaw == rawUnit
             }
         )
-        descriptor.fetchLimit = 1
+        let candidates = (try? modelContext.fetch(descriptor)) ?? []
+        let existing = candidates.first { PantryItem.normalizeBrand($0.brand) == normBrand }
 
-        if let existing = try modelContext.fetch(descriptor).first {
+        if let existing {
             let previous = existing.quantity
             existing.quantity = max(0, quantity)
             existing.updatedAt = Date()
@@ -167,6 +176,7 @@ final class LocalPantryService: PantryServiceProtocol {
         let new = PantryItem(
             canonicalName: canonical,
             displayName: display.isEmpty ? rawName : display,
+            brand: brand,
             quantity: max(0, quantity),
             unit: unit,
             storageLocation: storageLocation,

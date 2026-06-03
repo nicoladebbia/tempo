@@ -42,11 +42,14 @@ final class MockPantryService: PantryServiceProtocol {
         storageLocation: PantryStorageLocation,
         purchaseDate: Date?,
         purchaseSource: PantryPurchaseSource,
-        sourceReceiptLineItemID: UUID?
+        sourceReceiptLineItemID: UUID?,
+        brand: String = ""
     ) throws -> PantryItem {
         let canonical = FoodCanonicalizer.canonicalize(rawName)
+        let normBrand = PantryItem.normalizeBrand(brand)
         if let existing = items.first(where: {
             !$0.isArchived && $0.canonicalName == canonical && $0.unit == unit
+                && PantryItem.normalizeBrand($0.brand) == normBrand
         }) {
             existing.increment(by: quantity)
             if existing.purchaseDate == nil {
@@ -61,6 +64,7 @@ final class MockPantryService: PantryServiceProtocol {
         let new = PantryItem(
             canonicalName: canonical,
             displayName: display.isEmpty ? rawName : display,
+            brand: brand,
             quantity: quantity,
             unit: unit,
             storageLocation: storageLocation,
@@ -79,11 +83,14 @@ final class MockPantryService: PantryServiceProtocol {
         unit: PantryUnit,
         storageLocation: PantryStorageLocation,
         purchaseDate: Date?,
-        purchaseSource: PantryPurchaseSource
+        purchaseSource: PantryPurchaseSource,
+        brand: String = ""
     ) throws -> PantryItem {
         let canonical = FoodCanonicalizer.canonicalize(rawName)
+        let normBrand = PantryItem.normalizeBrand(brand)
         if let existing = items.first(where: {
             !$0.isArchived && $0.canonicalName == canonical && $0.unit == unit
+                && PantryItem.normalizeBrand($0.brand) == normBrand
         }) {
             existing.quantity = max(0, quantity)
             existing.updatedAt = Date()
@@ -96,6 +103,7 @@ final class MockPantryService: PantryServiceProtocol {
         let new = PantryItem(
             canonicalName: canonical,
             displayName: display.isEmpty ? rawName : display,
+            brand: brand,
             quantity: max(0, quantity),
             unit: unit,
             storageLocation: storageLocation,

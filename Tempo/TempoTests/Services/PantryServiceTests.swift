@@ -267,6 +267,86 @@ final class PantryServiceTests: XCTestCase {
         XCTAssertEqual(item.quantity, 0, "A negative SET quantity floors at zero")
     }
 
+    // MARK: - Brand merge key (keep two same-foods of different brands separate)
+
+    func testBrand_differentBrandsStaySeparateRows() throws {
+        _ = try service.mergeOrCreate(
+            rawName: "Butter", quantity: 100, unit: .grams, storageLocation: .fridge,
+            purchaseDate: nil, purchaseSource: .manual, sourceReceiptLineItemID: nil,
+            brand: "Land O'Lakes"
+        )
+        _ = try service.mergeOrCreate(
+            rawName: "Butter", quantity: 100, unit: .grams, storageLocation: .fridge,
+            purchaseDate: nil, purchaseSource: .manual, sourceReceiptLineItemID: nil,
+            brand: "Kerrygold"
+        )
+        XCTAssertEqual(try service.fetchAll().count, 2,
+                       "Same food + unit but different brand → two separate rows")
+    }
+
+    func testBrand_sameBrandMerges() throws {
+        _ = try service.mergeOrCreate(
+            rawName: "Butter", quantity: 100, unit: .grams, storageLocation: .fridge,
+            purchaseDate: nil, purchaseSource: .manual, sourceReceiptLineItemID: nil,
+            brand: "Land O'Lakes"
+        )
+        let merged = try service.mergeOrCreate(
+            rawName: "Butter", quantity: 50, unit: .grams, storageLocation: .fridge,
+            purchaseDate: nil, purchaseSource: .manual, sourceReceiptLineItemID: nil,
+            brand: "Land O'Lakes"
+        )
+        XCTAssertEqual(try service.fetchAll().count, 1)
+        XCTAssertEqual(merged.quantity, 150, "Same brand → merge")
+    }
+
+    func testBrand_spellingVarianceMergesViaNormalization() throws {
+        // "Galbani", "galbani", "Galbani " all normalize to the same key.
+        _ = try service.mergeOrCreate(
+            rawName: "Ricotta", quantity: 425, unit: .grams, storageLocation: .fridge,
+            purchaseDate: nil, purchaseSource: .manual, sourceReceiptLineItemID: nil,
+            brand: "Galbani"
+        )
+        _ = try service.mergeOrCreate(
+            rawName: "Ricotta", quantity: 400, unit: .grams, storageLocation: .fridge,
+            purchaseDate: nil, purchaseSource: .manual, sourceReceiptLineItemID: nil,
+            brand: "galbani "
+        )
+        let all = try service.fetchAll()
+        XCTAssertEqual(all.count, 1, "Brand spelling variance must merge, not duplicate")
+        XCTAssertEqual(all.first?.quantity, 825)
+    }
+
+    func testBrand_emptyBrandPreservesScanManualMerge() throws {
+        // Scan / manual flows pass no brand. An empty-brand add must still merge
+        // into a pre-existing empty-brand row — backward compatibility.
+        _ = try service.mergeOrCreate(
+            rawName: "Pasta", quantity: 500, unit: .grams, storageLocation: .pantry,
+            purchaseDate: nil, purchaseSource: .manual, sourceReceiptLineItemID: nil
+        )
+        let merged = try service.mergeOrCreate(
+            rawName: "Pasta", quantity: 250, unit: .grams, storageLocation: .pantry,
+            purchaseDate: nil, purchaseSource: .receiptScan, sourceReceiptLineItemID: nil
+        )
+        XCTAssertEqual(try service.fetchAll().count, 1,
+                       "Empty-brand adds merge exactly as before the brand field existed")
+        XCTAssertEqual(merged.quantity, 750)
+    }
+
+    func testBrand_brandedDoesNotMergeIntoUnbranded() throws {
+        // A generic (empty-brand) row and a branded one of the same food are
+        // distinct products → separate rows.
+        _ = try service.mergeOrCreate(
+            rawName: "Butter", quantity: 100, unit: .grams, storageLocation: .fridge,
+            purchaseDate: nil, purchaseSource: .manual, sourceReceiptLineItemID: nil
+        )
+        _ = try service.mergeOrCreate(
+            rawName: "Butter", quantity: 100, unit: .grams, storageLocation: .fridge,
+            purchaseDate: nil, purchaseSource: .manual, sourceReceiptLineItemID: nil,
+            brand: "Land O'Lakes"
+        )
+        XCTAssertEqual(try service.fetchAll().count, 2)
+    }
+
     // MARK: - Quantity adjustments
 
     func testAdjustQuantity_floorsAtZero() throws {

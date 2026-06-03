@@ -174,9 +174,22 @@ struct PantryView: View {
     private func pantryRow(_ item: PantryItem) -> some View {
         HStack(spacing: TempoSpacing.sm) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(item.displayName)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                HStack(spacing: 6) {
+                    Text(item.displayName)
+                        .font(.tempoBody)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                    // Brand distinguishes two rows of the same food (e.g. two
+                    // butters of different brands kept as separate stock).
+                    if !item.brand.isEmpty {
+                        Text(item.brand)
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.tempoSurfaceCard)
+                            .clipShape(Capsule())
+                    }
+                }
                 HStack(spacing: 6) {
                     Text("\(formatQuantity(item.quantity))\(item.unit.displayName)")
                         .font(.tempoCaption1)

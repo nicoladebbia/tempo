@@ -155,7 +155,8 @@ final class LiveReceiptService: ReceiptServiceProtocol {
                 storageLocation: defaultLocation(for: line.canonicalFoodName),
                 purchaseDate: receipt.purchaseDate,
                 purchaseSource: .receiptScan,
-                sourceReceiptLineItemID: line.id
+                sourceReceiptLineItemID: line.id,
+                brand: ""
             )
             line.linkedPantryItemID = pantryItem.id
 

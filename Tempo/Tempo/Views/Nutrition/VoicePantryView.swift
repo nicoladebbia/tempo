@@ -402,12 +402,14 @@ struct VoicePantryView: View {
         for item in editable {
             // Skip rows the user zeroed out or left blank.
             guard item.quantity > 0 else { continue }
+            let brand = item.brand.trimmingCharacters(in: .whitespacesAndNewlines)
             if item.isSet {
                 viewModel.setPantryItem(
                     rawName: item.name,
                     quantity: item.quantity,
                     unit: item.unit,
-                    storageLocation: item.storage
+                    storageLocation: item.storage,
+                    brand: brand
                 )
             } else {
                 viewModel.addPantryItem(
@@ -415,7 +417,8 @@ struct VoicePantryView: View {
                     quantity: item.quantity,
                     unit: item.unit,
                     storageLocation: item.storage,
-                    totalPaidUSD: nil
+                    totalPaidUSD: nil,
+                    brand: brand
                 )
             }
         }

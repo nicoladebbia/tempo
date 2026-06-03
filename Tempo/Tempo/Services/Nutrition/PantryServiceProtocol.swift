@@ -38,7 +38,8 @@ protocol PantryServiceProtocol: Sendable {
         storageLocation: PantryStorageLocation,
         purchaseDate: Date?,
         purchaseSource: PantryPurchaseSource,
-        sourceReceiptLineItemID: UUID?
+        sourceReceiptLineItemID: UUID?,
+        brand: String
     ) throws -> PantryItem
 
     /// SET a raw item's quantity (voice stock-take). If a non-archived item with
@@ -52,7 +53,8 @@ protocol PantryServiceProtocol: Sendable {
         unit: PantryUnit,
         storageLocation: PantryStorageLocation,
         purchaseDate: Date?,
-        purchaseSource: PantryPurchaseSource
+        purchaseSource: PantryPurchaseSource,
+        brand: String
     ) throws -> PantryItem
 
     /// Update a tracked item's quantity. Pass a negative delta to decrement.

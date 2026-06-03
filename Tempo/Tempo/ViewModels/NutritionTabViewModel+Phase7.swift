@@ -151,7 +151,8 @@ extension NutritionTabViewModel {
         quantity: Double,
         unit: PantryUnit,
         storageLocation: PantryStorageLocation,
-        totalPaidUSD: Double? = nil
+        totalPaidUSD: Double? = nil,
+        brand: String = ""
     ) {
         guard let service = pantryService else {
             return
@@ -165,7 +166,8 @@ extension NutritionTabViewModel {
                 storageLocation: storageLocation,
                 purchaseDate: now,
                 purchaseSource: .manual,
-                sourceReceiptLineItemID: nil
+                sourceReceiptLineItemID: nil,
+                brand: brand
             )
             // Lock the price into history when supplied. One INSERT per
             // purchase keyed by the canonical food name (not the item), so the
@@ -198,7 +200,8 @@ extension NutritionTabViewModel {
         rawName: String,
         quantity: Double,
         unit: PantryUnit,
-        storageLocation: PantryStorageLocation
+        storageLocation: PantryStorageLocation,
+        brand: String = ""
     ) {
         guard let service = pantryService else {
             return
@@ -210,7 +213,8 @@ extension NutritionTabViewModel {
                 unit: unit,
                 storageLocation: storageLocation,
                 purchaseDate: Date(),
-                purchaseSource: .manual
+                purchaseSource: .manual,
+                brand: brand
             )
             reloadPantry()
         } catch {

@@ -145,6 +145,22 @@ final class PantryItem {
     /// User-visible name with title casing preserved.
     var displayName: String
 
+    /// Brand or distinguishing description as the user spoke it (e.g.
+    /// "Land O'Lakes", "50% more protein"). Stored verbatim for display.
+    /// Empty string = generic / no brand. Two items with the SAME canonical
+    /// name + unit but DIFFERENT normalized brands stay separate rows so
+    /// distinct products aren't conflated. Default "" so existing rows and the
+    /// scan/manual flows (which pass no brand) merge exactly as before.
+    var brand: String = ""
+
+    /// Normalizes a brand for merge-key comparison: lowercased, only
+    /// alphanumerics. "Land O'Lakes" and "Land O Lakes" both → "landolakes",
+    /// so spoken-spelling variance of the same brand still merges. Stored
+    /// brand stays verbatim; only the comparison uses this.
+    static func normalizeBrand(_ brand: String) -> String {
+        brand.lowercased().filter { $0.isLetter || $0.isNumber }
+    }
+
     // MARK: - Quantity
 
     /// Current quantity in the chosen `unit`. Non-negative — enforced at app layer.
@@ -258,6 +274,7 @@ final class PantryItem {
         id: UUID = UUID(),
         canonicalName: String,
         displayName: String,
+        brand: String = "",
         quantity: Double,
         unit: PantryUnit = .grams,
         storageLocation: PantryStorageLocation = .pantry,
@@ -275,6 +292,7 @@ final class PantryItem {
         self.id = id
         self.canonicalName = canonicalName
         self.displayName = displayName
+        self.brand = brand
         self.quantity = quantity
         self.unitRaw = unit.rawValue
         self.storageLocationRaw = storageLocation.rawValue
