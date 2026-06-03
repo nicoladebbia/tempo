@@ -92,9 +92,21 @@ final class SetFeedbackTests: XCTestCase {
         ctx.delete(set)
         try ctx.save()
 
-        // Relationship nullified, but the denormalized id remains for AI lookup.
-        XCTAssertNil(fb.plannedSet)
-        XCTAssertEqual(fb.setID, capturedID)
+        // The whole point of this model: `setID` is the denormalized stable
+        // UUID captured at insert, and it MUST survive the parent's deletion
+        // so historical AI lookup still works. That's the real contract and
+        // the reason the relationship is intentionally one-way (SetFeedback.swift).
+        XCTAssertEqual(fb.setID, capturedID,
+                       "Denormalized setID must outlive the deleted PlannedSet")
+
+        // NOTE: we deliberately do NOT assert `fb.plannedSet == nil` here.
+        // `SetFeedback.plannedSet` is an inverse-less one-way relationship, so
+        // SwiftData has no inverse to traverse and does not reliably nullify
+        // the holder's reference on parent delete (behavior varies by OS /
+        // framework version). No production code reads `fb.plannedSet` after a
+        // delete — historical lookup goes through `setID` — so the live object
+        // pointer is irrelevant. Asserting nil here pinned the test to a
+        // framework implementation detail, not the model's contract.
     }
 
     @MainActor

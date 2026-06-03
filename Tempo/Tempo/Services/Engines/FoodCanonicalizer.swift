@@ -207,7 +207,10 @@ enum FoodCanonicalizer {
         "extra virgin olive oil": "olive oil",
         "evoo": "olive oil",
         "olio d'oliva": "olive oil",
-        "olio evo": "olive oil",
+        // OCR abbreviation expansion runs FIRST and rewrites the "evo" token
+        // to "evoo" ("olio evo" → "olio evoo"), so the alias must key on the
+        // post-expansion form or it can never match.
+        "olio evoo": "olive oil",
         // Milk alternatives
         "oat milk": "oat milk",
         "latte d'avena": "oat milk",
