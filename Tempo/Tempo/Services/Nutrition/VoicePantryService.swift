@@ -32,6 +32,9 @@ struct VoiceResolvedPantryItem: Decodable, Sendable {
     let unitRaw: String
     /// Raw storage string — one of PantryStorageLocation's raw values, or nil.
     let storageRaw: String?
+    /// Brand and/or distinguishing description the user spoke, e.g.
+    /// "Land O'Lakes", "50% more protein". nil when none mentioned.
+    let brand: String?
     /// The breakdown the AI used, e.g. ["500g pack", "half pack (250g)"].
     let components: [String]
     /// "high" | "low" — uncertain identity or approximate quantity.
@@ -43,6 +46,7 @@ struct VoiceResolvedPantryItem: Decodable, Sendable {
         case quantity
         case unitRaw = "unit"
         case storageRaw = "storage"
+        case brand
         case components
         case confidence
     }
@@ -54,6 +58,9 @@ struct VoiceResolvedPantryItem: Decodable, Sendable {
         quantity = try c.decodeIfPresent(Double.self, forKey: .quantity) ?? 0
         unitRaw = try c.decodeIfPresent(String.self, forKey: .unitRaw) ?? ""
         storageRaw = try c.decodeIfPresent(String.self, forKey: .storageRaw)
+        let rawBrand = try c.decodeIfPresent(String.self, forKey: .brand)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        brand = (rawBrand?.isEmpty == false) ? rawBrand : nil
         components = try c.decodeIfPresent([String].self, forKey: .components) ?? []
         confidence = try c.decodeIfPresent(String.self, forKey: .confidence)
     }
@@ -132,9 +139,14 @@ final class VoicePantryService {
 
         Return JSON only in this exact shape:
         {"items":[{"name":"","intent":"set|add","quantity":0,"unit":"",\
-        "storage":"","components":["",""],"confidence":"high|low"}]}.
+        "storage":"","brand":"","components":["",""],"confidence":"high|low"}]}.
 
         Rules:
+        - "name" is the GENERIC food (e.g. "butter", "ricotta", "jam"). Put any \
+        brand or distinguishing description in "brand" (e.g. "Land O'Lakes", \
+        "50% more protein", "sugar-free blackberry"), NOT in the name. Use "" \
+        when no brand/description was spoken. This lets two of the same food \
+        with different brands be told apart.
         - LOCATION CONTEXT (important): the user walks through their kitchen by \
         section. When they say "in the fridge…", "in the freezer…", or "in the \
         pantry/cupboard…", EVERY item after that phrase belongs to that \
@@ -192,7 +204,11 @@ final class VoicePantryService {
                     model: "haiku",
                     system: system,
                     userMessage: prompt,
-                    maxTokens: 800,
+                    // A full kitchen stock-take can be 25+ items with brands +
+                    // component breakdowns. 800 tokens truncated the JSON array
+                    // mid-object → parse failure. Haiku's output ceiling is far
+                    // higher; 8000 comfortably fits a whole pantry.
+                    maxTokens: 8000,
                     temperature: 0.2,
                     caller: feature
                 )
@@ -222,9 +238,11 @@ final class VoicePantryService {
 
     private func parseJSON<T: Decodable>(_ response: String, as type: T.Type, feature: String) throws -> T {
         let decoder = JSONDecoder()
+        let cleaned = Self.stripMarkdownFence(response)
         var firstDecodeError: Error?
 
-        if let data = response.data(using: .utf8) {
+        // 1. Whole cleaned response.
+        if let data = cleaned.data(using: .utf8) {
             do {
                 return try decoder.decode(T.self, from: data)
             } catch {
@@ -232,10 +250,12 @@ final class VoicePantryService {
             }
         }
 
-        if let startIndex = response.firstIndex(of: "{"),
-           let endIndex = response.lastIndex(of: "}")
+        // 2. Outermost {...} (handles minor leading/trailing chatter).
+        if let startIndex = cleaned.firstIndex(of: "{"),
+           let endIndex = cleaned.lastIndex(of: "}"),
+           startIndex < endIndex
         {
-            let jsonString = String(response[startIndex ... endIndex])
+            let jsonString = String(cleaned[startIndex ... endIndex])
             if let data = jsonString.data(using: .utf8),
                let result = try? decoder.decode(T.self, from: data)
             {
@@ -244,8 +264,77 @@ final class VoicePantryService {
             }
         }
 
+        // 3. Salvage: a TRUNCATED array (response hit the token ceiling
+        // mid-object) still has N complete item objects before the cutoff.
+        // Rebuild {"items":[<complete objects>]} and decode that, so a list
+        // that runs slightly long loses its tail item, not everything.
+        if let salvaged = Self.salvageItemsArray(cleaned),
+           let data = salvaged.data(using: .utf8),
+           let result = try? decoder.decode(T.self, from: data)
+        {
+            logger.info("[\(feature)] salvaged partial items array")
+            return result
+        }
+
         let errDetail = firstDecodeError.map { String(describing: $0) } ?? "no decode error"
         logger.error("[\(feature)] parse failed: \(response.prefix(200)) | \(errDetail, privacy: .public)")
         throw VoicePantryError.parseFailed(errDetail)
+    }
+
+    /// Strips a leading/trailing ```json … ``` markdown fence (Haiku sometimes
+    /// wraps its JSON despite being told not to). Pure — unit-tested.
+    nonisolated static func stripMarkdownFence(_ text: String) -> String {
+        var s = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if s.hasPrefix("```") {
+            // Drop the opening fence line (```json or ```).
+            if let firstNewline = s.firstIndex(of: "\n") {
+                s = String(s[s.index(after: firstNewline)...])
+            } else {
+                s = String(s.dropFirst(3))
+            }
+        }
+        if s.hasSuffix("```") {
+            s = String(s.dropLast(3))
+        }
+        return s.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Best-effort recovery from a truncated `{"items":[ {...}, {...}, {…`
+    /// response: keep every COMPLETE top-level item object (balanced braces)
+    /// and re-wrap them in a valid `{"items":[…]}`. Returns nil when no
+    /// complete object can be found. Pure — unit-tested.
+    nonisolated static func salvageItemsArray(_ text: String) -> String? {
+        guard let bracket = text.firstIndex(of: "[") else { return nil }
+        var depth = 0
+        var inString = false
+        var escaped = false
+        var objectStart: String.Index?
+        var objects: [String] = []
+
+        var i = text.index(after: bracket)
+        while i < text.endIndex {
+            let ch = text[i]
+            if escaped {
+                escaped = false
+            } else if ch == "\\" {
+                escaped = true
+            } else if ch == "\"" {
+                inString.toggle()
+            } else if !inString {
+                if ch == "{" {
+                    if depth == 0 { objectStart = i }
+                    depth += 1
+                } else if ch == "}" {
+                    depth -= 1
+                    if depth == 0, let start = objectStart {
+                        objects.append(String(text[start ... i]))
+                        objectStart = nil
+                    }
+                }
+            }
+            i = text.index(after: i)
+        }
+        guard !objects.isEmpty else { return nil }
+        return "{\"items\":[\(objects.joined(separator: ","))]}"
     }
 }
