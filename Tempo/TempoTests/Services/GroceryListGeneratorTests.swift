@@ -50,19 +50,29 @@ final class GroceryListGeneratorTests: XCTestCase {
 
     // MARK: - Aggregation
 
+    // generate() aggregates each food's grams across meals, then rewrites the
+    // gram total into WHOLE PURCHASE UNITS via naturalPortions.purchaseGrams
+    // (ceil). So "200g + 250g chicken" aggregates to 450g → ceil(450/170) =
+    // 3 breasts. The cross-meal SUM is the thing under test; the unit rewrite
+    // is the generator's contract, asserted here so a regression in either
+    // (the sum OR the purchase-unit math) is caught.
     func testGenerate_aggregatesAcrossMeals() {
         let plan = makePlan(foodsByMeal: [
             [food("Chicken Breast", 200), food("Rice", 150)],
-            [food("chicken breast", 250)], // canonical match
+            [food("chicken breast", 250)], // canonical match → 200+250 = 450g
             [food("Salmon", 200)],
         ])
         let aggregated = GroceryListGenerator.generate(from: .init(
             mealPlan: plan, pantry: [], weekStartDate: Date()
         ))
         let byName = Dictionary(uniqueKeysWithValues: aggregated.map { ($0.canonicalName, $0) })
-        XCTAssertEqual(byName["chicken breast"]?.quantity, 450)
-        XCTAssertEqual(byName["rice"]?.quantity, 150)
-        XCTAssertEqual(byName["salmon"]?.quantity, 200)
+        // 450g / 170g per breast → 3 breasts.
+        XCTAssertEqual(byName["chicken breast"]?.quantity, 3)
+        XCTAssertEqual(byName["chicken breast"]?.unit, .pieces)
+        // 150g / 1000g per kg bag → 1 bag.
+        XCTAssertEqual(byName["rice"]?.quantity, 1)
+        // 200g / 150g per fillet → 2 fillets.
+        XCTAssertEqual(byName["salmon"]?.quantity, 2)
     }
 
     // MARK: - Pantry subtraction
@@ -81,7 +91,8 @@ final class GroceryListGeneratorTests: XCTestCase {
             mealPlan: plan, pantry: pantry, weekStartDate: Date()
         ))
         let byName = Dictionary(uniqueKeysWithValues: aggregated.map { ($0.canonicalName, $0) })
-        XCTAssertEqual(byName["chicken breast"]?.quantity, 200)
+        // Need 600g − 400g pantry = 200g to buy → ceil(200/170) = 2 breasts.
+        XCTAssertEqual(byName["chicken breast"]?.quantity, 2)
         // Oats fully covered → dropped from the list.
         XCTAssertNil(byName["oats"])
     }
@@ -185,6 +196,8 @@ final class GroceryListGeneratorTests: XCTestCase {
             mealPlan: plan, pantry: [], weekStartDate: Date()
         ))
         let byName = Dictionary(uniqueKeysWithValues: aggregated.map { ($0.canonicalName, $0) })
-        XCTAssertEqual(byName["chicken breast"]?.quantity, 350)
+        // "petto di pollo" + "Chicken" both canonicalize to chicken breast:
+        // 200 + 150 = 350g → ceil(350/170) = 3 breasts.
+        XCTAssertEqual(byName["chicken breast"]?.quantity, 3)
     }
 }
