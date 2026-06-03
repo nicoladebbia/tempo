@@ -71,4 +71,30 @@ final class FoodPortionLabelTests: XCTestCase {
         XCTAssertTrue(label.contains("200") || label.lowercased().contains("g"),
                       "With no AI label, a mass food falls back to grams: \(label)")
     }
+
+    // MARK: - Chicken breast cooked/raw split
+
+    /// The NL parser estimates a chicken breast at ~150g COOKED. The portion
+    /// table's `grams` (eating portion) must agree so logging "1 breast"
+    /// reads as exactly one breast — while `purchaseGrams` stays at the RAW
+    /// buy weight (~170g) so the grocery list doesn't under-buy. Locking both
+    /// here stops a future edit from silently collapsing them back to one
+    /// number (the bug Nicola caught: eaten screen 150g vs table 170g).
+    func testChickenBreast_eatingPortionIsCookedWeight() {
+        let portion = FoodMacroDatabase.naturalPortions["chicken breast"]
+        XCTAssertEqual(portion?.grams, 150,
+                       "Eating portion must be the cooked weight the parser assumes")
+        XCTAssertEqual(portion?.purchaseGrams, 170,
+                       "Buy weight must stay raw so grocery doesn't under-buy")
+    }
+
+    func testChickenBreast_cookedWeightRendersAsOneBreast() {
+        // 150 g cooked / 150 g per breast = exactly 1 breast. `formatPortion`
+        // expects the canonical name ("chicken breast"); canonicalization of
+        // "grilled chicken breast" happens upstream in the NL pipeline.
+        XCTAssertEqual(
+            FoodMacroDatabase.formatPortion(food: "chicken breast", grams: 150),
+            "1 breast"
+        )
+    }
 }

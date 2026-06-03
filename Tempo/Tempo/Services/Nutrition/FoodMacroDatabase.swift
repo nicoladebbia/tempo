@@ -594,7 +594,13 @@ enum FoodMacroDatabase {
         "eggs": .simple(grams: 50, unit: "egg", plural: "eggs"),
         "egg": .simple(grams: 50, unit: "egg", plural: "eggs"),
         "egg whites": .simple(grams: 33, unit: "white", plural: "whites"),
-        "chicken breast": NaturalPortion(grams: 170, unit: "breast", plural: "breasts", purchaseUnit: "breast", purchaseUnitPlural: "breasts", purchaseGrams: 170, isStaple: false),
+        // `grams` is the COOKED eating portion (matches the NL parser's
+        // "a chicken breast is ~150g cooked"); `purchaseGrams` is the RAW buy
+        // weight (~170g, shrinks ~12% when cooked). Keeping them split means
+        // the eaten-screen macros and the grocery list don't fight: logging
+        // "1 breast" reads 150g, but the grocery list still tells you to buy
+        // 170g raw.
+        "chicken breast": NaturalPortion(grams: 150, unit: "breast", plural: "breasts", purchaseUnit: "breast", purchaseUnitPlural: "breasts", purchaseGrams: 170, isStaple: false),
         "chicken thigh": NaturalPortion(grams: 110, unit: "thigh", plural: "thighs", purchaseUnit: "thigh", purchaseUnitPlural: "thighs", purchaseGrams: 110, isStaple: false),
         "ground beef": NaturalPortion(grams: 450, unit: "g", plural: "g", purchaseUnit: "pack", purchaseUnitPlural: "packs", purchaseGrams: 450, isStaple: false),
         "ground turkey": NaturalPortion(grams: 450, unit: "g", plural: "g", purchaseUnit: "pack", purchaseUnitPlural: "packs", purchaseGrams: 450, isStaple: false),
