@@ -245,7 +245,8 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             }
             let weekdayIdx = (cal.component(.weekday, from: dayStart) + 5) % 7 // Mon=0
             let label = weekdayIdx < weekdayNames.count ? weekdayNames[weekdayIdx] : "?"
-            let dayType = plan.dayTypeAssignments[cal.component(.weekday, from: dayStart)] ?? "?"
+            // dict is keyed Mon=1 … Sun=7, so the key is weekdayIdx + 1.
+            let dayType = plan.dayTypeAssignments[weekdayIdx + 1] ?? "?"
             let line = dayMeals.map { m in
                 "\(m.scheduledTime) \(m.mealName)(\(Int(m.totalCalories))kcal)"
             }.joined(separator: " → ")

@@ -228,16 +228,17 @@ enum CoachTools {
     ) throws -> ToolOutput {
         let plan = try CoachToolHelpers.activeWeeklyPlan(in: context)
         let weekdayIndex = calendar.component(.weekday, from: date) // 1=Sunday … 7=Saturday
-        // dayTypeAssignments is keyed by mealNumber-day-index per existing schema:
-        // 0 = Monday, 6 = Sunday (per MealPlanPrompts/weeklyPlanPrompt rules).
-        let dayIndex0Mon = ((weekdayIndex + 5) % 7) // Sunday(1)→6, Monday(2)→0, …
-        let currentRaw = plan.dayTypeAssignments[dayIndex0Mon] ?? DayType.rest.rawValue
+        // dayTypeAssignments is keyed Mon=1 … Sun=7 (the generator writes
+        // `dayIndex + 1`). Convert Calendar's Sun=1 numbering to that:
+        // Monday(2)→1, …, Sunday(1)→7.
+        let dayKeyMon1 = ((weekdayIndex + 5) % 7) + 1
+        let currentRaw = plan.dayTypeAssignments[dayKeyMon1] ?? DayType.rest.rawValue
         let currentType = DayType(rawValue: currentRaw) ?? .rest
         guard currentType != newType else {
             return ToolOutput(summary: "Already \(newType.displayName) on this day — no change.")
         }
         var assignments = plan.dayTypeAssignments
-        assignments[dayIndex0Mon] = newType.rawValue
+        assignments[dayKeyMon1] = newType.rawValue
         plan.dayTypeAssignments = assignments
 
         var sideEffects: [String] = []

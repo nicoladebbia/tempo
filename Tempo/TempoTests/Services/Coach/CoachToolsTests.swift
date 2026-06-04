@@ -122,11 +122,12 @@ final class CoachToolsTests: XCTestCase {
     func testSwapDayType_changesAssignmentAndReturnsSummary() throws {
         let (_, context, plan, _) = try makeFixture()
         var assignments = plan.dayTypeAssignments
-        assignments[0] = DayType.rest.rawValue // Monday
+        // dayTypeAssignments is keyed Mon=1 … Sun=7 (matches the generator).
+        assignments[1] = DayType.rest.rawValue // Monday
         plan.dayTypeAssignments = assignments
         try context.save()
 
-        // Force the fixture day to be Monday so dayIndex0Mon == 0.
+        // Force the fixture day to be Monday so the Monday key (1) is hit.
         let monday = mondayDate()
 
         let output = try CoachTools.swapDayType(
@@ -138,14 +139,14 @@ final class CoachToolsTests: XCTestCase {
         )
         XCTAssertTrue(output.summary.contains("Rest"))
         XCTAssertTrue(output.summary.contains("Strength"))
-        let reloaded = plan.dayTypeAssignments[0]
+        let reloaded = plan.dayTypeAssignments[1]
         XCTAssertEqual(reloaded, DayType.strength.rawValue)
     }
 
     func testSwapDayType_sameTypeIsNoOp() throws {
         let (_, context, plan, _) = try makeFixture()
         var assignments = plan.dayTypeAssignments
-        assignments[0] = DayType.cardio.rawValue
+        assignments[1] = DayType.cardio.rawValue // Monday = key 1
         plan.dayTypeAssignments = assignments
         try context.save()
 

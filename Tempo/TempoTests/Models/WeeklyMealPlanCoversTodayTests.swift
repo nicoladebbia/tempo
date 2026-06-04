@@ -83,4 +83,36 @@ final class WeeklyMealPlanCoversTodayTests: XCTestCase {
         XCTAssertTrue(p.coversDate(day(2026, 6, 3)),
                       "coversDate is date-only; isActive is combined by the caller")
     }
+
+    // MARK: - dayTypeAssignments keying contract (Mon=1 … Sun=7)
+
+    /// The generator WRITES day-types keyed by `dayIndex + 1`, i.e. Monday=1 …
+    /// Sunday=7. Readers (the Plan view, CoachTools, the diagnostics) must use
+    /// the SAME key. The bug this guards: the Plan view read via
+    /// Calendar.weekday (Sunday=1), which shifted every label — Saturday (a
+    /// lifting day, key 6 = strength) displayed REST (key 7's value). The
+    /// correct read for a Monday-anchored plan is `dayOffset + 1`.
+    func testDayTypeKeying_mondayIsOne_sundayIsSeven() {
+        let p = plan(start: day(2026, 6, 1), end: day(2026, 6, 7)) // Jun 1 2026 = Monday
+        // Mirror the generator's write: dayIndex 0..6 (Mon..Sun) → key dayIndex+1.
+        p.dayTypeAssignments = [
+            1: "soccer",   // Mon
+            2: "strength",  // Tue
+            3: "strength",  // Wed
+            4: "strength",  // Thu
+            5: "strength",  // Fri
+            6: "strength",  // Sat — a LIFTING day, must NOT read as rest
+            7: "rest",      // Sun
+        ]
+
+        // The Plan view reads dayTypes[dayOffset + 1] where dayOffset is 0=Mon.
+        XCTAssertEqual(p.dayTypes[0 + 1], .soccer, "Monday")
+        XCTAssertEqual(p.dayTypes[5 + 1], .strength, "Saturday must be its real type, not Sunday's rest")
+        XCTAssertEqual(p.dayTypes[6 + 1], .rest, "Sunday")
+
+        // Regression: the OLD buggy read (Calendar.weekday, Sun=1) on Saturday
+        // would have used key 7 and returned rest — prove the correct key differs.
+        XCTAssertNotEqual(p.dayTypes[6], p.dayTypes[7],
+                          "key 6 (Sat=strength) and key 7 (Sun=rest) must be distinct — the bug conflated them")
+    }
 }

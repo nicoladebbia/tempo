@@ -188,9 +188,14 @@ struct NutritionWeeklyPlanView: View {
         VStack(spacing: TempoSpacing.sm) {
             ForEach(0 ..< 7, id: \.self) { dayOffset in
                 let date = calendar.date(byAdding: .day, value: dayOffset, to: plan.startDate)!
-                let weekday = calendar.component(.weekday, from: date)
                 let dayMeals = mealsForDate(date, in: plan)
-                let dayType = plan.dayTypes[weekday]
+                // dayTypeAssignments is keyed Mon=1 … Sun=7 (the generator
+                // writes `dayIndex + 1`, and plan.startDate is the Monday).
+                // dayOffset is 0=Mon … 6=Sun, so the key is dayOffset + 1.
+                // Do NOT use Calendar.weekday here — its Sun=1 numbering does
+                // not match the dict and shifted every day (Saturday showed the
+                // wrong type; confirmed via [PlanDiag] raw dump).
+                let dayType = plan.dayTypes[dayOffset + 1]
                 let isExpanded = expandedDay == dayOffset
                 let isToday = calendar.isDateInToday(date)
 
