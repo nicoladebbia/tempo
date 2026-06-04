@@ -138,6 +138,18 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             logger.info("Supplement shelf injected into plan prompt: \(supplements.count) items")
         }
 
+        // INPUT training schedule fed to the AI (Mon=1 … Sun=7). Compared
+        // against the persisted day-types in [PlanDiag], this tells us whether
+        // a wrong day-type (e.g. Saturday showing REST when the user lifts) is
+        // bad INPUT (this schedule) or a downstream keying bug.
+        if let sched = intake?.trainingSchedule {
+            let dump = sched.byWeekday.sorted { $0.key < $1.key }
+                .map { "wd\($0.key)=\($0.value)" }.joined(separator: ", ")
+            logger.info("[PlanDiag] INPUT trainingSchedule (Mon=1..Sun=7): \(dump)")
+        } else {
+            logger.info("[PlanDiag] INPUT trainingSchedule: nil (AI will guess day types)")
+        }
+
         let (systemPrompt, userPrompt) = MealPlanPrompts.weeklyPlanPrompt(
             targets: tdeeResult.dayTypeTargets,
             restrictions: restrictions,
@@ -213,6 +225,15 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         let weekdayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
         logger.info("[PlanDiag] ===== Plan \(plan.id) =====")
+
+        // RAW day-type dictionary exactly as stored (key → value), so we can
+        // see the TRUE keying convention vs how each surface reads it. The
+        // generator WRITES keys as dayIndex+1 (Monday=1 … Sunday=7). If the
+        // displayed day-types are wrong, comparing this raw dump to the screen
+        // tells us whether it's a read-convention bug or genuinely-wrong input.
+        let rawDict = plan.dayTypeAssignments.sorted { $0.key < $1.key }
+            .map { "key\($0.key)=\($0.value)" }.joined(separator: ", ")
+        logger.info("[PlanDiag] RAW dayTypeAssignments: \(rawDict)")
 
         // Per-day: day-type + meals in chronological order with time/name/kcal.
         // Group by dayDate so we read each day as the user will see it.
