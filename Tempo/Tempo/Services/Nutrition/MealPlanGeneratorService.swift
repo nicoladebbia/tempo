@@ -133,6 +133,11 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             logger.info("Pantry stock injected into plan prompt: \(stock.count) items")
         }
 
+        let supplements = supplementShelf(modelContext: modelContext)
+        if !supplements.isEmpty {
+            logger.info("Supplement shelf injected into plan prompt: \(supplements.count) items")
+        }
+
         let (systemPrompt, userPrompt) = MealPlanPrompts.weeklyPlanPrompt(
             targets: tdeeResult.dayTypeTargets,
             restrictions: restrictions,
@@ -141,7 +146,8 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             observedMealTimes: observed,
             feedbackDigest: feedback,
             expiringSoon: expiringSoon,
-            pantryStock: stock
+            pantryStock: stock,
+            supplements: supplements
         )
 
         let response = try await sendWithRetry(
@@ -549,6 +555,18 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             }
     }
 
+    /// Fetch the user's active supplement shelf for the plan prompt. The AI
+    /// reads this to make a per-day take/skip decision (creatine daily, whey to
+    /// fill a protein gap, omega-3 periodized). Empty when the user owns none —
+    /// the prompt then omits the supplement block + per-day supplements field.
+    private func supplementShelf(modelContext: ModelContext) -> [Supplement] {
+        let descriptor = FetchDescriptor<Supplement>(
+            predicate: #Predicate<Supplement> { !$0.isArchived }
+        )
+        let items = (try? modelContext.fetch(descriptor)) ?? []
+        return items.sorted { $0.name < $1.name }
+    }
+
     /// Aggregate the last `windowDays` of `MealFeedback` rows into a digest
     /// the prompt can act on. Groups by recipe and by ingredient. Filters
     /// out empty / signal-less rows so the prompt stays lean.
@@ -778,7 +796,8 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             correctedDays.append(ParsedDay(
                 dayIndex: day.dayIndex,
                 dayType: day.dayType,
-                meals: correctedMeals
+                meals: correctedMeals,
+                supplements: day.supplements
             ))
         }
 
@@ -1002,6 +1021,19 @@ private struct ParsedDay: Codable {
     let dayIndex: Int
     let dayType: String
     let meals: [ParsedMealData]
+    /// Per-day supplement take/skip decisions. Optional — only present when the
+    /// user owns supplements (a <supplement_shelf> was in the prompt). Captured
+    /// here so the persistence layer (Piece 2d) can surface "today: take X,
+    /// skip Y". nil when the user owns no supplements.
+    let supplements: [ParsedSupplementDecision]?
+}
+
+// MARK: - ParsedSupplementDecision
+
+private struct ParsedSupplementDecision: Codable {
+    let name: String
+    let take: Bool
+    let reason: String?
 }
 
 // MARK: - ParsedMealData

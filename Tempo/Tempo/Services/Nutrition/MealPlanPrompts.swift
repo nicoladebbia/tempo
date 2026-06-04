@@ -356,6 +356,62 @@ enum MealPlanPrompts {
         """
     }
 
+    /// The user's owned supplement shelf + the rules for scheduling them per
+    /// day. Empty string when the shelf is empty (so callers interpolate
+    /// unconditionally and no supplement output is requested). The model may
+    /// ONLY schedule items listed here — never recommend buying anything.
+    static func supplementShelfBlock(_ supplements: [Supplement]) -> String {
+        let active = supplements.filter { !$0.isArchived }
+        guard !active.isEmpty else { return "" }
+
+        let lines = active.map { supp -> String in
+            var parts = ["- \(sanitizeForPrompt(supp.name)) (\(supp.kind.displayName))"]
+            if !supp.dosePerServing.isEmpty {
+                parts.append("dose \(sanitizeForPrompt(supp.dosePerServing))")
+            }
+            if supp.proteinGramsPerServing > 0 {
+                parts.append("\(Int(supp.proteinGramsPerServing))g protein/serving")
+            }
+            if supp.servingsRemaining > 0 {
+                let low = supp.isRunningLow ? " — RUNNING LOW" : ""
+                parts.append("\(Int(supp.servingsRemaining)) servings left\(low)")
+            }
+            parts.append(supp.takeDaily ? "daily by default" : "conditional")
+            if let notes = supp.userNotes, !notes.isEmpty {
+                parts.append("note: \(sanitizeForPrompt(notes))")
+            }
+            return parts.joined(separator: "; ")
+        }.joined(separator: "\n")
+
+        return """
+
+        <supplement_shelf>
+        The user OWNS these supplements. You may schedule a daily take/skip
+        decision for each, but ONLY from this list — never suggest buying or
+        adding anything new, never invent a supplement not listed here.
+
+        \(lines)
+
+        SCHEDULING RULES (emit a per-day "supplements" array — see schema):
+        - "daily by default" items (e.g. creatine): take EVERY day. Skip only if
+          a user note says otherwise.
+        - Protein powder: take ONLY on days the whole-food meals fall short of
+          the day's protein target — compute the gap from the meals you built.
+          Because the user is minimizing dairy for skin, prefer hitting protein
+          from food first and treat whey as the top-up, not the default.
+        - Omega-3 / recovery supplements: take on most days for general support,
+          but you may emphasize them around soccer / double / hard sessions.
+        - Multivitamin / single vitamins: follow the user note; default to daily
+          if none, but never exceed a single labeled serving.
+        - Respect servings-left: do not schedule a supplement marked RUNNING LOW
+          more than its remaining servings; you may note it's low.
+        - Give a SHORT reason per decision ("protein target met by food → skip",
+          "creatine daily", "post-match recovery"). Never give medical dosing
+          beyond the labeled serving; never tell the user to buy more.
+        </supplement_shelf>
+        """
+    }
+
     /// Format the user's rolling 14-day actual eat-times by mealNumber as a
     /// prompt block. Empty when no observations exist so callers can
     /// interpolate unconditionally. Tells the model to anchor scheduledTime
@@ -512,7 +568,8 @@ enum MealPlanPrompts {
         observedMealTimes: ObservedMealTimes? = nil,
         feedbackDigest: FeedbackDigest? = nil,
         expiringSoon: [(name: String, days: Int)] = [],
-        pantryStock: [String] = []
+        pantryStock: [String] = [],
+        supplements: [Supplement] = []
     ) -> (system: String, user: String) {
         let system = """
         You are the nutrition arm of Tempo, a drill-sergeant life operating system for student-athletes. \
@@ -568,6 +625,7 @@ enum MealPlanPrompts {
         \(expiringSoonBlock(expiringSoon))
         \(feedbackBlock(feedbackDigest))
         \(functionalNutritionBlock())
+        \(supplementShelfBlock(supplements))
 
         <meal_structure>
         - 4-5 meals per day: Breakfast, Lunch, Dinner, and 1-2 Snacks.
@@ -602,6 +660,13 @@ enum MealPlanPrompts {
                                 }
                             ]
                         }
+                    ],
+                    "supplements": [
+                        {
+                            "name": "string (MUST match a name from <supplement_shelf>)",
+                            "take": true,
+                            "reason": "short reason, e.g. 'creatine daily' or 'protein met by food, skip'"
+                        }
                     ]
                 }
             ]
@@ -626,6 +691,11 @@ enum MealPlanPrompts {
         - Use varied foods across the week. No identical meals on consecutive days.
         - Include 2-4 foods per meal. Keep it simple and student-practical.
         - All quantities in raw/uncooked grams unless the food is consumed raw (fruits, bread, etc.).
+        - "supplements": include this array per day ONLY when a \
+        <supplement_shelf> block is provided above. Each entry's "name" MUST \
+        exactly match a shelf item. Follow the shelf's SCHEDULING RULES. When \
+        NO shelf is provided, OMIT the "supplements" field entirely (do not \
+        emit an empty array, do not invent supplements).
         """
 
         return (system: system, user: user)

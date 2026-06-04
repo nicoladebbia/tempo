@@ -108,6 +108,7 @@
 		2733C963A30A23EFF41689ED /* cue_ex_bicycle_crunch.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 9948841944F299EDF1580953 /* cue_ex_bicycle_crunch.mp3 */; };
 		277CA8019188AE32BC376911 /* DailyRecovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80D835BCF7D39B334F2254FD /* DailyRecovery.swift */; };
 		29D48DA593EAD423DA20FCFD /* cue_move_glute_bridges_deep_squat_hold.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = C267293A4569425309277413 /* cue_move_glute_bridges_deep_squat_hold.mp3 */; };
+		29DFDAD3216429D972CA6E34 /* SupplementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D38A25FAEC946A4776F3B1F7 /* SupplementTests.swift */; };
 		2A2E5CFBFD98790C5FDC33D6 /* ExerciseDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E362BE5C475B6354C827C7CE /* ExerciseDetailView.swift */; };
 		2A3C2CC88DD05B680751AC4A /* PantryServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 404B967C6C63A60F5FF3F175 /* PantryServiceProtocol.swift */; };
 		2A7793A5E2F9FA8250F6E73D /* cue_ex_meadows_row.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 38DAFDA4F39EFEE32CF5FB1A /* cue_ex_meadows_row.mp3 */; };
@@ -195,6 +196,7 @@
 		4A8AF130E5427AAC727DE91F /* cue_ex_dumbbell_fly.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = DCC047438F27461B5034C8AB /* cue_ex_dumbbell_fly.mp3 */; };
 		4B6DEF5A3E3D67984CD3CDFE /* cue_ex_goblet_squat.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 36BC7CDDF03676F51498AC1D /* cue_ex_goblet_squat.mp3 */; };
 		4BB6042AF6E3224F7958443D /* TempoSectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDB21C0C26C0B857F473A95A /* TempoSectionHeader.swift */; };
+		4BB9AF378EDC91D15C636F10 /* Supplement.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFEB7F1F388A4F446B4481B7 /* Supplement.swift */; };
 		4C3624309BEDFA2D7F6E2FCF /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = CE56BC8136A4008A89FE68F7 /* PostHog */; };
 		4C90EDA5FB263F008538B8F2 /* PlannedExercise.swift in Sources */ = {isa = PBXBuildFile; fileRef = 157B905E03AA5F5CF4FE3276 /* PlannedExercise.swift */; };
 		4D17E625F1B90E1A78D99FC3 /* PlannedMealCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8373DCB9C0829D3723EF298B /* PlannedMealCardView.swift */; };
@@ -1169,6 +1171,7 @@
 		AE3A2335BEAF9420CA3826BB /* SyncEnums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEnums.swift; sourceTree = "<group>"; };
 		AE6263597B3354C508BBC7D4 /* Tempo.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Tempo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF94240FFEB657EBD81947D5 /* LockdownMainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockdownMainView.swift; sourceTree = "<group>"; };
+		AFEB7F1F388A4F446B4481B7 /* Supplement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Supplement.swift; sourceTree = "<group>"; };
 		B0ADB530756F4E7C5551F741 /* PlanArchiveNoDuplicateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanArchiveNoDuplicateTests.swift; sourceTree = "<group>"; };
 		B14DDAE49F98AC24F57EF735 /* OnboardingSplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingSplashView.swift; sourceTree = "<group>"; };
 		B18024131ADF710D79997362 /* cue_ex_hip_thrust.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_hip_thrust.mp3; sourceTree = "<group>"; };
@@ -1273,6 +1276,7 @@
 		D0D41E880144A54E4F98100F /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		D206DD1243E14C6F3788BF27 /* WhoopConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhoopConnection.swift; sourceTree = "<group>"; };
 		D33A7C362F149ABB77810824 /* MockRecoveryEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockRecoveryEngine.swift; sourceTree = "<group>"; };
+		D38A25FAEC946A4776F3B1F7 /* SupplementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplementTests.swift; sourceTree = "<group>"; };
 		D3E24C7C539FF9BCE8D6C50A /* cue_ex_pull_up.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_pull_up.mp3; sourceTree = "<group>"; };
 		D41309E18C6B9EB2597C84C3 /* cue_ex_hip_abductor_machine.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_hip_abductor_machine.mp3; sourceTree = "<group>"; };
 		D44ECA6CD877014E2B7D1796 /* cue_ex_dumbbell_lateral_lunge.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_dumbbell_lateral_lunge.mp3; sourceTree = "<group>"; };
@@ -2069,6 +2073,7 @@
 				561BA1A0CF2ABEBA6076FC39 /* Receipt.swift */,
 				DB27F024CE99ACAA64F6920F /* ReceiptLineItem.swift */,
 				64B13C2AE6A01FF27945D927 /* Recipe.swift */,
+				AFEB7F1F388A4F446B4481B7 /* Supplement.swift */,
 				705235EDE942F04975A3908C /* WeeklyMealPlan.swift */,
 				C5BDFC34F838A319076F11FE /* WizardLaunchSnapshot.swift */,
 			);
@@ -2617,6 +2622,7 @@
 				37772590FDF7609BE7A5D5A0 /* .gitkeep */,
 				3B3C87DC459DD8011D7B9DB9 /* PantryPriceEntryTests.swift */,
 				7010369E576E52A315266579 /* SetFeedbackTests.swift */,
+				D38A25FAEC946A4776F3B1F7 /* SupplementTests.swift */,
 				9526D8969F0F1B31CA19AB4C /* WeeklyMealPlanCoversTodayTests.swift */,
 			);
 			path = Models;
@@ -3362,6 +3368,7 @@
 				A2C4F9D5799D59350B3C7725 /* RecoveryEngineTests.swift in Sources */,
 				0C174EF0367ECA9304B7918B /* ScoringEngineTests.swift in Sources */,
 				65B34591E018303AA064EB1F /* SetFeedbackTests.swift in Sources */,
+				29DFDAD3216429D972CA6E34 /* SupplementTests.swift in Sources */,
 				3DB8DB1158C12767682AC2C0 /* TDEEGoalWeightTests.swift in Sources */,
 				772BD3105B7AB5A996B536FB /* TempoTests.swift in Sources */,
 				C498B8EF5C1A72790D0E7DBB /* VoicePantryParseTests.swift in Sources */,
@@ -3720,6 +3727,7 @@
 				A65C2ED4993520A4CCEA87FC /* StudySession.swift in Sources */,
 				A2273E878FAB4C3CB205F7D0 /* SubscriptionService.swift in Sources */,
 				379CA0F6FE0238EBD826FA59 /* SubscriptionServiceProtocol.swift in Sources */,
+				4BB9AF378EDC91D15C636F10 /* Supplement.swift in Sources */,
 				FD4F8D22C88FFFD22D088D8E /* SyncCoordinatorProtocol.swift in Sources */,
 				A129BCE268A7C4CA06D533A7 /* SyncEnums.swift in Sources */,
 				32A243A55DB5F5B329135CA8 /* SyncState.swift in Sources */,
