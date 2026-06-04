@@ -56,6 +56,45 @@ enum MealFeel: String, Codable, CaseIterable, Sendable {
     }
 }
 
+// MARK: - MealSatiety
+
+/// How full the meal left the user — the satiety signal. The PRIMARY direction
+/// the user cares about is DOWN: flagging a meal that was too much / they
+/// couldn't finish, so the planner scales that slot's portion down over time
+/// (fits a lean-recomposition goal — don't force-feed). `stillHungry` is the
+/// secondary, scale-UP direction.
+enum MealSatiety: String, Codable, CaseIterable, Sendable {
+    case tooMuch = "too_much"
+    case didntFinish = "didnt_finish"
+    case justRight = "just_right"
+    case stillHungry = "still_hungry"
+
+    var displayName: String {
+        switch self {
+        case .tooMuch: "Too much"
+        case .didntFinish: "Didn't finish"
+        case .justRight: "Just right"
+        case .stillHungry: "Still hungry"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .tooMuch: "arrow.down.circle.fill"
+        case .didntFinish: "fork.knife.circle"
+        case .justRight: "checkmark.circle.fill"
+        case .stillHungry: "arrow.up.circle.fill"
+        }
+    }
+
+    /// True when the signal asks the planner to CHANGE the slot's portion
+    /// (down for too-much/didn't-finish, up for still-hungry). `justRight` is
+    /// the confirmation case — no change.
+    var requestsPortionChange: Bool {
+        self != .justRight
+    }
+}
+
 // MARK: - IngredientSentiment
 
 /// Per-ingredient sentiment, captured so the AI can distinguish "I dislike
@@ -167,6 +206,17 @@ final class MealFeedback {
         set { mealFeelRaw = newValue?.rawValue }
     }
 
+    /// Satiety signal — how full the meal left the user. Additive, defaults
+    /// nil. Drives portion scaling in the next plan (mainly DOWN for
+    /// too-much / didn't-finish).
+    var satietyRaw: String?
+
+    @Transient
+    var satiety: MealSatiety? {
+        get { satietyRaw.flatMap { MealSatiety(rawValue: $0) } }
+        set { satietyRaw = newValue?.rawValue }
+    }
+
     // MARK: - Per-Ingredient Notes
 
     var ingredientNotesJSON: Data?
@@ -200,6 +250,7 @@ final class MealFeedback {
         portionNote: String? = nil,
         suggestedChange: String? = nil,
         mealFeel: MealFeel? = nil,
+        satiety: MealSatiety? = nil,
         substituteNote: String? = nil,
         substituteCalories: Double? = nil,
         ingredientNotes: [IngredientNote] = []
@@ -216,6 +267,7 @@ final class MealFeedback {
         self.portionNote = portionNote
         self.suggestedChange = suggestedChange
         self.mealFeelRaw = mealFeel?.rawValue
+        self.satietyRaw = satiety?.rawValue
         self.substituteNote = substituteNote
         self.substituteCalories = substituteCalories
         ingredientNotesJSON = ingredientNotes.isEmpty
@@ -242,6 +294,9 @@ final class MealFeedback {
             return true
         }
         if mealFeel != nil {
+            return true
+        }
+        if satiety != nil {
             return true
         }
         if let substituteNote, !substituteNote.isEmpty {

@@ -82,8 +82,8 @@ struct NutritionTodayView: View {
                 .presentationDetents([.medium, .large])
         }
         .sheet(item: $markEatenMeal) { meal in
-            MarkEatenSheet(meal: meal) { eatTime, feel, substitute in
-                commitMarkEaten(meal: meal, at: eatTime, feel: feel, substitute: substitute)
+            MarkEatenSheet(meal: meal) { eatTime, feel, satiety, substitute in
+                commitMarkEaten(meal: meal, at: eatTime, feel: feel, satiety: satiety, substitute: substitute)
             }
             .presentationDetents([.medium, .large])
         }
@@ -477,6 +477,7 @@ struct NutritionTodayView: View {
         meal: PlannedMeal,
         at eatTime: Date,
         feel: MealFeel?,
+        satiety: MealSatiety?,
         substitute: MarkEatenSheet.Substitute?
     ) {
         guard let substitute else {
@@ -488,8 +489,8 @@ struct NutritionTodayView: View {
                 PantryDecrementService.decrement(for: meal, modelContext: modelContext)
                 meal.didDecrementPantry = true
             }
-            if feel != nil {
-                let feedback = MealFeedback(plannedMeal: meal, mealFeel: feel)
+            if feel != nil || satiety != nil {
+                let feedback = MealFeedback(plannedMeal: meal, mealFeel: feel, satiety: satiety)
                 modelContext.insert(feedback)
             }
             try? modelContext.save()
@@ -499,11 +500,11 @@ struct NutritionTodayView: View {
         // Substitute → parse "what you ate" into real foods + DB macros via the
         // NL pipeline and REPLACE the meal's foods/macros (same as the meal
         // detail screen). No MealLog (day totals sum PlannedMeal → double-count).
-        Task { await resolveSubstitute(meal: meal, note: substitute.note, usedPantry: substitute.usedPantry, feel: feel) }
+        Task { await resolveSubstitute(meal: meal, note: substitute.note, usedPantry: substitute.usedPantry, feel: feel, satiety: satiety) }
     }
 
     @MainActor
-    private func resolveSubstitute(meal: PlannedMeal, note: String, usedPantry: Bool, feel: MealFeel?) async {
+    private func resolveSubstitute(meal: PlannedMeal, note: String, usedPantry: Bool, feel: MealFeel?, satiety: MealSatiety?) async {
         let nl = NaturalLanguageLoggingService(apiClient: services.apiClient)
         do {
             let items = try await nl.parseNaturalLanguage(note)
@@ -530,7 +531,7 @@ struct NutritionTodayView: View {
                 )
                 meal.didDecrementPantry = true
             }
-            let feedback = MealFeedback(plannedMeal: meal, mealFeel: feel, substituteNote: note)
+            let feedback = MealFeedback(plannedMeal: meal, mealFeel: feel, satiety: satiety, substituteNote: note)
             modelContext.insert(feedback)
             try? modelContext.save()
             viewModel.refreshFeedbackPresence(modelContext: modelContext)

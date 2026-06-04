@@ -25,12 +25,12 @@ import SwiftUI
 /// hitting "Save" commits time + no feel. Cancel does nothing.
 struct MarkEatenSheet: View {
     let meal: PlannedMeal
-    /// Called with `(actualEatTime, mealFeel?, substitute?)` when the user
-    /// confirms. The caller is responsible for calling `markMealEaten(at:)`,
+    /// Called with `(actualEatTime, mealFeel?, satiety?, substitute?)` when the
+    /// user confirms. The caller is responsible for calling `markMealEaten(at:)`,
     /// persisting any `MealFeedback` row, and — when `substitute` is non-nil —
     /// parsing the note through the NL pipeline to replace the planned meal's
     /// foods + macros with what was actually eaten.
-    let onCommit: (Date, MealFeel?, Substitute?) -> Void
+    let onCommit: (Date, MealFeel?, MealSatiety?, Substitute?) -> Void
 
     /// Captured when the user picks the "Ate something else" lane. Empty
     /// strings are filtered out by the caller. Carries only the raw note —
@@ -52,6 +52,8 @@ struct MarkEatenSheet: View {
     private var eatTime: Date = .now
     @State
     private var selectedFeel: MealFeel?
+    @State
+    private var selectedSatiety: MealSatiety?
     /// True when the user expanded the "Ate something else" lane.
     /// Collapses the planned-meal context (feel chips remain — feel
     /// applies to the substitute too).
@@ -70,7 +72,7 @@ struct MarkEatenSheet: View {
     init(
         meal: PlannedMeal,
         startWithSubstitute: Bool = false,
-        onCommit: @escaping (Date, MealFeel?, Substitute?) -> Void
+        onCommit: @escaping (Date, MealFeel?, MealSatiety?, Substitute?) -> Void
     ) {
         self.meal = meal
         self.onCommit = onCommit
@@ -98,9 +100,11 @@ struct MarkEatenSheet: View {
                         // and feel chips on-screen without scrolling.
                         substituteSection
                         feelChips
+                        satietyChips
                     } else {
                         timeScrubber
                         feelChips
+                        satietyChips
                         substituteSection
                     }
                 }
@@ -339,9 +343,56 @@ struct MarkEatenSheet: View {
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
+    /// Satiety signal — mainly used to scale a slot's portion DOWN over time
+    /// when the user repeatedly says "too much" / "didn't finish."
+    private var satietyChips: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            Text("HOW FULL ARE YOU?")
+                .font(.tempoCaption2)
+                .fontWeight(.semibold)
+                .tracking(0.4)
+                .foregroundStyle(Color.tempoTextTertiary)
+
+            HStack(spacing: 8) {
+                ForEach(MealSatiety.allCases, id: \.self) { satiety in
+                    satietyChip(satiety)
+                }
+            }
+        }
+    }
+
+    private func satietyChip(_ satiety: MealSatiety) -> some View {
+        let isSelected = selectedSatiety == satiety
+        return Button {
+            selectedSatiety = isSelected ? nil : satiety
+            HapticManager.lightImpact()
+        } label: {
+            VStack(spacing: 4) {
+                Image(systemName: satiety.symbolName)
+                    .font(.system(size: 16, weight: .semibold))
+                Text(satiety.displayName)
+                    .font(.system(size: 10, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, TempoSpacing.sm)
+            .background(isSelected ? Color.tempoSignal.opacity(0.20) : Color.tempoSurfaceCard)
+            .foregroundStyle(isSelected ? Color.tempoSignal : Color.tempoTextSecondary)
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous)
+                    .stroke(isSelected ? Color.tempoSignal : Color.clear, lineWidth: 1.5)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(satiety.displayName)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
     private var saveButton: some View {
         Button {
-            onCommit(eatTime, selectedFeel, builtSubstitute)
+            onCommit(eatTime, selectedFeel, selectedSatiety, builtSubstitute)
             HapticManager.notification(.success)
             dismiss()
         } label: {

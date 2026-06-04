@@ -271,6 +271,36 @@ final class MealPlanPromptsTests: XCTestCase {
                           "functional block is input, must precede meal_structure")
     }
 
+    // MARK: - Satiety signal in feedback block (Piece 4)
+
+    func testFeedbackBlock_rendersFullnessAndScaleDownRule() {
+        let digest = MealPlanPrompts.FeedbackDigest(
+            recipes: [
+                .init(
+                    recipeName: "Chicken & Rice Bowl",
+                    averageRating: 4,
+                    mentionCount: 3,
+                    notes: [],
+                    portionNotes: [],
+                    suggestedChanges: [],
+                    feelCounts: [:],
+                    satietyCounts: ["too_much": 3, "just_right": 1],
+                    substituteNotes: []
+                ),
+            ],
+            ingredients: []
+        )
+        let block = MealPlanPrompts.feedbackBlock(digest)
+        // The counts surface…
+        XCTAssertTrue(block.contains("fullness:"))
+        XCTAssertTrue(block.contains("too_much 3×"))
+        // …and the PRIMARY scale-DOWN rule is present.
+        XCTAssertTrue(block.uppercased().contains("SCALE DOWN"))
+        XCTAssertTrue(block.lowercased().contains("too_much"))
+        // …never starving the day to honor fullness.
+        XCTAssertTrue(block.lowercased().contains("never push a day below"))
+    }
+
     func testWeeklyPlanPrompt_safetyAllowsOwnedSupplementsButNotBuying() {
         let restrictions = MealPlanPrompts.DietaryRestrictions(
             isLactoseFree: false, noCoffee: false, isGlutenFree: false,

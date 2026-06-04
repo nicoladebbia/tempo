@@ -580,6 +580,7 @@
 		DC8BEFF95B9D8BFDCE98C8A9 /* PlannedSet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2149CE481641E8287288817C /* PlannedSet.swift */; };
 		DCED9BB91B053164284F1E13 /* MockCalendarService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16EC0F22D503CB01821342D /* MockCalendarService.swift */; };
 		DD432A8A1F58E1D069CA72FC /* ArenaIntroView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86FB44A00C6BD7496CB85363 /* ArenaIntroView.swift */; };
+		DD688081DBCE3C1639521855 /* MealSatietyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E41A7571B99D79430E28C398 /* MealSatietyTests.swift */; };
 		DDFF3B7157655AE6C7FD8643 /* cue_ex_dumbbell_shoulder_press.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 63C843A8F4D5F1E482AFE1B6 /* cue_ex_dumbbell_shoulder_press.mp3 */; };
 		DE40DA1D91129EF0F9AEBA86 /* cue_ex_pallof_press.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = F82D15601D7F2B8663962DE0 /* cue_ex_pallof_press.mp3 */; };
 		DE437C2704840F200B89050D /* MockXPEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA1B364BC6CF319DE06221BA /* MockXPEngine.swift */; };
@@ -1337,6 +1338,7 @@
 		E2D5452936E816C1D8269D98 /* NutritionCoachService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionCoachService.swift; sourceTree = "<group>"; };
 		E2D7A8B3C4DDDECC3C53A8CC /* cue_ex_dumbbell_pullover.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_dumbbell_pullover.mp3; sourceTree = "<group>"; };
 		E362BE5C475B6354C827C7CE /* ExerciseDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExerciseDetailView.swift; sourceTree = "<group>"; };
+		E41A7571B99D79430E28C398 /* MealSatietyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealSatietyTests.swift; sourceTree = "<group>"; };
 		E4332B84837EABCC5CDFB640 /* testScoreRingHalf.1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = testScoreRingHalf.1.png; sourceTree = "<group>"; };
 		E44A649403C1006D667EEB78 /* cue_ex_dumbbell_shrug.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_dumbbell_shrug.mp3; sourceTree = "<group>"; };
 		E4539B2940363761D247FF8E /* DailyNutritionSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyNutritionSummaryView.swift; sourceTree = "<group>"; };
@@ -2622,6 +2624,7 @@
 			isa = PBXGroup;
 			children = (
 				37772590FDF7609BE7A5D5A0 /* .gitkeep */,
+				E41A7571B99D79430E28C398 /* MealSatietyTests.swift */,
 				3B3C87DC459DD8011D7B9DB9 /* PantryPriceEntryTests.swift */,
 				7010369E576E52A315266579 /* SetFeedbackTests.swift */,
 				D38A25FAEC946A4776F3B1F7 /* SupplementTests.swift */,
@@ -3349,6 +3352,7 @@
 				8989D01C44B10B70BFCC2E51 /* LearnedPreferenceTests.swift in Sources */,
 				E51946E881178D1492659FAC /* MacroCarryoverServiceTests.swift in Sources */,
 				DC474F4F02D725F031A4DB1A /* MealPlanPromptsTests.swift in Sources */,
+				DD688081DBCE3C1639521855 /* MealSatietyTests.swift in Sources */,
 				EAA4037D977EAE8E523D8855 /* NutritionLogPhotoMappingTests.swift in Sources */,
 				A4578B5BC7C59629E95A772D /* NutritionTabViewModelPhase7Tests.swift in Sources */,
 				45D549BE8D563C23DFE294DA /* NutritionTabViewModelTests.swift in Sources */,

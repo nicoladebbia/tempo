@@ -117,8 +117,8 @@ struct MealDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadWakeSignal() }
         .sheet(isPresented: $presentMarkEatenSheet) {
-            MarkEatenSheet(meal: meal, startWithSubstitute: openSheetToSubstitute) { eatTime, feel, substitute in
-                commitMarkEaten(at: eatTime, feel: feel, substitute: substitute)
+            MarkEatenSheet(meal: meal, startWithSubstitute: openSheetToSubstitute) { eatTime, feel, satiety, substitute in
+                commitMarkEaten(at: eatTime, feel: feel, satiety: satiety, substitute: substitute)
             }
             // Open large when entering the substitute lane so the "what did you
             // eat" field is on-screen, not clipped below a .medium fold.
@@ -543,11 +543,12 @@ struct MealDetailView: View {
     private func commitMarkEaten(
         at eatTime: Date,
         feel: MealFeel?,
+        satiety: MealSatiety?,
         substitute: MarkEatenSheet.Substitute?
     ) {
         guard let substitute else {
             // Plain "ate the planned meal" — synchronous. Decrement once.
-            recordEaten(at: eatTime, feel: feel)
+            recordEaten(at: eatTime, feel: feel, satiety: satiety)
             if !meal.didDecrementPantry {
                 PantryDecrementService.decrement(for: meal, modelContext: modelContext)
                 meal.didDecrementPantry = true
@@ -560,22 +561,23 @@ struct MealDetailView: View {
         // via the NL pipeline, then REPLACE the meal's foods/macros so the
         // detail screen shows what was actually eaten (not the old recipe, not
         // zeros). One Haiku call. Eat time defaults to now (no scrubber here).
-        Task { await resolveSubstitute(note: substitute.note, usedPantry: substitute.usedPantry, feel: feel) }
+        Task { await resolveSubstitute(note: substitute.note, usedPantry: substitute.usedPantry, feel: feel, satiety: satiety) }
     }
 
     /// Shared eaten-status write (status + time + notifications + feedback).
     @MainActor
-    private func recordEaten(at eatTime: Date, feel: MealFeel?, substituteNote: String? = nil) {
+    private func recordEaten(at eatTime: Date, feel: MealFeel?, satiety: MealSatiety? = nil, substituteNote: String? = nil) {
         meal.status = .eaten
         meal.actualEatenAt = eatTime
         try? modelContext.save()
         services.notifications.cancelDefrostReminders(forMealID: meal.id)
         services.notifications.cancelPrepStartReminder(forMealID: meal.id)
         services.notifications.cancelOverdueMealReminder(forMealID: meal.id)
-        if feel != nil || substituteNote != nil {
+        if feel != nil || satiety != nil || substituteNote != nil {
             let feedback = MealFeedback(
                 plannedMeal: meal,
                 mealFeel: feel,
+                satiety: satiety,
                 substituteNote: substituteNote,
                 substituteCalories: nil
             )
@@ -585,7 +587,7 @@ struct MealDetailView: View {
     }
 
     @MainActor
-    private func resolveSubstitute(note: String, usedPantry: Bool, feel: MealFeel?) async {
+    private func resolveSubstitute(note: String, usedPantry: Bool, feel: MealFeel?, satiety: MealSatiety?) async {
         if nlService == nil {
             nlService = NaturalLanguageLoggingService(apiClient: services.apiClient)
         }
@@ -618,7 +620,7 @@ struct MealDetailView: View {
             // Clear the planned recipe so the detail view renders the actual
             // foods (noRecipeFallback) instead of the original dish.
             meal.recipe = nil
-            recordEaten(at: .now, feel: feel, substituteNote: note)
+            recordEaten(at: .now, feel: feel, satiety: satiety, substituteNote: note)
             // Decrement the pantry ONLY if the user said they used their own
             // stock, and only once per meal (guard against re-edit
             // double-subtract). "Ate out" / unknown leaves the pantry alone.

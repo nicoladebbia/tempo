@@ -238,6 +238,13 @@ enum MealPlanPrompts {
                         .joined(separator: ", ")
                     parts.append("feel: \(feelStr)")
                 }
+                if !recipe.satietyCounts.isEmpty {
+                    let satStr = recipe.satietyCounts
+                        .sorted { $0.value > $1.value }
+                        .map { "\($0.key) \($0.value)×" }
+                        .joined(separator: ", ")
+                    parts.append("fullness: \(satStr)")
+                }
                 if !recipe.notes.isEmpty {
                     parts.append("notes: " + recipe.notes.joined(separator: " / "))
                 }
@@ -282,6 +289,13 @@ enum MealPlanPrompts {
         - 'swapped Nx for:' means the user marked the planned meal eaten but logged a DIFFERENT meal instead. \
         ≥ 2 swaps for the same recipe = DROP it from the new plan entirely; the user is voting with their behavior. \
         Read the swap descriptions to learn what dishes they prefer in that slot and surface similar options.
+        - 'fullness:' counts come from a post-meal satiety tag (too_much / didnt_finish / just_right / still_hungry). \
+        The PRIMARY action is to SCALE DOWN: when a recipe/slot is 'too_much' or 'didnt_finish' ≥ 2× more than \
+        'still_hungry', REDUCE that meal's portion (lower its calories within the day's target — shrink that slot \
+        and let other meals hold the macro total). When 'still_hungry' dominates ≥ 2×, increase that slot's volume \
+        (prefer adding high-volume, low-calorie-density foods — vegetables, broth, fruit — before fat/oil). \
+        'just_right' is confirmation; keep that portion. Never push a day below its calorie/protein target to honor \
+        a fullness signal — rebalance across meals instead.
         </user_feedback>
         """
     }
@@ -542,6 +556,10 @@ enum MealPlanPrompts {
             /// `MealFeel.rawValue`. Surfaces patterns like "this dish
             /// makes them sluggish 4/5 times" to the planner.
             let feelCounts: [String: Int]
+            /// Counts of post-meal satiety chips. Keys are
+            /// `MealSatiety.rawValue`. Surfaces "this slot is too_much 4/5
+            /// times" so the planner can scale the portion DOWN.
+            let satietyCounts: [String: Int]
             /// Free-text descriptions of what the user ate INSTEAD of the
             /// planned recipe. Each entry is a "I swapped this dish" event.
             /// Heavy signal — repeated substitution means the dish should

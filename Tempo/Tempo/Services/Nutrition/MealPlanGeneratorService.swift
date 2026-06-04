@@ -605,9 +605,14 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             // Aggregate post-meal feel chips by raw value so the prompt
             // surface ("sluggish 4×, heavy 1×") matches the enum vocabulary.
             var feelCounts: [String: Int] = [:]
+            var satietyCounts: [String: Int] = [:]
             for row in bucket {
-                guard let feel = row.mealFeel else { continue }
-                feelCounts[feel.rawValue, default: 0] += 1
+                if let feel = row.mealFeel {
+                    feelCounts[feel.rawValue, default: 0] += 1
+                }
+                if let satiety = row.satiety {
+                    satietyCounts[satiety.rawValue, default: 0] += 1
+                }
             }
             return MealPlanPrompts.FeedbackDigest.RecipeSignal(
                 recipeName: first.recipeName ?? "(unknown recipe)",
@@ -617,6 +622,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
                 portionNotes: bucket.compactMap(\.portionNote).filter { !$0.isEmpty },
                 suggestedChanges: bucket.compactMap(\.suggestedChange).filter { !$0.isEmpty },
                 feelCounts: feelCounts,
+                satietyCounts: satietyCounts,
                 substituteNotes: bucket.compactMap(\.substituteNote).filter { !$0.isEmpty }
             )
         }
