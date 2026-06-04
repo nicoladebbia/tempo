@@ -187,8 +187,86 @@ final class MealPlanGeneratorService: @unchecked Sendable {
 
         setState(.complete)
         logger.info("Weekly meal plan generated: \(weeklyPlan.id) with \(weeklyPlan.meals?.count ?? 0) meals")
+        logPlanDiagnostics(weeklyPlan)
 
         return weeklyPlan
+    }
+
+    /// Dump a structured, human-readable summary of the generated plan so a
+    /// regenerate can be verified from the console alone — without screenshots.
+    /// Covers the four things that keep going wrong: meal TIMING + ordering,
+    /// day-TYPE labels, supplement decisions, and food VARIETY. All under the
+    /// `[PlanDiag]` tag for easy filtering.
+    /// Parse "HH:mm" → minutes-from-midnight for ordering checks. Nil on a
+    /// malformed string.
+    private static func minutesOfDay(from hhmm: String) -> Int? {
+        let parts = hhmm.split(separator: ":")
+        guard parts.count == 2, let h = Int(parts[0]), let m = Int(parts[1]) else {
+            return nil
+        }
+        return h * 60 + m
+    }
+
+    private func logPlanDiagnostics(_ plan: WeeklyMealPlan) {
+        let cal = Calendar.current
+        let meals = plan.meals ?? []
+        let weekdayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+        logger.info("[PlanDiag] ===== Plan \(plan.id) =====")
+
+        // Per-day: day-type + meals in chronological order with time/name/kcal.
+        // Group by dayDate so we read each day as the user will see it.
+        let byDay = Dictionary(grouping: meals) { cal.startOfDay(for: $0.dayDate) }
+        var orderViolations = 0
+        for dayStart in byDay.keys.sorted() {
+            let dayMeals = (byDay[dayStart] ?? []).sorted {
+                (Self.minutesOfDay(from: $0.scheduledTime) ?? 0) < (Self.minutesOfDay(from: $1.scheduledTime) ?? 0)
+            }
+            let weekdayIdx = (cal.component(.weekday, from: dayStart) + 5) % 7 // Mon=0
+            let label = weekdayIdx < weekdayNames.count ? weekdayNames[weekdayIdx] : "?"
+            let dayType = plan.dayTypeAssignments[cal.component(.weekday, from: dayStart)] ?? "?"
+            let line = dayMeals.map { m in
+                "\(m.scheduledTime) \(m.mealName)(\(Int(m.totalCalories))kcal)"
+            }.joined(separator: " → ")
+            logger.info("[PlanDiag] \(label) [\(dayType)]: \(line)")
+
+            // Ordering sanity: dinner should not precede an afternoon snack, and
+            // times must be non-decreasing (the sort guarantees the latter, so
+            // we flag a Dinner that sits before a Snack by mealNumber instead).
+            if let dinner = dayMeals.first(where: { $0.mealName.lowercased().contains("dinner") }),
+               let dinnerMin = Self.minutesOfDay(from: dinner.scheduledTime),
+               dinnerMin < 19 * 60 {
+                logger.warning("[PlanDiag] ⚠️ \(label): dinner at \(dinner.scheduledTime) is before 19:00")
+                orderViolations += 1
+            }
+        }
+
+        // Variety audit: distinct foods across the week + how concentrated the
+        // most-repeated food is (the chicken-pasta-monotony detector).
+        let allFoodNames = meals.flatMap { $0.foods.map { $0.name.lowercased() } }
+        let distinct = Set(allFoodNames)
+        var counts: [String: Int] = [:]
+        for name in allFoodNames { counts[name, default: 0] += 1 }
+        let top = counts.sorted { $0.value > $1.value }.prefix(5)
+            .map { "\($0.key)×\($0.value)" }.joined(separator: ", ")
+        logger.info("[PlanDiag] Variety: \(distinct.count) distinct foods across \(allFoodNames.count) slots. Most repeated: \(top)")
+
+        // Supplement decisions actually persisted.
+        let suppDays = plan.supplementDecisions.count
+        if suppDays > 0 {
+            let sample = plan.supplementDecisions.sorted { $0.key < $1.key }.first
+            let sampleStr = (sample?.value ?? []).map {
+                "\($0.name):\($0.take ? "take@\($0.timing ?? "?")" : "skip")"
+            }.joined(separator: ", ")
+            logger.info("[PlanDiag] Supplements: decisions on \(suppDays) days. Day \(sample?.key ?? 0): \(sampleStr)")
+        } else {
+            logger.info("[PlanDiag] Supplements: none (user owns no shelf items)")
+        }
+
+        if orderViolations > 0 {
+            logger.warning("[PlanDiag] ⚠️ \(orderViolations) day(s) with dinner-before-19:00 — timing rule not honored")
+        }
+        logger.info("[PlanDiag] ===== end =====")
     }
 
     // MARK: - Recipe Generation (Haiku)
