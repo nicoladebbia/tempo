@@ -93,7 +93,13 @@ struct WeeklyTrainingSchedule: Sendable, Equatable {
         // — that's how the Training engine treats it (football is the priority
         // signal). Without this, a user with Mon=upper and Wed=football would
         // still see Wed=Legs in the meal plan.
-        for weekday in 1 ... 7 where footballDays.isActive(on: weekday) {
+        // `weekday` here is THIS struct's convention (Mon=1 … Sun=7), but
+        // `ActiveDays.isActive(on:)` expects Calendar's convention (Sun=1 …
+        // Sat=7). Convert ONLY the argument — Mon(1)→2, …, Sat(6)→7, Sun(7)→1.
+        // The dict key stays in Mon=1…Sun=7. Without this, a user with Sunday
+        // football got Monday=Football in the meal plan (bit 6 = Sunday read as
+        // Calendar-Monday). Measured via [PlanDiag] wd1=Football.
+        for weekday in 1 ... 7 where footballDays.isActive(on: (weekday % 7) + 1) {
             byWeekday[weekday] = "Football"
         }
         return WeeklyTrainingSchedule(byWeekday: byWeekday)
