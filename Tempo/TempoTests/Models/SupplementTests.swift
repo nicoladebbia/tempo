@@ -105,4 +105,47 @@ final class SupplementTests: XCTestCase {
         // Whey should be the top-up, not the default, because dairy is minimized.
         XCTAssertTrue(block.lowercased().contains("food first"))
     }
+
+    // MARK: - WeeklyMealPlan.supplementDecisions round-trip
+
+    func testPlanSupplementDecisions_roundTrip() throws {
+        let container = try ModelContainer(
+            for: WeeklyMealPlan.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let ctx = container.mainContext
+        let plan = WeeklyMealPlan(
+            startDate: Date(), endDate: Date(),
+            dayTypeAssignments: [:], isActive: true
+        )
+        // Key 1 = Monday (the plan's dayIndex+1 convention).
+        plan.supplementDecisions = [
+            1: [
+                SupplementDecision(name: "Creatine", take: true, reason: "creatine daily"),
+                SupplementDecision(name: "Whey", take: false, reason: "protein met by food"),
+            ],
+        ]
+        ctx.insert(plan)
+        try ctx.save()
+
+        let fetched = try ctx.fetch(FetchDescriptor<WeeklyMealPlan>())
+        let decisions = fetched.first?.supplementDecisions[1] ?? []
+        XCTAssertEqual(decisions.count, 2)
+        XCTAssertEqual(decisions.first?.name, "Creatine")
+        XCTAssertEqual(decisions.first?.take, true)
+        XCTAssertEqual(decisions.last?.take, false)
+    }
+
+    func testPlanSupplementDecisions_emptyWhenAbsent() throws {
+        let container = try ModelContainer(
+            for: WeeklyMealPlan.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let plan = WeeklyMealPlan(
+            startDate: Date(), endDate: Date(),
+            dayTypeAssignments: [:], isActive: true
+        )
+        // Never set → decoding a nil blob yields an empty map, not a crash.
+        XCTAssertTrue(plan.supplementDecisions.isEmpty)
+    }
 }

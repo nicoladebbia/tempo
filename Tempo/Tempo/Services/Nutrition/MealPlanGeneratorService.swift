@@ -910,10 +910,19 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         // Build day type assignments keyed by absolute weekday (Mon=1..Sun=7)
         // so RecoverIQ / training-day logic gets a stable mapping.
         var dayTypeAssignments: [Int: String] = [:]
+        var supplementDecisions: [Int: [SupplementDecision]] = [:]
         for day in plan.days {
             // dayIndex 0 = Monday per the prompt contract. Map directly.
             let weekdayNumber = day.dayIndex + 1
             dayTypeAssignments[weekdayNumber] = day.dayType
+            // Capture the AI's per-day supplement take/skip decisions (only
+            // present when the user owns supplements). Stored on the plan,
+            // surfaced as "Today's supplements".
+            if let supps = day.supplements, !supps.isEmpty {
+                supplementDecisions[weekdayNumber] = supps.map {
+                    SupplementDecision(name: $0.name, take: $0.take, reason: $0.reason)
+                }
+            }
         }
 
         // ARCHIVE (don't delete) existing active plans. The personalization
@@ -963,6 +972,9 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             dayTypeAssignments: dayTypeAssignments,
             isActive: true
         )
+        if !supplementDecisions.isEmpty {
+            weeklyPlan.supplementDecisions = supplementDecisions
+        }
         modelContext.insert(weeklyPlan)
 
         // Create PlannedMeal records

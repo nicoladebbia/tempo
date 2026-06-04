@@ -62,6 +62,21 @@ enum SupplementKind: String, Codable, CaseIterable, Sendable {
     }
 }
 
+// MARK: - SupplementDecision
+
+/// A single day's take/skip decision for one supplement, produced by the
+/// meal-plan AI and stored on `WeeklyMealPlan.supplementDecisions`. Surfaced as
+/// "Today's supplements" so the user sees take/skip + why. Codable (not a
+/// SwiftData model) — it lives inside the plan's JSON blob, keyed by weekday.
+struct SupplementDecision: Codable, Hashable, Identifiable {
+    /// Matches a `Supplement.name` on the user's shelf.
+    var name: String
+    var take: Bool
+    var reason: String?
+
+    var id: String { name }
+}
+
 // MARK: - Supplement
 
 @Model

@@ -24,6 +24,11 @@ final class WeeklyMealPlan {
 
     var dayTypeAssignmentsJSON: Data?
 
+    /// Per-day supplement take/skip decisions from the plan AI, keyed by
+    /// weekday number (1 = Sunday … 7 = Saturday, matching dayTypeAssignments).
+    /// Empty/absent when the user owns no supplements. Additive — defaults nil.
+    var supplementDecisionsJSON: Data?
+
     // MARK: - Lifecycle
 
     var isActive: Bool
@@ -56,6 +61,22 @@ final class WeeklyMealPlan {
         }
         set {
             dayTypeAssignmentsJSON = try? JSONEncoder().encode(newValue)
+        }
+    }
+
+    /// Per-day supplement decisions, keyed by weekday number (1 = Sunday …
+    /// 7 = Saturday). Decoded from `supplementDecisionsJSON`. Empty when the
+    /// user owns no supplements or the plan predates this feature.
+    @Transient
+    var supplementDecisions: [Int: [SupplementDecision]] {
+        get {
+            guard let data = supplementDecisionsJSON else {
+                return [:]
+            }
+            return (try? JSONDecoder().decode([Int: [SupplementDecision]].self, from: data)) ?? [:]
+        }
+        set {
+            supplementDecisionsJSON = try? JSONEncoder().encode(newValue)
         }
     }
 

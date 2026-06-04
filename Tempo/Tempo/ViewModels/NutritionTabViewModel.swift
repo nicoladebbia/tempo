@@ -206,6 +206,26 @@ final class NutritionTabViewModel {
         weeklyPlan?.coversToday == true && !todayMeals.isEmpty
     }
 
+    /// The plan AI's supplement take/skip decisions for TODAY (empty when the
+    /// user owns no supplements or no active plan covers today). Surfaced as
+    /// "Today's supplements" on the Today tab.
+    ///
+    /// The plan keys its per-day maps by `dayIndex + 1` where dayIndex 0 =
+    /// Monday (the plan's startDate is anchored to Monday in persistPlan). So
+    /// the correct key for today is (days since startDate) + 1 — NOT
+    /// `Calendar.component(.weekday)`, whose 1=Sunday numbering does not match
+    /// the plan's Monday=1 convention.
+    var todaySupplementDecisions: [SupplementDecision] {
+        guard let plan = weeklyPlan, plan.coversToday else { return [] }
+        let cal = Calendar.current
+        let start = cal.startOfDay(for: plan.startDate)
+        let today = cal.startOfDay(for: Date())
+        let daysSinceStart = cal.dateComponents([.day], from: start, to: today).day ?? 0
+        guard daysSinceStart >= 0, daysSinceStart < 7 else { return [] }
+        let key = daysSinceStart + 1 // Monday=1 … Sunday=7
+        return plan.supplementDecisions[key] ?? []
+    }
+
     var todayProteinConsumed: Int {
         todayMeals
             .filter { $0.status == .eaten }
@@ -1365,6 +1385,11 @@ final class NutritionTabViewModel {
         /// Test-only setter for today's Whoop recovery data. NOT for production code.
         func _testSetTodayRecovery(_ recovery: WhoopRecoveryData?) {
             todayRecovery = recovery
+        }
+
+        /// Test-only setter for the active weekly plan. NOT for production code.
+        func _testSetWeeklyPlan(_ plan: WeeklyMealPlan?) {
+            weeklyPlan = plan
         }
     #endif
 }

@@ -148,6 +148,42 @@ final class NutritionTabViewModelTests: XCTestCase {
         )
     }
 
+    // MARK: - Today's supplement decisions (weekday-key resolution)
+
+    func testTodaySupplementDecisions_resolvesTodayByPlanDayIndex() {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        // Anchor the plan to THIS week's Monday, matching persistPlan.
+        let weekdayOfToday = cal.component(.weekday, from: today) // 1=Sun..7=Sat
+        let mondayOffset = (weekdayOfToday + 5) % 7 // days since Monday
+        let monday = cal.date(byAdding: .day, value: -mondayOffset, to: today)!
+        let sunday = cal.date(byAdding: .day, value: 6, to: monday)!
+
+        let plan = WeeklyMealPlan(
+            startDate: monday, endDate: sunday,
+            dayTypeAssignments: [:], isActive: true
+        )
+        // Key each day (1=Mon..7=Sun) to a uniquely named supplement so we can
+        // prove the resolver picks TODAY's, not a neighbor's (off-by-one guard).
+        var decisions: [Int: [SupplementDecision]] = [:]
+        for key in 1 ... 7 {
+            decisions[key] = [SupplementDecision(name: "Day\(key)", take: true, reason: nil)]
+        }
+        plan.supplementDecisions = decisions
+        viewModel._testSetWeeklyPlan(plan)
+
+        let todayKey = mondayOffset + 1 // (days since Monday) + 1
+        let resolved = viewModel.todaySupplementDecisions
+        XCTAssertEqual(resolved.count, 1)
+        XCTAssertEqual(resolved.first?.name, "Day\(todayKey)",
+                       "Must resolve TODAY's decisions, not a neighboring day's")
+    }
+
+    func testTodaySupplementDecisions_emptyWhenNoPlan() {
+        viewModel._testSetWeeklyPlan(nil)
+        XCTAssertTrue(viewModel.todaySupplementDecisions.isEmpty)
+    }
+
     private func nextTimeString(addingMinutes minutes: Int) -> String {
         let date = Date().addingTimeInterval(TimeInterval(minutes * 60))
         let formatter = DateFormatter()

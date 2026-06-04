@@ -50,6 +50,7 @@ struct NutritionTodayView: View {
                 macroRingsSection
                 UseUpSoonCard(viewModel: viewModel)
                 calorieProgressSection
+                supplementsCard
                 mealsListSection
 
                 // AI disclaimer
@@ -159,6 +160,46 @@ struct NutritionTodayView: View {
                 .frame(maxWidth: 80)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Today's Supplements
+
+    /// The plan AI's take/skip decision for the user's owned supplements today.
+    /// Renders nothing when the user owns no supplements (decisions empty).
+    @ViewBuilder
+    private var supplementsCard: some View {
+        let decisions = viewModel.todaySupplementDecisions
+        if !decisions.isEmpty {
+            VStack(alignment: .leading, spacing: TempoSpacing.md) {
+                Text("TODAY'S SUPPLEMENTS")
+                    .font(.tempoModuleTag)
+                    .foregroundStyle(Color.tempoTextTertiary)
+                ForEach(decisions) { decision in
+                    HStack(alignment: .top, spacing: TempoSpacing.md) {
+                        Text(decision.take ? "TAKE" : "SKIP")
+                            .font(.tempoCaption2)
+                            .fontWeight(.bold)
+                            .foregroundStyle(decision.take ? Color.tempoSuccess : Color.tempoTextTertiary)
+                            .frame(width: 44, alignment: .leading)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(decision.name)
+                                .font(.tempoBody)
+                                .foregroundStyle(Color.tempoTextPrimary)
+                            if let reason = decision.reason, !reason.isEmpty {
+                                Text(reason)
+                                    .font(.tempoCaption2)
+                                    .foregroundStyle(Color.tempoTextSecondary)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(TempoSpacing.cardPadding)
+            .background(Color.tempoSurfaceCard)
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        }
     }
 
     // MARK: - Calorie Progress

@@ -186,6 +186,7 @@
 		45D549BE8D563C23DFE294DA /* NutritionTabViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C72F5A50FC07C819A4B59782 /* NutritionTabViewModelTests.swift */; };
 		45F5AE93CF47246FB3DD3CB4 /* cue_ex_cable_pull_through.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 86863DA8F3D668195F4BE5DB /* cue_ex_cable_pull_through.mp3 */; };
 		461FFB68561C2AA7B0399E6D /* MealLoggingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A25B6E5B757BBB1DCCDD169F /* MealLoggingService.swift */; };
+		47062D89D6D163EA29DEDD7F /* SupplementsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BE32EF62283128939755BE3 /* SupplementsView.swift */; };
 		471F3922D28C6F5BA7053809 /* cue_ex_wrist_curl.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = D89412668F66C6575100CB8F /* cue_ex_wrist_curl.mp3 */; };
 		478AF46CB8EAFCFE91628DE0 /* WatchTimerState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 107AE3772B6FED8109A517C8 /* WatchTimerState.swift */; };
 		48E2965EE5A8FD999A62B804 /* CoachToolsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04F74AB9672C62B51FE03F8E /* CoachToolsTests.swift */; };
@@ -991,6 +992,7 @@
 		6B7D8774A65516298E76651B /* QuadrantCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuadrantCardView.swift; sourceTree = "<group>"; };
 		6B942A08219ED48198388A40 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		6B9A3BCA3AB54AD01D0758E3 /* DesignTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokens.swift; sourceTree = "<group>"; };
+		6BE32EF62283128939755BE3 /* SupplementsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplementsView.swift; sourceTree = "<group>"; };
 		6CA4AFC8604C8FC82CE0BD53 /* OutcomeEvidenceProviderImplTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutcomeEvidenceProviderImplTests.swift; sourceTree = "<group>"; };
 		6CA68962D0F3CB898FCE2B06 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		6CF7502E4ED9AA423089206D /* NotificationServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationServiceProtocol.swift; sourceTree = "<group>"; };
@@ -2736,6 +2738,7 @@
 				64E99D6FFA1106CE7A978FB1 /* ReceiptCaptureView.swift */,
 				96E54ED996E486C0997A66DB /* ReceiptReviewView.swift */,
 				5D80435DD4731EBFEB97EC18 /* RecipeSuggestionsView.swift */,
+				6BE32EF62283128939755BE3 /* SupplementsView.swift */,
 				482D68428AB7838E01758165 /* TellAIRecipeView.swift */,
 				6B0AA76F0D6E4C4C02DFD5FC /* UseUpSoonCard.swift */,
 				BEF1ADE800B362B94773359D /* VoiceMealLogView.swift */,
@@ -3728,6 +3731,7 @@
 				A2273E878FAB4C3CB205F7D0 /* SubscriptionService.swift in Sources */,
 				379CA0F6FE0238EBD826FA59 /* SubscriptionServiceProtocol.swift in Sources */,
 				4BB9AF378EDC91D15C636F10 /* Supplement.swift in Sources */,
+				47062D89D6D163EA29DEDD7F /* SupplementsView.swift in Sources */,
 				FD4F8D22C88FFFD22D088D8E /* SyncCoordinatorProtocol.swift in Sources */,
 				A129BCE268A7C4CA06D533A7 /* SyncEnums.swift in Sources */,
 				32A243A55DB5F5B329135CA8 /* SyncState.swift in Sources */,
