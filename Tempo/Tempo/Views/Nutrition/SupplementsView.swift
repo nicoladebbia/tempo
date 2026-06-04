@@ -202,7 +202,6 @@ private struct SupplementEditSheet: View {
     @State private var dose: String
     @State private var proteinPerServingText: String
     @State private var servingsText: String
-    @State private var takeDaily: Bool
     @State private var notes: String
 
     init(existing: Supplement?, onSave: @escaping (Supplement) -> Void) {
@@ -219,7 +218,6 @@ private struct SupplementEditSheet: View {
             initialValue: (existing?.servingsRemaining ?? 0) > 0
                 ? String(Int(existing?.servingsRemaining ?? 0)) : ""
         )
-        _takeDaily = State(initialValue: existing?.takeDaily ?? SupplementKind.protein.defaultsToDaily)
         _notes = State(initialValue: existing?.userNotes ?? "")
     }
 
@@ -237,15 +235,8 @@ private struct SupplementEditSheet: View {
                             Text(k.displayName).tag(k)
                         }
                     }
-                    .onChange(of: kind) { _, newKind in
-                        // Seed the daily default from the kind only when adding;
-                        // don't stomp an explicit choice on an existing item.
-                        if existing == nil {
-                            takeDaily = newKind.defaultsToDaily
-                        }
-                    }
                 }
-                Section("Dosing") {
+                Section {
                     TextField("Dose per serving (e.g. 25 g, 5 g, 1000 mg)", text: $dose)
                     if kind == .protein {
                         TextField("Protein grams per serving", text: $proteinPerServingText)
@@ -253,10 +244,13 @@ private struct SupplementEditSheet: View {
                     }
                     TextField("Servings left (optional)", text: $servingsText)
                         .keyboardType(.numberPad)
-                    Toggle("Take every day by default", isOn: $takeDaily)
+                } header: {
+                    Text("Details (optional)")
+                } footer: {
+                    Text("Your plan decides each day whether to take this and when — you don't have to schedule it. These facts just help it (protein per scoop counts toward your macros; servings left flags when you're low).")
                 }
                 Section("Notes (optional)") {
-                    TextField("e.g. only on training days", text: $notes, axis: .vertical)
+                    TextField("e.g. I get bloated with two scoops", text: $notes, axis: .vertical)
                 }
             }
             .navigationTitle(existing == nil ? "Add Supplement" : "Edit Supplement")
@@ -286,7 +280,11 @@ private struct SupplementEditSheet: View {
             existing.dosePerServing = dose
             existing.proteinGramsPerServing = max(0, protein)
             existing.servingsRemaining = max(0, servings)
-            existing.takeDaily = takeDaily
+            // takeDaily is no longer a user choice — the AI infers daily-vs-
+            // conditional from the kind. Keep it aligned to the (possibly
+            // changed) kind's default so the prompt's "daily by default" hint
+            // stays sensible.
+            existing.takeDaily = kind.defaultsToDaily
             existing.userNotes = trimmedNotes.isEmpty ? nil : trimmedNotes
             existing.updatedAt = Date()
             onSave(existing)
@@ -297,7 +295,6 @@ private struct SupplementEditSheet: View {
                 dosePerServing: dose,
                 proteinGramsPerServing: max(0, protein),
                 servingsRemaining: max(0, servings),
-                takeDaily: takeDaily,
                 userNotes: trimmedNotes.isEmpty ? nil : trimmedNotes
             )
             onSave(new)

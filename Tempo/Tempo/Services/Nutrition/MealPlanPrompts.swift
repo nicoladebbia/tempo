@@ -419,6 +419,13 @@ enum MealPlanPrompts {
           if none, but never exceed a single labeled serving.
         - Respect servings-left: do not schedule a supplement marked RUNNING LOW
           more than its remaining servings; you may note it's low.
+        - TIMING: for every "take" decision, say WHEN to take it in plain words
+          (with breakfast / after lunch / post-training / before bed), anchored
+          to that day's meals and training. You are the nutritionist — the user
+          should not have to decide when; you tell them. Examples: creatine →
+          any consistent time ("with breakfast"); whey → the meal where protein
+          fell short ("after lunch — protein was low today"); omega-3 → with a
+          meal that has fat ("with dinner"). Leave timing empty on a skip.
         - Give a SHORT reason per decision ("protein target met by food → skip",
           "creatine daily", "post-match recovery"). Never give medical dosing
           beyond the labeled serving; never tell the user to buy more.
@@ -683,6 +690,7 @@ enum MealPlanPrompts {
                         {
                             "name": "string (MUST match a name from <supplement_shelf>)",
                             "take": true,
+                            "timing": "WHEN to take it when take=true: 'with breakfast' | 'after lunch' | 'post-training' | 'before bed' etc. Empty string when take=false.",
                             "reason": "short reason, e.g. 'creatine daily' or 'protein met by food, skip'"
                         }
                     ]

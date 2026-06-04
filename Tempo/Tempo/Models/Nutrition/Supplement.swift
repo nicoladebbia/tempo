@@ -72,6 +72,10 @@ struct SupplementDecision: Codable, Hashable, Identifiable {
     /// Matches a `Supplement.name` on the user's shelf.
     var name: String
     var take: Bool
+    /// WHEN to take it, in plain words — "with breakfast", "after lunch",
+    /// "post-training", "before bed". Nil/empty for a skip. This is the
+    /// nutritionist telling the user not just whether but when.
+    var timing: String?
     var reason: String?
 
     var id: String { name }

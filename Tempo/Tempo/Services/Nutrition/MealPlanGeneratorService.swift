@@ -926,7 +926,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             // surfaced as "Today's supplements".
             if let supps = day.supplements, !supps.isEmpty {
                 supplementDecisions[weekdayNumber] = supps.map {
-                    SupplementDecision(name: $0.name, take: $0.take, reason: $0.reason)
+                    SupplementDecision(name: $0.name, take: $0.take, timing: $0.timing, reason: $0.reason)
                 }
             }
         }
@@ -1051,6 +1051,7 @@ private struct ParsedDay: Codable {
 private struct ParsedSupplementDecision: Codable {
     let name: String
     let take: Bool
+    let timing: String?
     let reason: String?
 }
 

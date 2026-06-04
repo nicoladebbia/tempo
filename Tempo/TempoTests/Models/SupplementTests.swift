@@ -121,8 +121,8 @@ final class SupplementTests: XCTestCase {
         // Key 1 = Monday (the plan's dayIndex+1 convention).
         plan.supplementDecisions = [
             1: [
-                SupplementDecision(name: "Creatine", take: true, reason: "creatine daily"),
-                SupplementDecision(name: "Whey", take: false, reason: "protein met by food"),
+                SupplementDecision(name: "Creatine", take: true, timing: "with breakfast", reason: "creatine daily"),
+                SupplementDecision(name: "Whey", take: false, timing: nil, reason: "protein met by food"),
             ],
         ]
         ctx.insert(plan)
@@ -133,7 +133,19 @@ final class SupplementTests: XCTestCase {
         XCTAssertEqual(decisions.count, 2)
         XCTAssertEqual(decisions.first?.name, "Creatine")
         XCTAssertEqual(decisions.first?.take, true)
+        XCTAssertEqual(decisions.first?.timing, "with breakfast",
+                       "Timing (when to take it) must persist")
         XCTAssertEqual(decisions.last?.take, false)
+    }
+
+    func testShelfBlock_requestsTiming() {
+        let block = MealPlanPrompts.supplementShelfBlock([
+            Supplement(name: "Creatine", kind: .creatine),
+        ])
+        // The AI must be told to say WHEN to take each one — the user shouldn't
+        // have to decide timing.
+        XCTAssertTrue(block.uppercased().contains("TIMING"))
+        XCTAssertTrue(block.lowercased().contains("when"))
     }
 
     func testPlanSupplementDecisions_emptyWhenAbsent() throws {

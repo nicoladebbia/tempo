@@ -182,9 +182,21 @@ struct NutritionTodayView: View {
                             .foregroundStyle(decision.take ? Color.tempoSuccess : Color.tempoTextTertiary)
                             .frame(width: 44, alignment: .leading)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(decision.name)
-                                .font(.tempoBody)
-                                .foregroundStyle(Color.tempoTextPrimary)
+                            HStack(spacing: 6) {
+                                Text(decision.name)
+                                    .font(.tempoBody)
+                                    .foregroundStyle(Color.tempoTextPrimary)
+                                if decision.take, let timing = decision.timing, !timing.isEmpty {
+                                    Text(timing)
+                                        .font(.tempoCaption2)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(Color.tempoSignal)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color.tempoSignal.opacity(0.15))
+                                        .clipShape(Capsule())
+                                }
+                            }
                             if let reason = decision.reason, !reason.isEmpty {
                                 Text(reason)
                                     .font(.tempoCaption2)
