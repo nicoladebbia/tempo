@@ -254,4 +254,19 @@ final class NutritionTabViewModelTests: XCTestCase {
         XCTAssertEqual(rice.quantity, 500,
                        "No decrement happened → undo must not invent stock")
     }
+
+    func testUndoMealEaten_revertsASkippedMealToPlanned() throws {
+        // Un-skip: undoMealEaten is status-agnostic. A skipped meal never
+        // decremented pantry or stored feedback, so undo just flips it back
+        // to planned so it counts again.
+        let ctx = container.mainContext
+        let meal = makePlanned(meal: 1, p: 30, c: 60, f: 15, kcal: 500, status: .skipped)
+        ctx.insert(meal)
+        try ctx.save()
+
+        viewModel.undoMealEaten(meal, modelContext: ctx)
+
+        XCTAssertEqual(meal.status, .planned, "Undo skip must put the meal back to planned")
+        XCTAssertNil(meal.actualEatenAt)
+    }
 }

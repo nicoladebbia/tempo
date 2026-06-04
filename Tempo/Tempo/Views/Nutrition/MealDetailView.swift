@@ -449,10 +449,28 @@ struct MealDetailView: View {
                 .accessibilityLabel("Undo, mark as not eaten")
             }
         case .skipped:
-            Text("Skipped — macros redistributed.")
-                .font(.tempoBody)
-                .fontWeight(.semibold)
-                .foregroundStyle(Color.tempoTextSecondary)
+            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+                Text("Skipped — macros redistributed.")
+                    .font(.tempoBody)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                // Un-skip: put the meal back to planned so it counts again.
+                // A skipped meal never decremented the pantry or stored
+                // feedback, so undoMealEaten reverses it cleanly (status →
+                // planned). No confirmation needed — nothing to lose.
+                Button {
+                    NutritionTabViewModel().undoMealEaten(meal, modelContext: modelContext)
+                    HapticManager.lightImpact()
+                } label: {
+                    Label("Undo skip — back to planned", systemImage: "arrow.uturn.backward")
+                        .font(.tempoCaption1)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.tempoSignal)
+                        .labelStyle(.titleAndIcon)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Undo skip, back to planned")
+            }
         }
     }
 

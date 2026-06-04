@@ -79,10 +79,12 @@ struct MarkEatenSheet: View {
         _ateSomethingElse = State(initialValue: startWithSubstitute)
     }
 
-    /// Largest amount of backward fill we allow. 4h covers "I ate
-    /// breakfast at 7:30, tapped at 11:30" without giving the user enough
+    /// Largest amount of backward fill we allow. 4h was too tight — a meal
+    /// eaten at 14:30 and logged at 19:00 (4.5h ago) fell off the left edge
+    /// and couldn't be set at all. 10h covers "ate this morning, logging this
+    /// evening" — wide enough for a real same-day delay without giving enough
     /// rope to backfill a different day's meal.
-    private let maxBackwardSeconds: TimeInterval = 4 * 60 * 60
+    private let maxBackwardSeconds: TimeInterval = 10 * 60 * 60
 
     var body: some View {
         NavigationStack {
