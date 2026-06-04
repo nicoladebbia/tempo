@@ -209,4 +209,84 @@ final class MealPlanPromptsTests: XCTestCase {
         XCTAssertFalse(userPrompt.contains("<pantry_on_hand>"),
                        "No pantry block when stock is empty")
     }
+
+    // MARK: - Functional nutrition layer (v2)
+
+    func testFunctionalNutritionBlock_leadsWithLowGLAndSkin() {
+        let block = MealPlanPrompts.functionalNutritionBlock()
+        XCTAssertTrue(block.contains("<functional_nutrition>"))
+        XCTAssertTrue(block.contains("</functional_nutrition>"))
+        // Low-GL is the headline lever, and must be tied to skin.
+        XCTAssertTrue(block.uppercased().contains("LOW GLYCEMIC LOAD"))
+        XCTAssertTrue(block.lowercased().contains("skin"))
+    }
+
+    func testFunctionalNutritionBlock_minimizesDairyForAcne() {
+        let block = MealPlanPrompts.functionalNutritionBlock()
+        XCTAssertTrue(block.uppercased().contains("MINIMIZE DAIRY"))
+        // Must offer non-dairy protein routes so it can actually comply.
+        XCTAssertTrue(block.lowercased().contains("non-dairy"))
+    }
+
+    func testFunctionalNutritionBlock_carriesAbsorptionRules() {
+        let block = MealPlanPrompts.functionalNutritionBlock()
+        // Fat pairing for fat-soluble nutrients, and cooked tomato for lycopene.
+        XCTAssertTrue(block.lowercased().contains("fat-soluble"))
+        XCTAssertTrue(block.lowercased().contains("lycopene"))
+        XCTAssertTrue(block.lowercased().contains("cooked"))
+    }
+
+    func testFunctionalNutritionBlock_periodizesAntioxidantsByDayType() {
+        let block = MealPlanPrompts.functionalNutritionBlock()
+        // The anti-blunting rule: don't load antioxidants on hard strength days.
+        XCTAssertTrue(block.lowercased().contains("strength"))
+        XCTAssertTrue(block.lowercased().contains("adaptation"))
+    }
+
+    func testFunctionalNutritionBlock_doesNotPromiseToCureSkin() {
+        let block = MealPlanPrompts.functionalNutritionBlock()
+        // Must NOT over-promise — no "cure" / "fix" claims about the condition.
+        XCTAssertTrue(block.lowercased().contains("never claim to cure"))
+    }
+
+    func testWeeklyPlanPrompt_includesFunctionalBlockBeforeMealStructure() {
+        let restrictions = MealPlanPrompts.DietaryRestrictions(
+            isLactoseFree: false, noCoffee: false, isGlutenFree: false,
+            isVegetarian: false, isVegan: false, isHalal: false,
+            isNutFree: false, isShellFishAllergy: false,
+            allergies: [], dislikedFoods: []
+        )
+        let (_, userPrompt) = MealPlanPrompts.weeklyPlanPrompt(
+            targets: [:],
+            restrictions: restrictions,
+            preferences: ""
+        )
+        guard let funcIdx = userPrompt.range(of: "<functional_nutrition>")?.lowerBound,
+              let structureIdx = userPrompt.range(of: "<meal_structure>")?.lowerBound
+        else {
+            XCTFail("Expected both <functional_nutrition> and <meal_structure>")
+            return
+        }
+        XCTAssertLessThan(funcIdx, structureIdx,
+                          "functional block is input, must precede meal_structure")
+    }
+
+    func testWeeklyPlanPrompt_safetyAllowsOwnedSupplementsButNotBuying() {
+        let restrictions = MealPlanPrompts.DietaryRestrictions(
+            isLactoseFree: false, noCoffee: false, isGlutenFree: false,
+            isVegetarian: false, isVegan: false, isHalal: false,
+            isNutFree: false, isShellFishAllergy: false,
+            allergies: [], dislikedFoods: []
+        )
+        let (system, _) = MealPlanPrompts.weeklyPlanPrompt(
+            targets: [:],
+            restrictions: restrictions,
+            preferences: ""
+        )
+        // Still forbids recommending products the user doesn't own…
+        XCTAssertTrue(system.lowercased().contains("does not own"))
+        // …but no longer a blanket "NEVER recommend supplements" (Piece 2 needs
+        // the shelf path open).
+        XCTAssertFalse(system.contains("NEVER recommend specific supplements, brands, or products."))
+    }
 }

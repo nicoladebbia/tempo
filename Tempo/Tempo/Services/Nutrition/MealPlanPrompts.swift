@@ -286,6 +286,76 @@ enum MealPlanPrompts {
         """
     }
 
+    /// Evidence-based functional-nutrition layer. This sits ON TOP of the
+    /// macro targets (it never changes them) and tells the model WHICH whole
+    /// foods to thread into the meals it is already building, and why — chosen
+    /// for clear skin, lean recomposition, brain/focus, eyes, and athletic
+    /// recovery. The guidance is graded by the strength of human evidence so
+    /// the model leans hardest on the foods that actually move the needle and
+    /// doesn't over-promise. Static (no per-user args yet) so it's cheap to
+    /// test; user-specific gating (dairy, goals) is already carried by the
+    /// dietary-restrictions + preferences blocks above.
+    static func functionalNutritionBlock() -> String {
+        """
+        <functional_nutrition>
+        Layer evidence-based functional foods INTO the meals you build. This is
+        additive — it must NOT change the macro targets above; protein, carbs,
+        and fat for each day stay exactly as prescribed. Within those macros,
+        prefer the foods below for their nutrients. Lead with the STRONGEST
+        evidence; treat the rest as fine-tuning.
+
+        PRIORITY GOAL — clear, soft skin (and supporting gradual skin renewal):
+        - LOW GLYCEMIC LOAD is the single biggest dietary lever for clear skin.
+          Default every day to low-GI carbs (oats, whole grains, legumes,
+          berries, sweet potato) over refined sugar, white bread, and sugary
+          drinks. Spiking blood sugar drives breakouts. This also serves the
+          lean-recomposition goal — keep it the default unless a training day
+          genuinely needs fast carbs around the session.
+        - MINIMIZE DAIRY. Dairy (milk, cheese, yogurt, whey in food) is the most
+          common dietary acne aggravator. Hit protein from non-dairy sources
+          where you can: eggs, fish, poultry, lean meat, tofu, legumes, edamame.
+          Only use dairy when no clean non-dairy option fits the meal.
+        - Skin-supporting nutrients to work in regularly: omega-3 (oily fish —
+          salmon, sardines, mackerel — 2-3x/week) for lower inflammation;
+          vitamin C (kiwi, bell pepper, citrus, berries) and adequate protein
+          and zinc (shellfish, pumpkin seeds, legumes) as the raw materials skin
+          uses to renew and stay firm and soft over time; green tea as a drink.
+        - Frame this as nourishing skin to be clearer, softer, and to renew over
+          time — never claim to cure or instantly fix any skin condition.
+
+        BRAIN / FOCUS (student): eggs (choline) at breakfast; blueberries and
+        other berries; natural NON-ALKALIZED cocoa (alkalized/"Dutch" cocoa
+        loses the active flavanols) for processing speed; oily fish (DHA).
+
+        EYES: lutein + zeaxanthin from leafy greens (spinach, kale) and egg
+        yolk. These are fat-soluble — always pair them with a fat source in the
+        same meal (olive oil, egg yolk, avocado) or they barely absorb.
+
+        ATHLETIC RECOVERY (periodize by day type — do NOT load these every day):
+        - On soccer / double days, include nitrate-rich foods (beetroot, leafy
+          greens) and tart-cherry / pomegranate / berry options around the
+          session to aid repeated-sprint performance and reduce soreness.
+        - On hard strength (muscle-building) days, do NOT pile on extra
+          antioxidant-dense recovery foods — a little training inflammation is
+          part of the adaptation. Keep those for rest/soccer/competition days.
+
+        ABSORPTION RULES (these change how foods are prepared/paired):
+        - Fat-soluble nutrients (lutein, lycopene, beta-carotene, vitamins A/D/E/K)
+          REQUIRE a fat source in the same meal — never a fat-free "green juice".
+        - Lycopene (tomato) is far better absorbed COOKED with oil — program
+          tomato as sauce / shakshuka / roasted, not raw, when it's there for
+          skin/UV support.
+        - Eggs: cook them (choline + lutein + their own fat), never raw.
+
+        BLEND-OR-SOLID: when a food works well in a smoothie/juice the user can
+        prep in a blender (berries, greens, cocoa, kefir/non-dairy yogurt), it
+        may be programmed as a blend; foods that lose potency or need cooking
+        (tomato, eggs, fish) must stay solid/cooked. Keep any blend low in added
+        sugar and juice — whole fruit and berries over fruit juice.
+        </functional_nutrition>
+        """
+    }
+
     /// Format the user's rolling 14-day actual eat-times by mealNumber as a
     /// prompt block. Empty when no observations exist so callers can
     /// interpolate unconditionally. Tells the model to anchor scheduledTime
@@ -459,8 +529,8 @@ enum MealPlanPrompts {
         <safety>
         - NEVER plan below 1,500 kcal/day for any reason.
         - NEVER skip meals or suggest fasting windows.
-        - NEVER recommend specific supplements, brands, or products.
-        - NEVER give medical or clinical nutrition advice.
+        - NEVER recommend supplements, brands, or products the user does not own. (You MAY schedule items listed in a <supplement_shelf> block when one is provided.)
+        - NEVER give medical or clinical nutrition advice, diagnose, or promise to cure/fix a skin or health condition. Choosing whole foods for their nutrients (e.g. eggs for choline, oily fish for omega-3) is nutrition, not medical advice — that is allowed.
         - NEVER include foods that violate the stated dietary restrictions.
         - If lactose-free is specified, absolutely NO dairy products -- use alternatives only.
         - Output ONLY valid JSON. No markdown wrapping, no code blocks, no preamble.
@@ -497,14 +567,16 @@ enum MealPlanPrompts {
         \(pantryStockBlock(pantryStock))
         \(expiringSoonBlock(expiringSoon))
         \(feedbackBlock(feedbackDigest))
+        \(functionalNutritionBlock())
 
         <meal_structure>
-        - 4 meals per day: Breakfast, Lunch, Dinner, Snack
-        - Breakfast: 25% of daily calories
-        - Lunch: 30% of daily calories
-        - Dinner: 30% of daily calories
-        - Snack: 15% of daily calories
-        - Front-load protein: breakfast and lunch should each have 30%+ of daily protein
+        - 4-5 meals per day: Breakfast, Lunch, Dinner, and 1-2 Snacks.
+        - Breakfast: ~25% of daily calories
+        - Lunch: ~30% of daily calories
+        - Dinner: ~30% of daily calories
+        - Snacks: ~15% of daily calories total. On training days (strength / soccer / double), prefer TWO snacks: one post-training (protein + carbs to refuel) and one optional lighter snack. On rest days a single snack is fine.
+        - Front-load protein: breakfast and lunch should each have 30%+ of daily protein.
+        - Snack quality: snacks must earn their slot nutritionally — pair a protein with fruit or a functional food (see <functional_nutrition>), not empty calories.
         </meal_structure>
         </data>
 
@@ -539,12 +611,15 @@ enum MealPlanPrompts {
         - dayIndex 0 = Monday, 6 = Sunday.
         - dayType must be one of: strength, cardio, soccer, double, rest.
         - dayType assignment: when an <actual_training_schedule> block is provided above, you MUST use the mapping it specifies for each day. Only when no schedule is given fall back to a typical 3-4 training / 1-2 rest week with varied types.
-        - mealNumber: 1 = Breakfast, 2 = Lunch, 3 = Dinner, 4 = Snack.
+        - mealNumber: 1 = Breakfast, 2 = Lunch, 3 = Dinner, 4 = Snack (afternoon). An OPTIONAL second snack is mealNumber 5 — use it mainly on training days (post-training refuel or an evening snack). Most days have 4 meals; training days may have 5.
         - scheduledTime format: "HH:mm" (24h). When an <observed_meal_times> \
         block is provided above, you MUST use its times verbatim for every day \
         — they are anchored to the user's real wake time. Only when no observed \
         block exists, fall back to Breakfast ~08:00, Lunch ~12:30, Snack ~16:00, \
-        Dinner ~19:30 (afternoon Snack #4 before evening Dinner #3).
+        Dinner ~19:30 (afternoon Snack #4 before evening Dinner #3). For an \
+        optional second snack (mealNumber 5) there is no observed time — place \
+        it sensibly: post-training (~1h after the session) on training days, or \
+        as a light evening snack ~21:00, after Dinner.
         - Each food's macros must be realistic for the stated quantity. Reference standard per-100g values.
         - Each meal's total macros (sum of foods) must match the meal's share of the day's target within 5%.
         - Each day's total macros (sum of meals) must match the day type's target within 3%.
