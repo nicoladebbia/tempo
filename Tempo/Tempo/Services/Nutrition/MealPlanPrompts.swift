@@ -318,6 +318,22 @@ enum MealPlanPrompts {
         prefer the foods below for their nutrients. Lead with the STRONGEST
         evidence; treat the rest as fine-tuning.
 
+        VARIETY IS MANDATORY — this is a real diet, not one dish repeated:
+        - ROTATE proteins across the week. Do NOT make chicken (or any single
+          protein) the base of most meals. Spread across: eggs, oily fish
+          (salmon, sardines, mackerel), white fish, lean beef, turkey, chicken,
+          tofu/tempeh, legumes, Greek-yogurt-free options. No protein should
+          appear as the main of more than ~3 of the week's dinners.
+        - ROTATE the dish family. "Chicken penne pomodoro" and "chicken
+          spaghetti pomodoro" are the SAME meal — do not pass these off as
+          variety. Vary the cuisine, the cooking method, and the carb base
+          (rice, potato, quinoa, oats, bread, pasta) across days.
+        - These functional foods MUST ACTUALLY APPEAR, not just be "allowed":
+          every day includes at least one vegetable and at least one of the
+          skin/brain/eye foods below (leafy greens, berries, oily fish, eggs,
+          cooked tomato, etc.). A week with almost no vegetables or fruit is a
+          FAILED plan regardless of macros.
+
         PRIORITY GOAL — clear, soft skin (and supporting gradual skin renewal):
         - LOW GLYCEMIC LOAD is the single biggest dietary lever for clear skin.
           Default every day to low-GI carbs (oats, whole grains, legumes,
@@ -325,6 +341,11 @@ enum MealPlanPrompts {
           drinks. Spiking blood sugar drives breakouts. This also serves the
           lean-recomposition goal — keep it the default unless a training day
           genuinely needs fast carbs around the session.
+        - NO ADDED SUGARS OR SWEETENERS in the meals: do NOT add honey, maple
+          syrup, agave, table sugar, or sweetened/flavored yogurts. This applies
+          even if such an item is in the pantry. Sweetness should come from whole
+          fruit and berries. "Honey-sweetened oats" is exactly what to AVOID —
+          use oats with berries or cinnamon instead.
         - MINIMIZE DAIRY. Dairy (milk, cheese, yogurt, whey in food) is the most
           common dietary acne aggravator. Hit protein from non-dairy sources
           where you can: eggs, fish, poultry, lean meat, tofu, legumes, edamame.
@@ -521,15 +542,20 @@ enum MealPlanPrompts {
         <pantry_on_hand>
         \(lines)
 
-        These are the ingredients the user ALREADY HAS. Build the week's meals \
-        primarily around this stock — prefer recipes that consume what's on hand \
-        before specifying anything new to buy. Respect the quantities: do not \
-        plan to use more of an item than is listed (e.g. if 9 eggs are on hand, \
-        do not schedule 12 across the week — scale portions or spread them, using \
-        whole units for countable foods). Only introduce a new ingredient when a \
-        balanced meal genuinely needs something not in stock; the grocery list is \
-        meant to cover the GAP, not re-buy what's here. Ignore any item that \
-        conflicts with the user's dietary restrictions.
+        These are the ingredients the user ALREADY HAS. Use them as a TIEBREAKER, \
+        not a constraint: when two equally good, varied meal options exist, prefer \
+        the one that uses on-hand stock. But VARIETY AND NUTRITION COME FIRST — \
+        never repeat the same protein or dish family across the week just to drain \
+        the pantry. It is BETTER to buy a few new ingredients for a varied, \
+        functional-food-rich week than to cook chicken-and-pasta five times \
+        because that's what's in stock. The grocery list SHOULD have real items \
+        on it (proteins, vegetables, fruit, the functional foods) — a near-empty \
+        grocery list means you over-relied on the pantry and under-delivered \
+        variety. Respect quantities when you DO use a pantry item: do not plan to \
+        use more than is listed (e.g. 9 eggs on hand → don't schedule 12). Ignore \
+        any item that conflicts with the user's dietary restrictions or the \
+        clear-skin goals in <functional_nutrition> (e.g. don't build meals around \
+        a pantry sweetener).
         </pantry_on_hand>
         """
     }

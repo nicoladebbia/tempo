@@ -155,7 +155,7 @@ final class MealPlanPromptsTests: XCTestCase {
         XCTAssertEqual(MealPlanPrompts.pantryStockBlock([]), "")
     }
 
-    func testPantryStockBlock_listsItemsAndPantryFirstDirective() {
+    func testPantryStockBlock_listsItemsAndQuantityRespect() {
         let block = MealPlanPrompts.pantryStockBlock([
             "eggs — 9 pieces [Fridge]",
             "rolled oats — 500 g [Pantry]",
@@ -163,10 +163,12 @@ final class MealPlanPromptsTests: XCTestCase {
         XCTAssertTrue(block.contains("<pantry_on_hand>"))
         XCTAssertTrue(block.contains("eggs — 9 pieces [Fridge]"))
         XCTAssertTrue(block.contains("rolled oats — 500 g [Pantry]"))
-        // The pantry-first intent + quantity-respect directive must be present.
-        XCTAssertTrue(block.lowercased().contains("already has"))
+        // Still lists what the user ALREADY HAS and respects quantities…
+        XCTAssertTrue(block.uppercased().contains("ALREADY HAS"))
         XCTAssertTrue(block.lowercased().contains("do not plan to use more"))
-        XCTAssertTrue(block.lowercased().contains("gap"))
+        // …but pantry is now a TIEBREAKER, not the primary constraint (the
+        // chicken-pasta-monotony fix). The detailed tiebreaker/variety
+        // assertions live in testPantryBlock_isTiebreakerNotPrimaryConstraint.
     }
 
     func testWeeklyPlanPrompt_includesPantryStockWhenProvided() {
@@ -241,6 +243,33 @@ final class MealPlanPromptsTests: XCTestCase {
         // The anti-blunting rule: don't load antioxidants on hard strength days.
         XCTAssertTrue(block.lowercased().contains("strength"))
         XCTAssertTrue(block.lowercased().contains("adaptation"))
+    }
+
+    func testPantryBlock_isTiebreakerNotPrimaryConstraint() {
+        // Regression guard for the chicken-pasta monotony: pantry must NOT say
+        // "build primarily around stock" (that drained variety). It's a
+        // tiebreaker, and the grocery list should carry real items.
+        let block = MealPlanPrompts.pantryStockBlock(["chicken breast — 3 pieces [Freezer]"])
+        XCTAssertTrue(block.lowercased().contains("tiebreaker"))
+        XCTAssertTrue(block.uppercased().contains("VARIETY AND NUTRITION COME FIRST"))
+        XCTAssertFalse(block.lowercased().contains("primarily around this stock"),
+                       "The pantry-drain directive must be gone")
+    }
+
+    func testFunctionalNutritionBlock_enforcesVarietyAndProteinRotation() {
+        let block = MealPlanPrompts.functionalNutritionBlock()
+        XCTAssertTrue(block.uppercased().contains("VARIETY IS MANDATORY"))
+        XCTAssertTrue(block.lowercased().contains("rotate proteins"))
+        // Functional foods must be a floor (actually appear), not just allowed.
+        XCTAssertTrue(block.lowercased().contains("must actually appear"))
+    }
+
+    func testFunctionalNutritionBlock_bansAddedSweeteners() {
+        let block = MealPlanPrompts.functionalNutritionBlock()
+        XCTAssertTrue(block.uppercased().contains("NO ADDED SUGARS"))
+        XCTAssertTrue(block.lowercased().contains("honey"))
+        // Applies even if the sweetener is in the pantry.
+        XCTAssertTrue(block.lowercased().contains("even if such an item is in the pantry"))
     }
 
     func testFunctionalNutritionBlock_doesNotPromiseToCureSkin() {
