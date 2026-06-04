@@ -35,6 +35,12 @@ struct NutritionTabView: View {
     @State
     private var planErrorToast: ToastData?
 
+    /// Presents the grocery list as a sheet. Driven by the "Open Grocery List"
+    /// button in the pantry-gap alert, which previously only switched to the
+    /// Plan tab and dead-ended (the list is a pushed view, not the tab itself).
+    @State
+    private var showGroceryListSheet = false
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -141,6 +147,18 @@ struct NutritionTabView: View {
                         viewModel.loadToday(modelContext: modelContext)
                     }
             }
+            .sheet(isPresented: $showGroceryListSheet) {
+                // Own NavigationStack so GroceryListView's title + toolbar
+                // (Add Item / Sync with Pantry) render inside the sheet.
+                NavigationStack {
+                    GroceryListView(viewModel: viewModel)
+                        .toolbar {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button("Done") { showGroceryListSheet = false }
+                            }
+                        }
+                }
+            }
             // Pantry-gap alert (Phase D) — same surface used by NutritionWeeklyPlanView,
             // wired here so generation triggered from profile setup also surfaces gaps.
             .alert(
@@ -159,8 +177,12 @@ struct NutritionTabView: View {
                 // which lives on the Plan tab. (Was incorrectly routing to the
                 // Pantry, where you'd only add things you already have.)
                 Button("Open Grocery List") {
-                    viewModel.selectedTab = .plan
                     viewModel.pantryGapAlert = nil
+                    // Actually open the grocery list (a sheet), not just switch
+                    // tabs. The list lives behind a NavigationLink on the Plan
+                    // tab, so switching tabs alone left the user staring at the
+                    // plan with nothing opened.
+                    showGroceryListSheet = true
                 }
                 Button("Dismiss", role: .cancel) {
                     viewModel.pantryGapAlert = nil
