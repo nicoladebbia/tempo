@@ -699,7 +699,7 @@ enum MealPlanPrompts {
                         {
                             "mealNumber": 1,
                             "mealName": "Breakfast",
-                            "scheduledTime": "HH:mm (use the observed_meal_times value for this mealNumber)",
+                            "scheduledTime": "HH:mm (within this meal's window; keep the day in chronological order — see the scheduledTime rules below)",
                             "foods": [
                                 {
                                     "name": "string (food name, lowercase)",
@@ -729,14 +729,28 @@ enum MealPlanPrompts {
         - dayType must be one of: strength, cardio, soccer, double, rest.
         - dayType assignment: when an <actual_training_schedule> block is provided above, you MUST use the mapping it specifies for each day. Only when no schedule is given fall back to a typical 3-4 training / 1-2 rest week with varied types.
         - mealNumber: 1 = Breakfast, 2 = Lunch, 3 = Dinner, 4 = Snack (afternoon). An OPTIONAL second snack is mealNumber 5 — use it mainly on training days (post-training refuel or an evening snack). Most days have 4 meals; training days may have 5.
-        - scheduledTime format: "HH:mm" (24h). When an <observed_meal_times> \
-        block is provided above, you MUST use its times verbatim for every day \
-        — they are anchored to the user's real wake time. Only when no observed \
-        block exists, fall back to Breakfast ~08:00, Lunch ~12:30, Snack ~16:00, \
-        Dinner ~19:30 (afternoon Snack #4 before evening Dinner #3). For an \
-        optional second snack (mealNumber 5) there is no observed time — place \
-        it sensibly: post-training (~1h after the session) on training days, or \
-        as a light evening snack ~21:00, after Dinner.
+        - scheduledTime format: "HH:mm" (24h). Place each meal at a sensible time \
+        WITHIN its window, then verify the whole day is in correct order. \
+        WINDOWS (pick the exact time inside these based on the food + training): \
+          • Breakfast (mealNumber 1): 06:30–10:30 (anytime in the morning). \
+          • Lunch (mealNumber 2): 12:30–14:00. \
+          • Dinner (mealNumber 3): 19:30–21:00 (never earlier than 19:00; dinner \
+            is an evening meal — do NOT move it to the afternoon to fit a snack). \
+          • Afternoon snack (mealNumber 4): between lunch and dinner, ~16:00–17:30. \
+          • Optional 2nd snack (mealNumber 5): EITHER post-training (~45–60 min \
+            after the session) OR a light evening snack AFTER dinner (~21:30). A \
+            "dinner snack" / evening snack is ALWAYS after dinner, never before. \
+        - HARD ORDERING RULE: the meals of a day, sorted by scheduledTime, MUST \
+        read in this logical order — Breakfast < Lunch < (afternoon Snack #4) < \
+        Dinner < (evening Snack #5 if any). A post-training snack #5 may instead \
+        sit right after the training session even if that's before dinner — but a \
+        snack labeled or intended as an evening/after-dinner snack must come AFTER \
+        dinner. NEVER schedule a snack after dinner while also putting dinner in \
+        the afternoon. If two meals would collide, space them ≥90 min apart. \
+        - When an <observed_meal_times> block is provided, treat its times as the \
+        user's PREFERRED time for that meal — use it when it falls inside the \
+        window above and keeps the day ordered; otherwise nudge to the nearest \
+        time that satisfies the window + ordering rules.
         - Each food's macros must be realistic for the stated quantity. Reference standard per-100g values.
         - Each meal's total macros (sum of foods) must match the meal's share of the day's target within 5%.
         - Each day's total macros (sum of meals) must match the day type's target within 3%.

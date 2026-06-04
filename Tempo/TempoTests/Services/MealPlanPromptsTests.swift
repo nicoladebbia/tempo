@@ -330,6 +330,27 @@ final class MealPlanPromptsTests: XCTestCase {
         XCTAssertTrue(block.lowercased().contains("never push a day below"))
     }
 
+    // MARK: - Meal-timing windows + ordering
+
+    func testWeeklyPlanPrompt_definesMealWindowsAndHardOrdering() {
+        let restrictions = MealPlanPrompts.DietaryRestrictions(
+            isLactoseFree: false, noCoffee: false, isGlutenFree: false,
+            isVegetarian: false, isVegan: false, isHalal: false,
+            isNutFree: false, isShellFishAllergy: false,
+            allergies: [], dislikedFoods: []
+        )
+        let (_, userPrompt) = MealPlanPrompts.weeklyPlanPrompt(
+            targets: [:], restrictions: restrictions, preferences: ""
+        )
+        // Dinner has an evening window and a floor (the bug: dinner was moved to
+        // the afternoon to fit a snack).
+        XCTAssertTrue(userPrompt.contains("19:30–21:00"))
+        XCTAssertTrue(userPrompt.lowercased().contains("never earlier than 19:00"))
+        // The hard chronological-ordering rule + the after-dinner snack rule.
+        XCTAssertTrue(userPrompt.uppercased().contains("HARD ORDERING RULE"))
+        XCTAssertTrue(userPrompt.lowercased().contains("always after dinner, never before"))
+    }
+
     func testWeeklyPlanPrompt_safetyAllowsOwnedSupplementsButNotBuying() {
         let restrictions = MealPlanPrompts.DietaryRestrictions(
             isLactoseFree: false, noCoffee: false, isGlutenFree: false,
