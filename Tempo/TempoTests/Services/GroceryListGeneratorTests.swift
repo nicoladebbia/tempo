@@ -233,4 +233,43 @@ final class GroceryListGeneratorTests: XCTestCase {
         XCTAssertFalse(label.contains("chicken breast chicken"),
                        "No duplication: \(row?.displayName ?? "nil")")
     }
+
+    // MARK: - Purchase units instead of raw grams (the "Grain Bread 249g" gap)
+
+    /// These foods previously had NO naturalPortions entry under their
+    /// CANONICAL name, so the grocery list showed raw grams. Each must now
+    /// round to a whole buy-unit (loaf / jar / bottle / punnet). The unit is
+    /// asserted, not the gram count, since the count rounds by purchaseGrams.
+    func testGenerate_breadReadsAsLoavesNotGrams() {
+        let plan = makePlan(foodsByMeal: [[food("Whole Grain Bread", 400)]])
+        let row = GroceryListGenerator.generate(from: .init(
+            mealPlan: plan, pantry: [], weekStartDate: Date()
+        )).first { $0.canonicalName == "grain bread" }
+        XCTAssertNotNil(row)
+        XCTAssertEqual(row?.unit, .pieces, "loaf maps to a countable unit, not grams")
+        XCTAssertTrue(row?.displayName.lowercased().contains("loaf") == true,
+                      "Reads as a loaf, not grams: \(row?.displayName ?? "nil")")
+    }
+
+    func testGenerate_sauceReadsAsJar() {
+        let plan = makePlan(foodsByMeal: [[food("Pasta Pomodoro Sauce", 300)]])
+        let row = GroceryListGenerator.generate(from: .init(
+            mealPlan: plan, pantry: [], weekStartDate: Date()
+        )).first { $0.canonicalName == "pasta pomodoro sauce" }
+        XCTAssertNotNil(row)
+        XCTAssertTrue(row?.displayName.lowercased().contains("jar") == true,
+                      "Sauce buys by the jar: \(row?.displayName ?? "nil")")
+    }
+
+    func testGenerate_blueberriesReadAsPunnetUnderBerriesCanonical() {
+        // The bug: "blueberries" canonicalizes to "berries", and the punnet
+        // portion only existed under "blueberries" → fell through to grams.
+        let plan = makePlan(foodsByMeal: [[food("Frozen Blueberries", 340)]])
+        let row = GroceryListGenerator.generate(from: .init(
+            mealPlan: plan, pantry: [], weekStartDate: Date()
+        )).first { $0.canonicalName == "berries" }
+        XCTAssertNotNil(row)
+        XCTAssertTrue(row?.displayName.lowercased().contains("punnet") == true,
+                      "Berries buy by the punnet: \(row?.displayName ?? "nil")")
+    }
 }

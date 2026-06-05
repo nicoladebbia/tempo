@@ -629,6 +629,13 @@ enum FoodMacroDatabase {
         // ("rice cakes".contains("rice cakes")) → "11 rice cakes".
         "rice cakes": .simple(grams: 9, unit: "rice cake", plural: "rice cakes"),
         "bagel": .simple(grams: 100, unit: "bagel", plural: "bagels"),
+        // Grocery-list polish: these canonical names (verified via probe) had
+        // NO portion entry, so the grocery list showed raw grams ("Grain Bread
+        // 249g", "Pasta Pomodoro Sauce 106g"). Buy-as-a-whole-unit portions so
+        // the list reads like a shop ("1 loaf", "1 jar"). purchaseGrams is the
+        // typical pack size used to round the week's gram total up to units.
+        "grain bread": NaturalPortion(grams: 30, unit: "slice", plural: "slices", purchaseUnit: "loaf", purchaseUnitPlural: "loaves", purchaseGrams: 800, isStaple: false),
+        "whole grain bread": NaturalPortion(grams: 30, unit: "slice", plural: "slices", purchaseUnit: "loaf", purchaseUnitPlural: "loaves", purchaseGrams: 800, isStaple: false),
 
         // Legumes ──────────────────────────────────────────────────
         "black beans canned": NaturalPortion(grams: 240, unit: "can", plural: "cans", purchaseUnit: "can", purchaseUnitPlural: "cans", purchaseGrams: 400, isStaple: false),
@@ -645,6 +652,11 @@ enum FoodMacroDatabase {
         "lime": .simple(grams: 45, unit: "lime", plural: "limes"),
         "blueberries": NaturalPortion(grams: 140, unit: "cup", plural: "cups", purchaseUnit: "punnet", purchaseUnitPlural: "punnets", purchaseGrams: 170, isStaple: false),
         "strawberries": NaturalPortion(grams: 150, unit: "cup", plural: "cups", purchaseUnit: "punnet", purchaseUnitPlural: "punnets", purchaseGrams: 250, isStaple: false),
+        // Keyed by the CANONICAL name the grocery generator actually looks up
+        // (verified via probe): "blueberries"/"frozen blueberries" canonicalize
+        // to "berries", so the punnet portion must live under "berries" too —
+        // otherwise it fell through to raw grams ("525g").
+        "berries": NaturalPortion(grams: 140, unit: "cup", plural: "cups", purchaseUnit: "punnet", purchaseUnitPlural: "punnets", purchaseGrams: 170, isStaple: false),
 
         // Produce — vegetables ────────────────────────────────────
         "carrot": .simple(grams: 65, unit: "medium carrot", plural: "medium carrots"),
@@ -703,6 +715,13 @@ enum FoodMacroDatabase {
         "honey": .staple(unit: "jar", plural: "jars"),
         "mustard": .staple(unit: "jar", plural: "jars"),
         "hot sauce": .staple(unit: "bottle", plural: "bottles"),
+        // Grocery-list polish (canonical names verified via probe) — were
+        // showing raw grams. Sauces buy by the jar, juice by the bottle.
+        "tomato sauce": NaturalPortion(grams: 100, unit: "g", plural: "g", purchaseUnit: "jar", purchaseUnitPlural: "jars", purchaseGrams: 400, isStaple: false),
+        "pasta pomodoro sauce": NaturalPortion(grams: 100, unit: "g", plural: "g", purchaseUnit: "jar", purchaseUnitPlural: "jars", purchaseGrams: 400, isStaple: false),
+        "pomodoro sauce": NaturalPortion(grams: 100, unit: "g", plural: "g", purchaseUnit: "jar", purchaseUnitPlural: "jars", purchaseGrams: 400, isStaple: false),
+        "tart cherry juice": NaturalPortion(grams: 240, unit: "glass", plural: "glasses", purchaseUnit: "bottle", purchaseUnitPlural: "bottles", purchaseGrams: 1000, isStaple: false),
+        "beetroot": .simple(grams: 80, unit: "beetroot", plural: "beetroots"),
 
         // Snacks / shakes ─────────────────────────────────────────
         "protein shake": .simple(grams: 100, unit: "shake", plural: "shakes"),
