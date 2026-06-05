@@ -351,6 +351,52 @@ final class MealPlanPromptsTests: XCTestCase {
         XCTAssertTrue(userPrompt.lowercased().contains("always after dinner, never before"))
     }
 
+    // MARK: - Taste preferences (favorites + bored-of) — Phase 2
+
+    func testTastePreferencesBlock_emptyWhenNeitherSet() {
+        let r = MealPlanPrompts.DietaryRestrictions()
+        XCTAssertEqual(r.tastePreferencesBlock, "")
+    }
+
+    func testTastePreferencesBlock_rendersFavoritesAndBoredOf() {
+        let r = MealPlanPrompts.DietaryRestrictions(
+            favoriteFoods: ["salmon", "Mediterranean"],
+            boredOfFoods: ["chicken"]
+        )
+        let block = r.tastePreferencesBlock
+        XCTAssertTrue(block.contains("<taste_preferences>"))
+        XCTAssertTrue(block.uppercased().contains("LOVES"))
+        XCTAssertTrue(block.contains("salmon"))
+        XCTAssertTrue(block.contains("Mediterranean"))
+        XCTAssertTrue(block.uppercased().contains("BORED OF"))
+        XCTAssertTrue(block.contains("chicken"))
+        XCTAssertTrue(block.lowercased().contains("do not overuse"))
+    }
+
+    func testTastePreferencesBlock_favoritesOnly() {
+        let r = MealPlanPrompts.DietaryRestrictions(favoriteFoods: ["eggs"])
+        let block = r.tastePreferencesBlock
+        XCTAssertTrue(block.contains("eggs"))
+        XCTAssertFalse(block.uppercased().contains("BORED OF"))
+    }
+
+    func testWeeklyPlanPrompt_includesTasteBlockWhenSet() {
+        let restrictions = MealPlanPrompts.DietaryRestrictions(favoriteFoods: ["tofu"])
+        let (_, userPrompt) = MealPlanPrompts.weeklyPlanPrompt(
+            targets: [:], restrictions: restrictions, preferences: ""
+        )
+        XCTAssertTrue(userPrompt.contains("<taste_preferences>"))
+        XCTAssertTrue(userPrompt.contains("tofu"))
+    }
+
+    func testWeeklyPlanPrompt_omitsTasteBlockWhenUnset() {
+        let restrictions = MealPlanPrompts.DietaryRestrictions()
+        let (_, userPrompt) = MealPlanPrompts.weeklyPlanPrompt(
+            targets: [:], restrictions: restrictions, preferences: ""
+        )
+        XCTAssertFalse(userPrompt.contains("<taste_preferences>"))
+    }
+
     func testWeeklyPlanPrompt_safetyAllowsOwnedSupplementsButNotBuying() {
         let restrictions = MealPlanPrompts.DietaryRestrictions(
             isLactoseFree: false, noCoffee: false, isGlutenFree: false,

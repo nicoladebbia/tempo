@@ -47,6 +47,17 @@ final class DietaryProfile {
 
     var dislikedFoodsJSON: Data?
 
+    /// Foods + cuisines the user LOVES (e.g. "salmon", "Mediterranean",
+    /// "eggs for breakfast"). The plan prefers these. Distinct from disliked
+    /// (avoid) and allergies (never). Additive — nil/empty = no preference.
+    var favoriteFoodsJSON: Data?
+
+    /// Foods the user is BORED of — a standing "don't overuse" list (e.g.
+    /// "chicken every day"), distinct from disliked (don't ever) and from the
+    /// week-scoped temporary exclusions. The plan rotates away from these but
+    /// may still use them occasionally. Additive — nil/empty = no preference.
+    var boredOfFoodsJSON: Data?
+
     // MARK: - Goals & Body Composition
 
     var primaryGoalRaw: String
@@ -113,6 +124,32 @@ final class DietaryProfile {
         }
         set {
             dislikedFoodsJSON = (try? JSONEncoder().encode(newValue)) ?? Data("[]".utf8)
+        }
+    }
+
+    @Transient
+    var favoriteFoods: [String] {
+        get {
+            guard let data = favoriteFoodsJSON else {
+                return []
+            }
+            return (try? JSONDecoder().decode([String].self, from: data)) ?? []
+        }
+        set {
+            favoriteFoodsJSON = (try? JSONEncoder().encode(newValue)) ?? Data("[]".utf8)
+        }
+    }
+
+    @Transient
+    var boredOfFoods: [String] {
+        get {
+            guard let data = boredOfFoodsJSON else {
+                return []
+            }
+            return (try? JSONDecoder().decode([String].self, from: data)) ?? []
+        }
+        set {
+            boredOfFoodsJSON = (try? JSONEncoder().encode(newValue)) ?? Data("[]".utf8)
         }
     }
 

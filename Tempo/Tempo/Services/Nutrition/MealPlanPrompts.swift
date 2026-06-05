@@ -40,6 +40,11 @@ enum MealPlanPrompts {
         let avoidAddedSugars: Bool
         let allergies: [String]
         let dislikedFoods: [String]
+        /// Foods + cuisines the user loves (prefer these). Preferences, not
+        /// restrictions — emitted in a separate <taste_preferences> block.
+        let favoriteFoods: [String]
+        /// Foods the user is bored of (rotate away, don't overuse).
+        let boredOfFoods: [String]
 
         init(from profile: DietaryProfile) {
             isLactoseFree = profile.isLactoseFree
@@ -53,6 +58,8 @@ enum MealPlanPrompts {
             avoidAddedSugars = profile.avoidAddedSugars
             allergies = profile.allergies
             dislikedFoods = profile.dislikedFoods
+            favoriteFoods = profile.favoriteFoods
+            boredOfFoods = profile.boredOfFoods
         }
 
         init(
@@ -66,7 +73,9 @@ enum MealPlanPrompts {
             isShellFishAllergy: Bool = false,
             avoidAddedSugars: Bool = false,
             allergies: [String] = [],
-            dislikedFoods: [String] = []
+            dislikedFoods: [String] = [],
+            favoriteFoods: [String] = [],
+            boredOfFoods: [String] = []
         ) {
             self.isLactoseFree = isLactoseFree
             self.noCoffee = noCoffee
@@ -79,6 +88,32 @@ enum MealPlanPrompts {
             self.avoidAddedSugars = avoidAddedSugars
             self.allergies = allergies
             self.dislikedFoods = dislikedFoods
+            self.favoriteFoods = favoriteFoods
+            self.boredOfFoods = boredOfFoods
+        }
+
+        /// `<taste_preferences>` prompt block — favorites + bored-of. Empty
+        /// string when neither is set so callers interpolate unconditionally.
+        var tastePreferencesBlock: String {
+            guard !favoriteFoods.isEmpty || !boredOfFoods.isEmpty else { return "" }
+            var lines: [String] = []
+            if !favoriteFoods.isEmpty {
+                let safe = favoriteFoods.map(MealPlanPrompts.sanitizeForPrompt).joined(separator: ", ")
+                lines.append("LOVES (prefer these foods/cuisines, work them in often): \(safe)")
+            }
+            if !boredOfFoods.isEmpty {
+                let safe = boredOfFoods.map(MealPlanPrompts.sanitizeForPrompt).joined(separator: ", ")
+                lines.append("BORED OF (rotate AWAY from these — do not overuse; an occasional appearance is fine, but never the weekly default): \(safe)")
+            }
+            return """
+
+            <taste_preferences>
+            \(lines.joined(separator: "\n"))
+            These are PREFERENCES, not hard rules — honor them within the macro
+            targets and the variety requirement. Favorites should genuinely show
+            up; bored-of foods should be visibly rare.
+            </taste_preferences>
+            """
         }
 
         var formattedList: String {
@@ -670,6 +705,7 @@ enum MealPlanPrompts {
         <preferences>
         \(preferences.isEmpty ? "No specific preferences." : preferences)
         </preferences>
+        \(restrictions.tastePreferencesBlock)
         \(weeklyIntakeBlock(intake))
         \(observedTimesBlock(observedMealTimes))
         \(pantryStockBlock(pantryStock))
