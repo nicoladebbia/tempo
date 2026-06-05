@@ -122,6 +122,11 @@ actor ReceiptStructuringService {
         }
         let parser = JSONDecoder()
         parser.keyDecodingStrategy = .convertFromSnakeCase
+        // NOTE: no dateDecodingStrategy — purchase_date is decoded as a String
+        // (see HaikuReceiptPayload) and parsed in code via ReceiptDateParser.
+        // A dateDecodingStrategy closure MUST return a Date (can't return nil),
+        // so any unparseable date would throw and 502 the whole receipt even
+        // though the field is optional. String-then-parse never throws.
 
         let parsed: HaikuReceiptPayload
         do {
@@ -158,7 +163,7 @@ actor ReceiptStructuringService {
 
         return .init(
             store: parsed.store,
-            purchaseDate: parsed.purchaseDate,
+            purchaseDate: ReceiptDateParser.parse(parsed.purchaseDate),
             totalAmount: parsed.totalAmount,
             taxAmount: parsed.taxAmount,
             paymentMethod: parsed.paymentMethod,
@@ -354,9 +359,35 @@ private struct ReceiptClaudeRawResponse: Decodable {
 
 // MARK: - Haiku output parsing
 
-private struct HaikuReceiptPayload: Decodable {
+// MARK: - Date parsing
+
+/// Lenient parse of Claude's purchase_date string → Date?. Never throws: an
+/// unrecognized or nil string yields nil so a bad date never fails the receipt.
+enum ReceiptDateParser {
+    static func parse(_ raw: String?) -> Date? {
+        guard let raw, !raw.isEmpty else { return nil }
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime]
+        if let d = iso.date(from: raw) { return d }
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = iso.date(from: raw) { return d }
+        let dateOnly = DateFormatter()
+        dateOnly.locale = Locale(identifier: "en_US_POSIX")
+        dateOnly.timeZone = TimeZone(identifier: "UTC")
+        dateOnly.dateFormat = "yyyy-MM-dd"
+        if let d = dateOnly.date(from: raw) { return d }
+        return nil
+    }
+}
+
+// Non-private so AppTests can decode-test against real Claude JSON — this is
+// the path that has 502'd three times (413, truncation, date typeMismatch).
+struct HaikuReceiptPayload: Decodable {
     let store: String
-    let purchaseDate: Date?
+    /// Decoded as a raw String (Claude emits ISO 8601 like
+    /// "2026-06-04T21:20:00Z"); parsed to Date in code via ReceiptDateParser
+    /// so a malformed date yields nil instead of 502ing the whole receipt.
+    let purchaseDate: String?
     let totalAmount: Double?
     let taxAmount: Double?
     let paymentMethod: String?
@@ -374,7 +405,7 @@ private struct HaikuReceiptPayload: Decodable {
     }
 }
 
-private struct HaikuLineItem: Decodable {
+struct HaikuLineItem: Decodable {
     let rawText: String
     let canonicalFoodName: String
     let displayName: String
