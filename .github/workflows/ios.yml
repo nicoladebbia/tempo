@@ -17,7 +17,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  XCODE_VERSION: "16.0"
+  # 16.0 was removed from the macos-14 runner image → "invalid developer
+  # directory". 16.2 is the current Xcode on macos-14.
+  XCODE_VERSION: "16.2"
   SCHEME: "Tempo"
   PROJECT: "Tempo.xcodeproj"
   DESTINATION_17: "platform=iOS Simulator,name=iPhone 15 Pro,OS=17.0"

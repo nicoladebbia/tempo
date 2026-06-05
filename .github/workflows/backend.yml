@@ -77,7 +77,7 @@ jobs:
       - name: Setup Swift
         uses: swift-actions/setup-swift@v2
         with:
-          swift-version: "5.10"
+          swift-version: "6.0"
 
       - name: Cache Swift packages
         uses: actions/cache@v4
@@ -138,7 +138,7 @@ jobs:
       - name: Setup Swift
         uses: swift-actions/setup-swift@v2
         with:
-          swift-version: "5.10"
+          swift-version: "6.0"
 
       - name: Cache Swift packages
         uses: actions/cache@v4
@@ -159,8 +159,12 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build Docker image
+        # defaults.run.working-directory is already tempo-backend, so the
+        # build context + Dockerfile path are relative to it. The old
+        # `tempo-backend/Dockerfile tempo-backend/` doubled the path to
+        # tempo-backend/tempo-backend/ → "path not found".
         run: |
-          docker build -t tempo-backend:test -f tempo-backend/Dockerfile tempo-backend/
+          docker build -t tempo-backend:test -f Dockerfile .
 
       - name: Verify image runs
         run: |

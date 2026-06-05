@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  XCODE_VERSION: "16.0"
+  XCODE_VERSION: "16.2"
   SCHEME: "Tempo"
   PROJECT: "Tempo.xcodeproj"
 
