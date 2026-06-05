@@ -93,17 +93,21 @@ final class AccountabilityEngine: @unchecked Sendable {
             return .unlocked
         }
 
+        // No tasks defined yet → morningSetup, regardless of time of day.
+        // This MUST be checked before dayFailed: if the user hasn't even set
+        // up their non-negotiables, the day isn't "failed" — they just haven't
+        // started. Deadline-pressure / failure states only apply once there is
+        // actual work to be late on. (Previously the dayFailed check below ran
+        // first, so opening the app in the evening with no tasks wrongly read
+        // as dayFailed.)
+        guard accountability.totalCount > 0 else {
+            return .morningSetup
+        }
+
         // Past PS5 time and incomplete → dayFailed
         // Per STATE_MACHINES.md Section 3: finalWarning → dayFailed (PS5 time reached AND tasks incomplete)
         if now >= ps5Time, !accountability.allComplete {
             return .dayFailed
-        }
-
-        // No tasks defined yet → morningSetup, regardless of time of day
-        // remaining in the active window. Deadline-pressure states (final
-        // warning, approaching deadline) only apply once the user has work.
-        guard accountability.totalCount > 0 else {
-            return .morningSetup
         }
 
         // Within 30 minutes of PS5 time → finalWarning

@@ -51,6 +51,13 @@ final class AccountabilityEngineTests: XCTestCase {
     @MainActor
     func testDayFailedWhenPastPS5Time() throws {
         let accountability = DailyAccountability(date: Date())
+        // dayFailed requires ACTUAL incomplete work — a day with no tasks set
+        // up is morningSetup, not failed (you can't fail what you never
+        // started). Add one incomplete non-negotiable so this is a real
+        // "past PS5 with work undone" scenario.
+        accountability.nonNegotiableProgress = [
+            NonNegotiableProgress(date: Date(), targetValue: 1, isCompleted: false),
+        ]
         // PS5 time in the past
         let pastPS5 = try XCTUnwrap(Calendar.current.date(byAdding: .hour, value: -1, to: Date()))
         let state = engine.evaluateState(accountability: accountability, override: nil, ps5Time: pastPS5)
