@@ -160,6 +160,14 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             logger.info("[Diag.Plan] meal prefs: mealsPerDay=\(mealsPerDay ?? 0) cookWeekday=\(cookWeekday ?? 0) cookWeekend=\(cookWeekend ?? 0)")
         }
 
+        // Available kitchen appliances (display names) so the AI only programs
+        // recipes the user can actually make. Empty → the prompt block omits the
+        // constraint and the AI assumes a basic stovetop+microwave kitchen.
+        let equipment = Self.availableEquipment(modelContext: modelContext)
+        if !equipment.isEmpty {
+            logger.info("[Diag.Plan] equipment: \(equipment.joined(separator: ", "))")
+        }
+
         let (systemPrompt, userPrompt) = MealPlanPrompts.weeklyPlanPrompt(
             targets: tdeeResult.dayTypeTargets,
             restrictions: restrictions,
@@ -172,7 +180,8 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             supplements: supplements,
             mealsPerDay: mealsPerDay,
             cookTimeWeekdayMins: cookWeekday,
-            cookTimeWeekendMins: cookWeekend
+            cookTimeWeekendMins: cookWeekend,
+            equipment: equipment
         )
 
         let response = try await sendWithRetry(
@@ -672,6 +681,22 @@ final class MealPlanGeneratorService: @unchecked Sendable {
     /// nil when none exists yet.
     static func fetchUserSettings(modelContext: ModelContext) -> UserSettings? {
         (try? modelContext.fetch(FetchDescriptor<UserSettings>()))?.first
+    }
+
+    /// Display names of the appliances the user has marked available, so the
+    /// plan prompt can constrain recipes to a makeable set. Returns [] when no
+    /// `KitchenEquipment` rows exist yet (page never opened) — the prompt then
+    /// omits the constraint rather than assuming an empty kitchen.
+    static func availableEquipment(modelContext: ModelContext) -> [String] {
+        let rows = (try? modelContext.fetch(
+            FetchDescriptor<KitchenEquipment>(
+                predicate: #Predicate<KitchenEquipment> { $0.isAvailable }
+            )
+        )) ?? []
+        return rows
+            .compactMap(\.kind)
+            .map(\.displayName)
+            .sorted()
     }
 
     /// Fetch the user's active supplement shelf for the plan prompt. The AI

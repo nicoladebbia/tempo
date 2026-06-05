@@ -469,4 +469,40 @@ final class MealPlanPromptsTests: XCTestCase {
         // the shelf path open).
         XCTAssertFalse(system.contains("NEVER recommend specific supplements, brands, or products."))
     }
+
+    // MARK: - Kitchen equipment (Phase 4)
+
+    func testEquipmentBlock_emptyWhenNoAppliances() {
+        XCTAssertEqual(MealPlanPrompts.equipmentBlock([]), "")
+    }
+
+    func testEquipmentBlock_emptyWhenAllBlank() {
+        // Whitespace-only entries sanitize away → still empty.
+        XCTAssertEqual(MealPlanPrompts.equipmentBlock(["", "   "]), "")
+    }
+
+    func testEquipmentBlock_listsAppliancesAndConstrains() {
+        let block = MealPlanPrompts.equipmentBlock(["Stovetop", "Air fryer"])
+        XCTAssertTrue(block.contains("<equipment>"))
+        XCTAssertTrue(block.contains("Stovetop, Air fryer"))
+        XCTAssertTrue(block.contains("ONLY these appliances"))
+    }
+
+    func testWeeklyPlanPrompt_includesEquipmentWhenSet() {
+        let restrictions = MealPlanPrompts.DietaryRestrictions()
+        let (_, userPrompt) = MealPlanPrompts.weeklyPlanPrompt(
+            targets: [:], restrictions: restrictions, preferences: "",
+            equipment: ["Stovetop", "Rice cooker"]
+        )
+        XCTAssertTrue(userPrompt.contains("<equipment>"))
+        XCTAssertTrue(userPrompt.contains("Stovetop, Rice cooker"))
+    }
+
+    func testWeeklyPlanPrompt_omitsEquipmentWhenUnset() {
+        let restrictions = MealPlanPrompts.DietaryRestrictions()
+        let (_, userPrompt) = MealPlanPrompts.weeklyPlanPrompt(
+            targets: [:], restrictions: restrictions, preferences: ""
+        )
+        XCTAssertFalse(userPrompt.contains("<equipment>"))
+    }
 }

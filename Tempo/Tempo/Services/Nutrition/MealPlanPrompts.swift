@@ -443,6 +443,29 @@ enum MealPlanPrompts {
         return "- COOK-TIME BUDGET (user preference): keep total active cooking/prep time within \(parts.joined(separator: ", ")). On tight-time days favor one-pan, no-cook, or batch-reheat meals; save longer recipes for the higher-budget days. Never exceed the budget for a day."
     }
 
+    /// `<equipment>` block — the cooking appliances the user owns. The AI must
+    /// only program recipes makeable with these (no oven-roast if there's no
+    /// oven). Empty string when the list is empty (AI assumes a basic
+    /// stovetop+microwave kitchen) so callers interpolate unconditionally.
+    static func equipmentBlock(_ availableAppliances: [String]) -> String {
+        let cleaned = availableAppliances
+            .map { MealPlanPrompts.sanitizeForPrompt($0).trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        guard !cleaned.isEmpty else { return "" }
+        return """
+
+        <equipment>
+        The user's kitchen has ONLY these appliances: \(cleaned.joined(separator: ", ")).
+        Program recipes makeable with this set — do NOT call for an appliance
+        not listed (e.g. no "roast in the oven" without an oven; no "air-fry"
+        without an air fryer). Prefer the appliance that makes a dish faster or
+        hands-off (rice cooker → batch rice; blender → smoothie/sauce; slow
+        cooker → set-and-forget). When a dish would normally need a missing
+        appliance, adapt the method to what's available or choose a different dish.
+        </equipment>
+        """
+    }
+
     /// The user's owned supplement shelf + the rules for scheduling them per
     /// day. Empty string when the shelf is empty (so callers interpolate
     /// unconditionally and no supplement output is requested). The model may
@@ -675,7 +698,8 @@ enum MealPlanPrompts {
         supplements: [Supplement] = [],
         mealsPerDay: Int? = nil,
         cookTimeWeekdayMins: Int? = nil,
-        cookTimeWeekendMins: Int? = nil
+        cookTimeWeekendMins: Int? = nil,
+        equipment: [String] = []
     ) -> (system: String, user: String) {
         let system = """
         You are the nutrition arm of Tempo, a drill-sergeant life operating system for student-athletes. \
@@ -732,6 +756,7 @@ enum MealPlanPrompts {
         \(expiringSoonBlock(expiringSoon))
         \(feedbackBlock(feedbackDigest))
         \(functionalNutritionBlock())
+        \(equipmentBlock(equipment))
         \(supplementShelfBlock(supplements))
 
         <meal_structure>

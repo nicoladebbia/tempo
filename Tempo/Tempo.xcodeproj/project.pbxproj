@@ -340,6 +340,7 @@
 		7B9071085B562F380CAEEF36 /* UseUpSoonCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B0AA76F0D6E4C4C02DFD5FC /* UseUpSoonCard.swift */; };
 		7C1028AFDD1D96B68005C350 /* TermsAcceptanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3678D318AC458ABED686A82C /* TermsAcceptanceView.swift */; };
 		7C6D406ECEFD588EBC77EAA7 /* PendingOutcome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24BAE23220CE56DDEBA885D6 /* PendingOutcome.swift */; };
+		7C774B3E7917FD3D2F708729 /* KitchenEquipmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89416AFEF2FF042444CDA342 /* KitchenEquipmentTests.swift */; };
 		7D5CCD728516D32D664B9E42 /* MockPantryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE5E21E08019BEE4D532281B /* MockPantryService.swift */; };
 		7DE57B7828A5E39CEBC09558 /* RecoveryEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7073F332EC51ED92B9C4021 /* RecoveryEnums.swift */; };
 		7DFAE65E4C9694F4EF006318 /* cue_ex_decline_bench_press.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 9E6AE5480B105255DB4104F6 /* cue_ex_decline_bench_press.mp3 */; };
@@ -475,6 +476,7 @@
 		ADD82D312BD984105B1D5427 /* cue_ex_decline_crunch.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 6AB89D2B250D07CF9687D57E /* cue_ex_decline_crunch.mp3 */; };
 		AE5314C5233C71D9AC698677 /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = 64ADF0A1A72113591B1601F5 /* FirebaseCrashlytics */; };
 		AE87815BD6B12412ECCFBFBA /* cue_ex_face_pull.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 54D72E0EE5B60729EAFA65AF /* cue_ex_face_pull.mp3 */; };
+		AE89E6C02D94E34EAE538F1D /* KitchenEquipment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12A178B831767DDCD86CD79A /* KitchenEquipment.swift */; };
 		AEEBAB68BD3B6FC1D46BD77A /* FocusHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67A65E4AB199DF8CA87302C7 /* FocusHistoryView.swift */; };
 		AF52D30CBC8E7064FC0CFD09 /* cue_ex_leg_press_calf_raise.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 737BBF0796CE12649151939E /* cue_ex_leg_press_calf_raise.mp3 */; };
 		B0135764495460D17EDC6DA5 /* ScoreRingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB128A672DFE3334BF71688E /* ScoreRingView.swift */; };
@@ -761,6 +763,7 @@
 		1185A9EC5B3344C54E320FCB /* cue_ex_handstand_push_up.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_handstand_push_up.mp3; sourceTree = "<group>"; };
 		11D691551A01A1F04381523A /* CoachViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachViewModel.swift; sourceTree = "<group>"; };
 		12878438D450999520481EFE /* NonNegotiableProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NonNegotiableProgress.swift; sourceTree = "<group>"; };
+		12A178B831767DDCD86CD79A /* KitchenEquipment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KitchenEquipment.swift; sourceTree = "<group>"; };
 		1302E18B6DE148D11A29DD70 /* cue_ex_band_pull_apart.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_band_pull_apart.mp3; sourceTree = "<group>"; };
 		13057FB007393DB963FCA040 /* AIConsentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIConsentView.swift; sourceTree = "<group>"; };
 		1353B00F4473DE6881FB5B97 /* StaleDataIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StaleDataIndicator.swift; sourceTree = "<group>"; };
@@ -1080,6 +1083,7 @@
 		88A1F87AC9F2A374E6270315 /* cue_ex_kettlebell_turkish_get_up.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_kettlebell_turkish_get_up.mp3; sourceTree = "<group>"; };
 		88F30C50D7D2ED0A8F9F7B00 /* cue_ex_trap_bar_deadlift.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_trap_bar_deadlift.mp3; sourceTree = "<group>"; };
 		892C2A269B8BD6AD73EEE729 /* ReceiptPhotoStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiptPhotoStore.swift; sourceTree = "<group>"; };
+		89416AFEF2FF042444CDA342 /* KitchenEquipmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KitchenEquipmentTests.swift; sourceTree = "<group>"; };
 		8981B193B7271C76BAA0A659 /* AchievementLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AchievementLibrary.swift; sourceTree = "<group>"; };
 		89C96575A984F0061985E8E6 /* cue_ex_kettlebell_clean_and_press.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_kettlebell_clean_and_press.mp3; sourceTree = "<group>"; };
 		89C9EFD8D63306AAD9C35B67 /* cue_ex_hack_squat.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_hack_squat.mp3; sourceTree = "<group>"; };
@@ -2081,6 +2085,7 @@
 				6D59FB13E90C14A92ED92096 /* CachedFood.swift */,
 				5B9423F06A6B475E607E2C6B /* DietaryProfile.swift */,
 				C9CCF4B7D9CC50534C6C341D /* GroceryList.swift */,
+				12A178B831767DDCD86CD79A /* KitchenEquipment.swift */,
 				931F764CBA37FAB20D930007 /* MacroCarryover.swift */,
 				ADA19E1B5A1C9F50B9DC4047 /* MealFeedback.swift */,
 				95440962533954510637504A /* MealFoodItem.swift */,
@@ -2644,6 +2649,7 @@
 			isa = PBXGroup;
 			children = (
 				37772590FDF7609BE7A5D5A0 /* .gitkeep */,
+				89416AFEF2FF042444CDA342 /* KitchenEquipmentTests.swift */,
 				E41A7571B99D79430E28C398 /* MealSatietyTests.swift */,
 				3B3C87DC459DD8011D7B9DB9 /* PantryPriceEntryTests.swift */,
 				7010369E576E52A315266579 /* SetFeedbackTests.swift */,
@@ -3371,6 +3377,7 @@
 				1F3AD3F9102BB66597F1A248 /* GroceryListGeneratorTests.swift in Sources */,
 				563F4DB1B83C9BA5F7CC9B8B /* GroceryReapplyTests.swift in Sources */,
 				E335AB95707FD6424BEE1CD2 /* HydrationMathTests.swift in Sources */,
+				7C774B3E7917FD3D2F708729 /* KitchenEquipmentTests.swift in Sources */,
 				8989D01C44B10B70BFCC2E51 /* LearnedPreferenceTests.swift in Sources */,
 				E51946E881178D1492659FAC /* MacroCarryoverServiceTests.swift in Sources */,
 				DC474F4F02D725F031A4DB1A /* MealPlanPromptsTests.swift in Sources */,
@@ -3595,6 +3602,7 @@
 				2B334E33B5E3E359DBFD88EE /* IdentitySetupView.swift in Sources */,
 				9F26ED7292C711E5F0A0DFFD /* InlineSetFeedbackView.swift in Sources */,
 				994A685D910BC62D50A56430 /* KeychainService.swift in Sources */,
+				AE89E6C02D94E34EAE538F1D /* KitchenEquipment.swift in Sources */,
 				588972D53595CFEE05C8E0C4 /* LeaderboardView.swift in Sources */,
 				B5AD564516CD1DED42BDA2C2 /* LearnedOutcome.swift in Sources */,
 				507562733124D2663FF05F60 /* LearnedPreference.swift in Sources */,
