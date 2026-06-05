@@ -1290,41 +1290,61 @@ struct ModesSettingsDetailView: View {
     private var weekendMode = false
     @State
     private var examMode = false
+    @State
+    private var examEndDate = Date()
 
     var body: some View {
-        List {
-            Section {
-                Toggle(isOn: $weekendMode) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Label("Weekend Mode", systemImage: "party.popper.fill")
-                            .font(.tempoSubheadline)
-                        Text("Relaxed schedule on weekends")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextTertiary)
+        ScrollView {
+            VStack(spacing: TempoSpacing.lg) {
+                SettingsFormCard(
+                    title: "Weekend",
+                    footnote: "Relaxes your schedule and eases accountability on Saturdays and Sundays."
+                ) {
+                    SettingsControlRow(label: "Weekend Mode", icon: "party.popper.fill", iconTint: .tempoAmber) {
+                        Toggle("", isOn: $weekendMode)
+                            .labelsHidden()
+                            .tint(Color.tempoAccent)
                     }
-                }
-                .tint(Color.tempoSignal)
-                .onChange(of: weekendMode) { _, newValue in
-                    settings?.weekendMode = newValue
-                    save()
+                    .onChange(of: weekendMode) { _, newValue in
+                        settings?.weekendMode = newValue
+                        save()
+                    }
                 }
 
-                Toggle(isOn: $examMode) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Label("Exam Mode", systemImage: "pencil.and.list.clipboard")
-                            .font(.tempoSubheadline)
-                        Text("Prioritize study, reduce training load")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                SettingsFormCard(
+                    title: "Exam",
+                    footnote: examMode
+                        ? "Study is prioritised and training load reduced until your exam end date."
+                        : "Prioritise study and reduce training load during exam periods."
+                ) {
+                    SettingsControlRow(label: "Exam Mode", icon: "pencil.and.list.clipboard", iconTint: .tempoViolet) {
+                        Toggle("", isOn: $examMode)
+                            .labelsHidden()
+                            .tint(Color.tempoAccent)
+                    }
+                    .onChange(of: examMode) { _, newValue in
+                        settings?.examMode = newValue
+                        if newValue, settings?.examModeEndDate == nil {
+                            settings?.examModeEndDate = examEndDate
+                        }
+                        save()
+                    }
+
+                    if examMode {
+                        SettingsRowDivider()
+                        SettingsControlRow(label: "Ends", icon: "calendar.badge.clock", iconTint: .tempoElectric) {
+                            DatePicker("", selection: $examEndDate, in: Date()..., displayedComponents: .date)
+                                .labelsHidden()
+                        }
+                        .onChange(of: examEndDate) { _, newValue in
+                            settings?.examModeEndDate = newValue
+                            save()
+                        }
                     }
                 }
-                .tint(Color.tempoSignal)
-                .onChange(of: examMode) { _, newValue in
-                    settings?.examMode = newValue
-                    save()
-                }
             }
-            .listRowBackground(Color.tempoSurfaceCard)
+            .padding(.horizontal, TempoSpacing.xl)
+            .padding(.vertical, TempoSpacing.lg)
         }
         .scrollContentBackground(.hidden)
         .background(Color.tempoBgPrimary)
@@ -1333,6 +1353,7 @@ struct ModesSettingsDetailView: View {
         .onAppear {
             weekendMode = settings?.weekendMode ?? false
             examMode = settings?.examMode ?? false
+            examEndDate = settings?.examModeEndDate ?? Calendar.current.date(byAdding: .weekOfYear, value: 2, to: Date()) ?? Date()
         }
     }
 
