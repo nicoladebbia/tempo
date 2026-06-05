@@ -56,6 +56,8 @@ struct NutritionWeeklyPlanView: View {
                 generateButton
                     .padding(.top, TempoSpacing.md)
 
+                aiMealsPreferencesLink
+
                 if let error = viewModel.planGenerationError {
                     HStack(spacing: TempoSpacing.xs) {
                         Image(systemName: "exclamationmark.triangle.fill")
@@ -421,6 +423,40 @@ struct NutritionWeeklyPlanView: View {
             .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
         }
         .disabled(viewModel.isGeneratingPlan || isPreparingWizard)
+    }
+
+    /// Pushes the editable AI Meals preferences page. Saving there can trigger
+    /// a regenerate via the same `generatePlan(intake: nil)` path the wizard
+    /// uses — `nil` makes it reload the freshly-saved persisted preferences.
+    private var aiMealsPreferencesLink: some View {
+        NavigationLink {
+            AIMealsSettingsView(onRegenerate: {
+                viewModel.generatePlan(
+                    modelContext: modelContext,
+                    whoop: services.whoop,
+                    apiClient: services.apiClient,
+                    notifications: services.notifications,
+                    intake: nil
+                )
+            })
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 14))
+                Text("Edit AI Meal Preferences")
+                    .font(.system(size: 14, weight: .medium))
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.tempoTextTertiary)
+            }
+            .foregroundStyle(Color.tempoTextPrimary)
+            .padding(.horizontal, TempoSpacing.md)
+            .frame(height: 48)
+            .frame(maxWidth: .infinity)
+            .background(Color.tempoSurfaceCard)
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+        }
     }
 
     // MARK: - Actions
