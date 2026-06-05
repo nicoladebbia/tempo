@@ -357,7 +357,9 @@ struct DashboardSettingsView: View {
 
     private var scheduleSubtitle: String {
         guard let s = settings else { return "Not set up" }
-        return "Wake \(timeString(fromMinutes: s.wakeTimeMinutes)) · Bed \(timeString(fromMinutes: s.bedtimeTargetMinutes)) · Leisure \(s.leisureTimeMinutes)m"
+        // leisureTimeMinutes is a TIME-OF-DAY (validated 0..<1440 alongside
+        // wake/bedtime as invalidTimeOfDay), NOT a duration — render as a clock.
+        return "Wake \(timeString(fromMinutes: s.wakeTimeMinutes)) · Bed \(timeString(fromMinutes: s.bedtimeTargetMinutes)) · Leisure \(timeString(fromMinutes: s.leisureTimeMinutes))"
     }
 
     private var trainingSubtitle: String {
@@ -871,7 +873,7 @@ struct ScheduleSettingsDetailView: View {
     @State
     private var bedtime = Date()
     @State
-    private var leisureMinutes = 60
+    private var leisureTime = Date()
 
     var body: some View {
         List {
@@ -896,18 +898,16 @@ struct ScheduleSettingsDetailView: View {
                     save()
                 }
 
-                Stepper(value: $leisureMinutes, in: 15 ... 180, step: 15) {
-                    HStack {
-                        Label("Leisure Time", systemImage: "hourglass")
-                            .font(.tempoSubheadline)
-                        Spacer()
-                        Text("\(leisureMinutes) min")
-                            .font(.tempoSubheadline)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    }
+                // Leisure is a TIME-OF-DAY (when wind-down starts), validated
+                // 0..<1440 alongside wake/bedtime — not a duration. Was wrongly
+                // a 15…180 "min" Stepper writing garbage into a time-of-day field.
+                DatePicker(selection: $leisureTime, displayedComponents: .hourAndMinute) {
+                    Label("Leisure Time", systemImage: "hourglass")
+                        .font(.tempoSubheadline)
                 }
-                .onChange(of: leisureMinutes) { _, newValue in
-                    settings?.leisureTimeMinutes = newValue
+                .onChange(of: leisureTime) { _, newValue in
+                    let comps = Calendar.current.dateComponents([.hour, .minute], from: newValue)
+                    settings?.leisureTimeMinutes = (comps.hour ?? 19) * 60 + (comps.minute ?? 30)
                     save()
                 }
             }
@@ -926,7 +926,7 @@ struct ScheduleSettingsDetailView: View {
         }
         wakeTime = dateFromMinutes(s.wakeTimeMinutes)
         bedtime = dateFromMinutes(s.bedtimeTargetMinutes)
-        leisureMinutes = s.leisureTimeMinutes
+        leisureTime = dateFromMinutes(s.leisureTimeMinutes)
     }
 
     private func save() {
