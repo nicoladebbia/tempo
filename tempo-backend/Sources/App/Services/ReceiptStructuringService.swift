@@ -248,7 +248,10 @@ enum ReceiptStructuringError: AbortError {
         case let .apiError(code) where code == 429: .tooManyRequests
         case .apiError: .badGateway
         case .malformedResponse, .parseFailed: .badGateway
-        case .responseTruncated: .badGateway
+        // 422, NOT 502: truncation is a permanent failure for this payload —
+        // retrying sends the identical receipt and gets identical truncation.
+        // 502 is retryable on the client (3x, 10s each = ~40s hang); 422 is not.
+        case .responseTruncated: .unprocessableEntity
         }
     }
 
