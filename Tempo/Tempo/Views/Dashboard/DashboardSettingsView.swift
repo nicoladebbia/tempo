@@ -542,9 +542,15 @@ struct ProfileSettingsDetailView: View {
     private var modelContext
     @Query
     private var allProfiles: [UserProfile]
+    @Query
+    private var allSettings: [UserSettings]
 
     private var profile: UserProfile? {
         allProfiles.first
+    }
+
+    private var settings: UserSettings? {
+        allSettings.first
     }
 
     @State
@@ -552,84 +558,26 @@ struct ProfileSettingsDetailView: View {
     @State
     private var username = ""
     @State
+    private var identityLabel = OnboardingViewModel.identityLabels[0]
+    @State
     private var weightKg = ""
     @State
     private var heightCm = ""
     @State
     private var age = ""
 
+    private let identityOptions = OnboardingViewModel.identityLabels
+
     var body: some View {
-        List {
-            Section("Identity") {
-                TextField("Display Name", text: $displayName)
-                    .font(.tempoSubheadline)
-                    .onChange(of: displayName) { _, newValue in
-                        profile?.displayName = newValue
-                        profile?.updatedAt = Date()
-                        save()
-                    }
-
-                TextField("Username", text: $username)
-                    .font(.tempoSubheadline)
-                    .autocapitalization(.none)
-                    .onChange(of: username) { _, newValue in
-                        profile?.username = newValue
-                        profile?.updatedAt = Date()
-                        save()
-                    }
+        ScrollView {
+            VStack(spacing: TempoSpacing.lg) {
+                heroCard
+                statsCard
+                identityCard
+                biometricsCard
             }
-            .listRowBackground(Color.tempoSurfaceCard)
-
-            Section("Biometrics") {
-                HStack {
-                    Text("Weight (kg)")
-                        .font(.tempoSubheadline)
-                    Spacer()
-                    TextField("--", text: $weightKg)
-                        .font(.tempoSubheadline)
-                        .multilineTextAlignment(.trailing)
-                        .keyboardType(.decimalPad)
-                        .frame(width: 80)
-                        .onChange(of: weightKg) { _, newValue in
-                            profile?.weightKg = Double(newValue)
-                            profile?.updatedAt = Date()
-                            save()
-                        }
-                }
-
-                HStack {
-                    Text("Height (cm)")
-                        .font(.tempoSubheadline)
-                    Spacer()
-                    TextField("--", text: $heightCm)
-                        .font(.tempoSubheadline)
-                        .multilineTextAlignment(.trailing)
-                        .keyboardType(.decimalPad)
-                        .frame(width: 80)
-                        .onChange(of: heightCm) { _, newValue in
-                            profile?.heightCm = Double(newValue)
-                            profile?.updatedAt = Date()
-                            save()
-                        }
-                }
-
-                HStack {
-                    Text("Age")
-                        .font(.tempoSubheadline)
-                    Spacer()
-                    TextField("--", text: $age)
-                        .font(.tempoSubheadline)
-                        .multilineTextAlignment(.trailing)
-                        .keyboardType(.numberPad)
-                        .frame(width: 80)
-                        .onChange(of: age) { _, newValue in
-                            profile?.age = Int(newValue)
-                            profile?.updatedAt = Date()
-                            save()
-                        }
-                }
-            }
-            .listRowBackground(Color.tempoSurfaceCard)
+            .padding(.horizontal, TempoSpacing.xl)
+            .padding(.vertical, TempoSpacing.lg)
         }
         .scrollContentBackground(.hidden)
         .background(Color.tempoBgPrimary)
@@ -638,18 +586,270 @@ struct ProfileSettingsDetailView: View {
         .onAppear { loadProfile() }
     }
 
+    // MARK: - Hero
+
+    @ViewBuilder
+    private var heroCard: some View {
+        VStack(spacing: TempoSpacing.md) {
+            Circle()
+                .fill(Color.tempoSurfaceElevated)
+                .frame(width: 88, height: 88)
+                .overlay {
+                    Text(profileInitial)
+                        .font(.tempoLargeTitle)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                }
+
+            VStack(spacing: TempoSpacing.xxs) {
+                Text(displayName.isEmpty ? "Athlete" : displayName)
+                    .font(.tempoTitle2)
+                    .foregroundStyle(Color.tempoTextPrimary)
+
+                Text("@\(username.isEmpty ? "—" : username)")
+                    .font(.tempoSubheadline)
+                    .foregroundStyle(Color.tempoTextSecondary)
+
+                SettingsStatusPill(text: identityLabel, color: .tempoSignal)
+                    .padding(.top, TempoSpacing.xxs)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, TempoSpacing.xl)
+        .padding(.horizontal, TempoSpacing.lg)
+        .background(Color.tempoSurfaceCard)
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+    }
+
+    private var profileInitial: String {
+        let name = displayName.isEmpty ? (profile?.displayName ?? "A") : displayName
+        return String(name.prefix(1)).uppercased()
+    }
+
+    // MARK: - Stats
+
+    @ViewBuilder
+    private var statsCard: some View {
+        HStack(spacing: 0) {
+            statCell(value: "\(profile?.currentLevel ?? 1)", label: "Level")
+            statDivider
+            statCell(value: xpDisplay, label: "Total XP")
+            statDivider
+            statCell(value: memberSince, label: "Member since")
+        }
+        .padding(.vertical, TempoSpacing.lg)
+        .background(Color.tempoSurfaceCard)
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+    }
+
+    private func statCell(value: String, label: String) -> some View {
+        VStack(spacing: TempoSpacing.xs) {
+            Text(value)
+                .font(.tempoTitle3)
+                .foregroundStyle(Color.tempoTextPrimary)
+            Text(label)
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextTertiary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var statDivider: some View {
+        Rectangle()
+            .fill(Color.tempoDivider)
+            .frame(width: 1, height: 28)
+    }
+
+    private var xpDisplay: String {
+        let xp = profile?.totalXP ?? 0
+        return xp >= 1000 ? String(format: "%.1fk", Double(xp) / 1000) : "\(xp)"
+    }
+
+    private var memberSince: String {
+        guard let created = profile?.createdAt else { return "—" }
+        let f = DateFormatter()
+        f.dateFormat = "MMM yyyy"
+        return f.string(from: created)
+    }
+
+    // MARK: - Identity (editable)
+
+    @ViewBuilder
+    private var identityCard: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            Text("IDENTITY")
+                .font(.tempoCaption1)
+                .fontWeight(.semibold)
+                .foregroundStyle(Color.tempoTextTertiary)
+                .padding(.leading, TempoSpacing.sm)
+
+            VStack(spacing: 0) {
+                labeledField(label: "Display Name", text: $displayName, placeholder: "Your name") { newValue in
+                    profile?.displayName = newValue
+                    touch()
+                }
+                rowDivider
+                labeledField(
+                    label: "Username", text: $username, placeholder: "username",
+                    prefix: "@", autocapitalize: false
+                ) { newValue in
+                    profile?.username = newValue
+                    touch()
+                }
+                rowDivider
+                identityLabelRow
+            }
+            .padding(.vertical, TempoSpacing.xs)
+            .background(Color.tempoSurfaceCard)
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        }
+    }
+
+    private var identityLabelRow: some View {
+        HStack {
+            Text("Identity")
+                .font(.tempoSubheadline)
+                .foregroundStyle(Color.tempoTextPrimary)
+            Spacer()
+            Picker("Identity", selection: $identityLabel) {
+                ForEach(identityOptions, id: \.self) { option in
+                    Text(option).tag(option)
+                }
+            }
+            .labelsHidden()
+            .tint(Color.tempoTextSecondary)
+            .onChange(of: identityLabel) { _, newValue in
+                profile?.identityLabel = newValue
+                touch()
+            }
+        }
+        .padding(.horizontal, TempoSpacing.lg)
+        .padding(.vertical, TempoSpacing.md)
+    }
+
+    // MARK: - Biometrics (editable)
+
+    @ViewBuilder
+    private var biometricsCard: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            Text("BIOMETRICS")
+                .font(.tempoCaption1)
+                .fontWeight(.semibold)
+                .foregroundStyle(Color.tempoTextTertiary)
+                .padding(.leading, TempoSpacing.sm)
+
+            VStack(spacing: 0) {
+                valueField(label: "Weight (kg)", text: $weightKg, keyboard: .decimalPad) { newValue in
+                    profile?.weightKg = Double(newValue)
+                    touch()
+                }
+                rowDivider
+                valueField(label: "Height (cm)", text: $heightCm, keyboard: .decimalPad) { newValue in
+                    profile?.heightCm = Double(newValue)
+                    touch()
+                }
+                rowDivider
+                valueField(label: "Age", text: $age, keyboard: .numberPad) { newValue in
+                    profile?.age = Int(newValue)
+                    touch()
+                }
+                if let bmr = profile?.estimatedBMR {
+                    rowDivider
+                    HStack {
+                        Text("Est. BMR")
+                            .font(.tempoSubheadline)
+                            .foregroundStyle(Color.tempoTextPrimary)
+                        Spacer()
+                        Text("\(Int(bmr)) kcal")
+                            .font(.tempoDataSmall)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                    }
+                    .padding(.horizontal, TempoSpacing.lg)
+                    .padding(.vertical, TempoSpacing.md)
+                }
+            }
+            .padding(.vertical, TempoSpacing.xs)
+            .background(Color.tempoSurfaceCard)
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        }
+    }
+
+    // MARK: - Reusable row builders
+
+    private var rowDivider: some View {
+        Divider()
+            .overlay(Color.tempoDivider)
+            .padding(.leading, TempoSpacing.lg)
+    }
+
+    private func labeledField(
+        label: String,
+        text: Binding<String>,
+        placeholder: String,
+        prefix: String? = nil,
+        autocapitalize: Bool = true,
+        onCommit: @escaping (String) -> Void
+    ) -> some View {
+        HStack {
+            Text(label)
+                .font(.tempoSubheadline)
+                .foregroundStyle(Color.tempoTextPrimary)
+            Spacer()
+            HStack(spacing: 0) {
+                if let prefix {
+                    Text(prefix)
+                        .font(.tempoSubheadline)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                }
+                TextField(placeholder, text: text)
+                    .font(.tempoSubheadline)
+                    .multilineTextAlignment(.trailing)
+                    .textInputAutocapitalization(autocapitalize ? .words : .never)
+                    .autocorrectionDisabled(!autocapitalize)
+                    .onChange(of: text.wrappedValue) { _, newValue in onCommit(newValue) }
+            }
+        }
+        .padding(.horizontal, TempoSpacing.lg)
+        .padding(.vertical, TempoSpacing.md)
+    }
+
+    private func valueField(
+        label: String,
+        text: Binding<String>,
+        keyboard: UIKeyboardType,
+        onCommit: @escaping (String) -> Void
+    ) -> some View {
+        HStack {
+            Text(label)
+                .font(.tempoSubheadline)
+                .foregroundStyle(Color.tempoTextPrimary)
+            Spacer()
+            TextField("--", text: text)
+                .font(.tempoSubheadline)
+                .multilineTextAlignment(.trailing)
+                .keyboardType(keyboard)
+                .frame(width: 80)
+                .onChange(of: text.wrappedValue) { _, newValue in onCommit(newValue) }
+        }
+        .padding(.horizontal, TempoSpacing.lg)
+        .padding(.vertical, TempoSpacing.md)
+    }
+
+    // MARK: - Load / Save
+
     private func loadProfile() {
         guard let p = profile else {
             return
         }
         displayName = p.displayName
         username = p.username
+        identityLabel = identityOptions.contains(p.identityLabel) ? p.identityLabel : identityOptions[0]
         weightKg = p.weightKg.map { String(format: "%.1f", $0) } ?? ""
         heightCm = p.heightCm.map { String(format: "%.0f", $0) } ?? ""
         age = p.age.map { "\($0)" } ?? ""
     }
 
-    private func save() {
+    private func touch() {
+        profile?.updatedAt = Date()
         try? modelContext.save()
     }
 }
