@@ -15,6 +15,11 @@ enum APIError: Error {
     case forbidden
     case notFound
     case conflict
+    /// Backend returned 413 — the request body exceeded the server's size
+    /// limit. For receipt/photo uploads this means the image wasn't
+    /// downsampled enough; the caller should shrink the payload and retry,
+    /// not surface a generic "something went wrong".
+    case payloadTooLarge
     case rateLimited(retryAfter: TimeInterval?)
     case serverError(statusCode: Int)
     case decodingFailed(String)
@@ -45,6 +50,8 @@ enum APIError: Error {
             "The requested data could not be found."
         case .conflict:
             "A conflict occurred. Please refresh and try again."
+        case .payloadTooLarge:
+            "That image is too large to upload. Try a tighter crop of the receipt."
         case .rateLimited:
             "Too many requests. Please wait a moment."
         case .serverError:
