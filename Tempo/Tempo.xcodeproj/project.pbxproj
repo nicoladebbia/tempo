@@ -616,6 +616,7 @@
 		E71CAE9588413BACEA38711C /* cue_ex_lateral_raise.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = A1A0954E801FD3877CDE6AAE /* cue_ex_lateral_raise.mp3 */; };
 		E822524191A602119CB45CCB /* WizardCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1FB2D6E704B1FDCCC7FF51 /* WizardCoordinator.swift */; };
 		E83225D21A9DD622D2814483 /* BodyQuadrantDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C0667B0502956239D73A789 /* BodyQuadrantDetailView.swift */; };
+		E881DA3BC7004A4BA4B7D79A /* SupplementIntakeLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A384B3FD9B35B16FA93FC71F /* SupplementIntakeLog.swift */; };
 		E98D10F1BB421D6D451D1357 /* cue_ex_dumbbell_flat_bench_press.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 07E948A46374F9648FF73ABA /* cue_ex_dumbbell_flat_bench_press.mp3 */; };
 		E9A6B1A902BA47A1DD11BFC2 /* cue_move_leg_swings_front_back_side.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 3D704DA9606523E0CCA0D98C /* cue_move_leg_swings_front_back_side.mp3 */; };
 		E9EA103C80FE7DE833AEBE4F /* cue_ex_z_press.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FA8B0E8A4B9FE107D3B00E5A /* cue_ex_z_press.mp3 */; };
@@ -1146,6 +1147,7 @@
 		A25B6E5B757BBB1DCCDD169F /* MealLoggingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealLoggingService.swift; sourceTree = "<group>"; };
 		A29A36878DCA67C3D251E9CA /* cue_ex_battle_rope.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_battle_rope.mp3; sourceTree = "<group>"; };
 		A31496282C73D8993EE5235D /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		A384B3FD9B35B16FA93FC71F /* SupplementIntakeLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplementIntakeLog.swift; sourceTree = "<group>"; };
 		A4030EBDAFF58A610CEFF18E /* MockNutritionCoachService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockNutritionCoachService.swift; sourceTree = "<group>"; };
 		A449D71EB644D43ACF7C90AA /* cue_ex_incline_cable_fly.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_incline_cable_fly.mp3; sourceTree = "<group>"; };
 		A4C1AD08D1639423D10D0AC8 /* ArenaEnums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArenaEnums.swift; sourceTree = "<group>"; };
@@ -2080,6 +2082,7 @@
 				DB27F024CE99ACAA64F6920F /* ReceiptLineItem.swift */,
 				64B13C2AE6A01FF27945D927 /* Recipe.swift */,
 				AFEB7F1F388A4F446B4481B7 /* Supplement.swift */,
+				A384B3FD9B35B16FA93FC71F /* SupplementIntakeLog.swift */,
 				705235EDE942F04975A3908C /* WeeklyMealPlan.swift */,
 				C5BDFC34F838A319076F11FE /* WizardLaunchSnapshot.swift */,
 			);
@@ -3739,6 +3742,7 @@
 				A2273E878FAB4C3CB205F7D0 /* SubscriptionService.swift in Sources */,
 				379CA0F6FE0238EBD826FA59 /* SubscriptionServiceProtocol.swift in Sources */,
 				4BB9AF378EDC91D15C636F10 /* Supplement.swift in Sources */,
+				E881DA3BC7004A4BA4B7D79A /* SupplementIntakeLog.swift in Sources */,
 				47062D89D6D163EA29DEDD7F /* SupplementsView.swift in Sources */,
 				FD4F8D22C88FFFD22D088D8E /* SyncCoordinatorProtocol.swift in Sources */,
 				A129BCE268A7C4CA06D533A7 /* SyncEnums.swift in Sources */,

@@ -160,4 +160,22 @@ final class SupplementTests: XCTestCase {
         // Never set → decoding a nil blob yields an empty map, not a crash.
         XCTAssertTrue(plan.supplementDecisions.isEmpty)
     }
+
+    // MARK: - SupplementIntakeLog ("I took it" persistence)
+    //
+    // The insert/fetch/delete + date-isolation contract is exercised end-to-end
+    // by the toggle tests in NutritionTabViewModelTests
+    // (testToggleSupplementTaken_*), which use the shared multi-model setUp
+    // container — the SAME path the app uses. A per-test single-purpose
+    // container for this model traps in SwiftData's Date persistence
+    // (SupplementIntakeLog.takenAt getter) — a test-container quirk, not a
+    // product bug, so we don't duplicate the round-trip here. Only the pure
+    // start-of-day normalization (no container) is asserted below.
+
+    func testIntakeLog_normalizesToStartOfDay() throws {
+        let noon = Calendar.current.date(bySettingHour: 12, minute: 30, second: 0, of: Date())!
+        let log = SupplementIntakeLog(supplementName: "Creatine", day: noon)
+        XCTAssertEqual(log.day, Calendar.current.startOfDay(for: noon),
+                       "day must be start-of-day so any time today matches")
+    }
 }

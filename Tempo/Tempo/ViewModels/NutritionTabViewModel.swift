@@ -226,6 +226,38 @@ final class NutritionTabViewModel {
         return plan.supplementDecisions[key] ?? []
     }
 
+    /// Names of supplements the user marked TAKEN today (start-of-day keyed).
+    /// Drives the checkmark state on the Today supplement card.
+    func takenSupplementsToday(modelContext: ModelContext) -> Set<String> {
+        let today = Calendar.current.startOfDay(for: Date())
+        let descriptor = FetchDescriptor<SupplementIntakeLog>(
+            predicate: #Predicate<SupplementIntakeLog> { $0.day == today }
+        )
+        let rows = (try? modelContext.fetch(descriptor)) ?? []
+        return Set(rows.map(\.supplementName))
+    }
+
+    /// Toggle "I took it" for a supplement today — idempotent. A row's
+    /// existence means taken; tapping again (undo) deletes it. Guarded against
+    /// a double-tap leaving two rows that one undo can't clear: we delete ALL
+    /// matching rows on un-take and only insert when none exist.
+    func toggleSupplementTaken(name: String, modelContext: ModelContext) {
+        let today = Calendar.current.startOfDay(for: Date())
+        let descriptor = FetchDescriptor<SupplementIntakeLog>(
+            predicate: #Predicate<SupplementIntakeLog> { row in
+                row.day == today && row.supplementName == name
+            }
+        )
+        let existing = (try? modelContext.fetch(descriptor)) ?? []
+        if existing.isEmpty {
+            modelContext.insert(SupplementIntakeLog(supplementName: name, day: today))
+        } else {
+            for row in existing { modelContext.delete(row) }
+        }
+        try? modelContext.save()
+        HapticManager.lightImpact()
+    }
+
     var todayProteinConsumed: Int {
         todayMeals
             .filter { $0.status == .eaten }

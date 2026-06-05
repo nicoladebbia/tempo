@@ -62,6 +62,7 @@ enum TempoSchemaV1: VersionedSchema {
             PantryItem.self,
             PantryPriceEntry.self,
             Supplement.self,
+            SupplementIntakeLog.self,
             Receipt.self,
             ReceiptLineItem.self,
             Recipe.self,

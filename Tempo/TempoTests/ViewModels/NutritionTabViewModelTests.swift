@@ -24,7 +24,7 @@ final class NutritionTabViewModelTests: XCTestCase {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         container = try ModelContainer(
             for: PlannedMeal.self, WeeklyMealPlan.self, MealPreset.self, DietaryProfile.self,
-            MealFeedback.self, PantryItem.self,
+            MealFeedback.self, PantryItem.self, SupplementIntakeLog.self,
             configurations: config
         )
         viewModel = NutritionTabViewModel()
@@ -253,6 +253,38 @@ final class NutritionTabViewModelTests: XCTestCase {
 
         XCTAssertEqual(rice.quantity, 500,
                        "No decrement happened → undo must not invent stock")
+    }
+
+    // MARK: - Supplement "taken" toggle (idempotent)
+
+    func testToggleSupplementTaken_insertsThenDeletes() {
+        let ctx = container.mainContext
+        XCTAssertFalse(viewModel.takenSupplementsToday(modelContext: ctx).contains("Creatine"))
+
+        // First tap → taken.
+        viewModel.toggleSupplementTaken(name: "Creatine", modelContext: ctx)
+        XCTAssertTrue(viewModel.takenSupplementsToday(modelContext: ctx).contains("Creatine"))
+
+        // Second tap → undone (idempotent, no orphan rows).
+        viewModel.toggleSupplementTaken(name: "Creatine", modelContext: ctx)
+        XCTAssertFalse(viewModel.takenSupplementsToday(modelContext: ctx).contains("Creatine"))
+
+        let rows = (try? ctx.fetch(FetchDescriptor<SupplementIntakeLog>())) ?? []
+        XCTAssertTrue(rows.isEmpty, "Toggle off must leave NO rows")
+    }
+
+    func testToggleSupplementTaken_twoSupplementsIndependent() {
+        let ctx = container.mainContext
+        viewModel.toggleSupplementTaken(name: "Creatine", modelContext: ctx)
+        viewModel.toggleSupplementTaken(name: "Whey", modelContext: ctx)
+        let taken = viewModel.takenSupplementsToday(modelContext: ctx)
+        XCTAssertTrue(taken.contains("Creatine"))
+        XCTAssertTrue(taken.contains("Whey"))
+
+        viewModel.toggleSupplementTaken(name: "Creatine", modelContext: ctx)
+        let after = viewModel.takenSupplementsToday(modelContext: ctx)
+        XCTAssertFalse(after.contains("Creatine"))
+        XCTAssertTrue(after.contains("Whey"), "Toggling one must not affect the other")
     }
 
     func testUndoMealEaten_revertsASkippedMealToPlanned() throws {

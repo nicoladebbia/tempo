@@ -36,6 +36,11 @@ struct NutritionTodayView: View {
     @State
     private var markEatenMeal: PlannedMeal?
 
+    /// Bumped after toggling a supplement "taken" so the card re-reads the
+    /// taken set (a fetch in a computed view doesn't auto-refresh on insert).
+    @State
+    private var supplementTakenRefresh = 0
+
     // Macro colors per MODULE_DASHBOARD.md
     private let proteinColor = Color.tempoMacroProtein
     private let carbsColor = Color.tempoMacroCarbs
@@ -169,6 +174,11 @@ struct NutritionTodayView: View {
     @ViewBuilder
     private var supplementsCard: some View {
         let decisions = viewModel.todaySupplementDecisions
+        // Re-read on every toggle (supplementTakenRefresh) so the checkmarks
+        // reflect the latest taken state.
+        let taken = supplementTakenRefresh >= 0
+            ? viewModel.takenSupplementsToday(modelContext: modelContext)
+            : []
         if !decisions.isEmpty {
             VStack(alignment: .leading, spacing: TempoSpacing.md) {
                 Text("TODAY'S SUPPLEMENTS")
@@ -204,6 +214,22 @@ struct NutritionTodayView: View {
                             }
                         }
                         Spacer(minLength: 0)
+                        // "I took it" checkmark — only on TAKE rows (a SKIP has
+                        // nothing to check off). Tap toggles + persists; tap
+                        // again undoes.
+                        if decision.take {
+                            let isTaken = taken.contains(decision.name)
+                            Button {
+                                viewModel.toggleSupplementTaken(name: decision.name, modelContext: modelContext)
+                                supplementTakenRefresh += 1
+                            } label: {
+                                Image(systemName: isTaken ? "checkmark.circle.fill" : "circle")
+                                    .font(.system(size: 22))
+                                    .foregroundStyle(isTaken ? Color.tempoSuccess : Color.tempoTextTertiary)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(isTaken ? "\(decision.name) taken, tap to undo" : "Mark \(decision.name) taken")
+                        }
                     }
                 }
             }
