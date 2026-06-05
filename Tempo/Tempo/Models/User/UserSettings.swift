@@ -146,6 +146,15 @@ final class UserSettings {
     /// Meals settings page; not auto-cleared each week).
     var mealIntakeExclusionsRaw: String = ""
 
+    /// How many meals the user WANTS per day (3/4/5). Nil → let the AI decide
+    /// (the current 4-5 default). Drives the meal-count directive.
+    var mealsPerDayPreference: Int?
+
+    /// Cooking-time budget in minutes — weekday vs weekend. Nil → no cap (AI
+    /// uses its under-20-min weekday default). Drives recipe complexity.
+    var cookTimeWeekdayMins: Int?
+    var cookTimeWeekendMins: Int?
+
     // MARK: - Timestamps
 
     var updatedAt: Date

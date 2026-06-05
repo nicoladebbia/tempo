@@ -397,6 +397,60 @@ final class MealPlanPromptsTests: XCTestCase {
         XCTAssertFalse(userPrompt.contains("<taste_preferences>"))
     }
 
+    // MARK: - Meal count + cook-time directives — Phase 3
+
+    func testMealCountDirective_emptyWhenNil() {
+        XCTAssertEqual(MealPlanPrompts.mealCountDirective(nil), "")
+    }
+
+    func testMealCountDirective_emptyWhenOutOfRange() {
+        XCTAssertEqual(MealPlanPrompts.mealCountDirective(2), "")
+        XCTAssertEqual(MealPlanPrompts.mealCountDirective(9), "")
+    }
+
+    func testMealCountDirective_setsExactCount() {
+        let d = MealPlanPrompts.mealCountDirective(3)
+        XCTAssertTrue(d.uppercased().contains("MEAL COUNT"))
+        XCTAssertTrue(d.contains("EXACTLY 3"))
+        XCTAssertTrue(d.lowercased().contains("overrides"))
+    }
+
+    func testCookTimeDirective_emptyWhenBothNil() {
+        XCTAssertEqual(MealPlanPrompts.cookTimeDirective(weekday: nil, weekend: nil), "")
+    }
+
+    func testCookTimeDirective_weekdayOnly() {
+        let d = MealPlanPrompts.cookTimeDirective(weekday: 15, weekend: nil)
+        XCTAssertTrue(d.uppercased().contains("COOK-TIME BUDGET"))
+        XCTAssertTrue(d.contains("weekdays ≤ 15 min"))
+        XCTAssertFalse(d.contains("weekend"))
+    }
+
+    func testCookTimeDirective_both() {
+        let d = MealPlanPrompts.cookTimeDirective(weekday: 15, weekend: 45)
+        XCTAssertTrue(d.contains("weekdays ≤ 15 min"))
+        XCTAssertTrue(d.contains("weekends ≤ 45 min"))
+    }
+
+    func testWeeklyPlanPrompt_includesMealCountAndCookTimeWhenSet() {
+        let restrictions = MealPlanPrompts.DietaryRestrictions()
+        let (_, userPrompt) = MealPlanPrompts.weeklyPlanPrompt(
+            targets: [:], restrictions: restrictions, preferences: "",
+            mealsPerDay: 3, cookTimeWeekdayMins: 15, cookTimeWeekendMins: 45
+        )
+        XCTAssertTrue(userPrompt.contains("EXACTLY 3"))
+        XCTAssertTrue(userPrompt.contains("weekdays ≤ 15 min"))
+    }
+
+    func testWeeklyPlanPrompt_omitsMealPrefsWhenUnset() {
+        let restrictions = MealPlanPrompts.DietaryRestrictions()
+        let (_, userPrompt) = MealPlanPrompts.weeklyPlanPrompt(
+            targets: [:], restrictions: restrictions, preferences: ""
+        )
+        XCTAssertFalse(userPrompt.contains("MEAL COUNT"))
+        XCTAssertFalse(userPrompt.contains("COOK-TIME BUDGET"))
+    }
+
     func testWeeklyPlanPrompt_safetyAllowsOwnedSupplementsButNotBuying() {
         let restrictions = MealPlanPrompts.DietaryRestrictions(
             isLactoseFree: false, noCoffee: false, isGlutenFree: false,

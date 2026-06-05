@@ -150,6 +150,16 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             logger.info("[Diag.Plan] INPUT trainingSchedule: nil (AI will guess day types)")
         }
 
+        // Meals-per-day + cook-time budget prefs (persisted on UserSettings,
+        // set from the AI Meals settings page). nil → AI uses its defaults.
+        let mealsPrefSettings = Self.fetchUserSettings(modelContext: modelContext)
+        let mealsPerDay = mealsPrefSettings?.mealsPerDayPreference
+        let cookWeekday = mealsPrefSettings?.cookTimeWeekdayMins
+        let cookWeekend = mealsPrefSettings?.cookTimeWeekendMins
+        if mealsPerDay != nil || cookWeekday != nil || cookWeekend != nil {
+            logger.info("[Diag.Plan] meal prefs: mealsPerDay=\(mealsPerDay ?? 0) cookWeekday=\(cookWeekday ?? 0) cookWeekend=\(cookWeekend ?? 0)")
+        }
+
         let (systemPrompt, userPrompt) = MealPlanPrompts.weeklyPlanPrompt(
             targets: tdeeResult.dayTypeTargets,
             restrictions: restrictions,
@@ -159,7 +169,10 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             feedbackDigest: feedback,
             expiringSoon: expiringSoon,
             pantryStock: stock,
-            supplements: supplements
+            supplements: supplements,
+            mealsPerDay: mealsPerDay,
+            cookTimeWeekdayMins: cookWeekday,
+            cookTimeWeekendMins: cookWeekend
         )
 
         let response = try await sendWithRetry(
@@ -653,6 +666,12 @@ final class MealPlanGeneratorService: @unchecked Sendable {
                 }
                 return "\(item.canonicalName) — \(qty) \(item.unit.displayName) [\(item.storageLocation.displayName)]"
             }
+    }
+
+    /// Fetch the single UserSettings record (for meal-count / cook-time prefs).
+    /// nil when none exists yet.
+    static func fetchUserSettings(modelContext: ModelContext) -> UserSettings? {
+        (try? modelContext.fetch(FetchDescriptor<UserSettings>()))?.first
     }
 
     /// Fetch the user's active supplement shelf for the plan prompt. The AI

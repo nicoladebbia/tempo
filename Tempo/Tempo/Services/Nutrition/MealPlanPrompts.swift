@@ -426,6 +426,23 @@ enum MealPlanPrompts {
         """
     }
 
+    /// Directive overriding the default 4-5 meal structure when the user has a
+    /// specific meals-per-day preference. Empty when nil (AI uses the default).
+    static func mealCountDirective(_ mealsPerDay: Int?) -> String {
+        guard let n = mealsPerDay, (3 ... 6).contains(n) else { return "" }
+        return "- MEAL COUNT (user preference, OVERRIDES the default below): give EXACTLY \(n) meals per day. Keep the same calorie distribution spirit, just across \(n) slots."
+    }
+
+    /// Directive capping recipe complexity to the user's cooking-time budget.
+    /// Empty when neither is set (AI uses its under-20-min weekday default).
+    static func cookTimeDirective(weekday: Int?, weekend: Int?) -> String {
+        var parts: [String] = []
+        if let weekday { parts.append("weekdays ≤ \(weekday) min") }
+        if let weekend { parts.append("weekends ≤ \(weekend) min") }
+        guard !parts.isEmpty else { return "" }
+        return "- COOK-TIME BUDGET (user preference): keep total active cooking/prep time within \(parts.joined(separator: ", ")). On tight-time days favor one-pan, no-cook, or batch-reheat meals; save longer recipes for the higher-budget days. Never exceed the budget for a day."
+    }
+
     /// The user's owned supplement shelf + the rules for scheduling them per
     /// day. Empty string when the shelf is empty (so callers interpolate
     /// unconditionally and no supplement output is requested). The model may
@@ -655,7 +672,10 @@ enum MealPlanPrompts {
         feedbackDigest: FeedbackDigest? = nil,
         expiringSoon: [(name: String, days: Int)] = [],
         pantryStock: [String] = [],
-        supplements: [Supplement] = []
+        supplements: [Supplement] = [],
+        mealsPerDay: Int? = nil,
+        cookTimeWeekdayMins: Int? = nil,
+        cookTimeWeekendMins: Int? = nil
     ) -> (system: String, user: String) {
         let system = """
         You are the nutrition arm of Tempo, a drill-sergeant life operating system for student-athletes. \
@@ -715,6 +735,8 @@ enum MealPlanPrompts {
         \(supplementShelfBlock(supplements))
 
         <meal_structure>
+        \(mealCountDirective(mealsPerDay))
+        \(cookTimeDirective(weekday: cookTimeWeekdayMins, weekend: cookTimeWeekendMins))
         - 4-5 meals per day: Breakfast, Lunch, Dinner, and 1-2 Snacks.
         - Breakfast: ~25% of daily calories
         - Lunch: ~30% of daily calories
