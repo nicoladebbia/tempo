@@ -11,12 +11,8 @@ import os
 #if canImport(UIKit)
 import UIKit
 #endif
-
-/// Maximum dimension (long edge) of an image sent to Claude Vision. Per
-/// Anthropic's vision guidance, images larger than ~1568px on the long
-/// edge are downsampled server-side; we do it client-side too so the
-/// uploaded payload stays small and memory doesn't spike on a 12MP photo.
-private let maxClaudeVisionPixelEdge: CGFloat = 1568
+// `maxClaudeVisionPixelEdge` (1568px) and the downsampling logic live in
+// `UIImage+Downsample.swift`, shared with the receipt-upload path.
 
 // MARK: - PhotoAnalysisServiceProtocol
 
@@ -286,34 +282,20 @@ final class PhotoAnalysisService: PhotoAnalysisServiceProtocol, @unchecked Senda
         return verifiedItems
     }
 
-    /// Decode → resize-to-fit → re-encode as 0.8 quality JPEG → base64.
-    /// Falls back to the raw bytes if UIImage decode fails (vector PDFs,
-    /// HEIC variants without the right decoder). Capping at
-    /// `maxClaudeVisionPixelEdge` keeps memory + uploaded payload bounded
-    /// regardless of camera resolution.
+    /// Decode → resize-to-fit → re-encode as 0.8 quality JPEG → base64 via the
+    /// shared `UIImage.downsampledJPEGBase64` helper. Falls back to the raw
+    /// bytes if UIImage decode fails (vector PDFs, HEIC variants without the
+    /// right decoder) or if the image is already within the size cap.
     private static func downsampledBase64(_ original: Data) -> String {
         #if canImport(UIKit)
         guard let image = UIImage(data: original) else {
             return original.base64EncodedString()
         }
-        let longEdge = max(image.size.width, image.size.height)
-        guard longEdge > maxClaudeVisionPixelEdge else {
-            // Already small enough; only re-encode if not JPEG-friendly.
+        // Already small enough → keep the original bytes, skip the re-encode.
+        guard max(image.size.width, image.size.height) > maxClaudeVisionPixelEdge else {
             return original.base64EncodedString()
         }
-        let scale = maxClaudeVisionPixelEdge / longEdge
-        let newSize = CGSize(width: image.size.width * scale, height: image.size.height * scale)
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 1.0
-        format.opaque = true
-        let renderer = UIGraphicsImageRenderer(size: newSize, format: format)
-        let resized = renderer.image { _ in
-            image.draw(in: CGRect(origin: .zero, size: newSize))
-        }
-        guard let jpeg = resized.jpegData(compressionQuality: 0.8) else {
-            return original.base64EncodedString()
-        }
-        return jpeg.base64EncodedString()
+        return image.downsampledJPEGBase64()?.base64 ?? original.base64EncodedString()
         #else
         return original.base64EncodedString()
         #endif
