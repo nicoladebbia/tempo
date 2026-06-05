@@ -6,7 +6,7 @@
 // onto a Mon=1 … Sun=7 week for the meal-plan prompt. The bug this locks: the
 // football overlay fed make's Mon=1 weekday into ActiveDays.isActive(on:),
 // which expects Calendar's Sun=1 — so a user with SUNDAY football got MONDAY =
-// Football in the plan (measured via [PlanDiag] wd1=Football). Pure function,
+// Football in the plan (measured via [Diag.Plan] wd1=Football). Pure function,
 // so we assert all 7 days.
 //
 

@@ -351,8 +351,10 @@ extension NutritionTabViewModel {
             )
             groceryState.latest = list
             groceryState.lastError = nil
+            Logger.nutrition.info("[Diag.Grocery] generated \(list.itemCount) items for week \(weekStart.formatted(date: .abbreviated, time: .omitted), privacy: .public)")
         } catch {
             groceryState.lastError = error.localizedDescription
+            Logger.nutrition.error("[Diag.Grocery] generation FAILED: \(error.localizedDescription, privacy: .public)")
         }
     }
 

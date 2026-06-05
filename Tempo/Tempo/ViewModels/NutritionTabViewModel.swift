@@ -435,6 +435,7 @@ final class NutritionTabViewModel {
         notifications: (any NotificationServiceProtocol)? = nil
     ) {
         let mealID = meal.id
+        Logger.nutrition.info("[Diag.Eat] \(meal.mealName, privacy: .public) marked eaten at \(eatenAt.formatted(date: .omitted, time: .shortened), privacy: .public) — \(Int(meal.totalCalories))kcal, decrementedPantry=\(meal.didDecrementPantry)")
         meal.status = .eaten
         meal.actualEatenAt = eatenAt
 
@@ -497,6 +498,7 @@ final class NutritionTabViewModel {
         modelContext: ModelContext
     ) {
         let mealID = meal.id
+        Logger.nutrition.info("[Diag.Undo] \(meal.mealName, privacy: .public) was \(meal.status.rawValue, privacy: .public) → reverting to planned (creditPantry=\(meal.didDecrementPantry))")
 
         // Re-credit pantry before flipping state, while didDecrementPantry
         // still tells us whether stock was pulled.

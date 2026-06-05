@@ -139,15 +139,15 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         }
 
         // INPUT training schedule fed to the AI (Mon=1 … Sun=7). Compared
-        // against the persisted day-types in [PlanDiag], this tells us whether
+        // against the persisted day-types in [Diag.Plan], this tells us whether
         // a wrong day-type (e.g. Saturday showing REST when the user lifts) is
         // bad INPUT (this schedule) or a downstream keying bug.
         if let sched = intake?.trainingSchedule {
             let dump = sched.byWeekday.sorted { $0.key < $1.key }
                 .map { "wd\($0.key)=\($0.value)" }.joined(separator: ", ")
-            logger.info("[PlanDiag] INPUT trainingSchedule (Mon=1..Sun=7): \(dump)")
+            logger.info("[Diag.Plan] INPUT trainingSchedule (Mon=1..Sun=7): \(dump)")
         } else {
-            logger.info("[PlanDiag] INPUT trainingSchedule: nil (AI will guess day types)")
+            logger.info("[Diag.Plan] INPUT trainingSchedule: nil (AI will guess day types)")
         }
 
         let (systemPrompt, userPrompt) = MealPlanPrompts.weeklyPlanPrompt(
@@ -208,7 +208,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
     /// regenerate can be verified from the console alone — without screenshots.
     /// Covers the four things that keep going wrong: meal TIMING + ordering,
     /// day-TYPE labels, supplement decisions, and food VARIETY. All under the
-    /// `[PlanDiag]` tag for easy filtering.
+    /// `[Diag.Plan]` tag for easy filtering.
     /// Parse "HH:mm" → minutes-from-midnight for ordering checks. Nil on a
     /// malformed string.
     private static func minutesOfDay(from hhmm: String) -> Int? {
@@ -224,7 +224,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         let meals = plan.meals ?? []
         let weekdayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
-        logger.info("[PlanDiag] ===== Plan \(plan.id) =====")
+        logger.info("[Diag.Plan] ===== Plan \(plan.id) =====")
 
         // RAW day-type dictionary exactly as stored (key → value), so we can
         // see the TRUE keying convention vs how each surface reads it. The
@@ -233,7 +233,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         // tells us whether it's a read-convention bug or genuinely-wrong input.
         let rawDict = plan.dayTypeAssignments.sorted { $0.key < $1.key }
             .map { "key\($0.key)=\($0.value)" }.joined(separator: ", ")
-        logger.info("[PlanDiag] RAW dayTypeAssignments: \(rawDict)")
+        logger.info("[Diag.Plan] RAW dayTypeAssignments: \(rawDict)")
 
         // Per-day: day-type + meals in chronological order with time/name/kcal.
         // Group by dayDate so we read each day as the user will see it.
@@ -250,7 +250,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             let line = dayMeals.map { m in
                 "\(m.scheduledTime) \(m.mealName)(\(Int(m.totalCalories))kcal)"
             }.joined(separator: " → ")
-            logger.info("[PlanDiag] \(label) [\(dayType)]: \(line)")
+            logger.info("[Diag.Plan] \(label) [\(dayType)]: \(line)")
 
             // Ordering sanity: dinner should not precede an afternoon snack, and
             // times must be non-decreasing (the sort guarantees the latter, so
@@ -258,7 +258,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             if let dinner = dayMeals.first(where: { $0.mealName.lowercased().contains("dinner") }),
                let dinnerMin = Self.minutesOfDay(from: dinner.scheduledTime),
                dinnerMin < 19 * 60 {
-                logger.warning("[PlanDiag] ⚠️ \(label): dinner at \(dinner.scheduledTime) is before 19:00")
+                logger.warning("[Diag.Plan] ⚠️ \(label): dinner at \(dinner.scheduledTime) is before 19:00")
                 orderViolations += 1
             }
         }
@@ -271,7 +271,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         for name in allFoodNames { counts[name, default: 0] += 1 }
         let top = counts.sorted { $0.value > $1.value }.prefix(5)
             .map { "\($0.key)×\($0.value)" }.joined(separator: ", ")
-        logger.info("[PlanDiag] Variety: \(distinct.count) distinct foods across \(allFoodNames.count) slots. Most repeated: \(top)")
+        logger.info("[Diag.Plan] Variety: \(distinct.count) distinct foods across \(allFoodNames.count) slots. Most repeated: \(top)")
 
         // Supplement decisions actually persisted.
         let suppDays = plan.supplementDecisions.count
@@ -280,15 +280,15 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             let sampleStr = (sample?.value ?? []).map {
                 "\($0.name):\($0.take ? "take@\($0.timing ?? "?")" : "skip")"
             }.joined(separator: ", ")
-            logger.info("[PlanDiag] Supplements: decisions on \(suppDays) days. Day \(sample?.key ?? 0): \(sampleStr)")
+            logger.info("[Diag.Plan] Supplements: decisions on \(suppDays) days. Day \(sample?.key ?? 0): \(sampleStr)")
         } else {
-            logger.info("[PlanDiag] Supplements: none (user owns no shelf items)")
+            logger.info("[Diag.Plan] Supplements: none (user owns no shelf items)")
         }
 
         if orderViolations > 0 {
-            logger.warning("[PlanDiag] ⚠️ \(orderViolations) day(s) with dinner-before-19:00 — timing rule not honored")
+            logger.warning("[Diag.Plan] ⚠️ \(orderViolations) day(s) with dinner-before-19:00 — timing rule not honored")
         }
-        logger.info("[PlanDiag] ===== end =====")
+        logger.info("[Diag.Plan] ===== end =====")
     }
 
     // MARK: - Recipe Generation (Haiku)

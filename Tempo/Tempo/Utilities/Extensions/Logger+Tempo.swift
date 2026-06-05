@@ -45,5 +45,15 @@ extension Logger {
     static let analytics = Logger(subsystem: subsystem, category: "analytics")
 
     /// Nutrition services: food search, meal logging, photo analysis.
+    ///
+    /// DIAGNOSTICS: filterable one-line summaries for on-device debugging are
+    /// tagged `[Diag.<area>]` so the Xcode console can be filtered to just our
+    /// lines (type "Diag" in the console filter to hide Whoop/keyboard/system
+    /// noise). Current areas:
+    ///   [Diag.Plan]    — plan generation: input training schedule, per-day
+    ///                    times + day-types, variety audit, supplement decisions
+    ///   [Diag.Eat]     — a meal marked eaten (name, time, kcal, pantry flag)
+    ///   [Diag.Undo]    — a meal reverted to planned (from eaten OR skipped)
+    ///   [Diag.Grocery] — grocery list generated (item count) or failed
     static let nutrition = Logger(subsystem: subsystem, category: "nutrition")
 }
