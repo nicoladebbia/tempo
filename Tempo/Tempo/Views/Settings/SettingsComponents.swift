@@ -272,3 +272,107 @@ struct SettingsActionRow: View {
         }
     }
 }
+
+// MARK: - Detail-screen primitives
+//
+// Card-styled chrome around NATIVE controls (DatePicker/Picker/Toggle/Stepper)
+// so detail screens match the redesigned root without rebuilding working
+// inputs. Use SettingsFormCard as the container and the *Row wrappers inside.
+
+/// A titled card that wraps a column of detail-screen rows. The detail-screen
+/// analogue of SettingsGroupCard, but it accepts arbitrary control rows
+/// (pickers, toggles) rather than just nav rows.
+struct SettingsFormCard<Content: View>: View {
+    var title: String?
+    var footnote: String?
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            if let title {
+                Text(title.uppercased())
+                    .font(.tempoCaption1)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.tempoTextTertiary)
+                    .padding(.leading, TempoSpacing.sm)
+            }
+
+            VStack(spacing: 0) {
+                content
+            }
+            .background(Color.tempoSurfaceCard)
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+
+            if let footnote {
+                Text(footnote)
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextTertiary)
+                    .padding(.horizontal, TempoSpacing.sm)
+            }
+        }
+    }
+}
+
+/// A hairline divider inset to align under a row's label, for use between
+/// rows inside a SettingsFormCard.
+struct SettingsRowDivider: View {
+    var body: some View {
+        Divider()
+            .overlay(Color.tempoDivider)
+            .padding(.leading, TempoSpacing.lg)
+    }
+}
+
+/// Read-only label + value row — the workhorse for surfacing data.
+struct SettingsInfoRow: View {
+    let label: String
+    let value: String
+    var icon: String?
+    var iconTint: Color = .tempoTextSecondary
+    var valueColor: Color = .tempoTextSecondary
+
+    var body: some View {
+        HStack(spacing: TempoSpacing.md) {
+            if let icon {
+                SettingsIconTile(systemName: icon, tint: iconTint)
+            }
+            Text(label)
+                .font(.tempoSubheadline)
+                .foregroundStyle(Color.tempoTextPrimary)
+            Spacer(minLength: TempoSpacing.sm)
+            Text(value)
+                .font(.tempoDataSmall)
+                .foregroundStyle(valueColor)
+                .multilineTextAlignment(.trailing)
+        }
+        .padding(.horizontal, TempoSpacing.lg)
+        .padding(.vertical, TempoSpacing.md)
+        .frame(minHeight: 44)
+    }
+}
+
+/// A card row hosting a trailing native control (DatePicker, Picker, Toggle,
+/// Stepper). The control is passed in via the `control` builder so callers
+/// keep full native behavior; this only provides the labeled card chrome.
+struct SettingsControlRow<Control: View>: View {
+    let label: String
+    var icon: String?
+    var iconTint: Color = .tempoTextSecondary
+    @ViewBuilder var control: Control
+
+    var body: some View {
+        HStack(spacing: TempoSpacing.md) {
+            if let icon {
+                SettingsIconTile(systemName: icon, tint: iconTint)
+            }
+            Text(label)
+                .font(.tempoSubheadline)
+                .foregroundStyle(Color.tempoTextPrimary)
+            Spacer(minLength: TempoSpacing.sm)
+            control
+        }
+        .padding(.horizontal, TempoSpacing.lg)
+        .padding(.vertical, TempoSpacing.sm)
+        .frame(minHeight: 44)
+    }
+}
