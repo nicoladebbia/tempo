@@ -1009,35 +1009,68 @@ struct TrainingSettingsDetailView: View {
     @State
     private var deloadWeeks = 5
 
+    private var footballCount: Int {
+        settings?.footballDaysRaw.nonzeroBitCount ?? 0
+    }
+
     var body: some View {
-        List {
-            Section {
-                Picker(selection: $trainingSplit) {
-                    ForEach(TrainingSplit.allCases, id: \.self) { split in
-                        Text(split.displayName).tag(split)
-                    }
-                } label: {
-                    Label("Split", systemImage: "dumbbell.fill")
-                        .font(.tempoSubheadline)
+        ScrollView {
+            VStack(spacing: TempoSpacing.lg) {
+                // Summary hero — what this config means at a glance.
+                VStack(spacing: TempoSpacing.xs) {
+                    Text(trainingSplit.displayName)
+                        .font(.tempoTitle2)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                    Text(footballCount == 0
+                        ? "No football days"
+                        : "\(footballCount) football day\(footballCount == 1 ? "" : "s") / week")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextTertiary)
                 }
-                .onChange(of: trainingSplit) { _, newValue in
-                    settings?.trainingSplit = newValue
-                    save()
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, TempoSpacing.xl)
+                .background(Color.tempoSurfaceCard)
+                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+
+                SettingsFormCard(title: "Programme") {
+                    SettingsControlRow(label: "Split", icon: "dumbbell.fill", iconTint: .tempoSignal) {
+                        Picker("", selection: $trainingSplit) {
+                            ForEach(TrainingSplit.allCases, id: \.self) { split in
+                                Text(split.displayName).tag(split)
+                            }
+                        }
+                        .labelsHidden()
+                        .tint(Color.tempoTextSecondary)
+                    }
+                    .onChange(of: trainingSplit) { _, newValue in
+                        settings?.trainingSplit = newValue
+                        save()
+                    }
+
+                    SettingsRowDivider()
+
+                    SettingsControlRow(label: "Weight Unit", icon: "scalemass.fill", iconTint: .tempoElectric) {
+                        Picker("", selection: Binding(
+                            get: { settings?.weightUnit ?? .kg },
+                            set: { newValue in
+                                settings?.weightUnit = newValue
+                                save()
+                            }
+                        )) {
+                            ForEach(WeightUnit.allCases, id: \.self) { unit in
+                                Text(unit.rawValue.uppercased()).tag(unit)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 110)
+                    }
                 }
 
-                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    HStack {
-                        Label("Football Days", systemImage: "sportscourt.fill")
-                            .font(.tempoSubheadline)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                        Spacer()
-                        Text("\(settings?.footballDays.rawValue.nonzeroBitCount ?? 0)/week")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    }
-
-                    // Editable day chips (was a read-only label — no input
-                    // existed, so it was stuck at 0/week). Mon=1<<0 … Sun=1<<6.
+                // Football days — editable chips (Mon=1<<0 … Sun=1<<6).
+                SettingsFormCard(
+                    title: "Football days",
+                    footnote: "Tempo plans recovery and meal timing around your match/training days."
+                ) {
                     HStack(spacing: TempoSpacing.xs) {
                         ForEach(Array(footballDayLabels.enumerated()), id: \.offset) { index, dayLabel in
                             let bit = 1 << index
@@ -1052,7 +1085,7 @@ struct TrainingSettingsDetailView: View {
                                     .font(.tempoCaption1)
                                     .fontWeight(.semibold)
                                     .frame(maxWidth: .infinity)
-                                    .frame(height: 36)
+                                    .frame(height: 40)
                                     .background(isOn ? Color.tempoSignal : Color.tempoBgSecondary)
                                     .foregroundStyle(isOn ? .white : Color.tempoTextSecondary)
                                     .clipShape(RoundedRectangle(cornerRadius: TempoRadius.sm, style: .continuous))
@@ -1060,54 +1093,42 @@ struct TrainingSettingsDetailView: View {
                             .buttonStyle(.plain)
                         }
                     }
+                    .padding(TempoSpacing.lg)
                 }
 
-                Picker(selection: Binding(
-                    get: { settings?.weightUnit ?? .kg },
-                    set: { newValue in
-                        settings?.weightUnit = newValue
+                SettingsFormCard(
+                    title: "Deload",
+                    footnote: autoDeload
+                        ? "Auto-deload lightens your programme every \(deloadWeeks) weeks to manage fatigue."
+                        : "Auto-deload is off — you'll manage recovery weeks manually."
+                ) {
+                    SettingsControlRow(label: "Auto Deload", icon: "arrow.down.right.circle", iconTint: .tempoAmber) {
+                        Toggle("", isOn: $autoDeload)
+                            .labelsHidden()
+                            .tint(Color.tempoAccent)
+                    }
+                    .onChange(of: autoDeload) { _, newValue in
+                        settings?.autoDeload = newValue
                         save()
                     }
-                )) {
-                    ForEach(WeightUnit.allCases, id: \.self) { unit in
-                        Text(unit.rawValue.uppercased()).tag(unit)
-                    }
-                } label: {
-                    Label("Weight Unit", systemImage: "scalemass.fill")
-                        .font(.tempoSubheadline)
-                }
-            }
-            .listRowBackground(Color.tempoSurfaceCard)
 
-            Section("Deload") {
-                Toggle(isOn: $autoDeload) {
-                    Label("Auto Deload", systemImage: "arrow.down.right.circle")
-                        .font(.tempoSubheadline)
-                }
-                .tint(Color.tempoSignal)
-                .onChange(of: autoDeload) { _, newValue in
-                    settings?.autoDeload = newValue
-                    save()
-                }
-
-                if autoDeload {
-                    Stepper(value: $deloadWeeks, in: 3 ... 8) {
-                        HStack {
-                            Text("Every")
-                                .font(.tempoSubheadline)
-                            Spacer()
-                            Text("\(deloadWeeks) weeks")
+                    if autoDeload {
+                        SettingsRowDivider()
+                        SettingsControlRow(label: "Every", icon: "calendar", iconTint: .tempoViolet) {
+                            Stepper("\(deloadWeeks) weeks", value: $deloadWeeks, in: 3 ... 8)
                                 .font(.tempoSubheadline)
                                 .foregroundStyle(Color.tempoTextSecondary)
+                                .fixedSize()
                         }
-                    }
-                    .onChange(of: deloadWeeks) { _, newValue in
-                        settings?.deloadFrequencyWeeks = newValue
-                        save()
+                        .onChange(of: deloadWeeks) { _, newValue in
+                            settings?.deloadFrequencyWeeks = newValue
+                            save()
+                        }
                     }
                 }
             }
-            .listRowBackground(Color.tempoSurfaceCard)
+            .padding(.horizontal, TempoSpacing.xl)
+            .padding(.vertical, TempoSpacing.lg)
         }
         .scrollContentBackground(.hidden)
         .background(Color.tempoBgPrimary)
