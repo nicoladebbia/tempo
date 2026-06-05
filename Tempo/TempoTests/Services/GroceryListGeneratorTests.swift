@@ -200,4 +200,37 @@ final class GroceryListGeneratorTests: XCTestCase {
         // 200 + 150 = 350g → ceil(350/170) = 3 breasts.
         XCTAssertEqual(byName["chicken breast"]?.quantity, 3)
     }
+
+    // MARK: - Friendly display names (the "11 cakes" bug)
+
+    func testGenerate_riceCakesReadAsRiceCakesNotCakes() {
+        // Rice cakes' grocery row read "11 cakes" — the display unit dropped
+        // the load-bearing "rice". The label must keep the full food name.
+        let plan = makePlan(foodsByMeal: [[food("rice cakes", 99)]]) // 99g / 9g = 11
+        let aggregated = GroceryListGenerator.generate(from: .init(
+            mealPlan: plan, pantry: [], weekStartDate: Date()
+        ))
+        let row = aggregated.first { $0.canonicalName == "rice cakes" }
+        XCTAssertNotNil(row)
+        XCTAssertTrue(row?.displayName.lowercased().contains("rice cake") == true,
+                      "Must say 'rice cakes', not bare 'cakes': \(row?.displayName ?? "nil")")
+        XCTAssertFalse(row?.displayName.lowercased() == "11 cakes",
+                       "The exact bug: must NOT read '11 cakes'")
+    }
+
+    func testGenerate_chickenBreastStillReadsAsBreast() {
+        // Regression guard: the rice-cakes fix must NOT change the breast
+        // label ("1 breast" / "N breasts" — the food name is folded into the
+        // unit word, so no "chicken breast chicken breast" duplication).
+        let plan = makePlan(foodsByMeal: [[food("chicken breast", 170)]])
+        let aggregated = GroceryListGenerator.generate(from: .init(
+            mealPlan: plan, pantry: [], weekStartDate: Date()
+        ))
+        let row = aggregated.first { $0.canonicalName == "chicken breast" }
+        XCTAssertNotNil(row)
+        let label = row?.displayName.lowercased() ?? ""
+        XCTAssertTrue(label.contains("breast"))
+        XCTAssertFalse(label.contains("chicken breast chicken"),
+                       "No duplication: \(row?.displayName ?? "nil")")
+    }
 }

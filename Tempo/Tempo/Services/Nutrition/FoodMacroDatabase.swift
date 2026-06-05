@@ -623,7 +623,11 @@ enum FoodMacroDatabase {
         "white bread": .simple(grams: 30, unit: "slice", plural: "slices"),
         "whole wheat bread": .simple(grams: 30, unit: "slice", plural: "slices"),
         "tortilla wrap": .simple(grams: 65, unit: "wrap", plural: "wraps"),
-        "rice cakes": .simple(grams: 9, unit: "cake", plural: "cakes"),
+        // unit/plural carry the FULL "rice cake(s)" — a bare "cake" dropped the
+        // load-bearing word and the grocery list read "11 cakes". Keeping the
+        // full noun also makes the grocery name-strip hit the right branch
+        // ("rice cakes".contains("rice cakes")) → "11 rice cakes".
+        "rice cakes": .simple(grams: 9, unit: "rice cake", plural: "rice cakes"),
         "bagel": .simple(grams: 100, unit: "bagel", plural: "bagels"),
 
         // Legumes ──────────────────────────────────────────────────
