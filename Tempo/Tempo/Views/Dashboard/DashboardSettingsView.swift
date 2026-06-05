@@ -53,259 +53,177 @@ struct DashboardSettingsView: View {
     @State private var locationStatus: CLAuthorizationStatus = CLLocationManager().authorizationStatus
 
     var body: some View {
-        List {
-            // MARK: - Profile Header
+        ScrollView {
+            VStack(spacing: TempoSpacing.lg) {
+                profileHeaderCard
 
-            Section {
-                NavigationLink {
-                    ProfileSettingsDetailView()
-                } label: {
-                    HStack(spacing: TempoSpacing.md) {
-                        Circle()
-                            .fill(Color.tempoSurfaceCard)
-                            .frame(width: 48, height: 48)
-                            .overlay {
-                                Text(profileInitial)
-                                    .font(.tempoTitle3)
-                                    .foregroundStyle(Color.tempoTextPrimary)
-                            }
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(profile?.displayName ?? "Athlete")
-                                .font(.tempoCallout)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(Color.tempoTextPrimary)
-
-                            Text("@\(profile?.username ?? "—")")
-                                .font(.tempoFootnote)
-                                .foregroundStyle(Color.tempoTextTertiary)
-
-                            Text(profile?.identityLabel ?? "Athlete")
-                                .font(.tempoCaption1)
-                                .foregroundStyle(Color.tempoTextSecondary)
-                        }
-                    }
-                }
-                .listRowBackground(Color.tempoSurfaceCard)
-            }
-
-            // MARK: - Settings Sections
-
-            Section("Schedule") {
-                NavigationLink {
-                    ScheduleSettingsDetailView()
-                } label: {
-                    Label("Wake Time, Bedtime, Leisure", systemImage: "clock.fill")
-                        .font(.tempoSubheadline)
-                }
-            }
-            .listRowBackground(Color.tempoSurfaceCard)
-
-            Section("Training") {
-                NavigationLink {
-                    TrainingSettingsDetailView()
-                } label: {
-                    Label("Split, Football, Weight Unit", systemImage: "dumbbell.fill")
-                        .font(.tempoSubheadline)
-                }
-            }
-            .listRowBackground(Color.tempoSurfaceCard)
-
-            Section("Focus Timer") {
-                NavigationLink {
-                    FocusTimerSettingsDetailView()
-                } label: {
-                    Label("Pomodoro, Break, Sessions", systemImage: "timer")
-                        .font(.tempoSubheadline)
-                }
-            }
-            .listRowBackground(Color.tempoSurfaceCard)
-
-            Section("Notifications") {
-                NavigationLink {
-                    NotificationSettingsView()
-                } label: {
-                    Label("Notification Preferences", systemImage: "bell.fill")
-                        .font(.tempoSubheadline)
-                }
-            }
-            .listRowBackground(Color.tempoSurfaceCard)
-
-            Section("Integrations") {
-                NavigationLink {
-                    WhoopConnectionView()
-                } label: {
-                    integrationRow(
-                        icon: "waveform.path.ecg",
-                        label: "Whoop",
-                        status: whoopStatusText,
-                        statusColor: whoopStatusColor
-                    )
-                }
-
-                NavigationLink {
-                    DietaryProfileSetupView()
-                } label: {
-                    integrationRow(
-                        icon: "fork.knife",
-                        label: "Diet Profile",
-                        status: dietProfileStatusText,
-                        statusColor: dietProfileStatusColor
-                    )
-                }
-
-                Button {
-                    if let url = URL(string: UIApplication.openSettingsURLString) {
-                        UIApplication.shared.open(url)
-                    }
-                } label: {
-                    integrationRow(
-                        icon: "heart.text.square",
-                        label: "HealthKit",
-                        status: healthKitStatusText,
-                        statusColor: healthKitStatusColor
-                    )
-                }
-                .buttonStyle(.plain)
-
-                Button {
-                    if let url = URL(string: UIApplication.openSettingsURLString) {
-                        UIApplication.shared.open(url)
-                    }
-                } label: {
-                    integrationRow(
-                        icon: "cloud.sun.fill",
-                        label: "Weather (Location)",
-                        status: locationStatusText,
-                        statusColor: locationStatusColor
-                    )
-                }
-                .buttonStyle(.plain)
-            }
-            .listRowBackground(Color.tempoSurfaceCard)
-            .onAppear { locationStatus = CLLocationManager().authorizationStatus }
-
-            Section("Modes") {
-                NavigationLink {
-                    ModesSettingsDetailView()
-                } label: {
-                    Label("Weekend, Exam Mode", systemImage: "bolt.fill")
-                        .font(.tempoSubheadline)
-                }
-            }
-            .listRowBackground(Color.tempoSurfaceCard)
-
-            Section("Appearance") {
-                NavigationLink {
-                    AppearanceSettingsDetailView()
-                } label: {
-                    Label("Accent Color", systemImage: "paintbrush.fill")
-                        .font(.tempoSubheadline)
-                }
-            }
-            .listRowBackground(Color.tempoSurfaceCard)
-
-            Section("Data") {
-                NavigationLink {
-                    DataExportView()
-                } label: {
-                    Label("Export My Data", systemImage: "square.and.arrow.up")
-                        .font(.tempoSubheadline)
-                }
-            }
-            .listRowBackground(Color.tempoSurfaceCard)
-
-            // MARK: - Account
-            //
-            // Apple Guideline 5.1.1(v): account deletion must be initiated
-            // in-app. The warning copy is the canonical
-            // `settings_delete_warning` string in UX_COPY_BIBLE.md §28.
-
-            Section("Subscription") {
-                HStack {
-                    Label("Plan", systemImage: "crown.fill")
-                        .font(.tempoSubheadline)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                    Spacer()
-                    Text(subscriptionStatusText)
-                        .font(.tempoDataSmall)
-                        .foregroundStyle(
-                            services.subscriptions.isPro
-                                ? Color.tempoSuccess : Color.tempoTextTertiary
-                        )
-                }
-
-                if !services.subscriptions.isPro {
-                    Button {
-                        showPaywall = true
+                SettingsGroupCard(title: "You & your day") {
+                    NavigationLink {
+                        ScheduleSettingsDetailView()
                     } label: {
-                        Label("Subscribe to Pro", systemImage: "sparkles")
-                            .font(.tempoSubheadline)
-                            .foregroundStyle(Color.tempoSignal)
+                        SettingsNavRow(
+                            icon: "clock.fill", iconTint: .tempoAmber,
+                            title: "Schedule", subtitle: scheduleSubtitle
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    NavigationLink {
+                        TrainingSettingsDetailView()
+                    } label: {
+                        SettingsNavRow(
+                            icon: "dumbbell.fill", iconTint: .tempoSignal,
+                            title: "Training", subtitle: trainingSubtitle
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    NavigationLink {
+                        FocusTimerSettingsDetailView()
+                    } label: {
+                        SettingsNavRow(
+                            icon: "timer", iconTint: .tempoElectric,
+                            title: "Focus Timer", subtitle: focusSubtitle
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    NavigationLink {
+                        ModesSettingsDetailView()
+                    } label: {
+                        SettingsNavRow(
+                            icon: "bolt.fill", iconTint: .tempoViolet,
+                            title: "Modes", subtitle: modesSubtitle
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                SettingsGroupCard(title: "Connections") {
+                    NavigationLink {
+                        WhoopConnectionView()
+                    } label: {
+                        SettingsStatusRow(
+                            icon: "waveform.path.ecg", title: "Whoop",
+                            status: whoopStatusText, statusColor: whoopStatusColor
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    NavigationLink {
+                        DietaryProfileSetupView()
+                    } label: {
+                        SettingsStatusRow(
+                            icon: "fork.knife", title: "Diet Profile",
+                            status: dietProfileStatusText, statusColor: dietProfileStatusColor
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        openSystemSettings()
+                    } label: {
+                        SettingsStatusRow(
+                            icon: "heart.text.square", title: "HealthKit",
+                            status: healthKitStatusText, statusColor: healthKitStatusColor,
+                            showsChevron: false
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        openSystemSettings()
+                    } label: {
+                        SettingsStatusRow(
+                            icon: "cloud.sun.fill", title: "Weather (Location)",
+                            status: locationStatusText, statusColor: locationStatusColor,
+                            showsChevron: false
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+                .onAppear { locationStatus = CLLocationManager().authorizationStatus }
+
+                SettingsGroupCard(title: "Notifications") {
+                    NavigationLink {
+                        NotificationSettingsView()
+                    } label: {
+                        SettingsNavRow(
+                            icon: "bell.fill", iconTint: .tempoSignal,
+                            title: "Notifications", subtitle: notificationsSubtitle
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                SettingsGroupCard(title: "Appearance") {
+                    NavigationLink {
+                        AppearanceSettingsDetailView()
+                    } label: {
+                        SettingsNavRow(
+                            icon: "paintbrush.fill", iconTint: .tempoAmber,
+                            title: "Accent Color", subtitle: accentSubtitle
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                SettingsGroupCard(title: "Your data") {
+                    NavigationLink {
+                        DataExportView()
+                    } label: {
+                        SettingsNavRow(
+                            icon: "square.and.arrow.up", iconTint: .tempoElectric,
+                            title: "Export My Data"
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                subscriptionCard
+
+                SettingsGroupCard(title: "Account & about") {
+                    Button {
+                        showDeleteConfirm = true
+                    } label: {
+                        SettingsActionRow(
+                            icon: "trash", title: "Delete Account", tint: .tempoError
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isDeletingAccount)
+
+                    SettingsActionRow(
+                        icon: "number", title: "Version", tint: .tempoTextPrimary,
+                        trailingText: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+                    )
+
+                    if let supportURL = URL(string: "https://tempo.app/support") {
+                        Link(destination: supportURL) {
+                            SettingsActionRow(
+                                icon: "questionmark.circle", title: "Support",
+                                tint: .tempoTextPrimary
+                            )
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
 
-                Button {
-                    Task { await restorePurchases() }
-                } label: {
-                    Label("Restore Purchases", systemImage: "arrow.clockwise")
-                        .font(.tempoSubheadline)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                }
-                .disabled(isRestoring)
+                Text("Deleting your account permanently removes all data — XP, achievements, streaks, and workout history. You'll be removed from all leaderboards and active challenges. This cannot be undone.")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextTertiary)
+                    .padding(.horizontal, TempoSpacing.sm)
+                    .padding(.top, TempoSpacing.xs)
 
                 if let restoreError {
                     Text(restoreError)
                         .font(.tempoCaption1)
                         .foregroundStyle(Color.tempoError)
+                        .padding(.horizontal, TempoSpacing.sm)
                 }
             }
-            .listRowBackground(Color.tempoSurfaceCard)
-
-            Section("Account") {
-                Button {
-                    showDeleteConfirm = true
-                } label: {
-                    Label("Delete Account", systemImage: "trash")
-                        .font(.tempoSubheadline)
-                        .foregroundStyle(Color.tempoSignal)
-                }
-                .disabled(isDeletingAccount)
-
-                Text("This permanently deletes all your data, including XP, achievements, streaks, and workout history. You'll be removed from all leaderboards and active challenges. This cannot be undone.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-            }
-            .listRowBackground(Color.tempoSurfaceCard)
-
-            // MARK: - About
-
-            Section("About") {
-                HStack {
-                    Text("Version")
-                        .font(.tempoSubheadline)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                    Spacer()
-                    Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
-                        .font(.tempoDataSmall)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                }
-
-                if let supportURL = URL(string: "https://tempo.app/support") {
-                    Link(destination: supportURL) {
-                        HStack {
-                            Label("Support", systemImage: "questionmark.circle")
-                                .font(.tempoSubheadline)
-                                .foregroundStyle(Color.tempoTextPrimary)
-                            Spacer()
-                            Image(systemName: "arrow.up.right")
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
-                        }
-                    }
-                }
-            }
-            .listRowBackground(Color.tempoSurfaceCard)
+            .padding(.horizontal, TempoSpacing.xl)
+            .padding(.vertical, TempoSpacing.lg)
         }
         .scrollContentBackground(.hidden)
         .background(Color.tempoBgPrimary)
@@ -340,6 +258,156 @@ struct DashboardSettingsView: View {
         }
         .sheet(isPresented: $showPaywall) {
             PaywallView()
+        }
+    }
+
+    // MARK: - Profile Header Card
+
+    @ViewBuilder
+    private var profileHeaderCard: some View {
+        NavigationLink {
+            ProfileSettingsDetailView()
+        } label: {
+            HStack(spacing: TempoSpacing.md) {
+                Circle()
+                    .fill(Color.tempoSurfaceElevated)
+                    .frame(width: 56, height: 56)
+                    .overlay {
+                        Text(profileInitial)
+                            .font(.tempoTitle2)
+                            .foregroundStyle(Color.tempoTextPrimary)
+                    }
+
+                VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+                    Text(profile?.displayName ?? "Athlete")
+                        .font(.tempoHeadline)
+                        .foregroundStyle(Color.tempoTextPrimary)
+
+                    Text("@\(profile?.username ?? "—") · \(profile?.identityLabel ?? "Athlete")")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                        .lineLimit(1)
+
+                    Text(profileStatsLine)
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                }
+
+                Spacer(minLength: TempoSpacing.sm)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.tempoTextTertiary)
+            }
+            .padding(TempoSpacing.lg)
+            .background(Color.tempoSurfaceCard)
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Subscription Card
+
+    @ViewBuilder
+    private var subscriptionCard: some View {
+        SettingsGroupCard(title: "Subscription") {
+            HStack(spacing: TempoSpacing.md) {
+                SettingsIconTile(systemName: "crown.fill", tint: .tempoAmber)
+                Text("Plan")
+                    .font(.tempoSubheadline)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                Spacer(minLength: TempoSpacing.sm)
+                Text(subscriptionStatusText)
+                    .font(.tempoDataSmall)
+                    .foregroundStyle(
+                        services.subscriptions.isPro ? Color.tempoSuccess : Color.tempoTextTertiary
+                    )
+            }
+            .padding(.horizontal, TempoSpacing.lg)
+            .padding(.vertical, TempoSpacing.md)
+            .frame(minHeight: 44)
+
+            if !services.subscriptions.isPro {
+                Button {
+                    showPaywall = true
+                } label: {
+                    SettingsActionRow(icon: "sparkles", title: "Subscribe to Pro", tint: .tempoSignal)
+                }
+                .buttonStyle(.plain)
+            }
+
+            Button {
+                Task { await restorePurchases() }
+            } label: {
+                SettingsActionRow(icon: "arrow.clockwise", title: "Restore Purchases", tint: .tempoTextPrimary)
+            }
+            .buttonStyle(.plain)
+            .disabled(isRestoring)
+        }
+    }
+
+    // MARK: - Live Summary Subtitles
+
+    private func timeString(fromMinutes minutes: Int) -> String {
+        let h = minutes / 60
+        let m = minutes % 60
+        return String(format: "%d:%02d", h, m)
+    }
+
+    private var scheduleSubtitle: String {
+        guard let s = settings else { return "Not set up" }
+        return "Wake \(timeString(fromMinutes: s.wakeTimeMinutes)) · Bed \(timeString(fromMinutes: s.bedtimeTargetMinutes)) · Leisure \(s.leisureTimeMinutes)m"
+    }
+
+    private var trainingSubtitle: String {
+        guard let s = settings else { return "Not set up" }
+        let days = s.footballDaysRaw.nonzeroBitCount
+        let football = days == 0 ? "no football" : "\(days) football day\(days == 1 ? "" : "s")"
+        return "\(s.trainingSplit.displayName) · \(football) · \(s.weightUnitRaw)"
+    }
+
+    private var focusSubtitle: String {
+        guard let s = settings else { return "Not set up" }
+        return "\(s.pomodoroDuration) / \(s.breakDuration) / \(s.longBreakDuration) min"
+    }
+
+    private var modesSubtitle: String {
+        guard let s = settings else { return "None active" }
+        var active: [String] = []
+        if s.weekendMode { active.append("Weekend") }
+        if s.examMode { active.append("Exam") }
+        return active.isEmpty ? "None active" : active.joined(separator: " · ")
+    }
+
+    private var notificationsSubtitle: String {
+        // Mirrors IntensityOption titles in NotificationSettingsView (1…4).
+        switch settings?.notificationIntensity {
+        case 1: "Gentle Coach"
+        case 2: "Firm Coach"
+        case 3: "Drill Sergeant"
+        case 4: "Savage Mode"
+        default: "Default"
+        }
+    }
+
+    private var accentSubtitle: String {
+        AccentColorOption(rawValue: accentColorChoice)?.displayName ?? "Signal Red"
+    }
+
+    private var profileStatsLine: String {
+        let level = profile?.currentLevel ?? 1
+        let xp = profile?.totalXP ?? 0
+        let xpStr = xp >= 1000 ? String(format: "%.1fk XP", Double(xp) / 1000) : "\(xp) XP"
+        return "Lvl \(level) · \(xpStr)"
+    }
+
+    @AppStorage("accentColorChoice")
+    private var accentColorChoice: String = AccentColorOption.signalRed.rawValue
+
+    private func openSystemSettings() {
+        if let url = URL(string: UIApplication.openSettingsURLString) {
+            UIApplication.shared.open(url)
         }
     }
 
@@ -404,18 +472,7 @@ struct DashboardSettingsView: View {
     @AppStorage("healthKitAuthorized")
     private var healthKitAuthorized = false
 
-    private func integrationRow(icon: String, label: String, status: String, statusColor: Color) -> some View {
-        HStack {
-            Label(label, systemImage: icon)
-                .font(.tempoSubheadline)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Spacer()
-            Text(status)
-                .font(.tempoFootnote)
-                .fontWeight(.medium)
-                .foregroundStyle(statusColor)
-        }
-    }
+    
 
     private var whoopStatusText: String {
         switch services.whoop.connectionState {
