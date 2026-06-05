@@ -1174,54 +1174,54 @@ struct FocusTimerSettingsDetailView: View {
     private var longBreakDuration = 15
 
     var body: some View {
-        List {
-            Section {
-                Stepper(value: $pomodoroDuration, in: 10 ... 60, step: 5) {
-                    HStack {
-                        Label("Pomodoro", systemImage: "timer")
-                            .font(.tempoSubheadline)
-                        Spacer()
-                        Text("\(pomodoroDuration) min")
-                            .font(.tempoSubheadline)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    }
-                }
-                .onChange(of: pomodoroDuration) { _, newValue in
-                    settings?.pomodoroDuration = newValue
-                    save()
-                }
+        ScrollView {
+            VStack(spacing: TempoSpacing.lg) {
+                cyclePreviewCard
 
-                Stepper(value: $breakDuration, in: 3 ... 15) {
-                    HStack {
-                        Label("Break", systemImage: "cup.and.saucer.fill")
-                            .font(.tempoSubheadline)
-                        Spacer()
-                        Text("\(breakDuration) min")
+                SettingsFormCard(
+                    title: "Durations",
+                    footnote: "A focus block runs, then a short break; after a few blocks you earn a long break."
+                ) {
+                    SettingsControlRow(label: "Focus block", icon: "timer", iconTint: .tempoSignal) {
+                        Stepper("\(pomodoroDuration) min", value: $pomodoroDuration, in: 10 ... 60, step: 5)
                             .font(.tempoSubheadline)
                             .foregroundStyle(Color.tempoTextSecondary)
+                            .fixedSize()
                     }
-                }
-                .onChange(of: breakDuration) { _, newValue in
-                    settings?.breakDuration = newValue
-                    save()
-                }
+                    .onChange(of: pomodoroDuration) { _, newValue in
+                        settings?.pomodoroDuration = newValue
+                        save()
+                    }
 
-                Stepper(value: $longBreakDuration, in: 10 ... 30, step: 5) {
-                    HStack {
-                        Label("Long Break", systemImage: "cup.and.saucer")
-                            .font(.tempoSubheadline)
-                        Spacer()
-                        Text("\(longBreakDuration) min")
+                    SettingsRowDivider()
+
+                    SettingsControlRow(label: "Short break", icon: "cup.and.saucer.fill", iconTint: .tempoElectric) {
+                        Stepper("\(breakDuration) min", value: $breakDuration, in: 3 ... 15)
                             .font(.tempoSubheadline)
                             .foregroundStyle(Color.tempoTextSecondary)
+                            .fixedSize()
                     }
-                }
-                .onChange(of: longBreakDuration) { _, newValue in
-                    settings?.longBreakDuration = newValue
-                    save()
+                    .onChange(of: breakDuration) { _, newValue in
+                        settings?.breakDuration = newValue
+                        save()
+                    }
+
+                    SettingsRowDivider()
+
+                    SettingsControlRow(label: "Long break", icon: "cup.and.saucer", iconTint: .tempoAmber) {
+                        Stepper("\(longBreakDuration) min", value: $longBreakDuration, in: 10 ... 30, step: 5)
+                            .font(.tempoSubheadline)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                            .fixedSize()
+                    }
+                    .onChange(of: longBreakDuration) { _, newValue in
+                        settings?.longBreakDuration = newValue
+                        save()
+                    }
                 }
             }
-            .listRowBackground(Color.tempoSurfaceCard)
+            .padding(.horizontal, TempoSpacing.xl)
+            .padding(.vertical, TempoSpacing.lg)
         }
         .scrollContentBackground(.hidden)
         .background(Color.tempoBgPrimary)
@@ -1232,6 +1232,41 @@ struct FocusTimerSettingsDetailView: View {
             breakDuration = settings?.breakDuration ?? 5
             longBreakDuration = settings?.longBreakDuration ?? 15
         }
+    }
+
+    /// Visual cycle preview — surfaces what the durations actually produce.
+    @ViewBuilder
+    private var cyclePreviewCard: some View {
+        VStack(spacing: TempoSpacing.md) {
+            Text("\(pomodoroDuration) / \(breakDuration) / \(longBreakDuration)")
+                .font(.tempoTitle1)
+                .foregroundStyle(Color.tempoTextPrimary)
+            Text("focus / break / long break (min)")
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoTextTertiary)
+
+            HStack(spacing: TempoSpacing.xs) {
+                ForEach(0 ..< 4) { i in
+                    RoundedRectangle(cornerRadius: TempoRadius.xs, style: .continuous)
+                        .fill(Color.tempoSignal)
+                        .frame(height: 8)
+                    if i < 3 {
+                        RoundedRectangle(cornerRadius: TempoRadius.xs, style: .continuous)
+                            .fill(Color.tempoElectric.opacity(TempoOpacity.o50))
+                            .frame(width: 10, height: 8)
+                    }
+                }
+                RoundedRectangle(cornerRadius: TempoRadius.xs, style: .continuous)
+                    .fill(Color.tempoAmber)
+                    .frame(width: 24, height: 8)
+            }
+            .padding(.top, TempoSpacing.xs)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, TempoSpacing.xl)
+        .padding(.horizontal, TempoSpacing.lg)
+        .background(Color.tempoSurfaceCard)
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
     }
 
     private func save() {
