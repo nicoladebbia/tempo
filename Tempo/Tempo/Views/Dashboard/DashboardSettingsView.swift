@@ -876,48 +876,88 @@ struct ScheduleSettingsDetailView: View {
     private var leisureTime = Date()
 
     var body: some View {
-        List {
-            Section {
-                DatePicker(selection: $wakeTime, displayedComponents: .hourAndMinute) {
-                    Label("Wake Time", systemImage: "sunrise.fill")
-                        .font(.tempoSubheadline)
-                }
-                .onChange(of: wakeTime) { _, newValue in
-                    let comps = Calendar.current.dateComponents([.hour, .minute], from: newValue)
-                    settings?.wakeTimeMinutes = (comps.hour ?? 6) * 60 + (comps.minute ?? 0)
-                    save()
-                }
+        ScrollView {
+            VStack(spacing: TempoSpacing.lg) {
+                // Sleep-window summary (computed from bedtime → wake).
+                sleepWindowCard
 
-                DatePicker(selection: $bedtime, displayedComponents: .hourAndMinute) {
-                    Label("Bedtime Target", systemImage: "moon.fill")
-                        .font(.tempoSubheadline)
-                }
-                .onChange(of: bedtime) { _, newValue in
-                    let comps = Calendar.current.dateComponents([.hour, .minute], from: newValue)
-                    settings?.bedtimeTargetMinutes = (comps.hour ?? 22) * 60 + (comps.minute ?? 30)
-                    save()
-                }
+                SettingsFormCard(
+                    title: "Daily rhythm",
+                    footnote: "Leisure is when your evening wind-down starts. Tempo uses these to time meals, study, and recovery prompts."
+                ) {
+                    SettingsControlRow(label: "Wake Time", icon: "sunrise.fill", iconTint: .tempoAmber) {
+                        DatePicker("", selection: $wakeTime, displayedComponents: .hourAndMinute)
+                            .labelsHidden()
+                    }
+                    .onChange(of: wakeTime) { _, newValue in
+                        let comps = Calendar.current.dateComponents([.hour, .minute], from: newValue)
+                        settings?.wakeTimeMinutes = (comps.hour ?? 6) * 60 + (comps.minute ?? 0)
+                        save()
+                    }
 
-                // Leisure is a TIME-OF-DAY (when wind-down starts), validated
-                // 0..<1440 alongside wake/bedtime — not a duration. Was wrongly
-                // a 15…180 "min" Stepper writing garbage into a time-of-day field.
-                DatePicker(selection: $leisureTime, displayedComponents: .hourAndMinute) {
-                    Label("Leisure Time", systemImage: "hourglass")
-                        .font(.tempoSubheadline)
-                }
-                .onChange(of: leisureTime) { _, newValue in
-                    let comps = Calendar.current.dateComponents([.hour, .minute], from: newValue)
-                    settings?.leisureTimeMinutes = (comps.hour ?? 19) * 60 + (comps.minute ?? 30)
-                    save()
+                    SettingsRowDivider()
+
+                    SettingsControlRow(label: "Bedtime Target", icon: "moon.fill", iconTint: .tempoViolet) {
+                        DatePicker("", selection: $bedtime, displayedComponents: .hourAndMinute)
+                            .labelsHidden()
+                    }
+                    .onChange(of: bedtime) { _, newValue in
+                        let comps = Calendar.current.dateComponents([.hour, .minute], from: newValue)
+                        settings?.bedtimeTargetMinutes = (comps.hour ?? 22) * 60 + (comps.minute ?? 30)
+                        save()
+                    }
+
+                    SettingsRowDivider()
+
+                    // Leisure is a TIME-OF-DAY (when wind-down starts), validated
+                    // 0..<1440 alongside wake/bedtime — not a duration.
+                    SettingsControlRow(label: "Leisure Time", icon: "hourglass", iconTint: .tempoElectric) {
+                        DatePicker("", selection: $leisureTime, displayedComponents: .hourAndMinute)
+                            .labelsHidden()
+                    }
+                    .onChange(of: leisureTime) { _, newValue in
+                        let comps = Calendar.current.dateComponents([.hour, .minute], from: newValue)
+                        settings?.leisureTimeMinutes = (comps.hour ?? 19) * 60 + (comps.minute ?? 30)
+                        save()
+                    }
                 }
             }
-            .listRowBackground(Color.tempoSurfaceCard)
+            .padding(.horizontal, TempoSpacing.xl)
+            .padding(.vertical, TempoSpacing.lg)
         }
         .scrollContentBackground(.hidden)
         .background(Color.tempoBgPrimary)
         .navigationTitle("Schedule")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { loadSettings() }
+    }
+
+    /// Big computed sleep-window length (bedtime → wake), surfaced as data
+    /// the screen didn't show before.
+    @ViewBuilder
+    private var sleepWindowCard: some View {
+        VStack(spacing: TempoSpacing.xs) {
+            Text(sleepWindowText)
+                .font(.tempoTitle1)
+                .foregroundStyle(Color.tempoTextPrimary)
+            Text("planned sleep window")
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoTextTertiary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, TempoSpacing.xl)
+        .background(Color.tempoSurfaceCard)
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+    }
+
+    private var sleepWindowText: String {
+        guard let s = settings else { return "—" }
+        // Minutes from bedtime to wake, wrapping past midnight.
+        var span = s.wakeTimeMinutes - s.bedtimeTargetMinutes
+        if span <= 0 { span += 24 * 60 }
+        let h = span / 60
+        let m = span % 60
+        return m == 0 ? "\(h)h" : "\(h)h \(m)m"
     }
 
     private func loadSettings() {
