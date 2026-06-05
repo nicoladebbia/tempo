@@ -63,9 +63,14 @@ actor ReceiptStructuringService {
             }
         }
 
+        // 8192, not 1500: a full grocery receipt's structured JSON (30+ items,
+        // ~12 lines each) blows well past 1500 tokens. At 1500 Claude's output
+        // was truncated mid-array ("sale_note": null, <cut>), the JSON failed
+        // to parse, and the endpoint returned a cryptic 502. 8192 is Haiku's
+        // headroom; the stop_reason guard below catches the rare overflow.
         let body = ReceiptClaudeRequest(
             model: AIConfig.haikuModel,
-            maxTokens: 1500,
+            maxTokens: 8192,
             temperature: 0.2,
             system: Self.systemPrompt,
             messages: [.init(role: "user", content: contentBlocks)]
@@ -96,6 +101,16 @@ actor ReceiptStructuringService {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         let rawResponse = try response.content.decode(ReceiptClaudeRawResponse.self, using: decoder)
+
+        // If Claude stopped because it hit the token cap, the JSON is
+        // incomplete by definition — bail with a clear error instead of
+        // feeding a truncated array to the decoder (which produced the old
+        // cryptic 502 + "not valid JSON" log spam).
+        if rawResponse.stopReason == "max_tokens" {
+            req.logger.warning("Receipt structuring truncated: Claude hit max_tokens (response incomplete)")
+            throw ReceiptStructuringError.responseTruncated
+        }
+
         guard let textBlock = rawResponse.content.first(where: { $0.type == "text" }) else {
             throw ReceiptStructuringError.malformedResponse
         }
@@ -221,6 +236,10 @@ enum ReceiptStructuringError: AbortError {
     case apiError(Int)
     case malformedResponse
     case parseFailed(String)
+    /// Claude hit max_tokens before finishing the JSON — the receipt was too
+    /// long to structure in one response. Distinct from parseFailed so the
+    /// client gets an actionable message instead of a generic parse error.
+    case responseTruncated
 
     var status: HTTPResponseStatus {
         switch self {
@@ -229,6 +248,10 @@ enum ReceiptStructuringError: AbortError {
         case let .apiError(code) where code == 429: .tooManyRequests
         case .apiError: .badGateway
         case .malformedResponse, .parseFailed: .badGateway
+        // 422, NOT 502: truncation is a permanent failure for this payload —
+        // retrying sends the identical receipt and gets identical truncation.
+        // 502 is retryable on the client (3x, 10s each = ~40s hang); 422 is not.
+        case .responseTruncated: .unprocessableEntity
         }
     }
 
@@ -239,6 +262,7 @@ enum ReceiptStructuringError: AbortError {
         case let .apiError(code): "Claude API error (HTTP \(code))."
         case .malformedResponse: "Claude returned an unparseable receipt response."
         case let .parseFailed(detail): "Claude JSON parse failed: \(detail)."
+        case .responseTruncated: "This receipt is too long to read in one pass. Try a photo of fewer items at a time."
         }
     }
 }
@@ -314,10 +338,17 @@ private struct ReceiptClaudeContentBlock: Codable {
 
 private struct ReceiptClaudeRawResponse: Decodable {
     let content: [Block]
+    /// "end_turn" = complete, "max_tokens" = output was truncated.
+    let stopReason: String?
 
     struct Block: Decodable {
         let type: String
         let text: String
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case content
+        case stopReason = "stop_reason"
     }
 }
 

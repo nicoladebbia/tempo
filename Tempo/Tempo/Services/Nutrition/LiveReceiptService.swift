@@ -115,8 +115,12 @@ final class LiveReceiptService: ReceiptServiceProtocol {
             receipt.ocrStatus = .failed
             receipt.updatedAt = Date()
             try? modelContext.save()
+            // APIError.localizedDescription stringifies to "(Tempo.APIError
+            // error 1.)" — useless to the user. Surface the friendly
+            // .userMessage instead (covers 502, 413, truncation in one place).
+            let message = (error as? APIError)?.userMessage ?? error.localizedDescription
             logger.error("[Diag.Receipt] structuring failed: \(error.localizedDescription, privacy: .public)")
-            throw ReceiptServiceError.structuringFailed(error.localizedDescription)
+            throw ReceiptServiceError.structuringFailed(message)
         }
 
         // Apply the response. On retry the row may already carry stale lines
