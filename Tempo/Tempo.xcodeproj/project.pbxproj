@@ -192,6 +192,7 @@
 		48E2965EE5A8FD999A62B804 /* CoachToolsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04F74AB9672C62B51FE03F8E /* CoachToolsTests.swift */; };
 		49276FB0B138B95C5DA95230 /* cue_ex_nordic_hamstring_curl.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 43521750862BEA5833BB7401 /* cue_ex_nordic_hamstring_curl.mp3 */; };
 		4983F20F2D0BA7802E07F3DA /* testErrorStateView.1.png in Resources */ = {isa = PBXBuildFile; fileRef = 8141A68708EB6E765E94D253 /* testErrorStateView.1.png */; };
+		49CEEA453B99AD4ABA027BDD /* SettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 037607D7C6D9246FBD64C95F /* SettingsComponents.swift */; };
 		49DFEDA54259227DF530E364 /* cue_ex_hanging_leg_raise.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 6EFBC65B4FA941D28C8F8AA7 /* cue_ex_hanging_leg_raise.mp3 */; };
 		4A543EBEC1101D8FD5F31829 /* cue_ex_preacher_curl.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 16A87FCBE219ED9058CCE797 /* cue_ex_preacher_curl.mp3 */; };
 		4A8AF130E5427AAC727DE91F /* cue_ex_dumbbell_fly.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = DCC047438F27461B5034C8AB /* cue_ex_dumbbell_fly.mp3 */; };
@@ -723,6 +724,7 @@
 		0274EF643686CCE017A0F2B5 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		0296CB64B525F8E5AC6C8A55 /* Exercises.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Exercises.json; sourceTree = "<group>"; };
 		02D44C8F920DDF32504B7CAC /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		037607D7C6D9246FBD64C95F /* SettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsComponents.swift; sourceTree = "<group>"; };
 		037983D203619FE6BCC3A8F3 /* cue_ex_leg_curl.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_leg_curl.mp3; sourceTree = "<group>"; };
 		03A6CC1D4170A8584FAA5ED4 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		04646765A78FCAE465D804F9 /* cue_ex_standing_calf_raise.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_standing_calf_raise.mp3; sourceTree = "<group>"; };
@@ -1990,6 +1992,7 @@
 			isa = PBXGroup;
 			children = (
 				8DB2A940C715DAD07999B8CB /* PrivacyInfoView.swift */,
+				037607D7C6D9246FBD64C95F /* SettingsComponents.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -3736,6 +3739,7 @@
 				AC60119867E95F604E23BB31 /* ScoringEngineProtocol.swift in Sources */,
 				0B7F2528766515526AD24672 /* ServiceContainer.swift in Sources */,
 				D5458F0CB3806B65E763D068 /* SetFeedback.swift in Sources */,
+				49CEEA453B99AD4ABA027BDD /* SettingsComponents.swift in Sources */,
 				196C0579ED7F6C96DA8105E9 /* SignInWithAppleView.swift in Sources */,
 				D6F6E3BB0F6599099B562D87 /* SleepDetailView.swift in Sources */,
 				C2E3A3E9764CE95801DE105A /* SoundManager.swift in Sources */,
