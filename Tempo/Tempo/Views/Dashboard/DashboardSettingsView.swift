@@ -614,10 +614,16 @@ struct ProfileSettingsDetailView: View {
                     .foregroundStyle(Color.tempoTextPrimary)
 
                 Text("@\(username.isEmpty ? "—" : username)")
-                    .font(.tempoSubheadline)
+                    .font(.tempoHeadline)
                     .foregroundStyle(Color.tempoTextSecondary)
 
-                SettingsStatusPill(text: identityLabel, color: .tempoSignal)
+                // Identity as a subtle secondary tag — toned down so it reads
+                // below the username, not louder than it.
+                Text(identityLabel.uppercased())
+                    .font(.tempoCaption2)
+                    .fontWeight(.semibold)
+                    .tracking(0.5)
+                    .foregroundStyle(Color.tempoTextTertiary)
                     .padding(.top, TempoSpacing.xxs)
             }
         }
@@ -661,11 +667,15 @@ struct ProfileSettingsDetailView: View {
             Text(value)
                 .font(.tempoTitle3)
                 .foregroundStyle(Color.tempoTextPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
             Text(label)
                 .font(.tempoCaption2)
                 .foregroundStyle(Color.tempoTextTertiary)
+                .lineLimit(1)
         }
         .frame(maxWidth: .infinity)
+        .padding(.horizontal, TempoSpacing.xxs)
     }
 
     private var statDivider: some View {
@@ -682,7 +692,7 @@ struct ProfileSettingsDetailView: View {
     private var memberSince: String {
         guard let created = profile?.createdAt else { return "—" }
         let f = DateFormatter()
-        f.dateFormat = "MMM yyyy"
+        f.dateFormat = "MMM ''yy"
         return f.string(from: created)
     }
 
@@ -1080,14 +1090,33 @@ struct TrainingSettingsDetailView: View {
                 .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
 
                 SettingsFormCard(title: "Programme") {
-                    SettingsControlRow(label: "Split", icon: "dumbbell.fill", iconTint: .tempoSignal) {
-                        Picker("", selection: $trainingSplit) {
+                    // Whole-row Menu — fixes the round-1 bug where the bare
+                    // .labelsHidden() menu Picker had a tiny dead tap target.
+                    // (Segmented is unusable here: 5 long split names won't fit.)
+                    Menu {
+                        Picker("Split", selection: $trainingSplit) {
                             ForEach(TrainingSplit.allCases, id: \.self) { split in
                                 Text(split.displayName).tag(split)
                             }
                         }
-                        .labelsHidden()
-                        .tint(Color.tempoTextSecondary)
+                    } label: {
+                        HStack(spacing: TempoSpacing.md) {
+                            SettingsIconTile(systemName: "dumbbell.fill", tint: .tempoSignal)
+                            Text("Split")
+                                .font(.tempoSubheadline)
+                                .foregroundStyle(Color.tempoTextPrimary)
+                            Spacer(minLength: TempoSpacing.sm)
+                            Text(trainingSplit.displayName)
+                                .font(.tempoSubheadline)
+                                .foregroundStyle(Color.tempoTextSecondary)
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color.tempoTextTertiary)
+                        }
+                        .padding(.horizontal, TempoSpacing.lg)
+                        .padding(.vertical, TempoSpacing.md)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                     }
                     .onChange(of: trainingSplit) { _, newValue in
                         settings?.trainingSplit = newValue
