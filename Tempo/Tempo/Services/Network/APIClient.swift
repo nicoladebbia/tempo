@@ -207,6 +207,9 @@ actor APIClient {
             case 409:
                 throw APIError.conflict
 
+            case 413:
+                throw APIError.payloadTooLarge
+
             case 429:
                 let retryAfter = httpResponse.value(forHTTPHeaderField: "Retry-After")
                     .flatMap { TimeInterval($0) }

@@ -19,13 +19,13 @@ import UIKit
 let maxClaudeVisionPixelEdge: CGFloat = 1568
 
 extension UIImage {
-    /// Resize-to-fit (long edge ≤ `maxEdge`) → JPEG → base64.
-    /// Returns the encoded string plus the raw JPEG byte count so callers can
-    /// log/measure the payload they're about to upload.
-    func downsampledJPEGBase64(
+    /// Resize-to-fit (long edge ≤ `maxEdge`) → JPEG `Data`. This is the raw
+    /// payload both upload paths send; persist it for retry or base64-encode it
+    /// for the request body via `.base64EncodedString()`.
+    func downsampledJPEGData(
         maxEdge: CGFloat = maxClaudeVisionPixelEdge,
         quality: CGFloat = 0.8
-    ) -> (base64: String, byteCount: Int)? {
+    ) -> Data? {
         let longEdge = max(size.width, size.height)
         let target: UIImage
         if longEdge > maxEdge {
@@ -41,7 +41,16 @@ extension UIImage {
         } else {
             target = self
         }
-        guard let jpeg = target.jpegData(compressionQuality: quality) else {
+        return target.jpegData(compressionQuality: quality)
+    }
+
+    /// Convenience: downsampled JPEG as base64 plus its raw byte count, for
+    /// callers that only upload and don't persist.
+    func downsampledJPEGBase64(
+        maxEdge: CGFloat = maxClaudeVisionPixelEdge,
+        quality: CGFloat = 0.8
+    ) -> (base64: String, byteCount: Int)? {
+        guard let jpeg = downsampledJPEGData(maxEdge: maxEdge, quality: quality) else {
             return nil
         }
         return (jpeg.base64EncodedString(), jpeg.count)

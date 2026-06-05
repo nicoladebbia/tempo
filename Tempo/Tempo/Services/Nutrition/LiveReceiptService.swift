@@ -47,17 +47,9 @@ final class LiveReceiptService: ReceiptServiceProtocol {
         // downsample it first. A full-res iPhone JPEG base64-encodes to ~2MB+
         // and trips the backend's request-body limit (413). 1568px is Claude's
         // max vision edge, so anything larger is bytes the model never reads.
-        guard let (base64, jpegBytes) = image.downsampledJPEGBase64() else {
+        guard let downsampled = image.downsampledJPEGData() else {
             throw ReceiptServiceError.visionFailed("Could not encode receipt image.")
         }
-        logger.info("[Diag.Receipt] upload payload jpeg=\(jpegBytes / 1024)KB base64=\(base64.count / 1024)KB hasOCRText=\(rawText != nil)")
-
-        let request = ReceiptStructuringRequest(
-            rawText: rawText,
-            imageBase64: base64,
-            imageMediaType: "image/jpeg",
-            storeHint: storeHint
-        )
 
         // 3) Persist a stub Receipt right away in .processing state, so the UI
         // can show progress. We'll update with parsed fields once the call returns.
@@ -73,9 +65,46 @@ final class LiveReceiptService: ReceiptServiceProtocol {
                 : .haikuVision
         )
         modelContext.insert(stubReceipt)
+
+        // Persist the downsampled JPEG to disk BEFORE the network call. If
+        // structuring fails, retryStructuring() reloads these exact bytes —
+        // the user never re-shoots the receipt. Best-effort: a failed write
+        // only costs the retry affordance, not the scan itself.
+        stubReceipt.photoPath = ReceiptPhotoStore.save(downsampled, for: stubReceipt.id)
         try modelContext.save()
 
-        // 4) Call the backend structuring endpoint.
+        // 4) Structure it (network + apply). Shared with retryStructuring().
+        try await applyStructuring(
+            to: stubReceipt,
+            rawText: rawText,
+            jpeg: downsampled,
+            storeHint: storeHint
+        )
+        return stubReceipt
+    }
+
+    // MARK: - Structuring (shared by scan + retry)
+
+    /// POST the receipt to the backend and apply the parsed response onto an
+    /// existing Receipt row. On any failure the row is marked `.failed` and the
+    /// error rethrown — the row (and its persisted photo) survive so the user
+    /// can retry. Reuses the row; never inserts a new Receipt.
+    private func applyStructuring(
+        to receipt: Receipt,
+        rawText: String?,
+        jpeg: Data,
+        storeHint: String?
+    ) async throws {
+        let base64 = jpeg.base64EncodedString()
+        logger.info("[Diag.Receipt] upload payload jpeg=\(jpeg.count / 1024)KB base64=\(base64.count / 1024)KB hasOCRText=\(rawText != nil)")
+
+        let request = ReceiptStructuringRequest(
+            rawText: rawText,
+            imageBase64: base64,
+            imageMediaType: "image/jpeg",
+            storeHint: storeHint
+        )
+
         let response: ReceiptStructuringResponse
         do {
             response = try await apiClient.request(
@@ -83,27 +112,31 @@ final class LiveReceiptService: ReceiptServiceProtocol {
                 body: request
             )
         } catch {
-            stubReceipt.ocrStatus = .failed
-            stubReceipt.updatedAt = Date()
+            receipt.ocrStatus = .failed
+            receipt.updatedAt = Date()
             try? modelContext.save()
-            logger.error("Structuring call failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("[Diag.Receipt] structuring failed: \(error.localizedDescription, privacy: .public)")
             throw ReceiptServiceError.structuringFailed(error.localizedDescription)
         }
 
-        // 5) Apply the response onto the receipt + create line items.
-        stubReceipt.store = response.store
-        stubReceipt.purchaseDate = response.purchaseDate ?? stubReceipt.purchaseDate
-        stubReceipt.totalAmount = response.totalAmount ?? 0
-        stubReceipt.taxAmount = response.taxAmount
-        stubReceipt.paymentMethod = response.paymentMethod
-        stubReceipt.ocrStatus = .awaitingReview
-        stubReceipt.ocrProviderRaw = response.provider
-        stubReceipt.updatedAt = Date()
+        // Apply the response. On retry the row may already carry stale lines
+        // from a prior partial run — clear them so we don't duplicate.
+        for stale in receipt.orderedLineItems {
+            modelContext.delete(stale)
+        }
+        receipt.store = response.store
+        receipt.purchaseDate = response.purchaseDate ?? receipt.purchaseDate
+        receipt.totalAmount = response.totalAmount ?? 0
+        receipt.taxAmount = response.taxAmount
+        receipt.paymentMethod = response.paymentMethod
+        receipt.ocrStatus = .awaitingReview
+        receipt.ocrProviderRaw = response.provider
+        receipt.updatedAt = Date()
 
         for itemDTO in response.lineItems {
             let unit = ReceiptLineUnit(rawValue: itemDTO.unit) ?? .unit
             let line = ReceiptLineItem(
-                receipt: stubReceipt,
+                receipt: receipt,
                 rawText: itemDTO.rawText,
                 canonicalFoodName: itemDTO.canonicalFoodName,
                 displayName: itemDTO.displayName,
@@ -124,8 +157,6 @@ final class LiveReceiptService: ReceiptServiceProtocol {
             .info(
                 "Receipt structured: store=\(response.store, privacy: .public) lines=\(response.lineItems.count) avg_conf=\(response.confidence, format: .fixed(precision: 2))"
             )
-
-        return stubReceipt
     }
 
     // MARK: - Fetch
@@ -200,16 +231,32 @@ final class LiveReceiptService: ReceiptServiceProtocol {
 
     // MARK: - Retry
 
-    func retryStructuring(_: Receipt) async throws {
-        // V1: retry path requires the original photo, which we don't yet persist
-        // to disk. Wired here as a TODO so callers can show a "rescan" affordance
-        // that takes the user back to the camera flow.
-        throw ReceiptServiceError.structuringFailed("Re-capture the receipt to retry.")
+    func retryStructuring(_ receipt: Receipt) async throws {
+        // Reload the JPEG we persisted at scan time. No re-shoot, no re-OCR:
+        // the raw text is already on the row. Reuses the same Receipt row.
+        guard let jpeg = ReceiptPhotoStore.load(for: receipt.id) else {
+            // Photo never persisted (older receipt, or the write failed at
+            // scan time). The only recourse is a fresh capture.
+            throw ReceiptServiceError.structuringFailed("Re-capture the receipt to retry.")
+        }
+        receipt.ocrStatus = .processing
+        receipt.updatedAt = Date()
+        try modelContext.save()
+
+        try await applyStructuring(
+            to: receipt,
+            rawText: receipt.ocrRawText,
+            jpeg: jpeg,
+            storeHint: receipt.store.isEmpty || receipt.store == "Unknown" ? nil : receipt.store
+        )
     }
 
     // MARK: - Delete
 
     func delete(_ receipt: Receipt) throws {
+        // SwiftData's cascade rule removes the rows but NOT the photo file on
+        // disk — without this, every delete leaks an image in Application Support.
+        ReceiptPhotoStore.delete(for: receipt.id)
         modelContext.delete(receipt)
         try modelContext.save()
     }
