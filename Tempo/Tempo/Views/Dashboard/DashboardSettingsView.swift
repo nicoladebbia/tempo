@@ -180,18 +180,28 @@ struct DashboardSettingsView: View {
                     .buttonStyle(.plain)
                 }
 
-                subscriptionCard
-
-                SettingsGroupCard(title: "Account & about") {
-                    Button {
-                        showDeleteConfirm = true
+                SettingsGroupCard(title: "Subscription") {
+                    NavigationLink {
+                        SubscriptionDetailView()
                     } label: {
-                        SettingsActionRow(
-                            icon: "trash", title: "Delete Account", tint: .tempoError
+                        SettingsNavRow(
+                            icon: "crown.fill", iconTint: .tempoAmber,
+                            title: "Subscription", subtitle: subscriptionStatusText
                         )
                     }
                     .buttonStyle(.plain)
-                    .disabled(isDeletingAccount)
+                }
+
+                SettingsGroupCard(title: "Account & about") {
+                    NavigationLink {
+                        AccountDetailView()
+                    } label: {
+                        SettingsNavRow(
+                            icon: "person.crop.circle", iconTint: .tempoElectric,
+                            title: "Account", subtitle: "Sign-in, member since, delete"
+                        )
+                    }
+                    .buttonStyle(.plain)
 
                     SettingsActionRow(
                         icon: "number", title: "Version", tint: .tempoTextPrimary,
@@ -207,19 +217,6 @@ struct DashboardSettingsView: View {
                         }
                         .buttonStyle(.plain)
                     }
-                }
-
-                Text("Deleting your account permanently removes all data — XP, achievements, streaks, and workout history. You'll be removed from all leaderboards and active challenges. This cannot be undone.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .padding(.horizontal, TempoSpacing.sm)
-                    .padding(.top, TempoSpacing.xs)
-
-                if let restoreError {
-                    Text(restoreError)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoError)
-                        .padding(.horizontal, TempoSpacing.sm)
                 }
             }
             .padding(.horizontal, TempoSpacing.xl)
@@ -1409,5 +1406,235 @@ struct ModesSettingsDetailView: View {
 
     private func save() {
         try? modelContext.save()
+    }
+}
+
+// MARK: - SubscriptionDetailView
+
+/// Surfaces the real subscription state (plan, renewal/expiry, trial
+/// countdown) that the root only showed as a single word.
+struct SubscriptionDetailView: View {
+    @Environment(ServiceContainer.self)
+    private var services
+    @State
+    private var showPaywall = false
+    @State
+    private var isRestoring = false
+    @State
+    private var restoreError: String?
+
+    private var state: SubscriptionState {
+        services.subscriptions.state
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: TempoSpacing.lg) {
+                VStack(spacing: TempoSpacing.xs) {
+                    Image(systemName: state.isPro ? "crown.fill" : "crown")
+                        .font(.system(size: 32))
+                        .foregroundStyle(state.isPro ? Color.tempoAmber : Color.tempoTextTertiary)
+                    Text(planTitle)
+                        .font(.tempoTitle2)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                    Text(planSubtitle)
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, TempoSpacing.xl)
+                .background(Color.tempoSurfaceCard)
+                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+
+                SettingsFormCard(title: "Details") {
+                    SettingsInfoRow(label: "Status", value: planTitle, icon: "checkmark.seal.fill",
+                                    iconTint: state.isPro ? .tempoSuccess : .tempoTextTertiary,
+                                    valueColor: state.isPro ? .tempoSuccess : .tempoTextTertiary)
+                    if let renewal = renewalLine {
+                        SettingsRowDivider()
+                        SettingsInfoRow(label: renewal.label, value: renewal.value,
+                                        icon: "calendar", iconTint: .tempoElectric)
+                    }
+                    if let plan = productLine {
+                        SettingsRowDivider()
+                        SettingsInfoRow(label: "Plan", value: plan, icon: "tag.fill", iconTint: .tempoViolet)
+                    }
+                }
+
+                SettingsFormCard {
+                    if !state.isPro {
+                        Button { showPaywall = true } label: {
+                            SettingsActionRow(icon: "sparkles", title: "Subscribe to Pro", tint: .tempoSignal)
+                        }
+                        .buttonStyle(.plain)
+                        SettingsRowDivider()
+                    }
+                    Button { Task { await restore() } } label: {
+                        SettingsActionRow(icon: "arrow.clockwise", title: "Restore Purchases", tint: .tempoTextPrimary)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isRestoring)
+                }
+
+                if let restoreError {
+                    Text(restoreError)
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoError)
+                        .padding(.horizontal, TempoSpacing.sm)
+                }
+            }
+            .padding(.horizontal, TempoSpacing.xl)
+            .padding(.vertical, TempoSpacing.lg)
+        }
+        .scrollContentBackground(.hidden)
+        .background(Color.tempoBgPrimary)
+        .navigationTitle("Subscription")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showPaywall) { PaywallView() }
+    }
+
+    private var planTitle: String {
+        switch state {
+        case .free: "Free"
+        case .trial: "Pro · Trial"
+        case .active: "Pro"
+        case .gracePeriod: "Pro · Billing issue"
+        case .expired, .churned: "Expired"
+        }
+    }
+
+    private var planSubtitle: String {
+        state.isPro ? "You have full access to Tempo Pro." : "Upgrade to unlock everything Tempo offers."
+    }
+
+    private var renewalLine: (label: String, value: String)? {
+        switch state {
+        case let .trial(_, endDate): ("Trial ends", Self.dateString(endDate))
+        case let .active(_, expirationDate, isAutoRenewing):
+            (isAutoRenewing ? "Renews" : "Expires", Self.dateString(expirationDate))
+        case let .gracePeriod(_, graceEndDate): ("Grace ends", Self.dateString(graceEndDate))
+        case let .expired(_, expiredAt): ("Expired", Self.dateString(expiredAt))
+        case let .churned(_, expiredAt): ("Expired", Self.dateString(expiredAt))
+        case .free: nil
+        }
+    }
+
+    private var productLine: String? {
+        switch state {
+        case let .active(productId, _, _): SubscriptionProduct(rawValue: productId)?.displayName
+        case let .gracePeriod(productId, _): SubscriptionProduct(rawValue: productId)?.displayName
+        default: nil
+        }
+    }
+
+    private static func dateString(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        return f.string(from: date)
+    }
+
+    @MainActor
+    private func restore() async {
+        guard !isRestoring else { return }
+        isRestoring = true
+        restoreError = nil
+        defer { isRestoring = false }
+        do { try await services.subscriptions.restorePurchases() }
+        catch { restoreError = error.localizedDescription }
+    }
+}
+
+// MARK: - AccountDetailView
+
+/// Surfaces account identity (sign-in method, user ID, member-since) and
+/// houses the Apple-required in-app account deletion.
+struct AccountDetailView: View {
+    @Environment(ServiceContainer.self)
+    private var services
+    @Environment(\.dismiss)
+    private var dismiss
+    @Query
+    private var allProfiles: [UserProfile]
+
+    @State
+    private var showDeleteConfirm = false
+    @State
+    private var isDeleting = false
+    @State
+    private var deleteError: String?
+
+    private var profile: UserProfile? { allProfiles.first }
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: TempoSpacing.lg) {
+                SettingsFormCard(title: "Identity") {
+                    SettingsInfoRow(label: "Sign-in", value: "Apple", icon: "applelogo", iconTint: .tempoTextPrimary)
+                    SettingsRowDivider()
+                    SettingsInfoRow(label: "Member since", value: memberSince, icon: "calendar", iconTint: .tempoElectric)
+                    if let id = userIDShort {
+                        SettingsRowDivider()
+                        SettingsInfoRow(label: "User ID", value: id, icon: "number", iconTint: .tempoViolet)
+                    }
+                }
+
+                SettingsFormCard(
+                    title: "Danger zone",
+                    footnote: "Deleting your account permanently removes all data — XP, achievements, streaks, and workout history. You'll be removed from all leaderboards and active challenges. This cannot be undone."
+                ) {
+                    Button { showDeleteConfirm = true } label: {
+                        SettingsActionRow(icon: "trash", title: "Delete Account", tint: .tempoError)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isDeleting)
+                }
+            }
+            .padding(.horizontal, TempoSpacing.xl)
+            .padding(.vertical, TempoSpacing.lg)
+        }
+        .scrollContentBackground(.hidden)
+        .background(Color.tempoBgPrimary)
+        .navigationTitle("Account")
+        .navigationBarTitleDisplayMode(.inline)
+        .alert("Delete your account?", isPresented: $showDeleteConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete Account", role: .destructive) { Task { await performDeletion() } }
+        } message: {
+            Text("This permanently deletes all your data. This cannot be undone.")
+        }
+        .alert("Could not delete account", isPresented: Binding(
+            get: { deleteError != nil }, set: { if !$0 { deleteError = nil } }
+        )) {
+            Button("OK", role: .cancel) { deleteError = nil }
+        } message: {
+            Text(deleteError ?? "")
+        }
+    }
+
+    private var memberSince: String {
+        guard let created = profile?.createdAt else { return "—" }
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        return f.string(from: created)
+    }
+
+    private var userIDShort: String? {
+        if case let .authenticated(userID) = services.authService.authState {
+            return String(userID.prefix(8)) + "…"
+        }
+        return nil
+    }
+
+    @MainActor
+    private func performDeletion() async {
+        guard !isDeleting else { return }
+        isDeleting = true
+        defer { isDeleting = false }
+        do {
+            try await services.authService.deleteAccount()
+            dismiss()
+        } catch {
+            deleteError = error.localizedDescription
+        }
     }
 }
