@@ -32,7 +32,12 @@ struct TempoSettingsToolbarModifier: ViewModifier {
                             .font(.tempoBody)
                             .foregroundStyle(Color.tempoTextSecondary)
                             .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
+                    // Bare icon — suppress the iOS bordered/glass toolbar
+                    // button treatment so the gear has no pill/border around
+                    // it (consistent across every tab).
+                    .buttonStyle(.plain)
                     .accessibilityLabel("Settings")
                 }
             }

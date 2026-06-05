@@ -27,8 +27,6 @@ struct DashboardView: View {
     @State
     private var showSettings = false
     @State
-    private var showNotifications = false
-    @State
     private var showInsightDetail = false
     @State
     private var showNonNegotiableSetup = false
@@ -76,32 +74,7 @@ struct DashboardView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.tempoBgPrimary)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showNotifications = true
-                        HapticManager.lightImpact()
-                    } label: {
-                        Image(systemName: "bell")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                            .frame(width: 44, height: 44)
-                    }
-                    .accessibilityLabel("Notifications")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showSettings = true
-                        HapticManager.lightImpact()
-                    } label: {
-                        Image(systemName: TempoSymbols.settings)
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                            .frame(width: 44, height: 44)
-                    }
-                    .accessibilityLabel("Settings")
-                }
-            }
+            .tempoSettingsToolbar(isPresented: $showSettings)
         }
         .task {
             if viewModel == nil {
@@ -225,16 +198,6 @@ struct DashboardView: View {
                 print("[Dashboard] .tempoWorkoutChanged received → refreshTrainingStatus")
             #endif
             viewModel?.refreshTrainingStatus(modelContext: modelContext)
-        }
-        .sheet(isPresented: $showSettings) {
-            NavigationStack {
-                DashboardSettingsView()
-            }
-        }
-        .sheet(isPresented: $showNotifications) {
-            NavigationStack {
-                NotificationSettingsView()
-            }
         }
         .sheet(isPresented: $showNonNegotiableSetup, onDismiss: {
             // Refresh accountability data so banner detects new non-negotiables

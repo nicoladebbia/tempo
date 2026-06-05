@@ -43,11 +43,14 @@ final class LiveReceiptService: ReceiptServiceProtocol {
         }
 
         // 2) Prepare the structuring request. We always send the image so the
-        // backend can recover when Vision text was empty or noisy.
-        guard let jpeg = image.jpegData(compressionQuality: 0.7) else {
+        // backend can recover when Vision text was empty or noisy — but
+        // downsample it first. A full-res iPhone JPEG base64-encodes to ~2MB+
+        // and trips the backend's request-body limit (413). 1568px is Claude's
+        // max vision edge, so anything larger is bytes the model never reads.
+        guard let (base64, jpegBytes) = image.downsampledJPEGBase64() else {
             throw ReceiptServiceError.visionFailed("Could not encode receipt image.")
         }
-        let base64 = jpeg.base64EncodedString()
+        logger.info("[Diag.Receipt] upload payload jpeg=\(jpegBytes / 1024)KB base64=\(base64.count / 1024)KB hasOCRText=\(rawText != nil)")
 
         let request = ReceiptStructuringRequest(
             rawText: rawText,

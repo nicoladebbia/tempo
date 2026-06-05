@@ -24,6 +24,20 @@ struct ContentView: View {
     // save → InjectionIII pushes it into the running sim in ~1s, no rebuild.
     @ObserveInjection var inject
 
+    // Drives the app-wide accent tint. Observing the AppStorage key here (not
+    // reading Color.tempoAccent statically) is what makes the Appearance
+    // accent picker actually re-tint the app live when the choice changes.
+    @AppStorage("accentColorChoice")
+    private var accentColorChoice: String = "signal_red"
+
+    private var accentColor: Color {
+        switch accentColorChoice {
+        case "electric_blue": .tempoElectric
+        case "success_green": .tempoSuccess
+        default: .tempoSignal
+        }
+    }
+
     var body: some View {
         Group {
             if services.appState.isOnboardingComplete {
@@ -103,7 +117,7 @@ struct ContentView: View {
                 }
                 .tag(Tab.lockdown)
         }
-        .tint(Color.tempoSignal)
+        .tint(accentColor)
         .toolbarBackground(.hidden, for: .tabBar)
         .onChange(of: appState.activeTab) { _, _ in
             HapticManager.selection()
