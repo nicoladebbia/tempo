@@ -547,6 +547,10 @@ struct ProfileSettingsDetailView: View {
     /// streak stats on the profile.
     @Query(filter: #Predicate<Streak> { $0.typeRaw == "overall" })
     private var overallStreaks: [Streak]
+    /// The active dietary profile — canonical source for biometrics (it owns
+    /// the "Refresh from Health" flow). Profile shows these read-only.
+    @Query(filter: #Predicate<DietaryProfile> { $0.isActive == true })
+    private var activeDietProfiles: [DietaryProfile]
 
     private var profile: UserProfile? {
         allProfiles.first
@@ -560,18 +564,16 @@ struct ProfileSettingsDetailView: View {
         overallStreaks.first
     }
 
+    private var dietProfile: DietaryProfile? {
+        activeDietProfiles.first
+    }
+
     @State
     private var displayName = ""
     @State
     private var username = ""
     @State
     private var identityLabel = OnboardingViewModel.identityLabels[0]
-    @State
-    private var weightKg = ""
-    @State
-    private var heightCm = ""
-    @State
-    private var age = ""
 
     private let identityOptions = OnboardingViewModel.identityLabels
 
@@ -787,49 +789,45 @@ struct ProfileSettingsDetailView: View {
 
     // MARK: - Biometrics (editable)
 
+    // Biometrics are READ-ONLY here. They're owned by the active
+    // DietaryProfile (which has the "Refresh from Health" flow); editing
+    // them lives there, not on the profile screen.
     @ViewBuilder
     private var biometricsCard: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("BIOMETRICS")
-                .font(.tempoCaption1)
-                .fontWeight(.semibold)
-                .foregroundStyle(Color.tempoTextTertiary)
-                .padding(.leading, TempoSpacing.sm)
-
-            VStack(spacing: 0) {
-                valueField(label: "Weight (kg)", text: $weightKg, keyboard: .decimalPad) { newValue in
-                    profile?.weightKg = Double(newValue)
-                    touch()
+        SettingsFormCard(
+            title: "Biometrics",
+            footnote: "Biometrics come from your Diet Profile. Update them there with “Refresh from Health.”"
+        ) {
+            if let d = dietProfile {
+                SettingsInfoRow(label: "Weight", value: String(format: "%.1f kg", d.currentWeightKg),
+                                icon: "scalemass", iconTint: .tempoElectric)
+                SettingsRowDivider()
+                SettingsInfoRow(label: "Height", value: String(format: "%.0f cm", d.heightCm),
+                                icon: "ruler", iconTint: .tempoAmber)
+                SettingsRowDivider()
+                SettingsInfoRow(label: "Age", value: "\(d.age)", icon: "calendar", iconTint: .tempoViolet)
+                SettingsRowDivider()
+                SettingsInfoRow(label: "Est. BMR", value: "\(Int(bmr(from: d))) kcal",
+                                icon: "flame", iconTint: .tempoSignal)
+            } else {
+                NavigationLink {
+                    DietaryProfileSetupView()
+                } label: {
+                    SettingsNavRow(
+                        icon: "heart.text.square", iconTint: .tempoSignal,
+                        title: "Set up biometrics", subtitle: "In Diet Profile → Refresh from Health"
+                    )
                 }
-                rowDivider
-                valueField(label: "Height (cm)", text: $heightCm, keyboard: .decimalPad) { newValue in
-                    profile?.heightCm = Double(newValue)
-                    touch()
-                }
-                rowDivider
-                valueField(label: "Age", text: $age, keyboard: .numberPad) { newValue in
-                    profile?.age = Int(newValue)
-                    touch()
-                }
-                if let bmr = profile?.estimatedBMR {
-                    rowDivider
-                    HStack {
-                        Text("Est. BMR")
-                            .font(.tempoSubheadline)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                        Spacer()
-                        Text("\(Int(bmr)) kcal")
-                            .font(.tempoDataSmall)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    }
-                    .padding(.horizontal, TempoSpacing.lg)
-                    .padding(.vertical, TempoSpacing.md)
-                }
+                .buttonStyle(.plain)
             }
-            .padding(.vertical, TempoSpacing.xs)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
         }
+    }
+
+    /// Mifflin-St Jeor BMR from the dietary profile (same formula as
+    /// UserProfile.estimatedBMR, sex-aware via the diet profile).
+    private func bmr(from d: DietaryProfile) -> Double {
+        let base = (10 * d.currentWeightKg) + (6.25 * d.heightCm) - (5 * Double(d.age))
+        return d.biologicalSex == .female ? base - 161 : base + 5
     }
 
     // MARK: - Reusable row builders
@@ -871,27 +869,6 @@ struct ProfileSettingsDetailView: View {
         .padding(.vertical, TempoSpacing.md)
     }
 
-    private func valueField(
-        label: String,
-        text: Binding<String>,
-        keyboard: UIKeyboardType,
-        onCommit: @escaping (String) -> Void
-    ) -> some View {
-        HStack {
-            Text(label)
-                .font(.tempoSubheadline)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Spacer()
-            TextField("--", text: text)
-                .font(.tempoSubheadline)
-                .multilineTextAlignment(.trailing)
-                .keyboardType(keyboard)
-                .frame(width: 80)
-                .onChange(of: text.wrappedValue) { _, newValue in onCommit(newValue) }
-        }
-        .padding(.horizontal, TempoSpacing.lg)
-        .padding(.vertical, TempoSpacing.md)
-    }
 
     // MARK: - Load / Save
 
@@ -902,9 +879,6 @@ struct ProfileSettingsDetailView: View {
         displayName = p.displayName
         username = p.username
         identityLabel = identityOptions.contains(p.identityLabel) ? p.identityLabel : identityOptions[0]
-        weightKg = p.weightKg.map { String(format: "%.1f", $0) } ?? ""
-        heightCm = p.heightCm.map { String(format: "%.0f", $0) } ?? ""
-        age = p.age.map { "\($0)" } ?? ""
     }
 
     private func touch() {
