@@ -546,6 +546,10 @@ struct ProfileSettingsDetailView: View {
     private var allProfiles: [UserProfile]
     @Query
     private var allSettings: [UserSettings]
+    /// The overall accountability streak (typeRaw == "overall"), for real
+    /// streak stats on the profile.
+    @Query(filter: #Predicate<Streak> { $0.typeRaw == "overall" })
+    private var overallStreaks: [Streak]
 
     private var profile: UserProfile? {
         allProfiles.first
@@ -553,6 +557,10 @@ struct ProfileSettingsDetailView: View {
 
     private var settings: UserSettings? {
         allSettings.first
+    }
+
+    private var overallStreak: Streak? {
+        overallStreaks.first
     }
 
     @State
@@ -575,6 +583,7 @@ struct ProfileSettingsDetailView: View {
             VStack(spacing: TempoSpacing.lg) {
                 heroCard
                 statsCard
+                trainingSummaryCard
                 identityCard
                 biometricsCard
             }
@@ -634,13 +643,20 @@ struct ProfileSettingsDetailView: View {
         HStack(spacing: 0) {
             statCell(value: "\(profile?.currentLevel ?? 1)", label: "Level")
             statDivider
+            statCell(value: streakDisplay, label: "Streak")
+            statDivider
             statCell(value: xpDisplay, label: "Total XP")
             statDivider
-            statCell(value: memberSince, label: "Member since")
+            statCell(value: memberSince, label: "Member")
         }
         .padding(.vertical, TempoSpacing.lg)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+    }
+
+    private var streakDisplay: String {
+        let current = overallStreak?.currentCount ?? 0
+        return current == 0 ? "—" : "\(current)d"
     }
 
     private func statCell(value: String, label: String) -> some View {
@@ -671,6 +687,40 @@ struct ProfileSettingsDetailView: View {
         let f = DateFormatter()
         f.dateFormat = "MMM yyyy"
         return f.string(from: created)
+    }
+
+    // MARK: - Training summary (read-only, surfaced from UserSettings)
+
+    @ViewBuilder
+    private var trainingSummaryCard: some View {
+        SettingsFormCard(title: "Training") {
+            SettingsInfoRow(
+                label: "Split", value: settings?.trainingSplit.displayName ?? "—",
+                icon: "dumbbell.fill", iconTint: .tempoSignal
+            )
+            SettingsRowDivider()
+            SettingsInfoRow(
+                label: "Football days", value: footballSummary,
+                icon: "sportscourt.fill", iconTint: .tempoAmber
+            )
+            SettingsRowDivider()
+            SettingsInfoRow(
+                label: "Weight unit", value: (settings?.weightUnitRaw ?? "kg").uppercased(),
+                icon: "scalemass.fill", iconTint: .tempoElectric
+            )
+            if let longest = overallStreak?.longestCount, longest > 0 {
+                SettingsRowDivider()
+                SettingsInfoRow(
+                    label: "Longest streak", value: "\(longest) days",
+                    icon: "flame.fill", iconTint: .tempoSignal
+                )
+            }
+        }
+    }
+
+    private var footballSummary: String {
+        let days = settings?.footballDaysRaw.nonzeroBitCount ?? 0
+        return days == 0 ? "None" : "\(days)/week"
     }
 
     // MARK: - Identity (editable)
