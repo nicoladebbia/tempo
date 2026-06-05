@@ -34,6 +34,52 @@ struct MealPlanIntake: Sendable, Equatable {
         temporaryExclusions: [],
         trainingSchedule: nil
     )
+
+    // MARK: - Persistence (UserSettings ↔ MealPlanIntake)
+
+    /// Build an intake from the user's PERSISTED preferences on `UserSettings`,
+    /// falling back to `.default` per-field when a value was never set (nil).
+    /// This is what every non-wizard generate path now uses instead of bare
+    /// `.default`, so "Regenerate Plan" respects the user's real cooking prefs.
+    /// `trainingSchedule` and `groceryIntent` are NOT set here — the view model
+    /// enriches those from UserSettings (training split + football days, grocery
+    /// budget + stores) on each generate, as it already did.
+    static func loadPersisted(from settings: UserSettings) -> MealPlanIntake {
+        let window = EatingWindow(
+            firstMealHour: settings.mealIntakeFirstMealHour ?? EatingWindow.default.firstMealHour,
+            lastMealHour: settings.mealIntakeLastMealHour ?? EatingWindow.default.lastMealHour
+        )
+        let leftover = settings.mealIntakeLeftoverToleranceRaw
+            .flatMap { LeftoverTolerance(rawValue: $0) } ?? MealPlanIntake.default.leftoverTolerance
+        let exclusions = settings.mealIntakeExclusionsRaw
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+
+        return MealPlanIntake(
+            cookableDaysThisWeek: settings.mealIntakeCookableDays ?? MealPlanIntake.default.cookableDaysThisWeek,
+            leftoverTolerance: leftover,
+            eatingWindow: window.isValid ? window : .default,
+            groceryIntent: nil,
+            recoveryAdjusted: settings.mealIntakeRecoveryAdjusted,
+            temporaryExclusions: exclusions,
+            trainingSchedule: nil
+        )
+    }
+
+    /// Write this intake's persistable fields back to `UserSettings` so the
+    /// next regenerate reuses them. Called by the wizard's onComplete (and the
+    /// future AI Meals settings page). Grocery + training are persisted/derived
+    /// elsewhere, so they're not touched here.
+    func persist(to settings: UserSettings) {
+        settings.mealIntakeCookableDays = cookableDaysThisWeek
+        settings.mealIntakeLeftoverToleranceRaw = leftoverTolerance.rawValue
+        settings.mealIntakeFirstMealHour = eatingWindow.firstMealHour
+        settings.mealIntakeLastMealHour = eatingWindow.lastMealHour
+        settings.mealIntakeRecoveryAdjusted = recoveryAdjusted
+        settings.mealIntakeExclusionsRaw = temporaryExclusions.joined(separator: ", ")
+        settings.updatedAt = Date()
+    }
 }
 
 // MARK: - WeeklyTrainingSchedule

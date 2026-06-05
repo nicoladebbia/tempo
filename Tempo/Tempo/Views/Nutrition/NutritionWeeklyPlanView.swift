@@ -121,11 +121,17 @@ struct NutritionWeeklyPlanView: View {
                     // step (e.g. typed broccoli on Temporary Exclusions
                     // then cancelled — budget cap was already saved).
                     let descriptor = FetchDescriptor<UserSettings>()
-                    if let settings = (try? modelContext.fetch(descriptor))?.first,
-                       let grocery = intake.groceryIntent
-                    {
-                        settings.groceryBudgetCapUSD = grocery.budgetCapUSD
-                        settings.groceryPreferredStores = grocery.preferredStores
+                    if let settings = (try? modelContext.fetch(descriptor))?.first {
+                        // Persist the WHOLE intake (cooking days, leftover,
+                        // eating window, recovery, exclusions) so every later
+                        // "Regenerate Plan" reuses these answers instead of
+                        // falling back to defaults. Grocery prefs are persisted
+                        // on the same record (kept explicit for clarity).
+                        intake.persist(to: settings)
+                        if let grocery = intake.groceryIntent {
+                            settings.groceryBudgetCapUSD = grocery.budgetCapUSD
+                            settings.groceryPreferredStores = grocery.preferredStores
+                        }
                         try? modelContext.save()
                     }
                     viewModel.generatePlan(

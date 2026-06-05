@@ -914,8 +914,30 @@ final class NutritionTabViewModel {
                 // schedule from UserSettings so the AI generates day-types
                 // that match Mon=Upper / Wed=Football reality rather than
                 // a generic "Wed strength / Thu cardio" guess.
-                var enrichedIntake = intake ?? .default
-                if let settings = Self.loadUserSettings(modelContext: modelContext) {
+                // When the caller supplies a fresh intake (the wizard), use it.
+                // Otherwise — the "Regenerate Plan" button and the other 3
+                // non-wizard generate paths — load the user's PERSISTED prefs
+                // instead of bare .default, so a quick regen respects their real
+                // cooking days / leftover style / eating window / exclusions.
+                let settingsForIntake = Self.loadUserSettings(modelContext: modelContext)
+                let intakeSource: String
+                var enrichedIntake: MealPlanIntake
+                if let intake {
+                    enrichedIntake = intake
+                    intakeSource = "wizard"
+                } else if let settingsForIntake {
+                    enrichedIntake = MealPlanIntake.loadPersisted(from: settingsForIntake)
+                    intakeSource = "persisted"
+                } else {
+                    enrichedIntake = .default
+                    intakeSource = "default"
+                }
+                let diagCookDays = enrichedIntake.cookableDaysThisWeek
+                let diagLeftover = enrichedIntake.leftoverTolerance.rawValue
+                let diagWindow = "\(enrichedIntake.eatingWindow.firstMealHour)-\(enrichedIntake.eatingWindow.lastMealHour)"
+                let diagExclusions = enrichedIntake.temporaryExclusions.count
+                Logger.nutrition.info("[Diag.Plan] intake source: \(intakeSource, privacy: .public) — cookDays=\(diagCookDays) leftover=\(diagLeftover, privacy: .public) window=\(diagWindow, privacy: .public) exclusions=\(diagExclusions)")
+                if let settings = settingsForIntake {
                     enrichedIntake.trainingSchedule = WeeklyTrainingSchedule.make(
                         split: settings.trainingSplit,
                         footballDays: settings.footballDays

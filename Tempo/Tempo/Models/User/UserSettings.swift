@@ -120,6 +120,32 @@ final class UserSettings {
     /// Same lifecycle reasoning as groceryBudgetCapUSD.
     var groceryPreferredStoresRaw: String = ""
 
+    // MARK: - Meal-plan intake (persisted across regens)
+
+    /// The user's meal-plan preferences, persisted so EVERY generate path
+    /// reuses them — not just the one-shot wizard. Before this, 4 of 5
+    /// generate buttons (incl. "Regenerate Plan") passed no intake and fell
+    /// back to defaults; only grocery prefs above persisted. All optional /
+    /// defaulted → additive migration; nil means "never set, use the engine
+    /// default". Read via `MealPlanIntake.loadPersisted(from:)`.
+
+    /// Cookable days this week (1–7). Nil → MealPlanIntake.default (4).
+    var mealIntakeCookableDays: Int?
+
+    /// `LeftoverTolerance.rawValue`. Nil → default (twoToThreeDayBatches).
+    var mealIntakeLeftoverToleranceRaw: String?
+
+    /// Eating-window bounds (hour 0–23). Nil → default (8…20).
+    var mealIntakeFirstMealHour: Int?
+    var mealIntakeLastMealHour: Int?
+
+    /// Whether the plan skews macros to training-day fuel / lighter rest days.
+    var mealIntakeRecoveryAdjusted: Bool = false
+
+    /// CSV of foods off-limits — PERSISTED (the user manages them from the AI
+    /// Meals settings page; not auto-cleared each week).
+    var mealIntakeExclusionsRaw: String = ""
+
     // MARK: - Timestamps
 
     var updatedAt: Date
