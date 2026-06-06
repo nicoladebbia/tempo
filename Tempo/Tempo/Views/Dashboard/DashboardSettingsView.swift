@@ -471,8 +471,6 @@ struct DashboardSettingsView: View {
     @AppStorage("healthKitAuthorized")
     private var healthKitAuthorized = false
 
-    
-
     private var whoopStatusText: String {
         switch services.whoop.connectionState {
         case .connected: "Connected"
@@ -868,7 +866,6 @@ struct ProfileSettingsDetailView: View {
         .padding(.horizontal, TempoSpacing.lg)
         .padding(.vertical, TempoSpacing.md)
     }
-
 
     // MARK: - Load / Save
 
