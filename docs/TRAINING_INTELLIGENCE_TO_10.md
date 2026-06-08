@@ -1,5 +1,30 @@
 # Training Intelligence — Road to a Real 10/10
 
+> ## IMPLEMENTATION STATUS (2026-06-08)
+> All four phases **built, wired into the live path, and unit-proven** — 57/57
+> training-intelligence tests green; clean `xcodebuild`. Commits `b2962480` →
+> `d10a0193` on branch `training-intelligence`.
+>
+> | Phase | What landed | Tests | Live? |
+> |---|---|---|---|
+> | 1 | RPE-sized progression + breath→rest loop | 22 | ✅ weight effect + rest both live |
+> | 2 | AI weekly program (Sonnet) + live adjustment (Haiku), engine-clamped | 11 | ✅ wired, Pro+consent gated |
+> | 3 | On-device AdaptiveProfile learning (increments, thresholds, fatigue deload) | 13 | ✅ writes on save, reads on plan-gen |
+> | 4 | Outcome evaluator + self-correction + Coach Review card | 10 | ✅ weekly review wired |
+> | fix | Persisted run-once guards (anti-compounding) | 2 (incl. via above) | ✅ |
+>
+> **The honest claim: the 10/10 mechanism is built and unit-proven, NOT yet
+> empirically demonstrated.** By this doc's own rubric, 9–10 means the system
+> *measurably improves its own prescriptions* — that requires a multi-week
+> on-device arc no unit test can establish (per CLAUDE.md L145). Two SwiftUI
+> cards (adjustment + Coach Review) also need an on-device ⌘R to verify
+> rendering.
+>
+> **Explicitly deferred (not done):** the per-exercise `rationale` "why" text on
+> the exercise card (Fix 1.1's UI half — the weight *effect* is live, the
+> per-card label is not; `PlannedExercise` has no field for it, would need a
+> model change). Everything else in the spec below is implemented.
+
 **Status:** Audit + full implementation spec
 **Author:** Claude (Opus 4.8), 2026-06-08
 **Scope:** The Training module (RepForge) as a *training-intelligence system*. Not UI polish, not the workout-session state machine, not gamification.
