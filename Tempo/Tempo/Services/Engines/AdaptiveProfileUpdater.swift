@@ -99,6 +99,32 @@ enum AdaptiveProfileUpdater {
         profile.updatedAt = Date()
     }
 
+    // MARK: - Outcome feedback (Phase 4 Fix 4.2)
+
+    /// Apply a graded WeekOutcome to the profile — the macro feedback loop. A
+    /// low-quality week (overreach) globally DAMPS every learned increment and
+    /// nudges thresholds conservative; a high-quality week with zero overreach
+    /// permits slightly more aggressive learned increments. Bounded by the same
+    /// clamps as per-session learning, so this can't escape the safe envelope.
+    static func applyOutcome(_ outcome: WeekOutcome, to profile: AdaptiveProfile) {
+        if outcome.overreachEvents > 0, outcome.qualityScore < 0.5 {
+            // Overreached and low quality → pull every step back ~10% (clamped)
+            // and make recovery thresholds more conservative.
+            for (id, inc) in profile.learnedIncrements {
+                profile.learnedIncrements[id] = clampIncrement(inc * 0.9)
+            }
+            profile.recoveryThresholdOffset = clampOffset(
+                profile.recoveryThresholdOffset + thresholdStep
+            )
+        } else if outcome.overreachEvents == 0, outcome.qualityScore >= 0.75 {
+            // Clean, productive week → permit marginally bigger steps.
+            for (id, inc) in profile.learnedIncrements {
+                profile.learnedIncrements[id] = clampIncrement(inc * 1.05)
+            }
+        }
+        profile.updatedAt = Date()
+    }
+
     // MARK: - Clamps
 
     static func clampIncrement(_ value: Double) -> Double {

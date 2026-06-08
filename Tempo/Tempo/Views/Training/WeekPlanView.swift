@@ -38,6 +38,16 @@ struct WeekPlanView: View {
                     deloadBanner
                 }
 
+                // Coach Review — last week's graded outcome (Phase 4).
+                if let outcome = viewModel.lastWeekOutcome {
+                    coachReviewCard(outcome)
+                }
+
+                // AI plan rationale (Phase 2) — only when the AI ran this week.
+                if let rationale = viewModel.aiWeekRationale {
+                    aiRationaleCard(rationale)
+                }
+
                 // 7-day grid
                 // Per MODULE_TRAINING.md Section 9.2
                 dayGrid
@@ -116,6 +126,78 @@ struct WeekPlanView: View {
             RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous)
                 .stroke(Color.tempoRecoveryYellow.opacity(0.3), lineWidth: 1)
         )
+    }
+
+    // MARK: - Coach Review (Phase 4)
+
+    private func coachReviewCard(_ outcome: WeekOutcome) -> some View {
+        // Green when the week was productive without overreach; yellow when it
+        // overreached or quality dipped. Every number below is real.
+        let good = outcome.qualityScore >= 0.6 && outcome.overreachEvents == 0
+        let accent = good ? Color.tempoRecoveryGreen : Color.tempoRecoveryYellow
+
+        return VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            HStack(spacing: TempoSpacing.sm) {
+                Image(systemName: good ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(accent)
+                Text("LAST WEEK")
+                    .font(.tempoHeadline)
+                    .foregroundStyle(accent)
+                Spacer()
+                Text("\(Int((outcome.qualityScore * 100).rounded()))%")
+                    .font(.tempoHeadline)
+                    .foregroundStyle(accent)
+            }
+
+            Text(coachReviewSummary(outcome))
+                .font(.tempoBody)
+                .foregroundStyle(Color.tempoTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(TempoSpacing.cardPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(accent.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous)
+                .stroke(accent.opacity(0.3), lineWidth: 1)
+        )
+    }
+
+    private func coachReviewSummary(_ outcome: WeekOutcome) -> String {
+        var parts: [String] = []
+        parts.append("\(outcome.progressionHits) \(outcome.progressionHits == 1 ? "lift" : "lifts") up")
+        if outcome.overreachEvents > 0 {
+            parts.append("\(outcome.overreachEvents) overreach")
+        } else {
+            parts.append("0 overreach")
+        }
+        if outcome.missedSessions > 0 {
+            parts.append("\(outcome.missedSessions) missed")
+        }
+        let trend = outcome.netVolumeChange >= 0 ? "volume up" : "volume down"
+        parts.append(trend)
+        return parts.joined(separator: " · ")
+    }
+
+    // MARK: - AI Plan Rationale (Phase 2)
+
+    private func aiRationaleCard(_ rationale: String) -> some View {
+        HStack(alignment: .top, spacing: TempoSpacing.sm) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(Color.tempoAccent)
+            Text(rationale)
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(TempoSpacing.cardPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.tempoBgSecondary)
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
     }
 
     // MARK: - 7-Day Grid

@@ -82,6 +82,10 @@ final class TrainingViewModel {
     /// The Week Plan view shows it as a "why" line when present.
     var aiWeekRationale: String?
 
+    /// Last week's graded outcome (Phase 4). Non-nil after the weekly review has
+    /// run; drives the Coach Review card. nil before there's a full prior week.
+    var lastWeekOutcome: WeekOutcome?
+
     /// A pending live mid-session adjustment (Phase 2 Fix 2.4). Set when today's
     /// ACTUAL recovery diverged from the week-plan assumption and the Haiku
     /// adjustment service returned a suggestion. Surfaced as a DISMISSIBLE card
@@ -271,6 +275,75 @@ final class TrainingViewModel {
         // a Haiku re-tune suggestion. Surfaced as a dismissible card — never
         // auto-applied. Runs after hydration so it sees the reconciled plan.
         await checkForRecoveryAdjustment(modelContext: modelContext)
+
+        // Phase 4 — grade last week once per ISO week and feed the result back
+        // into the on-device profile (the macro self-correction loop). Also
+        // populates the Coach Review card.
+        runWeeklyOutcomeReview(modelContext: modelContext)
+    }
+
+    // MARK: - Weekly Outcome Review (Phase 4)
+
+    /// ISO week key for which the outcome review has already run (so it runs at
+    /// most once per week — the review is for the PREVIOUS week's data).
+    private var outcomeReviewedWeekKey: String?
+
+    /// Grade the previous week, apply the result to the AdaptiveProfile, and
+    /// store the WeekOutcome for the Coach Review card. Runs once per ISO week.
+    func runWeeklyOutcomeReview(modelContext: ModelContext) {
+        let cal = Calendar.current
+        var comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())
+        comps.weekday = 2
+        let thisMonday = cal.date(from: comps) ?? Date()
+        let weekKey = AIProgramPlanner.isoDay(thisMonday)
+        guard outcomeReviewedWeekKey != weekKey else { return }
+
+        guard let lastMonday = cal.date(byAdding: .day, value: -7, to: thisMonday),
+              let lastSunday = cal.date(byAdding: .day, value: -1, to: thisMonday) else { return }
+        let lastWeekStart = cal.startOfDay(for: lastMonday)
+        let lastWeekEnd = cal.startOfDay(for: lastSunday)
+
+        // Last week's history rows.
+        let lastWeekRows = (try? modelContext.fetch(FetchDescriptor<ExerciseHistory>(
+            predicate: #Predicate { $0.date >= lastWeekStart && $0.date <= lastWeekEnd }
+        ))) ?? []
+
+        // Need at least one logged session to grade anything.
+        guard !lastWeekRows.isEmpty else {
+            outcomeReviewedWeekKey = weekKey
+            return
+        }
+
+        // Week-before tonnage for the trend.
+        guard let priorStart = cal.date(byAdding: .day, value: -14, to: thisMonday),
+              let priorEnd = cal.date(byAdding: .day, value: -8, to: thisMonday) else { return }
+        let priorWeekStart = cal.startOfDay(for: priorStart)
+        let priorWeekEnd = cal.startOfDay(for: priorEnd)
+        let priorRows = (try? modelContext.fetch(FetchDescriptor<ExerciseHistory>(
+            predicate: #Predicate { $0.date >= priorWeekStart && $0.date <= priorWeekEnd }
+        ))) ?? []
+        let priorVolume = priorRows.reduce(0.0) { $0 + $1.totalVolume }
+
+        // Planned training days last week = distinct non-rest gym days in the
+        // current week template (a stable proxy for the cadence).
+        let plannedTrainingDays = weekPlans.filter { $0.type.isGymWorkout }.count
+
+        let outcome = TrainingOutcomeEvaluator.evaluate(
+            lastWeek: lastWeekRows,
+            plannedTrainingDays: max(plannedTrainingDays, 1),
+            priorWeekVolume: priorVolume
+        )
+
+        // Feed the outcome back into the on-device profile (macro loop).
+        let profile = fetchOrCreateAdaptiveProfile(modelContext: modelContext)
+        AdaptiveProfileUpdater.applyOutcome(outcome, to: profile)
+        try? modelContext.save()
+
+        lastWeekOutcome = outcome
+        outcomeReviewedWeekKey = weekKey
+        #if DEBUG
+            print("\(DebugTrace.prefix)[outcome] week graded: quality=\(String(format: "%.2f", outcome.qualityScore)) hits=\(outcome.progressionHits) overreach=\(outcome.overreachEvents) missed=\(outcome.missedSessions)")
+        #endif
     }
 
     // MARK: - AI Week Hydration (Phase 2)
