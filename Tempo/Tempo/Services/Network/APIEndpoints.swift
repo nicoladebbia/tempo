@@ -328,14 +328,75 @@ struct DayPlanTrainingProgramRequest: Codable, Sendable {
 
 struct DayPlanTrainingProgramResponse: Codable, Sendable {
     let rationale: String
-    /// Per-day entries from the backend. We only consume `rationale` for
-    /// v1 hydration — the per-day breakdown is the source for the
-    /// weekly planner, not the daily-plan view.
+    /// Per-day program from the backend (Sonnet). Optional so the legacy
+    /// hydration callers that only read `rationale` still decode cleanly when
+    /// the field is absent, and so a malformed/empty AI response degrades to
+    /// "rationale only" rather than failing the whole decode. The weekly
+    /// planner (AIProgramPlanner) reads `days`; the daily-plan view reads
+    /// `rationale`.
+    let days: [TrainingProgramDayDTO]?
+}
+
+/// One day of an AI-proposed week. `workoutType`/`volumeAdjustment` are
+/// advisory — AIProgramPlanner reconciles them against the deterministic
+/// floor before anything reaches the user (LLM proposes, engine disposes).
+struct TrainingProgramDayDTO: Codable, Sendable {
+    let day: String              // "monday" … "sunday"
+    let workoutType: String      // "push" | "pull" | "legs" | "football" | "rest" | …
+    let volumeAdjustment: Double // 0.0 – 1.2 (clamped on reconcile)
+
+    enum CodingKeys: String, CodingKey {
+        case day
+        case workoutType = "workout_type"
+        case volumeAdjustment = "volume_adjustment"
+    }
 }
 
 extension APIEndpoint where Response == DayPlanTrainingProgramResponse {
     static func dayPlanTrainingProgram() -> Self {
         APIEndpoint(path: "/v1/insights/training-program", method: .post)
+    }
+}
+
+// MARK: - Training Adjustment (Haiku, live mid-session)
+
+/// Mirror of the backend `TrainingAdjustmentInput` (TrainingAdjustmentService).
+/// Sent when today's actual recovery diverges from the week-plan assumption.
+struct TrainingAdjustmentRequest: Codable, Sendable {
+    let todayRecovery: Int
+    let plannedRecoveryAssumption: Int
+    let plannedWorkoutType: String
+    let plannedExercises: [String]
+    let footballTomorrow: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case todayRecovery = "today_recovery"
+        case plannedRecoveryAssumption = "planned_recovery_assumption"
+        case plannedWorkoutType = "planned_workout_type"
+        case plannedExercises = "planned_exercises"
+        case footballTomorrow = "football_tomorrow"
+    }
+}
+
+/// Mirror of the backend `TrainingAdjustmentResponse`. `volumeAdjustment` and
+/// the keep/drop lists are advisory — clamped through the engine before use.
+struct TrainingAdjustmentResponse: Codable, Sendable {
+    let volumeAdjustment: Double   // 0.0 – 1.2
+    let keepExercises: [String]
+    let dropExercises: [String]
+    let note: String
+
+    enum CodingKeys: String, CodingKey {
+        case volumeAdjustment = "volume_adjustment"
+        case keepExercises = "keep_exercises"
+        case dropExercises = "drop_exercises"
+        case note
+    }
+}
+
+extension APIEndpoint where Response == TrainingAdjustmentResponse {
+    static func trainingAdjustment() -> Self {
+        APIEndpoint(path: "/v1/insights/training-adjustment", method: .post)
     }
 }
 

@@ -76,6 +76,12 @@ final class TrainingViewModel {
     var isLoading = true
     var isDeloadWeek = false
 
+    /// AI rationale for this week's reconciled plan (Phase 2). Non-nil ONLY when
+    /// the AI program ran and was reconciled against the floor — nil whenever
+    /// the deterministic plan stands (offline, not Pro, no consent, failure).
+    /// The Week Plan view shows it as a "why" line when present.
+    var aiWeekRationale: String?
+
     // MARK: - Active Workout State
 
     var currentExerciseIndex: Int = 0
@@ -175,16 +181,24 @@ final class TrainingViewModel {
     private let whoop: any WhoopServiceProtocol
     private let healthKit: any HealthKitServiceProtocol
 
+    /// Optional network client for the AI training path (Phase 2). When nil
+    /// (previews, tests, offline-only builds) the view model runs the pure
+    /// deterministic engine — the AI upgrade is strictly additive and never a
+    /// hard dependency. The deterministic plan is always the floor.
+    let apiClient: APIClient?
+
     // MARK: - Init
 
     init(
         trainingEngine: any TrainingEngineProtocol,
         whoop: any WhoopServiceProtocol,
-        healthKit: any HealthKitServiceProtocol
+        healthKit: any HealthKitServiceProtocol,
+        apiClient: APIClient? = nil
     ) {
         self.trainingEngine = trainingEngine
         self.whoop = whoop
         self.healthKit = healthKit
+        self.apiClient = apiClient
     }
 
     // MARK: - Load Today's Workout
@@ -225,6 +239,95 @@ final class TrainingViewModel {
         )
 
         isLoading = false
+
+        // Phase 2 (TRAINING_INTELLIGENCE_TO_10.md) — AI hydration runs AFTER the
+        // deterministic plan is already on screen. The floor renders first and
+        // always stands; the AI is a strictly-additive upgrade that tunes volume
+        // in place if (and only if) it's available, Pro-gated, and not yet run
+        // this week. Failure is silent — the floor is the answer.
+        await hydrateWeekWithAI(modelContext: modelContext)
+    }
+
+    // MARK: - AI Week Hydration (Phase 2)
+
+    /// True once the AI weekly program has run for the current ISO week, so we
+    /// never spend more than one Sonnet call per user per week (client-side cap;
+    /// the backend also caches 7 days). Keyed by the week-start day string.
+    private var aiHydratedWeekKey: String?
+
+    /// Reconcile the deterministic week plan with an AI-proposed skeleton.
+    /// No-ops when there's no API client (previews/tests/offline), when already
+    /// run this week, or when a workout is in progress (never disturb a live
+    /// session). All failures fall back to the deterministic plan silently.
+    func hydrateWeekWithAI(modelContext: ModelContext) async {
+        guard let apiClient else { return }
+        guard !sessionState.isActive else { return }
+
+        let cal = Calendar.current
+        var comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())
+        comps.weekday = 2 // Monday
+        let monday = cal.date(from: comps) ?? Date()
+        let weekKey = AIProgramPlanner.isoDay(monday)
+
+        // Once per ISO week (the Sonnet cost cap).
+        guard aiHydratedWeekKey != weekKey else { return }
+
+        let footballDays = loadFootballDays(modelContext: modelContext)
+        let recovery7Day = loadRecovery7DayTrend(modelContext: modelContext)
+        let recentSessions = loadRecentSessionSummaries(modelContext: modelContext)
+
+        let planner = AIProgramPlanner(api: apiClient)
+        let result = await planner.planWeek(
+            deterministicPlans: weekPlans,
+            weekStart: monday,
+            recovery7Day: recovery7Day,
+            recentSessions: recentSessions,
+            footballDays: AIProgramPlanner.footballDayNames(footballDays),
+            goal: "hypertrophy"
+        )
+
+        // Mark the week done regardless of whether AI ran — a 402 (not Pro / no
+        // consent) or a network failure should NOT retrigger on every loadToday.
+        aiHydratedWeekKey = weekKey
+
+        // Only mutate state if AI actually produced a reconciled plan.
+        if result.rationale != nil {
+            weekPlans = result.plans
+            aiWeekRationale = result.rationale
+        }
+    }
+
+    /// Last-7-day recovery scores (oldest→newest) for the AI program prompt.
+    private func loadRecovery7DayTrend(modelContext: ModelContext) -> [Int] {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        guard let weekAgo = cal.date(byAdding: .day, value: -7, to: today) else { return [] }
+        let descriptor = FetchDescriptor<DailyRecovery>(
+            predicate: #Predicate { $0.date >= weekAgo },
+            sortBy: [SortDescriptor(\.date, order: .forward)]
+        )
+        let rows = (try? modelContext.fetch(descriptor)) ?? []
+        return rows.map { Int($0.recoveryScore.rounded()) }
+    }
+
+    /// Short summaries of the last 4 completed sessions for the AI prompt.
+    private func loadRecentSessionSummaries(modelContext: ModelContext) -> [String] {
+        var descriptor = FetchDescriptor<ExerciseHistory>(
+            sortBy: [SortDescriptor(\.date, order: .reverse)]
+        )
+        descriptor.fetchLimit = 16 // a few exercises per session, last few sessions
+        let rows = (try? modelContext.fetch(descriptor)) ?? []
+        // Group by day, summarize tonnage + avg RPE.
+        let byDay = Dictionary(grouping: rows) { $0.date }
+        let recentDays = byDay.keys.sorted(by: >).prefix(4)
+        return recentDays.map { day in
+            let dayRows = byDay[day] ?? []
+            let volume = dayRows.reduce(0.0) { $0 + $1.totalVolume }
+            let rpes = dayRows.compactMap(\.avgRPE)
+            let avgRPE = rpes.isEmpty ? nil : rpes.reduce(0, +) / Double(rpes.count)
+            let rpeStr = avgRPE.map { String(format: "RPE %.1f", $0) } ?? "RPE n/a"
+            return "\(AIProgramPlanner.isoDay(day)): \(Int(volume))kg vol, \(rpeStr)"
+        }
     }
 
     /// Result of resolving today's plan — the persisted WorkoutPlan plus
