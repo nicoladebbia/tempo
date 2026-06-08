@@ -36,6 +36,10 @@ extension TrainingViewModel {
             return
         }
 
+        // Phase 3: per-user learned weight increments, keyed by Exercise.id.
+        // Empty for a new user → engine falls back to the equipment default.
+        let learnedIncrements = adaptiveSignals(modelContext: modelContext).learnedIncrements
+
         // Fetch all exercises from library
         var descriptor = FetchDescriptor<Exercise>()
         descriptor.sortBy = [SortDescriptor(\Exercise.name)]
@@ -91,7 +95,11 @@ extension TrainingViewModel {
 
             // Use progressive overload from history, or sensible defaults
             let history = exercise.history ?? []
-            let overload = trainingEngine.calculateProgressiveOverload(for: exercise, history: history)
+            let overload = trainingEngine.calculateProgressiveOverload(
+                for: exercise,
+                history: history,
+                learnedIncrement: learnedIncrements[exercise.id]
+            )
             var weight: Double = overload.weight > 0 ? overload.weight : defaultWeight(for: exercise)
 
             // Tier 2.3 — recent pain note on this exercise → never prescribe

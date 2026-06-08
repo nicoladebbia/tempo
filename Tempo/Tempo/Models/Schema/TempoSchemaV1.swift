@@ -28,6 +28,7 @@ enum TempoSchemaV1: VersionedSchema {
             ExerciseHistory.self,
             PersonalRecord.self,
             SetFeedback.self,
+            AdaptiveProfile.self,
             RunSession.self,
             ActivitySession.self,
             NonNegotiable.self,

@@ -248,12 +248,13 @@ final class TrainingViewModel {
         // populateExercises didn't run this time).
         painFlaggedExercises = painFlaggedExerciseIDs(modelContext: modelContext)
 
-        // Check deload week status
+        // Check deload week status (Phase 3: fatigue trend can trigger early).
         let deloadSettings = loadDeloadSettings(modelContext: modelContext)
         isDeloadWeek = trainingEngine.isDeloadWeek(
             date: Date(),
             deloadFrequencyWeeks: deloadSettings.frequency,
-            trainingStartDate: deloadSettings.startDate
+            trainingStartDate: deloadSettings.startDate,
+            fatigueEWMA: adaptiveSignals(modelContext: modelContext).fatigueEWMA
         )
 
         isLoading = false
@@ -435,6 +436,52 @@ final class TrainingViewModel {
 
     func dismissPendingAdjustment() {
         pendingAdjustment = nil
+    }
+
+    // MARK: - Adaptive Profile (Phase 3)
+
+    /// Read-only snapshot of the adaptive signals the engine consumes. Does NOT
+    /// create a profile row (creation only happens on save) — returns neutral
+    /// defaults when none exists yet, so a brand-new user runs the pure floor.
+    func adaptiveSignals(modelContext: ModelContext)
+        -> (thresholdOffset: Double, fatigueEWMA: Double?, learnedIncrements: [UUID: Double]) {
+        guard let profile = try? modelContext.fetch(FetchDescriptor<AdaptiveProfile>()).first else {
+            return (0, nil, [:])
+        }
+        return (profile.clampedThresholdOffset, profile.fatigueEWMA, profile.learnedIncrements)
+    }
+
+    /// Fetch the single AdaptiveProfile, creating it on first use.
+    private func fetchOrCreateAdaptiveProfile(modelContext: ModelContext) -> AdaptiveProfile {
+        if let existing = try? modelContext.fetch(FetchDescriptor<AdaptiveProfile>()).first {
+            return existing
+        }
+        let profile = AdaptiveProfile()
+        modelContext.insert(profile)
+        return profile
+    }
+
+    /// Feed a saved session into the on-device AdaptiveProfile (bounded online
+    /// learning). The base-increment closure mirrors the engine's equipment
+    /// defaults so a never-seen exercise starts from the right step.
+    private func updateAdaptiveProfile(with session: [ExerciseHistory], modelContext: ModelContext) {
+        let profile = fetchOrCreateAdaptiveProfile(modelContext: modelContext)
+        AdaptiveProfileUpdater.ingest(
+            session: session,
+            baseIncrement: { row in
+                switch row.exercise?.equipment {
+                case .barbell: 2.5
+                case .dumbbell: 2.0
+                case .cable, .machine: 2.5
+                default: 2.5
+                }
+            },
+            into: profile
+        )
+        try? modelContext.save()
+        #if DEBUG
+            print("\(DebugTrace.prefix)[adaptive] profile updated: offset=\(profile.recoveryThresholdOffset) fatigueEWMA=\(profile.fatigueEWMA.map { String(format: "%.2f", $0) } ?? "nil") learnedExercises=\(profile.learnedIncrements.count)")
+        #endif
     }
 
     /// True once today's adjustment check ran (cost cap — at most one Haiku call
@@ -629,20 +676,24 @@ final class TrainingViewModel {
         let footballDays = loadFootballDays(modelContext: modelContext)
         let split = loadTrainingSplit(modelContext: modelContext)
         let recoveryScores = loadRecoveryScores(modelContext: modelContext, startDate: monday)
+        // Phase 3: per-user learned recovery-threshold offset (clamped ±10).
+        let signals = adaptiveSignals(modelContext: modelContext)
 
         weekPlans = trainingEngine.generateWeekPlan(
             startDate: monday,
             recoveryScores: recoveryScores,
             footballDays: footballDays,
-            split: split
+            split: split,
+            recoveryThresholdOffset: signals.thresholdOffset
         )
 
-        // Check deload week status
+        // Check deload week status (Phase 3: fatigue trend can trigger early).
         let deloadSettings = loadDeloadSettings(modelContext: modelContext)
         isDeloadWeek = trainingEngine.isDeloadWeek(
             date: Date(),
             deloadFrequencyWeeks: deloadSettings.frequency,
-            trainingStartDate: deloadSettings.startDate
+            trainingStartDate: deloadSettings.startDate,
+            fatigueEWMA: signals.fatigueEWMA
         )
 
         // Populate exercises for each gym workout
@@ -1239,6 +1290,21 @@ final class TrainingViewModel {
         #if DEBUG
             print("\(DebugTrace.prefix)[Workout] persistCompletion: plan=\(planID) wrote \(snapshots.count) history rows, status=.completed")
         #endif
+
+        // Phase 3 (TRAINING_INTELLIGENCE_TO_10.md Fix 3.2) — feed the session
+        // into the on-device AdaptiveProfile so the engine learns THIS user's
+        // increments / recovery tolerance / fatigue trend over time. Bounded
+        // online updates; the deterministic floor is unaffected.
+        let sessionRows = snapshots.map { snap in
+            ExerciseHistory(
+                date: sessionDate,
+                avgRPE: snap.avgRPE,
+                worstFormRaw: snap.worstFormRaw,
+                feedbackSampleCount: snap.feedbackSampleCount,
+                exercise: snap.exercise
+            )
+        }
+        updateAdaptiveProfile(with: sessionRows, modelContext: modelContext)
 
         // Day-plan engine signal — a logged workout means subsequent
         // blocks (especially recovery + meals) may shift. DayPlanScheduler

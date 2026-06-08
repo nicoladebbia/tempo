@@ -148,10 +148,13 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
 
     func calculateProgressiveOverload(
         for exercise: Exercise,
-        history: [ExerciseHistory]
+        history: [ExerciseHistory],
+        learnedIncrement: Double? = nil
     ) -> ProgressionDecision {
         let defaultReps = exercise.isCompound ? 8 : 12
-        let increment = weightIncrement(for: exercise.equipment)
+        // Phase 3: use the on-device learned increment when present, else the
+        // equipment default. Learning tunes the STEP SIZE per user/exercise.
+        let increment = learnedIncrement ?? weightIncrement(for: exercise.equipment)
 
         // Need at least 2 sessions of data
         let recentSessions = history.sorted { $0.date > $1.date }.prefix(3)
@@ -307,7 +310,8 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         startDate: Date,
         recoveryScores: [Date: Double],
         footballDays: ActiveDays,
-        split: TrainingSplit
+        split: TrainingSplit,
+        recoveryThresholdOffset: Double = 0
     ) -> [WorkoutPlan] {
         let cal = Calendar.current
         var plans: [WorkoutPlan] = []
@@ -352,7 +356,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
             // low). Missing day → nil → green default (matches single-day path).
             let dayKey = cal.startOfDay(for: meta.date)
             let dayRecoveryScore = recoveryScores[dayKey]
-            let zone = classifyRecoveryZone(score: dayRecoveryScore)
+            let zone = classifyRecoveryZone(score: dayRecoveryScore, offset: recoveryThresholdOffset)
 
             // Per MODULE_TRAINING.md Section 18.2 — T+1
             if meta.isTPlus1 {
@@ -450,15 +454,33 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
     // Every Nth week (configurable), generate a deload week.
     // Deload: reduce weights by 40%, keep reps the same.
 
-    func isDeloadWeek(date: Date, deloadFrequencyWeeks: Int, trainingStartDate: Date?) -> Bool {
+    func isDeloadWeek(
+        date: Date,
+        deloadFrequencyWeeks: Int,
+        trainingStartDate: Date?,
+        fatigueEWMA: Double? = nil
+    ) -> Bool {
         let cal = Calendar.current
         let startDate = trainingStartDate ?? cal.date(byAdding: .month, value: -3, to: date) ?? date
         let weeksSinceStart = cal.dateComponents([.weekOfYear], from: cal.startOfDay(for: startDate), to: cal.startOfDay(for: date))
             .weekOfYear ?? 0
         let frequency = max(1, deloadFrequencyWeeks)
-        // Week N, 2N, 3N... are deload weeks (1-indexed: weeks frequency, 2*frequency, etc.)
-        return weeksSinceStart > 0 && (weeksSinceStart % frequency) == 0
+        // Periodic baseline: week N, 2N, 3N… are deload weeks.
+        let periodic = weeksSinceStart > 0 && (weeksSinceStart % frequency) == 0
+
+        // Phase 3 (Fix 3.4) — fatigue-triggered EARLY deload. A sustained high
+        // fatigue trend (mean session RPE creeping toward maximal) means the
+        // fixed cycle is too slow for how this user is actually recovering.
+        // Only EARNS an extra deload — never suppresses a scheduled one.
+        let fatigueTriggered = (fatigueEWMA ?? 0) >= Self.fatigueDeloadThreshold
+
+        return periodic || fatigueTriggered
     }
+
+    /// Mean-RPE fatigue level at/above which an early deload is triggered. 8.5
+    /// = sessions consistently feeling near-maximal — a clear over-reaching
+    /// signal independent of the calendar.
+    private static let fatigueDeloadThreshold: Double = 8.5
 
     func deloadWeightMultiplier() -> Double {
         0.6 // 40% reduction
@@ -469,14 +491,18 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
     // Recovery zone classification
     // Per CROSS_DOC_AUDIT.md canonical boundaries: Green >= 67, Yellow 34-66, Red < 34
 
-    private func classifyRecoveryZone(score: Double?) -> RecoveryZone {
+    private func classifyRecoveryZone(score: Double?, offset: Double = 0) -> RecoveryZone {
         guard let score else {
             return .green
         } // default to green if no data
-        if score >= 67 {
+        // Phase 3: the learned per-user offset shifts the zone boundaries. It is
+        // clamped to ±10 at the source (AdaptiveProfile.clampedThresholdOffset)
+        // so a learned offset can never invert the safety meaning of red.
+        let clampedOffset = min(max(offset, -10), 10)
+        if score >= 67 + clampedOffset {
             return .green
         }
-        if score >= 34 {
+        if score >= 34 + clampedOffset {
             return .yellow
         }
         return .red

@@ -157,6 +157,36 @@ final class TrainingEngineProgressionTests: XCTestCase {
         XCTAssertEqual(engine.restMultiplier(history: hist), 1.0, accuracy: 0.01)
     }
 
+    // MARK: - Fatigue-triggered deload (Phase 3 Fix 3.4)
+
+    func testFatigueTriggersEarlyDeload() {
+        // Not on a periodic deload week, but a high fatigue trend forces one.
+        let start = Calendar.current.date(byAdding: .weekOfYear, value: -2, to: Date())!
+        let deload = engine.isDeloadWeek(
+            date: Date(), deloadFrequencyWeeks: 5, trainingStartDate: start, fatigueEWMA: 9.0
+        )
+        XCTAssertTrue(deload, "High fatigue EWMA should trigger an early deload off-cycle")
+    }
+
+    func testNoFatigueNoEarlyDeloadOffCycle() {
+        let start = Calendar.current.date(byAdding: .weekOfYear, value: -2, to: Date())!
+        let deload = engine.isDeloadWeek(
+            date: Date(), deloadFrequencyWeeks: 5, trainingStartDate: start, fatigueEWMA: 6.0
+        )
+        XCTAssertFalse(deload, "Moderate fatigue off-cycle should NOT deload")
+    }
+
+    func testLearnedIncrementOverridesEquipmentDefault() {
+        let ex = compoundExercise() // barbell, default 2.5
+        let hist = [
+            history(daysAgo: 2, weight: 100, reps: 8, avgRPE: 5, worstForm: .clean, sampleCount: 3),
+            history(daysAgo: 5, weight: 100, reps: 8, avgRPE: 5, worstForm: .clean, sampleCount: 3),
+        ]
+        // Learned increment 4.0 → easy accel doubles to 8.0.
+        let d = engine.calculateProgressiveOverload(for: ex, history: hist, learnedIncrement: 4.0)
+        XCTAssertEqual(d.deltaApplied, 8.0, accuracy: 0.01, "Learned increment should drive the step, not the equipment default")
+    }
+
     // MARK: - Determinism guard (protect the floor)
 
     @MainActor

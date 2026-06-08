@@ -54,7 +54,8 @@ protocol TrainingEngineProtocol: Sendable {
 
     func calculateProgressiveOverload(
         for exercise: Exercise,
-        history: [ExerciseHistory]
+        history: [ExerciseHistory],
+        learnedIncrement: Double?
     ) -> ProgressionDecision
 
     /// Rest-time multiplier reflecting recent conditioning debt. When recent
@@ -77,11 +78,20 @@ protocol TrainingEngineProtocol: Sendable {
         startDate: Date,
         recoveryScores: [Date: Double],
         footballDays: ActiveDays,
-        split: TrainingSplit
+        split: TrainingSplit,
+        recoveryThresholdOffset: Double
     ) -> [WorkoutPlan]
 
-    /// Returns true if the given date falls in a deload week based on training history.
-    func isDeloadWeek(date: Date, deloadFrequencyWeeks: Int, trainingStartDate: Date?) -> Bool
+    /// Returns true if the given date falls in a deload week. The fixed periodic
+    /// schedule is the baseline; a rising fatigue trend (`fatigueEWMA`) can
+    /// trigger an EARLY deload. Pass nil for `fatigueEWMA` to use the periodic
+    /// schedule only.
+    func isDeloadWeek(
+        date: Date,
+        deloadFrequencyWeeks: Int,
+        trainingStartDate: Date?,
+        fatigueEWMA: Double?
+    ) -> Bool
 
     /// Returns the deload weight multiplier (e.g., 0.6 for 40% reduction).
     func deloadWeightMultiplier() -> Double
