@@ -149,7 +149,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
     func calculateProgressiveOverload(
         for exercise: Exercise,
         history: [ExerciseHistory]
-    ) -> (weight: Double, reps: Int) {
+    ) -> ProgressionDecision {
         let defaultReps = exercise.isCompound ? 8 : 12
         let increment = weightIncrement(for: exercise.equipment)
 
@@ -158,7 +158,10 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         guard recentSessions.count >= 2 else {
             // Not enough data — keep current or use last known weight
             let lastWeight = history.first?.bestSetWeight ?? 0
-            return (weight: lastWeight, reps: defaultReps)
+            return ProgressionDecision(
+                weight: lastWeight, reps: defaultReps,
+                deltaApplied: 0, rationale: .heldInsufficientData
+            )
         }
 
         let currentWeight = recentSessions.first?.bestSetWeight ?? 0
@@ -170,12 +173,21 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         // rows, or sets the user didn't annotate) carry nil aggregates and are
         // skipped here — never treated as RPE 0 — so behaviour is unchanged
         // when there's no signal.
-        if let lastFeedback = recentSessions.first(where: { $0.feedbackSampleCount > 0 }) {
-            let rpeTooHigh = (lastFeedback.avgRPE ?? 0) >= 9
+        let lastFeedback = recentSessions.first { $0.feedbackSampleCount > 0 }
+        if let lastFeedback {
+            if (lastFeedback.avgRPE ?? 0) >= 9 {
+                return ProgressionDecision(
+                    weight: currentWeight, reps: defaultReps,
+                    deltaApplied: 0, rationale: .heldHighRPE
+                )
+            }
             let formBroke = lastFeedback.worstFormRaw
                 .flatMap(FormQuality.init(rawValue:))?.isNegativeSignal ?? false
-            if rpeTooHigh || formBroke {
-                return (weight: currentWeight, reps: defaultReps)
+            if formBroke {
+                return ProgressionDecision(
+                    weight: currentWeight, reps: defaultReps,
+                    deltaApplied: 0, rationale: .heldBrokenForm
+                )
             }
         }
 
@@ -188,24 +200,53 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
             }
         }
 
-        // Per MODULE_TRAINING.md Section 16.1 — Decision. RPE only gates WHETHER
-        // to progress (above); the increment itself is unchanged (no double
-        // jumps), per the Tier-2 decision.
+        // Per MODULE_TRAINING.md Section 16.1 — Decision. The Tier-2 gate above
+        // governs WHETHER to progress; here we also SIZE the jump. A clean,
+        // well-below-maximal session (avgRPE ≤ 6.5) earns a double increment
+        // (clamped to exactly one extra step — never a runaway jump) so an
+        // under-loaded lifter catches up instead of crawling +2.5kg/week. With
+        // no entered feedback this falls through to the standard increment, so
+        // behaviour is unchanged when there's no signal.
         if successCount >= 2 {
-            // Increase weight
-            return (weight: currentWeight + increment, reps: defaultReps)
+            let feltEasy = (lastFeedback?.avgRPE).map { $0 <= 6.5 } ?? false
+            let multiplier: Double = feltEasy ? 2.0 : 1.0
+            let delta = increment * multiplier
+            return ProgressionDecision(
+                weight: currentWeight + delta, reps: defaultReps,
+                deltaApplied: delta,
+                rationale: feltEasy ? .acceleratedEasyLoad : .standardProgression
+            )
         } else if successCount == 0, recentSessions.count >= 3 {
             // Failed 3 sessions in a row — check if needs deload
             let avgReps = recentSessions.compactMap(\.bestSetReps)
                 .reduce(0, +) / max(1, recentSessions.count)
             if avgReps < Int(Double(defaultReps) * 0.75) {
                 // Decrease weight
-                return (weight: max(0, currentWeight - increment), reps: defaultReps)
+                return ProgressionDecision(
+                    weight: max(0, currentWeight - increment), reps: defaultReps,
+                    deltaApplied: -increment, rationale: .deloadedRepeatedFailure
+                )
             }
         }
 
         // Keep current weight
-        return (weight: currentWeight, reps: defaultReps)
+        return ProgressionDecision(
+            weight: currentWeight, reps: defaultReps,
+            deltaApplied: 0, rationale: .standardProgression
+        )
+    }
+
+    // MARK: - Conditioning Debt (rest prescription)
+
+    // Per MODULE_TRAINING.md Section 17 — recovery score ≠ work capacity. When
+    // recent sessions repeatedly gassed the user, lengthen rest even at green
+    // recovery so the next session isn't sabotaged by under-recovery between sets.
+
+    func restMultiplier(history: [ExerciseHistory]) -> Double {
+        let recent = history.sorted { $0.date > $1.date }.prefix(3)
+        // Count sessions where at least half the entered feedback was `.gassed`.
+        let gassySessions = recent.compactMap(\.gassedFraction).filter { $0 >= 0.5 }
+        return gassySessions.count >= 2 ? 1.25 : 1.0 // +25% rest under conditioning debt
     }
 
     // MARK: - PR Detection

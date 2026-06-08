@@ -31,8 +31,12 @@ final class MockTrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
     func calculateProgressiveOverload(
         for exercise: Exercise,
         history: [ExerciseHistory]
-    ) -> (weight: Double, reps: Int) {
-        (weight: 80.0, reps: 10)
+    ) -> ProgressionDecision {
+        ProgressionDecision(weight: 80.0, reps: 10, deltaApplied: 0, rationale: .standardProgression)
+    }
+
+    func restMultiplier(history: [ExerciseHistory]) -> Double {
+        1.0
     }
 
     func detectPersonalRecord(

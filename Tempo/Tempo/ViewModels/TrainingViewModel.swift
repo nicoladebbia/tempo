@@ -735,6 +735,7 @@ final class TrainingViewModel {
         row.avgRPE = agg.avgRPE
         row.worstFormRaw = agg.worstFormRaw
         row.feedbackSampleCount = agg.count
+        row.gassedFraction = agg.gassedFraction
         try? modelContext.save()
     }
 
@@ -915,6 +916,7 @@ final class TrainingViewModel {
             let avgRPE: Double?
             let worstFormRaw: String?
             let feedbackSampleCount: Int
+            let gassedFraction: Double?
         }
         let snapshots: [HistorySnapshot] = plan.orderedExercises.compactMap { plannedEx in
             guard let exercise = plannedEx.exercise else { return nil }
@@ -939,7 +941,8 @@ final class TrainingViewModel {
                 setsPerformed: completedSets.count,
                 avgRPE: agg.avgRPE,
                 worstFormRaw: agg.worstFormRaw,
-                feedbackSampleCount: agg.count
+                feedbackSampleCount: agg.count,
+                gassedFraction: agg.gassedFraction
             )
         }
 
@@ -979,6 +982,7 @@ final class TrainingViewModel {
                 avgRPE: snap.avgRPE,
                 worstFormRaw: snap.worstFormRaw,
                 feedbackSampleCount: snap.feedbackSampleCount,
+                gassedFraction: snap.gassedFraction,
                 workoutPlanID: planID,
                 exercise: snap.exercise
             )
@@ -1407,14 +1411,18 @@ final class TrainingViewModel {
     nonisolated static func aggregateFeedback(
         completedSets: [PlannedSet],
         enteredFeedback: [UUID: SetFeedback]
-    ) -> (avgRPE: Double?, worstFormRaw: String?, count: Int) {
+    ) -> (avgRPE: Double?, worstFormRaw: String?, count: Int, gassedFraction: Double?) {
         let fb = completedSets.compactMap { enteredFeedback[$0.id] }
         guard !fb.isEmpty else {
-            return (nil, nil, 0)
+            return (nil, nil, 0, nil)
         }
         let avgRPE = Double(fb.map(\.rpe).reduce(0, +)) / Double(fb.count)
         let worstForm = fb.map(\.formQuality).max { $0.severityRank < $1.severityRank }
-        return (avgRPE, worstForm?.rawValue, fb.count)
+        // Conditioning-debt signal: fraction of entered rows the user tagged
+        // `.gassed`. Read by TrainingEngine.restMultiplier.
+        let gassedCount = fb.filter { $0.breathDifficulty.isNegativeSignal }.count
+        let gassedFraction = Double(gassedCount) / Double(fb.count)
+        return (avgRPE, worstForm?.rawValue, fb.count, gassedFraction)
     }
 
     // assignSupersetGroups / muscleGroups / selectExercises /

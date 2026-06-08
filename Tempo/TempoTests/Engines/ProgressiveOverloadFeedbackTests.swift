@@ -105,18 +105,40 @@ final class ProgressiveOverloadFeedbackTests: XCTestCase {
         XCTAssertEqual(result.weight, 60, "Failed form last session should HOLD")
     }
 
-    // MARK: - Easy + reps hit progresses (normal increment, no double jump)
+    // MARK: - Easy + reps hit → ACCELERATED (Phase 1 sizing, contract change)
 
+    // NOTE: this is a deliberate contract change from the original Tier-2 design.
+    // Previously avgRPE <= 6 progressed at a single increment ("no double jump").
+    // Phase 1 (TRAINING_INTELLIGENCE_TO_10.md Fix 1.1) SIZES the jump: a clearly
+    // easy session (avgRPE <= 6.5) earns a double increment, clamped to exactly
+    // one extra step, so an under-loaded lifter catches up. The veto rules
+    // (high RPE / broken form hold) are unchanged.
     @MainActor
-    func testEasyAndRepsHitProgressesNormalIncrement() {
+    func testEasyAndRepsHitAccelerates() {
         let ex = compoundExercise()
         let hist = [
             history(daysAgo: 2, weight: 60, reps: 8, avgRPE: 6, worstForm: .clean, sampleCount: 3),
             history(daysAgo: 5, weight: 60, reps: 8, avgRPE: 6, worstForm: .clean, sampleCount: 3),
         ]
         let result = engine.calculateProgressiveOverload(for: ex, history: hist)
-        // Barbell increment is 2.5kg — exactly one step, not two.
-        XCTAssertEqual(result.weight, 62.5, accuracy: 0.01, "Easy + reps hit → +1 increment, no double jump")
+        // Barbell increment 2.5kg, doubled to 5.0 for an easy clean session.
+        XCTAssertEqual(result.weight, 65.0, accuracy: 0.01, "Easy + reps hit → double increment (accelerated)")
+        XCTAssertEqual(result.deltaApplied, 5.0, accuracy: 0.01)
+        XCTAssertEqual(result.rationale, .acceleratedEasyLoad)
+    }
+
+    // A merely-normal session (RPE just above the easy threshold) progresses at
+    // the standard single increment — the acceleration is gated, not automatic.
+    @MainActor
+    func testNormalRPEProgressesStandardIncrement() {
+        let ex = compoundExercise()
+        let hist = [
+            history(daysAgo: 2, weight: 60, reps: 8, avgRPE: 7.5, worstForm: .clean, sampleCount: 3),
+            history(daysAgo: 5, weight: 60, reps: 8, avgRPE: 7.5, worstForm: .clean, sampleCount: 3),
+        ]
+        let result = engine.calculateProgressiveOverload(for: ex, history: hist)
+        XCTAssertEqual(result.weight, 62.5, accuracy: 0.01, "Normal RPE → single increment")
+        XCTAssertEqual(result.rationale, .standardProgression)
     }
 
     // MARK: - Legacy rows (no feedback fields) treated as no-signal
