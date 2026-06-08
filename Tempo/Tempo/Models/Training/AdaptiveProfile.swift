@@ -45,6 +45,24 @@ final class AdaptiveProfile {
     /// nil until the first entered-feedback session.
     var fatigueEWMA: Double?
 
+    // MARK: - Persisted run-once guards
+    //
+    // These MUST be persisted, not in-memory on the VM: the VM is rebuilt on
+    // every cold start, so an in-memory guard would let the once-per-week /
+    // once-per-day work re-run every app launch. For the Phase-4 outcome review
+    // that means applyOutcome would COMPOUND (×1.05 or ×0.9 per launch) against
+    // the persisted profile — a real drift bug. Persisting the keys makes the
+    // guards survive relaunch, which also hardens the AI cost caps.
+
+    /// ISO week-start day (yyyy-MM-dd) the weekly outcome review last ran for.
+    var lastOutcomeReviewWeekKey: String?
+
+    /// ISO week-start day the AI program hydration last ran for (≤1 Sonnet/week).
+    var lastAIHydratedWeekKey: String?
+
+    /// ISO day the live recovery-adjustment check last ran for (≤1 Haiku/day).
+    var lastAdjustmentCheckedDayKey: String?
+
     // MARK: - Bounds (single source of truth, shared with the updater + tests)
 
     static let maxThresholdOffset: Double = 10
@@ -71,12 +89,18 @@ final class AdaptiveProfile {
         updatedAt: Date = Date(),
         learnedIncrements: [UUID: Double] = [:],
         recoveryThresholdOffset: Double = 0,
-        fatigueEWMA: Double? = nil
+        fatigueEWMA: Double? = nil,
+        lastOutcomeReviewWeekKey: String? = nil,
+        lastAIHydratedWeekKey: String? = nil,
+        lastAdjustmentCheckedDayKey: String? = nil
     ) {
         self.id = id
         self.updatedAt = updatedAt
         self.learnedIncrements = learnedIncrements
         self.recoveryThresholdOffset = recoveryThresholdOffset
         self.fatigueEWMA = fatigueEWMA
+        self.lastOutcomeReviewWeekKey = lastOutcomeReviewWeekKey
+        self.lastAIHydratedWeekKey = lastAIHydratedWeekKey
+        self.lastAdjustmentCheckedDayKey = lastAdjustmentCheckedDayKey
     }
 }

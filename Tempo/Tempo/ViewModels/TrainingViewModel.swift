@@ -284,19 +284,20 @@ final class TrainingViewModel {
 
     // MARK: - Weekly Outcome Review (Phase 4)
 
-    /// ISO week key for which the outcome review has already run (so it runs at
-    /// most once per week — the review is for the PREVIOUS week's data).
-    private var outcomeReviewedWeekKey: String?
-
     /// Grade the previous week, apply the result to the AdaptiveProfile, and
-    /// store the WeekOutcome for the Coach Review card. Runs once per ISO week.
+    /// store the WeekOutcome for the Coach Review card. Runs once per ISO week —
+    /// guarded by a PERSISTED key on AdaptiveProfile (not an in-memory var) so a
+    /// cold start within the same week can't re-grade and COMPOUND applyOutcome
+    /// against the persisted profile.
     func runWeeklyOutcomeReview(modelContext: ModelContext) {
         let cal = Calendar.current
         var comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())
         comps.weekday = 2
         let thisMonday = cal.date(from: comps) ?? Date()
         let weekKey = AIProgramPlanner.isoDay(thisMonday)
-        guard outcomeReviewedWeekKey != weekKey else { return }
+
+        let profile = fetchOrCreateAdaptiveProfile(modelContext: modelContext)
+        guard profile.lastOutcomeReviewWeekKey != weekKey else { return }
 
         guard let lastMonday = cal.date(byAdding: .day, value: -7, to: thisMonday),
               let lastSunday = cal.date(byAdding: .day, value: -1, to: thisMonday) else { return }
@@ -310,7 +311,8 @@ final class TrainingViewModel {
 
         // Need at least one logged session to grade anything.
         guard !lastWeekRows.isEmpty else {
-            outcomeReviewedWeekKey = weekKey
+            profile.lastOutcomeReviewWeekKey = weekKey
+            try? modelContext.save()
             return
         }
 
@@ -334,24 +336,19 @@ final class TrainingViewModel {
             priorWeekVolume: priorVolume
         )
 
-        // Feed the outcome back into the on-device profile (macro loop).
-        let profile = fetchOrCreateAdaptiveProfile(modelContext: modelContext)
+        // Feed the outcome back into the on-device profile (macro loop). Mark
+        // the persisted guard in the SAME save so the apply happens exactly once.
         AdaptiveProfileUpdater.applyOutcome(outcome, to: profile)
+        profile.lastOutcomeReviewWeekKey = weekKey
         try? modelContext.save()
 
         lastWeekOutcome = outcome
-        outcomeReviewedWeekKey = weekKey
         #if DEBUG
             print("\(DebugTrace.prefix)[outcome] week graded: quality=\(String(format: "%.2f", outcome.qualityScore)) hits=\(outcome.progressionHits) overreach=\(outcome.overreachEvents) missed=\(outcome.missedSessions)")
         #endif
     }
 
     // MARK: - AI Week Hydration (Phase 2)
-
-    /// True once the AI weekly program has run for the current ISO week, so we
-    /// never spend more than one Sonnet call per user per week (client-side cap;
-    /// the backend also caches 7 days). Keyed by the week-start day string.
-    private var aiHydratedWeekKey: String?
 
     /// Reconcile the deterministic week plan with an AI-proposed skeleton.
     /// No-ops when there's no API client (previews/tests/offline), when already
@@ -367,8 +364,10 @@ final class TrainingViewModel {
         let monday = cal.date(from: comps) ?? Date()
         let weekKey = AIProgramPlanner.isoDay(monday)
 
-        // Once per ISO week (the Sonnet cost cap).
-        guard aiHydratedWeekKey != weekKey else { return }
+        // Once per ISO week (the Sonnet cost cap) — PERSISTED guard so a cold
+        // start in the same week doesn't re-spend the call.
+        let profile = fetchOrCreateAdaptiveProfile(modelContext: modelContext)
+        guard profile.lastAIHydratedWeekKey != weekKey else { return }
 
         let footballDays = loadFootballDays(modelContext: modelContext)
         let recovery7Day = loadRecovery7DayTrend(modelContext: modelContext)
@@ -386,7 +385,8 @@ final class TrainingViewModel {
 
         // Mark the week done regardless of whether AI ran — a 402 (not Pro / no
         // consent) or a network failure should NOT retrigger on every loadToday.
-        aiHydratedWeekKey = weekKey
+        profile.lastAIHydratedWeekKey = weekKey
+        try? modelContext.save()
 
         // Only mutate state if AI actually produced a reconciled plan.
         if result.rationale != nil {
@@ -419,9 +419,12 @@ final class TrainingViewModel {
         guard !sessionState.isActive else { return }
         guard let plan = todayPlan, AIProgramPlanner.isTrainingType(plan.type) else { return }
 
-        // Once-per-day cap.
+        // Once-per-day cap — PERSISTED (the Haiku adjustment endpoint is NOT
+        // server-cached, so an in-memory guard resetting on relaunch would be a
+        // real cost leak, not just a weaker cap).
         let todayKey = AIProgramPlanner.isoDay(Date())
-        guard adjustmentCheckedDayKey != todayKey else { return }
+        let profile = fetchOrCreateAdaptiveProfile(modelContext: modelContext)
+        guard profile.lastAdjustmentCheckedDayKey != todayKey else { return }
 
         guard let todayRecovery = loadRecoveryScore(modelContext: modelContext) else { return }
 
@@ -432,7 +435,8 @@ final class TrainingViewModel {
 
         // Only bother the user (and spend a call) on a meaningful drop.
         guard delta <= -10 else {
-            adjustmentCheckedDayKey = todayKey
+            profile.lastAdjustmentCheckedDayKey = todayKey
+            try? modelContext.save()
             return
         }
 
@@ -454,7 +458,8 @@ final class TrainingViewModel {
             footballTomorrow: isFootballTomorrow
         )
 
-        adjustmentCheckedDayKey = todayKey // mark regardless of outcome
+        profile.lastAdjustmentCheckedDayKey = todayKey // mark regardless of outcome
+        try? modelContext.save()
 
         do {
             let response = try await apiClient.request(
@@ -556,10 +561,6 @@ final class TrainingViewModel {
             print("\(DebugTrace.prefix)[adaptive] profile updated: offset=\(profile.recoveryThresholdOffset) fatigueEWMA=\(profile.fatigueEWMA.map { String(format: "%.2f", $0) } ?? "nil") learnedExercises=\(profile.learnedIncrements.count)")
         #endif
     }
-
-    /// True once today's adjustment check ran (cost cap — at most one Haiku call
-    /// per user per day for live adjustment).
-    private var adjustmentCheckedDayKey: String?
 
     /// Map a recoveryAdjustment multiplier back to a representative recovery
     /// score for the adjustment prompt (inverse of the engine's zone cuts).
