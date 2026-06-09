@@ -516,6 +516,20 @@ final class TrainingViewModel {
         pendingAdjustment = nil
     }
 
+    // MARK: - Prediction Accuracy (Step 2 measurement spine — read-only)
+
+    /// Compute the prediction-accuracy summary from all resolved PredictionLog
+    /// rows. PASSIVE: this only measures whether the engine is getting more
+    /// accurate for this user — it does NOT feed back into prescriptions yet.
+    /// The honest readout for "is it actually learning?"
+    func predictionAccuracy(modelContext: ModelContext) -> AccuracySummary {
+        let descriptor = FetchDescriptor<PredictionLog>(
+            predicate: #Predicate { $0.outcomeResolved }
+        )
+        let rows = (try? modelContext.fetch(descriptor)) ?? []
+        return PredictionAccuracy.summarize(rows)
+    }
+
     // MARK: - Prediction Outcomes (Step 1 measurement spine)
 
     /// One exercise's observed outcome, decoupled from the persistCompletion-
