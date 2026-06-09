@@ -63,6 +63,10 @@ final class AdaptiveProfile {
     /// ISO day the live recovery-adjustment check last ran for (≤1 Haiku/day).
     var lastAdjustmentCheckedDayKey: String?
 
+    /// ISO day the daily readiness brain (DailyReadinessCoach) last ran for
+    /// (≤1 Haiku/day — the D2 daily-session call). INTELLIGENT_TRAINING_SYSTEM §5.1.
+    var lastDailySessionDayKey: String?
+
     // MARK: - Bounds (single source of truth, shared with the updater + tests)
 
     static let maxThresholdOffset: Double = 10

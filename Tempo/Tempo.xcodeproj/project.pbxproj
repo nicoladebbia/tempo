@@ -263,6 +263,7 @@
 		5AF79E8E9BDCCD411B0B30A1 /* cue_ex_farmer_s_walk.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = EBF956ED3F407BD709D1870C /* cue_ex_farmer_s_walk.mp3 */; };
 		5B0A8DD6DF5B41C3DDB7BCBB /* cue_ex_dumbbell_calf_raise.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 14C2AC47EB3C4AF205FA1EDE /* cue_ex_dumbbell_calf_raise.mp3 */; };
 		5B3BDD7D765685A95B9FAD85 /* MealFoodItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95440962533954510637504A /* MealFoodItem.swift */; };
+		5B57C4534098C64403099CCD /* DailySession.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFCCA9728FE6827715A4AA66 /* DailySession.swift */; };
 		5C36C7C1FD6CA20CDA2E388D /* cue_ex_box_jump.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = F3019ADEA9FE0C6BB7E6B1C3 /* cue_ex_box_jump.mp3 */; };
 		5CA09781637DC079E3C7DDD4 /* VoiceTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DA192F7676E95F697C1600D /* VoiceTranscriber.swift */; };
 		5D6542CECBDD3F3E7E986F2D /* QuickLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB851B96C9D1AA1E5E76164F /* QuickLogView.swift */; };
@@ -1460,6 +1461,7 @@
 		EEA2A493C5DEAAB15751E788 /* CoachMemoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachMemoryView.swift; sourceTree = "<group>"; };
 		EEC118BC5209B7C05459E125 /* TrainingOutcomeEvaluatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingOutcomeEvaluatorTests.swift; sourceTree = "<group>"; };
 		EFC3245FEE0EA4FF71654A46 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		EFCCA9728FE6827715A4AA66 /* DailySession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailySession.swift; sourceTree = "<group>"; };
 		F045772FFE7A153F6103A51F /* TempoSettingsToolbarModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoSettingsToolbarModifier.swift; sourceTree = "<group>"; };
 		F0BC8EEC5355166E4A46CD79 /* OutcomeReviewIdempotencyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutcomeReviewIdempotencyTests.swift; sourceTree = "<group>"; };
 		F1E02A40EBC3CF55C0B667C6 /* cue_ex_straight_arm_pulldown.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_straight_arm_pulldown.mp3; sourceTree = "<group>"; };
@@ -2254,6 +2256,7 @@
 				0274EF643686CCE017A0F2B5 /* .gitkeep */,
 				4948F32D7A3F0DA8444E1D91 /* ActivitySession.swift */,
 				468FCD5FFD2DA3A2B0AE60F3 /* AdaptiveProfile.swift */,
+				EFCCA9728FE6827715A4AA66 /* DailySession.swift */,
 				B2B54A1A7480F07957A6AA35 /* Exercise.swift */,
 				6A6A75F38AE95E8314B0CEDB /* ExerciseHistory.swift */,
 				193D846D23A581EEC1EF738C /* PersonalRecord.swift */,
@@ -3681,6 +3684,7 @@
 				277CA8019188AE32BC376911 /* DailyRecovery.swift in Sources */,
 				A54391FAFFC0E9286E93A5A2 /* DailyResetCoordinator.swift in Sources */,
 				73A0AE8ADDD55B05E324C1ED /* DailyScoreEntry.swift in Sources */,
+				5B57C4534098C64403099CCD /* DailySession.swift in Sources */,
 				572F78401BAD8EAC32F1BACC /* DailySessionDTO.swift in Sources */,
 				AB932222B84B7C4A066D5994 /* DailySnapshot.swift in Sources */,
 				D9E4C7EF26D3D7C363D56ED5 /* DashboardLoadingView.swift in Sources */,

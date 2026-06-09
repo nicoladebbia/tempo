@@ -30,6 +30,7 @@ enum TempoSchemaV1: VersionedSchema {
             SetFeedback.self,
             AdaptiveProfile.self,
             PredictionLog.self,
+            DailySession.self,
             RunSession.self,
             ActivitySession.self,
             NonNegotiable.self,

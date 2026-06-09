@@ -38,6 +38,12 @@ final class WorkoutPlan {
 
     var finishedAt: Date?
 
+    /// Why a `.skipped` day was skipped (INTELLIGENT_TRAINING_SYSTEM §8/§15.2).
+    /// Distinguishes a FLOOR-FORCED skip ("body said recover" — must NOT count
+    /// against adherence/streak) from a USER skip (counts). Adherence logic reads
+    /// this, not just `status`. Defaulted nil → SwiftData auto-migrates.
+    var skipReasonRaw: String?
+
     // MARK: - Relationships
 
     @Relationship(deleteRule: .cascade, inverse: \PlannedExercise.workoutPlan)
@@ -55,6 +61,14 @@ final class WorkoutPlan {
     var status: WorkoutStatus {
         get { WorkoutStatus(rawValue: statusRaw) ?? .planned }
         set { statusRaw = newValue.rawValue }
+    }
+
+    /// Why this day was skipped, when `status == .skipped` (§8/§15.2). nil = not
+    /// skipped, or legacy skip with no reason recorded.
+    @Transient
+    var skipReason: SkipReason? {
+        get { skipReasonRaw.flatMap(SkipReason.init(rawValue:)) }
+        set { skipReasonRaw = newValue?.rawValue }
     }
 
     @Transient
