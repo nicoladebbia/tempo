@@ -358,48 +358,6 @@ extension APIEndpoint where Response == DayPlanTrainingProgramResponse {
     }
 }
 
-// MARK: - Training Adjustment (Haiku, live mid-session)
-
-/// Mirror of the backend `TrainingAdjustmentInput` (TrainingAdjustmentService).
-/// Sent when today's actual recovery diverges from the week-plan assumption.
-struct TrainingAdjustmentRequest: Codable, Sendable {
-    let todayRecovery: Int
-    let plannedRecoveryAssumption: Int
-    let plannedWorkoutType: String
-    let plannedExercises: [String]
-    let footballTomorrow: Bool
-
-    enum CodingKeys: String, CodingKey {
-        case todayRecovery = "today_recovery"
-        case plannedRecoveryAssumption = "planned_recovery_assumption"
-        case plannedWorkoutType = "planned_workout_type"
-        case plannedExercises = "planned_exercises"
-        case footballTomorrow = "football_tomorrow"
-    }
-}
-
-/// Mirror of the backend `TrainingAdjustmentResponse`. `volumeAdjustment` and
-/// the keep/drop lists are advisory — clamped through the engine before use.
-struct TrainingAdjustmentResponse: Codable, Sendable {
-    let volumeAdjustment: Double   // 0.0 – 1.2
-    let keepExercises: [String]
-    let dropExercises: [String]
-    let note: String
-
-    enum CodingKeys: String, CodingKey {
-        case volumeAdjustment = "volume_adjustment"
-        case keepExercises = "keep_exercises"
-        case dropExercises = "drop_exercises"
-        case note
-    }
-}
-
-extension APIEndpoint where Response == TrainingAdjustmentResponse {
-    static func trainingAdjustment() -> Self {
-        APIEndpoint(path: "/v1/insights/training-adjustment", method: .post)
-    }
-}
-
 struct DayPlanMealTimingRequest: Codable, Sendable {
     let date: String
     let mealIndex: Int

@@ -86,29 +86,11 @@ final class TrainingViewModel {
     /// run; drives the Coach Review card. nil before there's a full prior week.
     var lastWeekOutcome: WeekOutcome?
 
-    /// A pending live mid-session adjustment (Phase 2 Fix 2.4). Set when today's
-    /// ACTUAL recovery diverged from the week-plan assumption and the Haiku
-    /// adjustment service returned a suggestion. Surfaced as a DISMISSIBLE card
-    /// on Today — never auto-applied. nil when there's nothing to suggest.
-    var pendingAdjustment: PendingTrainingAdjustment?
-
     /// Today's readiness-coach prescription (D2). The DailyReadinessCoach supersedes
     /// the legacy `checkForRecoveryAdjustment` loop: it runs every day across all
     /// modalities, applies the safety floor, and is the single daily card. nil
     /// until the coach has produced today's session.
     var dailySession: DailySession?
-
-    /// A clamped, ready-to-apply recovery adjustment suggestion. `volume` is the
-    /// engine-clamped multiplier (already inside the safety band); `note` is the
-    /// drill-sergeant one-liner from Haiku; `dropExercises` are accessory names
-    /// the user can choose to cut.
-    struct PendingTrainingAdjustment: Equatable {
-        let todayRecovery: Int
-        let plannedRecovery: Int
-        let volume: Double
-        let dropExercises: [String]
-        let note: String
-    }
 
     // MARK: - Active Workout State
 
@@ -415,88 +397,6 @@ final class TrainingViewModel {
         return rows.map { Int($0.recoveryScore.rounded()) }
     }
 
-    // MARK: - Live Mid-Session Adjustment (Phase 2 Fix 2.4)
-
-    /// Detect a recovery divergence and, if significant, fetch a Haiku
-    /// adjustment suggestion. Sets `pendingAdjustment` for the dismissible card.
-    /// No-op without an API client, during an active session, or when today's
-    /// recovery is close to what the plan assumed. Once per day (cost cap).
-    func checkForRecoveryAdjustment(modelContext: ModelContext) async {
-        guard let apiClient else { return }
-        guard !sessionState.isActive else { return }
-        guard let plan = todayPlan, AIProgramPlanner.isTrainingType(plan.type) else { return }
-
-        // Once-per-day cap — PERSISTED (the Haiku adjustment endpoint is NOT
-        // server-cached, so an in-memory guard resetting on relaunch would be a
-        // real cost leak, not just a weaker cap).
-        let todayKey = AIProgramPlanner.isoDay(Date())
-        let profile = fetchOrCreateAdaptiveProfile(modelContext: modelContext)
-        guard profile.lastAdjustmentCheckedDayKey != todayKey else { return }
-
-        guard let todayRecovery = loadRecoveryScore(modelContext: modelContext) else { return }
-
-        // The week plan assumed a recovery level encoded in recoveryAdjustment.
-        // Reverse-map the zone to a representative assumed score for the prompt.
-        let assumedScore = Self.assumedRecoveryScore(for: plan.recoveryAdjustment)
-        let delta = todayRecovery - Double(assumedScore)
-
-        // Only bother the user (and spend a call) on a meaningful drop.
-        guard delta <= -10 else {
-            profile.lastAdjustmentCheckedDayKey = todayKey
-            try? modelContext.save()
-            return
-        }
-
-        let plannedExercises = (plan.exercises ?? [])
-            .compactMap { $0.exercise?.name }
-        let footballTomorrow = AIProgramPlanner.weekdayName(
-            for: Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date(),
-            cal: Calendar.current
-        )
-        let footballDays = loadFootballDays(modelContext: modelContext)
-        let isFootballTomorrow = AIProgramPlanner.footballDayNames(footballDays)
-            .contains(footballTomorrow)
-
-        let request = TrainingAdjustmentRequest(
-            todayRecovery: Int(todayRecovery.rounded()),
-            plannedRecoveryAssumption: assumedScore,
-            plannedWorkoutType: plan.type.rawValue,
-            plannedExercises: plannedExercises,
-            footballTomorrow: isFootballTomorrow
-        )
-
-        profile.lastAdjustmentCheckedDayKey = todayKey // mark regardless of outcome
-        try? modelContext.save()
-
-        do {
-            let response = try await apiClient.request(
-                APIEndpoint<TrainingAdjustmentResponse>.trainingAdjustment(),
-                body: request
-            )
-            // Clamp the AI volume through the SAME safety envelope as the program
-            // planner: inside the band AND never above the floor's current value.
-            let clamped = min(
-                max(response.volumeAdjustment, AIProgramPlanner.minVolume),
-                AIProgramPlanner.maxVolume
-            )
-            let safe = min(clamped, plan.recoveryAdjustment)
-            pendingAdjustment = PendingTrainingAdjustment(
-                todayRecovery: Int(todayRecovery.rounded()),
-                plannedRecovery: assumedScore,
-                volume: safe,
-                dropExercises: response.dropExercises,
-                note: response.note
-            )
-            #if DEBUG
-                print("\(DebugTrace.prefix)[training_ai] adjustment suggested vol=\(safe) drop=\(response.dropExercises.count)")
-            #endif
-        } catch {
-            #if DEBUG
-                print("\(DebugTrace.prefix)[training_ai] adjustment fetch failed — no suggestion: \(error)")
-            #endif
-        }
-    }
-
     // MARK: - Daily Readiness Session (D2 — the brain + floor)
 
     /// Once-daily: assemble today's ReadinessPicture from stored history, ask the
@@ -688,32 +588,6 @@ final class TrainingViewModel {
         return try? modelContext.fetch(d).first
     }
 
-    /// Apply the pending adjustment to today's plan: set the clamped volume and
-    /// drop the named accessory exercises. Compounds are never dropped here —
-    /// the backend prompt already protects them, and we re-guard by only
-    /// removing exercises the suggestion explicitly named.
-    func applyPendingAdjustment(modelContext: ModelContext) {
-        guard let adjustment = pendingAdjustment, let plan = todayPlan else { return }
-        plan.recoveryAdjustment = adjustment.volume
-        if !adjustment.dropExercises.isEmpty {
-            let dropSet = Set(adjustment.dropExercises.map { $0.lowercased() })
-            for ex in plan.exercises ?? [] where
-                ex.exercise.map({ dropSet.contains($0.name.lowercased()) }) == true {
-                // Only drop accessories — never a compound.
-                if ex.exercise?.isCompound != true {
-                    modelContext.delete(ex)
-                }
-            }
-        }
-        plan.notes = adjustment.note
-        try? modelContext.save()
-        pendingAdjustment = nil
-    }
-
-    func dismissPendingAdjustment() {
-        pendingAdjustment = nil
-    }
-
     // MARK: - Prediction Accuracy (Step 2 measurement spine — read-only)
 
     /// Compute the prediction-accuracy summary from all resolved PredictionLog
@@ -867,14 +741,7 @@ final class TrainingViewModel {
 
     /// Map a recoveryAdjustment multiplier back to a representative recovery
     /// score for the adjustment prompt (inverse of the engine's zone cuts).
-    private static func assumedRecoveryScore(for adjustment: Double) -> Int {
-        switch adjustment {
-        case 1.0...: 75        // green / full volume
-        case 0.8 ..< 1.0: 55   // upper-yellow
-        case 0.6 ..< 0.8: 40   // lower-yellow
-        default: 25            // red-ish
-        }
-    }
+    
 
     /// Short summaries of the last 4 completed sessions for the AI prompt.
     private func loadRecentSessionSummaries(modelContext: ModelContext) -> [String] {

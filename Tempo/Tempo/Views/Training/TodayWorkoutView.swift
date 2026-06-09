@@ -309,66 +309,7 @@ struct TodayWorkoutView: View {
 
     // MARK: - Live Recovery Adjustment Card (Phase 2 Fix 2.4)
 
-    private func adjustmentCard(
-        _ adjustment: TrainingViewModel.PendingTrainingAdjustment
-    ) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            HStack(spacing: TempoSpacing.sm) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Color.tempoRecoveryYellow)
-
-                Text("RECOVERY DROPPED")
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoRecoveryYellow)
-
-                Spacer()
-
-                Text("\(adjustment.todayRecovery) vs \(adjustment.plannedRecovery)")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-            }
-
-            Text(adjustment.note)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            HStack(spacing: TempoSpacing.sm) {
-                Button {
-                    viewModel.applyPendingAdjustment(modelContext: modelContext)
-                    HapticManager.notification(.success)
-                } label: {
-                    Text("Re-tune")
-                        .font(.tempoHeadline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, TempoSpacing.sm)
-                        .background(Color.tempoRecoveryYellow)
-                        .foregroundStyle(Color.tempoBgPrimary)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-                }
-
-                Button {
-                    viewModel.dismissPendingAdjustment()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .frame(width: 44, height: 44)
-                        .background(Color.tempoBgSecondary)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-                }
-            }
-        }
-        .padding(.horizontal, TempoSpacing.md)
-        .padding(.vertical, TempoSpacing.sm)
-        .background(Color.tempoRecoveryYellow.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous)
-                .stroke(Color.tempoRecoveryYellow.opacity(0.3), lineWidth: 1)
-        )
-    }
+    
 
 
     // MARK: - Daily Session Card (D2 — the readiness prescription)
