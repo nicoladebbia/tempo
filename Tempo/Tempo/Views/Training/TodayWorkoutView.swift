@@ -44,6 +44,9 @@ struct TodayWorkoutView: View {
     /// Drives the once-a-minute countdown refresh.
     @State
     private var now = Date()
+    /// Expands the daily session card's full "why" (D2).
+    @State
+    private var showFullWhy = false
 
     private let countdownTick = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
@@ -217,11 +220,11 @@ struct TodayWorkoutView: View {
                 deloadBanner
             }
 
-            // Live recovery-adjustment suggestion (Phase 2 Fix 2.4) — dismissible,
-            // never auto-applied. Only present when today's recovery dropped
-            // below the plan's assumption and Haiku returned a re-tune.
-            if let adjustment = viewModel.pendingAdjustment {
-                adjustmentCard(adjustment)
+            // D2 — the daily readiness prescription (supersedes the legacy
+            // pendingAdjustment card). Modality + intensity + why + blocks/cues.
+            // Reads WHY/intensity from DailySession, sets from the linked plan.
+            if let session = viewModel.dailySession {
+                dailySessionCard(session)
             }
 
             // Saved-event countdown takes precedence over the suggestion;
@@ -354,6 +357,99 @@ struct TodayWorkoutView: View {
             RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous)
                 .stroke(Color.tempoRecoveryYellow.opacity(0.3), lineWidth: 1)
         )
+    }
+
+
+    // MARK: - Daily Session Card (D2 — the readiness prescription)
+
+    @ViewBuilder
+    private func dailySessionCard(_ session: DailySession) -> some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            HStack {
+                Text(session.modality.uppercased())
+                    .font(.tempoHeadline)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                Spacer()
+                Text(session.intensity.rawValue.uppercased())
+                    .font(.tempoCaption2)
+                    .foregroundStyle(intensityColor(session.intensity))
+                    .padding(.horizontal, TempoSpacing.sm)
+                    .padding(.vertical, 4)
+                    .background(intensityColor(session.intensity).opacity(0.15))
+                    .clipShape(Capsule())
+            }
+
+            // Floor provenance — honest about how this was produced.
+            if session.wasDowngraded || session.source != .brain {
+                Text(sessionProvenance(session))
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextTertiary)
+            }
+
+            // Short why → tap for full.
+            Text(session.shortWhy)
+                .font(.tempoBody)
+                .foregroundStyle(Color.tempoTextSecondary)
+
+            if let full = session.fullWhy, !full.isEmpty {
+                if showFullWhy {
+                    Text(full)
+                        .font(.tempoBody)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                }
+                Button(showFullWhy ? "Less" : "Why?") {
+                    withAnimation { showFullWhy.toggle() }
+                }
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoSignal)
+            }
+
+            // Blocks (non-gym detail + cues; gym sets render in the exercise list).
+            ForEach(Array(session.blocks.enumerated()), id: \.offset) { _, block in
+                if block.kind != .gym {
+                    blockRow(block)
+                }
+            }
+        }
+        .padding(TempoSpacing.cardPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.tempoSurfaceCard)
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func blockRow(_ block: SessionBlockDTO) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(block.label)
+                .font(.tempoBody)
+                .foregroundStyle(Color.tempoTextPrimary)
+            if let cue = block.cue, !cue.isEmpty {
+                Text(cue)
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextTertiary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 4)
+    }
+
+    private func intensityColor(_ intensity: SessionIntensity) -> Color {
+        switch intensity {
+        case .recovery, .easy: return Color.tempoRecoveryGreen
+        case .moderate: return Color.tempoRecoveryYellow
+        case .hard, .max: return Color.tempoRecoveryRed
+        }
+    }
+
+    private func sessionProvenance(_ session: DailySession) -> String {
+        if session.wasDowngraded {
+            return "Adjusted for recovery — body data wins."
+        }
+        switch session.source {
+        case .floorFallback: return "Offline — using your planned session."
+        case .simple: return "Building your baseline — recovery-aware, trends still warming up."
+        case .brain: return ""
+        }
     }
 
     // MARK: - Workout Window Banner
@@ -859,6 +955,12 @@ struct TodayWorkoutView: View {
             Text(plan.type.displayName.uppercased())
                 .font(.tempoTitle1)
                 .foregroundStyle(Color.tempoTextPrimary)
+
+            // D2 — the readiness prescription IS the content on a non-gym day
+            // (modality/intensity/why + blocks with cues; there's no exercise list).
+            if let session = viewModel.dailySession {
+                dailySessionCard(session)
+            }
 
             Image(systemName: nonGymIcon(for: plan.type))
                 .font(.system(size: 60))

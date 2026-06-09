@@ -92,6 +92,12 @@ final class TrainingViewModel {
     /// on Today — never auto-applied. nil when there's nothing to suggest.
     var pendingAdjustment: PendingTrainingAdjustment?
 
+    /// Today's readiness-coach prescription (D2). The DailyReadinessCoach supersedes
+    /// the legacy `checkForRecoveryAdjustment` loop: it runs every day across all
+    /// modalities, applies the safety floor, and is the single daily card. nil
+    /// until the coach has produced today's session.
+    var dailySession: DailySession?
+
     /// A clamped, ready-to-apply recovery adjustment suggestion. `volume` is the
     /// engine-clamped multiplier (already inside the safety band); `note` is the
     /// drill-sergeant one-liner from Haiku; `dropExercises` are accessory names
@@ -270,11 +276,12 @@ final class TrainingViewModel {
         // this week. Failure is silent — the floor is the answer.
         await hydrateWeekWithAI(modelContext: modelContext)
 
-        // Phase 2 Fix 2.4 — check for a live recovery divergence and, if today's
-        // actual recovery dropped meaningfully below the plan's assumption, fetch
-        // a Haiku re-tune suggestion. Surfaced as a dismissible card — never
-        // auto-applied. Runs after hydration so it sees the reconciled plan.
-        await checkForRecoveryAdjustment(modelContext: modelContext)
+        // D2 (INTELLIGENT_TRAINING_SYSTEM §5) — the daily readiness brain. SUPERSEDES
+        // the legacy checkForRecoveryAdjustment loop: it runs every day across all
+        // modalities, applies the deterministic safety floor on EVERY path, and is
+        // the single daily card. Runs after hydration so it reads the reconciled
+        // WorkoutPlan (§8: weekly owns the modality-default; daily adjusts within).
+        await runDailyReadinessSession(modelContext: modelContext)
 
         // Phase 4 — grade last week once per ISO week and feed the result back
         // into the on-device profile (the macro self-correction loop). Also
@@ -488,6 +495,173 @@ final class TrainingViewModel {
                 print("\(DebugTrace.prefix)[training_ai] adjustment fetch failed — no suggestion: \(error)")
             #endif
         }
+    }
+
+    // MARK: - Daily Readiness Session (D2 — the brain + floor)
+
+    /// Once-daily: assemble today's ReadinessPicture from stored history, ask the
+    /// DailyReadinessCoach (brain when eligible, deterministic+floor otherwise),
+    /// persist the result as a DailySession linked 1:1 to today's WorkoutPlan, and
+    /// resolve the plan's state (severe → mark .skipped/.floorForced). The floor
+    /// runs on EVERY path (the coach guarantees produce-then-floor). Persisted
+    /// once-daily guard caps it at ≤1 Haiku/day.
+    func runDailyReadinessSession(modelContext: ModelContext) async {
+        guard let apiClient else { return }
+        guard !sessionState.isActive else { return }
+        guard let plan = todayPlan else { return }
+
+        // Once-per-day cap (PERSISTED — survives relaunch, hardens the cost cap).
+        let todayKey = AIProgramPlanner.isoDay(Date())
+        let profile = fetchOrCreateAdaptiveProfile(modelContext: modelContext)
+        guard profile.lastDailySessionDayKey != todayKey else {
+            // Already ran today — surface the persisted session for the card.
+            dailySession = fetchTodayDailySession(modelContext: modelContext)
+            return
+        }
+
+        // 1. Assemble the picture from stored 30-day history (oldest→newest).
+        let picture = assembleTodayPicture(modelContext: modelContext)
+
+        // 2. brainEligible = DATA readiness only (≥30d history AND Whoop fresh).
+        //    Entitlement (Pro/consent) is NOT checked here — the coach's 402→
+        //    fallback owns that; duplicating risks the two disagreeing.
+        let brainEligible = picture.hasBaselineForBrain && isWhoopFresh(modelContext: modelContext)
+
+        // 3. Deterministic candidate (cold-start / offline / 402 / parse-fail
+        //    fallback) built from the planned modality. Floor still applies to it.
+        let candidate = deterministicCandidate(for: plan)
+
+        // 4. Coach: produce-then-floor.
+        let coach = DailyReadinessCoach(apiClient: apiClient)
+        let result = await coach.session(
+            for: picture,
+            plannedModality: plan.type.rawValue,
+            deterministicCandidate: candidate,
+            brainEligible: brainEligible
+        )
+
+        // 5. Persist the DailySession 1:1 (every day — uniform link, §8 revised).
+        let session = DailySession.from(
+            decision: result.decision,
+            date: Date(),
+            source: result.source,
+            workoutPlan: plan
+        )
+        modelContext.insert(session)
+
+        // 6. Resolve the WorkoutPlan state. SEVERE → the planned day is superseded:
+        //    mark .skipped with .floorForced so adherence does NOT penalize it
+        //    (§8/§15.2 — body said recover, not a user flake).
+        if result.decision.tier == .severe {
+            plan.status = .skipped
+            plan.skipReason = .floorForced
+        }
+
+        profile.lastDailySessionDayKey = todayKey
+        try? modelContext.save()
+        dailySession = session
+
+        #if DEBUG
+            print("\(DebugTrace.prefix)[daily_coach] session persisted source=\(result.source.rawValue) tier=\(result.decision.tier.rawValue) modality=\(session.modality) planSkipped=\(result.decision.tier == .severe)")
+        #endif
+    }
+
+    /// Assemble today's ReadinessPicture from the trailing-30-day DailyRecovery
+    /// history (reuses the canonical forward-sorted fetch).
+    private func assembleTodayPicture(modelContext: ModelContext) -> ReadinessPicture {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let cutoff = cal.date(byAdding: .day, value: -31, to: today) ?? today
+        let descriptor = FetchDescriptor<DailyRecovery>(
+            predicate: #Predicate { $0.date >= cutoff },
+            sortBy: [SortDescriptor(\.date, order: .forward)]
+        )
+        let rows = (try? modelContext.fetch(descriptor)) ?? []
+        let snapshots = rows.map { r in
+            DailyRecoverySnapshot(
+                date: r.date, recoveryScore: r.recoveryScore, hrv: r.hrvRmssd,
+                rhr: r.restingHR, respRate: r.respiratoryRate, sleepHours: r.sleepHours,
+                sleepDebt: r.sleepDebt, strain: r.strain, deepSleepMin: r.deepSleepMin
+            )
+        }
+        let todaySnapshot = snapshots.last(where: { cal.isDate($0.date, inSameDayAs: today) }) ?? snapshots.last
+
+        // Body comp (latest snapshot) + today's check-in surface into the picture.
+        let bodyComp = fetchLatestBodyComp(modelContext: modelContext)
+        let checkIn = fetchTodayCheckIn(modelContext: modelContext)?.snapshot
+
+        return ReadinessAssembler.assemble(
+            history: snapshots,
+            today: todaySnapshot,
+            yesterdaySessions: [], // surfaced in a later enrichment (§13.2)
+            bodyComp: bodyComp,
+            checkIn: checkIn,
+            daysUntilNextMatch: nil // match calendar is D3
+        )
+    }
+
+    /// A minimal deterministic session for the planned modality — the fallback
+    /// when the brain is skipped or fails. Gym → pointer (engine fills loads);
+    /// non-gym → an easy modality-appropriate block so cold-start/offline never
+    /// empty-renders (§15.1/§15.4). The floor still clamps/vetoes this.
+    private func deterministicCandidate(for plan: WorkoutPlan) -> DailySessionDTO {
+        let type = plan.type
+        let dur = plan.durationMinutes ?? 45
+        let mk: (BlockKind, String?, String) -> SessionBlockDTO = { kind, split, label in
+            SessionBlockDTO(kind: kind, label: label, notes: nil, cue: nil, split: split,
+                            reps: nil, distanceM: nil, restSec: nil, intensityPct: nil,
+                            durationSec: nil, stroke: nil, runType: nil, paceSecPerKm: nil, sets: nil)
+        }
+        switch type {
+        case .push, .pull, .legs, .upper, .lower, .fullBody:
+            return DailySessionDTO(
+                modality: type.rawValue, intensity: .moderate, durationMin: dur,
+                blocks: [mk(.gym, type.rawValue, type.displayName)],
+                shortWhy: "Today's planned \(type.displayName.lowercased()).", fullWhy: nil,
+                expectedStrain: nil, expectedSessionRPE: nil
+            )
+        case .run:
+            return DailySessionDTO(
+                modality: "run", intensity: .easy, durationMin: dur,
+                blocks: [SessionBlockDTO(kind: .run, label: "Easy run", notes: nil, cue: nil, split: nil,
+                                         reps: nil, distanceM: nil, restSec: nil, intensityPct: nil,
+                                         durationSec: dur * 60, stroke: nil, runType: "tempo",
+                                         paceSecPerKm: nil, sets: nil)],
+                shortWhy: "Easy aerobic run.", fullWhy: nil, expectedStrain: nil, expectedSessionRPE: 4
+            )
+        case .football, .sprint, .conditioning:
+            return DailySessionDTO(
+                modality: type.rawValue, intensity: .moderate, durationMin: dur,
+                blocks: [mk(.field, nil, type.displayName)],
+                shortWhy: "Today's \(type.displayName.lowercased()).", fullWhy: nil,
+                expectedStrain: nil, expectedSessionRPE: 5
+            )
+        case .mobility, .rest:
+            return TrainingSafetyFloor.recoverySession(reason: "Recovery day.")
+        }
+    }
+
+    private func isWhoopFresh(modelContext: ModelContext) -> Bool {
+        // Fresh = a DailyRecovery row for today exists (§15.1: >48h stale → no brain).
+        loadRecoveryScore(modelContext: modelContext) != nil
+    }
+
+    private func fetchTodayDailySession(modelContext: ModelContext) -> DailySession? {
+        let today = Calendar.current.startOfDay(for: Date())
+        let d = FetchDescriptor<DailySession>(predicate: #Predicate { $0.date == today })
+        return try? modelContext.fetch(d).first
+    }
+
+    private func fetchLatestBodyComp(modelContext: ModelContext) -> BodyCompSnapshot? {
+        var d = FetchDescriptor<BodyComposition>(sortBy: [SortDescriptor(\.date, order: .reverse)])
+        d.fetchLimit = 1
+        return (try? modelContext.fetch(d))?.first?.snapshot
+    }
+
+    private func fetchTodayCheckIn(modelContext: ModelContext) -> MorningCheckIn? {
+        let today = Calendar.current.startOfDay(for: Date())
+        let d = FetchDescriptor<MorningCheckIn>(predicate: #Predicate { $0.date == today })
+        return try? modelContext.fetch(d).first
     }
 
     /// Apply the pending adjustment to today's plan: set the clamped volume and
