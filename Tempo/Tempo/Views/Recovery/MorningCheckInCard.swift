@@ -26,13 +26,13 @@ struct MorningCheckInCard: View {
     @State private var expandedSoreness = false
 
     var body: some View {
-        Group {
-            if dismissed {
-                EmptyView()
-            } else if let checkIn {
+        // The task MUST host on an always-present concrete view. A `Group` whose
+        // first-realized child is EmptyView() swallows `.task` (no-op on EmptyView),
+        // so loadOrCreate() never runs → permanent no-show. (Matches the working
+        // sibling RecoveryAIInsightView, which roots its body in a real VStack.)
+        VStack(spacing: 0) {
+            if !dismissed, let checkIn {
                 card(for: checkIn)
-            } else {
-                EmptyView()
             }
         }
         .task { loadOrCreate() }
