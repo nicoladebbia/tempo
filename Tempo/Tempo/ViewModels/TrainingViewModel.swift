@@ -369,7 +369,9 @@ final class TrainingViewModel {
             recovery7Day: recovery7Day,
             recentSessions: recentSessions,
             footballDays: AIProgramPlanner.footballDayNames(footballDays),
-            goal: "hypertrophy"
+            // §14 Decision 1 — the weekly goal follows the declared block
+            // emphasis; no block set → "hypertrophy", the pre-D3 literal.
+            goal: (currentBlockEmphasis(modelContext: modelContext) ?? .physique).weeklyGoal
         )
 
         // Mark the week done regardless of whether AI ran — a 402 (not Pro / no
@@ -529,8 +531,18 @@ final class TrainingViewModel {
             yesterdaySessions: [], // surfaced in a later enrichment (§13.2)
             bodyComp: bodyComp,
             checkIn: checkIn,
-            daysUntilNextMatch: daysUntilNextMatch
+            daysUntilNextMatch: daysUntilNextMatch,
+            blockEmphasis: currentBlockEmphasis(modelContext: modelContext)
         )
+    }
+
+    /// The declared training-block emphasis in force today (§14 Decision 1),
+    /// or nil when no block covers today — callers default to .physique, the
+    /// pre-D3 behavior. Latest-start-wins on overlap (TrainingBlockSchedule).
+    private func currentBlockEmphasis(modelContext: ModelContext) -> BlockEmphasis? {
+        let descriptor = FetchDescriptor<TrainingBlock>()
+        let blocks = (try? modelContext.fetch(descriptor)) ?? []
+        return TrainingBlockSchedule.currentEmphasis(spans: blocks.map(\.span), on: Date())
     }
 
     /// Kickoffs of all matches from today forward (start-of-day cutoff so a

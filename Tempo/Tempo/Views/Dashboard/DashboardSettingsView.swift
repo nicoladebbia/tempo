@@ -1041,6 +1041,15 @@ struct TrainingSettingsDetailView: View {
         allSettings.first
     }
 
+    @Query(sort: \TrainingBlock.startDate)
+    private var trainingBlocks: [TrainingBlock]
+
+    /// The block emphasis in force today; no block declared → physique, the
+    /// de-facto default (§14 Decision 1).
+    private var currentEmphasis: BlockEmphasis {
+        TrainingBlockSchedule.currentEmphasis(spans: trainingBlocks.map(\.span), on: Date()) ?? .physique
+    }
+
     /// Mon-first to match the ActiveDays bitmask (index 0 = Monday = 1<<0).
     private let footballDayLabels = ["M", "T", "W", "T", "F", "S", "S"]
 
@@ -1157,6 +1166,29 @@ struct TrainingSettingsDetailView: View {
                     .padding(TempoSpacing.lg)
                 }
 
+                // Training block — manual emphasis declaration (§14 Decision 1).
+                // Drives the daily coach's CONTEXT line + the weekly AI goal;
+                // deliberately does NOT touch the deterministic split/schedule.
+                SettingsFormCard(
+                    title: "Training block",
+                    footnote: currentEmphasis == .physique
+                        ? "Physique block — hypertrophy primary, soccer held at maintenance. Drives the daily coach and weekly AI plan."
+                        : "Soccer block — speed and conditioning primary, strength held at maintenance. Drives the daily coach and weekly AI plan."
+                ) {
+                    SettingsControlRow(label: "Emphasis", icon: "target", iconTint: .tempoElectric) {
+                        Picker("", selection: Binding(
+                            get: { currentEmphasis },
+                            set: { applyBlockEmphasis($0) }
+                        )) {
+                            ForEach(BlockEmphasis.allCases, id: \.self) { emphasis in
+                                Text(emphasis.displayName).tag(emphasis)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 180)
+                    }
+                }
+
                 SettingsFormCard(
                     title: "Deload",
                     footnote: autoDeload
@@ -1200,6 +1232,29 @@ struct TrainingSettingsDetailView: View {
             autoDeload = settings?.autoDeload ?? true
             deloadWeeks = settings?.deloadFrequencyWeeks ?? 5
         }
+    }
+
+    /// Declares a new open-ended block starting today (§14 Decision 1). The
+    /// previous open block closes at yesterday; one that started today (or
+    /// later) never ran a day, so it's deleted instead of kept as an empty
+    /// span. Closed past blocks stay as history. Deliberately uses a plain
+    /// save, NOT save() — emphasis doesn't affect the deterministic plan or
+    /// nutrition, so posting .tempoTrainingSettingsChanged would trigger a
+    /// pointless regen. The coach reads it on its next once-daily run.
+    private func applyBlockEmphasis(_ emphasis: BlockEmphasis) {
+        guard emphasis != currentEmphasis else { return }
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        for block in trainingBlocks where block.endDate == nil {
+            if cal.startOfDay(for: block.startDate) >= today {
+                modelContext.delete(block)
+            } else {
+                block.endDate = cal.date(byAdding: .day, value: -1, to: today)
+            }
+        }
+        modelContext.insert(TrainingBlock(emphasis: emphasis, startDate: today))
+        try? modelContext.save()
+        HapticManager.selection()
     }
 
     private func save() {

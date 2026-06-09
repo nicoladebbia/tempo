@@ -165,7 +165,14 @@ enum DailyCoachPrompt {
         } else {
             lines.append("- No match scheduled.")
         }
-        lines.append("- Block emphasis: physique (default).") // D3 wires the real TrainingBlock.
+        // The system prompt teaches the emphasis-week semantics (prescribe FOR
+        // the emphasis, hold the other at maintenance); this line carries the
+        // value. nil = no TrainingBlock declared → the pre-D3 default, verbatim.
+        if let emphasis = p.blockEmphasis {
+            lines.append("- Block emphasis: \(emphasis.rawValue).")
+        } else {
+            lines.append("- Block emphasis: physique (default).")
+        }
         if let planned = plannedModality {
             lines.append("- TODAY'S PLANNED SESSION: \(planned). This is the week's plan for today — KEEP this modality. Adjust only its INTENSITY to today's readiness. Override the modality ONLY if readiness forces recovery, or a hard constraint applies (match T-1 → no heavy legs; a pain flag on the muscle this would load). Any override stays in-emphasis.")
         }

@@ -82,6 +82,12 @@ struct ReadinessPicture: Equatable, Sendable {
     /// Days until the next logged match (0 = today, 1 = tomorrow = T-1). nil = none scheduled.
     let daysUntilNextMatch: Int?
 
+    /// The declared training-block emphasis in force today (§14 Decision 1).
+    /// nil = no block ever set → the prompt states "physique (default)" and the
+    /// weekly goal stays the pre-D3 "hypertrophy" literal. Defaulted so the
+    /// memberwise init keeps pre-D3 construction sites compiling unchanged.
+    var blockEmphasis: BlockEmphasis? = nil
+
     // MARK: Cold-start accounting (the gate protecting every raw route — §6.3, §14.2)
 
     /// Count of valid (non-nil) HRV/RHR samples in the trailing 30 days. Drives

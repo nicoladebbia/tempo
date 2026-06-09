@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		00EC1C97756E9C6D65ED0F6A /* TrainingBlockTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34D601274D0F5FE16076BBF2 /* TrainingBlockTests.swift */; };
 		019BE99FF92CB75F2C4B6163 /* GoalSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4E3490179FC169FBA2AABD6 /* GoalSetupView.swift */; };
 		01A4E7FAB0836B6F6A313ED3 /* WorkoutHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBF9A31780E269E9DAF42E95 /* WorkoutHistoryView.swift */; };
 		0237364DA76D15271299DE75 /* cue_ex_barbell_curl.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 362D520BCDCEE611DBED9775 /* cue_ex_barbell_curl.mp3 */; };
@@ -56,6 +57,7 @@
 		0F596918B6A48D6CD13A0C44 /* cue_ex_hip_adductor_machine.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = DB1CD6E55C9C0ACB168DED93 /* cue_ex_hip_adductor_machine.mp3 */; };
 		0FA0BC0A779E230E029A2979 /* BodyComposition.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02C9EB2A3AD441E5D0DC3C9 /* BodyComposition.swift */; };
 		0FB31141D847BF33883EE307 /* cue_ex_bulgarian_split_squat.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 3E75C27D2D4580776F717B59 /* cue_ex_bulgarian_split_squat.mp3 */; };
+		0FC7FFFCF0DCFAC89987DFE2 /* TrainingBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41CEB5E9FF0FDD0217767F62 /* TrainingBlock.swift */; };
 		0FE662FDA819A8AB44E8110F /* cue_move_full_body_mobility_flow.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = F8601ABEAB250DF4BB5B2B3C /* cue_move_full_body_mobility_flow.mp3 */; };
 		1013CDF775D3AE67297771AA /* PantryPriceEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2CE07FA825E8371C3565390 /* PantryPriceEntry.swift */; };
 		1215D07238466508127C1825 /* ExerciseHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A6A75F38AE95E8314B0CEDB /* ExerciseHistory.swift */; };
@@ -914,6 +916,7 @@
 		31F16F3C73003B45A35D0BBA /* cue_ex_rope_pushdown.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_rope_pushdown.mp3; sourceTree = "<group>"; };
 		32F48D53A60B60CAF9DB43D5 /* NutritionTargetSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionTargetSetupView.swift; sourceTree = "<group>"; };
 		33CA3E94F463EF165758C1D5 /* DashboardQuadrantData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardQuadrantData.swift; sourceTree = "<group>"; };
+		34D601274D0F5FE16076BBF2 /* TrainingBlockTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingBlockTests.swift; sourceTree = "<group>"; };
 		35D4E78FE175BDD66AD2A497 /* DashboardViewModel+NutritionFetch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DashboardViewModel+NutritionFetch.swift"; sourceTree = "<group>"; };
 		362D520BCDCEE611DBED9775 /* cue_ex_barbell_curl.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_barbell_curl.mp3; sourceTree = "<group>"; };
 		3678D318AC458ABED686A82C /* TermsAcceptanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsAcceptanceView.swift; sourceTree = "<group>"; };
@@ -946,6 +949,7 @@
 		404B967C6C63A60F5FF3F175 /* PantryServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PantryServiceProtocol.swift; sourceTree = "<group>"; };
 		40A06F252572A65FBC437054 /* cue_ex_landmine_press.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_landmine_press.mp3; sourceTree = "<group>"; };
 		40E4F5D82ABA944C2EA51644 /* DailyScoreEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyScoreEntry.swift; sourceTree = "<group>"; };
+		41CEB5E9FF0FDD0217767F62 /* TrainingBlock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingBlock.swift; sourceTree = "<group>"; };
 		422C16C025153ACD2F8B2D8A /* VoicePantryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoicePantryView.swift; sourceTree = "<group>"; };
 		4335B86394607E6C78CE2648 /* PredictionHoldoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PredictionHoldoutTests.swift; sourceTree = "<group>"; };
 		434489B67B26E92709DA90A0 /* WorkoutCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutCardView.swift; sourceTree = "<group>"; };
@@ -1946,6 +1950,7 @@
 				2DB66F89B4E66CA3E302908F /* ReadinessTrendMathTests.swift */,
 				B5D716D5E3223A9FA8FE3D40 /* RecoveryEngineTests.swift */,
 				F59BAE0104B3A7E11A8FC878 /* ScoringEngineTests.swift */,
+				34D601274D0F5FE16076BBF2 /* TrainingBlockTests.swift */,
 				7684AE39ECA95CC4599B5653 /* TrainingEngineProgressionTests.swift */,
 				EEC118BC5209B7C05459E125 /* TrainingOutcomeEvaluatorTests.swift */,
 				5435AF79E5FFA9DD522DA742 /* TrainingSafetyFloorTests.swift */,
@@ -2282,6 +2287,7 @@
 				EB5DA28960107B08A28FABD9 /* PredictionLog.swift */,
 				CCCAA5FD38E1FF7B66DC69DF /* RunSession.swift */,
 				DD3FEAF7367A21537C545134 /* SetFeedback.swift */,
+				41CEB5E9FF0FDD0217767F62 /* TrainingBlock.swift */,
 				EDEB2414B971B2F3AF572A87 /* WarmupRoutine.swift */,
 				DF7A70F4976A041F87B6FB15 /* WorkoutPlan.swift */,
 			);
@@ -3562,6 +3568,7 @@
 				29DFDAD3216429D972CA6E34 /* SupplementTests.swift in Sources */,
 				3DB8DB1158C12767682AC2C0 /* TDEEGoalWeightTests.swift in Sources */,
 				772BD3105B7AB5A996B536FB /* TempoTests.swift in Sources */,
+				00EC1C97756E9C6D65ED0F6A /* TrainingBlockTests.swift in Sources */,
 				F8080FBEDA7516929A6AF684 /* TrainingEngineProgressionTests.swift in Sources */,
 				70E87C6192789F5E6D8235FC /* TrainingOutcomeEvaluatorTests.swift in Sources */,
 				7D97118FE2F6DACB4CE3B849 /* TrainingSafetyFloorTests.swift in Sources */,
@@ -3972,6 +3979,7 @@
 				F39C73E19E14AA4302EC3903 /* TemporaryExclusionsStepView.swift in Sources */,
 				7C1028AFDD1D96B68005C350 /* TermsAcceptanceView.swift in Sources */,
 				B64747F90F180C2D63374ADC /* TodayWorkoutView.swift in Sources */,
+				0FC7FFFCF0DCFAC89987DFE2 /* TrainingBlock.swift in Sources */,
 				61578435F9179B556E8F46C9 /* TrainingEngine.swift in Sources */,
 				74DF97B8FD164EFE97C5A15C /* TrainingEngineProtocol.swift in Sources */,
 				42793770BD0702420E535CD4 /* TrainingOutcomeEvaluator.swift in Sources */,
