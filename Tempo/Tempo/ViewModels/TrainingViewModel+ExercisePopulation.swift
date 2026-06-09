@@ -167,7 +167,61 @@ extension TrainingViewModel {
                 setNum += 1
             }
             planned.sets = plannedSets
+
+            // Step 1 (measurement spine) — record what the engine just predicted
+            // for this working exercise, so its accuracy can be measured against
+            // the actual session later (persistCompletion backfills the outcome).
+            // Passive ledger: nothing reads it to change prescriptions yet.
+            logPrediction(
+                planID: plan.id,
+                exercise: exercise,
+                predictedWeight: roundedWeight,
+                predictedReps: reps,
+                rationale: overload.rationale,
+                learnedIncrement: learnedIncrements[exercise.id],
+                modelContext: modelContext
+            )
         }
+    }
+
+    /// Write (or refresh) the PredictionLog row for one prescribed exercise.
+    /// Idempotent per (workoutPlanID, exerciseID): re-running populateExercises
+    /// for the same plan/exercise overwrites the prediction in place rather than
+    /// accumulating duplicates. Only the most recent prescription is kept until
+    /// the outcome is backfilled.
+    private func logPrediction(
+        planID: UUID,
+        exercise: Exercise,
+        predictedWeight: Double,
+        predictedReps: Int,
+        rationale: ProgressionReason,
+        learnedIncrement: Double?,
+        modelContext: ModelContext
+    ) {
+        let exerciseID = exercise.id
+        let descriptor = FetchDescriptor<PredictionLog>(
+            predicate: #Predicate { $0.workoutPlanID == planID && $0.exerciseID == exerciseID }
+        )
+        let existing = (try? modelContext.fetch(descriptor)) ?? []
+        // Don't clobber a row that already has its outcome — that pairing is data.
+        if let resolved = existing.first(where: { $0.outcomeResolved }) {
+            _ = resolved
+            return
+        }
+        // Replace any prior unresolved prediction for this plan+exercise.
+        for stale in existing where !stale.outcomeResolved {
+            modelContext.delete(stale)
+        }
+        let log = PredictionLog(
+            exercise: exercise,
+            exerciseID: exerciseID,
+            workoutPlanID: planID,
+            predictedWeight: predictedWeight,
+            predictedReps: predictedReps,
+            signalUsedRaw: rationale.rawValue,
+            learnedIncrementUsed: learnedIncrement
+        )
+        modelContext.insert(log)
     }
 
     /// Assigns superset group IDs to compatible exercise pairs.

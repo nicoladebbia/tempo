@@ -516,6 +516,44 @@ final class TrainingViewModel {
         pendingAdjustment = nil
     }
 
+    // MARK: - Prediction Outcomes (Step 1 measurement spine)
+
+    /// One exercise's observed outcome, decoupled from the persistCompletion-
+    /// local HistorySnapshot so this helper is callable + testable on its own.
+    struct PredictionOutcome {
+        let exerciseID: UUID
+        let bestSetReps: Int?
+        let avgRPE: Double?
+        let worstFormRaw: String?
+        let bestSetWeight: Double?
+    }
+
+    /// Fill the actual-outcome fields on this plan's PredictionLog rows from the
+    /// just-completed session. Matched by (workoutPlanID, exerciseID). Marks each
+    /// matched row `outcomeResolved` so it's never re-clobbered and Step 2 can
+    /// score it. An outcome with no matching prediction (e.g. an exercise added
+    /// mid-session) is skipped — predictions only exist for what was prescribed.
+    func backfillPredictionOutcomes(
+        planID: UUID,
+        outcomes: [PredictionOutcome],
+        modelContext: ModelContext
+    ) {
+        let descriptor = FetchDescriptor<PredictionLog>(
+            predicate: #Predicate { $0.workoutPlanID == planID }
+        )
+        guard let rows = try? modelContext.fetch(descriptor), !rows.isEmpty else { return }
+        let byExercise = Dictionary(rows.map { ($0.exerciseID, $0) }) { first, _ in first }
+
+        for outcome in outcomes {
+            guard let log = byExercise[outcome.exerciseID] else { continue }
+            log.actualReps = outcome.bestSetReps
+            log.actualRPE = outcome.avgRPE
+            log.actualFormRaw = outcome.worstFormRaw
+            log.actualWeight = outcome.bestSetWeight
+            log.outcomeResolved = true
+        }
+    }
+
     // MARK: - Adaptive Profile (Phase 3)
 
     /// Read-only snapshot of the adaptive signals the engine consumes. Does NOT
@@ -1358,6 +1396,22 @@ final class TrainingViewModel {
             )
             modelContext.insert(history)
         }
+
+        // Step 1 (measurement spine) — backfill the outcome onto the
+        // PredictionLog rows written at prescribe time, so each prediction now
+        // sits next to what actually happened. This is the prediction↔reality
+        // pair Step 2's error metric reads. Matched by (planID, exerciseID) —
+        // the same key the prediction was written under.
+        let outcomes: [PredictionOutcome] = snapshots.map { snap in
+            PredictionOutcome(
+                exerciseID: snap.exercise.id,
+                bestSetReps: snap.bestSetReps,
+                avgRPE: snap.avgRPE,
+                worstFormRaw: snap.worstFormRaw,
+                bestSetWeight: snap.bestSetWeight
+            )
+        }
+        backfillPredictionOutcomes(planID: planID, outcomes: outcomes, modelContext: modelContext)
 
         // Persist to SwiftData
         try? modelContext.save()
