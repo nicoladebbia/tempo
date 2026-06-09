@@ -11,7 +11,8 @@ import Foundation
 final class MockXPEngine: XPEngineProtocol, @unchecked Sendable {
     func calculateXP(
         from snapshot: DailySnapshot,
-        accountability: DailyAccountability
+        accountability: DailyAccountability,
+        floorForcedRest: Bool = false
     ) -> [XPEvent] {
         [
             XPEvent(date: Date(), source: .workout, amount: 50, description: "Completed push workout"),
