@@ -50,32 +50,62 @@ final class MatchPeriodizationTests: XCTestCase {
         XCTAssertNotEqual(plan(plans, dayOffset: 2)?.type, .football)
     }
 
-    func testDatedMatchMakesThatDayFootball() {
-        // Match on Wednesday (offset 2) — a day that is NOT a football weekday.
-        let matchDay = cal.startOfDay(for: cal.date(byAdding: .day, value: 2, to: monday())!)
-        let plans = engine.generateWeekPlan(
-            startDate: monday(),
-            recoveryScores: [:],
-            footballDays: ActiveDays(rawValue: 0),
-            split: .pushPullLegs,
-            matchDayKeys: [matchDay]
-        )
-        XCTAssertEqual(plan(plans, dayOffset: 2)?.type, .football, "match day must become T-0 football")
+    private func startKey(_ offset: Int) -> Date {
+        cal.startOfDay(for: cal.date(byAdding: .day, value: offset, to: monday())!)
     }
 
-    func testDatedMatchProtectsTheDayBefore() {
-        // Match Wednesday (offset 2) → Tuesday (offset 1) is T-1: no heavy legs.
-        let matchDay = cal.startOfDay(for: cal.date(byAdding: .day, value: 2, to: monday())!)
+    func testDatedMatchMakesThatDayFootball() {
+        // Match on Thursday (offset 3) — NOT a football weekday (none are set).
         let plans = engine.generateWeekPlan(
             startDate: monday(),
             recoveryScores: [:],
             footballDays: ActiveDays(rawValue: 0),
             split: .pushPullLegs,
-            matchDayKeys: [matchDay]
+            matchDayKeys: [startKey(3)]
         )
-        // The T-1 day must not be a legs day (the leg-swap rule). PPL puts legs
-        // on the 3rd training slot; the exact type depends on assignment, but
-        // the invariant is simply: T-1 is never .legs.
-        XCTAssertNotEqual(plan(plans, dayOffset: 1)?.type, .legs, "T-1 must swap legs away")
+        XCTAssertEqual(plan(plans, dayOffset: 3)?.type, .football, "match day must become T-0 football")
+    }
+
+    /// The load-bearing test: prove the match SWAPS legs off T-1, by contrasting
+    /// the SAME day with and without the match. PPL from a green Monday assigns
+    /// push/pull/LEGS to Mon/Tue/Wed — so Wednesday (offset 2) is naturally a
+    /// legs day. A match on Thursday (offset 3) makes Wednesday T-1 → must swap.
+    func testDatedMatchSwapsLegsOffTMinus1() {
+        // Baseline: no match → Wednesday is legs (proves the day is a real legs
+        // day, so the swap below is not vacuous).
+        let baseline = engine.generateWeekPlan(
+            startDate: monday(),
+            recoveryScores: [:],
+            footballDays: ActiveDays(rawValue: 0),
+            split: .pushPullLegs
+        )
+        XCTAssertEqual(plan(baseline, dayOffset: 2)?.type, .legs, "precondition: offset-2 is naturally a legs day")
+
+        // With a Thursday match, Wednesday (T-1) must no longer be legs.
+        let withMatch = engine.generateWeekPlan(
+            startDate: monday(),
+            recoveryScores: [:],
+            footballDays: ActiveDays(rawValue: 0),
+            split: .pushPullLegs,
+            matchDayKeys: [startKey(3)]
+        )
+        XCTAssertNotEqual(plan(withMatch, dayOffset: 2)?.type, .legs, "T-1 must swap legs away when a match follows")
+    }
+
+    /// A FRIENDLY (non-competitive) match is still a T-0 session day, but must
+    /// NOT taper the day before — honouring the isCompetitive toggle. Thursday
+    /// match present in matchDayKeys (T-0) but absent from competitiveMatchDayKeys
+    /// → Wednesday stays its natural legs day.
+    func testFriendlyMatchDoesNotTaperTMinus1() {
+        let plans = engine.generateWeekPlan(
+            startDate: monday(),
+            recoveryScores: [:],
+            footballDays: ActiveDays(rawValue: 0),
+            split: .pushPullLegs,
+            matchDayKeys: [startKey(3)],          // friendly is still T-0…
+            competitiveMatchDayKeys: []           // …but drives no T-1 taper
+        )
+        XCTAssertEqual(plan(plans, dayOffset: 3)?.type, .football, "friendly is still a T-0 session day")
+        XCTAssertEqual(plan(plans, dayOffset: 2)?.type, .legs, "friendly must NOT swap legs off T-1")
     }
 }

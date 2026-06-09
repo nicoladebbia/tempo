@@ -81,7 +81,10 @@ protocol TrainingEngineProtocol: Sendable {
         split: TrainingSplit,
         recoveryThresholdOffset: Double,
         // D3 — start-of-day keys of dated matches (§14 mid-week-match trigger).
-        matchDayKeys: Set<Date>
+        // matchDayKeys = all matches (T-0); competitiveMatchDayKeys = the subset
+        // that taper T-1 (nil → treat all as competitive).
+        matchDayKeys: Set<Date>,
+        competitiveMatchDayKeys: Set<Date>?
     ) -> [WorkoutPlan]
 
     /// Returns true if the given date falls in a deload week. The fixed periodic

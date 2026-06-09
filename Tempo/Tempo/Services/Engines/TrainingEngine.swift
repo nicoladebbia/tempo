@@ -313,11 +313,17 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         split: TrainingSplit,
         recoveryThresholdOffset: Double = 0,
         // D3 — start-of-day keys of DATED matches (distinct from the recurring
-        // footballDays weekdays). A match here re-shapes the surrounding days
-        // (T-0 match day, T-1 no-heavy-legs) even when it falls off a usual
-        // football weekday — the §14 mid-week-match periodization.
-        matchDayKeys: Set<Date> = []
+        // footballDays weekdays). A match here makes that day T-0 (a session day)
+        // even when it falls off a usual football weekday — the §14 mid-week-match
+        // periodization.
+        matchDayKeys: Set<Date> = [],
+        // The subset of match days that are COMPETITIVE: only these drive the
+        // T-1 taper (no heavy legs the day before). A friendly scrimmage is a
+        // T-0 day but does NOT taper the day before. Defaults to all match days
+        // (callers that don't distinguish get the safe "protect everything").
+        competitiveMatchDayKeys: Set<Date>? = nil
     ) -> [WorkoutPlan] {
+        let tMinus1MatchDays = competitiveMatchDayKeys ?? matchDayKeys
         let cal = Calendar.current
         var plans: [WorkoutPlan] = []
         var splitIndex = 0
@@ -340,7 +346,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
             // a dated match. T-1 likewise fires the day before either. The dated
             // match widens the recurring-weekday rule; it never narrows it.
             let isMatch = MatchSchedule.isMatchDay(date: date, matchDayKeys: matchDayKeys, calendar: cal)
-            let isMatchTMinus1 = MatchSchedule.isTMinus1(date: date, matchDayKeys: matchDayKeys, calendar: cal)
+            let isMatchTMinus1 = MatchSchedule.isTMinus1(date: date, matchDayKeys: tMinus1MatchDays, calendar: cal)
             dayMeta.append((
                 date: date,
                 isFootball: footballDays.isActive(on: weekday) || isMatch,

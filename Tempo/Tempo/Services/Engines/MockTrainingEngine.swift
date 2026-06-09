@@ -54,7 +54,8 @@ final class MockTrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         footballDays: ActiveDays,
         split: TrainingSplit,
         recoveryThresholdOffset: Double = 0,
-        matchDayKeys: Set<Date> = []
+        matchDayKeys: Set<Date> = [],
+        competitiveMatchDayKeys: Set<Date>? = nil
     ) -> [WorkoutPlan] {
         (0 ..< 7).map { offset in
             let date = Calendar.current.date(byAdding: .day, value: offset, to: startDate) ?? startDate
