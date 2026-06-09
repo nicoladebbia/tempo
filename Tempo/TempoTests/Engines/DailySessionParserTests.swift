@@ -67,11 +67,26 @@ final class DailySessionParserTests: XCTestCase {
         }
     }
 
-    func testTooLongShortWhyThrows() {
-        let long = String(repeating: "x", count: 121)
+    func testTooLongShortWhyIsCoercedNotThrown() throws {
+        // A 130-char shortWhy is a COMPLETE, correct session — coerce (truncate),
+        // don't throw it to the dumber deterministic fallback. (The live D2 bug:
+        // a real brain session was nuked by a slightly-long title.)
+        let long = String(repeating: "x", count: 130)
+        let json = """
+        {"modality":"pull","intensity":"moderate","durationMin":50,
+         "blocks":[{"kind":"gym","label":"Pull","split":"pull"}],"shortWhy":"\(long)"}
+        """
+        let s = try P.parse(json)
+        XCTAssertLessThanOrEqual(s.shortWhy.count, 120, "Over-length shortWhy truncated to budget")
+        XCTAssertTrue(s.shortWhy.hasSuffix("…"), "Truncation marked with an ellipsis")
+        XCTAssertEqual(s.modality, "pull", "The rest of the session survives intact")
+    }
+
+    func testEmptyShortWhyStillThrows() {
+        // Empty = the model gave NO rationale = structural, still hard-fails.
         let json = """
         {"modality":"rest","intensity":"recovery","durationMin":20,
-         "blocks":[{"kind":"mobility","label":"Stretch"}],"shortWhy":"\(long)"}
+         "blocks":[{"kind":"mobility","label":"Stretch"}],"shortWhy":""}
         """
         XCTAssertThrowsError(try P.parse(json))
     }

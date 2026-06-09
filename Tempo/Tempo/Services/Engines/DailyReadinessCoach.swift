@@ -126,7 +126,14 @@ final class DailyReadinessCoach: @unchecked Sendable {
                 )
                 // Parse + contract-validate (D0). A throw here is a parse-fail →
                 // fall back, never render half-parsed (§5.2-FIX / §13.1).
-                return try DailySessionParser.parse(response.text)
+                do {
+                    return try DailySessionParser.parse(response.text)
+                } catch let parseError as DailySessionParseError {
+                    // Surface the RAW text on parse-fail so the failing shape is
+                    // diagnosable (the live path used to swallow it).
+                    logger.warning("\(DebugTrace.prefix)[daily_coach] parse-fail \(String(describing: parseError)) — raw: \(response.text.prefix(500))")
+                    return nil
+                }
             } catch is CancellationError {
                 return nil
             } catch let error as APIError {
@@ -140,11 +147,6 @@ final class DailyReadinessCoach: @unchecked Sendable {
                     return nil
                 }
                 try? await Task.sleep(for: .seconds(baseRetryDelay * pow(2.0, Double(attempt))))
-            } catch let parseError as DailySessionParseError {
-                // Parse/contract failure → deterministic fallback (do NOT retry; a
-                // re-roll at temp 0.6 is a fresh paid call for the same likely shape).
-                logger.warning("\(DebugTrace.prefix)[daily_coach] parse-fail → deterministic fallback: \(String(describing: parseError))")
-                return nil
             } catch {
                 logger.error("\(DebugTrace.prefix)[daily_coach] unexpected: \(error.localizedDescription)")
                 return nil

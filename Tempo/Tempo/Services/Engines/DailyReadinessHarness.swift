@@ -43,6 +43,9 @@ struct HarnessResult: Sendable {
     /// failures: the floor backstops them by design (§6). See HarnessGateTests.
     var promptOnlyAntiPatternPassed = 0
     var promptOnlyAntiPatternTotal = 0
+    /// Longest shortWhy seen (the live D2 parse-fail was a >120-char title; this
+    /// shows how close clean runs get to the 120 budget). Now coerced, not fatal.
+    var maxShortWhyLen = 0
     /// Per-case failure notes for diagnosis.
     var failures: [String] = []
 
@@ -95,6 +98,10 @@ enum DailyReadinessHarness {
                     throw error
                 }
                 result.parsed += 1
+
+                // Track shortWhy length distribution — the live D2 bug was a >120
+                // char title. Surface the max so we see how close clean runs get.
+                result.maxShortWhyLen = max(result.maxShortWhyLen, session.shortWhy.count)
 
                 // PROMPT QUALITY — judge the RAW session, before the floor.
                 let rawSensible = fixture.rawIsSensible(session)

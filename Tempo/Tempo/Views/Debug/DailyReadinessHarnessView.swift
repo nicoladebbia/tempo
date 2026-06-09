@@ -88,6 +88,7 @@ struct DailyReadinessHarnessView: View {
         lines.append("PROMPT QUALITY (sensible unaided): \(result.sensibleUnaided)/\(result.total)")
         lines.append("Parsed cleanly:                   \(result.parsed)/\(result.total)")
         lines.append("Floor had to rescue:              \(result.floorRescued) (high = unsafe prompt)")
+        lines.append("Longest shortWhy:                 \(result.maxShortWhyLen)/120 chars (now coerced if over)")
         lines.append("Anti-patterns passed:             \(result.antiPatternPassed)/\(result.antiPatternTotal)")
         lines.append("  └ PROMPT-ONLY gate (the real one): \(result.promptOnlyAntiPatternPassed)/\(result.promptOnlyAntiPatternTotal)  (floor-caught misses are safe by design)")
         lines.append("")

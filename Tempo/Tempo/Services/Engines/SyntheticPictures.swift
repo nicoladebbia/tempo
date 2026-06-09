@@ -188,6 +188,19 @@ enum SyntheticPictures {
             SyntheticFixture("planned-legs-prematch", pic(recovery: 72, match: 1), plannedModality: "legs",
                 rawIsSensible: { notHardLegs($0) },
                 antiPattern: { notHardLegs($0) }),
+
+            // ─── Reproduces the live D2 parse-fail (advisor) ───
+            // The untested intersection: planned PULL + a Knees pain flag + real
+            // trends. This conflicted input is exactly what makes Haiku write a
+            // longer rationale (→ the >120-char shortWhy that nuked the live
+            // session). Now that overflow is COERCED, this must parse + keep pull.
+            SyntheticFixture("planned-pull-knee-pain",
+                pic(recovery: 74, hrvZ: 0.2, rhrDelta: 0,
+                    checkIn: MorningCheckInSnapshot(mood: 3, stress: 5, soreness: ["knees": 9])),
+                plannedModality: "pull",
+                rawIsSensible: { keepsPlanned($0, "pull") && noGymWeights($0) },
+                antiPattern: { keepsPlanned($0, "pull") },
+                diagnose: { "Planned pull + knee pain → should keep pull, got \($0.modality)" }),
         ]
     }
 

@@ -446,7 +446,7 @@ struct TodayWorkoutView: View {
             return "Adjusted for recovery — body data wins."
         }
         switch session.source {
-        case .floorFallback: return "Offline — using your planned session."
+        case .floorFallback: return "Using your planned session (AI unavailable right now)."
         case .simple: return "Building your baseline — recovery-aware, trends still warming up."
         case .brain: return ""
         }

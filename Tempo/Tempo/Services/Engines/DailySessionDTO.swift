@@ -122,13 +122,38 @@ enum DailySessionParser {
             throw DailySessionParseError.decodeFailed(String(describing: error))
         }
 
-        try validate(decoded)
-        return decoded
+        // COERCE cosmetic overflow, don't hard-fail it. A 130-char shortWhy is a
+        // complete, correct session — throwing it to the dumber deterministic
+        // fallback would be a self-inflicted wound (and the next slightly-long
+        // title would nuke the next good session too). Match severity to the
+        // field: structural failures (bad JSON, missing block fields, bad enum)
+        // hard-fail; a too-long TITLE is truncated. (§13.1 "never render
+        // half-parsed" — a long title is not half-parsed.)
+        let coerced = coerce(decoded)
+
+        try validate(coerced)
+        return coerced
+    }
+
+    /// Repairs cosmetic-only deviations so a structurally-sound session survives.
+    /// Currently: truncate an over-length shortWhy to the 120-char budget.
+    static func coerce(_ session: DailySessionDTO) -> DailySessionDTO {
+        guard session.shortWhy.count > 120 else { return session }
+        let trimmed = String(session.shortWhy.prefix(119)).trimmingCharacters(in: .whitespaces) + "…"
+        return DailySessionDTO(
+            modality: session.modality, intensity: session.intensity,
+            durationMin: session.durationMin, blocks: session.blocks,
+            shortWhy: trimmed, fullWhy: session.fullWhy,
+            expectedStrain: session.expectedStrain, expectedSessionRPE: session.expectedSessionRPE
+        )
     }
 
     /// Enforces the per-kind required contract (§13.1). Pure; testable in isolation.
     static func validate(_ session: DailySessionDTO) throws {
         guard !session.blocks.isEmpty else { throw DailySessionParseError.emptyBlocks }
+        // Empty shortWhy is structural (the model gave NO rationale) → hard-fail.
+        // Over-length is cosmetic and already coerced in parse() before this runs;
+        // validate stays strict for direct callers (they should coerce first).
         guard !session.shortWhy.isEmpty, session.shortWhy.count <= 120 else {
             throw DailySessionParseError.shortWhyMissingOrTooLong
         }
