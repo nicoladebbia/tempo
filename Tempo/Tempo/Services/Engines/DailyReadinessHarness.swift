@@ -57,7 +57,7 @@ struct HarnessResult: Sendable {
     var verdict: String {
         let q = sensibleUnaided // integer count — no float truncation (advisor)
         let promptOnlyClean = promptOnlyAntiPatternPassed == promptOnlyAntiPatternTotal
-        if q >= 19, promptOnlyClean { return "PASS — proceed to D1" }
+        if q >= 19, promptOnlyClean { return "PASS — prompt validated, coach may ship" }
         if !promptOnlyClean { return "FAIL — a floor-CAN'T-catch anti-pattern failed (the prompt is the only defense here). Architecture in question, STOP." }
         if q <= 15 { return "FAIL — prompt quality too low (\(q)/\(total)). STOP." }
         return "BORDERLINE (\(q)/\(total)) — re-run before verdict (Haiku is nondeterministic)"

@@ -98,6 +98,7 @@
 		20AAE014F33E73744C751B43 /* MealLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26E754E56F8ECB91C6DF5338 /* MealLog.swift */; };
 		20E089707577877C7861CD50 /* cue_ex_cable_crunch.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = D5751A80F7E00271C0CD0F13 /* cue_ex_cable_crunch.mp3 */; };
 		20E34F6F9397DBCA551CDB18 /* cue_ex_pull_up.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = D3E24C7C539FF9BCE8D6C50A /* cue_ex_pull_up.mp3 */; };
+		216B09C6FCEEB67ED6719E0D /* DailyReadinessCoachTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BFBEDB8EA4FE0A8F3AA0B7C /* DailyReadinessCoachTests.swift */; };
 		21A4EF8AA82197AF42E15D36 /* Font+Tempo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C58824F2381AEBCF49116A2 /* Font+Tempo.swift */; };
 		22307C63DC7074A53D186F72 /* NotificationSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD97FCDDA933BD424B4D829D /* NotificationSetupView.swift */; };
 		22952506263D94A4E2A08EB8 /* cue_ex_standing_cable_fly.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 91889CC2E8987E7AD0FB0B3C /* cue_ex_standing_cable_fly.mp3 */; };
@@ -169,6 +170,7 @@
 		3DB8DB1158C12767682AC2C0 /* TDEEGoalWeightTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9862F496BFCD820909BD38F3 /* TDEEGoalWeightTests.swift */; };
 		3DFAF446D442A8AF34184607 /* MockNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E29E85F814651278AAAEB037 /* MockNotificationService.swift */; };
 		3E5BBDCFCFA3CACDC5422C0B /* cue_ex_banded_face_pull.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 1E38CF169D876CAE9480622F /* cue_ex_banded_face_pull.mp3 */; };
+		3E608E12F490C484FD4D251C /* DailyReadinessCoach.swift in Sources */ = {isa = PBXBuildFile; fileRef = E21B799283963EA1E91D8858 /* DailyReadinessCoach.swift */; };
 		3F71AEE789B2A89CCCC6D47E /* WhoopServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5277163BE577CEBD3272EF24 /* WhoopServiceProtocol.swift */; };
 		3FCFCCA9A8B12438AD049452 /* AccountabilityEscalationEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0E3A144A95A6F8B142352EE /* AccountabilityEscalationEngine.swift */; };
 		3FE34BB083559C097072A9B8 /* cue_ex_seated_calf_raise.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = BF2D4E3C8F27A09717F6E528 /* cue_ex_seated_calf_raise.mp3 */; };
@@ -965,6 +967,7 @@
 		496CF146E908D191F82FD2D4 /* AccountabilityViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountabilityViewModel.swift; sourceTree = "<group>"; };
 		49ACE819EC67B27E98797001 /* XPEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XPEvent.swift; sourceTree = "<group>"; };
 		4B159B33F931B316671DFF6E /* cue_ex_incline_hammer_curl.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_incline_hammer_curl.mp3; sourceTree = "<group>"; };
+		4BFBEDB8EA4FE0A8F3AA0B7C /* DailyReadinessCoachTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyReadinessCoachTests.swift; sourceTree = "<group>"; };
 		4C50C82340B5222A5BEA781A /* ProgressReportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressReportView.swift; sourceTree = "<group>"; };
 		4C5B1331799BBAE62F6E1ECE /* DashboardSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardSettingsView.swift; sourceTree = "<group>"; };
 		4CFC20847959DF51B12AEBC7 /* ReadinessAssembler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadinessAssembler.swift; sourceTree = "<group>"; };
@@ -1417,6 +1420,7 @@
 		E16145A1C882135AC9B92CCF /* ReadinessTrendMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadinessTrendMath.swift; sourceTree = "<group>"; };
 		E1D5702E0E481397D39A0C71 /* FuelQuadrantDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FuelQuadrantDetailView.swift; sourceTree = "<group>"; };
 		E207CFE8A1C998700CF165B2 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		E21B799283963EA1E91D8858 /* DailyReadinessCoach.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyReadinessCoach.swift; sourceTree = "<group>"; };
 		E21FBE07DAC8063F3E64D898 /* cue_ex_incline_dumbbell_curl.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_incline_dumbbell_curl.mp3; sourceTree = "<group>"; };
 		E275DA52EAEC4B9BEFE4F442 /* MarkEatenSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkEatenSheet.swift; sourceTree = "<group>"; };
 		E29E85F814651278AAAEB037 /* MockNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockNotificationService.swift; sourceTree = "<group>"; };
@@ -1916,6 +1920,7 @@
 				5013D6692ECB56F906BDDE2B /* AdaptiveProfileUpdaterTests.swift */,
 				836DA2F2EF4B0792BC102B0E /* AIProgramReconcileTests.swift */,
 				B70F4CB3E290DECE744BC163 /* DailyCoachPromptCalibrationTests.swift */,
+				4BFBEDB8EA4FE0A8F3AA0B7C /* DailyReadinessCoachTests.swift */,
 				AABC459D7700FF31DB676B02 /* DailySessionParserTests.swift */,
 				FCCB306471B2F0756DB784F0 /* ErrorFitCorrectionTests.swift */,
 				BB86663592C39AC8B698E164 /* FeedbackAggregationTests.swift */,
@@ -2726,6 +2731,7 @@
 				9CE0A45FF303D919BB324B11 /* AdaptiveProfileUpdater.swift */,
 				FF125ECBD0DAEBC7DEA209BE /* AIProgramPlanner.swift */,
 				91678E76E9FE607583D6A4DA /* DailyCoachPrompt.swift */,
+				E21B799283963EA1E91D8858 /* DailyReadinessCoach.swift */,
 				51F4F59D0995723446BF271A /* DailyReadinessHarness.swift */,
 				6E31BE165BC26D919D7AC2DB /* DailySessionDTO.swift */,
 				BA8DC80370CF1FB5C4C9462C /* DayPlanner.swift */,
@@ -3492,6 +3498,7 @@
 				6BEDADDCEF83B12005C95CB0 /* CoachViewModelTests.swift in Sources */,
 				D186FF3472B352D7675AEA8C /* CoachVoiceControllerTests.swift in Sources */,
 				0BFD41102E85D0B242A0FDE2 /* DailyCoachPromptCalibrationTests.swift in Sources */,
+				216B09C6FCEEB67ED6719E0D /* DailyReadinessCoachTests.swift in Sources */,
 				A877D1AD0D2B8A53AB026E2D /* DailySessionParserTests.swift in Sources */,
 				F74A25D4D39B1B2A733BE9A1 /* ErrorFitCorrectionTests.swift in Sources */,
 				1BCAD5E29AAD95B6884ABF2D /* FeedbackAggregationTests.swift in Sources */,
@@ -3679,6 +3686,7 @@
 				2406709301E45DA98C95299D /* DailyNutritionSummaryView.swift in Sources */,
 				B5427E5054CC62D6229DDFD1 /* DailyPlanProfileViews.swift in Sources */,
 				D7D3484F2DCA932ED8C4053D /* DailyPrescription.swift in Sources */,
+				3E608E12F490C484FD4D251C /* DailyReadinessCoach.swift in Sources */,
 				1F012319D5F45330A57B101B /* DailyReadinessHarness.swift in Sources */,
 				C6AC766EC77123BBD1740084 /* DailyReadinessHarnessView.swift in Sources */,
 				277CA8019188AE32BC376911 /* DailyRecovery.swift in Sources */,
