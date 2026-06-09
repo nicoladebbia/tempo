@@ -568,6 +568,48 @@ final class TrainingViewModel {
         }
     }
 
+    // MARK: - Error-Fit Correction (Step 3 — measure → correct)
+
+    /// After outcomes are backfilled, fit each exercise's learned increment to
+    /// its MEASURED signed RPE error (conservative partial step, clamped). This
+    /// is the error-driven replacement for the blind RPE-bucket nudge: instead
+    /// of "+10% because it felt easy", it's "this exercise lands 1.2 RPE under
+    /// target, so nudge the step toward the value that would've hit target."
+    /// Only acts on the predictions resolved THIS session.
+    private func applyErrorFitCorrection(planID: UUID, modelContext: ModelContext) {
+        let descriptor = FetchDescriptor<PredictionLog>(
+            predicate: #Predicate { $0.workoutPlanID == planID && $0.outcomeResolved }
+        )
+        let resolved = (try? modelContext.fetch(descriptor)) ?? []
+        guard !resolved.isEmpty else { return }
+
+        let profile = fetchOrCreateAdaptiveProfile(modelContext: modelContext)
+
+        // One correction per exercise, from this session's measured error.
+        let byExercise = Dictionary(grouping: resolved, by: { $0.exerciseID })
+        for (exerciseID, rows) in byExercise {
+            let errors = rows.compactMap(\.rpeError)
+            guard !errors.isEmpty else { continue }
+            let meanError = errors.reduce(0, +) / Double(errors.count)
+
+            // Current learned step, or the one used at prescribe time, or the
+            // equipment default the prediction recorded.
+            let current = profile.learnedIncrements[exerciseID]
+                ?? rows.first?.learnedIncrementUsed
+                ?? 2.5
+            let corrected = AdaptiveProfileUpdater.correctedIncrement(
+                current: current,
+                meanSignedRPEError: meanError
+            )
+            profile.learnedIncrements[exerciseID] = corrected
+        }
+        profile.updatedAt = Date()
+        try? modelContext.save()
+        #if DEBUG
+            print("\(DebugTrace.prefix)[adaptive] error-fit correction applied for \(byExercise.count) exercise(s)")
+        #endif
+    }
+
     // MARK: - Adaptive Profile (Phase 3)
 
     /// Read-only snapshot of the adaptive signals the engine consumes. Does NOT
@@ -1426,6 +1468,12 @@ final class TrainingViewModel {
             )
         }
         backfillPredictionOutcomes(planID: planID, outcomes: outcomes, modelContext: modelContext)
+
+        // Step 3 (measure → correct) — fit the learned increments to the MEASURED
+        // RPE error from the predictions just resolved, instead of the blind
+        // RPE-bucket nudge. Conservative partial step, clamped. This is the first
+        // place the engine consumes its own accuracy signal to change behavior.
+        applyErrorFitCorrection(planID: planID, modelContext: modelContext)
 
         // Persist to SwiftData
         try? modelContext.save()

@@ -99,6 +99,49 @@ enum AdaptiveProfileUpdater {
         profile.updatedAt = Date()
     }
 
+    // MARK: - Error-fit correction (Step 3 — adapt to measured error, not a constant)
+
+    /// How many RPE points of error correspond to one full weight increment of
+    /// mis-load. Rough but defensible: on a compound, one increment shifts a
+    /// working set by roughly half-to-one RPE, so ~2 RPE of persistent error ≈
+    /// one increment too light/heavy. Used to translate measured RPE error into
+    /// a weight correction.
+    static let rpePerIncrement: Double = 2.0
+
+    /// Fraction of the error-implied correction applied per session. Conservative
+    /// by design (user's call): move ~40% of the way toward the target each time,
+    /// re-measure, correct again — so a single noisy session can't swing the
+    /// weight, and the increment converges over several weeks instead of jumping.
+    static let correctionGain: Double = 0.4
+
+    /// RPE error smaller than this (in magnitude) is treated as noise — no
+    /// correction. Matches PredictionAccuracy.trendEpsilon intent but kept local
+    /// so the updater doesn't depend on the accuracy module.
+    static let errorNoiseBand: Double = 0.3
+
+    /// Given the mean SIGNED RPE error for an exercise (actual − predicted) and
+    /// the current learned increment, return the new increment fitted toward the
+    /// error. Negative error = sessions came in EASIER than the ~8 target =
+    /// under-loaded → RAISE the increment; positive = too hard → LOWER it.
+    /// Conservative partial step, clamped to the same safe band as all learning.
+    ///
+    /// Returns the current increment unchanged when the error is within noise.
+    static func correctedIncrement(
+        current: Double,
+        meanSignedRPEError: Double
+    ) -> Double {
+        // Inside the noise band → no change (don't chase RPE jitter).
+        guard abs(meanSignedRPEError) > errorNoiseBand else { return current }
+
+        // Error-implied full correction (kg): a too-easy session (negative
+        // error) implies a larger step; too-hard implies a smaller one.
+        // error/rpePerIncrement = increments of mis-load; one increment of
+        // mis-load ≈ one base step (2.5kg) of correction.
+        let fullCorrectionKg = (-meanSignedRPEError / rpePerIncrement) * 2.5
+        let applied = fullCorrectionKg * correctionGain
+        return clampIncrement(current + applied)
+    }
+
     // MARK: - Outcome feedback (Phase 4 Fix 4.2)
 
     /// Apply a graded WeekOutcome to the profile — the macro feedback loop. A
