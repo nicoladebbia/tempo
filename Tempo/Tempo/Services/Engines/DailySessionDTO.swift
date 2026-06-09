@@ -127,7 +127,8 @@ enum DailySessionParser {
         // fallback would be a self-inflicted wound (and the next slightly-long
         // title would nuke the next good session too). Match severity to the
         // field: structural failures (bad JSON, missing block fields, bad enum)
-        // hard-fail; a too-long TITLE is truncated. (§13.1 "never render
+        // hard-fail; a moderately-long TITLE renders in full (the card wraps),
+        // and only a pathological one is word-cut. (§13.1 "never render
         // half-parsed" — a long title is not half-parsed.)
         let coerced = coerce(decoded)
 
@@ -135,11 +136,24 @@ enum DailySessionParser {
         return coerced
     }
 
+    /// Display ceiling for shortWhy. The PROMPT still asks for ≤120 (brevity is
+    /// the model's job); a moderate overrun is shown IN FULL — the card wraps,
+    /// and a mid-word "…" cut reads worse than an extra line (the live 2026-06-09
+    /// complaint: "Preserve progres…"). Only a pathological dump (the model
+    /// putting fullWhy-sized prose in the title) is cut, and at a word boundary.
+    static let shortWhyDisplayCap = 240
+
     /// Repairs cosmetic-only deviations so a structurally-sound session survives.
-    /// Currently: truncate an over-length shortWhy to the 120-char budget.
+    /// Currently: word-boundary truncation of a pathologically long shortWhy
+    /// (> shortWhyDisplayCap). Anything under the cap passes through verbatim.
     static func coerce(_ session: DailySessionDTO) -> DailySessionDTO {
-        guard session.shortWhy.count > 120 else { return session }
-        let trimmed = String(session.shortWhy.prefix(119)).trimmingCharacters(in: .whitespaces) + "…"
+        guard session.shortWhy.count > shortWhyDisplayCap else { return session }
+        var head = String(session.shortWhy.prefix(shortWhyDisplayCap - 1))
+        // Drop the trailing partial word — the cut must land on whole words.
+        if let lastSpace = head.lastIndex(of: " ") {
+            head = String(head[..<lastSpace])
+        }
+        let trimmed = head.trimmingCharacters(in: .whitespaces) + "…"
         return DailySessionDTO(
             modality: session.modality, intensity: session.intensity,
             durationMin: session.durationMin, blocks: session.blocks,
@@ -152,9 +166,11 @@ enum DailySessionParser {
     static func validate(_ session: DailySessionDTO) throws {
         guard !session.blocks.isEmpty else { throw DailySessionParseError.emptyBlocks }
         // Empty shortWhy is structural (the model gave NO rationale) → hard-fail.
-        // Over-length is cosmetic and already coerced in parse() before this runs;
-        // validate stays strict for direct callers (they should coerce first).
-        guard !session.shortWhy.isEmpty, session.shortWhy.count <= 120 else {
+        // Over-length up to the display cap is fine (shown in full — the card
+        // wraps); beyond it parse() has already word-cut in coerce(). validate
+        // stays strict for direct callers (they should coerce first).
+        guard !session.shortWhy.isEmpty,
+              session.shortWhy.count <= DailySessionParser.shortWhyDisplayCap else {
             throw DailySessionParseError.shortWhyMissingOrTooLong
         }
         if let rpe = session.expectedSessionRPE, !(1 ... 10).contains(rpe) {

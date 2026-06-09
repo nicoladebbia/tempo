@@ -67,19 +67,32 @@ final class DailySessionParserTests: XCTestCase {
         }
     }
 
-    func testTooLongShortWhyIsCoercedNotThrown() throws {
-        // A 130-char shortWhy is a COMPLETE, correct session — coerce (truncate),
-        // don't throw it to the dumber deterministic fallback. (The live D2 bug:
-        // a real brain session was nuked by a slightly-long title.)
+    func testModeratelyLongShortWhySurvivesInFull() throws {
+        // A 130-char shortWhy is a COMPLETE, correct session — and it renders
+        // IN FULL: the card wraps, and a mid-word "…" cut reads worse than an
+        // extra line (live complaint 2026-06-09: "Preserve progres…"). The
+        // ≤120 ask stays in the prompt; the parser no longer enforces it.
         let long = String(repeating: "x", count: 130)
         let json = """
         {"modality":"pull","intensity":"moderate","durationMin":50,
          "blocks":[{"kind":"gym","label":"Pull","split":"pull"}],"shortWhy":"\(long)"}
         """
         let s = try P.parse(json)
-        XCTAssertLessThanOrEqual(s.shortWhy.count, 120, "Over-length shortWhy truncated to budget")
-        XCTAssertTrue(s.shortWhy.hasSuffix("…"), "Truncation marked with an ellipsis")
+        XCTAssertEqual(s.shortWhy, long, "Moderate overrun passes through verbatim — whole words, no ellipsis")
         XCTAssertEqual(s.modality, "pull", "The rest of the session survives intact")
+    }
+
+    func testPathologicalShortWhyIsWordCutNotMidWord() throws {
+        // Past the 240 display cap (the model dumped fullWhy-sized prose into
+        // the title) we still cut — but at a WORD boundary, never mid-word.
+        let long = Array(repeating: "alpha", count: 60).joined(separator: " ") // 359 chars
+        let json = """
+        {"modality":"pull","intensity":"moderate","durationMin":50,
+         "blocks":[{"kind":"gym","label":"Pull","split":"pull"}],"shortWhy":"\(long)"}
+        """
+        let s = try P.parse(json)
+        XCTAssertLessThanOrEqual(s.shortWhy.count, P.shortWhyDisplayCap, "Cut to the display cap")
+        XCTAssertTrue(s.shortWhy.hasSuffix("alpha…"), "Cut lands after a whole word, ellipsis-marked")
     }
 
     func testEmptyShortWhyStillThrows() {
