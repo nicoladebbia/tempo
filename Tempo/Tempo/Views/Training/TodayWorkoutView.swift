@@ -227,6 +227,17 @@ struct TodayWorkoutView: View {
                 dailySessionCard(session)
             }
 
+            #if DEBUG
+            // Force a fresh coach run in-place (no .task / relaunch dependency —
+            // the flag + direct call run in one stack). Verifies the daily loop.
+            Button("⟳ Run coach now (force, DEBUG)") {
+                UserDefaults.standard.set(true, forKey: "tempo.debug.forceDailyRerun")
+                Task { await viewModel.runDailyReadinessSession(modelContext: modelContext) }
+            }
+            .font(.tempoCaption1)
+            .foregroundStyle(Color.tempoSignal)
+            #endif
+
             // Saved-event countdown takes precedence over the suggestion;
             // both are non-blocking (Phase 4 + follow-up).
             if let saved = savedWorkoutEvent {

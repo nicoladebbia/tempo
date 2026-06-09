@@ -48,13 +48,6 @@ struct DailyReadinessHarnessView: View {
             .disabled(running)
             .buttonStyle(.borderedProminent)
 
-            Button {
-                UserDefaults.standard.set(true, forKey: "tempo.debug.forceDailyRerun")
-            } label: {
-                Text("Force daily coach re-run (then open Training)")
-            }
-            .buttonStyle(.bordered)
-
             if !verdict.isEmpty {
                 Text(verdict)
                     .font(.headline)

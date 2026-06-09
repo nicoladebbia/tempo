@@ -530,9 +530,16 @@ final class TrainingViewModel {
             let forceRerun = false
         #endif
 
+        #if DEBUG
+            print("\(DebugTrace.prefix)[daily_coach] enter forceRerun=\(forceRerun) alreadyRan=\(profile.lastDailySessionDayKey == todayKey)")
+        #endif
+
         guard forceRerun || profile.lastDailySessionDayKey != todayKey else {
             // Already ran today — surface the persisted session for the card.
             dailySession = fetchTodayDailySession(modelContext: modelContext)
+            #if DEBUG
+                print("\(DebugTrace.prefix)[daily_coach] guard-skip (cached) — not re-calling today")
+            #endif
             return
         }
 
