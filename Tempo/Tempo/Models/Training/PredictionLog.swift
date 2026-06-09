@@ -89,6 +89,17 @@ final class PredictionLog {
     /// (unresolved). Step 2 scores only resolved rows with an actualRPE.
     var outcomeResolved: Bool = false
 
+    // MARK: - Shadow baseline (Step 4 hold-out)
+    //
+    // What the DUMB generic engine (last weight + fixed increment, no learning,
+    // no recovery adjustment) would have prescribed for the same exercise/
+    // session. Logged at prescribe time but NEVER shown to the user — it exists
+    // only to answer "does the personalized prescription actually beat generic?"
+
+    /// Generic-baseline prescribed working weight (kg). nil for early sessions
+    /// with no prior weight to project from.
+    var baselineWeight: Double?
+
     // MARK: - Typed accessors
 
     @Transient
@@ -105,6 +116,30 @@ final class PredictionLog {
         return actualRPE - predictedRPE
     }
 
+    /// ESTIMATED signed RPE error the generic baseline WOULD have produced, or
+    /// nil if no baseline / unresolved. Not a direct measurement — we only
+    /// observed the actual RPE at the weight actually used, so we project the
+    /// baseline's error by converting the baseline-vs-actual WEIGHT gap into RPE
+    /// space (heavier baseline → would have felt harder → larger positive error).
+    /// Labeled "estimated" everywhere because it is an estimate, not a reading.
+    /// `rpePerIncrementForEstimate` mirrors AdaptiveProfileUpdater.rpePerIncrement.
+    @Transient
+    var baselineRPEErrorEstimate: Double? {
+        guard outcomeResolved, let actualRPE, let baselineWeight,
+              let actualWeight, actualWeight > 0 else { return nil }
+        // Weight the baseline would have used vs. what was actually lifted,
+        // expressed in increments, then in RPE: each increment heavier ≈
+        // rpePerIncrementForEstimate harder.
+        let incrementsHeavier = (baselineWeight - actualWeight) / 2.5
+        let estimatedActualRPEUnderBaseline = actualRPE + incrementsHeavier * Self.rpePerIncrementForEstimate
+        return estimatedActualRPEUnderBaseline - predictedRPE
+    }
+
+    /// RPE-per-increment used only for the baseline ESTIMATE. Kept in sync with
+    /// AdaptiveProfileUpdater.rpePerIncrement by intent (duplicated to avoid the
+    /// model depending on the updater).
+    static let rpePerIncrementForEstimate: Double = 2.0
+
     // MARK: - Init
 
     init(
@@ -117,7 +152,8 @@ final class PredictionLog {
         predictedReps: Int,
         predictedRPE: Double = 8.0,
         signalUsedRaw: String,
-        learnedIncrementUsed: Double? = nil
+        learnedIncrementUsed: Double? = nil,
+        baselineWeight: Double? = nil
     ) {
         self.id = id
         self.date = Calendar.current.startOfDay(for: date)
@@ -129,5 +165,6 @@ final class PredictionLog {
         self.predictedRPE = predictedRPE
         self.signalUsedRaw = signalUsedRaw
         self.learnedIncrementUsed = learnedIncrementUsed
+        self.baselineWeight = baselineWeight
     }
 }

@@ -530,6 +530,17 @@ final class TrainingViewModel {
         return PredictionAccuracy.summarize(rows)
     }
 
+    /// Step 4 hold-out: does the personalized engine actually beat the generic
+    /// +2.5kg/week baseline on prediction error? Read-only / passive — the
+    /// honesty check. Returns `.insufficient` until enough resolved rows exist.
+    func predictionHoldout(modelContext: ModelContext) -> HoldoutResult {
+        let descriptor = FetchDescriptor<PredictionLog>(
+            predicate: #Predicate { $0.outcomeResolved }
+        )
+        let rows = (try? modelContext.fetch(descriptor)) ?? []
+        return PredictionAccuracy.holdout(rows)
+    }
+
     // MARK: - Prediction Outcomes (Step 1 measurement spine)
 
     /// One exercise's observed outcome, decoupled from the persistCompletion-

@@ -46,6 +46,29 @@ struct AccuracySummary: Equatable, Sendable {
     )
 }
 
+/// Verdict of the personalized-vs-generic hold-out (Step 4). The honest check:
+/// does personalization actually beat the dumb baseline, or is it theater?
+enum HoldoutVerdict: String, Equatable, Sendable {
+    case personalizedWins   // personalized error meaningfully lower than baseline
+    case tie                // within noise — no demonstrated advantage
+    case baselineWins       // personalized is WORSE than just +2.5kg/week
+    case insufficient       // not enough resolved rows with a baseline
+}
+
+/// Result of comparing the personalized engine's prediction error against the
+/// generic baseline's ESTIMATED error over the same sessions.
+struct HoldoutResult: Equatable, Sendable {
+    let personalizedMeanAbsError: Double
+    let baselineMeanAbsError: Double
+    let sampleCount: Int
+    let verdict: HoldoutVerdict
+
+    static let insufficient = HoldoutResult(
+        personalizedMeanAbsError: 0, baselineMeanAbsError: 0,
+        sampleCount: 0, verdict: .insufficient
+    )
+}
+
 enum PredictionAccuracy {
     /// A trend is called only when each window has at least this many scored
     /// rows — below that, error is too noisy to read as a direction.
@@ -84,6 +107,37 @@ enum PredictionAccuracy {
             overallTrend: overallTrend,
             totalScored: scored.count,
             perExercise: perExercise
+        )
+    }
+
+    /// Hold-out: how much smaller is personalized error than the generic
+    /// baseline's estimated error, over rows that have BOTH a real error and a
+    /// baseline estimate? `minWindow` rows required to call a verdict. The
+    /// baseline must beat personalized by more than `trendEpsilon` to flip the
+    /// verdict — ties are honest "no demonstrated advantage", not a win.
+    static func holdout(_ logs: [PredictionLog]) -> HoldoutResult {
+        let scored = logs.filter {
+            $0.outcomeResolved && $0.rpeError != nil && $0.baselineRPEErrorEstimate != nil
+        }
+        guard scored.count >= minWindow else { return .insufficient }
+
+        let personalized = mean(scored.map { abs($0.rpeError ?? 0) })
+        let baseline = mean(scored.map { abs($0.baselineRPEErrorEstimate ?? 0) })
+        let delta = personalized - baseline // negative = personalized better
+
+        let verdict: HoldoutVerdict
+        if delta < -trendEpsilon {
+            verdict = .personalizedWins
+        } else if delta > trendEpsilon {
+            verdict = .baselineWins
+        } else {
+            verdict = .tie
+        }
+        return HoldoutResult(
+            personalizedMeanAbsError: personalized,
+            baselineMeanAbsError: baseline,
+            sampleCount: scored.count,
+            verdict: verdict
         )
     }
 

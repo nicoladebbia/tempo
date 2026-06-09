@@ -172,6 +172,14 @@ extension TrainingViewModel {
             // for this working exercise, so its accuracy can be measured against
             // the actual session later (persistCompletion backfills the outcome).
             // Passive ledger: nothing reads it to change prescriptions yet.
+            // Step 4 shadow baseline: what the DUMB generic engine would have
+            // prescribed — last logged weight + one fixed 2.5kg step, no
+            // learning, no recovery/deload adjustment. nil when there's no prior
+            // weight to project from (early sessions).
+            let lastLoggedWeight = history.sorted(by: { $0.date > $1.date })
+                .first?.bestSetWeight
+            let baselineWeight: Double? = lastLoggedWeight.map { $0 + 2.5 }
+
             logPrediction(
                 planID: plan.id,
                 exercise: exercise,
@@ -179,6 +187,7 @@ extension TrainingViewModel {
                 predictedReps: reps,
                 rationale: overload.rationale,
                 learnedIncrement: learnedIncrements[exercise.id],
+                baselineWeight: baselineWeight,
                 modelContext: modelContext
             )
         }
@@ -196,6 +205,7 @@ extension TrainingViewModel {
         predictedReps: Int,
         rationale: ProgressionReason,
         learnedIncrement: Double?,
+        baselineWeight: Double?,
         modelContext: ModelContext
     ) {
         let exerciseID = exercise.id
@@ -219,7 +229,8 @@ extension TrainingViewModel {
             predictedWeight: predictedWeight,
             predictedReps: predictedReps,
             signalUsedRaw: rationale.rawValue,
-            learnedIncrementUsed: learnedIncrement
+            learnedIncrementUsed: learnedIncrement,
+            baselineWeight: baselineWeight
         )
         modelContext.insert(log)
     }
