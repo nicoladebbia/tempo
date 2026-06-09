@@ -539,6 +539,12 @@ final class DashboardViewModel {
             upsertDailyRecovery(recovery, sleepHours: sleepHours, context: context)
         }
 
+        // Snapshot body composition once/day (Withings → HealthKit) so a 30-day
+        // trend exists for the monthly summary (INTELLIGENT_TRAINING_SYSTEM §4.3/§17).
+        if let context = fuelContext {
+            await snapshotBodyCompositionIfNeeded(context: context)
+        }
+
         // Build Fuel quadrant with recovery-adjusted targets.
         // Targets come from NutritionTarget if present; defaults are used otherwise.
         let baseCalTarget = nutritionTotals.calorieTarget
@@ -725,6 +731,63 @@ final class DashboardViewModel {
             context.insert(row)
         }
         try? context.save()
+    }
+
+    // MARK: - Body Composition Snapshot (INTELLIGENT_TRAINING_SYSTEM §4.3)
+
+    /// Once-daily snapshot of HealthKit body composition into a BodyComposition
+    /// row (date-unique → idempotent upsert). Guarded so we don't re-fetch
+    /// HealthKit on every Dashboard refresh — only the first refresh of the day.
+    private func snapshotBodyCompositionIfNeeded(context: ModelContext) async {
+        let today = Calendar.current.startOfDay(for: Date())
+        let guardKey = "lastBodyCompSnapshotDay"
+        if let last = UserDefaults.standard.object(forKey: guardKey) as? Date,
+           Calendar.current.isDate(last, inSameDayAs: today) {
+            return // already snapshotted today
+        }
+
+        let data: BodyCompositionData
+        do {
+            data = try await healthKit.fetchBodyComposition()
+        } catch {
+            #if DEBUG
+                print("\(DebugTrace.prefix)[Dashboard] body-comp snapshot skipped — fetch failed: \(error)")
+            #endif
+            return
+        }
+
+        // Nothing to store if HealthKit has no body data at all.
+        guard data.weightKg != nil || data.bodyFatPercent != nil || data.leanMassKg != nil else {
+            #if DEBUG
+                print("\(DebugTrace.prefix)[Dashboard] body-comp snapshot skipped — no HealthKit body data")
+            #endif
+            return
+        }
+
+        guard let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today) else { return }
+        let descriptor = FetchDescriptor<BodyComposition>(
+            predicate: #Predicate<BodyComposition> { $0.date >= today && $0.date < tomorrow }
+        )
+        if let existing = (try? context.fetch(descriptor))?.first {
+            existing.weightKg = data.weightKg
+            existing.bodyFatPercent = data.bodyFatPercent
+            existing.leanMassKg = data.leanMassKg
+            existing.measurementDate = data.measurementDate
+            existing.capturedAt = Date()
+        } else {
+            context.insert(BodyComposition(
+                date: today,
+                weightKg: data.weightKg,
+                bodyFatPercent: data.bodyFatPercent,
+                leanMassKg: data.leanMassKg,
+                measurementDate: data.measurementDate
+            ))
+        }
+        try? context.save()
+        UserDefaults.standard.set(today, forKey: guardKey)
+        #if DEBUG
+            print("\(DebugTrace.prefix)[Dashboard] body-comp snapshot: weight=\(data.weightKg ?? -1)kg bf=\(data.bodyFatPercent ?? -1)% lean=\(data.leanMassKg ?? -1)kg")
+        #endif
     }
 
     // MARK: - Training Status Connection

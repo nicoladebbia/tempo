@@ -36,6 +36,9 @@ struct RecoveryTodayView: View {
                 // Hero: Recovery Ring
                 heroSection
 
+                // Subjective morning check-in (INTELLIGENT_TRAINING_SYSTEM §4.2)
+                MorningCheckInCard()
+
                 // Recovery Score Explanation (Task 1)
                 recoveryExplanationSection
 

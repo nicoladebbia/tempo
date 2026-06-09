@@ -296,6 +296,7 @@
 		69276D75326AC3758E1E6F54 /* cue_ex_machine_chest_press.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 3968C905E6F1D397714F365E /* cue_ex_machine_chest_press.mp3 */; };
 		69AFDA29F7B83353099A330B /* PerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AEF55D8D3377B5CCB24CB34 /* PerformanceTests.swift */; };
 		69E5E6DA0DB26A06F127FFA1 /* cue_ex_seated_leg_curl.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FD9298995BB3198EA73F40B3 /* cue_ex_seated_leg_curl.mp3 */; };
+		69FF0E2A87C20F18F27013E4 /* MorningCheckInCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8496A891EE4A0A65F57C62AD /* MorningCheckInCard.swift */; };
 		6A38CAD4C65BB73E9C7D116E /* TempoIconButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C6AF2C5780FC47F5D791B88 /* TempoIconButton.swift */; };
 		6A4532D9913F02E59C87BD25 /* AchievementsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27A477666583F62F032D6C07 /* AchievementsView.swift */; };
 		6A858259C2B057F0E1166857 /* APIErrorPayloadTooLargeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B04EEBF4C2E9E01C115465D /* APIErrorPayloadTooLargeTests.swift */; };
@@ -1118,6 +1119,7 @@
 		8373DCB9C0829D3723EF298B /* PlannedMealCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlannedMealCardView.swift; sourceTree = "<group>"; };
 		8457A0C1E5AD157EF2DDE996 /* OnboardingContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingContainerView.swift; sourceTree = "<group>"; };
 		847B6162B301D99925EAE874 /* PreferenceHealthCheckTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferenceHealthCheckTests.swift; sourceTree = "<group>"; };
+		8496A891EE4A0A65F57C62AD /* MorningCheckInCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInCard.swift; sourceTree = "<group>"; };
 		849F1BE4C49918B7FC7F322D /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		8526AED40421CE129D69C792 /* StreakDotsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreakDotsView.swift; sourceTree = "<group>"; };
 		857A9A26B068BB33836B1C61 /* cue_ex_landmine_row.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_landmine_row.mp3; sourceTree = "<group>"; };
@@ -2205,6 +2207,7 @@
 			isa = PBXGroup;
 			children = (
 				504F36623C169DBC0D2B6007 /* .gitkeep */,
+				8496A891EE4A0A65F57C62AD /* MorningCheckInCard.swift */,
 				874B304D1F9AC8A9D6898FDF /* RecoveryAIInsightView.swift */,
 				87D50529413B8D6FD80DC089 /* RecoveryTabView.swift */,
 				3FAF1EA16142A7D5B1CCD340 /* RecoveryTodayView.swift */,
@@ -3795,6 +3798,7 @@
 				F242764DB953BDD99F09A345 /* MockWhoopService.swift in Sources */,
 				DE437C2704840F200B89050D /* MockXPEngine.swift in Sources */,
 				278A75B9725324737CFA4680 /* MorningCheckIn.swift in Sources */,
+				69FF0E2A87C20F18F27013E4 /* MorningCheckInCard.swift in Sources */,
 				9FECAB7DFA08585ADB49896C /* MoveQuadrantDetailView.swift in Sources */,
 				A2A0ED0E8EB44618661909B0 /* NaturalLanguageLoggingService.swift in Sources */,
 				B6BAC8D61CD7AF5696E7243B /* NetworkMonitor.swift in Sources */,
