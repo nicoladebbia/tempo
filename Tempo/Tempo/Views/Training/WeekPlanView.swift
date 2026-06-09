@@ -23,6 +23,8 @@ struct WeekPlanView: View {
     private var expandedPlanID: UUID?
     @State
     private var showScheduleEditor = false
+    @State
+    private var showMatchSchedule = false
 
     private let dayAbbreviations = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
     private let calendar = Calendar.current
@@ -64,6 +66,15 @@ struct WeekPlanView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
+                    showMatchSchedule = true
+                } label: {
+                    Label("Matches", systemImage: "calendar")
+                        .font(.tempoBody)
+                        .foregroundStyle(Color.tempoSignal)
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
                     showScheduleEditor = true
                 } label: {
                     Label("Edit", systemImage: "slider.horizontal.3")
@@ -74,6 +85,9 @@ struct WeekPlanView: View {
         }
         .sheet(isPresented: $showScheduleEditor) {
             ScheduleEditorView()
+        }
+        .sheet(isPresented: $showMatchSchedule) {
+            MatchScheduleView()
         }
         .onAppear {
             viewModel.loadWeekPlan(modelContext: modelContext)

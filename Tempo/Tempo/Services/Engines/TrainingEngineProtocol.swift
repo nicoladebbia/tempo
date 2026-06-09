@@ -79,7 +79,9 @@ protocol TrainingEngineProtocol: Sendable {
         recoveryScores: [Date: Double],
         footballDays: ActiveDays,
         split: TrainingSplit,
-        recoveryThresholdOffset: Double
+        recoveryThresholdOffset: Double,
+        // D3 — start-of-day keys of dated matches (§14 mid-week-match trigger).
+        matchDayKeys: Set<Date>
     ) -> [WorkoutPlan]
 
     /// Returns true if the given date falls in a deload week. The fixed periodic

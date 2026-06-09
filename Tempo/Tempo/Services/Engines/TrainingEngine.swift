@@ -311,7 +311,12 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         recoveryScores: [Date: Double],
         footballDays: ActiveDays,
         split: TrainingSplit,
-        recoveryThresholdOffset: Double = 0
+        recoveryThresholdOffset: Double = 0,
+        // D3 — start-of-day keys of DATED matches (distinct from the recurring
+        // footballDays weekdays). A match here re-shapes the surrounding days
+        // (T-0 match day, T-1 no-heavy-legs) even when it falls off a usual
+        // football weekday — the §14 mid-week-match periodization.
+        matchDayKeys: Set<Date> = []
     ) -> [WorkoutPlan] {
         let cal = Calendar.current
         var plans: [WorkoutPlan] = []
@@ -331,10 +336,15 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                 continue
             }
             let weekday = cal.component(.weekday, from: date)
+            // A day is "football" (T-0) if it's a recurring football weekday OR
+            // a dated match. T-1 likewise fires the day before either. The dated
+            // match widens the recurring-weekday rule; it never narrows it.
+            let isMatch = MatchSchedule.isMatchDay(date: date, matchDayKeys: matchDayKeys, calendar: cal)
+            let isMatchTMinus1 = MatchSchedule.isTMinus1(date: date, matchDayKeys: matchDayKeys, calendar: cal)
             dayMeta.append((
                 date: date,
-                isFootball: footballDays.isActive(on: weekday),
-                isTMinus1: isFootballTMinus1(date: date, footballDays: footballDays),
+                isFootball: footballDays.isActive(on: weekday) || isMatch,
+                isTMinus1: isFootballTMinus1(date: date, footballDays: footballDays) || isMatchTMinus1,
                 isTPlus1: isFootballTPlus1(date: date, footballDays: footballDays)
             ))
         }

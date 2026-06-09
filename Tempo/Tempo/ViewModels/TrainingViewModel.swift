@@ -514,14 +514,31 @@ final class TrainingViewModel {
         let bodyComp = fetchLatestBodyComp(modelContext: modelContext)
         let checkIn = fetchTodayCheckIn(modelContext: modelContext)?.snapshot
 
+        // D3 — days until the next DATED match (distinct from recurring football
+        // days). Feeds the brain's CONTEXT block + the T-1/T-0 prompt lines.
+        let matchKickoffs = fetchUpcomingMatchKickoffs(modelContext: modelContext)
+        let daysUntilNextMatch = MatchSchedule.daysUntilNextMatch(kickoffs: matchKickoffs, from: Date())
+
         return ReadinessAssembler.assemble(
             history: snapshots,
             today: todaySnapshot,
             yesterdaySessions: [], // surfaced in a later enrichment (§13.2)
             bodyComp: bodyComp,
             checkIn: checkIn,
-            daysUntilNextMatch: nil // match calendar is D3
+            daysUntilNextMatch: daysUntilNextMatch
         )
+    }
+
+    /// Kickoffs of all matches from today forward (start-of-day cutoff so a
+    /// match earlier today still counts). Used for the readiness picture's
+    /// daysUntilNextMatch and the deterministic week's T-1 leg-protection.
+    private func fetchUpcomingMatchKickoffs(modelContext: ModelContext) -> [Date] {
+        let cutoff = Calendar.current.startOfDay(for: Date())
+        let descriptor = FetchDescriptor<Match>(
+            predicate: #Predicate { $0.kickoff >= cutoff },
+            sortBy: [SortDescriptor(\.kickoff, order: .forward)]
+        )
+        return ((try? modelContext.fetch(descriptor)) ?? []).map(\.kickoff)
     }
 
     /// A minimal deterministic session for the planned modality — the fallback
@@ -922,13 +939,18 @@ final class TrainingViewModel {
         let recoveryScores = loadRecoveryScores(modelContext: modelContext, startDate: monday)
         // Phase 3: per-user learned recovery-threshold offset (clamped ±10).
         let signals = adaptiveSignals(modelContext: modelContext)
+        // D3 — dated matches re-shape the surrounding days (T-0/T-1) on top of
+        // the recurring football weekdays. Free deterministic re-periodization.
+        let matchDayKeys = Set(fetchUpcomingMatchKickoffs(modelContext: modelContext)
+            .map { cal.startOfDay(for: $0) })
 
         weekPlans = trainingEngine.generateWeekPlan(
             startDate: monday,
             recoveryScores: recoveryScores,
             footballDays: footballDays,
             split: split,
-            recoveryThresholdOffset: signals.thresholdOffset
+            recoveryThresholdOffset: signals.thresholdOffset,
+            matchDayKeys: matchDayKeys
         )
 
         // Check deload week status (Phase 3: fatigue trend can trigger early).
