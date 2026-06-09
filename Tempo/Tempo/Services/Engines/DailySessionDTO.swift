@@ -1,0 +1,212 @@
+//
+// DailySessionDTO.swift
+// Tempo
+//
+// The daily-training-brain AI output contract (docs/INTELLIGENT_TRAINING_SYSTEM.md
+// §13.1). camelCase wire format — NEVER touches the snake_case SwiftData DTOs.
+// Claude returns this as JSON; the parser enforces the per-kind required contract
+// and ANY failure invalidates the WHOLE session → caller falls back to the
+// deterministic floor's own pick. Never render a half-parsed session.
+//
+// Design note (§13.1): `block` is a FLAT object with a `kind` discriminator +
+// optional per-kind fields, NOT a tagged enum. Haiku mangles nested {gym:{...}};
+// a flat struct with optionals parses with one Codable + retries reliably.
+//
+// CRITICAL (§13.1, §8 KEEP): a gym block is a POINTER, not a prescription —
+// `{kind:gym, split:push}` only. The existing engine (populateExercises) fills
+// exercises/sets/weights and writes PredictionLog. The AI must NOT emit gym
+// weights — they'd fight AIProgramPlanner.reconcile's [0.5,1.1] clamp and bypass
+// the RPE accuracy loop.
+//
+
+import Foundation
+
+// MARK: - Intensity
+
+enum SessionIntensity: String, Codable, Sendable, CaseIterable {
+    case recovery
+    case easy
+    case moderate
+    case hard
+    case max
+}
+
+// MARK: - BlockKind
+
+enum BlockKind: String, Codable, Sendable, CaseIterable {
+    case gym
+    case field
+    case pool
+    case run
+    case bodyweight
+    case mobility
+    case rest
+}
+
+// MARK: - SessionBlockDTO
+
+/// Flat block: a `kind` discriminator plus optional per-kind fields. The parser
+/// (`validate()`) enforces which fields are REQUIRED for each kind.
+struct SessionBlockDTO: Codable, Sendable, Equatable {
+    let kind: BlockKind
+    let label: String
+    let notes: String?
+    /// Short technique cue per movement/drill (§14 Decision 4). AI-generated.
+    let cue: String?
+
+    // gym → pointer only
+    let split: String?
+
+    // field
+    let reps: Int?
+    let distanceM: Double?
+    let restSec: Int?
+    let intensityPct: Double?
+
+    // pool / run shared
+    let durationSec: Int?
+    let stroke: String?
+    let runType: String?
+    let paceSecPerKm: Double?
+
+    // bodyweight
+    let sets: Int?
+}
+
+// MARK: - DailySessionDTO
+
+/// The top-level AI-emitted session. `expectedStrain` / `expectedSessionRPE` are
+/// the predictions the per-modality outcome loop scores (§13.2).
+struct DailySessionDTO: Codable, Sendable, Equatable {
+    let modality: String
+    let intensity: SessionIntensity
+    let durationMin: Int
+    let blocks: [SessionBlockDTO]
+    let shortWhy: String
+    let fullWhy: String?
+    let expectedStrain: Double?
+    let expectedSessionRPE: Int?
+}
+
+// MARK: - Parse errors
+
+enum DailySessionParseError: Error, Equatable {
+    case notValidJSON
+    case decodeFailed(String)
+    case emptyBlocks
+    case shortWhyMissingOrTooLong
+    case blockContractViolated(kind: BlockKind, missing: String)
+    case intensityOutOfRange
+}
+
+// MARK: - Parser
+
+/// Parses + validates a raw Claude response into a DailySessionDTO, or throws.
+/// A throw is the SIGNAL to fall back to the deterministic floor (§5.2-FIX,
+/// §13.1) — never render a partially-valid session.
+enum DailySessionParser {
+
+    /// Strips an optional markdown code fence and any prose preamble/suffix,
+    /// then decodes the first balanced top-level JSON object. Haiku at temp 0.6
+    /// sometimes wraps JSON in ```json fences or adds a sentence — tolerate that,
+    /// but reject anything that isn't a clean object once extracted.
+    static func parse(_ raw: String) throws -> DailySessionDTO {
+        guard let jsonData = extractJSONObject(from: raw) else {
+            throw DailySessionParseError.notValidJSON
+        }
+
+        let decoded: DailySessionDTO
+        do {
+            decoded = try JSONDecoder().decode(DailySessionDTO.self, from: jsonData)
+        } catch {
+            throw DailySessionParseError.decodeFailed(String(describing: error))
+        }
+
+        try validate(decoded)
+        return decoded
+    }
+
+    /// Enforces the per-kind required contract (§13.1). Pure; testable in isolation.
+    static func validate(_ session: DailySessionDTO) throws {
+        guard !session.blocks.isEmpty else { throw DailySessionParseError.emptyBlocks }
+        guard !session.shortWhy.isEmpty, session.shortWhy.count <= 120 else {
+            throw DailySessionParseError.shortWhyMissingOrTooLong
+        }
+        if let rpe = session.expectedSessionRPE, !(1 ... 10).contains(rpe) {
+            throw DailySessionParseError.intensityOutOfRange
+        }
+
+        for block in session.blocks {
+            switch block.kind {
+            case .gym:
+                // POINTER only — split required, NO weights (the engine fills those).
+                guard let s = block.split, !s.isEmpty else {
+                    throw DailySessionParseError.blockContractViolated(kind: .gym, missing: "split")
+                }
+            case .field:
+                guard block.reps != nil || block.distanceM != nil else {
+                    throw DailySessionParseError.blockContractViolated(kind: .field, missing: "reps|distanceM")
+                }
+            case .pool:
+                guard block.distanceM != nil || block.durationSec != nil else {
+                    throw DailySessionParseError.blockContractViolated(kind: .pool, missing: "distanceM|durationSec")
+                }
+            case .run:
+                guard let rt = block.runType, !rt.isEmpty else {
+                    throw DailySessionParseError.blockContractViolated(kind: .run, missing: "runType")
+                }
+                guard block.distanceM != nil || block.durationSec != nil else {
+                    throw DailySessionParseError.blockContractViolated(kind: .run, missing: "distanceM|durationSec")
+                }
+            case .bodyweight:
+                guard block.reps != nil || block.durationSec != nil else {
+                    throw DailySessionParseError.blockContractViolated(kind: .bodyweight, missing: "reps|durationSec")
+                }
+            case .mobility, .rest:
+                break // label suffices
+            }
+        }
+    }
+
+    // MARK: - JSON extraction
+
+    /// Returns the bytes of the first balanced `{...}` object in `raw`, tolerating
+    /// a ```json fence and surrounding prose. Brace-counting (not regex) so nested
+    /// objects survive. nil when no balanced object exists.
+    static func extractJSONObject(from raw: String) -> Data? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let startIdx = trimmed.firstIndex(of: "{") else { return nil }
+
+        var depth = 0
+        var inString = false
+        var escaped = false
+        var endIdx: String.Index?
+
+        var i = startIdx
+        while i < trimmed.endIndex {
+            let c = trimmed[i]
+            if escaped {
+                escaped = false
+            } else if c == "\\" {
+                escaped = true
+            } else if c == "\"" {
+                inString.toggle()
+            } else if !inString {
+                if c == "{" {
+                    depth += 1
+                } else if c == "}" {
+                    depth -= 1
+                    if depth == 0 {
+                        endIdx = i
+                        break
+                    }
+                }
+            }
+            i = trimmed.index(after: i)
+        }
+
+        guard let end = endIdx else { return nil }
+        let slice = trimmed[startIdx ... end]
+        return String(slice).data(using: .utf8)
+    }
+}

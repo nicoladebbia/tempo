@@ -218,6 +218,20 @@ struct DashboardSettingsView: View {
                         .buttonStyle(.plain)
                     }
                 }
+
+                #if DEBUG
+                SettingsGroupCard(title: "Developer") {
+                    NavigationLink {
+                        DailyReadinessHarnessView()
+                    } label: {
+                        SettingsNavRow(
+                            icon: "flask.fill", iconTint: .tempoWarning,
+                            title: "D0 Prompt Harness", subtitle: "Run ~20 synthetic days through Haiku"
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+                #endif
             }
             .padding(.horizontal, TempoSpacing.xl)
             .padding(.vertical, TempoSpacing.lg)

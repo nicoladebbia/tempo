@@ -1,0 +1,150 @@
+//
+// DailyCoachPrompt.swift
+// Tempo
+//
+// THE PROMPT IS THE PRODUCT (docs/INTELLIGENT_TRAINING_SYSTEM.md §5.2-FIX).
+// This is not a data dump — it is a specced contract: an embedded JSON output
+// schema, worked exemplars (good dual-goal day, recovery day, pre-match day),
+// an explicit dual-goal weighting instruction (the concurrent-training
+// interference rule, §12), and a hard "JSON only" constraint so the parser
+// (DailySessionParser) and the floor (TrainingSafetyFloor) can do their jobs.
+//
+// Drill-sergeant Tempo voice (Decision #2), body-data-wins (Decision #3),
+// dual goal soccer + physique (Decision #1).
+//
+
+import Foundation
+
+enum DailyCoachPrompt {
+
+    // MARK: - Exemplars (single source of truth — interpolated into the prompt
+    // AND fed through the harness judges in a calibration test, so prompt and
+    // test cannot drift. A known-good exemplar that fails its judge = broken judge.)
+
+    /// Good physique-emphasis day, green recovery.
+    static let exemplarGreen = #"{"modality":"push","intensity":"hard","durationMin":65,"blocks":[{"kind":"gym","label":"Push — chest/shoulders/triceps","split":"push","cue":"Full range, control the eccentric."}],"shortWhy":"Green. Physique block — earn the volume.","expectedSessionRPE":8}"#
+
+    /// Recovery day, red recovery — picks rest UNAIDED.
+    static let exemplarRecovery = #"{"modality":"rest","intensity":"recovery","durationMin":20,"blocks":[{"kind":"mobility","label":"Mobility + walk","cue":"Easy. Nasal breathing only."}],"shortWhy":"Recovery red. You recover today — non-negotiable.","fullWhy":"HRV suppressed, RHR up, recovery in the red. Loading now buys injury, not progress.","expectedSessionRPE":2}"#
+
+    /// Pre-match day (match tomorrow), soccer-emphasis — sharp but NOT heavy legs.
+    static let exemplarPreMatch = #"{"modality":"field","intensity":"easy","durationMin":35,"blocks":[{"kind":"field","label":"Activation + short sprints","reps":6,"distanceM":20,"restSec":90,"intensityPct":70,"cue":"Crisp, not maximal. Stay fresh for tomorrow."}],"shortWhy":"Match tomorrow. Prime the legs, don't drain them.","expectedSessionRPE":4}"#
+
+    // MARK: - System prompt
+
+    static var system: String { systemTemplate }
+
+    private static let systemTemplate = """
+    You are Tempo's daily training coach. You prescribe ONE session for today — \
+    no menus, no options. Drill-sergeant tone: direct, terse, no coddling, but \
+    never abusive. You coach a university student who plays soccer AND trains for \
+    physique. Both goals matter. Body data wins: if recovery markers are poor, you \
+    prescribe recovery — readiness beats motivation, always.
+
+    DUAL-GOAL INTERFERENCE (non-negotiable training science):
+    - Soccer conditioning and hypertrophy interfere (concurrent-training effect). \
+    High sprint/running volume blunts hypertrophy; heavy leg strength blunts sprint/agility.
+    - You CANNOT maximize both in one day. The user's current block has an emphasis \
+    (soccer or physique). Prescribe FOR the emphasis; hold the other goal at maintenance.
+    - Never stack heavy lower-body strength AND high-intensity conditioning on the \
+    same day. Space them or alternate days.
+    - No heavy legs within 48h before a logged match.
+
+    AVAILABLE MODALITIES: gym (push/pull/legs/upper/lower/full_body), field \
+    (sprint/agility), run, pool, bodyweight (home), mobility, rest.
+
+    GYM IS A POINTER, NOT A PRESCRIPTION. For a gym day emit ONLY \
+    {"kind":"gym","split":"<push|pull|legs|upper|lower|full_body>"}. Do NOT emit \
+    weights, sets, or specific exercises — a separate engine fills those. Emitting \
+    gym weights is an ERROR.
+
+    OUTPUT: Return ONE JSON object and NOTHING else. No prose before or after, no \
+    markdown fences. Schema:
+    {
+      "modality": "<string>",                  // one modality label
+      "intensity": "recovery|easy|moderate|hard|max",
+      "durationMin": <int>,
+      "blocks": [                              // >= 1 block
+        {
+          "kind": "gym|field|pool|run|bodyweight|mobility|rest",
+          "label": "<short string>",
+          "cue": "<one technique cue>",        // optional but encouraged
+          "split": "<gym only: push|pull|legs|upper|lower|full_body>",
+          "reps": <int>, "distanceM": <num>, "restSec": <int>, "intensityPct": <num>,
+          "durationSec": <int>, "stroke": "<pool>", "runType": "<run: tempo|interval|long>",
+          "paceSecPerKm": <num>, "sets": <int>
+        }
+      ],
+      "shortWhy": "<<= 120 chars, drill-sergeant>",
+      "fullWhy": "<optional longer reasoning>",
+      "expectedStrain": <num optional>,        // your strain prediction for non-gym work
+      "expectedSessionRPE": <int 1-10 optional> // your whole-session RPE prediction
+    }
+    Per-kind required fields: gym needs split; field needs reps OR distanceM; pool \
+    needs distanceM OR durationSec; run needs runType AND (distanceM OR durationSec); \
+    bodyweight needs reps OR durationSec; mobility/rest need only a label.
+
+    EXEMPLARS (target shape — do not copy verbatim):
+
+    [Good physique-emphasis day, green recovery]
+    \(exemplarGreen)
+
+    [Recovery day, red recovery — you pick rest UNAIDED, do not wait to be told]
+    \(exemplarRecovery)
+
+    [Pre-match day (match tomorrow), soccer-emphasis — sharp but NOT heavy legs]
+    \(exemplarPreMatch)
+    """
+
+    // MARK: - User message (the serialized picture)
+
+    static func userMessage(for p: ReadinessPicture) -> String {
+        var lines: [String] = []
+        lines.append("TODAY'S BODY DATA:")
+        lines.append("- Recovery score: \(Int(p.recoveryScore))/100")
+
+        if p.hasBaselineForBrain {
+            if let z = p.hrvZScore {
+                lines.append("- HRV: z=\(fmt(z)) vs 30d baseline (\(p.hrvTrend7d.rawValue) over 7d)")
+            }
+            if let d = p.rhrDeltaBpm { lines.append("- Resting HR: \(fmt(d)) bpm vs baseline") }
+            if let rd = p.respDeltaBrMin { lines.append("- Respiratory rate: \(fmt(rd)) br/min vs baseline") }
+            if let acwr = p.acuteChronicStrainRatio { lines.append("- Acute:chronic strain: \(fmt(acwr))") }
+        } else {
+            lines.append("- TRENDS BUILDING (day \(p.historyDayCount)/\(ReadinessPicture.minBrainHistoryDays)) — do NOT claim trend-based reasoning yet; use recovery score + sleep only.")
+        }
+
+        if let debt = p.sleepDebt { lines.append("- Sleep debt: \(fmt(debt))h") }
+        if let sh = p.sleepHours { lines.append("- Slept: \(fmt(sh))h") }
+
+        if !p.yesterdaySessions.isEmpty {
+            let y = p.yesterdaySessions.map { "\($0.type) (strain \($0.strain.map { fmt($0) } ?? "?"))" }.joined(separator: ", ")
+            lines.append("- Yesterday: \(y)")
+        }
+
+        if let ci = p.checkIn {
+            var parts: [String] = []
+            if let m = ci.mood { parts.append("mood \(m)/5") }
+            if let s = ci.stress { parts.append("stress \(s)/10") }
+            if !ci.painFlags.isEmpty { parts.append("PAIN: \(ci.painFlags.joined(separator: ", ")) — route away from loading these") }
+            if !parts.isEmpty { lines.append("- Check-in: \(parts.joined(separator: ", "))") }
+        }
+
+        lines.append("")
+        lines.append("CONTEXT:")
+        if let d = p.daysUntilNextMatch {
+            lines.append("- Next match: \(d == 0 ? "TODAY" : d == 1 ? "TOMORROW (T-1: no heavy legs)" : "in \(d) days")")
+        } else {
+            lines.append("- No match scheduled.")
+        }
+        lines.append("- Block emphasis: physique (default).") // D3 wires the real TrainingBlock.
+
+        lines.append("")
+        lines.append("Prescribe today's session. JSON only.")
+        return lines.joined(separator: "\n")
+    }
+
+    private static func fmt(_ d: Double) -> String {
+        String(format: d.truncatingRemainder(dividingBy: 1) == 0 ? "%.0f" : "%.1f", d)
+    }
+}
