@@ -89,6 +89,7 @@ struct DailyReadinessHarnessView: View {
         lines.append("Parsed cleanly:                   \(result.parsed)/\(result.total)")
         lines.append("Floor had to rescue:              \(result.floorRescued) (high = unsafe prompt)")
         lines.append("Anti-patterns passed:             \(result.antiPatternPassed)/\(result.antiPatternTotal)")
+        lines.append("  └ PROMPT-ONLY gate (the real one): \(result.promptOnlyAntiPatternPassed)/\(result.promptOnlyAntiPatternTotal)  (floor-caught misses are safe by design)")
         lines.append("")
         if result.failures.isEmpty {
             lines.append("No failures. 🎯")

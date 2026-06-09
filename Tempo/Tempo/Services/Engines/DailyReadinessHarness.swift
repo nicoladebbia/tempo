@@ -37,21 +37,29 @@ struct HarnessResult: Sendable {
     /// Named anti-pattern checks (severe→rest unaided, prematch→no hard legs).
     var antiPatternPassed = 0
     var antiPatternTotal = 0
+    /// Anti-patterns the FLOOR cannot catch (pre-match tempo run, match-day) — the
+    /// prompt is the ONLY defense here, so these are the true 100% gate. Failures
+    /// of floor-CAUGHT anti-patterns (red/sleep/illness) are NOT architecture
+    /// failures: the floor backstops them by design (§6). See HarnessGateTests.
+    var promptOnlyAntiPatternPassed = 0
+    var promptOnlyAntiPatternTotal = 0
     /// Per-case failure notes for diagnosis.
     var failures: [String] = []
 
     var promptQualityRate: Double { total == 0 ? 0 : Double(sensibleUnaided) / Double(total) }
     var parseRate: Double { total == 0 ? 0 : Double(parsed) / Double(total) }
 
-    /// Verdict per §19.1: ≥18/20 valid + sensible + anti-patterns clean.
-    /// The advisor's nondeterminism caveat: a borderline 17–18 needs a re-run;
-    /// only ≥19 or ≤15 is conclusive on one pass. We surface the raw numbers.
+    /// Verdict per §19.1 + the corrected anti-pattern categorization (advisor):
+    /// PASS = prompt-quality ≥ 19/20 AND every floor-CAN'T-catch anti-pattern
+    /// passes (100%). A floor-CAUGHT anti-pattern miss is expected and safe —
+    /// the floor forces recovery on those days — so it does NOT fail the gate;
+    /// it only shows up as a prompt-quality point (already counted in the 19/20).
     var verdict: String {
-        // Gate on the integer count directly — float * total can truncate 17→16
-        // and flip a borderline into a false FAIL (advisor).
-        let q = sensibleUnaided
-        if q >= 19, antiPatternPassed == antiPatternTotal { return "PASS — proceed to D1" }
-        if q <= 15 || antiPatternPassed < antiPatternTotal { return "FAIL — architecture in question, STOP" }
+        let q = sensibleUnaided // integer count — no float truncation (advisor)
+        let promptOnlyClean = promptOnlyAntiPatternPassed == promptOnlyAntiPatternTotal
+        if q >= 19, promptOnlyClean { return "PASS — proceed to D1" }
+        if !promptOnlyClean { return "FAIL — a floor-CAN'T-catch anti-pattern failed (the prompt is the only defense here). Architecture in question, STOP." }
+        if q <= 15 { return "FAIL — prompt quality too low (\(q)/\(total)). STOP." }
         return "BORDERLINE (\(q)/\(total)) — re-run before verdict (Haiku is nondeterministic)"
     }
 }
@@ -101,18 +109,35 @@ enum DailyReadinessHarness {
                 let decision = TrainingSafetyFloor.apply(session, picture: fixture.picture)
                 if decision.wasDowngraded { result.floorRescued += 1 }
 
-                // NAMED anti-patterns the floor can't catch.
+                // Does the floor INDEPENDENTLY protect this day? (severe tier, or a
+                // worst-case "go hard" session would be downgraded). If so, an
+                // anti-pattern miss is the floor's job, not an architecture failure.
+                let floorProtects = TrainingSafetyFloor.classifyFloorTier(fixture.picture) == .severe
+                    || TrainingSafetyFloor.apply(Self.worstCaseSession, picture: fixture.picture).wasDowngraded
+
+                // NAMED anti-patterns. Split into the real gate (floor-CAN'T-catch)
+                // vs floor-backstopped (counts only toward prompt-quality).
                 if let check = fixture.antiPattern {
                     result.antiPatternTotal += 1
-                    if check(session) { result.antiPatternPassed += 1 }
-                    else { result.failures.append("[\(idx)] \(fixture.name): ANTI-PATTERN failed") }
+                    let passed = check(session)
+                    if passed { result.antiPatternPassed += 1 }
+
+                    if floorProtects {
+                        if !passed {
+                            result.failures.append("[\(idx)] \(fixture.name): anti-pattern missed but FLOOR-CAUGHT (safe by design — not a gate failure)")
+                        }
+                    } else {
+                        result.promptOnlyAntiPatternTotal += 1
+                        if passed { result.promptOnlyAntiPatternPassed += 1 }
+                        else { result.failures.append("[\(idx)] \(fixture.name): ⛔️ PROMPT-ONLY anti-pattern FAILED — the floor cannot catch this; the prompt is the only defense. RAW: \(Self.dump(session))") }
+                    }
                 }
             } catch {
                 result.failures.append("[\(idx)] \(fixture.name): parse/call failed — \(error)")
             }
         }
 
-        logger.info("Harness: prompt-quality \(result.sensibleUnaided)/\(result.total), parsed \(result.parsed)/\(result.total), floor-rescued \(result.floorRescued), anti-pattern \(result.antiPatternPassed)/\(result.antiPatternTotal) → \(result.verdict)")
+        logger.info("Harness: prompt-quality \(result.sensibleUnaided)/\(result.total), parsed \(result.parsed)/\(result.total), floor-rescued \(result.floorRescued), anti-pattern \(result.antiPatternPassed)/\(result.antiPatternTotal) (prompt-only gate \(result.promptOnlyAntiPatternPassed)/\(result.promptOnlyAntiPatternTotal)) → \(result.verdict)")
         return result
     }
 
@@ -133,6 +158,18 @@ enum DailyReadinessHarness {
         )
         return response.text
     }
+
+    /// The worst thing Haiku could emit — used to probe whether the floor would
+    /// independently protect a given day regardless of session content.
+    private static let worstCaseSession = DailySessionDTO(
+        modality: "legs", intensity: .max, durationMin: 90,
+        blocks: [SessionBlockDTO(
+            kind: .gym, label: "Max legs", notes: nil, cue: nil, split: "legs",
+            reps: nil, distanceM: nil, restSec: nil, intensityPct: nil,
+            durationSec: nil, stroke: nil, runType: nil, paceSecPerKm: nil, sets: nil
+        )],
+        shortWhy: "max", fullWhy: nil, expectedStrain: 18, expectedSessionRPE: 10
+    )
 
     /// Compact one-line dump of a session for failure triage.
     private static func dump(_ s: DailySessionDTO) -> String {
