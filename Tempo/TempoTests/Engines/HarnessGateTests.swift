@@ -94,9 +94,12 @@ final class HarnessGateTests: XCTestCase {
         // Document the split. The prompt-only set is the true 100% gate.
         print("FLOOR-CAUGHT anti-patterns (prompt-quality, not hard gate): \(floorCaught)")
         print("PROMPT-ONLY anti-patterns (the real 100% gate): \(promptOnly)")
-        // The prompt-only set must be the pre-match / match-day family only.
-        XCTAssertTrue(promptOnly.allSatisfy { $0.contains("match") },
-                      "Only schedule-driven (match) cases should be prompt-only; got \(promptOnly)")
+        // The prompt-only set (the floor can't enforce these) = schedule-driven
+        // match cases + the §8 "keep planned modality on a normal day" case. The
+        // floor doesn't enforce modality on a green day, so planned-legs-normal is
+        // genuinely prompt-only — and the brain MUST get it right unaided.
+        XCTAssertTrue(promptOnly.allSatisfy { $0.contains("match") || $0.contains("planned") },
+                      "Prompt-only set should be match-driven or planned-modality cases; got \(promptOnly)")
     }
 }
 #endif

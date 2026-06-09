@@ -79,7 +79,7 @@ enum DailyReadinessHarness {
 
         for (idx, fixture) in fixtures.enumerated() {
             do {
-                let raw = try await callHaiku(fixture.picture, apiClient: apiClient)
+                let raw = try await callHaiku(fixture.picture, plannedModality: fixture.plannedModality, apiClient: apiClient)
 
                 // FIRST-CALL GATE (advisor / §10): if the very first call fails to
                 // return parseable 200, STOP — that's environment (auth/consent/
@@ -143,11 +143,11 @@ enum DailyReadinessHarness {
 
     // MARK: - The Haiku call (mirrors RecoveryAIInsightService.sendWithRetry, production settings)
 
-    private static func callHaiku(_ p: ReadinessPicture, apiClient: APIClient) async throws -> String {
+    private static func callHaiku(_ p: ReadinessPicture, plannedModality: String?, apiClient: APIClient) async throws -> String {
         let body = NutritionProxyTextRequest(
             model: "haiku",
             system: DailyCoachPrompt.system,
-            userMessage: DailyCoachPrompt.userMessage(for: p),
+            userMessage: DailyCoachPrompt.userMessage(for: p, plannedModality: plannedModality),
             maxTokens: 700,        // §5.1 — a multi-block JSON object; 400 truncates.
             temperature: 0.6,      // §5.2-FIX — the production temp is the point of the test.
             caller: "daily_training_harness"

@@ -20,6 +20,9 @@ import Foundation
 struct SyntheticFixture {
     let name: String
     let picture: ReadinessPicture
+    /// Today's planned modality (the weekly planner's choice, §8). nil = no plan
+    /// fed (cold-start / pre-D2 fixtures).
+    let plannedModality: String?
     /// Judges the RAW Haiku session (pre-floor). True = prompt produced something sensible.
     let rawIsSensible: (DailySessionDTO) -> Bool
     /// Optional named anti-pattern the floor can't catch. nil = no extra check.
@@ -30,12 +33,14 @@ struct SyntheticFixture {
     init(
         _ name: String,
         _ picture: ReadinessPicture,
+        plannedModality: String? = nil,
         rawIsSensible: @escaping (DailySessionDTO) -> Bool,
         antiPattern: ((DailySessionDTO) -> Bool)? = nil,
         diagnose: @escaping (DailySessionDTO) -> String = { "intensity=\($0.intensity.rawValue) modality=\($0.modality)" }
     ) {
         self.name = name
         self.picture = picture
+        self.plannedModality = plannedModality
         self.rawIsSensible = rawIsSensible
         self.antiPattern = antiPattern
         self.diagnose = diagnose
@@ -165,7 +170,32 @@ enum SyntheticPictures {
             // — Recovery-trending-up, green: a quality session is right —
             SyntheticFixture("fit-improving", pic(recovery: 85, hrvZ: 1.2, rhrDelta: -3),
                 rawIsSensible: { $0.intensity != .recovery && noGymWeights($0) }),
+
+            // ─── §8 cadence contract: weekly OWNS the modality-default ───
+            // Normal day + planned legs → brain KEEPS legs, moves only intensity.
+            // This is a FLOOR-CAN'T-CATCH check (the floor doesn't enforce
+            // modality on a green day) → a real prompt-only gate.
+            SyntheticFixture("planned-legs-normal", pic(recovery: 76), plannedModality: "legs",
+                rawIsSensible: { keepsPlanned($0, "legs") && noGymWeights($0) },
+                antiPattern: { keepsPlanned($0, "legs") },
+                diagnose: { "Planned legs on a normal day but Haiku prescribed \($0.modality)" }),
+            // Severe + planned legs → recovery STILL wins (readiness overrides the plan).
+            SyntheticFixture("planned-legs-severe", pic(recovery: 28, hrvZ: -1.8, rhrDelta: 6), plannedModality: "legs",
+                rawIsSensible: { isRecoveryish($0) },
+                antiPattern: { isRecoveryish($0) },
+                diagnose: { "Planned legs but red recovery — Haiku should recover, prescribed \($0.modality)" }),
+            // Pre-match + planned legs → keep light / swap away from heavy legs (T-1).
+            SyntheticFixture("planned-legs-prematch", pic(recovery: 72, match: 1), plannedModality: "legs",
+                rawIsSensible: { notHardLegs($0) },
+                antiPattern: { notHardLegs($0) }),
         ]
+    }
+
+    /// True when the session keeps the planned modality (or maps to it). Used by
+    /// the §8 "weekly owns modality" fixtures.
+    static func keepsPlanned(_ s: DailySessionDTO, _ planned: String) -> Bool {
+        s.modality.lowercased().contains(planned.lowercased())
+            || s.blocks.contains { ($0.split?.lowercased() == planned.lowercased()) }
     }
 }
 #endif

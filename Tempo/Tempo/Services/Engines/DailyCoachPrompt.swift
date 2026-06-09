@@ -65,6 +65,14 @@ enum DailyCoachPrompt {
     same day. Space them or alternate days.
     - No heavy legs within 48h before a logged match.
 
+    PLANNED MODALITY (when the user message states "TODAY'S PLANNED SESSION"): \
+    the weekly planner already chose today's modality. KEEP it — your job that \
+    day is to set its INTENSITY to readiness, not to re-pick the modality. \
+    Override the planned modality ONLY when readiness forces recovery/rest, or a \
+    hard constraint applies (match T-1 → no heavy legs; a pain flag on the muscle \
+    it would load). Any override stays in-emphasis (e.g. physique-week legs→upper, \
+    not legs→pool unless readiness forces it).
+
     AVAILABLE MODALITIES: gym (push/pull/legs/upper/lower/full_body), field \
     (sprint/agility), run, pool, bodyweight (home), mobility, rest.
 
@@ -113,7 +121,12 @@ enum DailyCoachPrompt {
 
     // MARK: - User message (the serialized picture)
 
-    static func userMessage(for p: ReadinessPicture) -> String {
+    /// - Parameters:
+    ///   - plannedModality: today's WorkoutPlan modality (the weekly planner's
+    ///     choice — §8: weekly OWNS the modality-default). The brain KEEPS this
+    ///     unless readiness forces recovery or a hard constraint forces an
+    ///     in-emphasis override. nil only in cold-start before a plan exists.
+    static func userMessage(for p: ReadinessPicture, plannedModality: String? = nil) -> String {
         var lines: [String] = []
         lines.append("TODAY'S BODY DATA:")
         lines.append("- Recovery score: \(Int(p.recoveryScore))/100")
@@ -153,6 +166,9 @@ enum DailyCoachPrompt {
             lines.append("- No match scheduled.")
         }
         lines.append("- Block emphasis: physique (default).") // D3 wires the real TrainingBlock.
+        if let planned = plannedModality {
+            lines.append("- TODAY'S PLANNED SESSION: \(planned). This is the week's plan for today — KEEP this modality. Adjust only its INTENSITY to today's readiness. Override the modality ONLY if readiness forces recovery, or a hard constraint applies (match T-1 → no heavy legs; a pain flag on the muscle this would load). Any override stays in-emphasis.")
+        }
 
         lines.append("")
         lines.append("Prescribe today's session. JSON only.")
