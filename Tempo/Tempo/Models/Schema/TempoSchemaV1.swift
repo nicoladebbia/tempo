@@ -40,6 +40,8 @@ enum TempoSchemaV1: VersionedSchema {
             DailyRecovery.self,
             DailyPrescription.self,
             RecoveryInsight.self,
+            MorningCheckIn.self,
+            BodyComposition.self,
             XPEvent.self,
             Achievement.self,
             ChallengeLocal.self,
