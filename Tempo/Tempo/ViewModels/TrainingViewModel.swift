@@ -513,7 +513,24 @@ final class TrainingViewModel {
         // Once-per-day cap (PERSISTED — survives relaunch, hardens the cost cap).
         let todayKey = AIProgramPlanner.isoDay(Date())
         let profile = fetchOrCreateAdaptiveProfile(modelContext: modelContext)
-        guard profile.lastDailySessionDayKey != todayKey else {
+
+        #if DEBUG
+            // DEBUG test bypass: when set, ignore the once-daily guard so the daily
+            // loop can be re-exercised without reinstalling. Clears itself after one
+            // run. Set via Settings → Developer → "Force daily coach re-run".
+            let forceRerun = UserDefaults.standard.bool(forKey: "tempo.debug.forceDailyRerun")
+            if forceRerun {
+                UserDefaults.standard.set(false, forKey: "tempo.debug.forceDailyRerun")
+                // Delete today's stale session so the fresh one is the only row.
+                if let stale = fetchTodayDailySession(modelContext: modelContext) {
+                    modelContext.delete(stale)
+                }
+            }
+        #else
+            let forceRerun = false
+        #endif
+
+        guard forceRerun || profile.lastDailySessionDayKey != todayKey else {
             // Already ran today — surface the persisted session for the card.
             dailySession = fetchTodayDailySession(modelContext: modelContext)
             return
