@@ -21,6 +21,10 @@ enum WorkoutType: String, Codable, CaseIterable {
     case run
     case sprint
     case conditioning
+    /// §21/§13.1 — pool sessions (easy swim recovery / conditioning). Added
+    /// 2026-06-09 with the soccer-emphasis week: Nicola has a pool; the AI
+    /// modality list always offered it but no plan could hold it.
+    case pool
     case mobility
     case rest
 
@@ -36,6 +40,7 @@ enum WorkoutType: String, Codable, CaseIterable {
         case .run: "Run"
         case .sprint: "Sprint"
         case .conditioning: "Conditioning"
+        case .pool: "Pool"
         case .mobility: "Mobility"
         case .rest: "Rest"
         }

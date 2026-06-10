@@ -321,12 +321,19 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         // T-1 taper (no heavy legs the day before). A friendly scrimmage is a
         // T-0 day but does NOT taper the day before. Defaults to all match days
         // (callers that don't distinguish get the safe "protect everything").
-        competitiveMatchDayKeys: Set<Date>? = nil
+        competitiveMatchDayKeys: Set<Date>? = nil,
+        // §14 Decision 1 — the declared block emphasis re-shapes how SPARE days
+        // are spent: physique (default) keeps the pre-emphasis behavior exactly;
+        // soccer turns spare capacity into soccer work (one conditioning day,
+        // never beside a match, plus pool recovery) while gym days stay put
+        // (strength held at maintenance, §12 — never fewer lifting days).
+        emphasis: BlockEmphasis = .physique
     ) -> [WorkoutPlan] {
         let tMinus1MatchDays = competitiveMatchDayKeys ?? matchDayKeys
         let cal = Calendar.current
         var plans: [WorkoutPlan] = []
         var splitIndex = 0
+        var soccerConditioningAssigned = false
 
         // Per MODULE_TRAINING.md Section 15.4 — Phase 1: Assign workout types to days
         let splitSequence = getSplitSequence(split)
@@ -357,12 +364,18 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
 
         // Assign types
         for meta in dayMeta {
-            // Per MODULE_TRAINING.md Section 18.2 — T-0
+            // Per MODULE_TRAINING.md Section 18.2 — T-0. The note distinguishes
+            // a DATED fixture ("Match day" — a real game) from a recurring
+            // football weekday ("Football day" — training cadence); the week
+            // row shows it verbatim, so the two §14 concepts stop conflating.
             if meta.isFootball {
+                let isDatedMatch = MatchSchedule.isMatchDay(
+                    date: meta.date, matchDayKeys: matchDayKeys, calendar: cal
+                )
                 plans.append(WorkoutPlan(
                     date: meta.date,
                     type: .football,
-                    notes: "Match day"
+                    notes: isDatedMatch ? "Match day" : "Football day"
                 ))
                 continue
             }
@@ -450,6 +463,26 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                 let weekday = cal.component(.weekday, from: meta.date)
                 if weekday == 1 { // Sunday
                     plans.append(WorkoutPlan(date: meta.date, type: .rest))
+                } else if emphasis == .soccer, zone != .red {
+                    // §12 soccer-emphasis: spare capacity becomes soccer work,
+                    // not generic recovery. ONE conditioning day per week —
+                    // never on T-1 (no high-intensity the day before a match);
+                    // every other spare day is an easy pool swim (real active
+                    // recovery that doesn't fight the conditioning load).
+                    if zone == .green, !meta.isTMinus1, !soccerConditioningAssigned {
+                        soccerConditioningAssigned = true
+                        plans.append(WorkoutPlan(
+                            date: meta.date,
+                            type: .conditioning,
+                            notes: "Soccer conditioning — emphasis"
+                        ))
+                    } else {
+                        plans.append(WorkoutPlan(
+                            date: meta.date,
+                            type: .pool,
+                            notes: "Pool recovery — easy swim"
+                        ))
+                    }
                 } else if zone == .green {
                     plans.append(WorkoutPlan(
                         date: meta.date,

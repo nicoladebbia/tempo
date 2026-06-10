@@ -54,6 +54,7 @@ extension WorkoutType {
         case .push, .pull, .legs, .upper, .lower, .fullBody: .gym
         case .football, .sprint, .conditioning: .field
         case .run: .outdoor
+        case .pool: .pool
         case .mobility: .home
         case .rest: nil
         }

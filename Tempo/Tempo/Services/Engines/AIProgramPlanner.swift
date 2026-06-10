@@ -137,7 +137,7 @@ final class AIProgramPlanner {
     nonisolated static func isTrainingType(_ type: WorkoutType) -> Bool {
         switch type {
         case .push, .pull, .legs, .upper, .lower, .fullBody,
-             .run, .sprint, .conditioning:
+             .run, .sprint, .conditioning, .pool:
             true
         case .football, .mobility, .rest:
             false

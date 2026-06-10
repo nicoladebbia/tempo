@@ -340,7 +340,10 @@ struct WeekPlanView: View {
                                 .font(.tempoCaption1)
                                 .foregroundStyle(Color.tempoTextSecondary)
                             } else if plan.type == .football {
-                                Text("Match day")
+                                // Engine note distinguishes a dated fixture
+                                // ("Match day") from a recurring football
+                                // weekday ("Football day") — §14.
+                                Text(plan.notes ?? "Football day")
                                     .font(.tempoCaption1)
                                     .foregroundStyle(Color.tempoTextSecondary)
                             } else if plan.type == .rest {
@@ -403,7 +406,7 @@ struct WeekPlanView: View {
             footballContext(plan: plan)
         case .rest:
             restGuidance
-        case .run, .sprint, .conditioning:
+        case .run, .sprint, .conditioning, .pool:
             conditioningGuidance(plan: plan)
         }
     }
@@ -569,6 +572,7 @@ struct WeekPlanView: View {
         case .rest: "RST"
         case .sprint: "SPR"
         case .conditioning: "CON"
+        case .pool: "SWM"
         }
     }
 
@@ -585,6 +589,7 @@ struct WeekPlanView: View {
         case .run,
              .sprint: "figure.run"
         case .conditioning: "flame"
+        case .pool: "figure.pool.swim"
         case .mobility: "figure.flexibility"
         case .rest: "bed.double"
         }

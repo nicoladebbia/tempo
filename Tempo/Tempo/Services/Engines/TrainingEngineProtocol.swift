@@ -84,7 +84,10 @@ protocol TrainingEngineProtocol: Sendable {
         // matchDayKeys = all matches (T-0); competitiveMatchDayKeys = the subset
         // that taper T-1 (nil → treat all as competitive).
         matchDayKeys: Set<Date>,
-        competitiveMatchDayKeys: Set<Date>?
+        competitiveMatchDayKeys: Set<Date>?,
+        // §14 Decision 1 — block emphasis re-shapes spare days (soccer →
+        // conditioning + pool); physique = pre-emphasis behavior exactly.
+        emphasis: BlockEmphasis
     ) -> [WorkoutPlan]
 
     /// Returns true if the given date falls in a deload week. The fixed periodic

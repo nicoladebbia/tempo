@@ -1237,10 +1237,10 @@ struct TrainingSettingsDetailView: View {
     /// Declares a new open-ended block starting today (§14 Decision 1). The
     /// previous open block closes at yesterday; one that started today (or
     /// later) never ran a day, so it's deleted instead of kept as an empty
-    /// span. Closed past blocks stay as history. Deliberately uses a plain
-    /// save, NOT save() — emphasis doesn't affect the deterministic plan or
-    /// nutrition, so posting .tempoTrainingSettingsChanged would trigger a
-    /// pointless regen. The coach reads it on its next once-daily run.
+    /// span. Closed past blocks stay as history. Uses save() — since the
+    /// deterministic week became emphasis-aware (soccer → conditioning + pool
+    /// spare days), an emphasis switch must replan This Week immediately,
+    /// same path as a footballDays toggle.
     private func applyBlockEmphasis(_ emphasis: BlockEmphasis) {
         guard emphasis != currentEmphasis else { return }
         let cal = Calendar.current
@@ -1253,7 +1253,7 @@ struct TrainingSettingsDetailView: View {
             }
         }
         modelContext.insert(TrainingBlock(emphasis: emphasis, startDate: today))
-        try? modelContext.save()
+        save()
         HapticManager.selection()
     }
 

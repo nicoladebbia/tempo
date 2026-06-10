@@ -630,6 +630,17 @@ final class TrainingViewModel {
                 shortWhy: "Today's \(type.displayName.lowercased()).", fullWhy: nil,
                 expectedStrain: nil, expectedSessionRPE: 5
             )
+        case .pool:
+            return DailySessionDTO(
+                modality: "pool", intensity: .easy, durationMin: dur,
+                blocks: [SessionBlockDTO(kind: .pool, label: "Easy swim", notes: nil,
+                                         cue: "Long strokes, easy pace.", scheduledMin: nil, split: nil,
+                                         reps: nil, distanceM: nil, restSec: nil, intensityPct: nil,
+                                         durationSec: dur * 60, stroke: "freestyle", runType: nil,
+                                         paceSecPerKm: nil, sets: nil)],
+                shortWhy: "Easy recovery swim — flush the legs.", fullWhy: nil,
+                expectedStrain: nil, expectedSessionRPE: 3
+            )
         case .mobility, .rest:
             return TrainingSafetyFloor.recoverySession(reason: "Recovery day.")
         }
@@ -1009,7 +1020,10 @@ final class TrainingViewModel {
             split: split,
             recoveryThresholdOffset: signals.thresholdOffset,
             matchDayKeys: matchDayKeys,
-            competitiveMatchDayKeys: competitiveMatchDayKeys
+            competitiveMatchDayKeys: competitiveMatchDayKeys,
+            // §14 Decision 1 — soccer emphasis re-shapes spare days (visible
+            // in This Week); physique keeps the pre-emphasis week exactly.
+            emphasis: currentBlockEmphasis(modelContext: modelContext) ?? .physique
         )
 
         // Check deload week status (Phase 3: fatigue trend can trigger early).
