@@ -91,6 +91,34 @@ final class ReadinessAssemblerTests: XCTestCase {
         XCTAssertEqual(p.checkIn?.mood, 4)
     }
 
+    // MARK: - Yesterday's sRPE (§14 #3) — pass-through + prompt seam
+
+    func testYesterdaySessionRPESurfacesBesideStrain() {
+        let p = ReadinessAssembler.assemble(
+            history: [], today: nil,
+            yesterdaySessions: [ActivitySnapshot(workoutType: "legs", strain: 14, durationMinutes: 70, averageHeartRate: 140)],
+            yesterdaySessionRPE: 8
+        )
+        XCTAssertEqual(p.yesterdaySessionRPE, 8)
+        XCTAssertTrue(DailyCoachPrompt.userMessage(for: p).contains("felt RPE 8/10 (user-reported)"),
+                      "Felt cost must ride the Yesterday line beside measured strain")
+    }
+
+    func testYesterdaySessionRPEWithoutWhoopRowGetsOwnLine() {
+        // Untracked gym day: no ActivitySession, but the user still rated it.
+        let p = ReadinessAssembler.assemble(history: [], today: nil, yesterdaySessionRPE: 6)
+        XCTAssertTrue(DailyCoachPrompt.userMessage(for: p).contains("- Yesterday: session felt RPE 6/10"))
+    }
+
+    func testNoSessionRPENoFeltLine() {
+        let p = ReadinessAssembler.assemble(
+            history: [], today: nil,
+            yesterdaySessions: [ActivitySnapshot(workoutType: "legs", strain: 14, durationMinutes: 70, averageHeartRate: 140)]
+        )
+        XCTAssertFalse(DailyCoachPrompt.userMessage(for: p).contains("felt RPE"),
+                       "No rating → prompt unchanged (calibration stays intact)")
+    }
+
     // MARK: - The assembled picture flows into the floor without crashing
 
     func testAssembledPictureClassifiesInFloor() {

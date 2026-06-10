@@ -171,7 +171,13 @@ enum DailyCoachPrompt {
                 let hard = s.hardMinutes.map { ", \(Int($0))min Z4+" } ?? ""
                 return "\(s.type) (strain \(s.strain.map { fmt($0) } ?? "?")\(hard))"
             }.joined(separator: ", ")
-            lines.append("- Yesterday: \(y)")
+            // §14 #3 — felt cost beside measured load: strain says what the
+            // body did, sRPE says what it cost. A gap between them is signal.
+            let felt = p.yesterdaySessionRPE.map { " — felt RPE \($0)/10 (user-reported)" } ?? ""
+            lines.append("- Yesterday: \(y)\(felt)")
+        } else if let rpe = p.yesterdaySessionRPE {
+            // No Whoop activity row, but the user still rated the session.
+            lines.append("- Yesterday: session felt RPE \(rpe)/10 (user-reported).")
         }
 
 

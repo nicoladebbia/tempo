@@ -38,6 +38,12 @@ final class WorkoutPlan {
 
     var finishedAt: Date?
 
+    /// §14 #3 sRPE — the user's one-tap whole-session RPE (1–10), captured
+    /// AFTER completion on TodayWorkoutView. This is the ACTUAL paired against
+    /// DailySession.expectedSessionRPE (the brain's prediction) for the
+    /// session-level accuracy spine. Defaulted nil → SwiftData auto-migrates.
+    var sessionRPE: Int?
+
     /// Why a `.skipped` day was skipped (INTELLIGENT_TRAINING_SYSTEM §8/§15.2).
     /// Distinguishes a FLOOR-FORCED skip ("body said recover" — must NOT count
     /// against adherence/streak) from a USER skip (counts). Adherence logic reads

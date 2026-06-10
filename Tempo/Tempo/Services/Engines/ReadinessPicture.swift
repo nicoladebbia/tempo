@@ -66,6 +66,10 @@ struct ReadinessPicture: Equatable, Sendable {
     // MARK: Yesterday's actual work (from WhoopWorkout → ActivitySession, surfaced not ignored)
 
     let yesterdaySessions: [YesterdaySession]
+    /// §14 #3 sRPE — what yesterday's session FELT like (user-reported 1–10,
+    /// from WorkoutPlan.sessionRPE). Strain says what the body did; this says
+    /// what it cost. Defaulted so prior construction sites compile unchanged.
+    var yesterdaySessionRPE: Int? = nil
 
     // MARK: Body composition (Withings → HealthKit)
 

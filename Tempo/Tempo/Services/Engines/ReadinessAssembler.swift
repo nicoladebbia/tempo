@@ -32,6 +32,7 @@ enum ReadinessAssembler {
         history: [DailyRecoverySnapshot],
         today: DailyRecoverySnapshot?,
         yesterdaySessions: [ActivitySnapshot] = [],
+        yesterdaySessionRPE: Int? = nil,
         bodyComp: BodyCompSnapshot? = nil,
         checkIn: MorningCheckInSnapshot? = nil,
         daysUntilNextMatch: Int? = nil,
@@ -83,6 +84,7 @@ enum ReadinessAssembler {
                 YesterdaySession(type: $0.workoutType, strain: $0.strain, durationMin: $0.durationMinutes,
                                  avgHR: $0.averageHeartRate, hardMinutes: $0.hardMinutes)
             },
+            yesterdaySessionRPE: yesterdaySessionRPE,
             weightKg: bodyComp?.weightKg,
             bodyFatPct: bodyComp?.bodyFatPercent,
             leanMassKg: bodyComp?.leanMassKg,

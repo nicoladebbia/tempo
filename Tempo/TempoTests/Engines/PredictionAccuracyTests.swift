@@ -133,4 +133,55 @@ final class PredictionAccuracyTests: XCTestCase {
         XCTAssertEqual(summary.perExercise.first!.exerciseID, sloppy,
                        "Worst-predicted exercise should sort first")
     }
+
+    // MARK: - Session-level spine (§14 #3 sRPE)
+
+    /// A session pair `daysAgo` old. expected fixed at 6; actual = 6 + error.
+    private func pair(daysAgo: Int, error: Int) -> SessionRPEPair {
+        SessionRPEPair(
+            date: Calendar.current.date(byAdding: .day, value: -daysAgo, to: Date())!,
+            expected: 6,
+            actual: 6 + error
+        )
+    }
+
+    func testSessionSummaryEmptyIsInsufficient() {
+        XCTAssertEqual(PredictionAccuracy.summarizeSessions([]), .empty)
+    }
+
+    func testSessionMeanErrorsAreCorrect() {
+        let s = PredictionAccuracy.summarizeSessions([
+            pair(daysAgo: 3, error: 2),
+            pair(daysAgo: 2, error: -1),
+            pair(daysAgo: 1, error: 0),
+        ])
+        XCTAssertEqual(s.sampleCount, 3)
+        XCTAssertEqual(s.meanAbsError, 1.0, accuracy: 0.001)
+        XCTAssertEqual(s.meanSignedError, 1.0 / 3.0, accuracy: 0.001,
+                       "Positive signed error = sessions feel harder than predicted")
+    }
+
+    func testSessionTrendImprovingWhenErrorShrinks() {
+        // Older half off by 3, recent half spot-on → improving.
+        let pairs = [
+            pair(daysAgo: 6, error: 3), pair(daysAgo: 5, error: 3), pair(daysAgo: 4, error: 3),
+            pair(daysAgo: 3, error: 0), pair(daysAgo: 2, error: 0), pair(daysAgo: 1, error: 0),
+        ]
+        XCTAssertEqual(PredictionAccuracy.summarizeSessions(pairs).trend, .improving)
+    }
+
+    func testSessionTrendSortsByDateNotInputOrder() {
+        // Same pairs fed REVERSED — the summary must sort by date itself,
+        // or the trend would read backwards (.worsening).
+        let pairs = [
+            pair(daysAgo: 1, error: 0), pair(daysAgo: 2, error: 0), pair(daysAgo: 3, error: 0),
+            pair(daysAgo: 4, error: 3), pair(daysAgo: 5, error: 3), pair(daysAgo: 6, error: 3),
+        ]
+        XCTAssertEqual(PredictionAccuracy.summarizeSessions(pairs).trend, .improving)
+    }
+
+    func testSessionTrendInsufficientBelowTwoWindows() {
+        let pairs = [pair(daysAgo: 3, error: 1), pair(daysAgo: 2, error: 1), pair(daysAgo: 1, error: 1)]
+        XCTAssertEqual(PredictionAccuracy.summarizeSessions(pairs).trend, .insufficient)
+    }
 }

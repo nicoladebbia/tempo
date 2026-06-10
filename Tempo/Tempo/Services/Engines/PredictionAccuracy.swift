@@ -69,6 +69,31 @@ struct HoldoutResult: Equatable, Sendable {
     )
 }
 
+/// One resolved SESSION-level pair (§14 #3): the brain's expectedSessionRPE
+/// (DailySession) vs the user's one-tap actual (WorkoutPlan.sessionRPE).
+/// Same spine as PredictionLog, one level up — whole session, not per set.
+struct SessionRPEPair: Equatable, Sendable {
+    let date: Date
+    let expected: Int
+    let actual: Int
+    /// Signed error: positive = session felt HARDER than predicted.
+    var error: Double { Double(actual - expected) }
+}
+
+/// Session-level accuracy summary. Mirrors ExerciseAccuracy semantics.
+struct SessionRPEAccuracy: Equatable, Sendable {
+    let meanAbsError: Double
+    /// Positive = brain systematically under-calls the cost (sessions feel
+    /// harder than predicted); negative = over-calls it.
+    let meanSignedError: Double
+    let sampleCount: Int
+    let trend: AccuracyTrend
+
+    static let empty = SessionRPEAccuracy(
+        meanAbsError: 0, meanSignedError: 0, sampleCount: 0, trend: .insufficient
+    )
+}
+
 enum PredictionAccuracy {
     /// A trend is called only when each window has at least this many scored
     /// rows — below that, error is too noisy to read as a direction.
@@ -141,17 +166,35 @@ enum PredictionAccuracy {
         )
     }
 
+    /// Session-level accuracy (§14 #3). Only pairs where BOTH sides exist are
+    /// scored — the caller filters; a missing actual is "no signal", never zero.
+    static func summarizeSessions(_ pairs: [SessionRPEPair]) -> SessionRPEAccuracy {
+        guard !pairs.isEmpty else { return .empty }
+        let sorted = pairs.sorted { $0.date < $1.date }
+        let errors = sorted.map(\.error)
+        return SessionRPEAccuracy(
+            meanAbsError: mean(errors.map(abs)),
+            meanSignedError: mean(errors),
+            sampleCount: sorted.count,
+            trend: trend(absErrors: errors.map(abs))
+        )
+    }
+
     // MARK: - Internals
 
     /// Split the (date-sorted) rows into prior/recent halves and compare mean
     /// absolute error. Improving = recent meaningfully lower than prior.
     static func trend(of sortedScored: [PredictionLog]) -> AccuracyTrend {
-        guard sortedScored.count >= minWindow * 2 else { return .insufficient }
-        let mid = sortedScored.count / 2
-        let prior = sortedScored[..<mid]
-        let recent = sortedScored[mid...]
-        let priorErr = mean(prior.map { abs($0.rpeError ?? 0) })
-        let recentErr = mean(recent.map { abs($0.rpeError ?? 0) })
+        trend(absErrors: sortedScored.map { abs($0.rpeError ?? 0) })
+    }
+
+    /// Same prior/recent split over a date-sorted abs-error series — shared by
+    /// the per-exercise and session-level spines.
+    static func trend(absErrors: [Double]) -> AccuracyTrend {
+        guard absErrors.count >= minWindow * 2 else { return .insufficient }
+        let mid = absErrors.count / 2
+        let priorErr = mean(Array(absErrors[..<mid]))
+        let recentErr = mean(Array(absErrors[mid...]))
         let delta = recentErr - priorErr
         if delta < -trendEpsilon { return .improving }
         if delta > trendEpsilon { return .worsening }

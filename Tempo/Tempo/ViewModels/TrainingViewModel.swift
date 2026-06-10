@@ -530,6 +530,7 @@ final class TrainingViewModel {
             history: snapshots,
             today: todaySnapshot,
             yesterdaySessions: fetchYesterdaySessions(modelContext: modelContext),
+            yesterdaySessionRPE: fetchYesterdaySessionRPE(modelContext: modelContext),
             bodyComp: bodyComp,
             checkIn: checkIn,
             daysUntilNextMatch: daysUntilNextMatch,
@@ -554,6 +555,19 @@ final class TrainingViewModel {
                 hardMinutes: $0.hardMinutes
             )
         }
+    }
+
+    /// §14 #3 — yesterday's one-tap session RPE (the ACTUAL the user reported
+    /// on yesterday's completed plan), surfaced into today's picture so the
+    /// brain calibrates against felt cost, not just Whoop strain.
+    private func fetchYesterdaySessionRPE(modelContext: ModelContext) -> Int? {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        guard let yesterday = cal.date(byAdding: .day, value: -1, to: today) else { return nil }
+        let descriptor = FetchDescriptor<WorkoutPlan>(
+            predicate: #Predicate { $0.date >= yesterday && $0.date < today && $0.sessionRPE != nil }
+        )
+        return (try? modelContext.fetch(descriptor))?.first?.sessionRPE
     }
 
 
@@ -701,6 +715,23 @@ final class TrainingViewModel {
         )
         let rows = (try? modelContext.fetch(descriptor)) ?? []
         return PredictionAccuracy.summarize(rows)
+    }
+
+    /// §14 #3 — session-level accuracy: the brain's expectedSessionRPE vs the
+    /// user's one-tap actual on the linked plan. Relationship traversal stays
+    /// out of the #Predicate (SwiftData optional-chain predicates are fragile);
+    /// the join is filtered in memory — row counts here are tiny (1/day).
+    func sessionRPEAccuracy(modelContext: ModelContext) -> SessionRPEAccuracy {
+        let descriptor = FetchDescriptor<DailySession>(
+            predicate: #Predicate { $0.expectedSessionRPE != nil }
+        )
+        let rows = (try? modelContext.fetch(descriptor)) ?? []
+        let pairs = rows.compactMap { session -> SessionRPEPair? in
+            guard let expected = session.expectedSessionRPE,
+                  let actual = session.workoutPlan?.sessionRPE else { return nil }
+            return SessionRPEPair(date: session.date, expected: expected, actual: actual)
+        }
+        return PredictionAccuracy.summarizeSessions(pairs)
     }
 
     /// Step 4 hold-out: does the personalized engine actually beat the generic
@@ -1794,6 +1825,22 @@ final class TrainingViewModel {
         )
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
         return true
+    }
+
+    // MARK: - Session RPE (§14 #3 — one-tap actual vs the brain's prediction)
+
+    /// Record the user's whole-session RPE (1–10) on today's completed plan.
+    /// One value per day; the capsule UI only renders while sessionRPE == nil,
+    /// so this is effectively write-once. No notification fan-out — sRPE feeds
+    /// tomorrow's prompt + the accuracy spine, nothing re-renders live today.
+    func recordSessionRPE(_ rpe: Int, modelContext: ModelContext) {
+        guard (1 ... 10).contains(rpe) else { return }
+        guard let plan = todayPlan, plan.status == .completed else { return }
+        plan.sessionRPE = rpe
+        try? modelContext.save()
+        #if DEBUG
+            print("\(DebugTrace.prefix)[Workout] recordSessionRPE: plan=\(plan.id) rpe=\(rpe) expected=\(dailySession?.expectedSessionRPE.map(String.init) ?? "nil")")
+        #endif
     }
 
     /// Resolve the non-gym day card state. If today's plan is already completed,

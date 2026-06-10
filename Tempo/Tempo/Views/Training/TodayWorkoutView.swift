@@ -258,6 +258,9 @@ struct TodayWorkoutView: View {
             // Per MODULE_TRAINING.md Section 2.6
             workoutMeta(plan: plan)
 
+            // §14 #3 — one-tap session RPE, only after completion.
+            sessionRPESection(plan: plan)
+
             // Exercise list
             // Per MODULE_TRAINING.md Section 2.7
             exerciseList(plan: plan)
@@ -588,6 +591,66 @@ struct TodayWorkoutView: View {
             Text("\(plan.totalSets) sets")
                 .font(.tempoCaption1)
                 .foregroundStyle(Color.tempoTextSecondary)
+        }
+    }
+
+    // MARK: - Session RPE Capsule (§14 #3 — one-tap felt cost, post-completion)
+
+    /// Renders ONLY when today's plan is completed: a one-tap 1–10 rating while
+    /// unanswered, a quiet confirmation row once logged. The answer is the
+    /// ACTUAL paired against the brain's expectedSessionRPE (accuracy spine)
+    /// and is surfaced in tomorrow's prompt.
+    @ViewBuilder
+    private func sessionRPESection(plan: WorkoutPlan) -> some View {
+        if plan.status == .completed {
+            if let logged = plan.sessionRPE {
+                HStack(spacing: TempoSpacing.sm) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Color.tempoSignal)
+                    Text("Session RPE logged: \(logged)/10")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                    Spacer()
+                }
+                .padding(TempoSpacing.lg)
+                .background(Color.tempoSurfaceCard)
+                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+            } else {
+                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+                    Text("HOW HARD WAS THAT?")
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                    Text("Whole session. 1 = nothing, 10 = max effort.")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                    sessionRPERow(1 ... 5)
+                    sessionRPERow(6 ... 10)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(TempoSpacing.lg)
+                .background(Color.tempoSurfaceCard)
+                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+            }
+        }
+    }
+
+    private func sessionRPERow(_ range: ClosedRange<Int>) -> some View {
+        HStack(spacing: TempoSpacing.sm) {
+            ForEach(range, id: \.self) { value in
+                Button {
+                    HapticManager.selection()
+                    viewModel.recordSessionRPE(value, modelContext: modelContext)
+                } label: {
+                    Text("\(value)")
+                        .font(.tempoTitle3)
+                        .monospacedDigit()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 48)
+                        .background(Color.tempoBgPrimary)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                }
+            }
         }
     }
 
@@ -967,6 +1030,9 @@ struct TodayWorkoutView: View {
 
             // Whoop activity confirm / saved summary.
             nonGymActivitySection(plan: plan)
+
+            // §14 #3 — one-tap session RPE, only after completion.
+            sessionRPESection(plan: plan)
         }
         .task(id: plan.id) {
             await viewModel.loadNonGymActivity(modelContext: modelContext)
