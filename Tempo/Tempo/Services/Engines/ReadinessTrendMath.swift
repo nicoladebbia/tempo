@@ -162,4 +162,50 @@ enum ReadinessTrendMath {
         }
         return weightTotal > 1e-9 ? weightedSum / weightTotal : nil
     }
+
+    // MARK: - Robust monthly trend (§12 G5 / §17.2 — D4)
+
+    static func median(_ xs: [Double]) -> Double? {
+        guard !xs.isEmpty else { return nil }
+        let sorted = xs.sorted()
+        let mid = sorted.count / 2
+        return sorted.count.isMultiple(of: 2)
+            ? (sorted[mid - 1] + sorted[mid]) / 2
+            : sorted[mid]
+    }
+
+    /// Centered rolling median. Each point becomes the median of the window
+    /// around it (clamped at the edges) — kills single-day bioimpedance spikes
+    /// without lagging the series the way a trailing window would.
+    static func rollingMedian(_ values: [Double], window: Int = 7) -> [Double] {
+        guard values.count > 1, window > 1 else { return values }
+        let half = window / 2
+        return values.indices.map { i in
+            let lo = max(0, i - half)
+            let hi = min(values.count - 1, i + half)
+            return median(Array(values[lo ... hi])) ?? values[i]
+        }
+    }
+
+    /// The §12 G5 monthly delta: rolling-median smooth, then least-squares
+    /// slope over the SMOOTHED series × span. Withings fat%/muscle% swings
+    /// ±2-3% daily on hydration alone — a month-end point-to-point delta
+    /// reports that noise as achievement. nil below `minSamples`: "insufficient
+    /// data" is honest, a noisy delta is not.
+    static func robustDelta(_ values: [Double], window: Int = 7, minSamples: Int = 10) -> Double? {
+        guard values.count >= minSamples else { return nil }
+        let smoothed = rollingMedian(values, window: window)
+        return slope(smoothed) * Double(values.count - 1)
+    }
+
+    /// Baseline shift over a month (§17.2 readiness): median of the first
+    /// `edge` samples vs median of the last `edge`. Medians, not means — one
+    /// sick day shouldn't read as a fitness change. nil unless both edges
+    /// have a full window.
+    static func baselineShift(_ values: [Double], edge: Int = 10) -> Double? {
+        guard values.count >= edge * 2 else { return nil }
+        guard let first = median(Array(values.prefix(edge))),
+              let last = median(Array(values.suffix(edge))) else { return nil }
+        return last - first
+    }
 }

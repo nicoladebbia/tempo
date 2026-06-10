@@ -28,6 +28,13 @@ struct TodayWorkoutView: View {
     private var allSettings: [UserSettings]
     @State
     private var showMobilityAlert = false
+    @State
+    private var showMonthlyReview = false
+    /// Captured at card-tap. The sheet reads THIS, not monthlyReviewDueKey —
+    /// generating the summary nils the due key while the sheet is still up,
+    /// and the report must not vanish mid-read.
+    @State
+    private var activeReviewKey: String?
     @Environment(ServiceContainer.self)
     private var services
     /// Suggested free workout window for today (Phase 4). nil = not loaded
@@ -85,6 +92,13 @@ struct TodayWorkoutView: View {
         ZStack(alignment: .bottom) {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: TempoSpacing.xl) {
+                    // D4 §17 — month-boundary review card. Above the day branch
+                    // on purpose: the month ends whether today is gym, field,
+                    // or rest.
+                    if let dueKey = viewModel.monthlyReviewDueKey {
+                        monthlyReviewCard(dueKey)
+                    }
+
                     if viewModel.isLoading {
                         loadingState
                     } else if viewModel.isRestDay {
@@ -112,6 +126,11 @@ struct TodayWorkoutView: View {
             // have nothing to log, so no button is shown.
             if viewModel.canStartWorkout, !viewModel.isLoading {
                 startWorkoutButton
+            }
+        }
+        .sheet(isPresented: $showMonthlyReview) {
+            if let key = activeReviewKey {
+                MonthlyReviewView(monthKey: key, viewModel: viewModel)
             }
         }
         .alert("Mobility Flows", isPresented: $showMobilityAlert) {
@@ -591,6 +610,36 @@ struct TodayWorkoutView: View {
             Text("\(plan.totalSets) sets")
                 .font(.tempoCaption1)
                 .foregroundStyle(Color.tempoTextSecondary)
+        }
+    }
+
+    // MARK: - Monthly Review Card (D4 §17 — the month-boundary ritual)
+
+    private func monthlyReviewCard(_ monthKey: String) -> some View {
+        Button {
+            activeReviewKey = monthKey
+            showMonthlyReview = true
+        } label: {
+            HStack(spacing: TempoSpacing.md) {
+                Image(systemName: "checklist.checked")
+                    .font(.tempoTitle3)
+                    .foregroundStyle(Color.tempoSignal)
+                VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+                    Text("MONTH'S OVER. DEBRIEF.")
+                        .font(.tempoHeadline)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                    Text("5 questions, then your report. 2 minutes.")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextTertiary)
+            }
+            .padding(TempoSpacing.lg)
+            .background(Color.tempoSurfaceCard)
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
         }
     }
 

@@ -140,4 +140,55 @@ final class ReadinessTrendMathTests: XCTestCase {
         let chronic = M.ewma(series, halfLifeDays: 28)!
         XCTAssertGreaterThan(acute, chronic, "Short half-life weights the recent spike more")
     }
+
+    // MARK: - Robust monthly trend (§12 G5 — D4)
+
+    func testMedianOddAndEven() {
+        XCTAssertEqual(M.median([3, 1, 2]), 2)
+        XCTAssertEqual(M.median([4, 1, 2, 3]), 2.5)
+        XCTAssertNil(M.median([]))
+    }
+
+    func testRollingMedianKillsSingleDaySpike() {
+        // Flat 80kg with one +3kg hydration spike — smoothed series stays flat.
+        var values = Array(repeating: 80.0, count: 15)
+        values[7] = 83.0
+        let smoothed = M.rollingMedian(values, window: 7)
+        XCTAssertEqual(smoothed[7], 80.0, "A single-day spike must vanish under the window median")
+    }
+
+    func testRobustDeltaIgnoresEndpointNoise() {
+        // True trend: dead flat. Last day is a +2.5 bioimpedance swing.
+        // Point-to-point would report +2.5; robust delta must stay near 0.
+        var values = Array(repeating: 20.0, count: 30)
+        values[29] = 22.5
+        let delta = M.robustDelta(values)!
+        XCTAssertEqual(delta, 0, accuracy: 0.3, "Endpoint noise must not read as achievement")
+    }
+
+    func testRobustDeltaTracksARealTrend() {
+        // Genuine -1.5kg over 30 days with alternating ±0.8 daily noise.
+        let values = (0 ..< 30).map { day in
+            80.0 - 1.5 * Double(day) / 29.0 + (day.isMultiple(of: 2) ? 0.8 : -0.8)
+        }
+        let delta = M.robustDelta(values)!
+        XCTAssertEqual(delta, -1.5, accuracy: 0.4, "A real trend must survive the smoothing")
+    }
+
+    func testRobustDeltaInsufficientSamplesIsNil() {
+        XCTAssertNil(M.robustDelta(Array(repeating: 80.0, count: 9)),
+                     "Below minSamples → nil, never a confident number")
+    }
+
+    func testBaselineShiftUsesEdgeMedians() {
+        // RHR drops from ~60 to ~56 across the month; one 70 outlier mid-edge.
+        var values = Array(repeating: 60.0, count: 15) + Array(repeating: 56.0, count: 15)
+        values[2] = 70.0
+        let shift = M.baselineShift(values)!
+        XCTAssertEqual(shift, -4.0, accuracy: 0.01, "Median edges must absorb the outlier")
+    }
+
+    func testBaselineShiftNilWhenTooShort() {
+        XCTAssertNil(M.baselineShift(Array(repeating: 60.0, count: 19)))
+    }
 }

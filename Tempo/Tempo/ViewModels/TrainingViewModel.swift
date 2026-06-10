@@ -269,6 +269,9 @@ final class TrainingViewModel {
         // into the on-device profile (the macro self-correction loop). Also
         // populates the Coach Review card.
         runWeeklyOutcomeReview(modelContext: modelContext)
+
+        // D4 §17 — offer the monthly review inside the month-boundary window.
+        monthlyReviewDueKey = monthlyReviewDue(modelContext: modelContext)
     }
 
     // MARK: - Weekly Outcome Review (Phase 4)
@@ -1840,6 +1843,163 @@ final class TrainingViewModel {
         try? modelContext.save()
         #if DEBUG
             print("\(DebugTrace.prefix)[Workout] recordSessionRPE: plan=\(plan.id) rpe=\(rpe) expected=\(dailySession?.expectedSessionRPE.map(String.init) ?? "nil")")
+        #endif
+    }
+
+    // MARK: - Monthly Review (D4 §17)
+
+    /// Month key with a review currently due (drives the Training-tab card).
+    /// Set by loadToday; nil outside the window or once the summary exists.
+    var monthlyReviewDueKey: String?
+
+    /// Due = inside the month-boundary window AND the month's summary not yet
+    /// generated. An interview saved without a summary (offline) stays due so
+    /// the Sonnet call retries on a later open within the window.
+    func monthlyReviewDue(modelContext: ModelContext, now: Date = Date()) -> String? {
+        guard let key = MonthlyReviewSchedule.dueMonthKey(on: now) else { return nil }
+        if let existing = fetchMonthlyReview(monthKey: key, modelContext: modelContext),
+           existing.summaryText != nil {
+            return nil
+        }
+        return key
+    }
+
+    func fetchMonthlyReview(monthKey: String, modelContext: ModelContext) -> MonthlyReview? {
+        let descriptor = FetchDescriptor<MonthlyReview>(
+            predicate: #Predicate { $0.monthKey == monthKey }
+        )
+        return (try? modelContext.fetch(descriptor))?.first
+    }
+
+    func fetchOrCreateMonthlyReview(monthKey: String, modelContext: ModelContext) -> MonthlyReview {
+        if let existing = fetchMonthlyReview(monthKey: monthKey, modelContext: modelContext) {
+            return existing
+        }
+        let review = MonthlyReview(monthKey: monthKey)
+        modelContext.insert(review)
+        try? modelContext.save()
+        return review
+    }
+
+    /// Map a month of stored rows into the pure aggregator's snapshots
+    /// (same @Model→snapshot seam as assembleTodayPicture).
+    func assembleMonthlyData(monthKey: String, modelContext: ModelContext) -> MonthlyReviewData? {
+        guard let interval = MonthlyReviewSchedule.monthInterval(forKey: monthKey) else { return nil }
+        let start = interval.start
+        let end = interval.end
+        let cal = Calendar.current
+        let daysInMonth = cal.range(of: .day, in: .month, for: start)?.count ?? 30
+
+        let planRows = (try? modelContext.fetch(FetchDescriptor<WorkoutPlan>(
+            predicate: #Predicate { $0.date >= start && $0.date < end }
+        ))) ?? []
+        let plans = planRows.map {
+            MonthPlanSnapshot(
+                date: $0.date, typeDisplayName: $0.type.displayName, statusRaw: $0.statusRaw,
+                skipReasonRaw: $0.skipReasonRaw, startedAt: $0.startedAt,
+                tonnageKg: $0.totalVolume, sessionRPE: $0.sessionRPE
+            )
+        }
+
+        let bodyRows = (try? modelContext.fetch(FetchDescriptor<BodyComposition>(
+            predicate: #Predicate { $0.date >= start && $0.date < end }
+        ))) ?? []
+        let body = bodyRows.map {
+            MonthBodySample(
+                date: $0.date, weightKg: $0.weightKg,
+                bodyFatPercent: $0.bodyFatPercent, leanMassKg: $0.leanMassKg
+            )
+        }
+
+        let recoveryRows = (try? modelContext.fetch(FetchDescriptor<DailyRecovery>(
+            predicate: #Predicate { $0.date >= start && $0.date < end }
+        ))) ?? []
+        let recovery = recoveryRows.map {
+            MonthRecoverySample(
+                date: $0.date, hrv: $0.hrvRmssd, rhr: $0.restingHR,
+                recoveryScore: $0.recoveryScore
+            )
+        }
+
+        let prRows = (try? modelContext.fetch(FetchDescriptor<PersonalRecord>(
+            predicate: #Predicate { $0.date >= start && $0.date < end }
+        ))) ?? []
+        let prs = prRows.map {
+            MonthPRSnapshot(
+                label: "\($0.exercise?.name ?? "Unknown") \($0.typeRaw) \(Int($0.value))kg",
+                date: $0.date
+            )
+        }
+
+        // Calibration spines, month-scoped.
+        let logRows = (try? modelContext.fetch(FetchDescriptor<PredictionLog>(
+            predicate: #Predicate { $0.date >= start && $0.date < end && $0.outcomeResolved }
+        ))) ?? []
+        let sessionRows = (try? modelContext.fetch(FetchDescriptor<DailySession>(
+            predicate: #Predicate { $0.date >= start && $0.date < end && $0.expectedSessionRPE != nil }
+        ))) ?? []
+        let sessionPairs = sessionRows.compactMap { session -> SessionRPEPair? in
+            guard let expected = session.expectedSessionRPE,
+                  let actual = session.workoutPlan?.sessionRPE else { return nil }
+            return SessionRPEPair(date: session.date, expected: expected, actual: actual)
+        }
+
+        return MonthlyReviewAggregator.aggregate(
+            monthKey: monthKey,
+            daysInMonth: daysInMonth,
+            plans: plans,
+            bodySamples: body,
+            recoverySamples: recovery,
+            prs: prs,
+            exerciseAccuracy: PredictionAccuracy.summarize(logRows),
+            sessionAccuracy: PredictionAccuracy.summarizeSessions(sessionPairs)
+        )
+    }
+
+    /// Generate + persist the Sonnet summary. The ≤1/month gate is
+    /// `summaryText == nil` — nothing is marked spent on failure, so a failed
+    /// call retries on the next open inside the window (unlike the weekly
+    /// hydration guard, a monthly report is worth the retry).
+    @discardableResult
+    func generateMonthlySummary(for review: MonthlyReview, modelContext: ModelContext) async -> Bool {
+        guard review.summaryText == nil else { return false }
+        guard let apiClient else { return false }
+        guard let data = assembleMonthlyData(monthKey: review.monthKey, modelContext: modelContext) else { return false }
+
+        let interview = MonthInterviewSnapshot(
+            wentWell: review.wentWell,
+            struggles: review.struggles,
+            niggles: review.niggles,
+            subjectiveProgress: review.subjectiveProgress,
+            goalsNextMonth: review.goalsNextMonth,
+            chosenEmphasis: review.chosenEmphasis?.rawValue
+        )
+        let coach = MonthlyReviewCoach(apiClient: apiClient)
+        guard let text = await coach.summary(data: data, interview: interview) else { return false }
+
+        review.summaryText = text
+        review.summaryGeneratedAt = Date()
+        try? modelContext.save()
+        monthlyReviewDueKey = monthlyReviewDue(modelContext: modelContext)
+        #if DEBUG
+            print("\(DebugTrace.prefix)[monthly_review] summary persisted month=\(review.monthKey) chars=\(text.count)")
+        #endif
+        return true
+    }
+
+    /// §17.1 → §14 seam: the interview's emphasis choice becomes next month's
+    /// TrainingBlock (open-ended — superseded by any later declaration).
+    /// Idempotent: a block already starting that day means he declared one.
+    func applyMonthlyEmphasisChoice(_ review: MonthlyReview, modelContext: ModelContext) {
+        guard let emphasis = review.chosenEmphasis,
+              let start = MonthlyReviewSchedule.nextMonthStart(afterKey: review.monthKey) else { return }
+        let day = Calendar.current.startOfDay(for: start)
+        let existing = (try? modelContext.fetch(FetchDescriptor<TrainingBlock>())) ?? []
+        guard !existing.contains(where: { Calendar.current.startOfDay(for: $0.startDate) == day }) else { return }
+        modelContext.insert(TrainingBlock(emphasis: emphasis, startDate: day))
+        try? modelContext.save()
+        #if DEBUG
+            print("\(DebugTrace.prefix)[monthly_review] emphasis block inserted \(emphasis.rawValue) from \(day)")
         #endif
     }
 

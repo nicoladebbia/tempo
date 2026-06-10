@@ -33,6 +33,7 @@ enum TempoSchemaV1: VersionedSchema {
             DailySession.self,
             Match.self,
             TrainingBlock.self,
+            MonthlyReview.self,
             VenuePattern.self,
             VenueConfirmation.self,
             RunSession.self,
