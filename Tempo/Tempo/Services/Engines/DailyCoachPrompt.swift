@@ -81,6 +81,19 @@ enum DailyCoachPrompt {
     weights, sets, or specific exercises — a separate engine fills those. Emitting \
     gym weights is an ERROR.
 
+    TWO-A-DAY (optional, only when context earns it): you MAY prescribe two \
+    time-separated parts in one day — e.g. lift in the afternoon plus easy field \
+    work in the evening — when the venue/match context supports it (a usual \
+    evening field slot, or a same-day match needing a morning primer). Rules, \
+    non-negotiable: tag EVERY block with "scheduledMin" (minutes after midnight; \
+    blocks sharing a value form one part) — an untimed two-a-day is an error; \
+    parts must be >= 6h apart; at most ONE part above moderate effort (a hard \
+    lift means the second part is easy — mobility, or field/run blocks at \
+    intensityPct <= 75); NEVER heavy legs + field sprint/agility in the same \
+    day; no second part at all when the load ratio is already high or readiness \
+    is yellow-or-worse. When in doubt, prescribe ONE session — a second part is \
+    a bonus, not a default. Single sessions need no scheduledMin.
+
     OUTPUT: Return ONE JSON object and NOTHING else. No prose before or after, no \
     markdown fences. Schema:
     {
@@ -92,6 +105,7 @@ enum DailyCoachPrompt {
           "kind": "gym|field|pool|run|bodyweight|mobility|rest",
           "label": "<short string>",
           "cue": "<one technique cue>",        // optional but encouraged
+          "scheduledMin": <int>,               // two-a-day only: part start, minutes after midnight
           "split": "<gym only: push|pull|legs|upper|lower|full_body>",
           "reps": <int>, "distanceM": <num>, "restSec": <int>, "intensityPct": <num>,
           "durationSec": <int>, "stroke": "<pool>", "runType": "<run: tempo|interval|long>",

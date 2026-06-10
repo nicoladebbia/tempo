@@ -171,7 +171,7 @@ enum DailyReadinessHarness {
     private static let worstCaseSession = DailySessionDTO(
         modality: "legs", intensity: .max, durationMin: 90,
         blocks: [SessionBlockDTO(
-            kind: .gym, label: "Max legs", notes: nil, cue: nil, split: "legs",
+            kind: .gym, label: "Max legs", notes: nil, cue: nil, scheduledMin: nil, split: "legs",
             reps: nil, distanceM: nil, restSec: nil, intensityPct: nil,
             durationSec: nil, stroke: nil, runType: nil, paceSecPerKm: nil, sets: nil
         )],

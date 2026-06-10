@@ -360,10 +360,26 @@ struct TodayWorkoutView: View {
                 .foregroundStyle(Color.tempoSignal)
             }
 
-            // Blocks (non-gym detail + cues; gym sets render in the exercise list).
-            ForEach(Array(session.blocks.enumerated()), id: \.offset) { _, block in
-                if block.kind != .gym {
-                    blockRow(block)
+            // Blocks (non-gym detail + cues; gym sets render in the exercise
+            // list). §21 composite days render grouped by part with a start-time
+            // header, and the gym part gets a pointer line so its slot is visible.
+            let parts = session.blocks.parts
+            ForEach(Array(parts.enumerated()), id: \.offset) { _, part in
+                if parts.count >= 2 {
+                    Text(partHeader(part.scheduledMin))
+                        .font(.tempoCaption1)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                        .padding(.top, TempoSpacing.xs)
+                }
+                ForEach(Array(part.blocks.enumerated()), id: \.offset) { _, block in
+                    if block.kind != .gym {
+                        blockRow(block)
+                    } else if parts.count >= 2 {
+                        Text("Gym \(block.split.map { "(\($0))" } ?? "") — exercises below")
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                    }
                 }
             }
         }
@@ -371,6 +387,12 @@ struct TodayWorkoutView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+    }
+
+    /// §21 — part header for a composite day ("AT 16:00" / "ANYTIME" for the
+    /// untimed anchor).
+    private func partHeader(_ scheduledMin: Int?) -> String {
+        scheduledMin.map { "AT \(VenuePatternMath.clockLabel($0))" } ?? "ANYTIME"
     }
 
     @ViewBuilder

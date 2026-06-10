@@ -61,6 +61,10 @@ enum TrainingSafetyFloor {
     /// Sleep debt (existing `isSleepDebtCritical` convention). [L] reuse.
     static let sleepDebtSevere: Double = 4
     static let sleepDebtModerateLow: Double = 2
+    /// §21.4 two-a-day gates: minimum gap between parts (§12 spacing) and the
+    /// ACWR above which a second part is never allowed. [D]
+    static let compositeMinGapMin = 6 * 60
+    static let acwrCompositeMax: Double = 1.3
 
     // MARK: - Classification
 
@@ -137,6 +141,11 @@ enum TrainingSafetyFloor {
         // load regardless of body tier (the existing rule, extended — §6.4/§12).
         let matchClamped = applyMatchProtection(session, picture: p)
 
+        // §21.4 composite-day gate: a two-part day must respect the interference
+        // rules (gap, legs+sprint, ACWR, T-0, hard+hard). Strips the offending
+        // LATER part rather than nuking the session. No-op on single-part days.
+        let composite = applyCompositeDayRules(matchClamped.session, picture: p)
+
         switch tier {
         case .severe:
             return FloorDecision(
@@ -146,7 +155,7 @@ enum TrainingSafetyFloor {
                 reason: severeReason(p)
             )
         case .moderate:
-            let clamped = clampIntensity(matchClamped.session, to: .moderate)
+            let clamped = clampIntensity(composite.session, to: .moderate)
             let changed = clamped != session
             return FloorDecision(
                 tier: .moderate,
@@ -155,11 +164,13 @@ enum TrainingSafetyFloor {
                 reason: changed ? "Yellow recovery — intensity capped." : "Yellow recovery — within limits."
             )
         case .normal:
+            let changed = matchClamped.changed || composite.changed
+            let reason = [matchClamped.reason, composite.reason].first { !$0.isEmpty } ?? ""
             return FloorDecision(
                 tier: .normal,
-                session: matchClamped.session,
-                wasDowngraded: matchClamped.changed,
-                reason: matchClamped.changed ? matchClamped.reason : "Clear to train as prescribed."
+                session: composite.session,
+                wasDowngraded: changed,
+                reason: changed ? reason : "Clear to train as prescribed."
             )
         }
     }
@@ -199,6 +210,7 @@ enum TrainingSafetyFloor {
                     label: "Mobility + easy movement",
                     notes: "Body markers say recover. Light only.",
                     cue: "Move easy, breathe, no load.",
+                    scheduledMin: nil,
                     split: nil, reps: nil, distanceM: nil, restSec: nil,
                     intensityPct: nil, durationSec: nil, stroke: nil,
                     runType: nil, paceSecPerKm: nil, sets: nil
@@ -237,5 +249,119 @@ enum TrainingSafetyFloor {
         guard loadsLegs, isHard else { return (s, false, "") }
         let clamped = clampIntensity(s, to: .easy)
         return (clamped, true, "Match tomorrow — legs kept light (T-1 protection).")
+    }
+
+    // MARK: - Composite-day rules (§21.4 — the two-a-day interference gate)
+
+    /// Enforces the §21.4 rules on a multi-part session by STRIPPING the
+    /// offending later part(s), never nuking the whole session — the anchor
+    /// (earliest) part always survives. Single-part sessions pass untouched.
+    static func applyCompositeDayRules(
+        _ s: DailySessionDTO,
+        picture p: ReadinessPicture
+    ) -> (session: DailySessionDTO, changed: Bool, reason: String) {
+        var parts = s.parts
+        guard parts.count >= 2 else { return (s, false, "") }
+        var reason = ""
+
+        // Match T-0: gym work today is a PRIMER only — no leg loading before
+        // kickoff. Drops the offending gym blocks (not the match part).
+        if p.daysUntilNextMatch == 0 {
+            let cleaned = parts.map { part in
+                (part.scheduledMin, part.blocks.filter { !isLegsGymBlock($0) })
+            }.filter { !$0.1.isEmpty }
+            if !cleaned.isEmpty, cleaned.flatMap(\.1).count != parts.flatMap(\.blocks).count {
+                reason = "Match today — leg loading before kickoff dropped."
+                parts = cleaned
+                if parts.count < 2 {
+                    return (rebuild(s, parts: parts), true, reason)
+                }
+            }
+        }
+
+        // Later parts must justify themselves against everything already kept.
+        var kept = [parts[0]]
+        for part in parts.dropFirst() {
+            if let violation = compositeViolation(of: part, against: kept, session: s, picture: p) {
+                if reason.isEmpty { reason = violation }
+                continue
+            }
+            kept.append(part)
+        }
+
+        let changed = kept.flatMap(\.blocks).count != s.blocks.count
+        guard changed else { return (s, false, "") }
+        return (rebuild(s, parts: kept), true, reason)
+    }
+
+    /// First §21.4 rule the candidate later part breaks, or nil if it's legal.
+    private static func compositeViolation(
+        of part: (scheduledMin: Int?, blocks: [SessionBlockDTO]),
+        against kept: [(scheduledMin: Int?, blocks: [SessionBlockDTO])],
+        session s: DailySessionDTO,
+        picture p: ReadinessPicture
+    ) -> String? {
+        // ACWR over the line → no second part, full stop (whole-day budget).
+        if let acwr = p.acuteChronicStrainRatio, acwr > acwrCompositeMax {
+            return "Training load already high (ACWR \(String(format: "%.1f", acwr))) — second session dropped."
+        }
+
+        // §12 spacing: parts < 6h apart. Only verifiable when both are timed.
+        if let start = part.scheduledMin,
+           let prev = kept.compactMap(\.scheduledMin).max(),
+           start - prev < compositeMinGapMin {
+            return "Sessions \(String(format: "%.1f", Double(start - prev) / 60))h apart — need ≥6h between parts. Second dropped."
+        }
+
+        // Heavy lower-body + field sprint/agility never share a day.
+        let isHard = (intensityRank[s.intensity] ?? 0) >= (intensityRank[.hard] ?? 3)
+        let keptBlocks = kept.flatMap(\.blocks)
+        let legsAnywhere = (keptBlocks + part.blocks).contains(where: isLegsGymBlock)
+        let partPairsFieldWithLegs = legsAnywhere
+            && (part.blocks.contains { $0.kind == .field } || keptBlocks.contains { $0.kind == .field })
+        if isHard, partPairsFieldWithLegs {
+            return "Heavy legs + field work in one day — interference. Second session dropped."
+        }
+
+        // Hard + hard is illegal: on a hard day the second part must be
+        // demonstrably easy (mobility/rest, or every block ≤75% intensity).
+        if isHard, !isEasyPart(part.blocks) {
+            return "Two hard sessions in one day — second dropped. One hard effort per day."
+        }
+
+        return nil
+    }
+
+    private static func isLegsGymBlock(_ block: SessionBlockDTO) -> Bool {
+        guard block.kind == .gym, let split = block.split?.lowercased() else { return false }
+        return split.contains("leg") || split.contains("lower")
+    }
+
+    /// Easy enough to ride shotgun on a hard day: recovery-kind blocks, or
+    /// explicitly sub-76% intensity on every loaded block.
+    private static func isEasyPart(_ blocks: [SessionBlockDTO]) -> Bool {
+        blocks.allSatisfy { block in
+            block.kind == .mobility || block.kind == .rest
+                || (block.intensityPct.map { $0 <= 75 } ?? false)
+        }
+    }
+
+    /// Rebuilds the session with the surviving parts' blocks, everything else
+    /// intact. (durationMin stays as prescribed — it's advisory, and the card
+    /// shows the parts that remain.)
+    private static func rebuild(
+        _ s: DailySessionDTO,
+        parts: [(scheduledMin: Int?, blocks: [SessionBlockDTO])]
+    ) -> DailySessionDTO {
+        DailySessionDTO(
+            modality: s.modality,
+            intensity: s.intensity,
+            durationMin: s.durationMin,
+            blocks: parts.flatMap(\.blocks),
+            shortWhy: s.shortWhy,
+            fullWhy: s.fullWhy,
+            expectedStrain: s.expectedStrain,
+            expectedSessionRPE: s.expectedSessionRPE
+        )
     }
 }

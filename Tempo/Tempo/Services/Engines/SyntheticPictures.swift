@@ -201,7 +201,32 @@ enum SyntheticPictures {
                 rawIsSensible: { keepsPlanned($0, "pull") && noGymWeights($0) },
                 antiPattern: { keepsPlanned($0, "pull") },
                 diagnose: { "Planned pull + knee pain → should keep pull, got \($0.modality)" }),
+
+            // ─── §21 two-a-day: a second part is ALLOWED, never forced ───
+            // Sensible = a single session, OR a composite that is fully timed
+            // and passes the floor's own composite gate unchanged (one rulebook,
+            // not a duplicate). The floor-can't-catch part is the untimed-
+            // composite error and the no-second-part-when-loaded discipline.
+            SyntheticFixture("two-a-day-green-planned-pull", pic(recovery: 84), plannedModality: "pull",
+                rawIsSensible: { legalTwoADay($0, pic(recovery: 84)) && noGymWeights($0) },
+                diagnose: { "Composite emitted but illegal (untimed parts or floor-stripped): \($0.blocks.compactMap(\.scheduledMin))" }),
+            SyntheticFixture("two-a-day-match-T0-primer", pic(recovery: 75, match: 0),
+                rawIsSensible: { legalTwoADay($0, pic(recovery: 75, match: 0)) && notHardLegs($0) },
+                antiPattern: { notHardLegs($0) },
+                diagnose: { "Match TODAY — primer must not load legs; got \($0.modality) \($0.intensity.rawValue)" }),
+            SyntheticFixture("two-a-day-overreached-single-only", pic(recovery: 62, acwr: 1.6), plannedModality: "pull",
+                rawIsSensible: { !$0.isComposite && $0.intensity != .max },
+                antiPattern: { !$0.isComposite },
+                diagnose: { _ in "ACWR 1.6 — no second part allowed, but Haiku emitted a composite day" }),
         ]
+    }
+
+    /// §21 — a two-a-day is legal iff every block is time-tagged AND the floor's
+    /// composite gate passes it unchanged. Single sessions are trivially legal.
+    static func legalTwoADay(_ s: DailySessionDTO, _ p: ReadinessPicture) -> Bool {
+        guard s.isComposite else { return true }
+        guard s.blocks.allSatisfy({ $0.scheduledMin != nil }) else { return false }
+        return !TrainingSafetyFloor.applyCompositeDayRules(s, picture: p).changed
     }
 
     /// True when the session keeps the planned modality (or maps to it). Used by

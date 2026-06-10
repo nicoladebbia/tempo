@@ -35,7 +35,7 @@ final class DailyReadinessCoachTests: XCTestCase {
     private func goHardCandidate() -> DailySessionDTO {
         DailySessionDTO(
             modality: "legs", intensity: .hard, durationMin: 70,
-            blocks: [SessionBlockDTO(kind: .gym, label: "Legs", notes: nil, cue: nil, split: "legs",
+            blocks: [SessionBlockDTO(kind: .gym, label: "Legs", notes: nil, cue: nil, scheduledMin: nil, split: "legs",
                                      reps: nil, distanceM: nil, restSec: nil, intensityPct: nil,
                                      durationSec: nil, stroke: nil, runType: nil, paceSecPerKm: nil, sets: nil)],
             shortWhy: "go", fullWhy: nil, expectedStrain: 14, expectedSessionRPE: 8

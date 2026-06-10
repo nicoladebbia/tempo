@@ -602,7 +602,7 @@ final class TrainingViewModel {
         let type = plan.type
         let dur = plan.durationMinutes ?? 45
         let mk: (BlockKind, String?, String) -> SessionBlockDTO = { kind, split, label in
-            SessionBlockDTO(kind: kind, label: label, notes: nil, cue: nil, split: split,
+            SessionBlockDTO(kind: kind, label: label, notes: nil, cue: nil, scheduledMin: nil, split: split,
                             reps: nil, distanceM: nil, restSec: nil, intensityPct: nil,
                             durationSec: nil, stroke: nil, runType: nil, paceSecPerKm: nil, sets: nil)
         }
@@ -617,7 +617,7 @@ final class TrainingViewModel {
         case .run:
             return DailySessionDTO(
                 modality: "run", intensity: .easy, durationMin: dur,
-                blocks: [SessionBlockDTO(kind: .run, label: "Easy run", notes: nil, cue: nil, split: nil,
+                blocks: [SessionBlockDTO(kind: .run, label: "Easy run", notes: nil, cue: nil, scheduledMin: nil, split: nil,
                                          reps: nil, distanceM: nil, restSec: nil, intensityPct: nil,
                                          durationSec: dur * 60, stroke: nil, runType: "tempo",
                                          paceSecPerKm: nil, sets: nil)],

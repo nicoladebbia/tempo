@@ -30,7 +30,7 @@ final class HarnessGateTests: XCTestCase {
         DailySessionDTO(
             modality: "legs", intensity: .hard, durationMin: 75,
             blocks: [SessionBlockDTO(
-                kind: .gym, label: "Heavy", notes: nil, cue: nil, split: "legs",
+                kind: .gym, label: "Heavy", notes: nil, cue: nil, scheduledMin: nil, split: "legs",
                 reps: nil, distanceM: nil, restSec: nil, intensityPct: nil,
                 durationSec: nil, stroke: nil, runType: nil, paceSecPerKm: nil, sets: nil
             )],
@@ -70,7 +70,7 @@ final class HarnessGateTests: XCTestCase {
             let tempoRun = DailySessionDTO(
                 modality: "run", intensity: .hard, durationMin: 45,
                 blocks: [SessionBlockDTO(
-                    kind: .run, label: "Tempo", notes: nil, cue: nil, split: nil,
+                    kind: .run, label: "Tempo", notes: nil, cue: nil, scheduledMin: nil, split: nil,
                     reps: nil, distanceM: 8000, restSec: nil, intensityPct: nil,
                     durationSec: nil, stroke: nil, runType: "tempo", paceSecPerKm: 240, sets: nil
                 )],

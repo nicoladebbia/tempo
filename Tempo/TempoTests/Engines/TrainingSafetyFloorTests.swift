@@ -48,6 +48,7 @@ final class TrainingSafetyFloorTests: XCTestCase {
             modality: "legs", intensity: .hard, durationMin: 75,
             blocks: [SessionBlockDTO(
                 kind: .gym, label: "Heavy legs", notes: nil, cue: "Brace hard.",
+                scheduledMin: nil,
                 split: "legs", reps: nil, distanceM: nil, restSec: nil,
                 intensityPct: nil, durationSec: nil, stroke: nil,
                 runType: nil, paceSecPerKm: nil, sets: nil

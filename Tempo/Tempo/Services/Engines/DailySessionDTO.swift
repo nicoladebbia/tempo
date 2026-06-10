@@ -53,6 +53,11 @@ struct SessionBlockDTO: Codable, Sendable, Equatable {
     let notes: String?
     /// Short technique cue per movement/drill (§14 Decision 4). AI-generated.
     let cue: String?
+    /// §21 two-a-day: minutes after midnight this block's PART starts. Blocks
+    /// sharing a scheduledMin form one part ("PULL @16:00 + FIELD @20:00");
+    /// nil joins the session's first part. Optional + additive — old persisted
+    /// rows and single-part sessions decode unchanged.
+    let scheduledMin: Int?
 
     // gym → pointer only
     let split: String?
@@ -86,6 +91,41 @@ struct DailySessionDTO: Codable, Sendable, Equatable {
     let fullWhy: String?
     let expectedStrain: Double?
     let expectedSessionRPE: Int?
+}
+
+extension Array where Element == SessionBlockDTO {
+    /// §21 two-a-day: blocks grouped into time-tagged PARTS, ordered by start.
+    /// Untimed blocks form/join the first part (back-compat: a pre-§21 session
+    /// is exactly one untimed part). The floor's composite rules and the card's
+    /// grouped render both read this — one grouping definition, not two. Lives
+    /// on the block array so the persisted DailySession's decoded blocks get it
+    /// for free.
+    var parts: [(scheduledMin: Int?, blocks: [SessionBlockDTO])] {
+        var timed: [Int: [SessionBlockDTO]] = [:]
+        var untimed: [SessionBlockDTO] = []
+        for block in self {
+            if let min = block.scheduledMin {
+                timed[min, default: []].append(block)
+            } else {
+                untimed.append(block)
+            }
+        }
+        let timedParts = timed.keys.sorted().map { (Optional($0), timed[$0]!) }
+        guard !untimed.isEmpty else { return timedParts }
+        guard !timedParts.isEmpty else { return [(nil, untimed)] }
+        // Untimed blocks join the EARLIEST part — the anchor.
+        var merged = timedParts
+        merged[0] = (merged[0].0, untimed + merged[0].1)
+        return merged
+    }
+}
+
+extension DailySessionDTO {
+    /// §21 — see `[SessionBlockDTO].parts`.
+    var parts: [(scheduledMin: Int?, blocks: [SessionBlockDTO])] { blocks.parts }
+
+    /// True when the session prescribes two or more time-separated parts.
+    var isComposite: Bool { parts.count >= 2 }
 }
 
 // MARK: - Parse errors
