@@ -471,5 +471,61 @@ end/mo MonthlyReview interview + Sonnet summary (§17)
 - **`travelMin` per venue** — source? (manual once in settings, or inferred). [before §15.4 travel-awareness]
 - ~~Does the weekly AIProgramPlanner get refactored to consume the new block-emphasis, or run parallel?~~ **RESOLVED in §8** (read/write contract + two-path trace): weekly owns the modality-default and writes the persisted `WorkoutPlan`; daily READS it, mutates intensity in place, overrides modality only under a hard constraint, and floor-SEVERE marks the day `.skipped` (with a new `skipReason`). `planWeek` does NOT need refactoring for the steady-state handoff — only D3's mid-week-match re-trigger calls it again. Remaining D3 sub-question: wiring `TrainingBlock` emphasis (§14.1) into `planWeek`'s `goal:` param (today hardcoded `"hypertrophy"`). [before D3]
 
+## §21 — Two-a-day training (spec, 2026-06-09 — "can I do two different trainings in a day?")
+
+### 21.1 — Use cases (Nicola's actual life; anything else is out of scope)
+- **U1 — lift + soccer, same day:** gym ~16:00, play ~20:00. The common case and the reason the question exists.
+- **U2 — match-day primer:** light upper-body AM, match PM (legal under §12 — it's *heavy legs* that's banned near matches, not all lifting).
+- **U3 — morning run/pool + evening gym.**
+- **NOT a goal:** two gym sessions/day. No use case, and §12 interference says no.
+
+### 21.2 — Ground truth: what hard-codes one-session-per-day today (the honest blast radius)
+- `WorkoutPlan.date` is normalized to start-of-day; `planResolution` (`TrainingViewModel.swift:857`) + the dedup pass (~:866-940) actively DELETE a second same-day plan — one-per-day is an enforced invariant, not an accident.
+- `var todayPlan: WorkoutPlan?` (`TrainingViewModel.swift:74`) — singular; read by TodayWorkoutView, the start-workout flow, `deterministicCandidate`, the session card.
+- `TrainingEngineProtocol.generateWeekPlan` emits exactly one plan per day; a football day is whole-day football.
+- `DailySession` is 1:1 with the day's plan (§8 desync guard); the coach guard is once-daily.
+- `TrainingOutcomeEvaluator.missedSessions` + §15.2 adherence count day-plans; Whoop auto-confirm and `loadNonGymActivity` match activities to THE day's plan by day.
+- `VenuePattern` samples key on weekday only — two-a-day makes the start-time median bimodal. (§16.1 always said weekday × modality; two-a-day forces that fix.)
+- WeekPlanView rows, Dashboard `refreshTrainingStatus`: one entry/day.
+
+### 21.3 — Decision: staged. T1 composite day first; T2 true dual plans only if T1 proves insufficient.
+
+**T1 — composite day (one plan, one session, time-tagged block groups). RECOMMENDED FIRST.**
+The §13.1 schema already legally mixes block kinds in one session (gym + field). T1 makes that a real two-a-day surface:
+- **Schema/model (additive):** optional `scheduledMin: Int?` per block (DTO + persisted block) — blocks carry times; the card groups by time: "PULL @ 16:00" / "FIELD @ 20:00".
+- **Plan stays one `WorkoutPlan`** (anchor modality = the gym/primary part). Engine pointer fills gym loads exactly as today. The evening part completes via Whoop auto-detect (already an unlinked `ActivitySession`, already venue-learner evidence).
+- **Brain:** prompt gains permission to emit a second time-tagged block group when context warrants (venue/time pattern says evening field, match calendar, user's confirmed venue), under §21.4 rules. The once-daily Haiku call covers the whole composite day — **zero new AI calls**.
+- **Floor:** vetoes illegal combos (§21.4) by stripping the offending block group, not nuking the session.
+- **Honest limitation (stated, accepted):** adherence stays day-granular — the day counts done when its anchor completes. Per-part adherence is T2's job.
+- **Week row UI:** subtitle gains the second part ("PULL · +field 20:00").
+
+**T2 — true dual plans (the real model; only after T1 demand is proven).**
+- `WorkoutPlan` += optional `slot` (default 0) — additive migration. `planResolution`/dedup key on (day, slot); sacredness unchanged per plan.
+- `generateWeekPlan` may emit 2 plans/day (emphasis-week rules from §12 decide when); `todayPlan` → `todayPlans` + selection; START WORKOUT per plan; `DailySession` 1:1 per plan (coach still once-daily: ONE Haiku call prescribes both slots).
+- Adherence/evaluator/XP per plan (XP weighting = open decision 21.6); Whoop auto-confirm switches from day-matching to time-window overlap.
+- Prereq (shippable inside T1): venue learner keyed weekday × modality.
+- Mandatory: enumerate-the-readers over the full §21.2 list + architecture-guard. This phase touches the module's most load-bearing invariant.
+
+### 21.4 — Interference rules for a two-part day (floor-enforced, both phases)
+- ≥6h between parts (§12 spacing).
+- Heavy lower-body + any field sprint/agility: NEVER same day. Floor strips the later-scheduled offender.
+- Match T-0: part 1 may only be easy/moderate upper or mobility. T-1: existing no-heavy-legs rule applies to BOTH parts.
+- ACWR > 1.3 → no second part (brain is told; floor downgrades a second part to mobility/rest).
+- Floor-SEVERE day → one recovery session, period — the existing veto dominates everything above.
+- Hard+hard is illegal regardless of modality pair: at most one part above `moderate`.
+
+### 21.5 — Cost
+Zero new AI calls in both phases (composite day rides the existing once-daily call; weekly Sonnet untouched). T1 is schema-additive only.
+
+### 21.6 — Open decisions (settle before T2, not before T1)
+- XP/streak semantics for a half-done two-part day.
+- How a second slot enters the plan: planner-decided vs an explicit "add evening session" action (or both).
+- Per-part sRPE (`SessionOutcome` per part) vs whole-day.
+
+### 21.7 — Tests & exit criteria
+- **T1:** parser round-trips `scheduledMin`; adversarial floor tests for every illegal combo in §21.4; card renders grouped parts; prompt harness re-run with ≥3 new two-a-day synthetic fixtures (all parse + pass floor); on-device render of a composite day (⌘R, L145).
+- **T2:** planResolution slot-keying unit tests; per-plan adherence in the evaluator; Whoop time-window matcher; migration default (slot=0) on existing rows; full training-suite regression.
+- **Exit (T1):** a real day shows "lift 16:00 + field 20:00" from one Claude call, floor demonstrably strips an illegal combo, Whoop evening detection lands as evidence.
+
 ## §20 — Section index (the doc grew; orient here)
-§0 summary · §1 locked decisions · §2 ground truth (+CORRECTIONS) · §3 architecture · §4 assembly/models · §5 daily brain + prompt · §6 safety floor (concrete thresholds) · §7 build strategy (RESOLVED: constrained-A) · §8 existing-work (RESOLVED: keep) · §9 phases D1-D4 · §10 cross-cutting · §11 scope note · §12 dual-goal interference · §13 JSON schema + per-modality outcomes · §14 resolved blockers · §15 unhappy paths · §16 venue/pattern learning · §17 monthly arc · §18 day-in-the-life sequence · §19 success criteria + open questions · §20 index
+§0 summary · §1 locked decisions · §2 ground truth (+CORRECTIONS) · §3 architecture · §4 assembly/models · §5 daily brain + prompt · §6 safety floor (concrete thresholds) · §7 build strategy (RESOLVED: constrained-A) · §8 existing-work (RESOLVED: keep) · §9 phases D1-D4 · §10 cross-cutting · §11 scope note · §12 dual-goal interference · §13 JSON schema + per-modality outcomes · §14 resolved blockers · §15 unhappy paths · §16 venue/pattern learning · §17 monthly arc · §18 day-in-the-life sequence · §19 success criteria + open questions · §20 index · §21 two-a-day (spec'd 2026-06-09, T1 composite day → T2 dual plans)
