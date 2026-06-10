@@ -36,8 +36,7 @@ enum ReadinessAssembler {
         checkIn: MorningCheckInSnapshot? = nil,
         daysUntilNextMatch: Int? = nil,
         blockEmphasis: BlockEmphasis? = nil,
-        venueToday: VenueTodaySnapshot? = nil,
-        habitPatterns: [String] = []
+        venueToday: VenueTodaySnapshot? = nil
     ) -> ReadinessPicture {
         // The baseline windows exclude today (deviation is today-vs-history).
         let baseline = Array(history.suffix(baselineWindow))
@@ -95,8 +94,7 @@ enum ReadinessAssembler {
             historyDayCount: historyDays,
             skinTempDeltaC: skinTempDelta,
             spo2: today?.spo2,
-            sleepConsistencyPct: today?.sleepConsistency,
-            habitPatterns: habitPatterns
+            sleepConsistencyPct: today?.sleepConsistency
         )
     }
 }

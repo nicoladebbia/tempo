@@ -6,8 +6,8 @@
 // WhoopExportParser — pure). Strictly ADDITIVE: a day that already has a
 // DailyRecovery row is never touched (live API data wins over the export),
 // and a workout within ±2 min of an existing ActivitySession start is a
-// duplicate and skipped. JournalInsights are derived data and replaced
-// wholesale (the export is the only source — nothing to merge with).
+// duplicate and skipped. journal_entries.csv is ignored by Nicola's call
+// (2026-06-09): habit patterns are out of scope.
 //
 // After a successful import the venue learner recomputes (432 historical
 // workouts = instant §16 patterns) and the standard change notifications fire
@@ -23,13 +23,11 @@ enum WhoopExportImporter {
         var cyclesSkipped = 0
         var workoutsImported = 0
         var workoutsSkipped = 0
-        var insightsComputed = 0
         var filesIgnored = 0
 
         var label: String {
             "\(cyclesImported) days + \(workoutsImported) workouts imported"
                 + " (\(cyclesSkipped + workoutsSkipped) already present)"
-                + (insightsComputed > 0 ? ", \(insightsComputed) journal patterns" : "")
         }
     }
 
@@ -39,8 +37,6 @@ enum WhoopExportImporter {
     @MainActor
     static func importFiles(_ urls: [URL], modelContext: ModelContext) -> Summary {
         var summary = Summary()
-        var journalRows: [WhoopExportParser.JournalRow] = []
-        var cycleRows: [WhoopExportParser.CycleRow] = []
 
         for url in urls {
             let scoped = url.startAccessingSecurityScopedResource()
@@ -52,28 +48,16 @@ enum WhoopExportImporter {
             }
 
             if header.contains("Recovery score %") {
-                cycleRows = WhoopExportParser.cycles(fromCSV: text)
-                importCycles(cycleRows, into: modelContext, summary: &summary)
+                importCycles(WhoopExportParser.cycles(fromCSV: text), into: modelContext, summary: &summary)
             } else if header.contains("Activity Strain") {
                 importWorkouts(WhoopExportParser.workouts(fromCSV: text), into: modelContext, summary: &summary)
-            } else if header.contains("Question text") {
-                journalRows = WhoopExportParser.journal(fromCSV: text)
             } else {
-                summary.filesIgnored += 1 // sleeps.csv (or unknown) — by design
+                // sleeps.csv (cycles carry the sleep fields) AND
+                // journal_entries.csv (Nicola's call, 2026-06-09: journal
+                // patterns are OUT — ingestion disabled; the JournalInsight
+                // machinery stays but can never populate). Unknown files too.
+                summary.filesIgnored += 1
             }
-        }
-
-        if !journalRows.isEmpty {
-            // Pair answers with the export's own recovery scores — the export
-            // covers exactly the journal's date range.
-            let recoveryByDay = Dictionary(
-                cycleRows.map { ($0.date, $0.recoveryScore) },
-                uniquingKeysWith: { a, _ in a }
-            )
-            summary.insightsComputed = replaceInsights(
-                WhoopExportParser.correlations(journal: journalRows, recoveryByDay: recoveryByDay),
-                in: modelContext
-            )
         }
 
         try? modelContext.save()
@@ -172,24 +156,4 @@ enum WhoopExportImporter {
         }
     }
 
-    // MARK: - Journal → JournalInsight (replace wholesale)
-
-    @MainActor
-    private static func replaceInsights(
-        _ correlations: [WhoopExportParser.HabitCorrelation],
-        in modelContext: ModelContext
-    ) -> Int {
-        let stale = (try? modelContext.fetch(FetchDescriptor<JournalInsight>())) ?? []
-        for row in stale { modelContext.delete(row) }
-        for c in correlations {
-            modelContext.insert(JournalInsight(
-                question: c.question,
-                yesCount: c.yesCount,
-                noCount: c.noCount,
-                yesMeanRecovery: c.yesMeanRecovery,
-                noMeanRecovery: c.noMeanRecovery
-            ))
-        }
-        return correlations.count
-    }
 }

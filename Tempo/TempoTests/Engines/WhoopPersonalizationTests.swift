@@ -3,12 +3,11 @@
 // Tempo
 //
 // Proves the Whoop-export personalization layer (2026-06-09): the quote-aware
-// CSV parser, the cycle/workout/journal mappers (unit conversions, activity→
-// WorkoutType mapping, zone-percent→minutes), the journal correlation math
-// (min-arm + min-delta gates, same-cycle pairing), the floor's illness-TRIAD
+// CSV parser, the cycle/workout mappers (unit conversions, activity→
+// WorkoutType mapping, zone-percent→minutes), the floor's illness-TRIAD
 // route (two of resp/skin-temp/SpO2 on non-green → SEVERE; one alone is
-// noise), and the new prompt lines (consistency, illness signals, Z4+ load,
-// PERSONAL PATTERNS).
+// noise), and the new prompt lines (consistency, illness signals, Z4+ load).
+// Journal correlation machinery was removed 2026-06-09 (Nicola: out of scope).
 //
 
 @testable import Tempo
@@ -76,31 +75,6 @@ final class WhoopPersonalizationTests: XCTestCase {
         XCTAssertEqual(WhoopExportParser.workoutTypeRaw(forActivity: "Padel"), "padel", "Unmapped names pass through lowercased")
     }
 
-    // MARK: - Journal correlations
-
-    func testCorrelationsRespectGatesAndPairing() {
-        let cal = Calendar.current
-        let base = cal.startOfDay(for: Date(timeIntervalSince1970: 1_700_000_000))
-        var journal: [WhoopExportParser.JournalRow] = []
-        var recovery: [Date: Double] = [:]
-        // 25 yes-days at recovery 50, 25 no-days at 65 → delta −15, reportable.
-        // Plus an under-sampled question that must be filtered out.
-        for i in 0 ..< 50 {
-            let day = cal.date(byAdding: .day, value: -i, to: base)!
-            let yes = i % 2 == 0
-            recovery[day] = yes ? 50 : 65
-            journal.append(.init(day: day, question: "Have any alcoholic drinks?", answeredYes: yes))
-            if i < 5 {
-                journal.append(.init(day: day, question: "Rare question?", answeredYes: yes))
-            }
-        }
-        let result = WhoopExportParser.correlations(journal: journal, recoveryByDay: recovery)
-        XCTAssertEqual(result.count, 1, "Under-sampled questions never report")
-        XCTAssertEqual(result[0].question, "Have any alcoholic drinks?")
-        XCTAssertEqual(result[0].delta, -15, accuracy: 0.001)
-        XCTAssertEqual(result[0].yesCount, 25)
-    }
-
     // MARK: - Floor illness triad
 
     private func picture(
@@ -164,22 +138,13 @@ final class WhoopPersonalizationTests: XCTestCase {
         XCTAssertFalse(DailyCoachPrompt.userMessage(for: fine).contains("Sleep consistency"))
     }
 
-    func testPromptCarriesPersonalPatternsAndYesterdayIntensity() {
-        var p = picture()
-        p.habitPatterns = ["Have any alcoholic drinks? → −7 recovery pts on yes-days (n=120/200, his own data)"]
-        var message = DailyCoachPrompt.userMessage(for: p)
-        XCTAssertTrue(message.contains("PERSONAL PATTERNS"))
-        XCTAssertTrue(message.contains("alcoholic"))
-
-        let yesterday = YesterdaySession(type: "football", strain: 14, durationMin: 90, avgHR: 150, hardMinutes: 36)
-        p = picture()
-        p = ReadinessAssembler.assemble(
+    func testPromptCarriesYesterdayIntensity() {
+        let p = ReadinessAssembler.assemble(
             history: [], today: nil,
             yesterdaySessions: [ActivitySnapshot(workoutType: "football", strain: 14, durationMinutes: 90,
                                                  averageHeartRate: 150, hardMinutes: 36)]
         )
-        message = DailyCoachPrompt.userMessage(for: p)
+        let message = DailyCoachPrompt.userMessage(for: p)
         XCTAssertTrue(message.contains("36min Z4+"), "Yesterday's true intensity reaches the prompt")
-        XCTAssertEqual(yesterday.hardMinutes, 36)
     }
 }

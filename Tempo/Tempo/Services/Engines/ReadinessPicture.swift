@@ -115,11 +115,6 @@ struct ReadinessPicture: Equatable, Sendable {
     /// lever (prompt), not a floor signal.
     var sleepConsistencyPct: Double? = nil
 
-    /// Personalized habit↔recovery patterns from the user's own Whoop journal
-    /// export ("Alcohol: −7 recovery pts, n=350"). Associations, never causal
-    /// claims; empty when no import has run.
-    var habitPatterns: [String] = []
-
     // MARK: Cold-start thresholds (named constants — §14.1)
 
     /// Floor may use z-score routes once it has at least this many valid samples.

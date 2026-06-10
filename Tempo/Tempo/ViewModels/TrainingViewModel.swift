@@ -534,8 +534,7 @@ final class TrainingViewModel {
             checkIn: checkIn,
             daysUntilNextMatch: daysUntilNextMatch,
             blockEmphasis: currentBlockEmphasis(modelContext: modelContext),
-            venueToday: venueTodaySnapshot(modelContext: modelContext),
-            habitPatterns: fetchHabitPatterns(modelContext: modelContext)
+            venueToday: venueTodaySnapshot(modelContext: modelContext)
         )
     }
 
@@ -557,19 +556,6 @@ final class TrainingViewModel {
         }
     }
 
-    /// The 3 strongest journal patterns (|Δ| recovery pts), phrased for the
-    /// prompt. Empty until a Whoop export has been imported — the API never
-    /// exposes journal data, so there is nothing to fetch live.
-    private func fetchHabitPatterns(modelContext: ModelContext) -> [String] {
-        let insights = (try? modelContext.fetch(FetchDescriptor<JournalInsight>())) ?? []
-        return insights
-            .sorted { abs($0.delta) > abs($1.delta) }
-            .prefix(3)
-            .map { i in
-                let sign = i.delta >= 0 ? "+" : "−"
-                return "\(i.question) → \(sign)\(Int(abs(i.delta))) recovery pts on yes-days (n=\(i.yesCount)/\(i.noCount), his own data)"
-            }
-    }
 
     /// Today's venue context for the prompt (§16): the user's confirmed answer
     /// when present (highest quality), else the learned weekday pattern. nil

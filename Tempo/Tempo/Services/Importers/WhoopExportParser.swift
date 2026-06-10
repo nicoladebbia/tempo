@@ -5,13 +5,12 @@
 // Pure parsing for the official Whoop account-data export (the 4-CSV folder:
 // physiological_cycles / workouts / journal_entries / sleeps). One year of
 // history seeds the training intelligence in one shot: real 30-day baselines
-// (opens the brain gate), honest ACWR, instant venue/time patterns, and the
-// journal-correlation PERSONAL PATTERNS — data the public Whoop API does NOT
-// expose (journal) or that accrues too slowly in-app.
+// (opens the brain gate), honest ACWR, instant venue/time patterns.
 //
 // sleeps.csv is deliberately NOT imported: physiological_cycles.csv already
 // carries the per-day sleep fields the app stores; importing both would
-// double-write. Naps are out of scope (no model holds them).
+// double-write. journal_entries.csv is OUT by Nicola's call (2026-06-09).
+// Naps are out of scope (no model holds them).
 //
 // Everything here is pure text → value structs; SwiftData writes live in
 // WhoopExportImporter so this parses under unit test with zero IO.
@@ -121,13 +120,6 @@ enum WhoopExportParser {
         let zoneMinutes: [Double]?
     }
 
-    /// One journal answer (question text normalized, attached to its cycle day).
-    struct JournalRow: Equatable, Sendable {
-        let day: Date
-        let question: String
-        let answeredYes: Bool
-    }
-
     // MARK: - File mappers
 
     static func cycles(fromCSV text: String, calendar: Calendar = .current) -> [CycleRow] {
@@ -182,66 +174,6 @@ enum WhoopExportParser {
                 zoneMinutes: zones
             )
         }
-    }
-
-    static func journal(fromCSV text: String, calendar: Calendar = .current) -> [JournalRow] {
-        keyedRows(text).compactMap { r in
-            guard let date = date(r["Cycle start time"], tz: r["Cycle timezone"]),
-                  let question = r["Question text"], !question.isEmpty,
-                  let answer = r["Answered yes"] else { return nil }
-            return JournalRow(
-                day: calendar.startOfDay(for: date),
-                question: question,
-                answeredYes: answer.lowercased() == "true"
-            )
-        }
-    }
-
-    // MARK: - Journal correlations (§ PERSONAL PATTERNS)
-
-    /// Same-cycle pairing: the journal is answered in the morning about the
-    /// night/day the cycle's recovery reflects, so a "yes" pairs with THAT
-    /// day's recovery score.
-    struct HabitCorrelation: Equatable, Sendable {
-        let question: String
-        let yesCount: Int
-        let noCount: Int
-        let yesMeanRecovery: Double
-        let noMeanRecovery: Double
-        /// Positive = the habit is associated with BETTER recovery.
-        var delta: Double { yesMeanRecovery - noMeanRecovery }
-    }
-
-    /// Minimum yes AND no samples before a correlation is reportable, and the
-    /// recovery-point gap below which it's noise. Defensible defaults — this
-    /// is association on one person's data, never causation; phrased as
-    /// "pattern", never "proof".
-    static let minSamplesPerArm = 20
-    static let minReportableDelta = 3.0
-
-    static func correlations(
-        journal: [JournalRow],
-        recoveryByDay: [Date: Double]
-    ) -> [HabitCorrelation] {
-        var byQuestion: [String: (yes: [Double], no: [Double])] = [:]
-        for row in journal {
-            guard let recovery = recoveryByDay[row.day] else { continue }
-            var arms = byQuestion[row.question] ?? ([], [])
-            if row.answeredYes { arms.yes.append(recovery) } else { arms.no.append(recovery) }
-            byQuestion[row.question] = arms
-        }
-        return byQuestion.compactMap { question, arms in
-            guard arms.yes.count >= minSamplesPerArm, arms.no.count >= minSamplesPerArm else { return nil }
-            return HabitCorrelation(
-                question: question,
-                yesCount: arms.yes.count,
-                noCount: arms.no.count,
-                yesMeanRecovery: arms.yes.reduce(0, +) / Double(arms.yes.count),
-                noMeanRecovery: arms.no.reduce(0, +) / Double(arms.no.count)
-            )
-        }
-        .filter { abs($0.delta) >= minReportableDelta }
-        .sorted { abs($0.delta) > abs($1.delta) }
     }
 
     // MARK: - Helpers

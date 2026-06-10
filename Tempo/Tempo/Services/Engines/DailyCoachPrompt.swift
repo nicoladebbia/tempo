@@ -174,16 +174,6 @@ enum DailyCoachPrompt {
             lines.append("- Yesterday: \(y)")
         }
 
-        // PERSONAL PATTERNS — from the user's own Whoop journal export.
-        // Associations on one person's data; the system prompt's body-data
-        // rules still dominate. Capped upstream to the few strongest.
-        if !p.habitPatterns.isEmpty {
-            lines.append("")
-            lines.append("PERSONAL PATTERNS (this user's own data — use to coach habits, never to override body data):")
-            for pattern in p.habitPatterns {
-                lines.append("- \(pattern)")
-            }
-        }
 
         if let ci = p.checkIn {
             var parts: [String] = []
