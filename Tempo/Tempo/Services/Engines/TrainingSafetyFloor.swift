@@ -65,6 +65,12 @@ enum TrainingSafetyFloor {
     /// ACWR above which a second part is never allowed. [D]
     static let compositeMinGapMin = 6 * 60
     static let acwrCompositeMax: Double = 1.3
+    /// Illness triad (2026-06-09): skin-temp deviation vs 30d baseline and
+    /// absolute SpO2 floor. Either alone is noise (hydration, sensor drift);
+    /// TWO of the triad (resp / skin temp / SpO2) on a non-green day is the
+    /// pre-symptomatic illness signature. [D] cutoffs.
+    static let skinTempSevereDeltaC: Double = 1.0
+    static let spo2SevereFloor: Double = 94
 
     // MARK: - Classification
 
@@ -97,6 +103,18 @@ enum TrainingSafetyFloor {
         // Illness route — elevated resp rate AND recovery not green. [D] cutoff.
         if let rd = p.respDeltaBrMin, rd >= respSevereBrMin, p.recoveryScore < recoveryGreen {
             return true
+        }
+
+        // Illness TRIAD route (2026-06-09) — any TWO of resp-rate elevation,
+        // skin-temp deviation, and low SpO2 on a non-green day. Catches the
+        // incubating-illness day the resp-only route misses (e.g. fever-warm
+        // skin + low oxygen with normal breathing).
+        if p.recoveryScore < recoveryGreen {
+            var illnessSignals = 0
+            if let rd = p.respDeltaBrMin, rd >= respSevereBrMin { illnessSignals += 1 }
+            if let td = p.skinTempDeltaC, td >= skinTempSevereDeltaC { illnessSignals += 1 }
+            if let ox = p.spo2, ox < spo2SevereFloor { illnessSignals += 1 }
+            if illnessSignals >= 2 { return true }
         }
 
         return false
@@ -227,6 +245,8 @@ enum TrainingSafetyFloor {
         if p.recoveryScore < recoveryRed { return "Recovery red (\(Int(p.recoveryScore))). Recover today." }
         if let debt = p.sleepDebt, debt >= sleepDebtSevere { return "Sleep debt \(String(format: "%.1f", debt))h. Recover today." }
         if let rd = p.respDeltaBrMin, rd >= respSevereBrMin { return "Respiratory rate elevated — possible illness. Recover." }
+        if let td = p.skinTempDeltaC, td >= skinTempSevereDeltaC { return "Skin temp +\(String(format: "%.1f", td))°C vs baseline — possible illness. Recover." }
+        if let ox = p.spo2, ox < spo2SevereFloor { return "Blood oxygen \(Int(ox))% — below your normal. Recover." }
         return "Body markers crashed. Recover today."
     }
 

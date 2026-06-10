@@ -36,7 +36,8 @@ enum ReadinessAssembler {
         checkIn: MorningCheckInSnapshot? = nil,
         daysUntilNextMatch: Int? = nil,
         blockEmphasis: BlockEmphasis? = nil,
-        venueToday: VenueTodaySnapshot? = nil
+        venueToday: VenueTodaySnapshot? = nil,
+        habitPatterns: [String] = []
     ) -> ReadinessPicture {
         // The baseline windows exclude today (deviation is today-vs-history).
         let baseline = Array(history.suffix(baselineWindow))
@@ -54,6 +55,11 @@ enum ReadinessAssembler {
         let rhrZ = ReadinessTrendMath.zScore(today: today?.rhr, baselineInput: rhrBaseline)
         let respDelta = ReadinessTrendMath.deviation(today: today?.respRate, baselineInput: respBaseline)
         let acwr = ReadinessTrendMath.acuteChronicRatio(strainSeries: Array(strainSeries))
+        // Illness triad: skin-temp deviation reuses the same today-vs-baseline
+        // math as RHR; SpO2 is meaningful as an absolute (<94), no baseline.
+        let skinTempDelta = ReadinessTrendMath.deviation(
+            today: today?.skinTemp, baselineInput: baseline.map(\.skinTemp)
+        )
 
         // Valid-sample counts gate the floor (≥14) and brain (≥30) cold-starts.
         let validHrvRhr = baseline.filter { $0.hrv != nil || $0.rhr != nil }.count
@@ -75,7 +81,8 @@ enum ReadinessAssembler {
             respDeltaBrMin: respDelta,
             acuteChronicStrainRatio: acwr,
             yesterdaySessions: yesterdaySessions.map {
-                YesterdaySession(type: $0.workoutType, strain: $0.strain, durationMin: $0.durationMinutes, avgHR: $0.averageHeartRate)
+                YesterdaySession(type: $0.workoutType, strain: $0.strain, durationMin: $0.durationMinutes,
+                                 avgHR: $0.averageHeartRate, hardMinutes: $0.hardMinutes)
             },
             weightKg: bodyComp?.weightKg,
             bodyFatPct: bodyComp?.bodyFatPercent,
@@ -85,7 +92,11 @@ enum ReadinessAssembler {
             blockEmphasis: blockEmphasis,
             venueToday: venueToday,
             validBaselineSampleCount: validHrvRhr,
-            historyDayCount: historyDays
+            historyDayCount: historyDays,
+            skinTempDeltaC: skinTempDelta,
+            spo2: today?.spo2,
+            sleepConsistencyPct: today?.sleepConsistency,
+            habitPatterns: habitPatterns
         )
     }
 }
@@ -104,6 +115,12 @@ struct DailyRecoverySnapshot: Equatable, Sendable {
     let sleepDebt: Double?
     let strain: Double?
     let deepSleepMin: Int?
+    // Illness-triad + timing signals (stored by DailyRecovery since launch,
+    // consumed by training since 2026-06-09). Defaulted so prior construction
+    // sites compile unchanged.
+    var skinTemp: Double? = nil
+    var spo2: Double? = nil
+    var sleepConsistency: Double? = nil
 }
 
 /// The fields the assembler needs from an ActivitySession row.
@@ -112,6 +129,8 @@ struct ActivitySnapshot: Equatable, Sendable {
     let strain: Double?
     let durationMinutes: Double?
     let averageHeartRate: Double?
+    /// Z4+Z5 minutes when zone data exists (import-sourced sessions).
+    var hardMinutes: Double? = nil
 }
 
 /// The fields the assembler needs from HealthKit body composition.

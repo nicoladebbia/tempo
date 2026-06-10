@@ -151,6 +151,8 @@ enum DailyCoachPrompt {
             }
             if let d = p.rhrDeltaBpm { lines.append("- Resting HR: \(fmt(d)) bpm vs baseline") }
             if let rd = p.respDeltaBrMin { lines.append("- Respiratory rate: \(fmt(rd)) br/min vs baseline") }
+            if let td = p.skinTempDeltaC, abs(td) >= 0.5 { lines.append("- Skin temp: \(fmt(td))°C vs baseline\(td >= 1.0 ? " — illness watch" : "")") }
+            if let ox = p.spo2, ox < 95 { lines.append("- Blood oxygen: \(Int(ox))% — below normal") }
             if let acwr = p.acuteChronicStrainRatio { lines.append("- Acute:chronic strain: \(fmt(acwr))") }
         } else {
             lines.append("- TRENDS BUILDING (day \(p.historyDayCount)/\(ReadinessPicture.minBrainHistoryDays)) — do NOT claim trend-based reasoning yet; use recovery score + sleep only.")
@@ -158,10 +160,29 @@ enum DailyCoachPrompt {
 
         if let debt = p.sleepDebt { lines.append("- Sleep debt: \(fmt(debt))h") }
         if let sh = p.sleepHours { lines.append("- Slept: \(fmt(sh))h") }
+        // Timing regularity — a coaching lever, not a floor signal. Only
+        // surfaced when it's actually bad; the drill-sergeant should call it.
+        if let sc = p.sleepConsistencyPct, sc < 60 {
+            lines.append("- Sleep consistency: \(Int(sc))% — bed/wake timing is chaotic. Call it out; a consistent window IS training.")
+        }
 
         if !p.yesterdaySessions.isEmpty {
-            let y = p.yesterdaySessions.map { "\($0.type) (strain \($0.strain.map { fmt($0) } ?? "?"))" }.joined(separator: ", ")
+            let y = p.yesterdaySessions.map { s in
+                let hard = s.hardMinutes.map { ", \(Int($0))min Z4+" } ?? ""
+                return "\(s.type) (strain \(s.strain.map { fmt($0) } ?? "?")\(hard))"
+            }.joined(separator: ", ")
             lines.append("- Yesterday: \(y)")
+        }
+
+        // PERSONAL PATTERNS — from the user's own Whoop journal export.
+        // Associations on one person's data; the system prompt's body-data
+        // rules still dominate. Capped upstream to the few strongest.
+        if !p.habitPatterns.isEmpty {
+            lines.append("")
+            lines.append("PERSONAL PATTERNS (this user's own data — use to coach habits, never to override body data):")
+            for pattern in p.habitPatterns {
+                lines.append("- \(pattern)")
+            }
         }
 
         if let ci = p.checkIn {

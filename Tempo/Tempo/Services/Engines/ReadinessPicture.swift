@@ -104,6 +104,22 @@ struct ReadinessPicture: Equatable, Sendable {
     /// floor's 14 — safety engages earlier than sophistication (§14.2).
     let historyDayCount: Int
 
+    // MARK: Illness triad + timing (2026-06-09 — stored since launch, unread until now)
+
+    /// Today's skin temp minus the 30-day baseline mean, °C. The classic
+    /// pre-illness tell; pairs with respDeltaBrMin and spo2 in the floor.
+    var skinTempDeltaC: Double? = nil
+    /// Today's blood oxygen %, absolute (97–99 normal; <94 is a flag).
+    var spo2: Double? = nil
+    /// Whoop sleep consistency % — bed/wake TIMING regularity. A coaching
+    /// lever (prompt), not a floor signal.
+    var sleepConsistencyPct: Double? = nil
+
+    /// Personalized habit↔recovery patterns from the user's own Whoop journal
+    /// export ("Alcohol: −7 recovery pts, n=350"). Associations, never causal
+    /// claims; empty when no import has run.
+    var habitPatterns: [String] = []
+
     // MARK: Cold-start thresholds (named constants — §14.1)
 
     /// Floor may use z-score routes once it has at least this many valid samples.
@@ -151,6 +167,8 @@ struct YesterdaySession: Equatable, Sendable, Codable {
     let strain: Double?
     let durationMin: Double?
     let avgHR: Double?
+    /// Z4+Z5 minutes — true high-intensity time, sharper than strain.
+    var hardMinutes: Double? = nil
 }
 
 // MARK: - MorningCheckInSnapshot

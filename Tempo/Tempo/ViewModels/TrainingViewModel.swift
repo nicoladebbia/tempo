@@ -507,7 +507,8 @@ final class TrainingViewModel {
             DailyRecoverySnapshot(
                 date: r.date, recoveryScore: r.recoveryScore, hrv: r.hrvRmssd,
                 rhr: r.restingHR, respRate: r.respiratoryRate, sleepHours: r.sleepHours,
-                sleepDebt: r.sleepDebt, strain: r.strain, deepSleepMin: r.deepSleepMin
+                sleepDebt: r.sleepDebt, strain: r.strain, deepSleepMin: r.deepSleepMin,
+                skinTemp: r.skinTemp, spo2: r.spo2, sleepConsistency: r.sleepConsistency
             )
         }
         let todaySnapshot = snapshots.last(where: { cal.isDate($0.date, inSameDayAs: today) }) ?? snapshots.last
@@ -528,13 +529,46 @@ final class TrainingViewModel {
         return ReadinessAssembler.assemble(
             history: snapshots,
             today: todaySnapshot,
-            yesterdaySessions: [], // surfaced in a later enrichment (§13.2)
+            yesterdaySessions: fetchYesterdaySessions(modelContext: modelContext),
             bodyComp: bodyComp,
             checkIn: checkIn,
             daysUntilNextMatch: daysUntilNextMatch,
             blockEmphasis: currentBlockEmphasis(modelContext: modelContext),
-            venueToday: venueTodaySnapshot(modelContext: modelContext)
+            venueToday: venueTodaySnapshot(modelContext: modelContext),
+            habitPatterns: fetchHabitPatterns(modelContext: modelContext)
         )
+    }
+
+    /// Yesterday's real activities (Whoop-detected, imported, or attested) —
+    /// the §13.2 enrichment: what the body actually DID feeds today's picture.
+    private func fetchYesterdaySessions(modelContext: ModelContext) -> [ActivitySnapshot] {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        guard let yesterday = cal.date(byAdding: .day, value: -1, to: today) else { return [] }
+        let descriptor = FetchDescriptor<ActivitySession>(
+            predicate: #Predicate { $0.date >= yesterday && $0.date < today }
+        )
+        return ((try? modelContext.fetch(descriptor)) ?? []).map {
+            ActivitySnapshot(
+                workoutType: $0.workoutType, strain: $0.strain,
+                durationMinutes: $0.durationMinutes, averageHeartRate: $0.averageHeartRate,
+                hardMinutes: $0.hardMinutes
+            )
+        }
+    }
+
+    /// The 3 strongest journal patterns (|Δ| recovery pts), phrased for the
+    /// prompt. Empty until a Whoop export has been imported — the API never
+    /// exposes journal data, so there is nothing to fetch live.
+    private func fetchHabitPatterns(modelContext: ModelContext) -> [String] {
+        let insights = (try? modelContext.fetch(FetchDescriptor<JournalInsight>())) ?? []
+        return insights
+            .sorted { abs($0.delta) > abs($1.delta) }
+            .prefix(3)
+            .map { i in
+                let sign = i.delta >= 0 ? "+" : "−"
+                return "\(i.question) → \(sign)\(Int(abs(i.delta))) recovery pts on yes-days (n=\(i.yesCount)/\(i.noCount), his own data)"
+            }
     }
 
     /// Today's venue context for the prompt (§16): the user's confirmed answer

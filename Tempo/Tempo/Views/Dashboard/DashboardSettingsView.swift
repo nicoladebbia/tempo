@@ -10,6 +10,7 @@ import CoreLocation
 import SwiftData
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 // MARK: - DashboardSettingsView
 
@@ -1054,6 +1055,11 @@ struct TrainingSettingsDetailView: View {
     private let footballDayLabels = ["M", "T", "W", "T", "F", "S", "S"]
 
     @State
+    private var showWhoopImporter = false
+    @State
+    private var whoopImportResult: String?
+
+    @State
     private var trainingSplit: TrainingSplit = .pushPullLegs
     @State
     private var autoDeload = true
@@ -1186,6 +1192,45 @@ struct TrainingSettingsDetailView: View {
                         }
                         .pickerStyle(.segmented)
                         .frame(width: 180)
+                    }
+                }
+
+                // Whoop history import — seeds a year of baselines/patterns
+                // from the official account-data export (4 CSVs). Additive;
+                // re-running is safe (existing days/workouts are skipped).
+                SettingsFormCard(
+                    title: "Whoop history",
+                    footnote: whoopImportResult
+                        ?? "Import your Whoop account-data export (CSV files). Seeds baselines, training history, venue patterns, and personal habit insights."
+                ) {
+                    Button {
+                        showWhoopImporter = true
+                    } label: {
+                        HStack(spacing: TempoSpacing.md) {
+                            SettingsIconTile(systemName: "square.and.arrow.down", tint: .tempoSignal)
+                            Text("Import Whoop export…")
+                                .font(.tempoSubheadline)
+                                .foregroundStyle(Color.tempoTextPrimary)
+                            Spacer(minLength: TempoSpacing.sm)
+                        }
+                        .padding(.horizontal, TempoSpacing.lg)
+                        .padding(.vertical, TempoSpacing.md)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                .fileImporter(
+                    isPresented: $showWhoopImporter,
+                    allowedContentTypes: [.commaSeparatedText, .plainText],
+                    allowsMultipleSelection: true
+                ) { result in
+                    switch result {
+                    case let .success(urls):
+                        let summary = WhoopExportImporter.importFiles(urls, modelContext: modelContext)
+                        whoopImportResult = "Imported: \(summary.label)."
+                    case let .failure(error):
+                        whoopImportResult = "Import failed: \(error.localizedDescription)"
                     }
                 }
 
