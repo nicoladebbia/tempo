@@ -88,6 +88,11 @@ struct ReadinessPicture: Equatable, Sendable {
     /// memberwise init keeps pre-D3 construction sites compiling unchanged.
     var blockEmphasis: BlockEmphasis? = nil
 
+    /// Today's venue context (§16): the user's confirmed answer when present,
+    /// else the learned weekday pattern (≥3 samples). nil = nothing to say —
+    /// the prompt stays silent rather than guessing (§16.3 honesty).
+    var venueToday: VenueTodaySnapshot? = nil
+
     // MARK: Cold-start accounting (the gate protecting every raw route — §6.3, §14.2)
 
     /// Count of valid (non-nil) HRV/RHR samples in the trailing 30 days. Drives
@@ -115,6 +120,19 @@ struct ReadinessPicture: Equatable, Sendable {
     /// True when the brain may feed trend-based reasoning to Claude. Before this,
     /// SIMPLE mode: deterministic engine + recovery-score-only, trends "building".
     var hasBaselineForBrain: Bool { historyDayCount >= Self.minBrainHistoryDays }
+}
+
+// MARK: - VenueTodaySnapshot
+
+/// Venue context for today's prompt (§16). `confirmed` = the user answered the
+/// morning proposal; otherwise it's the learned pattern, and `assertsTime`
+/// carries the §16.3 confidence tier (≥5 samples may assert "usual 4PM").
+struct VenueTodaySnapshot: Equatable, Sendable {
+    let venueRaw: String
+    let startMin: Int?
+    let durationMin: Int?
+    let confirmed: Bool
+    let assertsTime: Bool
 }
 
 // MARK: - TrendDirection

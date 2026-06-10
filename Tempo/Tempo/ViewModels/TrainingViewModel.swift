@@ -532,7 +532,44 @@ final class TrainingViewModel {
             bodyComp: bodyComp,
             checkIn: checkIn,
             daysUntilNextMatch: daysUntilNextMatch,
-            blockEmphasis: currentBlockEmphasis(modelContext: modelContext)
+            blockEmphasis: currentBlockEmphasis(modelContext: modelContext),
+            venueToday: venueTodaySnapshot(modelContext: modelContext)
+        )
+    }
+
+    /// Today's venue context for the prompt (§16): the user's confirmed answer
+    /// when present (highest quality), else the learned weekday pattern. nil
+    /// when neither exists — the prompt stays silent (cold-start honesty).
+    private func venueTodaySnapshot(modelContext: ModelContext) -> VenueTodaySnapshot? {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let weekday = cal.component(.weekday, from: today)
+
+        let pattern = ((try? modelContext.fetch(FetchDescriptor<VenuePattern>(
+            predicate: #Predicate { $0.weekday == weekday }
+        ))) ?? []).first
+
+        let confirmation = ((try? modelContext.fetch(FetchDescriptor<VenueConfirmation>(
+            predicate: #Predicate { $0.dayKey == today }
+        ))) ?? []).first
+
+        if let confirmation {
+            return VenueTodaySnapshot(
+                venueRaw: confirmation.venueRaw,
+                startMin: confirmation.startMin,
+                durationMin: pattern?.medianDurationMin,
+                confirmed: true,
+                assertsTime: true
+            )
+        }
+        guard let pattern, let venueRaw = pattern.venueRaw else { return nil }
+        return VenueTodaySnapshot(
+            venueRaw: venueRaw,
+            startMin: pattern.medianStartMin,
+            durationMin: pattern.medianDurationMin,
+            confirmed: false,
+            assertsTime: pattern.sampleCount >= VenuePatternMath.minSamplesToAssertTime
+                && pattern.medianStartMin != nil
         )
     }
 
@@ -1595,6 +1632,10 @@ final class TrainingViewModel {
         // place the engine consumes its own accuracy signal to change behavior.
         applyErrorFitCorrection(planID: planID, modelContext: modelContext)
 
+        // §16.2 — a completed session is venue-pattern evidence (start time,
+        // duration, inferred venue, completion). Cheap pure recompute.
+        VenuePatternLearner.recompute(modelContext: modelContext)
+
         // Persist to SwiftData
         try? modelContext.save()
         #if DEBUG
@@ -1701,6 +1742,10 @@ final class TrainingViewModel {
         }
 
         try? modelContext.save()
+
+        // §16.2 — non-gym completions are venue-pattern evidence too.
+        VenuePatternLearner.recompute(modelContext: modelContext)
+
         #if DEBUG
             print("\(DebugTrace.prefix)[Workout] persistNonGymCompletion: plan=\(planID) type=\(plan.type.rawValue) source=\(session.source) strain=\(session.strain.map { String($0) } ?? "nil")")
         #endif

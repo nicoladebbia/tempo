@@ -220,6 +220,10 @@ struct TodayWorkoutView: View {
                 deloadBanner
             }
 
+            // §16 — venue propose-confirm (renders only with a learned pattern
+            // for today's weekday; collapses once answered or dismissed).
+            VenueProposalCard()
+
             // D2 — the daily readiness prescription (supersedes the legacy
             // pendingAdjustment card). Modality + intensity + why + blocks/cues.
             // Reads WHY/intensity from DailySession, sets from the linked plan.
@@ -907,6 +911,9 @@ struct TodayWorkoutView: View {
             Text(plan.type.displayName.uppercased())
                 .font(.tempoTitle1)
                 .foregroundStyle(Color.tempoTextPrimary)
+
+            // §16 — venue propose-confirm, same placement as the gym path.
+            VenueProposalCard()
 
             // D2 — the readiness prescription IS the content on a non-gym day
             // (modality/intensity/why + blocks with cues; there's no exercise list).

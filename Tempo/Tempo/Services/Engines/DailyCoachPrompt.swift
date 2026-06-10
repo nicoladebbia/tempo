@@ -173,6 +173,21 @@ enum DailyCoachPrompt {
         } else {
             lines.append("- Block emphasis: physique (default).")
         }
+        // §16 venue context. Confidence-tiered phrasing (§16.3): a confirmed
+        // answer is fact; an established pattern may assert the usual time; an
+        // early pattern only names the venue. No line at all below 3 samples —
+        // silence beats a guess.
+        if let v = p.venueToday {
+            let dur = v.durationMin.map { ", ~\($0) min" } ?? ""
+            if v.confirmed {
+                let time = v.startMin.map { " at \(VenuePatternMath.clockLabel($0))" } ?? ""
+                lines.append("- Venue today: \(v.venueRaw)\(time)\(dur) (user-confirmed). Prescribe for this venue; home/bodyweight is always a fallback.")
+            } else if v.assertsTime, let start = v.startMin {
+                lines.append("- Venue today (usual pattern): \(v.venueRaw) around \(VenuePatternMath.clockLabel(start))\(dur). Prescribe for this venue unless readiness forces otherwise.")
+            } else {
+                lines.append("- Venue today (early pattern, low confidence): likely \(v.venueRaw).")
+            }
+        }
         if let planned = plannedModality {
             lines.append("- TODAY'S PLANNED SESSION: \(planned). This is the week's plan for today — KEEP this modality. Adjust only its INTENSITY to today's readiness. Override the modality ONLY if readiness forces recovery, or a hard constraint applies (match T-1 → no heavy legs; a pain flag on the muscle this would load). Any override stays in-emphasis.")
         }
