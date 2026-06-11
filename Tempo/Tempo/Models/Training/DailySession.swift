@@ -57,6 +57,13 @@ final class DailySession {
     /// simple = cold-start deterministic (<30 days history).
     var sourceRaw: String
 
+    /// §8 connect — the user declined the brain's modality move and kept the
+    /// planned workout ("keep pool"). The card collapses to a one-liner and
+    /// nothing re-applies the move that day. Only brain-CHOSEN moves are
+    /// overridable; a SEVERE floor skip is the safety contract and stays
+    /// locked. Defaulted → auto-migrates.
+    var userOverrode: Bool = false
+
     var createdAt: Date
 
     // MARK: - 1:1 link to the day's WorkoutPlan (§8 desync guard)

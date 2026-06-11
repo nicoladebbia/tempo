@@ -342,6 +342,26 @@ struct TodayWorkoutView: View {
 
     @ViewBuilder
     private func dailySessionCard(_ session: DailySession) -> some View {
+        if session.userOverrode {
+            // §8 connect — he declined the brain's move. One honest line; the
+            // plan row (restored) is the day again.
+            HStack(spacing: TempoSpacing.sm) {
+                Image(systemName: "exclamationmark.triangle")
+                    .foregroundStyle(Color.tempoWarning)
+                Text("Coach called \(session.modality.uppercased()). You kept \(viewModel.todayPlan?.type.displayName.uppercased() ?? "THE PLAN"). Your call.")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                Spacer()
+            }
+            .padding(TempoSpacing.cardPadding)
+            .background(Color.tempoSurfaceCard)
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        } else {
+            dailySessionCardBody(session)
+        }
+    }
+
+    private func dailySessionCardBody(_ session: DailySession) -> some View {
         VStack(alignment: .leading, spacing: TempoSpacing.sm) {
             HStack {
                 Text(session.modality.uppercased())
@@ -402,6 +422,30 @@ struct TodayWorkoutView: View {
                             .font(.tempoCaption2)
                             .foregroundStyle(Color.tempoTextTertiary)
                     }
+                }
+            }
+
+            // §8 connect — the brain moved the day off the planned modality.
+            // Say so, and hand him the override. Brain-chosen moves only: a
+            // SEVERE floor skip never stashes plannedTypeRaw, so this row
+            // can't appear on a locked recovery day.
+            if let plan = viewModel.todayPlan,
+               plan.status == .planned,
+               let plannedRaw = plan.plannedTypeRaw,
+               let plannedType = WorkoutType(rawValue: plannedRaw) {
+                Divider().overlay(Color.tempoTextTertiary.opacity(0.3))
+                HStack {
+                    Text("Plan said \(plannedType.displayName.uppercased()).")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                    Spacer()
+                    Button("Keep \(plannedType.displayName)") {
+                        HapticManager.selection()
+                        viewModel.keepPlannedWorkout(modelContext: modelContext)
+                    }
+                    .font(.tempoCaption1)
+                    .fontWeight(.bold)
+                    .foregroundStyle(Color.tempoSignal)
                 }
             }
         }
@@ -986,6 +1030,14 @@ struct TodayWorkoutView: View {
             Text("REST DAY")
                 .font(.tempoTitle1)
                 .foregroundStyle(Color.tempoTextPrimary)
+
+            // §8 connect — a brain-reshaped rest day (planned pool → rest)
+            // renders THIS content, so the prescription's why + the "keep
+            // planned workout" override must live here too, not just on
+            // gym/non-gym days.
+            if let session = viewModel.dailySession {
+                dailySessionCard(session)
+            }
 
             Image(systemName: "figure.yoga")
                 .font(.system(size: 60))

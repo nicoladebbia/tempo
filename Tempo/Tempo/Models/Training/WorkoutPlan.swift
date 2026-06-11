@@ -38,6 +38,14 @@ final class WorkoutPlan {
 
     var finishedAt: Date?
 
+    /// §8 connect — when the daily brain's final prescription moves the day to
+    /// a DIFFERENT modality (e.g. planned pool → prescribed rest at yellow
+    /// recovery), the plan row is reshaped to match and the ORIGINAL template
+    /// type is stashed here. Non-nil = "the brain moved this day": enables the
+    /// "keep planned workout" override and tells planResolution the type
+    /// mismatch is deliberate, not stale. Defaulted nil → auto-migrates.
+    var plannedTypeRaw: String?
+
     /// §14 #3 sRPE — the user's one-tap whole-session RPE (1–10), captured
     /// AFTER completion on TodayWorkoutView. This is the ACTUAL paired against
     /// DailySession.expectedSessionRPE (the brain's prediction) for the

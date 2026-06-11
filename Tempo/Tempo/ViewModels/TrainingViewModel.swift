@@ -484,6 +484,20 @@ final class TrainingViewModel {
         if result.decision.tier == .severe {
             plan.status = .skipped
             plan.skipReason = .floorForced
+        } else if plan.status == .planned,
+                  let mapped = WorkoutType.fromModality(result.decision.session.modality),
+                  mapped != plan.type {
+            // §8 connect — the brain kept the planned modality unless readiness
+            // forced a move; when it DID move (planned pool → prescribed rest at
+            // yellow), the plan ROW must follow, or the header/week views keep
+            // showing the old day next to a card that says otherwise. The
+            // template type is stashed once for the "keep planned workout"
+            // override and the planResolution keep-rule.
+            if plan.plannedTypeRaw == nil { plan.plannedTypeRaw = plan.typeRaw }
+            plan.type = mapped
+            #if DEBUG
+                print("\(DebugTrace.prefix)[daily_coach] plan reshaped \(plan.plannedTypeRaw ?? "?") → \(mapped.rawValue) (tier=\(result.decision.tier.rawValue))")
+            #endif
         }
 
         profile.lastDailySessionDayKey = todayKey
@@ -922,11 +936,19 @@ final class TrainingViewModel {
     nonisolated static func planResolution(
         existingStatus: WorkoutStatus,
         existingType: WorkoutType,
+        existingPlannedTypeRaw: String? = nil,
         templateType: WorkoutType
     ) -> PlanResolution {
         switch existingStatus {
         case .planned:
-            return existingType == templateType ? .keep : .replace
+            if existingType == templateType { return .keep }
+            // §8 connect — the row WAS the template type before the daily
+            // brain moved it (planned pool → rest at yellow). The mismatch is
+            // deliberate; replacing would resurrect the desync every app-open.
+            // If the TEMPLATE itself changed (user edited the schedule), the
+            // stash no longer matches and the template rightly wins.
+            if existingPlannedTypeRaw == templateType.rawValue { return .keep }
+            return .replace
         default:
             // completed / inProgress / skipped — sacred, never replace.
             return .keep
@@ -994,6 +1016,7 @@ final class TrainingViewModel {
                Self.planResolution(
                    existingStatus: existing.status,
                    existingType: existing.type,
+                   existingPlannedTypeRaw: existing.plannedTypeRaw,
                    templateType: canonical.type
                ) == .replace {
                 // Only a still-PLANNED row whose type differs may be replaced
@@ -1843,6 +1866,26 @@ final class TrainingViewModel {
         try? modelContext.save()
         #if DEBUG
             print("\(DebugTrace.prefix)[Workout] recordSessionRPE: plan=\(plan.id) rpe=\(rpe) expected=\(dailySession?.expectedSessionRPE.map(String.init) ?? "nil")")
+        #endif
+    }
+
+    // MARK: - Keep Planned Workout (§8 connect — the user's side of the seam)
+
+    /// Decline the brain's modality move and restore the planned day ("coach
+    /// said rest, I'm swimming anyway"). Only a brain-CHOSEN move is
+    /// declinable — a SEVERE floor skip never stashes plannedTypeRaw, so this
+    /// is a no-op there by construction. The session is marked overridden so
+    /// the card collapses and nothing re-applies the move today.
+    func keepPlannedWorkout(modelContext: ModelContext) {
+        guard let plan = todayPlan,
+              plan.status == .planned,
+              let stashed = plan.plannedTypeRaw else { return }
+        plan.typeRaw = stashed
+        plan.plannedTypeRaw = nil
+        dailySession?.userOverrode = true
+        try? modelContext.save()
+        #if DEBUG
+            print("\(DebugTrace.prefix)[daily_coach] user kept planned workout → \(stashed)")
         #endif
     }
 
