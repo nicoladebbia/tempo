@@ -148,17 +148,23 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
 
     func calculateProgressiveOverload(
         for exercise: Exercise,
-        history: [ExerciseHistory]
-    ) -> (weight: Double, reps: Int) {
+        history: [ExerciseHistory],
+        learnedIncrement: Double? = nil
+    ) -> ProgressionDecision {
         let defaultReps = exercise.isCompound ? 8 : 12
-        let increment = weightIncrement(for: exercise.equipment)
+        // Phase 3: use the on-device learned increment when present, else the
+        // equipment default. Learning tunes the STEP SIZE per user/exercise.
+        let increment = learnedIncrement ?? weightIncrement(for: exercise.equipment)
 
         // Need at least 2 sessions of data
         let recentSessions = history.sorted { $0.date > $1.date }.prefix(3)
         guard recentSessions.count >= 2 else {
             // Not enough data — keep current or use last known weight
             let lastWeight = history.first?.bestSetWeight ?? 0
-            return (weight: lastWeight, reps: defaultReps)
+            return ProgressionDecision(
+                weight: lastWeight, reps: defaultReps,
+                deltaApplied: 0, rationale: .heldInsufficientData
+            )
         }
 
         let currentWeight = recentSessions.first?.bestSetWeight ?? 0
@@ -170,12 +176,21 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         // rows, or sets the user didn't annotate) carry nil aggregates and are
         // skipped here — never treated as RPE 0 — so behaviour is unchanged
         // when there's no signal.
-        if let lastFeedback = recentSessions.first(where: { $0.feedbackSampleCount > 0 }) {
-            let rpeTooHigh = (lastFeedback.avgRPE ?? 0) >= 9
+        let lastFeedback = recentSessions.first { $0.feedbackSampleCount > 0 }
+        if let lastFeedback {
+            if (lastFeedback.avgRPE ?? 0) >= 9 {
+                return ProgressionDecision(
+                    weight: currentWeight, reps: defaultReps,
+                    deltaApplied: 0, rationale: .heldHighRPE
+                )
+            }
             let formBroke = lastFeedback.worstFormRaw
                 .flatMap(FormQuality.init(rawValue:))?.isNegativeSignal ?? false
-            if rpeTooHigh || formBroke {
-                return (weight: currentWeight, reps: defaultReps)
+            if formBroke {
+                return ProgressionDecision(
+                    weight: currentWeight, reps: defaultReps,
+                    deltaApplied: 0, rationale: .heldBrokenForm
+                )
             }
         }
 
@@ -188,24 +203,53 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
             }
         }
 
-        // Per MODULE_TRAINING.md Section 16.1 — Decision. RPE only gates WHETHER
-        // to progress (above); the increment itself is unchanged (no double
-        // jumps), per the Tier-2 decision.
+        // Per MODULE_TRAINING.md Section 16.1 — Decision. The Tier-2 gate above
+        // governs WHETHER to progress; here we also SIZE the jump. A clean,
+        // well-below-maximal session (avgRPE ≤ 6.5) earns a double increment
+        // (clamped to exactly one extra step — never a runaway jump) so an
+        // under-loaded lifter catches up instead of crawling +2.5kg/week. With
+        // no entered feedback this falls through to the standard increment, so
+        // behaviour is unchanged when there's no signal.
         if successCount >= 2 {
-            // Increase weight
-            return (weight: currentWeight + increment, reps: defaultReps)
+            let feltEasy = (lastFeedback?.avgRPE).map { $0 <= 6.5 } ?? false
+            let multiplier: Double = feltEasy ? 2.0 : 1.0
+            let delta = increment * multiplier
+            return ProgressionDecision(
+                weight: currentWeight + delta, reps: defaultReps,
+                deltaApplied: delta,
+                rationale: feltEasy ? .acceleratedEasyLoad : .standardProgression
+            )
         } else if successCount == 0, recentSessions.count >= 3 {
             // Failed 3 sessions in a row — check if needs deload
             let avgReps = recentSessions.compactMap(\.bestSetReps)
                 .reduce(0, +) / max(1, recentSessions.count)
             if avgReps < Int(Double(defaultReps) * 0.75) {
                 // Decrease weight
-                return (weight: max(0, currentWeight - increment), reps: defaultReps)
+                return ProgressionDecision(
+                    weight: max(0, currentWeight - increment), reps: defaultReps,
+                    deltaApplied: -increment, rationale: .deloadedRepeatedFailure
+                )
             }
         }
 
         // Keep current weight
-        return (weight: currentWeight, reps: defaultReps)
+        return ProgressionDecision(
+            weight: currentWeight, reps: defaultReps,
+            deltaApplied: 0, rationale: .standardProgression
+        )
+    }
+
+    // MARK: - Conditioning Debt (rest prescription)
+
+    // Per MODULE_TRAINING.md Section 17 — recovery score ≠ work capacity. When
+    // recent sessions repeatedly gassed the user, lengthen rest even at green
+    // recovery so the next session isn't sabotaged by under-recovery between sets.
+
+    func restMultiplier(history: [ExerciseHistory]) -> Double {
+        let recent = history.sorted { $0.date > $1.date }.prefix(3)
+        // Count sessions where at least half the entered feedback was `.gassed`.
+        let gassySessions = recent.compactMap(\.gassedFraction).filter { $0 >= 0.5 }
+        return gassySessions.count >= 2 ? 1.25 : 1.0 // +25% rest under conditioning debt
     }
 
     // MARK: - PR Detection
@@ -266,11 +310,30 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         startDate: Date,
         recoveryScores: [Date: Double],
         footballDays: ActiveDays,
-        split: TrainingSplit
+        split: TrainingSplit,
+        recoveryThresholdOffset: Double = 0,
+        // D3 — start-of-day keys of DATED matches (distinct from the recurring
+        // footballDays weekdays). A match here makes that day T-0 (a session day)
+        // even when it falls off a usual football weekday — the §14 mid-week-match
+        // periodization.
+        matchDayKeys: Set<Date> = [],
+        // The subset of match days that are COMPETITIVE: only these drive the
+        // T-1 taper (no heavy legs the day before). A friendly scrimmage is a
+        // T-0 day but does NOT taper the day before. Defaults to all match days
+        // (callers that don't distinguish get the safe "protect everything").
+        competitiveMatchDayKeys: Set<Date>? = nil,
+        // §14 Decision 1 — the declared block emphasis re-shapes how SPARE days
+        // are spent: physique (default) keeps the pre-emphasis behavior exactly;
+        // soccer turns spare capacity into soccer work (one conditioning day,
+        // never beside a match, plus pool recovery) while gym days stay put
+        // (strength held at maintenance, §12 — never fewer lifting days).
+        emphasis: BlockEmphasis = .physique
     ) -> [WorkoutPlan] {
+        let tMinus1MatchDays = competitiveMatchDayKeys ?? matchDayKeys
         let cal = Calendar.current
         var plans: [WorkoutPlan] = []
         var splitIndex = 0
+        var soccerConditioningAssigned = false
 
         // Per MODULE_TRAINING.md Section 15.4 — Phase 1: Assign workout types to days
         let splitSequence = getSplitSequence(split)
@@ -286,22 +349,33 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                 continue
             }
             let weekday = cal.component(.weekday, from: date)
+            // A day is "football" (T-0) if it's a recurring football weekday OR
+            // a dated match. T-1 likewise fires the day before either. The dated
+            // match widens the recurring-weekday rule; it never narrows it.
+            let isMatch = MatchSchedule.isMatchDay(date: date, matchDayKeys: matchDayKeys, calendar: cal)
+            let isMatchTMinus1 = MatchSchedule.isTMinus1(date: date, matchDayKeys: tMinus1MatchDays, calendar: cal)
             dayMeta.append((
                 date: date,
-                isFootball: footballDays.isActive(on: weekday),
-                isTMinus1: isFootballTMinus1(date: date, footballDays: footballDays),
+                isFootball: footballDays.isActive(on: weekday) || isMatch,
+                isTMinus1: isFootballTMinus1(date: date, footballDays: footballDays) || isMatchTMinus1,
                 isTPlus1: isFootballTPlus1(date: date, footballDays: footballDays)
             ))
         }
 
         // Assign types
         for meta in dayMeta {
-            // Per MODULE_TRAINING.md Section 18.2 — T-0
+            // Per MODULE_TRAINING.md Section 18.2 — T-0. The note distinguishes
+            // a DATED fixture ("Match day" — a real game) from a recurring
+            // football weekday ("Football day" — training cadence); the week
+            // row shows it verbatim, so the two §14 concepts stop conflating.
             if meta.isFootball {
+                let isDatedMatch = MatchSchedule.isMatchDay(
+                    date: meta.date, matchDayKeys: matchDayKeys, calendar: cal
+                )
                 plans.append(WorkoutPlan(
                     date: meta.date,
                     type: .football,
-                    notes: "Match day"
+                    notes: isDatedMatch ? "Match day" : "Football day"
                 ))
                 continue
             }
@@ -311,7 +385,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
             // low). Missing day → nil → green default (matches single-day path).
             let dayKey = cal.startOfDay(for: meta.date)
             let dayRecoveryScore = recoveryScores[dayKey]
-            let zone = classifyRecoveryZone(score: dayRecoveryScore)
+            let zone = classifyRecoveryZone(score: dayRecoveryScore, offset: recoveryThresholdOffset)
 
             // Per MODULE_TRAINING.md Section 18.2 — T+1
             if meta.isTPlus1 {
@@ -389,6 +463,26 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                 let weekday = cal.component(.weekday, from: meta.date)
                 if weekday == 1 { // Sunday
                     plans.append(WorkoutPlan(date: meta.date, type: .rest))
+                } else if emphasis == .soccer, zone != .red {
+                    // §12 soccer-emphasis: spare capacity becomes soccer work,
+                    // not generic recovery. ONE conditioning day per week —
+                    // never on T-1 (no high-intensity the day before a match);
+                    // every other spare day is an easy pool swim (real active
+                    // recovery that doesn't fight the conditioning load).
+                    if zone == .green, !meta.isTMinus1, !soccerConditioningAssigned {
+                        soccerConditioningAssigned = true
+                        plans.append(WorkoutPlan(
+                            date: meta.date,
+                            type: .conditioning,
+                            notes: "Soccer conditioning — emphasis"
+                        ))
+                    } else {
+                        plans.append(WorkoutPlan(
+                            date: meta.date,
+                            type: .pool,
+                            notes: "Pool recovery — easy swim"
+                        ))
+                    }
                 } else if zone == .green {
                     plans.append(WorkoutPlan(
                         date: meta.date,
@@ -409,15 +503,33 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
     // Every Nth week (configurable), generate a deload week.
     // Deload: reduce weights by 40%, keep reps the same.
 
-    func isDeloadWeek(date: Date, deloadFrequencyWeeks: Int, trainingStartDate: Date?) -> Bool {
+    func isDeloadWeek(
+        date: Date,
+        deloadFrequencyWeeks: Int,
+        trainingStartDate: Date?,
+        fatigueEWMA: Double? = nil
+    ) -> Bool {
         let cal = Calendar.current
         let startDate = trainingStartDate ?? cal.date(byAdding: .month, value: -3, to: date) ?? date
         let weeksSinceStart = cal.dateComponents([.weekOfYear], from: cal.startOfDay(for: startDate), to: cal.startOfDay(for: date))
             .weekOfYear ?? 0
         let frequency = max(1, deloadFrequencyWeeks)
-        // Week N, 2N, 3N... are deload weeks (1-indexed: weeks frequency, 2*frequency, etc.)
-        return weeksSinceStart > 0 && (weeksSinceStart % frequency) == 0
+        // Periodic baseline: week N, 2N, 3N… are deload weeks.
+        let periodic = weeksSinceStart > 0 && (weeksSinceStart % frequency) == 0
+
+        // Phase 3 (Fix 3.4) — fatigue-triggered EARLY deload. A sustained high
+        // fatigue trend (mean session RPE creeping toward maximal) means the
+        // fixed cycle is too slow for how this user is actually recovering.
+        // Only EARNS an extra deload — never suppresses a scheduled one.
+        let fatigueTriggered = (fatigueEWMA ?? 0) >= Self.fatigueDeloadThreshold
+
+        return periodic || fatigueTriggered
     }
+
+    /// Mean-RPE fatigue level at/above which an early deload is triggered. 8.5
+    /// = sessions consistently feeling near-maximal — a clear over-reaching
+    /// signal independent of the calendar.
+    private static let fatigueDeloadThreshold: Double = 8.5
 
     func deloadWeightMultiplier() -> Double {
         0.6 // 40% reduction
@@ -428,14 +540,18 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
     // Recovery zone classification
     // Per CROSS_DOC_AUDIT.md canonical boundaries: Green >= 67, Yellow 34-66, Red < 34
 
-    private func classifyRecoveryZone(score: Double?) -> RecoveryZone {
+    private func classifyRecoveryZone(score: Double?, offset: Double = 0) -> RecoveryZone {
         guard let score else {
             return .green
         } // default to green if no data
-        if score >= 67 {
+        // Phase 3: the learned per-user offset shifts the zone boundaries. It is
+        // clamped to ±10 at the source (AdaptiveProfile.clampedThresholdOffset)
+        // so a learned offset can never invert the safety meaning of red.
+        let clampedOffset = min(max(offset, -10), 10)
+        if score >= 67 + clampedOffset {
             return .green
         }
-        if score >= 34 {
+        if score >= 34 + clampedOffset {
             return .yellow
         }
         return .red

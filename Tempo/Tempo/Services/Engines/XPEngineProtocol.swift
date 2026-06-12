@@ -13,7 +13,8 @@ import Foundation
 protocol XPEngineProtocol: Sendable {
     func calculateXP(
         from snapshot: DailySnapshot,
-        accountability: DailyAccountability
+        accountability: DailyAccountability,
+        floorForcedRest: Bool
     ) -> [XPEvent]
 
     func currentLevel(totalXP: Int) -> Int

@@ -60,6 +60,15 @@ final class ActivitySession {
     var caloriesBurned: Double?
     var durationMinutes: Double?
 
+    // HR-zone minutes (Z1–Z5). Source: the Whoop export's zone percentages ×
+    // duration (importer); the live API path doesn't carry zones yet. Additive
+    // optionals per the §10 migration rule.
+    var zone1Min: Double?
+    var zone2Min: Double?
+    var zone3Min: Double?
+    var zone4Min: Double?
+    var zone5Min: Double?
+
     // MARK: - Init
 
     init(
@@ -88,5 +97,13 @@ final class ActivitySession {
         self.maxHeartRate = maxHeartRate
         self.caloriesBurned = caloriesBurned
         self.durationMinutes = durationMinutes
+    }
+
+    /// Minutes at high intensity (Z4+Z5) — the cleanest "how hard was it
+    /// really" signal, sharper than whole-session strain. nil = no zone data.
+    @Transient
+    var hardMinutes: Double? {
+        guard let z4 = zone4Min, let z5 = zone5Min else { return nil }
+        return z4 + z5
     }
 }

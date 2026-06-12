@@ -38,6 +38,26 @@ final class WorkoutPlan {
 
     var finishedAt: Date?
 
+    /// §8 connect — when the daily brain's final prescription moves the day to
+    /// a DIFFERENT modality (e.g. planned pool → prescribed rest at yellow
+    /// recovery), the plan row is reshaped to match and the ORIGINAL template
+    /// type is stashed here. Non-nil = "the brain moved this day": enables the
+    /// "keep planned workout" override and tells planResolution the type
+    /// mismatch is deliberate, not stale. Defaulted nil → auto-migrates.
+    var plannedTypeRaw: String?
+
+    /// §14 #3 sRPE — the user's one-tap whole-session RPE (1–10), captured
+    /// AFTER completion on TodayWorkoutView. This is the ACTUAL paired against
+    /// DailySession.expectedSessionRPE (the brain's prediction) for the
+    /// session-level accuracy spine. Defaulted nil → SwiftData auto-migrates.
+    var sessionRPE: Int?
+
+    /// Why a `.skipped` day was skipped (INTELLIGENT_TRAINING_SYSTEM §8/§15.2).
+    /// Distinguishes a FLOOR-FORCED skip ("body said recover" — must NOT count
+    /// against adherence/streak) from a USER skip (counts). Adherence logic reads
+    /// this, not just `status`. Defaulted nil → SwiftData auto-migrates.
+    var skipReasonRaw: String?
+
     // MARK: - Relationships
 
     @Relationship(deleteRule: .cascade, inverse: \PlannedExercise.workoutPlan)
@@ -55,6 +75,14 @@ final class WorkoutPlan {
     var status: WorkoutStatus {
         get { WorkoutStatus(rawValue: statusRaw) ?? .planned }
         set { statusRaw = newValue.rawValue }
+    }
+
+    /// Why this day was skipped, when `status == .skipped` (§8/§15.2). nil = not
+    /// skipped, or legacy skip with no reason recorded.
+    @Transient
+    var skipReason: SkipReason? {
+        get { skipReasonRaw.flatMap(SkipReason.init(rawValue:)) }
+        set { skipReasonRaw = newValue?.rawValue }
     }
 
     @Transient

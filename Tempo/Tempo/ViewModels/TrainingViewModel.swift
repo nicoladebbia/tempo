@@ -76,6 +76,22 @@ final class TrainingViewModel {
     var isLoading = true
     var isDeloadWeek = false
 
+    /// AI rationale for this week's reconciled plan (Phase 2). Non-nil ONLY when
+    /// the AI program ran and was reconciled against the floor — nil whenever
+    /// the deterministic plan stands (offline, not Pro, no consent, failure).
+    /// The Week Plan view shows it as a "why" line when present.
+    var aiWeekRationale: String?
+
+    /// Last week's graded outcome (Phase 4). Non-nil after the weekly review has
+    /// run; drives the Coach Review card. nil before there's a full prior week.
+    var lastWeekOutcome: WeekOutcome?
+
+    /// Today's readiness-coach prescription (D2). The DailyReadinessCoach supersedes
+    /// the legacy `checkForRecoveryAdjustment` loop: it runs every day across all
+    /// modalities, applies the safety floor, and is the single daily card. nil
+    /// until the coach has produced today's session.
+    var dailySession: DailySession?
+
     // MARK: - Active Workout State
 
     var currentExerciseIndex: Int = 0
@@ -175,16 +191,24 @@ final class TrainingViewModel {
     private let whoop: any WhoopServiceProtocol
     private let healthKit: any HealthKitServiceProtocol
 
+    /// Optional network client for the AI training path (Phase 2). When nil
+    /// (previews, tests, offline-only builds) the view model runs the pure
+    /// deterministic engine — the AI upgrade is strictly additive and never a
+    /// hard dependency. The deterministic plan is always the floor.
+    let apiClient: APIClient?
+
     // MARK: - Init
 
     init(
         trainingEngine: any TrainingEngineProtocol,
         whoop: any WhoopServiceProtocol,
-        healthKit: any HealthKitServiceProtocol
+        healthKit: any HealthKitServiceProtocol,
+        apiClient: APIClient? = nil
     ) {
         self.trainingEngine = trainingEngine
         self.whoop = whoop
         self.healthKit = healthKit
+        self.apiClient = apiClient
     }
 
     // MARK: - Load Today's Workout
@@ -216,15 +240,676 @@ final class TrainingViewModel {
         // populateExercises didn't run this time).
         painFlaggedExercises = painFlaggedExerciseIDs(modelContext: modelContext)
 
-        // Check deload week status
+        // Check deload week status (Phase 3: fatigue trend can trigger early).
         let deloadSettings = loadDeloadSettings(modelContext: modelContext)
         isDeloadWeek = trainingEngine.isDeloadWeek(
             date: Date(),
             deloadFrequencyWeeks: deloadSettings.frequency,
-            trainingStartDate: deloadSettings.startDate
+            trainingStartDate: deloadSettings.startDate,
+            fatigueEWMA: adaptiveSignals(modelContext: modelContext).fatigueEWMA
         )
 
         isLoading = false
+
+        // Phase 2 (TRAINING_INTELLIGENCE_TO_10.md) — AI hydration runs AFTER the
+        // deterministic plan is already on screen. The floor renders first and
+        // always stands; the AI is a strictly-additive upgrade that tunes volume
+        // in place if (and only if) it's available, Pro-gated, and not yet run
+        // this week. Failure is silent — the floor is the answer.
+        await hydrateWeekWithAI(modelContext: modelContext)
+
+        // D2 (INTELLIGENT_TRAINING_SYSTEM §5) — the daily readiness brain. SUPERSEDES
+        // the legacy checkForRecoveryAdjustment loop: it runs every day across all
+        // modalities, applies the deterministic safety floor on EVERY path, and is
+        // the single daily card. Runs after hydration so it reads the reconciled
+        // WorkoutPlan (§8: weekly owns the modality-default; daily adjusts within).
+        await runDailyReadinessSession(modelContext: modelContext)
+
+        // Phase 4 — grade last week once per ISO week and feed the result back
+        // into the on-device profile (the macro self-correction loop). Also
+        // populates the Coach Review card.
+        runWeeklyOutcomeReview(modelContext: modelContext)
+
+        // D4 §17 — offer the monthly review inside the month-boundary window.
+        monthlyReviewDueKey = monthlyReviewDue(modelContext: modelContext)
+    }
+
+    // MARK: - Weekly Outcome Review (Phase 4)
+
+    /// Grade the previous week, apply the result to the AdaptiveProfile, and
+    /// store the WeekOutcome for the Coach Review card. Runs once per ISO week —
+    /// guarded by a PERSISTED key on AdaptiveProfile (not an in-memory var) so a
+    /// cold start within the same week can't re-grade and COMPOUND applyOutcome
+    /// against the persisted profile.
+    func runWeeklyOutcomeReview(modelContext: ModelContext) {
+        let cal = Calendar.current
+        var comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())
+        comps.weekday = 2
+        let thisMonday = cal.date(from: comps) ?? Date()
+        let weekKey = AIProgramPlanner.isoDay(thisMonday)
+
+        let profile = fetchOrCreateAdaptiveProfile(modelContext: modelContext)
+        guard profile.lastOutcomeReviewWeekKey != weekKey else { return }
+
+        guard let lastMonday = cal.date(byAdding: .day, value: -7, to: thisMonday),
+              let lastSunday = cal.date(byAdding: .day, value: -1, to: thisMonday) else { return }
+        let lastWeekStart = cal.startOfDay(for: lastMonday)
+        let lastWeekEnd = cal.startOfDay(for: lastSunday)
+
+        // Last week's history rows.
+        let lastWeekRows = (try? modelContext.fetch(FetchDescriptor<ExerciseHistory>(
+            predicate: #Predicate { $0.date >= lastWeekStart && $0.date <= lastWeekEnd }
+        ))) ?? []
+
+        // Need at least one logged session to grade anything.
+        guard !lastWeekRows.isEmpty else {
+            profile.lastOutcomeReviewWeekKey = weekKey
+            try? modelContext.save()
+            return
+        }
+
+        // Week-before tonnage for the trend.
+        guard let priorStart = cal.date(byAdding: .day, value: -14, to: thisMonday),
+              let priorEnd = cal.date(byAdding: .day, value: -8, to: thisMonday) else { return }
+        let priorWeekStart = cal.startOfDay(for: priorStart)
+        let priorWeekEnd = cal.startOfDay(for: priorEnd)
+        let priorRows = (try? modelContext.fetch(FetchDescriptor<ExerciseHistory>(
+            predicate: #Predicate { $0.date >= priorWeekStart && $0.date <= priorWeekEnd }
+        ))) ?? []
+        let priorVolume = priorRows.reduce(0.0) { $0 + $1.totalVolume }
+
+        // Planned training days last week = distinct non-rest gym days in the
+        // current week template (a stable proxy for the cadence).
+        let plannedTrainingDays = weekPlans.filter { $0.type.isGymWorkout }.count
+
+        let outcome = TrainingOutcomeEvaluator.evaluate(
+            lastWeek: lastWeekRows,
+            plannedTrainingDays: max(plannedTrainingDays, 1),
+            priorWeekVolume: priorVolume
+        )
+
+        // Feed the outcome back into the on-device profile (macro loop). Mark
+        // the persisted guard in the SAME save so the apply happens exactly once.
+        AdaptiveProfileUpdater.applyOutcome(outcome, to: profile)
+        profile.lastOutcomeReviewWeekKey = weekKey
+        try? modelContext.save()
+
+        lastWeekOutcome = outcome
+        #if DEBUG
+            print("\(DebugTrace.prefix)[outcome] week graded: quality=\(String(format: "%.2f", outcome.qualityScore)) hits=\(outcome.progressionHits) overreach=\(outcome.overreachEvents) missed=\(outcome.missedSessions)")
+        #endif
+    }
+
+    // MARK: - AI Week Hydration (Phase 2)
+
+    /// Reconcile the deterministic week plan with an AI-proposed skeleton.
+    /// No-ops when there's no API client (previews/tests/offline), when already
+    /// run this week, or when a workout is in progress (never disturb a live
+    /// session). All failures fall back to the deterministic plan silently.
+    func hydrateWeekWithAI(modelContext: ModelContext) async {
+        guard let apiClient else { return }
+        guard !sessionState.isActive else { return }
+
+        let cal = Calendar.current
+        var comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())
+        comps.weekday = 2 // Monday
+        let monday = cal.date(from: comps) ?? Date()
+        let weekKey = AIProgramPlanner.isoDay(monday)
+
+        // Once per ISO week (the Sonnet cost cap) — PERSISTED guard so a cold
+        // start in the same week doesn't re-spend the call.
+        let profile = fetchOrCreateAdaptiveProfile(modelContext: modelContext)
+        guard profile.lastAIHydratedWeekKey != weekKey else { return }
+
+        let footballDays = loadFootballDays(modelContext: modelContext)
+        let recovery7Day = loadRecovery7DayTrend(modelContext: modelContext)
+        let recentSessions = loadRecentSessionSummaries(modelContext: modelContext)
+
+        let planner = AIProgramPlanner(api: apiClient)
+        let result = await planner.planWeek(
+            deterministicPlans: weekPlans,
+            weekStart: monday,
+            recovery7Day: recovery7Day,
+            recentSessions: recentSessions,
+            footballDays: AIProgramPlanner.footballDayNames(footballDays),
+            // §14 Decision 1 — the weekly goal follows the declared block
+            // emphasis; no block set → "hypertrophy", the pre-D3 literal.
+            goal: (currentBlockEmphasis(modelContext: modelContext) ?? .physique).weeklyGoal
+        )
+
+        // Mark the week done regardless of whether AI ran — a 402 (not Pro / no
+        // consent) or a network failure should NOT retrigger on every loadToday.
+        profile.lastAIHydratedWeekKey = weekKey
+        try? modelContext.save()
+
+        // Only mutate state if AI actually produced a reconciled plan.
+        if result.rationale != nil {
+            weekPlans = result.plans
+            aiWeekRationale = result.rationale
+        }
+    }
+
+    /// Last-7-day recovery scores (oldest→newest) for the AI program prompt.
+    private func loadRecovery7DayTrend(modelContext: ModelContext) -> [Int] {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        guard let weekAgo = cal.date(byAdding: .day, value: -7, to: today) else { return [] }
+        let descriptor = FetchDescriptor<DailyRecovery>(
+            predicate: #Predicate { $0.date >= weekAgo },
+            sortBy: [SortDescriptor(\.date, order: .forward)]
+        )
+        let rows = (try? modelContext.fetch(descriptor)) ?? []
+        return rows.map { Int($0.recoveryScore.rounded()) }
+    }
+
+    // MARK: - Daily Readiness Session (D2 — the brain + floor)
+
+    /// Once-daily: assemble today's ReadinessPicture from stored history, ask the
+    /// DailyReadinessCoach (brain when eligible, deterministic+floor otherwise),
+    /// persist the result as a DailySession linked 1:1 to today's WorkoutPlan, and
+    /// resolve the plan's state (severe → mark .skipped/.floorForced). The floor
+    /// runs on EVERY path (the coach guarantees produce-then-floor). Persisted
+    /// once-daily guard caps it at ≤1 Haiku/day.
+    func runDailyReadinessSession(modelContext: ModelContext) async {
+        guard let apiClient else { return }
+        guard !sessionState.isActive else { return }
+        guard let plan = todayPlan else { return }
+
+        // Once-per-day cap (PERSISTED — survives relaunch, hardens the cost cap).
+        let todayKey = AIProgramPlanner.isoDay(Date())
+        let profile = fetchOrCreateAdaptiveProfile(modelContext: modelContext)
+
+        #if DEBUG
+            // DEBUG test bypass: when set, ignore the once-daily guard so the daily
+            // loop can be re-exercised without reinstalling. Clears itself after one
+            // run. Set via Settings → Developer → "Force daily coach re-run".
+            let forceRerun = UserDefaults.standard.bool(forKey: "tempo.debug.forceDailyRerun")
+            if forceRerun {
+                UserDefaults.standard.set(false, forKey: "tempo.debug.forceDailyRerun")
+                // Delete today's stale session so the fresh one is the only row.
+                if let stale = fetchTodayDailySession(modelContext: modelContext) {
+                    modelContext.delete(stale)
+                }
+            }
+        #else
+            let forceRerun = false
+        #endif
+
+        #if DEBUG
+            print("\(DebugTrace.prefix)[daily_coach] enter forceRerun=\(forceRerun) alreadyRan=\(profile.lastDailySessionDayKey == todayKey)")
+        #endif
+
+        guard forceRerun || profile.lastDailySessionDayKey != todayKey else {
+            // Already ran today — surface the persisted session for the card.
+            dailySession = fetchTodayDailySession(modelContext: modelContext)
+            #if DEBUG
+                print("\(DebugTrace.prefix)[daily_coach] guard-skip (cached) — not re-calling today")
+            #endif
+            return
+        }
+
+        // 1. Assemble the picture from stored 30-day history (oldest→newest).
+        let picture = assembleTodayPicture(modelContext: modelContext)
+
+        // 2. brainEligible = DATA readiness only (≥30d history AND Whoop fresh).
+        //    Entitlement (Pro/consent) is NOT checked here — the coach's 402→
+        //    fallback owns that; duplicating risks the two disagreeing.
+        let brainEligible = picture.hasBaselineForBrain && isWhoopFresh(modelContext: modelContext)
+
+        // 3. Deterministic candidate (cold-start / offline / 402 / parse-fail
+        //    fallback) built from the planned modality. Floor still applies to it.
+        let candidate = deterministicCandidate(for: plan)
+
+        // 4. Coach: produce-then-floor.
+        let coach = DailyReadinessCoach(apiClient: apiClient)
+        let result = await coach.session(
+            for: picture,
+            plannedModality: plan.type.rawValue,
+            deterministicCandidate: candidate,
+            brainEligible: brainEligible
+        )
+
+        // 5. Persist the DailySession 1:1 (every day — uniform link, §8 revised).
+        let session = DailySession.from(
+            decision: result.decision,
+            date: Date(),
+            source: result.source,
+            workoutPlan: plan
+        )
+        modelContext.insert(session)
+
+        // 6. Resolve the WorkoutPlan state. SEVERE → the planned day is superseded:
+        //    mark .skipped with .floorForced so adherence does NOT penalize it
+        //    (§8/§15.2 — body said recover, not a user flake).
+        if result.decision.tier == .severe {
+            plan.status = .skipped
+            plan.skipReason = .floorForced
+        } else if plan.status == .planned,
+                  let mapped = WorkoutType.fromModality(result.decision.session.modality),
+                  mapped != plan.type {
+            // §8 connect — the brain kept the planned modality unless readiness
+            // forced a move; when it DID move (planned pool → prescribed rest at
+            // yellow), the plan ROW must follow, or the header/week views keep
+            // showing the old day next to a card that says otherwise. The
+            // template type is stashed once for the "keep planned workout"
+            // override and the planResolution keep-rule.
+            if plan.plannedTypeRaw == nil { plan.plannedTypeRaw = plan.typeRaw }
+            plan.type = mapped
+            #if DEBUG
+                print("\(DebugTrace.prefix)[daily_coach] plan reshaped \(plan.plannedTypeRaw ?? "?") → \(mapped.rawValue) (tier=\(result.decision.tier.rawValue))")
+            #endif
+        }
+
+        profile.lastDailySessionDayKey = todayKey
+        try? modelContext.save()
+        dailySession = session
+
+        #if DEBUG
+            print("\(DebugTrace.prefix)[daily_coach] session persisted source=\(result.source.rawValue) tier=\(result.decision.tier.rawValue) modality=\(session.modality) planSkipped=\(result.decision.tier == .severe)")
+        #endif
+    }
+
+    /// Assemble today's ReadinessPicture from the trailing-30-day DailyRecovery
+    /// history (reuses the canonical forward-sorted fetch).
+    private func assembleTodayPicture(modelContext: ModelContext) -> ReadinessPicture {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let cutoff = cal.date(byAdding: .day, value: -31, to: today) ?? today
+        let descriptor = FetchDescriptor<DailyRecovery>(
+            predicate: #Predicate { $0.date >= cutoff },
+            sortBy: [SortDescriptor(\.date, order: .forward)]
+        )
+        let rows = (try? modelContext.fetch(descriptor)) ?? []
+        let snapshots = rows.map { r in
+            DailyRecoverySnapshot(
+                date: r.date, recoveryScore: r.recoveryScore, hrv: r.hrvRmssd,
+                rhr: r.restingHR, respRate: r.respiratoryRate, sleepHours: r.sleepHours,
+                sleepDebt: r.sleepDebt, strain: r.strain, deepSleepMin: r.deepSleepMin,
+                skinTemp: r.skinTemp, spo2: r.spo2, sleepConsistency: r.sleepConsistency
+            )
+        }
+        let todaySnapshot = snapshots.last(where: { cal.isDate($0.date, inSameDayAs: today) }) ?? snapshots.last
+
+        // Body comp (latest snapshot) + today's check-in surface into the picture.
+        let bodyComp = fetchLatestBodyComp(modelContext: modelContext)
+        let checkIn = fetchTodayCheckIn(modelContext: modelContext)?.snapshot
+
+        // D3 — days until the next COMPETITIVE match (distinct from recurring
+        // football days). Feeds the brain's CONTEXT block + the T-1/T-0 prompt
+        // lines, which are about TAPERING for a real game — a friendly scrimmage
+        // doesn't drive that, so it's excluded here (matches the T-1 filter in
+        // loadWeekPlan and the isCompetitive toggle's promise).
+        let competitiveKickoffs = fetchUpcomingMatches(modelContext: modelContext)
+            .filter(\.isCompetitive).map(\.kickoff)
+        let daysUntilNextMatch = MatchSchedule.daysUntilNextMatch(kickoffs: competitiveKickoffs, from: Date())
+
+        return ReadinessAssembler.assemble(
+            history: snapshots,
+            today: todaySnapshot,
+            yesterdaySessions: fetchYesterdaySessions(modelContext: modelContext),
+            yesterdaySessionRPE: fetchYesterdaySessionRPE(modelContext: modelContext),
+            bodyComp: bodyComp,
+            checkIn: checkIn,
+            daysUntilNextMatch: daysUntilNextMatch,
+            blockEmphasis: currentBlockEmphasis(modelContext: modelContext),
+            venueToday: venueTodaySnapshot(modelContext: modelContext)
+        )
+    }
+
+    /// Yesterday's real activities (Whoop-detected, imported, or attested) —
+    /// the §13.2 enrichment: what the body actually DID feeds today's picture.
+    private func fetchYesterdaySessions(modelContext: ModelContext) -> [ActivitySnapshot] {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        guard let yesterday = cal.date(byAdding: .day, value: -1, to: today) else { return [] }
+        let descriptor = FetchDescriptor<ActivitySession>(
+            predicate: #Predicate { $0.date >= yesterday && $0.date < today }
+        )
+        return ((try? modelContext.fetch(descriptor)) ?? []).map {
+            ActivitySnapshot(
+                workoutType: $0.workoutType, strain: $0.strain,
+                durationMinutes: $0.durationMinutes, averageHeartRate: $0.averageHeartRate,
+                hardMinutes: $0.hardMinutes
+            )
+        }
+    }
+
+    /// §14 #3 — yesterday's one-tap session RPE (the ACTUAL the user reported
+    /// on yesterday's completed plan), surfaced into today's picture so the
+    /// brain calibrates against felt cost, not just Whoop strain.
+    private func fetchYesterdaySessionRPE(modelContext: ModelContext) -> Int? {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        guard let yesterday = cal.date(byAdding: .day, value: -1, to: today) else { return nil }
+        let descriptor = FetchDescriptor<WorkoutPlan>(
+            predicate: #Predicate { $0.date >= yesterday && $0.date < today && $0.sessionRPE != nil }
+        )
+        return (try? modelContext.fetch(descriptor))?.first?.sessionRPE
+    }
+
+
+    /// Today's venue context for the prompt (§16): the user's confirmed answer
+    /// when present (highest quality), else the learned weekday pattern. nil
+    /// when neither exists — the prompt stays silent (cold-start honesty).
+    private func venueTodaySnapshot(modelContext: ModelContext) -> VenueTodaySnapshot? {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let weekday = cal.component(.weekday, from: today)
+
+        let pattern = ((try? modelContext.fetch(FetchDescriptor<VenuePattern>(
+            predicate: #Predicate { $0.weekday == weekday }
+        ))) ?? []).first
+
+        let confirmation = ((try? modelContext.fetch(FetchDescriptor<VenueConfirmation>(
+            predicate: #Predicate { $0.dayKey == today }
+        ))) ?? []).first
+
+        if let confirmation {
+            return VenueTodaySnapshot(
+                venueRaw: confirmation.venueRaw,
+                startMin: confirmation.startMin,
+                durationMin: pattern?.medianDurationMin,
+                confirmed: true,
+                assertsTime: true
+            )
+        }
+        guard let pattern, let venueRaw = pattern.venueRaw else { return nil }
+        return VenueTodaySnapshot(
+            venueRaw: venueRaw,
+            startMin: pattern.medianStartMin,
+            durationMin: pattern.medianDurationMin,
+            confirmed: false,
+            assertsTime: pattern.sampleCount >= VenuePatternMath.minSamplesToAssertTime
+                && pattern.medianStartMin != nil
+        )
+    }
+
+    /// The declared training-block emphasis in force today (§14 Decision 1),
+    /// or nil when no block covers today — callers default to .physique, the
+    /// pre-D3 behavior. Latest-start-wins on overlap (TrainingBlockSchedule).
+    private func currentBlockEmphasis(modelContext: ModelContext) -> BlockEmphasis? {
+        let descriptor = FetchDescriptor<TrainingBlock>()
+        let blocks = (try? modelContext.fetch(descriptor)) ?? []
+        return TrainingBlockSchedule.currentEmphasis(spans: blocks.map(\.span), on: Date())
+    }
+
+    /// Kickoffs of all matches from today forward (start-of-day cutoff so a
+    /// match earlier today still counts). Used for the readiness picture's
+    /// daysUntilNextMatch and the deterministic week's T-1 leg-protection.
+    private func fetchUpcomingMatches(modelContext: ModelContext) -> [Match] {
+        let cutoff = Calendar.current.startOfDay(for: Date())
+        let descriptor = FetchDescriptor<Match>(
+            predicate: #Predicate { $0.kickoff >= cutoff },
+            sortBy: [SortDescriptor(\.kickoff, order: .forward)]
+        )
+        return (try? modelContext.fetch(descriptor)) ?? []
+    }
+
+    /// A minimal deterministic session for the planned modality — the fallback
+    /// when the brain is skipped or fails. Gym → pointer (engine fills loads);
+    /// non-gym → an easy modality-appropriate block so cold-start/offline never
+    /// empty-renders (§15.1/§15.4). The floor still clamps/vetoes this.
+    private func deterministicCandidate(for plan: WorkoutPlan) -> DailySessionDTO {
+        let type = plan.type
+        let dur = plan.durationMinutes ?? 45
+        let mk: (BlockKind, String?, String) -> SessionBlockDTO = { kind, split, label in
+            SessionBlockDTO(kind: kind, label: label, notes: nil, cue: nil, scheduledMin: nil, split: split,
+                            reps: nil, distanceM: nil, restSec: nil, intensityPct: nil,
+                            durationSec: nil, stroke: nil, runType: nil, paceSecPerKm: nil, sets: nil)
+        }
+        switch type {
+        case .push, .pull, .legs, .upper, .lower, .fullBody:
+            return DailySessionDTO(
+                modality: type.rawValue, intensity: .moderate, durationMin: dur,
+                blocks: [mk(.gym, type.rawValue, type.displayName)],
+                shortWhy: "Today's planned \(type.displayName.lowercased()).", fullWhy: nil,
+                expectedStrain: nil, expectedSessionRPE: nil
+            )
+        case .run:
+            return DailySessionDTO(
+                modality: "run", intensity: .easy, durationMin: dur,
+                blocks: [SessionBlockDTO(kind: .run, label: "Easy run", notes: nil, cue: nil, scheduledMin: nil, split: nil,
+                                         reps: nil, distanceM: nil, restSec: nil, intensityPct: nil,
+                                         durationSec: dur * 60, stroke: nil, runType: "tempo",
+                                         paceSecPerKm: nil, sets: nil)],
+                shortWhy: "Easy aerobic run.", fullWhy: nil, expectedStrain: nil, expectedSessionRPE: 4
+            )
+        case .football, .sprint, .conditioning:
+            return DailySessionDTO(
+                modality: type.rawValue, intensity: .moderate, durationMin: dur,
+                blocks: [mk(.field, nil, type.displayName)],
+                shortWhy: "Today's \(type.displayName.lowercased()).", fullWhy: nil,
+                expectedStrain: nil, expectedSessionRPE: 5
+            )
+        case .pool:
+            return DailySessionDTO(
+                modality: "pool", intensity: .easy, durationMin: dur,
+                blocks: [SessionBlockDTO(kind: .pool, label: "Easy swim", notes: nil,
+                                         cue: "Long strokes, easy pace.", scheduledMin: nil, split: nil,
+                                         reps: nil, distanceM: nil, restSec: nil, intensityPct: nil,
+                                         durationSec: dur * 60, stroke: "freestyle", runType: nil,
+                                         paceSecPerKm: nil, sets: nil)],
+                shortWhy: "Easy recovery swim — flush the legs.", fullWhy: nil,
+                expectedStrain: nil, expectedSessionRPE: 3
+            )
+        case .mobility, .rest:
+            return TrainingSafetyFloor.recoverySession(reason: "Recovery day.")
+        }
+    }
+
+    private func isWhoopFresh(modelContext: ModelContext) -> Bool {
+        // Fresh = a DailyRecovery row for today exists (§15.1: >48h stale → no brain).
+        loadRecoveryScore(modelContext: modelContext) != nil
+    }
+
+    private func fetchTodayDailySession(modelContext: ModelContext) -> DailySession? {
+        let today = Calendar.current.startOfDay(for: Date())
+        let d = FetchDescriptor<DailySession>(predicate: #Predicate { $0.date == today })
+        return try? modelContext.fetch(d).first
+    }
+
+    private func fetchLatestBodyComp(modelContext: ModelContext) -> BodyCompSnapshot? {
+        var d = FetchDescriptor<BodyComposition>(sortBy: [SortDescriptor(\.date, order: .reverse)])
+        d.fetchLimit = 1
+        return (try? modelContext.fetch(d))?.first?.snapshot
+    }
+
+    private func fetchTodayCheckIn(modelContext: ModelContext) -> MorningCheckIn? {
+        let today = Calendar.current.startOfDay(for: Date())
+        let d = FetchDescriptor<MorningCheckIn>(predicate: #Predicate { $0.date == today })
+        return try? modelContext.fetch(d).first
+    }
+
+    // MARK: - Prediction Accuracy (Step 2 measurement spine — read-only)
+
+    /// Compute the prediction-accuracy summary from all resolved PredictionLog
+    /// rows. PASSIVE: this only measures whether the engine is getting more
+    /// accurate for this user — it does NOT feed back into prescriptions yet.
+    /// The honest readout for "is it actually learning?"
+    func predictionAccuracy(modelContext: ModelContext) -> AccuracySummary {
+        let descriptor = FetchDescriptor<PredictionLog>(
+            predicate: #Predicate { $0.outcomeResolved }
+        )
+        let rows = (try? modelContext.fetch(descriptor)) ?? []
+        return PredictionAccuracy.summarize(rows)
+    }
+
+    /// §14 #3 — session-level accuracy: the brain's expectedSessionRPE vs the
+    /// user's one-tap actual on the linked plan. Relationship traversal stays
+    /// out of the #Predicate (SwiftData optional-chain predicates are fragile);
+    /// the join is filtered in memory — row counts here are tiny (1/day).
+    func sessionRPEAccuracy(modelContext: ModelContext) -> SessionRPEAccuracy {
+        let descriptor = FetchDescriptor<DailySession>(
+            predicate: #Predicate { $0.expectedSessionRPE != nil }
+        )
+        let rows = (try? modelContext.fetch(descriptor)) ?? []
+        let pairs = rows.compactMap { session -> SessionRPEPair? in
+            guard let expected = session.expectedSessionRPE,
+                  let actual = session.workoutPlan?.sessionRPE else { return nil }
+            return SessionRPEPair(date: session.date, expected: expected, actual: actual)
+        }
+        return PredictionAccuracy.summarizeSessions(pairs)
+    }
+
+    /// Step 4 hold-out: does the personalized engine actually beat the generic
+    /// +2.5kg/week baseline on prediction error? Read-only / passive — the
+    /// honesty check. Returns `.insufficient` until enough resolved rows exist.
+    func predictionHoldout(modelContext: ModelContext) -> HoldoutResult {
+        let descriptor = FetchDescriptor<PredictionLog>(
+            predicate: #Predicate { $0.outcomeResolved }
+        )
+        let rows = (try? modelContext.fetch(descriptor)) ?? []
+        return PredictionAccuracy.holdout(rows)
+    }
+
+    // MARK: - Prediction Outcomes (Step 1 measurement spine)
+
+    /// One exercise's observed outcome, decoupled from the persistCompletion-
+    /// local HistorySnapshot so this helper is callable + testable on its own.
+    struct PredictionOutcome {
+        let exerciseID: UUID
+        let bestSetReps: Int?
+        let avgRPE: Double?
+        let worstFormRaw: String?
+        let bestSetWeight: Double?
+    }
+
+    /// Fill the actual-outcome fields on this plan's PredictionLog rows from the
+    /// just-completed session. Matched by (workoutPlanID, exerciseID). Marks each
+    /// matched row `outcomeResolved` so it's never re-clobbered and Step 2 can
+    /// score it. An outcome with no matching prediction (e.g. an exercise added
+    /// mid-session) is skipped — predictions only exist for what was prescribed.
+    func backfillPredictionOutcomes(
+        planID: UUID,
+        outcomes: [PredictionOutcome],
+        modelContext: ModelContext
+    ) {
+        let descriptor = FetchDescriptor<PredictionLog>(
+            predicate: #Predicate { $0.workoutPlanID == planID }
+        )
+        guard let rows = try? modelContext.fetch(descriptor), !rows.isEmpty else { return }
+        let byExercise = Dictionary(rows.map { ($0.exerciseID, $0) }) { first, _ in first }
+
+        for outcome in outcomes {
+            guard let log = byExercise[outcome.exerciseID] else { continue }
+            log.actualReps = outcome.bestSetReps
+            log.actualRPE = outcome.avgRPE
+            log.actualFormRaw = outcome.worstFormRaw
+            log.actualWeight = outcome.bestSetWeight
+            log.outcomeResolved = true
+        }
+    }
+
+    // MARK: - Error-Fit Correction (Step 3 — measure → correct)
+
+    /// After outcomes are backfilled, fit each exercise's learned increment to
+    /// its MEASURED signed RPE error (conservative partial step, clamped). This
+    /// is the error-driven replacement for the blind RPE-bucket nudge: instead
+    /// of "+10% because it felt easy", it's "this exercise lands 1.2 RPE under
+    /// target, so nudge the step toward the value that would've hit target."
+    /// Only acts on the predictions resolved THIS session.
+    private func applyErrorFitCorrection(planID: UUID, modelContext: ModelContext) {
+        let descriptor = FetchDescriptor<PredictionLog>(
+            predicate: #Predicate { $0.workoutPlanID == planID && $0.outcomeResolved }
+        )
+        let resolved = (try? modelContext.fetch(descriptor)) ?? []
+        guard !resolved.isEmpty else { return }
+
+        let profile = fetchOrCreateAdaptiveProfile(modelContext: modelContext)
+
+        // One correction per exercise, from this session's measured error.
+        let byExercise = Dictionary(grouping: resolved, by: { $0.exerciseID })
+        for (exerciseID, rows) in byExercise {
+            let errors = rows.compactMap(\.rpeError)
+            guard !errors.isEmpty else { continue }
+            let meanError = errors.reduce(0, +) / Double(errors.count)
+
+            // Current learned step, or the one used at prescribe time, or the
+            // equipment default the prediction recorded.
+            let current = profile.learnedIncrements[exerciseID]
+                ?? rows.first?.learnedIncrementUsed
+                ?? 2.5
+            let corrected = AdaptiveProfileUpdater.correctedIncrement(
+                current: current,
+                meanSignedRPEError: meanError
+            )
+            profile.learnedIncrements[exerciseID] = corrected
+        }
+        profile.updatedAt = Date()
+        try? modelContext.save()
+        #if DEBUG
+            print("\(DebugTrace.prefix)[adaptive] error-fit correction applied for \(byExercise.count) exercise(s)")
+        #endif
+    }
+
+    // MARK: - Adaptive Profile (Phase 3)
+
+    /// Read-only snapshot of the adaptive signals the engine consumes. Does NOT
+    /// create a profile row (creation only happens on save) — returns neutral
+    /// defaults when none exists yet, so a brand-new user runs the pure floor.
+    func adaptiveSignals(modelContext: ModelContext)
+        -> (thresholdOffset: Double, fatigueEWMA: Double?, learnedIncrements: [UUID: Double]) {
+        guard let profile = try? modelContext.fetch(FetchDescriptor<AdaptiveProfile>()).first else {
+            return (0, nil, [:])
+        }
+        return (profile.clampedThresholdOffset, profile.fatigueEWMA, profile.learnedIncrements)
+    }
+
+    /// Fetch the single AdaptiveProfile, creating it on first use.
+    private func fetchOrCreateAdaptiveProfile(modelContext: ModelContext) -> AdaptiveProfile {
+        if let existing = try? modelContext.fetch(FetchDescriptor<AdaptiveProfile>()).first {
+            return existing
+        }
+        let profile = AdaptiveProfile()
+        modelContext.insert(profile)
+        return profile
+    }
+
+    /// Feed a saved session into the on-device AdaptiveProfile (bounded online
+    /// learning). The base-increment closure mirrors the engine's equipment
+    /// defaults so a never-seen exercise starts from the right step.
+    private func updateAdaptiveProfile(with session: [ExerciseHistory], modelContext: ModelContext) {
+        let profile = fetchOrCreateAdaptiveProfile(modelContext: modelContext)
+        AdaptiveProfileUpdater.ingest(
+            session: session,
+            baseIncrement: { row in
+                switch row.exercise?.equipment {
+                case .barbell: 2.5
+                case .dumbbell: 2.0
+                case .cable, .machine: 2.5
+                default: 2.5
+                }
+            },
+            into: profile
+        )
+        try? modelContext.save()
+        #if DEBUG
+            print("\(DebugTrace.prefix)[adaptive] profile updated: offset=\(profile.recoveryThresholdOffset) fatigueEWMA=\(profile.fatigueEWMA.map { String(format: "%.2f", $0) } ?? "nil") learnedExercises=\(profile.learnedIncrements.count)")
+        #endif
+    }
+
+    /// Map a recoveryAdjustment multiplier back to a representative recovery
+    /// score for the adjustment prompt (inverse of the engine's zone cuts).
+    
+
+    /// Short summaries of the last 4 completed sessions for the AI prompt.
+    private func loadRecentSessionSummaries(modelContext: ModelContext) -> [String] {
+        var descriptor = FetchDescriptor<ExerciseHistory>(
+            sortBy: [SortDescriptor(\.date, order: .reverse)]
+        )
+        descriptor.fetchLimit = 16 // a few exercises per session, last few sessions
+        let rows = (try? modelContext.fetch(descriptor)) ?? []
+        // Group by day, summarize tonnage + avg RPE.
+        let byDay = Dictionary(grouping: rows) { $0.date }
+        let recentDays = byDay.keys.sorted(by: >).prefix(4)
+        return recentDays.map { day in
+            let dayRows = byDay[day] ?? []
+            let volume = dayRows.reduce(0.0) { $0 + $1.totalVolume }
+            let rpes = dayRows.compactMap(\.avgRPE)
+            let avgRPE = rpes.isEmpty ? nil : rpes.reduce(0, +) / Double(rpes.count)
+            let rpeStr = avgRPE.map { String(format: "RPE %.1f", $0) } ?? "RPE n/a"
+            return "\(AIProgramPlanner.isoDay(day)): \(Int(volume))kg vol, \(rpeStr)"
+        }
     }
 
     /// Result of resolving today's plan — the persisted WorkoutPlan plus
@@ -251,11 +936,19 @@ final class TrainingViewModel {
     nonisolated static func planResolution(
         existingStatus: WorkoutStatus,
         existingType: WorkoutType,
+        existingPlannedTypeRaw: String? = nil,
         templateType: WorkoutType
     ) -> PlanResolution {
         switch existingStatus {
         case .planned:
-            return existingType == templateType ? .keep : .replace
+            if existingType == templateType { return .keep }
+            // §8 connect — the row WAS the template type before the daily
+            // brain moved it (planned pool → rest at yellow). The mismatch is
+            // deliberate; replacing would resurrect the desync every app-open.
+            // If the TEMPLATE itself changed (user edited the schedule), the
+            // stash no longer matches and the template rightly wins.
+            if existingPlannedTypeRaw == templateType.rawValue { return .keep }
+            return .replace
         default:
             // completed / inProgress / skipped — sacred, never replace.
             return .keep
@@ -323,6 +1016,7 @@ final class TrainingViewModel {
                Self.planResolution(
                    existingStatus: existing.status,
                    existingType: existing.type,
+                   existingPlannedTypeRaw: existing.plannedTypeRaw,
                    templateType: canonical.type
                ) == .replace {
                 // Only a still-PLANNED row whose type differs may be replaced
@@ -384,20 +1078,38 @@ final class TrainingViewModel {
         let footballDays = loadFootballDays(modelContext: modelContext)
         let split = loadTrainingSplit(modelContext: modelContext)
         let recoveryScores = loadRecoveryScores(modelContext: modelContext, startDate: monday)
+        // Phase 3: per-user learned recovery-threshold offset (clamped ±10).
+        let signals = adaptiveSignals(modelContext: modelContext)
+        // D3 — dated matches re-shape the surrounding days (T-0/T-1) on top of
+        // the recurring football weekdays. Free deterministic re-periodization.
+        // ALL matches are a T-0 session day (you're playing either way); only
+        // COMPETITIVE ones drive T-1 taper (no heavy legs) — a friendly scrimmage
+        // doesn't warrant tapering, honouring the isCompetitive toggle.
+        let upcomingMatches = fetchUpcomingMatches(modelContext: modelContext)
+        let matchDayKeys = Set(upcomingMatches.map { cal.startOfDay(for: $0.kickoff) })
+        let competitiveMatchDayKeys = Set(upcomingMatches
+            .filter(\.isCompetitive).map { cal.startOfDay(for: $0.kickoff) })
 
         weekPlans = trainingEngine.generateWeekPlan(
             startDate: monday,
             recoveryScores: recoveryScores,
             footballDays: footballDays,
-            split: split
+            split: split,
+            recoveryThresholdOffset: signals.thresholdOffset,
+            matchDayKeys: matchDayKeys,
+            competitiveMatchDayKeys: competitiveMatchDayKeys,
+            // §14 Decision 1 — soccer emphasis re-shapes spare days (visible
+            // in This Week); physique keeps the pre-emphasis week exactly.
+            emphasis: currentBlockEmphasis(modelContext: modelContext) ?? .physique
         )
 
-        // Check deload week status
+        // Check deload week status (Phase 3: fatigue trend can trigger early).
         let deloadSettings = loadDeloadSettings(modelContext: modelContext)
         isDeloadWeek = trainingEngine.isDeloadWeek(
             date: Date(),
             deloadFrequencyWeeks: deloadSettings.frequency,
-            trainingStartDate: deloadSettings.startDate
+            trainingStartDate: deloadSettings.startDate,
+            fatigueEWMA: signals.fatigueEWMA
         )
 
         // Populate exercises for each gym workout
@@ -735,6 +1447,7 @@ final class TrainingViewModel {
         row.avgRPE = agg.avgRPE
         row.worstFormRaw = agg.worstFormRaw
         row.feedbackSampleCount = agg.count
+        row.gassedFraction = agg.gassedFraction
         try? modelContext.save()
     }
 
@@ -915,6 +1628,7 @@ final class TrainingViewModel {
             let avgRPE: Double?
             let worstFormRaw: String?
             let feedbackSampleCount: Int
+            let gassedFraction: Double?
         }
         let snapshots: [HistorySnapshot] = plan.orderedExercises.compactMap { plannedEx in
             guard let exercise = plannedEx.exercise else { return nil }
@@ -939,7 +1653,8 @@ final class TrainingViewModel {
                 setsPerformed: completedSets.count,
                 avgRPE: agg.avgRPE,
                 worstFormRaw: agg.worstFormRaw,
-                feedbackSampleCount: agg.count
+                feedbackSampleCount: agg.count,
+                gassedFraction: agg.gassedFraction
             )
         }
 
@@ -979,17 +1694,59 @@ final class TrainingViewModel {
                 avgRPE: snap.avgRPE,
                 worstFormRaw: snap.worstFormRaw,
                 feedbackSampleCount: snap.feedbackSampleCount,
+                gassedFraction: snap.gassedFraction,
                 workoutPlanID: planID,
                 exercise: snap.exercise
             )
             modelContext.insert(history)
         }
 
+        // Step 1 (measurement spine) — backfill the outcome onto the
+        // PredictionLog rows written at prescribe time, so each prediction now
+        // sits next to what actually happened. This is the prediction↔reality
+        // pair Step 2's error metric reads. Matched by (planID, exerciseID) —
+        // the same key the prediction was written under.
+        let outcomes: [PredictionOutcome] = snapshots.map { snap in
+            PredictionOutcome(
+                exerciseID: snap.exercise.id,
+                bestSetReps: snap.bestSetReps,
+                avgRPE: snap.avgRPE,
+                worstFormRaw: snap.worstFormRaw,
+                bestSetWeight: snap.bestSetWeight
+            )
+        }
+        backfillPredictionOutcomes(planID: planID, outcomes: outcomes, modelContext: modelContext)
+
+        // Step 3 (measure → correct) — fit the learned increments to the MEASURED
+        // RPE error from the predictions just resolved, instead of the blind
+        // RPE-bucket nudge. Conservative partial step, clamped. This is the first
+        // place the engine consumes its own accuracy signal to change behavior.
+        applyErrorFitCorrection(planID: planID, modelContext: modelContext)
+
+        // §16.2 — a completed session is venue-pattern evidence (start time,
+        // duration, inferred venue, completion). Cheap pure recompute.
+        VenuePatternLearner.recompute(modelContext: modelContext)
+
         // Persist to SwiftData
         try? modelContext.save()
         #if DEBUG
             print("\(DebugTrace.prefix)[Workout] persistCompletion: plan=\(planID) wrote \(snapshots.count) history rows, status=.completed")
         #endif
+
+        // Phase 3 (TRAINING_INTELLIGENCE_TO_10.md Fix 3.2) — feed the session
+        // into the on-device AdaptiveProfile so the engine learns THIS user's
+        // increments / recovery tolerance / fatigue trend over time. Bounded
+        // online updates; the deterministic floor is unaffected.
+        let sessionRows = snapshots.map { snap in
+            ExerciseHistory(
+                date: sessionDate,
+                avgRPE: snap.avgRPE,
+                worstFormRaw: snap.worstFormRaw,
+                feedbackSampleCount: snap.feedbackSampleCount,
+                exercise: snap.exercise
+            )
+        }
+        updateAdaptiveProfile(with: sessionRows, modelContext: modelContext)
 
         // Day-plan engine signal — a logged workout means subsequent
         // blocks (especially recovery + meals) may shift. DayPlanScheduler
@@ -1076,6 +1833,10 @@ final class TrainingViewModel {
         }
 
         try? modelContext.save()
+
+        // §16.2 — non-gym completions are venue-pattern evidence too.
+        VenuePatternLearner.recompute(modelContext: modelContext)
+
         #if DEBUG
             print("\(DebugTrace.prefix)[Workout] persistNonGymCompletion: plan=\(planID) type=\(plan.type.rawValue) source=\(session.source) strain=\(session.strain.map { String($0) } ?? "nil")")
         #endif
@@ -1090,6 +1851,199 @@ final class TrainingViewModel {
         )
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
         return true
+    }
+
+    // MARK: - Session RPE (§14 #3 — one-tap actual vs the brain's prediction)
+
+    /// Record the user's whole-session RPE (1–10) on today's completed plan.
+    /// One value per day; the capsule UI only renders while sessionRPE == nil,
+    /// so this is effectively write-once. No notification fan-out — sRPE feeds
+    /// tomorrow's prompt + the accuracy spine, nothing re-renders live today.
+    func recordSessionRPE(_ rpe: Int, modelContext: ModelContext) {
+        guard (1 ... 10).contains(rpe) else { return }
+        guard let plan = todayPlan, plan.status == .completed else { return }
+        plan.sessionRPE = rpe
+        try? modelContext.save()
+        #if DEBUG
+            print("\(DebugTrace.prefix)[Workout] recordSessionRPE: plan=\(plan.id) rpe=\(rpe) expected=\(dailySession?.expectedSessionRPE.map(String.init) ?? "nil")")
+        #endif
+    }
+
+    // MARK: - Keep Planned Workout (§8 connect — the user's side of the seam)
+
+    /// Decline the brain's modality move and restore the planned day ("coach
+    /// said rest, I'm swimming anyway"). Only a brain-CHOSEN move is
+    /// declinable — a SEVERE floor skip never stashes plannedTypeRaw, so this
+    /// is a no-op there by construction. The session is marked overridden so
+    /// the card collapses and nothing re-applies the move today.
+    func keepPlannedWorkout(modelContext: ModelContext) {
+        guard let plan = todayPlan,
+              plan.status == .planned,
+              let stashed = plan.plannedTypeRaw else { return }
+        plan.typeRaw = stashed
+        plan.plannedTypeRaw = nil
+        dailySession?.userOverrode = true
+        try? modelContext.save()
+        #if DEBUG
+            print("\(DebugTrace.prefix)[daily_coach] user kept planned workout → \(stashed)")
+        #endif
+    }
+
+    // MARK: - Monthly Review (D4 §17)
+
+    /// Month key with a review currently due (drives the Training-tab card).
+    /// Set by loadToday; nil outside the window or once the summary exists.
+    var monthlyReviewDueKey: String?
+
+    /// Due = inside the month-boundary window AND the month's summary not yet
+    /// generated. An interview saved without a summary (offline) stays due so
+    /// the Sonnet call retries on a later open within the window.
+    func monthlyReviewDue(modelContext: ModelContext, now: Date = Date()) -> String? {
+        guard let key = MonthlyReviewSchedule.dueMonthKey(on: now) else { return nil }
+        if let existing = fetchMonthlyReview(monthKey: key, modelContext: modelContext),
+           existing.summaryText != nil {
+            return nil
+        }
+        return key
+    }
+
+    func fetchMonthlyReview(monthKey: String, modelContext: ModelContext) -> MonthlyReview? {
+        let descriptor = FetchDescriptor<MonthlyReview>(
+            predicate: #Predicate { $0.monthKey == monthKey }
+        )
+        return (try? modelContext.fetch(descriptor))?.first
+    }
+
+    func fetchOrCreateMonthlyReview(monthKey: String, modelContext: ModelContext) -> MonthlyReview {
+        if let existing = fetchMonthlyReview(monthKey: monthKey, modelContext: modelContext) {
+            return existing
+        }
+        let review = MonthlyReview(monthKey: monthKey)
+        modelContext.insert(review)
+        try? modelContext.save()
+        return review
+    }
+
+    /// Map a month of stored rows into the pure aggregator's snapshots
+    /// (same @Model→snapshot seam as assembleTodayPicture).
+    func assembleMonthlyData(monthKey: String, modelContext: ModelContext) -> MonthlyReviewData? {
+        guard let interval = MonthlyReviewSchedule.monthInterval(forKey: monthKey) else { return nil }
+        let start = interval.start
+        let end = interval.end
+        let cal = Calendar.current
+        let daysInMonth = cal.range(of: .day, in: .month, for: start)?.count ?? 30
+
+        let planRows = (try? modelContext.fetch(FetchDescriptor<WorkoutPlan>(
+            predicate: #Predicate { $0.date >= start && $0.date < end }
+        ))) ?? []
+        let plans = planRows.map {
+            MonthPlanSnapshot(
+                date: $0.date, typeDisplayName: $0.type.displayName, statusRaw: $0.statusRaw,
+                skipReasonRaw: $0.skipReasonRaw, startedAt: $0.startedAt,
+                tonnageKg: $0.totalVolume, sessionRPE: $0.sessionRPE
+            )
+        }
+
+        let bodyRows = (try? modelContext.fetch(FetchDescriptor<BodyComposition>(
+            predicate: #Predicate { $0.date >= start && $0.date < end }
+        ))) ?? []
+        let body = bodyRows.map {
+            MonthBodySample(
+                date: $0.date, weightKg: $0.weightKg,
+                bodyFatPercent: $0.bodyFatPercent, leanMassKg: $0.leanMassKg
+            )
+        }
+
+        let recoveryRows = (try? modelContext.fetch(FetchDescriptor<DailyRecovery>(
+            predicate: #Predicate { $0.date >= start && $0.date < end }
+        ))) ?? []
+        let recovery = recoveryRows.map {
+            MonthRecoverySample(
+                date: $0.date, hrv: $0.hrvRmssd, rhr: $0.restingHR,
+                recoveryScore: $0.recoveryScore
+            )
+        }
+
+        let prRows = (try? modelContext.fetch(FetchDescriptor<PersonalRecord>(
+            predicate: #Predicate { $0.date >= start && $0.date < end }
+        ))) ?? []
+        let prs = prRows.map {
+            MonthPRSnapshot(
+                label: "\($0.exercise?.name ?? "Unknown") \($0.typeRaw) \(Int($0.value))kg",
+                date: $0.date
+            )
+        }
+
+        // Calibration spines, month-scoped.
+        let logRows = (try? modelContext.fetch(FetchDescriptor<PredictionLog>(
+            predicate: #Predicate { $0.date >= start && $0.date < end && $0.outcomeResolved }
+        ))) ?? []
+        let sessionRows = (try? modelContext.fetch(FetchDescriptor<DailySession>(
+            predicate: #Predicate { $0.date >= start && $0.date < end && $0.expectedSessionRPE != nil }
+        ))) ?? []
+        let sessionPairs = sessionRows.compactMap { session -> SessionRPEPair? in
+            guard let expected = session.expectedSessionRPE,
+                  let actual = session.workoutPlan?.sessionRPE else { return nil }
+            return SessionRPEPair(date: session.date, expected: expected, actual: actual)
+        }
+
+        return MonthlyReviewAggregator.aggregate(
+            monthKey: monthKey,
+            daysInMonth: daysInMonth,
+            plans: plans,
+            bodySamples: body,
+            recoverySamples: recovery,
+            prs: prs,
+            exerciseAccuracy: PredictionAccuracy.summarize(logRows),
+            sessionAccuracy: PredictionAccuracy.summarizeSessions(sessionPairs)
+        )
+    }
+
+    /// Generate + persist the Sonnet summary. The ≤1/month gate is
+    /// `summaryText == nil` — nothing is marked spent on failure, so a failed
+    /// call retries on the next open inside the window (unlike the weekly
+    /// hydration guard, a monthly report is worth the retry).
+    @discardableResult
+    func generateMonthlySummary(for review: MonthlyReview, modelContext: ModelContext) async -> Bool {
+        guard review.summaryText == nil else { return false }
+        guard let apiClient else { return false }
+        guard let data = assembleMonthlyData(monthKey: review.monthKey, modelContext: modelContext) else { return false }
+
+        let interview = MonthInterviewSnapshot(
+            wentWell: review.wentWell,
+            struggles: review.struggles,
+            niggles: review.niggles,
+            subjectiveProgress: review.subjectiveProgress,
+            goalsNextMonth: review.goalsNextMonth,
+            chosenEmphasis: review.chosenEmphasis?.rawValue
+        )
+        let coach = MonthlyReviewCoach(apiClient: apiClient)
+        guard let text = await coach.summary(data: data, interview: interview) else { return false }
+
+        review.summaryText = text
+        review.summaryGeneratedAt = Date()
+        try? modelContext.save()
+        monthlyReviewDueKey = monthlyReviewDue(modelContext: modelContext)
+        #if DEBUG
+            print("\(DebugTrace.prefix)[monthly_review] summary persisted month=\(review.monthKey) chars=\(text.count)")
+        #endif
+        return true
+    }
+
+    /// §17.1 → §14 seam: the interview's emphasis choice becomes next month's
+    /// TrainingBlock (open-ended — superseded by any later declaration).
+    /// Idempotent: a block already starting that day means he declared one.
+    func applyMonthlyEmphasisChoice(_ review: MonthlyReview, modelContext: ModelContext) {
+        guard let emphasis = review.chosenEmphasis,
+              let start = MonthlyReviewSchedule.nextMonthStart(afterKey: review.monthKey) else { return }
+        let day = Calendar.current.startOfDay(for: start)
+        let existing = (try? modelContext.fetch(FetchDescriptor<TrainingBlock>())) ?? []
+        guard !existing.contains(where: { Calendar.current.startOfDay(for: $0.startDate) == day }) else { return }
+        modelContext.insert(TrainingBlock(emphasis: emphasis, startDate: day))
+        try? modelContext.save()
+        #if DEBUG
+            print("\(DebugTrace.prefix)[monthly_review] emphasis block inserted \(emphasis.rawValue) from \(day)")
+        #endif
     }
 
     /// Resolve the non-gym day card state. If today's plan is already completed,
@@ -1407,14 +2361,18 @@ final class TrainingViewModel {
     nonisolated static func aggregateFeedback(
         completedSets: [PlannedSet],
         enteredFeedback: [UUID: SetFeedback]
-    ) -> (avgRPE: Double?, worstFormRaw: String?, count: Int) {
+    ) -> (avgRPE: Double?, worstFormRaw: String?, count: Int, gassedFraction: Double?) {
         let fb = completedSets.compactMap { enteredFeedback[$0.id] }
         guard !fb.isEmpty else {
-            return (nil, nil, 0)
+            return (nil, nil, 0, nil)
         }
         let avgRPE = Double(fb.map(\.rpe).reduce(0, +)) / Double(fb.count)
         let worstForm = fb.map(\.formQuality).max { $0.severityRank < $1.severityRank }
-        return (avgRPE, worstForm?.rawValue, fb.count)
+        // Conditioning-debt signal: fraction of entered rows the user tagged
+        // `.gassed`. Read by TrainingEngine.restMultiplier.
+        let gassedCount = fb.filter { $0.breathDifficulty.isNegativeSignal }.count
+        let gassedFraction = Double(gassedCount) / Double(fb.count)
+        return (avgRPE, worstForm?.rawValue, fb.count, gassedFraction)
     }
 
     // assignSupersetGroups / muscleGroups / selectExercises /

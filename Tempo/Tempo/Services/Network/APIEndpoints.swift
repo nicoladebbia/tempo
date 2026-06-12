@@ -328,9 +328,28 @@ struct DayPlanTrainingProgramRequest: Codable, Sendable {
 
 struct DayPlanTrainingProgramResponse: Codable, Sendable {
     let rationale: String
-    /// Per-day entries from the backend. We only consume `rationale` for
-    /// v1 hydration — the per-day breakdown is the source for the
-    /// weekly planner, not the daily-plan view.
+    /// Per-day program from the backend (Sonnet). Optional so the legacy
+    /// hydration callers that only read `rationale` still decode cleanly when
+    /// the field is absent, and so a malformed/empty AI response degrades to
+    /// "rationale only" rather than failing the whole decode. The weekly
+    /// planner (AIProgramPlanner) reads `days`; the daily-plan view reads
+    /// `rationale`.
+    let days: [TrainingProgramDayDTO]?
+}
+
+/// One day of an AI-proposed week. `workoutType`/`volumeAdjustment` are
+/// advisory — AIProgramPlanner reconciles them against the deterministic
+/// floor before anything reaches the user (LLM proposes, engine disposes).
+struct TrainingProgramDayDTO: Codable, Sendable {
+    let day: String              // "monday" … "sunday"
+    let workoutType: String      // "push" | "pull" | "legs" | "football" | "rest" | …
+    let volumeAdjustment: Double // 0.0 – 1.2 (clamped on reconcile)
+
+    enum CodingKeys: String, CodingKey {
+        case day
+        case workoutType = "workout_type"
+        case volumeAdjustment = "volume_adjustment"
+    }
 }
 
 extension APIEndpoint where Response == DayPlanTrainingProgramResponse {

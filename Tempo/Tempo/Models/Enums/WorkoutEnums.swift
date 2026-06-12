@@ -21,6 +21,10 @@ enum WorkoutType: String, Codable, CaseIterable {
     case run
     case sprint
     case conditioning
+    /// §21/§13.1 — pool sessions (easy swim recovery / conditioning). Added
+    /// 2026-06-09 with the soccer-emphasis week: Nicola has a pool; the AI
+    /// modality list always offered it but no plan could hold it.
+    case pool
     case mobility
     case rest
 
@@ -36,6 +40,7 @@ enum WorkoutType: String, Codable, CaseIterable {
         case .run: "Run"
         case .sprint: "Sprint"
         case .conditioning: "Conditioning"
+        case .pool: "Pool"
         case .mobility: "Mobility"
         case .rest: "Rest"
         }
@@ -50,6 +55,22 @@ enum WorkoutType: String, Codable, CaseIterable {
              .lower,
              .fullBody: true
         default: false
+        }
+    }
+
+    /// Map a daily-brain modality label (§13 — a free string, not an enum on
+    /// the wire) to a plan type, so the day's final prescription can reshape
+    /// the WorkoutPlan ROW (§8 connect). Direct rawValue match first, then the
+    /// labels the brain actually emits. nil = unmappable → the plan row is
+    /// left alone (the session card still renders the prescription).
+    static func fromModality(_ modality: String) -> WorkoutType? {
+        if let direct = WorkoutType(rawValue: modality) { return direct }
+        switch modality.lowercased() {
+        case "recovery", "off": return .rest
+        case "swim": return .pool
+        case "field": return .conditioning
+        case "fullbody", "full body": return .fullBody
+        default: return nil
         }
     }
 }

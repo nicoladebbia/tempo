@@ -52,4 +52,45 @@ final class PlanResolutionTests: XCTestCase {
         )
         XCTAssertEqual(r, .keep, "No change needed when the planned type already matches")
     }
+
+    // MARK: - §8 connect — brain-reshaped rows survive the resolution
+
+    func testBrainReshapedRowIsKept() {
+        // Planned pool → brain moved the day to rest, stashing "pool". The
+        // template still says pool — the mismatch is deliberate, keep it.
+        let r = TrainingViewModel.planResolution(
+            existingStatus: .planned, existingType: .rest,
+            existingPlannedTypeRaw: WorkoutType.pool.rawValue, templateType: .pool
+        )
+        XCTAssertEqual(r, .keep, "A brain-reshaped day must not be stomped on the next app-open")
+    }
+
+    func testBrainReshapedRowReplacedWhenTemplateChanged() {
+        // The user edited the weekly schedule after the reshape: the stash no
+        // longer matches the template → the schedule edit wins.
+        let r = TrainingViewModel.planResolution(
+            existingStatus: .planned, existingType: .rest,
+            existingPlannedTypeRaw: WorkoutType.pool.rawValue, templateType: .legs
+        )
+        XCTAssertEqual(r, .replace, "A real schedule edit outranks a stale daily reshape")
+    }
+
+    // MARK: - §8 connect — modality → plan-type mapping
+
+    func testModalityMapsDirectRawValues() {
+        XCTAssertEqual(WorkoutType.fromModality("rest"), .rest)
+        XCTAssertEqual(WorkoutType.fromModality("pool"), .pool)
+        XCTAssertEqual(WorkoutType.fromModality("push"), .push)
+    }
+
+    func testModalityMapsBrainSynonyms() {
+        XCTAssertEqual(WorkoutType.fromModality("recovery"), .rest)
+        XCTAssertEqual(WorkoutType.fromModality("swim"), .pool)
+        XCTAssertEqual(WorkoutType.fromModality("field"), .conditioning)
+    }
+
+    func testUnknownModalityIsNilNotAGuess() {
+        XCTAssertNil(WorkoutType.fromModality("yoga"),
+                     "Unmappable modality must leave the plan row alone")
+    }
 }

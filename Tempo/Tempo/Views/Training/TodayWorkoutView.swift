@@ -28,6 +28,13 @@ struct TodayWorkoutView: View {
     private var allSettings: [UserSettings]
     @State
     private var showMobilityAlert = false
+    @State
+    private var showMonthlyReview = false
+    /// Captured at card-tap. The sheet reads THIS, not monthlyReviewDueKey —
+    /// generating the summary nils the due key while the sheet is still up,
+    /// and the report must not vanish mid-read.
+    @State
+    private var activeReviewKey: String?
     @Environment(ServiceContainer.self)
     private var services
     /// Suggested free workout window for today (Phase 4). nil = not loaded
@@ -44,6 +51,9 @@ struct TodayWorkoutView: View {
     /// Drives the once-a-minute countdown refresh.
     @State
     private var now = Date()
+    /// Expands the daily session card's full "why" (D2).
+    @State
+    private var showFullWhy = false
 
     private let countdownTick = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
@@ -82,6 +92,13 @@ struct TodayWorkoutView: View {
         ZStack(alignment: .bottom) {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: TempoSpacing.xl) {
+                    // D4 §17 — month-boundary review card. Above the day branch
+                    // on purpose: the month ends whether today is gym, field,
+                    // or rest.
+                    if let dueKey = viewModel.monthlyReviewDueKey {
+                        monthlyReviewCard(dueKey)
+                    }
+
                     if viewModel.isLoading {
                         loadingState
                     } else if viewModel.isRestDay {
@@ -109,6 +126,11 @@ struct TodayWorkoutView: View {
             // have nothing to log, so no button is shown.
             if viewModel.canStartWorkout, !viewModel.isLoading {
                 startWorkoutButton
+            }
+        }
+        .sheet(isPresented: $showMonthlyReview) {
+            if let key = activeReviewKey {
+                MonthlyReviewView(monthKey: key, viewModel: viewModel)
             }
         }
         .alert("Mobility Flows", isPresented: $showMobilityAlert) {
@@ -217,6 +239,28 @@ struct TodayWorkoutView: View {
                 deloadBanner
             }
 
+            // §16 — venue propose-confirm (renders only with a learned pattern
+            // for today's weekday; collapses once answered or dismissed).
+            VenueProposalCard()
+
+            // D2 — the daily readiness prescription (supersedes the legacy
+            // pendingAdjustment card). Modality + intensity + why + blocks/cues.
+            // Reads WHY/intensity from DailySession, sets from the linked plan.
+            if let session = viewModel.dailySession {
+                dailySessionCard(session)
+            }
+
+            #if DEBUG
+            // Force a fresh coach run in-place (no .task / relaunch dependency —
+            // the flag + direct call run in one stack). Verifies the daily loop.
+            Button("⟳ Run coach now (force, DEBUG)") {
+                UserDefaults.standard.set(true, forKey: "tempo.debug.forceDailyRerun")
+                Task { await viewModel.runDailyReadinessSession(modelContext: modelContext) }
+            }
+            .font(.tempoCaption1)
+            .foregroundStyle(Color.tempoSignal)
+            #endif
+
             // Saved-event countdown takes precedence over the suggestion;
             // both are non-blocking (Phase 4 + follow-up).
             if let saved = savedWorkoutEvent {
@@ -232,6 +276,9 @@ struct TodayWorkoutView: View {
             // Workout meta bar
             // Per MODULE_TRAINING.md Section 2.6
             workoutMeta(plan: plan)
+
+            // §14 #3 — one-tap session RPE, only after completion.
+            sessionRPESection(plan: plan)
 
             // Exercise list
             // Per MODULE_TRAINING.md Section 2.7
@@ -284,6 +331,169 @@ struct TodayWorkoutView: View {
             RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous)
                 .stroke(Color.tempoRecoveryYellow.opacity(0.3), lineWidth: 1)
         )
+    }
+
+    // MARK: - Live Recovery Adjustment Card (Phase 2 Fix 2.4)
+
+    
+
+
+    // MARK: - Daily Session Card (D2 — the readiness prescription)
+
+    @ViewBuilder
+    private func dailySessionCard(_ session: DailySession) -> some View {
+        if session.userOverrode {
+            // §8 connect — he declined the brain's move. One honest line; the
+            // plan row (restored) is the day again.
+            HStack(spacing: TempoSpacing.sm) {
+                Image(systemName: "exclamationmark.triangle")
+                    .foregroundStyle(Color.tempoWarning)
+                Text("Coach called \(session.modality.uppercased()). You kept \(viewModel.todayPlan?.type.displayName.uppercased() ?? "THE PLAN"). Your call.")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                Spacer()
+            }
+            .padding(TempoSpacing.cardPadding)
+            .background(Color.tempoSurfaceCard)
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        } else {
+            dailySessionCardBody(session)
+        }
+    }
+
+    private func dailySessionCardBody(_ session: DailySession) -> some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            HStack {
+                Text(session.modality.uppercased())
+                    .font(.tempoHeadline)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                Spacer()
+                Text(session.intensity.rawValue.uppercased())
+                    .font(.tempoCaption2)
+                    .foregroundStyle(intensityColor(session.intensity))
+                    .padding(.horizontal, TempoSpacing.sm)
+                    .padding(.vertical, 4)
+                    .background(intensityColor(session.intensity).opacity(0.15))
+                    .clipShape(Capsule())
+            }
+
+            // Floor provenance — honest about how this was produced.
+            if session.wasDowngraded || session.source != .brain {
+                Text(sessionProvenance(session))
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextTertiary)
+            }
+
+            // Short why → tap for full.
+            Text(session.shortWhy)
+                .font(.tempoBody)
+                .foregroundStyle(Color.tempoTextSecondary)
+
+            if let full = session.fullWhy, !full.isEmpty {
+                if showFullWhy {
+                    Text(full)
+                        .font(.tempoBody)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                }
+                Button(showFullWhy ? "Less" : "Why?") {
+                    withAnimation { showFullWhy.toggle() }
+                }
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoSignal)
+            }
+
+            // Blocks (non-gym detail + cues; gym sets render in the exercise
+            // list). §21 composite days render grouped by part with a start-time
+            // header, and the gym part gets a pointer line so its slot is visible.
+            let parts = session.blocks.parts
+            ForEach(Array(parts.enumerated()), id: \.offset) { _, part in
+                if parts.count >= 2 {
+                    Text(partHeader(part.scheduledMin))
+                        .font(.tempoCaption1)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                        .padding(.top, TempoSpacing.xs)
+                }
+                ForEach(Array(part.blocks.enumerated()), id: \.offset) { _, block in
+                    if block.kind != .gym {
+                        blockRow(block)
+                    } else if parts.count >= 2 {
+                        Text("Gym \(block.split.map { "(\($0))" } ?? "") — exercises below")
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                    }
+                }
+            }
+
+            // §8 connect — the brain moved the day off the planned modality.
+            // Say so, and hand him the override. Brain-chosen moves only: a
+            // SEVERE floor skip never stashes plannedTypeRaw, so this row
+            // can't appear on a locked recovery day.
+            if let plan = viewModel.todayPlan,
+               plan.status == .planned,
+               let plannedRaw = plan.plannedTypeRaw,
+               let plannedType = WorkoutType(rawValue: plannedRaw) {
+                Divider().overlay(Color.tempoTextTertiary.opacity(0.3))
+                HStack {
+                    Text("Plan said \(plannedType.displayName.uppercased()).")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                    Spacer()
+                    Button("Keep \(plannedType.displayName)") {
+                        HapticManager.selection()
+                        viewModel.keepPlannedWorkout(modelContext: modelContext)
+                    }
+                    .font(.tempoCaption1)
+                    .fontWeight(.bold)
+                    .foregroundStyle(Color.tempoSignal)
+                }
+            }
+        }
+        .padding(TempoSpacing.cardPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.tempoSurfaceCard)
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+    }
+
+    /// §21 — part header for a composite day ("AT 16:00" / "ANYTIME" for the
+    /// untimed anchor).
+    private func partHeader(_ scheduledMin: Int?) -> String {
+        scheduledMin.map { "AT \(VenuePatternMath.clockLabel($0))" } ?? "ANYTIME"
+    }
+
+    @ViewBuilder
+    private func blockRow(_ block: SessionBlockDTO) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(block.label)
+                .font(.tempoBody)
+                .foregroundStyle(Color.tempoTextPrimary)
+            if let cue = block.cue, !cue.isEmpty {
+                Text(cue)
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextTertiary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 4)
+    }
+
+    private func intensityColor(_ intensity: SessionIntensity) -> Color {
+        switch intensity {
+        case .recovery, .easy: return Color.tempoRecoveryGreen
+        case .moderate: return Color.tempoRecoveryYellow
+        case .hard, .max: return Color.tempoRecoveryRed
+        }
+    }
+
+    private func sessionProvenance(_ session: DailySession) -> String {
+        if session.wasDowngraded {
+            return "Adjusted for recovery — body data wins."
+        }
+        switch session.source {
+        case .floorFallback: return "Using your planned session (AI unavailable right now)."
+        case .simple: return "Building your baseline — recovery-aware, trends still warming up."
+        case .brain: return ""
+        }
     }
 
     // MARK: - Workout Window Banner
@@ -444,6 +654,96 @@ struct TodayWorkoutView: View {
             Text("\(plan.totalSets) sets")
                 .font(.tempoCaption1)
                 .foregroundStyle(Color.tempoTextSecondary)
+        }
+    }
+
+    // MARK: - Monthly Review Card (D4 §17 — the month-boundary ritual)
+
+    private func monthlyReviewCard(_ monthKey: String) -> some View {
+        Button {
+            activeReviewKey = monthKey
+            showMonthlyReview = true
+        } label: {
+            HStack(spacing: TempoSpacing.md) {
+                Image(systemName: "checklist.checked")
+                    .font(.tempoTitle3)
+                    .foregroundStyle(Color.tempoSignal)
+                VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+                    Text("MONTH'S OVER. DEBRIEF.")
+                        .font(.tempoHeadline)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                    Text("5 questions, then your report. 2 minutes.")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextTertiary)
+            }
+            .padding(TempoSpacing.lg)
+            .background(Color.tempoSurfaceCard)
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        }
+    }
+
+    // MARK: - Session RPE Capsule (§14 #3 — one-tap felt cost, post-completion)
+
+    /// Renders ONLY when today's plan is completed: a one-tap 1–10 rating while
+    /// unanswered, a quiet confirmation row once logged. The answer is the
+    /// ACTUAL paired against the brain's expectedSessionRPE (accuracy spine)
+    /// and is surfaced in tomorrow's prompt.
+    @ViewBuilder
+    private func sessionRPESection(plan: WorkoutPlan) -> some View {
+        if plan.status == .completed {
+            if let logged = plan.sessionRPE {
+                HStack(spacing: TempoSpacing.sm) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Color.tempoSignal)
+                    Text("Session RPE logged: \(logged)/10")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                    Spacer()
+                }
+                .padding(TempoSpacing.lg)
+                .background(Color.tempoSurfaceCard)
+                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+            } else {
+                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+                    Text("HOW HARD WAS THAT?")
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                    Text("Whole session. 1 = nothing, 10 = max effort.")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                    sessionRPERow(1 ... 5)
+                    sessionRPERow(6 ... 10)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(TempoSpacing.lg)
+                .background(Color.tempoSurfaceCard)
+                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+            }
+        }
+    }
+
+    private func sessionRPERow(_ range: ClosedRange<Int>) -> some View {
+        HStack(spacing: TempoSpacing.sm) {
+            ForEach(range, id: \.self) { value in
+                Button {
+                    HapticManager.selection()
+                    viewModel.recordSessionRPE(value, modelContext: modelContext)
+                } label: {
+                    Text("\(value)")
+                        .font(.tempoTitle3)
+                        .monospacedDigit()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 48)
+                        .background(Color.tempoBgPrimary)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                }
+            }
         }
     }
 
@@ -731,6 +1031,14 @@ struct TodayWorkoutView: View {
                 .font(.tempoTitle1)
                 .foregroundStyle(Color.tempoTextPrimary)
 
+            // §8 connect — a brain-reshaped rest day (planned pool → rest)
+            // renders THIS content, so the prescription's why + the "keep
+            // planned workout" override must live here too, not just on
+            // gym/non-gym days.
+            if let session = viewModel.dailySession {
+                dailySessionCard(session)
+            }
+
             Image(systemName: "figure.yoga")
                 .font(.system(size: 60))
                 .foregroundStyle(Color.tempoTextTertiary)
@@ -790,6 +1098,15 @@ struct TodayWorkoutView: View {
                 .font(.tempoTitle1)
                 .foregroundStyle(Color.tempoTextPrimary)
 
+            // §16 — venue propose-confirm, same placement as the gym path.
+            VenueProposalCard()
+
+            // D2 — the readiness prescription IS the content on a non-gym day
+            // (modality/intensity/why + blocks with cues; there's no exercise list).
+            if let session = viewModel.dailySession {
+                dailySessionCard(session)
+            }
+
             Image(systemName: nonGymIcon(for: plan.type))
                 .font(.system(size: 60))
                 .foregroundStyle(Color.tempoTextTertiary)
@@ -814,6 +1131,9 @@ struct TodayWorkoutView: View {
 
             // Whoop activity confirm / saved summary.
             nonGymActivitySection(plan: plan)
+
+            // §14 #3 — one-tap session RPE, only after completion.
+            sessionRPESection(plan: plan)
         }
         .task(id: plan.id) {
             await viewModel.loadNonGymActivity(modelContext: modelContext)

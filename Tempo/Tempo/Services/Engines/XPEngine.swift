@@ -64,9 +64,16 @@ final class XPEngine: XPEngineProtocol, @unchecked Sendable {
 
     // MARK: - Calculate XP
 
+    /// - Parameter floorForcedRest: true when today's planned workout was
+    ///   superseded by the safety floor (a recovery day the BODY demanded, not a
+    ///   user flake — INTELLIGENT_TRAINING_SYSTEM §15.2 / WorkoutPlan.skipReason
+    ///   == .floorForced). When true, the "missed training" penalty is suppressed:
+    ///   the app must never punish the user for OBEYING its own recovery
+    ///   prescription. Defaulted false so existing callers are unaffected.
     func calculateXP(
         from snapshot: DailySnapshot,
-        accountability: DailyAccountability
+        accountability: DailyAccountability,
+        floorForcedRest: Bool = false
     ) -> [XPEvent] {
         let today = Date()
         let hour = Calendar.current.component(.hour, from: today)
@@ -110,8 +117,10 @@ final class XPEngine: XPEngineProtocol, @unchecked Sendable {
                     description: "Early bird workout (before 8am)"
                 ))
             }
-        } else {
-            // Penalty: skipped workout (only if training was a non-negotiable)
+        } else if !floorForcedRest {
+            // Penalty: skipped workout (only if training was a non-negotiable AND
+            // the skip was NOT a floor-forced recovery day — §15.2: body-data-wins
+            // recovery is compliance, not a miss; never penalize obeying it).
             let hadTraining = accountability.nonNegotiableProgress?.contains {
                 $0.nonNegotiable?.type == .train
             } ?? false

@@ -103,7 +103,8 @@ struct TrainingTabView: View {
                 viewModel = TrainingViewModel(
                     trainingEngine: services.trainingEngine,
                     whoop: services.whoop,
-                    healthKit: services.healthKit
+                    healthKit: services.healthKit,
+                    apiClient: services.apiClient
                 )
             }
         }

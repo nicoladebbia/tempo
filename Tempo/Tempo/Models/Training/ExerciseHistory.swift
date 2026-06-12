@@ -43,6 +43,13 @@ final class ExerciseHistory {
     /// How many ENTERED feedback rows fed the aggregates above.
     var feedbackSampleCount: Int = 0
 
+    /// Fraction of entered feedback rows on this session marked `.gassed`
+    /// (0...1). nil = no entered feedback this session. Read by
+    /// `TrainingEngine.restMultiplier` to lengthen rest under conditioning
+    /// debt. Additive + optional → lightweight SwiftData migration (matches the
+    /// avgRPE/worstFormRaw fields above).
+    var gassedFraction: Double?
+
     // Scalar back-reference to the WorkoutPlan that produced this row. NOT a
     // relationship — ExerciseHistory is the permanent training record and must
     // outlive the ephemeral daily plan. The ID enables exact, idempotent dedup
@@ -69,6 +76,7 @@ final class ExerciseHistory {
         avgRPE: Double? = nil,
         worstFormRaw: String? = nil,
         feedbackSampleCount: Int = 0,
+        gassedFraction: Double? = nil,
         workoutPlanID: UUID? = nil,
         exercise: Exercise? = nil
     ) {
@@ -82,6 +90,7 @@ final class ExerciseHistory {
         self.avgRPE = avgRPE
         self.worstFormRaw = worstFormRaw
         self.feedbackSampleCount = feedbackSampleCount
+        self.gassedFraction = gassedFraction
         self.workoutPlanID = workoutPlanID
         self.exercise = exercise
     }

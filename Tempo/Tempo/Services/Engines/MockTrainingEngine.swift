@@ -30,9 +30,14 @@ final class MockTrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
 
     func calculateProgressiveOverload(
         for exercise: Exercise,
-        history: [ExerciseHistory]
-    ) -> (weight: Double, reps: Int) {
-        (weight: 80.0, reps: 10)
+        history: [ExerciseHistory],
+        learnedIncrement: Double? = nil
+    ) -> ProgressionDecision {
+        ProgressionDecision(weight: 80.0, reps: 10, deltaApplied: 0, rationale: .standardProgression)
+    }
+
+    func restMultiplier(history: [ExerciseHistory]) -> Double {
+        1.0
     }
 
     func detectPersonalRecord(
@@ -47,7 +52,11 @@ final class MockTrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         startDate: Date,
         recoveryScores: [Date: Double],
         footballDays: ActiveDays,
-        split: TrainingSplit
+        split: TrainingSplit,
+        recoveryThresholdOffset: Double = 0,
+        matchDayKeys: Set<Date> = [],
+        competitiveMatchDayKeys: Set<Date>? = nil,
+        emphasis: BlockEmphasis = .physique
     ) -> [WorkoutPlan] {
         (0 ..< 7).map { offset in
             let date = Calendar.current.date(byAdding: .day, value: offset, to: startDate) ?? startDate
@@ -60,7 +69,12 @@ final class MockTrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         }
     }
 
-    func isDeloadWeek(date: Date, deloadFrequencyWeeks: Int, trainingStartDate: Date?) -> Bool {
+    func isDeloadWeek(
+        date: Date,
+        deloadFrequencyWeeks: Int,
+        trainingStartDate: Date?,
+        fatigueEWMA: Double? = nil
+    ) -> Bool {
         false
     }
 

@@ -23,6 +23,8 @@ struct WeekPlanView: View {
     private var expandedPlanID: UUID?
     @State
     private var showScheduleEditor = false
+    @State
+    private var showMatchSchedule = false
 
     private let dayAbbreviations = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
     private let calendar = Calendar.current
@@ -36,6 +38,16 @@ struct WeekPlanView: View {
                 // Deload week indicator
                 if viewModel.isDeloadWeek {
                     deloadBanner
+                }
+
+                // Coach Review — last week's graded outcome (Phase 4).
+                if let outcome = viewModel.lastWeekOutcome {
+                    coachReviewCard(outcome)
+                }
+
+                // AI plan rationale (Phase 2) — only when the AI ran this week.
+                if let rationale = viewModel.aiWeekRationale {
+                    aiRationaleCard(rationale)
                 }
 
                 // 7-day grid
@@ -54,6 +66,15 @@ struct WeekPlanView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
+                    showMatchSchedule = true
+                } label: {
+                    Label("Matches", systemImage: "calendar")
+                        .font(.tempoBody)
+                        .foregroundStyle(Color.tempoSignal)
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
                     showScheduleEditor = true
                 } label: {
                     Label("Edit", systemImage: "slider.horizontal.3")
@@ -64,6 +85,9 @@ struct WeekPlanView: View {
         }
         .sheet(isPresented: $showScheduleEditor) {
             ScheduleEditorView()
+        }
+        .sheet(isPresented: $showMatchSchedule) {
+            MatchScheduleView()
         }
         .onAppear {
             viewModel.loadWeekPlan(modelContext: modelContext)
@@ -116,6 +140,78 @@ struct WeekPlanView: View {
             RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous)
                 .stroke(Color.tempoRecoveryYellow.opacity(0.3), lineWidth: 1)
         )
+    }
+
+    // MARK: - Coach Review (Phase 4)
+
+    private func coachReviewCard(_ outcome: WeekOutcome) -> some View {
+        // Green when the week was productive without overreach; yellow when it
+        // overreached or quality dipped. Every number below is real.
+        let good = outcome.qualityScore >= 0.6 && outcome.overreachEvents == 0
+        let accent = good ? Color.tempoRecoveryGreen : Color.tempoRecoveryYellow
+
+        return VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            HStack(spacing: TempoSpacing.sm) {
+                Image(systemName: good ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(accent)
+                Text("LAST WEEK")
+                    .font(.tempoHeadline)
+                    .foregroundStyle(accent)
+                Spacer()
+                Text("\(Int((outcome.qualityScore * 100).rounded()))%")
+                    .font(.tempoHeadline)
+                    .foregroundStyle(accent)
+            }
+
+            Text(coachReviewSummary(outcome))
+                .font(.tempoBody)
+                .foregroundStyle(Color.tempoTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(TempoSpacing.cardPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(accent.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous)
+                .stroke(accent.opacity(0.3), lineWidth: 1)
+        )
+    }
+
+    private func coachReviewSummary(_ outcome: WeekOutcome) -> String {
+        var parts: [String] = []
+        parts.append("\(outcome.progressionHits) \(outcome.progressionHits == 1 ? "lift" : "lifts") up")
+        if outcome.overreachEvents > 0 {
+            parts.append("\(outcome.overreachEvents) overreach")
+        } else {
+            parts.append("0 overreach")
+        }
+        if outcome.missedSessions > 0 {
+            parts.append("\(outcome.missedSessions) missed")
+        }
+        let trend = outcome.netVolumeChange >= 0 ? "volume up" : "volume down"
+        parts.append(trend)
+        return parts.joined(separator: " · ")
+    }
+
+    // MARK: - AI Plan Rationale (Phase 2)
+
+    private func aiRationaleCard(_ rationale: String) -> some View {
+        HStack(alignment: .top, spacing: TempoSpacing.sm) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(Color.tempoAccent)
+            Text(rationale)
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(TempoSpacing.cardPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.tempoBgSecondary)
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
     }
 
     // MARK: - 7-Day Grid
@@ -244,7 +340,10 @@ struct WeekPlanView: View {
                                 .font(.tempoCaption1)
                                 .foregroundStyle(Color.tempoTextSecondary)
                             } else if plan.type == .football {
-                                Text("Match day")
+                                // Engine note distinguishes a dated fixture
+                                // ("Match day") from a recurring football
+                                // weekday ("Football day") — §14.
+                                Text(plan.notes ?? "Football day")
                                     .font(.tempoCaption1)
                                     .foregroundStyle(Color.tempoTextSecondary)
                             } else if plan.type == .rest {
@@ -307,7 +406,7 @@ struct WeekPlanView: View {
             footballContext(plan: plan)
         case .rest:
             restGuidance
-        case .run, .sprint, .conditioning:
+        case .run, .sprint, .conditioning, .pool:
             conditioningGuidance(plan: plan)
         }
     }
@@ -473,6 +572,7 @@ struct WeekPlanView: View {
         case .rest: "RST"
         case .sprint: "SPR"
         case .conditioning: "CON"
+        case .pool: "SWM"
         }
     }
 
@@ -489,6 +589,7 @@ struct WeekPlanView: View {
         case .run,
              .sprint: "figure.run"
         case .conditioning: "flame"
+        case .pool: "figure.pool.swim"
         case .mobility: "figure.flexibility"
         case .rest: "bed.double"
         }

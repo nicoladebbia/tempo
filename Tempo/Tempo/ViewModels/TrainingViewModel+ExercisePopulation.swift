@@ -36,6 +36,10 @@ extension TrainingViewModel {
             return
         }
 
+        // Phase 3: per-user learned weight increments, keyed by Exercise.id.
+        // Empty for a new user → engine falls back to the equipment default.
+        let learnedIncrements = adaptiveSignals(modelContext: modelContext).learnedIncrements
+
         // Fetch all exercises from library
         var descriptor = FetchDescriptor<Exercise>()
         descriptor.sortBy = [SortDescriptor(\Exercise.name)]
@@ -91,7 +95,11 @@ extension TrainingViewModel {
 
             // Use progressive overload from history, or sensible defaults
             let history = exercise.history ?? []
-            let overload = trainingEngine.calculateProgressiveOverload(for: exercise, history: history)
+            let overload = trainingEngine.calculateProgressiveOverload(
+                for: exercise,
+                history: history,
+                learnedIncrement: learnedIncrements[exercise.id]
+            )
             var weight: Double = overload.weight > 0 ? overload.weight : defaultWeight(for: exercise)
 
             // Tier 2.3 — recent pain note on this exercise → never prescribe
@@ -159,7 +167,72 @@ extension TrainingViewModel {
                 setNum += 1
             }
             planned.sets = plannedSets
+
+            // Step 1 (measurement spine) — record what the engine just predicted
+            // for this working exercise, so its accuracy can be measured against
+            // the actual session later (persistCompletion backfills the outcome).
+            // Passive ledger: nothing reads it to change prescriptions yet.
+            // Step 4 shadow baseline: what the DUMB generic engine would have
+            // prescribed — last logged weight + one fixed 2.5kg step, no
+            // learning, no recovery/deload adjustment. nil when there's no prior
+            // weight to project from (early sessions).
+            let lastLoggedWeight = history.sorted(by: { $0.date > $1.date })
+                .first?.bestSetWeight
+            let baselineWeight: Double? = lastLoggedWeight.map { $0 + 2.5 }
+
+            logPrediction(
+                planID: plan.id,
+                exercise: exercise,
+                predictedWeight: roundedWeight,
+                predictedReps: reps,
+                rationale: overload.rationale,
+                learnedIncrement: learnedIncrements[exercise.id],
+                baselineWeight: baselineWeight,
+                modelContext: modelContext
+            )
         }
+    }
+
+    /// Write (or refresh) the PredictionLog row for one prescribed exercise.
+    /// Idempotent per (workoutPlanID, exerciseID): re-running populateExercises
+    /// for the same plan/exercise overwrites the prediction in place rather than
+    /// accumulating duplicates. Only the most recent prescription is kept until
+    /// the outcome is backfilled.
+    private func logPrediction(
+        planID: UUID,
+        exercise: Exercise,
+        predictedWeight: Double,
+        predictedReps: Int,
+        rationale: ProgressionReason,
+        learnedIncrement: Double?,
+        baselineWeight: Double?,
+        modelContext: ModelContext
+    ) {
+        let exerciseID = exercise.id
+        let descriptor = FetchDescriptor<PredictionLog>(
+            predicate: #Predicate { $0.workoutPlanID == planID && $0.exerciseID == exerciseID }
+        )
+        let existing = (try? modelContext.fetch(descriptor)) ?? []
+        // Don't clobber a row that already has its outcome — that pairing is data.
+        if let resolved = existing.first(where: { $0.outcomeResolved }) {
+            _ = resolved
+            return
+        }
+        // Replace any prior unresolved prediction for this plan+exercise.
+        for stale in existing where !stale.outcomeResolved {
+            modelContext.delete(stale)
+        }
+        let log = PredictionLog(
+            exercise: exercise,
+            exerciseID: exerciseID,
+            workoutPlanID: planID,
+            predictedWeight: predictedWeight,
+            predictedReps: predictedReps,
+            signalUsedRaw: rationale.rawValue,
+            learnedIncrementUsed: learnedIncrement,
+            baselineWeight: baselineWeight
+        )
+        modelContext.insert(log)
     }
 
     /// Assigns superset group IDs to compatible exercise pairs.

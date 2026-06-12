@@ -10,6 +10,7 @@ import CoreLocation
 import SwiftData
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 // MARK: - DashboardSettingsView
 
@@ -218,6 +219,20 @@ struct DashboardSettingsView: View {
                         .buttonStyle(.plain)
                     }
                 }
+
+                #if DEBUG
+                SettingsGroupCard(title: "Developer") {
+                    NavigationLink {
+                        DailyReadinessHarnessView()
+                    } label: {
+                        SettingsNavRow(
+                            icon: "flask.fill", iconTint: .tempoWarning,
+                            title: "D0 Prompt Harness", subtitle: "Run ~20 synthetic days through Haiku"
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+                #endif
             }
             .padding(.horizontal, TempoSpacing.xl)
             .padding(.vertical, TempoSpacing.lg)
@@ -1027,8 +1042,22 @@ struct TrainingSettingsDetailView: View {
         allSettings.first
     }
 
+    @Query(sort: \TrainingBlock.startDate)
+    private var trainingBlocks: [TrainingBlock]
+
+    /// The block emphasis in force today; no block declared → physique, the
+    /// de-facto default (§14 Decision 1).
+    private var currentEmphasis: BlockEmphasis {
+        TrainingBlockSchedule.currentEmphasis(spans: trainingBlocks.map(\.span), on: Date()) ?? .physique
+    }
+
     /// Mon-first to match the ActiveDays bitmask (index 0 = Monday = 1<<0).
     private let footballDayLabels = ["M", "T", "W", "T", "F", "S", "S"]
+
+    @State
+    private var showWhoopImporter = false
+    @State
+    private var whoopImportResult: String?
 
     @State
     private var trainingSplit: TrainingSplit = .pushPullLegs
@@ -1143,6 +1172,68 @@ struct TrainingSettingsDetailView: View {
                     .padding(TempoSpacing.lg)
                 }
 
+                // Training block — manual emphasis declaration (§14 Decision 1).
+                // Drives the daily coach's CONTEXT line + the weekly AI goal;
+                // deliberately does NOT touch the deterministic split/schedule.
+                SettingsFormCard(
+                    title: "Training block",
+                    footnote: currentEmphasis == .physique
+                        ? "Physique block — hypertrophy primary, soccer held at maintenance. Drives the daily coach and weekly AI plan."
+                        : "Soccer block — speed and conditioning primary, strength held at maintenance. Drives the daily coach and weekly AI plan."
+                ) {
+                    SettingsControlRow(label: "Emphasis", icon: "target", iconTint: .tempoElectric) {
+                        Picker("", selection: Binding(
+                            get: { currentEmphasis },
+                            set: { applyBlockEmphasis($0) }
+                        )) {
+                            ForEach(BlockEmphasis.allCases, id: \.self) { emphasis in
+                                Text(emphasis.displayName).tag(emphasis)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 180)
+                    }
+                }
+
+                // Whoop history import — seeds a year of baselines/patterns
+                // from the official account-data export (4 CSVs). Additive;
+                // re-running is safe (existing days/workouts are skipped).
+                SettingsFormCard(
+                    title: "Whoop history",
+                    footnote: whoopImportResult
+                        ?? "Import your Whoop account-data export (CSV files). Seeds baselines, training history, venue patterns, and personal habit insights."
+                ) {
+                    Button {
+                        showWhoopImporter = true
+                    } label: {
+                        HStack(spacing: TempoSpacing.md) {
+                            SettingsIconTile(systemName: "square.and.arrow.down", tint: .tempoSignal)
+                            Text("Import Whoop export…")
+                                .font(.tempoSubheadline)
+                                .foregroundStyle(Color.tempoTextPrimary)
+                            Spacer(minLength: TempoSpacing.sm)
+                        }
+                        .padding(.horizontal, TempoSpacing.lg)
+                        .padding(.vertical, TempoSpacing.md)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                .fileImporter(
+                    isPresented: $showWhoopImporter,
+                    allowedContentTypes: [.commaSeparatedText, .plainText],
+                    allowsMultipleSelection: true
+                ) { result in
+                    switch result {
+                    case let .success(urls):
+                        let summary = WhoopExportImporter.importFiles(urls, modelContext: modelContext)
+                        whoopImportResult = "Imported: \(summary.label)."
+                    case let .failure(error):
+                        whoopImportResult = "Import failed: \(error.localizedDescription)"
+                    }
+                }
+
                 SettingsFormCard(
                     title: "Deload",
                     footnote: autoDeload
@@ -1186,6 +1277,29 @@ struct TrainingSettingsDetailView: View {
             autoDeload = settings?.autoDeload ?? true
             deloadWeeks = settings?.deloadFrequencyWeeks ?? 5
         }
+    }
+
+    /// Declares a new open-ended block starting today (§14 Decision 1). The
+    /// previous open block closes at yesterday; one that started today (or
+    /// later) never ran a day, so it's deleted instead of kept as an empty
+    /// span. Closed past blocks stay as history. Uses save() — since the
+    /// deterministic week became emphasis-aware (soccer → conditioning + pool
+    /// spare days), an emphasis switch must replan This Week immediately,
+    /// same path as a footballDays toggle.
+    private func applyBlockEmphasis(_ emphasis: BlockEmphasis) {
+        guard emphasis != currentEmphasis else { return }
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        for block in trainingBlocks where block.endDate == nil {
+            if cal.startOfDay(for: block.startDate) >= today {
+                modelContext.delete(block)
+            } else {
+                block.endDate = cal.date(byAdding: .day, value: -1, to: today)
+            }
+        }
+        modelContext.insert(TrainingBlock(emphasis: emphasis, startDate: today))
+        save()
+        HapticManager.selection()
     }
 
     private func save() {
