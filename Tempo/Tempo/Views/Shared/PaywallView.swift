@@ -373,9 +373,7 @@ struct PaywallView: View {
     // MARK: - Actions
 
     private func loadProducts() async {
-        if let service = services.subscriptions as? SubscriptionService {
-            products = service.availableProducts()
-        }
+        products = services.subscriptions.availableProducts()
     }
 
     private func performPurchase() async {

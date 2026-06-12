@@ -178,6 +178,10 @@ targets:
         - TempoTests
         - TempoUITests
         - TempoSnapshotTests
+      # StoreKit local testing config (4 Tempo Pro products + 7-day trial).
+      # Path is relative to this project spec file. Lets the simulator load
+      # products without App Store Connect. XcodeGen 2.44.1+ native support.
+      storeKitConfiguration: Tempo/Tempo.storekit
 
   TempoTests:
     type: bundle.unit-test

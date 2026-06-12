@@ -476,7 +476,7 @@ Firebase Crashlytics. See Section 2.6 above.
 
 **Decision: Raw StoreKit 2**
 
-**Rationale:** Tempo has exactly two subscription products (`com.tempo.pro.monthly` and `com.tempo.pro.annual`) in a single subscription group. StoreKit 2's async/await API handles this with ~150 lines of code (already specified in MONETIZATION_STRATEGY.md Section 5.1).
+**Rationale:** Tempo has exactly two subscription products (`app.tempo.Tempo.pro.monthly` and `app.tempo.Tempo.pro.annual`) in a single subscription group. StoreKit 2's async/await API handles this with ~150 lines of code (already specified in MONETIZATION_STRATEGY.md Section 5.1).
 
 RevenueCat's value proposition is:
 - Cross-platform subscription management (Tempo is iOS-only)

@@ -497,8 +497,8 @@ StoreKit 2 is mandatory for new apps targeting iOS 17+. Use the modern async/awa
 
 | Product ID | Type | Price | Duration | Trial |
 |------------|------|-------|----------|-------|
-| `com.tempo.pro.monthly` | Auto-Renewable Subscription | $4.99 | 1 month | 7-day free trial |
-| `com.tempo.pro.annual` | Auto-Renewable Subscription | $39.99 | 1 year | 7-day free trial |
+| `app.tempo.Tempo.pro.monthly` | Auto-Renewable Subscription | $4.99 | 1 month | 7-day free trial |
+| `app.tempo.Tempo.pro.annual` | Auto-Renewable Subscription | $39.99 | 1 year | 7-day free trial |
 
 **Subscription Group:** `tempo_pro` (single group — monthly and annual are alternatives in the same group, so Apple handles upgrade/downgrade/crossgrade logic).
 
@@ -517,7 +517,7 @@ class SubscriptionManager {
     func checkEntitlements() async {
         for await result in Transaction.currentEntitlements {
             if case .verified(let transaction) = result {
-                if transaction.productID.hasPrefix("com.tempo.pro") {
+                if transaction.productID.hasPrefix("app.tempo.Tempo.pro") {
                     isPro = true
                     currentSubscription = transaction
                 }
@@ -576,7 +576,7 @@ Authorization: Bearer <jwt>
 Body: {
     "transaction_id": "...",
     "original_transaction_id": "...",
-    "product_id": "com.tempo.pro.annual",
+    "product_id": "app.tempo.Tempo.pro.annual",
     "environment": "production"  // or "sandbox"
 }
 ```

@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import StoreKit
 
 // MARK: - SubscriptionServiceProtocol
 
@@ -32,6 +33,11 @@ protocol SubscriptionServiceProtocol: AnyObject, Sendable {
 
     /// Refresh entitlement state from StoreKit.
     func refreshState() async
+
+    /// StoreKit products available for purchase, sorted for display.
+    /// Mock implementations may return an empty array (previews fall back
+    /// to static price copy).
+    func availableProducts() -> [Product]
 }
 
 // MARK: - SubscriptionState
@@ -63,10 +69,10 @@ enum SubscriptionState: Codable, Equatable {
 // Per MONETIZATION_STRATEGY.md — Two products in tempo_pro group.
 
 enum SubscriptionProduct: String, CaseIterable {
-    case monthly = "com.tempo.pro.monthly"
-    case annual = "com.tempo.pro.annual"
-    case studentMonthly = "com.tempo.pro.student.monthly"
-    case studentAnnual = "com.tempo.pro.student.annual"
+    case monthly = "app.tempo.Tempo.pro.monthly"
+    case annual = "app.tempo.Tempo.pro.annual"
+    case studentMonthly = "app.tempo.Tempo.pro.student.monthly"
+    case studentAnnual = "app.tempo.Tempo.pro.student.annual"
 
     var displayName: String {
         switch self {

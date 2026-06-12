@@ -3400,7 +3400,7 @@ Fix any violations.
 **Docs:** `docs/MONETIZATION_STRATEGY.md`, `docs/DEPENDENCIES.md` Section 2.15, `docs/APP_STORE_COMPLIANCE.md` Section 5 (In-App Purchase / Subscription Compliance), `docs/STATE_MACHINES.md` Section 15 (Subscription), `docs/COMPETITIVE_ANALYSIS.md` Sections 11-12 (Competitive Moat, Feature Priority — background reading)
 **What to build:**
 1. `Tempo/Services/SubscriptionService.swift` — StoreKit 2 implementation:
-   - Two products: `com.tempo.pro.monthly` ($7.99), `com.tempo.pro.annual` ($59.99)
+   - Two products: `app.tempo.Tempo.pro.monthly` ($7.99), `app.tempo.Tempo.pro.annual` ($59.99)
    - Listen for transaction updates
    - Verify entitlements
    - Handle upgrades, downgrades, cancellations
