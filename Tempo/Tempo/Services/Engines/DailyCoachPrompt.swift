@@ -196,6 +196,16 @@ enum DailyCoachPrompt {
         } else {
             lines.append("- No match scheduled.")
         }
+        // §5 calendar awareness — academic crunch is load the body pays for.
+        // Silence when the week is clear; the prompt stays calibrated.
+        if let exam = p.examsSoon.first {
+            let when = exam.daysUntil == 0 ? "TODAY" : exam.daysUntil == 1 ? "TOMORROW" : "in \(exam.daysUntil) days"
+            let more = p.examsSoon.count > 1 ? " (+\(p.examsSoon.count - 1) more within 7 days)" : ""
+            lines.append("- Exam: \(exam.subject) \(when)\(more) — exam stress counts as load; keep sessions efficient, protect sleep over volume.")
+        }
+        if let busy = p.busyHoursToday, busy >= 6 {
+            lines.append("- Packed day: \(fmt(busy))h of calendar events — prescribe something short and low-logistics.")
+        }
         // The system prompt teaches the emphasis-week semantics (prescribe FOR
         // the emphasis, hold the other at maintenance); this line carries the
         // value. nil = no TrainingBlock declared → the pre-D3 default, verbatim.

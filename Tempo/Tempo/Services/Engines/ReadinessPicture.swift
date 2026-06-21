@@ -86,6 +86,13 @@ struct ReadinessPicture: Equatable, Sendable {
     /// Days until the next logged match (0 = today, 1 = tomorrow = T-1). nil = none scheduled.
     let daysUntilNextMatch: Int?
 
+    /// §5 calendar awareness — exams within the next 7 days (soonest first)
+    /// and today's scheduled-event load. Academic crunch is stress the body
+    /// pays for; a packed day means the session must be efficient. Defaulted
+    /// so prior construction sites compile unchanged.
+    var examsSoon: [ExamSnapshot] = []
+    var busyHoursToday: Double? = nil
+
     /// The declared training-block emphasis in force today (§14 Decision 1).
     /// nil = no block ever set → the prompt states "physique (default)" and the
     /// weekly goal stays the pre-D3 "hypertrophy" literal. Defaulted so the

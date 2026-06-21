@@ -85,7 +85,7 @@ What worktrees do NOT fix: same-line edits still conflict at merge — but that'
 Tempo's 5 modules read overlapping data. The Fuel quadrant and the Nutrition surfaces read the same nutrition model; Body and Move both read training/recovery state. The recurring bug: a change lands on ONE surface and silently desyncs the others, or fixing one screen breaks a sibling that reads the same source.
 
 **The rule: before declaring done on ANY edit to a shared data model, `@Observable` service, or SwiftData entity, you MUST:**
-1. **Enumerate every screen/view that reads it.** Use `mcp__serena__find_referencing_symbols` on the model/property (LSP-accurate — not a grep guess) to list all readers. Name them explicitly in your response.
+1. **Enumerate every screen/view that reads it.** Grep the model/property name across the codebase to list all readers (scope the pattern tightly — a bare property name will false-positive). Name them explicitly in your response.
 2. **Re-verify EACH reader** still renders correctly with the change — not just the one you were asked about. If Fuel changed, check the Nutrition surface too, and vice versa.
 3. **Run the `architecture-guard` agent** (`.claude/agents/architecture-guard.md`) when the edit touches 2+ modules. That's what it's for.
 4. **State the blast radius in your summary:** "Changed X. Readers: [list]. Verified: [list]. Unverified: [list]." Never write "done" while any reader is unverified — per global rule L145, one green surface verifies only that surface.

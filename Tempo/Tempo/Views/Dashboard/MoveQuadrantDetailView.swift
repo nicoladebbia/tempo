@@ -490,7 +490,8 @@ struct MoveQuadrantDetailView: View {
                     trainingEngine: services.trainingEngine,
                     whoop: services.whoop,
                     healthKit: services.healthKit,
-                    apiClient: services.apiClient
+                    apiClient: services.apiClient,
+                    calendarService: services.calendar
                 )
                 trainingVM = vm
                 await vm.loadToday(modelContext: modelContext)

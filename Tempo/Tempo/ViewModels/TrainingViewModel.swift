@@ -190,6 +190,10 @@ final class TrainingViewModel {
     let trainingEngine: any TrainingEngineProtocol
     private let whoop: any WhoopServiceProtocol
     private let healthKit: any HealthKitServiceProtocol
+    /// §5 calendar awareness — exams + day load into the daily prompt.
+    /// Optional: paths that only ensure the plan (DailyResetCoordinator)
+    /// don't need it; the picture just omits the calendar lines.
+    private let calendarService: (any CalendarServiceProtocol)?
 
     /// Optional network client for the AI training path (Phase 2). When nil
     /// (previews, tests, offline-only builds) the view model runs the pure
@@ -203,12 +207,14 @@ final class TrainingViewModel {
         trainingEngine: any TrainingEngineProtocol,
         whoop: any WhoopServiceProtocol,
         healthKit: any HealthKitServiceProtocol,
-        apiClient: APIClient? = nil
+        apiClient: APIClient? = nil,
+        calendarService: (any CalendarServiceProtocol)? = nil
     ) {
         self.trainingEngine = trainingEngine
         self.whoop = whoop
         self.healthKit = healthKit
         self.apiClient = apiClient
+        self.calendarService = calendarService
     }
 
     // MARK: - Load Today's Workout
@@ -449,7 +455,10 @@ final class TrainingViewModel {
         }
 
         // 1. Assemble the picture from stored 30-day history (oldest→newest).
-        let picture = assembleTodayPicture(modelContext: modelContext)
+        //    Calendar context (exams ≤7d, today's event load) is fetched here —
+        //    the only async input — and handed to the sync assembler.
+        let calendarContext = await fetchCalendarContext()
+        let picture = assembleTodayPicture(modelContext: modelContext, calendarContext: calendarContext)
 
         // 2. brainEligible = DATA readiness only (≥30d history AND Whoop fresh).
         //    Entitlement (Pro/consent) is NOT checked here — the coach's 402→
@@ -511,7 +520,10 @@ final class TrainingViewModel {
 
     /// Assemble today's ReadinessPicture from the trailing-30-day DailyRecovery
     /// history (reuses the canonical forward-sorted fetch).
-    private func assembleTodayPicture(modelContext: ModelContext) -> ReadinessPicture {
+    private func assembleTodayPicture(
+        modelContext: ModelContext,
+        calendarContext: (exams: [ExamSnapshot], busyHours: Double?) = ([], nil)
+    ) -> ReadinessPicture {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
         let cutoff = cal.date(byAdding: .day, value: -31, to: today) ?? today
@@ -552,8 +564,34 @@ final class TrainingViewModel {
             checkIn: checkIn,
             daysUntilNextMatch: daysUntilNextMatch,
             blockEmphasis: currentBlockEmphasis(modelContext: modelContext),
-            venueToday: venueTodaySnapshot(modelContext: modelContext)
+            venueToday: venueTodaySnapshot(modelContext: modelContext),
+            examsSoon: calendarContext.exams,
+            busyHoursToday: calendarContext.busyHours
         )
+    }
+
+    /// §5 calendar awareness — exams in the next 7 days + today's scheduled
+    /// hours. EventKit failures (no auth, no service) read as "no calendar
+    /// signal", never an error: the picture just omits the lines.
+    private func fetchCalendarContext() async -> (exams: [ExamSnapshot], busyHours: Double?) {
+        guard let calendarService else { return ([], nil) }
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        guard let weekEnd = cal.date(byAdding: .day, value: 7, to: today),
+              let dayEnd = cal.date(byAdding: .day, value: 1, to: today) else { return ([], nil) }
+
+        let exams = calendarService.detectExamDates(in: DateInterval(start: today, end: weekEnd)).map {
+            ExamSnapshot(
+                subject: $0.subject,
+                daysUntil: cal.dateComponents([.day], from: today, to: cal.startOfDay(for: $0.date)).day ?? 0
+            )
+        }
+
+        let events = (try? await calendarService.fetchEvents(for: DateInterval(start: today, end: dayEnd))) ?? []
+        let busyMinutes = events
+            .filter { !$0.isAllDay }
+            .reduce(0.0) { $0 + max(0, $1.endDate.timeIntervalSince($1.startDate) / 60) }
+        return (exams, busyMinutes > 0 ? busyMinutes / 60 : nil)
     }
 
     /// Yesterday's real activities (Whoop-detected, imported, or attested) —

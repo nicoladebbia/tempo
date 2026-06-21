@@ -37,7 +37,9 @@ enum ReadinessAssembler {
         checkIn: MorningCheckInSnapshot? = nil,
         daysUntilNextMatch: Int? = nil,
         blockEmphasis: BlockEmphasis? = nil,
-        venueToday: VenueTodaySnapshot? = nil
+        venueToday: VenueTodaySnapshot? = nil,
+        examsSoon: [ExamSnapshot] = [],
+        busyHoursToday: Double? = nil
     ) -> ReadinessPicture {
         // The baseline windows exclude today (deviation is today-vs-history).
         let baseline = Array(history.suffix(baselineWindow))
@@ -90,6 +92,8 @@ enum ReadinessAssembler {
             leanMassKg: bodyComp?.leanMassKg,
             checkIn: checkIn,
             daysUntilNextMatch: daysUntilNextMatch,
+            examsSoon: examsSoon.sorted { $0.daysUntil < $1.daysUntil },
+            busyHoursToday: busyHoursToday,
             blockEmphasis: blockEmphasis,
             venueToday: venueToday,
             validBaselineSampleCount: validHrvRhr,
@@ -138,4 +142,12 @@ struct BodyCompSnapshot: Equatable, Sendable {
     let weightKg: Double?
     let bodyFatPercent: Double?
     let leanMassKg: Double?
+}
+
+/// §5 calendar awareness — one upcoming exam, decoupled from EventKit's
+/// CalendarExam so the assembler/prompt stay pure and testable.
+struct ExamSnapshot: Equatable, Sendable {
+    let subject: String
+    /// Whole days from today (0 = today, 1 = tomorrow).
+    let daysUntil: Int
 }
