@@ -3526,7 +3526,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/zsh;
-			shellScript = "if [ \"${CONFIGURATION}\" = \"Release\" ] || [ \"${CONFIGURATION}\" = \"Staging\" ]; then\n    buildNumber=$(/usr/libexec/PlistBuddy -c \"Print CFBundleVersion\" \"${INFOPLIST_FILE}\")\n    buildNumber=$(($buildNumber + 1))\n    /usr/libexec/PlistBuddy -c \"Set :CFBundleVersion $buildNumber\" \"${INFOPLIST_FILE}\"\n    echo \"Build number incremented to $buildNumber\"\nfi\n";
+			shellScript = "# Xcode Cloud assigns build numbers itself; skip the manual bump there.\nif [ \"$CI\" = \"TRUE\" ]; then\n    echo \"Xcode Cloud detected (CI=TRUE) — skipping manual build-number bump\"\n    exit 0\nfi\nif [ \"${CONFIGURATION}\" = \"Release\" ] || [ \"${CONFIGURATION}\" = \"Staging\" ]; then\n    plist=\"${INFOPLIST_FILE}\"\n    if [ -z \"$plist\" ]; then plist=\"${PRODUCT_SETTINGS_PATH}\"; fi\n    if [ -n \"$plist\" ] && [ -f \"$plist\" ]; then\n        buildNumber=$(/usr/libexec/PlistBuddy -c \"Print CFBundleVersion\" \"$plist\" 2>/dev/null)\n        case \"$buildNumber\" in\n            ''|*[!0-9]*) echo \"CFBundleVersion '$buildNumber' is not an integer — skipping bump\" ;;\n            *) buildNumber=$((buildNumber + 1)); /usr/libexec/PlistBuddy -c \"Set :CFBundleVersion $buildNumber\" \"$plist\" && echo \"Build number incremented to $buildNumber\" ;;\n        esac\n    else\n        echo \"No writable Info.plist (INFOPLIST_FILE='${INFOPLIST_FILE}') — skipping bump\"\n    fi\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
