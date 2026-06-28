@@ -1,16 +1,16 @@
 name: iOS CI
 
+# macOS runners cost 10x against the Actions minute pool, so this build runs on
+# PRs only (not direct pushes to main) plus on-demand via workflow_dispatch. Run
+# iOS work through a PR to get CI, or trigger this workflow manually from the
+# Actions tab when pushing straight to main.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'Tempo/**'
-      - '.github/workflows/ios.yml'
   pull_request:
     branches: [main]
     paths:
       - 'Tempo/**'
       - '.github/workflows/ios.yml'
+  workflow_dispatch:
 
 concurrency:
   group: ios-${{ github.ref }}
