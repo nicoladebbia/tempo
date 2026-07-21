@@ -714,7 +714,7 @@ final class TrainingViewModel {
     /// when the brain is skipped or fails. Gym → pointer (engine fills loads);
     /// non-gym → an easy modality-appropriate block so cold-start/offline never
     /// empty-renders (§15.1/§15.4). The floor still clamps/vetoes this.
-    private func deterministicCandidate(for plan: WorkoutPlan, readiness: ReadinessPicture? = nil) -> DailySessionDTO {
+    func deterministicCandidate(for plan: WorkoutPlan, readiness: ReadinessPicture? = nil) -> DailySessionDTO {
         let type = plan.type
         let dur = plan.durationMinutes ?? 45
         // Rich-signal ease gate (recovery number + acute:chronic strain + HRV
@@ -743,6 +743,35 @@ final class TrainingViewModel {
         }
         switch type {
         case .push, .pull, .legs, .upper, .lower, .fullBody:
+            // §21 two-a-day (requirement (b)) — the week generator marked this GYM
+            // day to also carry an easy cardio SECOND session. Emit BOTH as TIMED
+            // parts (lift 08:00, cardio 18:00 → a 10h gap that clears the floor's
+            // ≥6h composite rule; two untimed blocks would merge into one part, so
+            // both must carry a scheduledMin). The Today card then renders two
+            // time-separated sections via `.parts`. DROP the second session on a
+            // low-readiness morning — the same §2 ease gate that trims cross-
+            // training; the safety floor's ACWR/gap rules are the backstop.
+            if let second = plan.secondarySessionType, !ease {
+                let lift = SessionBlockDTO(
+                    kind: .gym, label: type.displayName, notes: nil, cue: nil,
+                    scheduledMin: 8 * 60, split: type.rawValue, reps: nil, distanceM: nil,
+                    restSec: nil, intensityPct: nil, durationSec: nil, stroke: nil,
+                    runType: nil, paceSecPerKm: nil, sets: nil)
+                let isRun = second == .run
+                let cardio = SessionBlockDTO(
+                    kind: isRun ? .run : .pool,
+                    label: isRun ? "Easy run" : "Easy swim", notes: nil,
+                    cue: "Easy pace — this is the flush, not extra work.",
+                    scheduledMin: 18 * 60, split: nil, reps: nil, distanceM: nil,
+                    restSec: nil, intensityPct: nil, durationSec: 30 * 60,
+                    stroke: isRun ? nil : "freestyle", runType: nil,
+                    paceSecPerKm: nil, sets: nil)
+                return DailySessionDTO(
+                    modality: type.rawValue, intensity: .moderate, durationMin: dur,
+                    blocks: [lift, cardio],
+                    shortWhy: "Lift, then an easy \(second.displayName.lowercased()) — you've got the headroom today.",
+                    fullWhy: nil, expectedStrain: nil, expectedSessionRPE: nil)
+            }
             return DailySessionDTO(
                 modality: type.rawValue, intensity: .moderate, durationMin: dur,
                 blocks: [mk(.gym, type.rawValue, type.displayName)],
