@@ -418,6 +418,23 @@ final class TrainingViewModel {
         return rows.map { Int($0.recoveryScore.rounded()) }
     }
 
+    /// §14 requirement (d) — the learned spare-day easy-modality cycle order,
+    /// derived from what the user actually logged (manual completions AND Whoop
+    /// imports both write canonical `WorkoutType` rawValues) over the trailing 4
+    /// weeks. Runs vs swims decide which modality leads; the pure ranking lives in
+    /// `TrainingEngine.easyModalityOrder`. Thin/balanced history → pool-first.
+    private func learnedEasyModalityOrder(modelContext: ModelContext) -> [WorkoutType] {
+        let cal = Calendar.current
+        guard let cutoff = cal.date(byAdding: .day, value: -28, to: Date()) else { return [.pool, .run] }
+        let descriptor = FetchDescriptor<ActivitySession>(
+            predicate: #Predicate { $0.date >= cutoff }
+        )
+        let rows = (try? modelContext.fetch(descriptor)) ?? []
+        let pools = rows.filter { $0.workoutType == WorkoutType.pool.rawValue }.count
+        let runs = rows.filter { $0.workoutType == WorkoutType.run.rawValue }.count
+        return TrainingEngine.easyModalityOrder(poolLogged: pools, runLogged: runs)
+    }
+
     // MARK: - Daily Readiness Session (D2 — the brain + floor)
 
     /// Once-daily: assemble today's ReadinessPicture from stored history, ask the
@@ -477,7 +494,7 @@ final class TrainingViewModel {
 
         // 3. Deterministic candidate (cold-start / offline / 402 / parse-fail
         //    fallback) built from the planned modality. Floor still applies to it.
-        let candidate = deterministicCandidate(for: plan)
+        let candidate = deterministicCandidate(for: plan, readiness: picture)
 
         // 4. Coach: produce-then-floor.
         let coach = DailyReadinessCoach(apiClient: apiClient)
@@ -697,13 +714,32 @@ final class TrainingViewModel {
     /// when the brain is skipped or fails. Gym → pointer (engine fills loads);
     /// non-gym → an easy modality-appropriate block so cold-start/offline never
     /// empty-renders (§15.1/§15.4). The floor still clamps/vetoes this.
-    private func deterministicCandidate(for plan: WorkoutPlan) -> DailySessionDTO {
+    private func deterministicCandidate(for plan: WorkoutPlan, readiness: ReadinessPicture? = nil) -> DailySessionDTO {
         let type = plan.type
         let dur = plan.durationMinutes ?? 45
+        // Rich-signal ease gate (recovery number + acute:chronic strain + HRV
+        // trend, not a bucket). Fires only for the cold-start / offline / 402
+        // deterministic path; the brain refines this when eligible, and the
+        // safety floor still tiers whatever comes out. nil (no data) = never ease.
+        let ease = readiness?.easeCrossTrainingToday ?? false
         let mk: (BlockKind, String?, String) -> SessionBlockDTO = { kind, split, label in
             SessionBlockDTO(kind: kind, label: label, notes: nil, cue: nil, scheduledMin: nil, split: split,
                             reps: nil, distanceM: nil, restSec: nil, intensityPct: nil,
                             durationSec: nil, stroke: nil, runType: nil, paceSecPerKm: nil, sets: nil)
+        }
+        // An easy recovery swim — the flush a compromised hard cross-training day
+        // is stepped down to (conditioning/sprint → pool), and the shape pool days
+        // already take. Duration trimmed on an eased day.
+        let easySwim: (Int, String) -> DailySessionDTO = { minutes, why in
+            DailySessionDTO(
+                modality: "pool", intensity: .easy, durationMin: minutes,
+                blocks: [SessionBlockDTO(kind: .pool, label: "Easy swim", notes: nil,
+                                         cue: "Long strokes, easy pace.", scheduledMin: nil, split: nil,
+                                         reps: nil, distanceM: nil, restSec: nil, intensityPct: nil,
+                                         durationSec: minutes * 60, stroke: "freestyle", runType: nil,
+                                         paceSecPerKm: nil, sets: nil)],
+                shortWhy: why, fullWhy: nil, expectedStrain: nil, expectedSessionRPE: 3
+            )
         }
         switch type {
         case .push, .pull, .legs, .upper, .lower, .fullBody:
@@ -714,15 +750,33 @@ final class TrainingViewModel {
                 expectedStrain: nil, expectedSessionRPE: nil
             )
         case .run:
+            // Already easy aerobic; on a compromised day, trim the duration.
+            let runDur = ease ? max(20, Int(Double(dur) * 0.7)) : dur
             return DailySessionDTO(
-                modality: "run", intensity: .easy, durationMin: dur,
+                modality: "run", intensity: .easy, durationMin: runDur,
                 blocks: [SessionBlockDTO(kind: .run, label: "Easy run", notes: nil, cue: nil, scheduledMin: nil, split: nil,
                                          reps: nil, distanceM: nil, restSec: nil, intensityPct: nil,
-                                         durationSec: dur * 60, stroke: nil, runType: "tempo",
+                                         durationSec: runDur * 60, stroke: nil, runType: "tempo",
                                          paceSecPerKm: nil, sets: nil)],
-                shortWhy: "Easy aerobic run.", fullWhy: nil, expectedStrain: nil, expectedSessionRPE: 4
+                shortWhy: ease ? "Recovery is down — keep the run short and easy." : "Easy aerobic run.",
+                fullWhy: nil, expectedStrain: nil, expectedSessionRPE: 4
             )
-        case .football, .sprint, .conditioning:
+        case .sprint, .conditioning:
+            // Discretionary HARD cross-training. On a compromised day, swap the
+            // modality itself for an easy flush — the floor only clamps intensity,
+            // it never does this. Football is a real fixture, handled below.
+            if ease {
+                return easySwim(max(20, Int(Double(dur) * 0.7)),
+                                "Recovery is down — swapped the hard conditioning for an easy flush swim.")
+            }
+            return DailySessionDTO(
+                modality: type.rawValue, intensity: .moderate, durationMin: dur,
+                blocks: [mk(.field, nil, type.displayName)],
+                shortWhy: "Today's \(type.displayName.lowercased()).", fullWhy: nil,
+                expectedStrain: nil, expectedSessionRPE: 5
+            )
+        case .football:
+            // A real fixture — the user shows up regardless; never swapped out.
             return DailySessionDTO(
                 modality: type.rawValue, intensity: .moderate, durationMin: dur,
                 blocks: [mk(.field, nil, type.displayName)],
@@ -730,16 +784,11 @@ final class TrainingViewModel {
                 expectedStrain: nil, expectedSessionRPE: 5
             )
         case .pool:
-            return DailySessionDTO(
-                modality: "pool", intensity: .easy, durationMin: dur,
-                blocks: [SessionBlockDTO(kind: .pool, label: "Easy swim", notes: nil,
-                                         cue: "Long strokes, easy pace.", scheduledMin: nil, split: nil,
-                                         reps: nil, distanceM: nil, restSec: nil, intensityPct: nil,
-                                         durationSec: dur * 60, stroke: "freestyle", runType: nil,
-                                         paceSecPerKm: nil, sets: nil)],
-                shortWhy: "Easy recovery swim — flush the legs.", fullWhy: nil,
-                expectedStrain: nil, expectedSessionRPE: 3
-            )
+            // Already easy; trim the duration on a compromised day.
+            let poolDur = ease ? max(20, Int(Double(dur) * 0.7)) : dur
+            return easySwim(poolDur,
+                            ease ? "Recovery is down — keep the swim short and easy."
+                                 : "Easy recovery swim — flush the legs.")
         case .mobility, .rest:
             return TrainingSafetyFloor.recoverySession(reason: "Recovery day.")
         }
@@ -1151,7 +1200,10 @@ final class TrainingViewModel {
             competitiveMatchDayKeys: competitiveMatchDayKeys,
             // §14 Decision 1 — soccer emphasis re-shapes spare days (visible
             // in This Week); physique keeps the pre-emphasis week exactly.
-            emphasis: currentBlockEmphasis(modelContext: modelContext) ?? .physique
+            emphasis: currentBlockEmphasis(modelContext: modelContext) ?? .physique,
+            // §14 requirement (d) — bias the spare-day easy modality toward what
+            // he actually logs (runs vs swims) over the trailing 4 weeks.
+            easyModalityPreference: learnedEasyModalityOrder(modelContext: modelContext)
         )
 
         // Check deload week status (Phase 3: fatigue trend can trigger early).

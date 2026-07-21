@@ -350,7 +350,13 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         // soccer turns spare capacity into soccer work (one conditioning day,
         // never beside a match, plus pool recovery) while gym days stay put
         // (strength held at maintenance, §12 — never fewer lifting days).
-        emphasis: BlockEmphasis = .physique
+        emphasis: BlockEmphasis = .physique,
+        // §14 auto-variety (requirement (d) "based on what he did before") — the
+        // ORDER the spare-day EASY modality cycles through, learned from logged
+        // history (see `easyModalityOrder(poolLogged:runLogged:)`). The user's
+        // revealed-preferred modality leads; the other still appears for variety.
+        // Defaults to the launch behavior (low-impact pool first).
+        easyModalityPreference: [WorkoutType] = [.pool, .run]
     ) -> [WorkoutPlan] {
         let tMinus1MatchDays = competitiveMatchDayKeys ?? matchDayKeys
         let cal = Calendar.current
@@ -543,15 +549,18 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                         notes: "Pool — pre-match easy"
                     ))
                 } else {
-                    // Easy recovery cross-training; alternate swim / easy run by
-                    // a counter so the week genuinely varies (first easy day is
-                    // always the low-impact pool).
-                    let easy: WorkoutType = easyCrossTrainingAssigned % 2 == 0 ? .pool : .run
+                    // Easy recovery cross-training; cycle the modality by a
+                    // counter so the week genuinely varies. The ORDER is the
+                    // learned preference (§14 requirement (d)) — the modality the
+                    // user actually logs most leads; the other still appears.
+                    // Empty guard keeps a valid cycle if a caller passes [].
+                    let order = easyModalityPreference.isEmpty ? [.pool, .run] : easyModalityPreference
+                    let easy = order[easyCrossTrainingAssigned % order.count]
                     easyCrossTrainingAssigned += 1
                     plans.append(WorkoutPlan(
                         date: meta.date,
                         type: easy,
-                        durationMinutes: easy == .pool ? 30 : 25,
+                        durationMinutes: easy == .pool ? 45 : 30,
                         notes: easy == .pool ? "Pool — easy recovery" : "Easy run — Zone 2"
                     ))
                 }
@@ -559,6 +568,19 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         }
 
         return plans
+    }
+
+    /// Revealed cross-training preference — the ORDER the spare-day EASY modality
+    /// cycles through, learned from what the user actually logs (§14 auto-variety,
+    /// requirement (d) "based on what he did before"). Both modalities still
+    /// appear for variety; the one he genuinely does more LEADS. A clear lean
+    /// toward running (≥3 runs AND ≥2× the swims) promotes it — a real signal, not
+    /// noise; otherwise the low-impact pool leads (the launch behavior, and the
+    /// safe pick when history is thin or balanced). Pure — the caller supplies the
+    /// counts from an `ActivitySession` history fetch.
+    static func easyModalityOrder(poolLogged: Int, runLogged: Int) -> [WorkoutType] {
+        if runLogged >= 3, runLogged >= poolLogged * 2 { return [.run, .pool] }
+        return [.pool, .run]
     }
 
     // MARK: - Deload Detection

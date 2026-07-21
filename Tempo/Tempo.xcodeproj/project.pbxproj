@@ -81,6 +81,7 @@
 		17D455BD7C11096562732BBC /* cue_ex_mountain_climber.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 45156782F7DE09668CFF8EE7 /* cue_ex_mountain_climber.mp3 */; };
 		17FA1A6C89A40813B25CAD58 /* WeeklySelfGradeStatsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62EA523E925C4B61DBD428BF /* WeeklySelfGradeStatsTests.swift */; };
 		196C0579ED7F6C96DA8105E9 /* SignInWithAppleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C45C46FA2A2369C89483AF2 /* SignInWithAppleView.swift */; };
+		1A3BA3F40E3BB522B58B3356 /* ReadinessEaseGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCFA468A63FCC5C9A71C363A /* ReadinessEaseGateTests.swift */; };
 		1B0F731B517744F7A43CB598 /* PersonalRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 193D846D23A581EEC1EF738C /* PersonalRecord.swift */; };
 		1B22AB034036B4108EA6D7E3 /* Exercise.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2B54A1A7480F07957A6AA35 /* Exercise.swift */; };
 		1BC5725A11339D154E874037 /* cue_ex_kettlebell_swing.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 927698CA62276B950C4D8166 /* cue_ex_kettlebell_swing.mp3 */; };
@@ -1390,6 +1391,7 @@
 		CC92309AFC4CA26A8386B484 /* LearnedPreferenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearnedPreferenceTests.swift; sourceTree = "<group>"; };
 		CCAE1F3897627A075FB6109E /* View+Tempo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "View+Tempo.swift"; sourceTree = "<group>"; };
 		CCCAA5FD38E1FF7B66DC69DF /* RunSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunSession.swift; sourceTree = "<group>"; };
+		CCFA468A63FCC5C9A71C363A /* ReadinessEaseGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadinessEaseGateTests.swift; sourceTree = "<group>"; };
 		CD039DD68BF3923C5C24288F /* ScoringEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoringEngine.swift; sourceTree = "<group>"; };
 		CD4CDB8F826DA6F7CA0844B0 /* cue_ex_overhead_tricep_extension.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_overhead_tricep_extension.mp3; sourceTree = "<group>"; };
 		CDCCF9DB497D960176050A63 /* CoachMessageRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachMessageRenderer.swift; sourceTree = "<group>"; };
@@ -1986,6 +1988,7 @@
 				47F16E9BB42C5AAF3A4D52F2 /* PredictionLogSpineTests.swift */,
 				2DF7950293219EF07907670C /* ProgressiveOverloadFeedbackTests.swift */,
 				72C5FC6E24310DE4731DAAEF /* ReadinessAssemblerTests.swift */,
+				CCFA468A63FCC5C9A71C363A /* ReadinessEaseGateTests.swift */,
 				2DB66F89B4E66CA3E302908F /* ReadinessTrendMathTests.swift */,
 				B5D716D5E3223A9FA8FE3D40 /* RecoveryEngineTests.swift */,
 				F59BAE0104B3A7E11A8FC878 /* ScoringEngineTests.swift */,
@@ -3622,6 +3625,7 @@
 				E3F88E766668B49CDE016ADA /* PreferenceRetrieverTests.swift in Sources */,
 				146EC62DCE3E4AA9C42AC64B /* ProgressiveOverloadFeedbackTests.swift in Sources */,
 				ACA06E11234441932D7870DE /* ReadinessAssemblerTests.swift in Sources */,
+				1A3BA3F40E3BB522B58B3356 /* ReadinessEaseGateTests.swift in Sources */,
 				65E01C8A5994A38DA2D2AF77 /* ReadinessTrendMathTests.swift in Sources */,
 				D5FC51FD3501E751D18DE905 /* ReceiptPhotoStoreTests.swift in Sources */,
 				CFEF0807A7883160272EA8FB /* RecipeSuggestionEngineTests.swift in Sources */,

@@ -121,6 +121,36 @@ final class EmphasisPeriodizationTests: XCTestCase {
                        "The conditioning day still exists — just not on T-1")
     }
 
+    // MARK: - §14 requirement (d): learned easy-modality preference
+
+    func testEasyModalityOrderLearnsRunPreference() {
+        // A clear running lean (≥3 runs AND ≥2× the swims) promotes run to lead.
+        XCTAssertEqual(TrainingEngine.easyModalityOrder(poolLogged: 1, runLogged: 6), [.run, .pool],
+                       "He runs far more than he swims → runs lead")
+        // Thin history → safe low-impact pool-first default.
+        XCTAssertEqual(TrainingEngine.easyModalityOrder(poolLogged: 0, runLogged: 0), [.pool, .run],
+                       "No history → pool leads (launch behavior)")
+        // Balanced / not a clear lean → pool still leads (no over-fitting noise).
+        XCTAssertEqual(TrainingEngine.easyModalityOrder(poolLogged: 3, runLogged: 4), [.pool, .run],
+                       "4 runs vs 3 swims is not a 2× lean → stays pool-first")
+        // A run count below the floor doesn't flip it even at a high ratio.
+        XCTAssertEqual(TrainingEngine.easyModalityOrder(poolLogged: 0, runLogged: 2), [.pool, .run],
+                       "Only 2 runs is below the ≥3 signal floor → stays pool-first")
+    }
+
+    func testEasyModalityPreferenceReordersSpareDays() {
+        // The first easy cross-training day is pool by default; passing a run-first
+        // preference flips it — proving the learned order actually drives the week.
+        let plans = engine.generateWeekPlan(
+            startDate: monday, recoveryScores: [:], footballDays: ActiveDays(rawValue: 0),
+            split: .custom, matchDayKeys: [], emphasis: .physique,
+            easyModalityPreference: [.run, .pool]
+        )
+        let firstEasy = plans.first { $0.type == .pool || $0.type == .run }
+        XCTAssertEqual(firstEasy?.type, .run, "A run-first preference makes the first easy day a run, not the default pool")
+        XCTAssertTrue(plans.contains { $0.type == .pool }, "The other modality still appears for variety")
+    }
+
     // MARK: - §14 label split (the recurring-vs-dated conflation fix)
 
     func testRecurringFootballDaySaysFootballDay() {

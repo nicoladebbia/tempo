@@ -142,6 +142,25 @@ struct ReadinessPicture: Equatable, Sendable {
     /// True when the brain may feed trend-based reasoning to Claude. Before this,
     /// SIMPLE mode: deterministic engine + recovery-score-only, trends "building".
     var hasBaselineForBrain: Bool { historyDayCount >= Self.minBrainHistoryDays }
+
+    /// Should a HARD cross-training day (conditioning / sprint / tempo run) be
+    /// stepped DOWN to an easy flush today? This is the readiness gate for the
+    /// DETERMINISTIC candidate — the actual decision-maker before the brain is
+    /// eligible (first 30 days) and on every offline / 402 / parse-fail path.
+    ///
+    /// It uses the FULL Whoop signal — recovery NUMBER + acute:chronic strain +
+    /// HRV trend — NOT a 3-bucket, so variety intensity tracks recovery from day
+    /// one. It lives in the YELLOW middle: the safety floor already owns SEVERE
+    /// (→ full recovery) and clamps intensity on MODERATE, but it never swaps the
+    /// MODALITY, so without this a compromised day keeps prescribing conditioning
+    /// (just "at moderate") instead of an easy swim. The floor still runs on top;
+    /// this only softens the candidate the floor then tiers.
+    var easeCrossTrainingToday: Bool {
+        if recoveryScore < 50 { return true }                                 // Whoop red-ish
+        if let acwr = acuteChronicStrainRatio, acwr > 1.5 { return true }      // acute load spike (overreaching)
+        if hrvTrend7d == .falling, recoveryScore < 67 { return true }          // declining HRV + not genuinely fresh
+        return false
+    }
 }
 
 // MARK: - VenueTodaySnapshot

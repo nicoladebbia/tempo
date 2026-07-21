@@ -90,7 +90,10 @@ protocol TrainingEngineProtocol: Sendable {
         competitiveMatchDayKeys: Set<Date>?,
         // §14 Decision 1 — block emphasis re-shapes spare days (soccer →
         // conditioning + pool); physique = pre-emphasis behavior exactly.
-        emphasis: BlockEmphasis
+        emphasis: BlockEmphasis,
+        // §14 auto-variety (requirement (d)) — learned spare-day easy-modality
+        // cycle order; the user's most-logged modality leads. Defaults to pool-first.
+        easyModalityPreference: [WorkoutType]
     ) -> [WorkoutPlan]
 
     /// Returns true if the given date falls in a deload week. The fixed periodic
