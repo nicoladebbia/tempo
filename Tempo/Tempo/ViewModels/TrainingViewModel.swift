@@ -2038,6 +2038,19 @@ final class TrainingViewModel {
         #endif
     }
 
+    /// §21 (b) — check off (or undo) the cardio SECOND session of a gym+cardio
+    /// two-a-day. The lift's completion rides `status` (the DAY counts as trained
+    /// on the lift), so this flag tracks the bonus cardio INDEPENDENTLY for
+    /// history/adherence — it never gates the day. No-op on a single-session day.
+    func toggleSecondarySessionComplete(modelContext: ModelContext) {
+        guard let plan = todayPlan, plan.isTwoADay else { return }
+        plan.secondaryCompleted.toggle()
+        try? modelContext.save()
+        #if DEBUG
+            print("\(DebugTrace.prefix)[daily_coach] two-a-day second session → \(plan.secondaryCompleted ? "done" : "undone")")
+        #endif
+    }
+
     // MARK: - Monthly Review (D4 §17)
 
     /// Month key with a review currently due (drives the Training-tab card).

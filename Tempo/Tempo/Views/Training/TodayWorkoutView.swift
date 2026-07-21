@@ -430,6 +430,33 @@ struct TodayWorkoutView: View {
                 }
             }
 
+            // §21 (b) two-a-day — the cardio SECOND session is a bonus tracked
+            // apart from the lift (the day counts as trained on the lift itself),
+            // so it gets its own check-off. Only appears when the plan carries a
+            // second session; the brain may still have dropped it from today's
+            // prescription, but the plan-level flag is what history reads.
+            if let plan = viewModel.todayPlan,
+               plan.isTwoADay,
+               let second = plan.secondarySessionType {
+                Divider().overlay(Color.tempoTextTertiary.opacity(0.3))
+                HStack(spacing: TempoSpacing.sm) {
+                    Image(systemName: plan.secondaryCompleted ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(plan.secondaryCompleted ? Color.tempoSignal : Color.tempoTextTertiary)
+                    Text("\(second.displayName) — second session")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                        .strikethrough(plan.secondaryCompleted, color: Color.tempoTextTertiary)
+                    Spacer()
+                    Button(plan.secondaryCompleted ? "Undo" : "Mark done") {
+                        HapticManager.selection()
+                        viewModel.toggleSecondarySessionComplete(modelContext: modelContext)
+                    }
+                    .font(.tempoCaption1)
+                    .fontWeight(.bold)
+                    .foregroundStyle(Color.tempoSignal)
+                }
+            }
+
             // §8 connect — the brain moved the day off the planned modality.
             // Say so, and hand him the override. Brain-chosen moves only: a
             // SEVERE floor skip never stashes plannedTypeRaw, so this row
