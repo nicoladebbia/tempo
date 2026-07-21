@@ -2533,7 +2533,12 @@ final class TrainingViewModel {
         }
         var out: [UUID: NoteSignalSummary] = [:]
         for row in rows {
-            guard let exID = row.plannedSet?.plannedExercise?.exercise?.id else {
+            // Read the denormalized exercise id — NEVER traverse row.plannedSet
+            // here. That relationship is one-way and its .nullify does not fire,
+            // so after a set is deleted it dangles and faults on invalidated
+            // backing (crash). Rows captured before exerciseID existed read nil
+            // and are simply skipped (they're old feedback, not a regression).
+            guard let exID = row.exerciseID else {
                 continue
             }
             guard let note = row.note?.lowercased(), !note.isEmpty else {

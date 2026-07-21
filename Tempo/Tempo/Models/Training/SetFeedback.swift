@@ -126,6 +126,15 @@ final class SetFeedback {
     /// are pruned, and is the identifier used by the sync DTO.
     var setID: UUID
 
+    /// Denormalized `Exercise.id` at capture time — the SAME survives-deletion
+    /// pattern as `setID`. Note-signal aggregation keys by exercise, and the
+    /// one-way `plannedSet` relationship's `.nullify` does NOT fire (no inverse),
+    /// so after a set is deleted `plannedSet` dangles and traversing
+    /// `plannedSet.plannedExercise.exercise.id` faults on invalidated backing.
+    /// Reading this stored id instead removes that crash entirely. Optional so
+    /// existing rows migrate lightweight (they read nil → skipped, never crash).
+    var exerciseID: UUID?
+
     // MARK: - Content
 
     /// Rate of Perceived Exertion, 1–10. Clamped on init.
@@ -171,6 +180,7 @@ final class SetFeedback {
         capturedAt: Date = Date(),
         plannedSet: PlannedSet? = nil,
         setID: UUID? = nil,
+        exerciseID: UUID? = nil,
         rpe: Int,
         breathDifficulty: BreathDifficulty = .moderate,
         formQuality: FormQuality = .clean,
@@ -180,6 +190,10 @@ final class SetFeedback {
         self.capturedAt = capturedAt
         self.plannedSet = plannedSet
         self.setID = setID ?? plannedSet?.id ?? UUID()
+        // Capture the exercise id while the set graph is still alive — after the
+        // set is deleted this stored value is the ONLY safe way back to the
+        // exercise (see the field doc).
+        self.exerciseID = exerciseID ?? plannedSet?.plannedExercise?.exercise?.id
         // RPE is 1–10 by UX contract; clamp defensively.
         self.rpe = max(1, min(10, rpe))
         self.breathDifficultyRaw = breathDifficulty.rawValue
