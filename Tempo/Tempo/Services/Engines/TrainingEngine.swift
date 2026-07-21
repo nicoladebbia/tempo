@@ -494,12 +494,24 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                     let adjustment: Double = zone == .yellow
                         ? ((dayRecoveryScore ?? 50) >= 50 ? 0.8 : 0.75)
                         : 1.0
-                    plans.append(WorkoutPlan(
+                    let customPlan = WorkoutPlan(
                         date: meta.date,
                         type: workoutType,
                         recoveryAdjustment: adjustment,
                         notes: zone == .yellow ? "Recovery-adjusted" : nil
-                    ))
+                    )
+                    // §21 (b) — a custom-split gym day earns a two-a-day on the
+                    // SAME eligibility as the standard path (this branch used to
+                    // skip it, so custom splits never got two-a-days).
+                    if let secondary = twoADaySecondary(
+                        workoutType: workoutType, zone: zone, isTMinus1: meta.isTMinus1,
+                        assignedSoFar: twoADaysAssigned, max: maxTwoADays,
+                        preference: easyModalityPreference
+                    ) {
+                        customPlan.secondarySessionType = secondary
+                        twoADaysAssigned += 1
+                    }
+                    plans.append(customPlan)
                 } else {
                     plans.append(WorkoutPlan(date: meta.date, type: .rest))
                 }
@@ -523,18 +535,16 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                 )
 
                 // §21 requirement (b) — a gym day can carry an easy cardio SECOND
-                // session (a two-a-day) when the body clearly has headroom: GREEN
-                // recovery, an UPPER-body lift (never stack cardio on legs/lower —
-                // protect the legs he also plays football on), NOT the day before a
-                // match (no added pre-game load), and under the weekly cap. The
-                // cardio modality is the learned easy preference leader (§14 (d)).
-                // The daily brain drops it on a low-readiness morning (§2 ease gate,
-                // Slice 2). Recovery already gates this to green — a yellow/red day
-                // never two-a-days at generation time.
-                let upperLift = workoutType == .push || workoutType == .pull || workoutType == .upper
-                if zone == .green, upperLift, !meta.isTMinus1, twoADaysAssigned < maxTwoADays {
-                    let order = easyModalityPreference.isEmpty ? [.pool, .run] : easyModalityPreference
-                    liftPlan.secondarySessionType = order[0] == .run ? .run : .pool
+                // session (a two-a-day) when the body clearly has headroom. Same
+                // shared eligibility as the custom-split path (green + upper lift +
+                // not T-1 + under the weekly cap); modality = the learned (d)
+                // leader. The daily brain still drops it on a low-readiness morning.
+                if let secondary = twoADaySecondary(
+                    workoutType: workoutType, zone: zone, isTMinus1: meta.isTMinus1,
+                    assignedSoFar: twoADaysAssigned, max: maxTwoADays,
+                    preference: easyModalityPreference
+                ) {
+                    liftPlan.secondarySessionType = secondary
                     twoADaysAssigned += 1
                 }
 
@@ -649,6 +659,20 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
 
     // Recovery zone classification
     // Per CROSS_DOC_AUDIT.md canonical boundaries: Green >= 67, Yellow 34-66, Red < 34
+
+    /// §21 (b) — the easy cardio SECOND session a gym day earns when it has clear
+    /// headroom (GREEN recovery + an UPPER-body lift + not the day before a match
+    /// + under the weekly cap), or nil for no two-a-day. Pure — the caller owns
+    /// the running counter. Shared by the standard-split AND custom-split paths so
+    /// the eligibility rule cannot diverge between them (the custom path used to
+    /// omit it entirely, so a custom split never got two-a-days).
+    private func twoADaySecondary(workoutType: WorkoutType, zone: RecoveryZone, isTMinus1: Bool,
+                                  assignedSoFar: Int, max: Int, preference: [WorkoutType]) -> WorkoutType? {
+        let upperLift = workoutType == .push || workoutType == .pull || workoutType == .upper
+        guard zone == .green, upperLift, !isTMinus1, assignedSoFar < max else { return nil }
+        let order = preference.isEmpty ? [.pool, .run] : preference
+        return order[0] == .run ? .run : .pool
+    }
 
     private func classifyRecoveryZone(score: Double?, offset: Double = 0) -> RecoveryZone {
         guard let score else {

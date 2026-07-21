@@ -130,6 +130,29 @@ final class TwoADayGenerationTests: XCTestCase {
         }
     }
 
+    // MARK: - Custom split (the device case — this path used to bypass two-a-days)
+
+    func testCustomSplitAlsoEarnsTwoADays() {
+        // Mon..Sun map of upper lifts + legs + rest. Green everywhere, no football.
+        let map: [WorkoutType] = [.push, .pull, .upper, .legs, .push, .rest, .rest]
+        let plans = engine.generateWeekPlan(
+            startDate: monday,
+            recoveryScores: [:],
+            footballDays: ActiveDays(rawValue: 0),
+            split: .custom,
+            customWeekdayMap: map,
+            matchDayKeys: [],
+            emphasis: .physique
+        )
+        let seconds = twoADays(plans)
+        XCTAssertFalse(seconds.isEmpty,
+                       "A CUSTOM split's green upper days must earn two-a-days too (this path used to skip it)")
+        for p in seconds {
+            XCTAssertTrue([.push, .pull, .upper].contains(p.type),
+                          "Only upper-body custom days two-a-day, never legs/rest")
+        }
+    }
+
     // MARK: - Model invariants
 
     func testSingleSessionDayIsNotTwoADay() {
