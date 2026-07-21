@@ -77,6 +77,12 @@ struct ContentView: View {
         if (try? modelContext.fetchCount(settingsDescriptor)) == 0 {
             let settings = UserSettings()
             settings.userProfile = profile
+            // Seed durable experience level from onboarding BEFORE the blob is
+            // deleted at completion — otherwise the cold-start estimator reads
+            // nil forever and treats every user as a beginner.
+            if let raw = data?["experienceLevel"] as? String, !raw.isEmpty {
+                settings.experienceLevelRaw = raw
+            }
             modelContext.insert(settings)
         }
 

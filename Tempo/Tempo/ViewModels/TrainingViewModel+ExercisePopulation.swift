@@ -484,7 +484,7 @@ extension TrainingViewModel {
         modelContext: ModelContext
     ) -> Double {
         let bodyweight = currentBodyweightKg(modelContext: modelContext)
-        let experience = currentExperienceLevel()
+        let experience = currentExperienceLevel(modelContext: modelContext)
 
         let e1RM = crossExerciseE1RM(for: exercise, allExercises: allExercises)
             ?? StrengthStandards.baselineE1RM(
@@ -542,7 +542,14 @@ extension TrainingViewModel {
     /// Onboarding experience level ("Beginner"/"Intermediate"/"Advanced"),
     /// persisted to UserDefaults during onboarding. nil when never set → the
     /// strength model treats it as Beginner (the lowest, safest coefficient).
-    private func currentExperienceLevel() -> String? {
+    private func currentExperienceLevel(modelContext: ModelContext) -> String? {
+        // Durable home first (UserSettings). The onboarding UserDefaults blob is
+        // deleted at completion, so it's only a fallback for the brief in-session
+        // window before materialization — never rely on it post-onboarding.
+        if let settings = try? modelContext.fetch(FetchDescriptor<UserSettings>()).first,
+           let raw = settings.experienceLevelRaw, !raw.isEmpty {
+            return raw
+        }
         let data = UserDefaults.standard.dictionary(forKey: "tempo.onboarding.data")
         let raw = data?["experienceLevel"] as? String
         return (raw?.isEmpty ?? true) ? nil : raw

@@ -1166,6 +1166,28 @@ struct TrainingSettingsDetailView: View {
                         .pickerStyle(.segmented)
                         .frame(width: 110)
                     }
+
+                    SettingsRowDivider()
+
+                    // Experience level — feeds the cold-start weight estimator.
+                    // Shows Beginner when unset (matches the engine's default) so
+                    // an intermediate/advanced lifter sees it's wrong and corrects
+                    // it; otherwise every first-session weight is beginner-scaled.
+                    SettingsControlRow(label: "Experience", icon: "figure.strengthtraining.traditional", iconTint: .tempoAmber) {
+                        Picker("", selection: Binding(
+                            get: { settings?.experienceLevelRaw ?? "Beginner" },
+                            set: { newValue in
+                                settings?.experienceLevelRaw = newValue
+                                save()
+                            }
+                        )) {
+                            ForEach(["Beginner", "Intermediate", "Advanced"], id: \.self) { level in
+                                Text(level).tag(level)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .tint(Color.tempoTextSecondary)
+                    }
                 }
 
                 // Football days — editable chips (Mon=1<<0 … Sun=1<<6).

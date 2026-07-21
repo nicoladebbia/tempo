@@ -53,6 +53,15 @@ final class UserSettings {
     /// (the field was added after users already had a UserSettings row).
     var defaultRestSeconds: Int = 120
 
+    /// Strength experience level ("Beginner"/"Intermediate"/"Advanced"), read by
+    /// the cold-start weight estimator (StrengthStandards.experienceMultiplier).
+    /// Optional + no default so lightweight migration is happy for existing
+    /// stores; nil → estimator treats as Beginner. Seeded from onboarding
+    /// (ContentView.ensureUserProfile) and editable in Settings → Programme.
+    /// This is the DURABLE home — onboarding's UserDefaults blob is deleted at
+    /// completion, so reading experienceLevel from there returned nil forever.
+    var experienceLevelRaw: String?
+
     var showPlateCalculator: Bool
 
     var autoDeload: Bool
