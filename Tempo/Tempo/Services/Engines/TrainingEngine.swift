@@ -159,15 +159,16 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         // Need at least 2 sessions of data
         let recentSessions = history.sorted { $0.date > $1.date }.prefix(3)
         guard recentSessions.count >= 2 else {
-            // Not enough data — keep current or use last known weight
-            let lastWeight = history.first?.bestSetWeight ?? 0
+            // Not enough data — hold at the most recent session's target-rep
+            // equivalent weight (e1RM-derived; see anchorWeight).
+            let lastWeight = anchorWeight(from: recentSessions.first, reps: defaultReps)
             return ProgressionDecision(
                 weight: lastWeight, reps: defaultReps,
                 deltaApplied: 0, rationale: .heldInsufficientData
             )
         }
 
-        let currentWeight = recentSessions.first?.bestSetWeight ?? 0
+        let currentWeight = anchorWeight(from: recentSessions.first, reps: defaultReps)
 
         // Tier 2 — feedback gate. The MOST RECENT session that carries real
         // user feedback (feedbackSampleCount > 0) can veto a progression: if it
@@ -237,6 +238,23 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
             weight: currentWeight, reps: defaultReps,
             deltaApplied: 0, rationale: .standardProgression
         )
+    }
+
+    /// Working-weight anchor for `reps`, derived from a session's stored e1RM
+    /// (Epley) rather than the raw heaviest set. Fixes the weight/reps decoupling:
+    /// a set ground out at 100 kg × 3 no longer anchors an 8-rep target at 100 kg
+    /// — it anchors at the 8-rep equivalent of that e1RM. Falls back to
+    /// `bestSetWeight` when a row carries no e1RM (legacy rows, unit-test
+    /// fixtures), so rep-MATCHED history round-trips to exactly the logged weight
+    /// and pre-e1RM behavior is preserved where there's no e1RM to use.
+    private func anchorWeight(from session: ExerciseHistory?, reps: Int) -> Double {
+        guard let session else {
+            return 0
+        }
+        if let e1RM = session.estimated1RM, e1RM > 0 {
+            return StrengthStandards.inverseEpleyWeight(e1RM: e1RM, reps: reps)
+        }
+        return session.bestSetWeight ?? 0
     }
 
     // MARK: - Conditioning Debt (rest prescription)

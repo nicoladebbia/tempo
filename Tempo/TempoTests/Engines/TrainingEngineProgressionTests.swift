@@ -128,6 +128,50 @@ final class TrainingEngineProgressionTests: XCTestCase {
         XCTAssertEqual(d.weight, 97.5, accuracy: 0.01)
     }
 
+    // MARK: - e1RM re-anchor (weight/reps decoupling fix)
+
+    /// Build a history row carrying a stored e1RM (as real completion rows do —
+    /// the unit fixtures above omit it, which is why they keep pre-e1RM behavior).
+    private func e1RMHistory(daysAgo: Int, e1RM: Double, weight: Double, reps: Int) -> ExerciseHistory {
+        ExerciseHistory(
+            date: Calendar.current.date(byAdding: .day, value: -daysAgo, to: Date())!,
+            estimated1RM: e1RM,
+            bestSetWeight: weight,
+            bestSetReps: reps
+        )
+    }
+
+    @MainActor
+    func testE1RMAnchorDerivesTargetRepWeightFromMismatchedReps() {
+        let ex = compoundExercise() // barbell squat, target 8 reps
+        // Heavy triples: 100 kg × 3, e1RM stored (Epley = 110). The old engine
+        // anchored the 8-rep target at 100 kg (a weight only good for 3). The
+        // re-anchor derives the 8-rep equivalent instead.
+        let e1RM = 100.0 * (1 + 3.0 / 30.0) // 110
+        let hist = [
+            e1RMHistory(daysAgo: 2, e1RM: e1RM, weight: 100, reps: 3),
+            e1RMHistory(daysAgo: 5, e1RM: e1RM, weight: 100, reps: 3),
+        ]
+        let d = engine.calculateProgressiveOverload(for: ex, history: hist)
+        let expected = e1RM / (1 + 8.0 / 30.0) // ~86.8
+        XCTAssertEqual(d.weight, expected, accuracy: 0.1, "8-rep weight derived from e1RM, not the 3-rep load")
+        XCTAssertLessThan(d.weight, 100, "Must prescribe below the weight ground out for 3 reps")
+    }
+
+    @MainActor
+    func testE1RMAnchorRoundTripsWhenRepsMatchTarget() {
+        let ex = compoundExercise()
+        // 100 kg × 8 (reps == target) with e1RM stored → anchor round-trips to
+        // exactly 100, so a standard progression still lands on 102.5 (no drift).
+        let e1RM = 100.0 * (1 + 8.0 / 30.0)
+        let hist = [
+            e1RMHistory(daysAgo: 2, e1RM: e1RM, weight: 100, reps: 8),
+            e1RMHistory(daysAgo: 5, e1RM: e1RM, weight: 100, reps: 8),
+        ]
+        let d = engine.calculateProgressiveOverload(for: ex, history: hist)
+        XCTAssertEqual(d.weight, 102.5, accuracy: 0.01, "Rep-matched e1RM anchor round-trips → standard +2.5")
+    }
+
     // MARK: - Conditioning debt (rest multiplier)
 
     func testRestMultiplierBaselineWhenNotGassed() {

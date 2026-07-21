@@ -58,9 +58,12 @@ extension TrainingViewModel {
         // Pair compound + isolation targeting different muscle groups (e.g. bench + lateral raise).
         let supersetPairs = assignSupersetGroups(selected)
 
-        // Tier 2.3 — exercises with a recent pain/injury note stay conservative
-        // (no weight increase) until the note clears. Cached for the session UI.
-        let painFlagged = painFlaggedExerciseIDs(modelContext: modelContext)
+        // Free-text note signals — recent user notes nudge the prescription:
+        // pain / too-hard / form-breakdown hold conservative; "too easy" nudges
+        // up. Pain subset is cached for the session UI. Scanned fresh each build
+        // (no stored flag, no migration).
+        let signals = noteSignals(modelContext: modelContext)
+        let painFlagged = Set(signals.filter { $0.value.pain }.map(\.key))
         painFlaggedExercises = painFlagged
 
         // Build PlannedExercise + PlannedSet objects with target weights
@@ -72,6 +75,11 @@ extension TrainingViewModel {
         // Target: 16-20 total working sets per session
         // Recovery-adjusted (yellow zone): reduce total volume by ~20%
         let isRecoveryReduced = plan.recoveryAdjustment < 1.0
+
+        // Bodyweight (kg) for bodyweight-loaded lifts — the prescribed weight for
+        // a pull-up/dip is EFFECTIVE (bodyweight ± added), and we record the
+        // signed added-load suggestion per set. Fetched once per build.
+        let bodyweightKg = currentBodyweightKg(modelContext: modelContext)
 
         for (index, exercise) in selected.enumerated() {
             let baseNumSets: Int
@@ -100,20 +108,50 @@ extension TrainingViewModel {
                 history: history,
                 learnedIncrement: learnedIncrements[exercise.id]
             )
-            var weight: Double = overload.weight > 0 ? overload.weight : defaultWeight(for: exercise)
+            var weight: Double = overload.weight > 0
+                ? overload.weight
+                : coldStartWeight(
+                    for: exercise,
+                    targetReps: reps,
+                    allExercises: allExercises,
+                    modelContext: modelContext
+                )
 
-            // Tier 2.3 — recent pain note on this exercise → never prescribe
-            // MORE than last session's weight (hold conservative until it clears).
-            if painFlagged.contains(exercise.id),
-               let lastWeight = history.sorted(by: { $0.date > $1.date }).first?.bestSetWeight,
-               lastWeight > 0 {
-                weight = min(weight, lastWeight)
+            // Note-driven adjustment. A conservative note (pain / too-hard / form
+            // breakdown) → never prescribe MORE than last session's weight until
+            // it clears. Otherwise a "too easy / too light" note → nudge up one
+            // increment (catches "it felt light" typed without a logged low RPE;
+            // the RPE path already handles the logged-RPE case).
+            let sig = signals[exercise.id]
+            if sig?.isConservative == true {
+                // Hold conservative — never bump. Cap at last session's weight
+                // when there is one; with no history just leave the (already
+                // conservative) estimate as-is. Must NOT fall through to the
+                // "too easy" bump even if the note also mentioned it (pain wins).
+                if let lastWeight = history.sorted(by: { $0.date > $1.date }).first?.bestSetWeight,
+                   lastWeight > 0 {
+                    weight = min(weight, lastWeight)
+                }
+            } else if sig?.tooEasy == true {
+                weight += StrengthStandards.increment(for: exercise.equipment)
             }
 
             // Apply recovery adjustment and deload multiplier if applicable
             let deloadMultiplier = isDeloadWeek ? trainingEngine.deloadWeightMultiplier() : 1.0
             let adjustedWeight = weight * plan.recoveryAdjustment * deloadMultiplier
             let roundedWeight = (adjustedWeight / 2.5).rounded() * 2.5 // Round to nearest 2.5kg
+
+            // Bodyweight-loaded lift (pull-up/dip): the prescribed weight is the
+            // EFFECTIVE load; the per-set added-load suggestion is the signed
+            // difference from bodyweight (negative = assistance needed). nil when
+            // bodyweight is unknown so the UI just treats it as bodyweight+0.
+            let isBodyweightLift = StrengthStandards.isBodyweightLoaded(exercise.equipment)
+            let plannedAddedLoad: Double? = {
+                guard isBodyweightLift, let bw = bodyweightKg else {
+                    return nil
+                }
+                return roundedWeight - bw
+            }()
 
             // Look up superset group assignment
             let supersetGroup = supersetPairs[exercise.id]
@@ -128,8 +166,11 @@ extension TrainingViewModel {
             var plannedSets: [PlannedSet] = []
             var setNum = 1
 
-            // Add warmup sets for compound exercises (ramp up to working weight)
-            if exercise.isCompound, roundedWeight > 0 {
+            // Add warmup sets for compound exercises (ramp up to working weight).
+            // Skipped for bodyweight lifts — a 50%/75% ramp of an effective
+            // bodyweight load is not a loadable warmup (you can't do half a
+            // pull-up); those warm up with assistance or bodyweight reps instead.
+            if exercise.isCompound, roundedWeight > 0, !isBodyweightLift {
                 // Warmup set 1: 50% working weight, same reps
                 let warmup1Weight = ((roundedWeight * 0.5) / 2.5).rounded() * 2.5
                 let ws1 = PlannedSet(
@@ -161,6 +202,7 @@ extension TrainingViewModel {
                     setNumber: setNum,
                     targetReps: reps,
                     targetWeight: roundedWeight,
+                    addedLoadKg: plannedAddedLoad,
                     plannedExercise: planned
                 )
                 plannedSets.append(ps)
@@ -420,24 +462,89 @@ extension TrainingViewModel {
         }
     }
 
-    /// Sensible starting weights (kg) when no history exists.
-    func defaultWeight(for exercise: Exercise) -> Double {
-        if exercise.isCompound {
-            switch exercise.equipment {
-            case .barbell: 40.0 // Empty bar + light plates
-            case .dumbbell: 12.5 // Per hand
-            case .cable: 25.0
-            case .machine: 30.0
-            default: 0 // Bodyweight
-            }
-        } else {
-            switch exercise.equipment {
-            case .barbell: 20.0
-            case .dumbbell: 7.5
-            case .cable: 15.0
-            case .machine: 20.0
-            default: 0 // Bodyweight
-            }
+    // MARK: - Cold-start weight (e1RM-based)
+
+    /// Target working weight (kg) for an exercise with no usable history, derived
+    /// from an estimated 1RM and the target reps. Replaces the old flat
+    /// per-equipment table (which made a barbell squat and a barbell overhead
+    /// press BOTH start at 40 kg — the "some weights way too high, others way too
+    /// low" complaint). Cascade, each step biased low so a wrong guess errs light:
+    ///   1. Infer from a SIBLING lift the user has already trained (same movement
+    ///      pattern + load basis) via a strength ratio.
+    ///   2. Else a bodyweight × experience baseline (barbell-family compounds and
+    ///      bodyweight movements) or a conservative absolute seed (dumbbell /
+    ///      cable / machine / isolations).
+    /// The e1RM is then derived DOWN to the working weight for `targetReps` via
+    /// the inverse of the Epley formula the rest of the app uses, so the weight
+    /// always matches the reps we actually prescribe. See `StrengthStandards`.
+    func coldStartWeight(
+        for exercise: Exercise,
+        targetReps: Int,
+        allExercises: [Exercise],
+        modelContext: ModelContext
+    ) -> Double {
+        let bodyweight = currentBodyweightKg(modelContext: modelContext)
+        let experience = currentExperienceLevel()
+
+        let e1RM = crossExerciseE1RM(for: exercise, allExercises: allExercises)
+            ?? StrengthStandards.baselineE1RM(
+                for: exercise,
+                bodyweightKg: bodyweight,
+                experienceLevel: experience
+            )
+
+        let raw = StrengthStandards.inverseEpleyWeight(e1RM: e1RM, reps: targetReps)
+        return StrengthStandards.roundToIncrement(raw, equipment: exercise.equipment)
+    }
+
+    /// Infer an e1RM for a never-trained exercise from a SIBLING lift (same
+    /// movement pattern, same load basis) the user HAS logged. Picks the sibling
+    /// whose history is freshest. Returns nil when there is no usable sibling so
+    /// the caller falls through to the bodyweight/absolute baseline.
+    private func crossExerciseE1RM(for exercise: Exercise, allExercises: [Exercise]) -> Double? {
+        let candidates = allExercises.filter { other in
+            other.id != exercise.id
+                && other.movementPatternRaw == exercise.movementPatternRaw
+                && StrengthStandards.shareLoadBasis(exercise, other)
+                && (other.currentEstimated1RM ?? 0) > 0
         }
+        let freshest = candidates.max { a, b in
+            (a.history?.map(\.date).max() ?? .distantPast)
+                < (b.history?.map(\.date).max() ?? .distantPast)
+        }
+        guard let freshest, let siblingE1RM = freshest.currentEstimated1RM else {
+            return nil
+        }
+        return StrengthStandards.siblingE1RM(
+            target: exercise, sibling: freshest, siblingE1RM: siblingE1RM
+        )
+    }
+
+    /// User bodyweight (kg) for cold-start estimation. Explicit profile weight
+    /// first, then the most recent HealthKit body-mass snapshot. nil when neither
+    /// exists → `StrengthStandards` falls back to a conservative absolute seed.
+    private func currentBodyweightKg(modelContext: ModelContext) -> Double? {
+        if let profile = try? modelContext.fetch(FetchDescriptor<UserProfile>()).first,
+           let w = profile.weightKg, w > 0 {
+            return w
+        }
+        var descriptor = FetchDescriptor<BodyComposition>(
+            sortBy: [SortDescriptor(\.date, order: .reverse)]
+        )
+        descriptor.fetchLimit = 1
+        if let snap = try? modelContext.fetch(descriptor).first,
+           let w = snap.weightKg, w > 0 {
+            return w
+        }
+        return nil
+    }
+
+    /// Onboarding experience level ("Beginner"/"Intermediate"/"Advanced"),
+    /// persisted to UserDefaults during onboarding. nil when never set → the
+    /// strength model treats it as Beginner (the lowest, safest coefficient).
+    private func currentExperienceLevel() -> String? {
+        let data = UserDefaults.standard.dictionary(forKey: "tempo.onboarding.data")
+        let raw = data?["experienceLevel"] as? String
+        return (raw?.isEmpty ?? true) ? nil : raw
     }
 }

@@ -40,6 +40,15 @@ final class PlannedSet {
 
     var isWarmup: Bool
 
+    /// Signed external load (kg) for bodyweight-loaded lifts (pull-ups, dips):
+    /// positive = added weight (belt/vest), negative = assistance (band/machine
+    /// help). nil for non-bodyweight lifts and legacy rows. `actualWeight` /
+    /// `targetWeight` hold the EFFECTIVE load (bodyweight ± this), so
+    /// e1RM/volume/progression need no special-casing; this field only records
+    /// the signed input so history can show "BW + 10" / "BW − 20 (assisted)".
+    /// Optional → lightweight SwiftData migration (nil on existing rows).
+    var addedLoadKg: Double?
+
     // MARK: - Relationships
 
     @Relationship(deleteRule: .nullify)
@@ -88,6 +97,7 @@ final class PlannedSet {
         completed: Bool = false,
         restSeconds: Int? = nil,
         isWarmup: Bool = false,
+        addedLoadKg: Double? = nil,
         plannedExercise: PlannedExercise? = nil
     ) {
         self.id = id
@@ -100,6 +110,7 @@ final class PlannedSet {
         self.completed = completed
         self.restSeconds = restSeconds
         self.isWarmup = isWarmup
+        self.addedLoadKg = addedLoadKg
         self.plannedExercise = plannedExercise
     }
 }
@@ -119,6 +130,7 @@ extension PlannedSet {
         let rest_seconds: Int?
         let completed_at: Date?
         let is_warmup: Bool
+        let added_load_kg: Double?
     }
 
     func toDTO() -> DTO {
@@ -133,7 +145,8 @@ extension PlannedSet {
             completed: completed,
             rest_seconds: restSeconds,
             completed_at: completedAt,
-            is_warmup: isWarmup
+            is_warmup: isWarmup,
+            added_load_kg: addedLoadKg
         )
     }
 }
