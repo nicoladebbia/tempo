@@ -190,7 +190,12 @@ struct TodayWorkoutView: View {
             savedEventID = ""
             savedEventDay = ""
             cancelWorkoutReminder()
-            suggestedWindow = await services.calendar.suggestWorkoutWindow(for: Date())
+            // Requirement (c): bias the suggested slot toward the user's training-
+            // time preference (a real free slot inside their preferred daypart,
+            // falling back to the largest free gap when that daypart is busy).
+            let timePref = (try? modelContext.fetch(FetchDescriptor<UserDailyPlanProfile>()))?
+                .first?.trainingTimePreference ?? .anyFree
+            suggestedWindow = await services.calendar.suggestWorkoutWindow(for: Date(), preferring: timePref)
         }
     }
 

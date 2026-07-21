@@ -162,7 +162,7 @@ final class CalendarService: CalendarServiceProtocol, @unchecked Sendable {
     // the 08:00–22:00 waking window. All-day events are ignored (they don't
     // block a real time slot). Requests access lazily on first use.
 
-    func suggestWorkoutWindow(for date: Date) async -> DateInterval? {
+    func suggestWorkoutWindow(for date: Date, preferring preference: TrainingTimePreference = .anyFree) async -> DateInterval? {
         if !isAuthorized {
             try? await requestAuthorization()
         }
@@ -208,29 +208,60 @@ final class CalendarService: CalendarServiceProtocol, @unchecked Sendable {
             }
         }
 
-        // Scan the free gaps between merged busy blocks for the largest one.
-        var bestGap: DateInterval?
+        // Collect ALL free gaps between merged busy blocks (not just the largest)
+        // so the training-time preference can pick among them.
+        var freeGaps: [DateInterval] = []
         var cursor = windowStart
         for block in merged {
             if block.start > cursor {
-                let gap = DateInterval(start: cursor, end: block.start)
-                if gap.duration >= minimumDuration,
-                   gap.duration > (bestGap?.duration ?? 0) {
-                    bestGap = gap
-                }
+                freeGaps.append(DateInterval(start: cursor, end: block.start))
             }
             cursor = max(cursor, block.end)
         }
         // Trailing gap after the last busy block to the window end.
         if cursor < windowEnd {
-            let gap = DateInterval(start: cursor, end: windowEnd)
-            if gap.duration >= minimumDuration,
-               gap.duration > (bestGap?.duration ?? 0) {
-                bestGap = gap
-            }
+            freeGaps.append(DateInterval(start: cursor, end: windowEnd))
         }
 
-        return bestGap
+        let daypart = Self.preferredDaypart(for: preference, on: day, calendar: cal)
+        return Self.bestWindow(freeGaps: freeGaps, preferred: daypart, minimumDuration: minimumDuration)
+    }
+
+    /// The waking-hours sub-window matching the user's training-time preference,
+    /// or nil for `.anyFree` (no time-of-day bias — the launch behavior).
+    /// Requirement (c): "correct real timings based on onboarding preferences."
+    static func preferredDaypart(for preference: TrainingTimePreference, on day: Date, calendar cal: Calendar) -> DateInterval? {
+        let hours: (start: Int, end: Int)
+        switch preference {
+        case .morning: hours = (8, 12)
+        case .midday: hours = (12, 17)
+        case .evening: hours = (17, 22)
+        case .anyFree: return nil
+        }
+        guard let start = cal.date(bySettingHour: hours.start, minute: 0, second: 0, of: day),
+              let end = cal.date(bySettingHour: hours.end, minute: 0, second: 0, of: day),
+              end > start
+        else { return nil }
+        return DateInterval(start: start, end: end)
+    }
+
+    /// Pick the workout window: prefer a free slot (≥ minimum) that falls inside
+    /// the user's preferred daypart, choosing the LONGEST such overlap; if none
+    /// qualifies (that daypart is fully busy, or `.anyFree`), fall back to the
+    /// largest free gap overall — so the result is ALWAYS a real, calendar-free
+    /// slot, just biased toward the preference when the calendar allows.
+    static func bestWindow(freeGaps: [DateInterval], preferred: DateInterval?, minimumDuration: TimeInterval) -> DateInterval? {
+        if let preferred {
+            let inPreferred = freeGaps
+                .compactMap { $0.intersection(with: preferred) }
+                .filter { $0.duration >= minimumDuration }
+            if let best = inPreferred.max(by: { $0.duration < $1.duration }) {
+                return best
+            }
+        }
+        return freeGaps
+            .filter { $0.duration >= minimumDuration }
+            .max(by: { $0.duration < $1.duration })
     }
 
     // MARK: - Saved Workout Event Lookup
