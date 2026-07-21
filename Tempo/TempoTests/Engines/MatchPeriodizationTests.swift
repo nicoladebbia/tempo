@@ -108,4 +108,30 @@ final class MatchPeriodizationTests: XCTestCase {
         XCTAssertEqual(plan(plans, dayOffset: 3)?.type, .football, "friendly is still a T-0 session day")
         XCTAssertEqual(plan(plans, dayOffset: 2)?.type, .legs, "friendly must NOT swap legs off T-1")
     }
+
+    // MARK: - Legs DEFERS past a T+1 day, never vanishes for the week
+
+    /// Two football days a week (Wed + Sun) put a T+1 (Thursday) exactly where
+    /// the PPL rotation's legs slot falls. T+1 prescribes an off-rotation upper
+    /// session (neuromuscular recovery). The bug: it ALSO advanced the rotation,
+    /// so the legs slot was consumed-and-dropped and the athlete trained zero
+    /// legs all week. Legs must instead DEFER to the next open rotation day.
+    func testLegsDefersInsteadOfVanishingUnderTwoFootballDays() {
+        let footballWedSun = ActiveDays(rawValue: (1 << 2) | (1 << 6)) // Wed + Sun
+        let plans = engine.generateWeekPlan(
+            startDate: monday(),
+            recoveryScores: [:], // green everywhere
+            footballDays: footballWedSun,
+            split: .pushPullLegs
+        )
+        // The core invariant: a legs day must still exist somewhere in the week.
+        XCTAssertTrue(plans.contains { $0.type == .legs },
+                      "Legs must defer past the T+1 day, not vanish from the week")
+        // Thursday (offset 3) is T+1 → off-rotation upper (pull), never legs.
+        XCTAssertEqual(plan(plans, dayOffset: 3)?.type, .pull,
+                       "T+1 (day after football) is upper-only")
+        // The legs slot skipped by T+1 rolls forward to the next open day (Fri).
+        XCTAssertEqual(plan(plans, dayOffset: 4)?.type, .legs,
+                       "The deferred legs slot must land on the next open rotation day")
+    }
 }

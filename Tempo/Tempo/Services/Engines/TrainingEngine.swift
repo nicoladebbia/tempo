@@ -380,6 +380,16 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         // counter, NOT absolute weekday, so both modalities actually appear
         // instead of the parity skewing every easy day to one of them.
         var easyCrossTrainingAssigned = 0
+        // §Legs guarantee — plans-indices of CLEAN upper days (green/yellow,
+        // not football-adjacent) that took a push/pull from the rotation. With
+        // two football days a week the rotation can spend every clean day on
+        // push/pull and only reach its legs slot on a T-1 (swapped off) or T+1
+        // (discarded) day — so legs silently vanishes for the whole week. If
+        // that happens, the last clean upper day here is converted to legs
+        // AFTER the loop. This only flips a type on an existing lift day; it
+        // never changes how many days are lifts vs spare (so the conditioning/
+        // spare-day count is untouched).
+        var cleanLegsCandidates: [Int] = []
 
         // Per MODULE_TRAINING.md Section 15.4 — Phase 1: Assign workout types to days
         let splitSequence = getSplitSequence(split)
@@ -557,6 +567,11 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                 }
 
                 plans.append(liftPlan)
+                // A clean (non-football-adjacent) upper day is a valid host for
+                // a deferred legs session — record it for the §Legs guarantee.
+                if !meta.isTMinus1, workoutType == .push || workoutType == .pull {
+                    cleanLegsCandidates.append(plans.count - 1)
+                }
                 splitIndex += 1
             } else {
                 // Spare capacity → standing auto cross-training (Slice 1).
@@ -607,6 +622,22 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                         notes: easy == .pool ? "Pool — easy recovery" : "Easy run — Zone 2"
                     ))
                 }
+            }
+        }
+
+        // §Legs guarantee — if the rotation lost legs entirely (the two-football-
+        // day sandwich: legs' turn only comes up after every clean day is spent on
+        // push/pull, then lands on a T-1/T+1 day and is dropped), reclaim it. Flip
+        // the LAST clean upper day to legs so the athlete still trains legs once.
+        // A legs day never carries a cardio second session, so clear any two-a-day
+        // that was assigned to the reclaimed day. Only fires when zero legs exist
+        // AND a clean host is available — the normal (≤1 football day) week already
+        // places legs on a clean day and skips this entirely.
+        if !plans.contains(where: { $0.type == .legs }), let idx = cleanLegsCandidates.last {
+            plans[idx].type = .legs
+            if plans[idx].secondarySessionType != nil {
+                plans[idx].secondarySessionType = nil
+                twoADaysAssigned -= 1
             }
         }
 
