@@ -60,11 +60,34 @@ final class EmphasisPeriodizationTests: XCTestCase {
 
     // MARK: - Physique = pre-emphasis behavior exactly
 
-    func testPhysiqueWeekHasNoSoccerWork() {
+    func testPhysiqueWeekHasEasyCrossTrainingButNoHardConditioning() {
+        // §14 REVISED (auto-variety, Slice 1): physique spare days are no longer
+        // idle mobility/rest — they become EASY cross-training (swim / easy run)
+        // so every week is varied. The HARD conditioning day stays soccer-
+        // emphasis-only, so physique still contains zero conditioning.
         let plans = week(emphasis: .physique)
-        XCTAssertFalse(plans.contains { $0.type == .conditioning }, "Physique spares stay mobility/rest")
-        XCTAssertFalse(plans.contains { $0.type == .pool })
-        XCTAssertTrue(plans.contains { $0.type == .mobility && $0.notes == "Active recovery" })
+        XCTAssertFalse(plans.contains { $0.type == .conditioning },
+                       "Hard conditioning is soccer-emphasis only")
+        XCTAssertTrue(plans.contains { $0.type == .pool || $0.type == .run },
+                      "Spare days become easy cross-training, not idle mobility/rest")
+        XCTAssertFalse(plans.contains { $0.type == .mobility && $0.notes == "Active recovery" },
+                       "Spare days are cross-training now, not generic active recovery")
+    }
+
+    func testSpareWeekdaysAreCrossTrainingAndSundayStaysRest() {
+        // Slice 1 invariant: no idle spare weekdays — each becomes a cross-
+        // training modality — while Sunday is preserved as a full rest day.
+        let plans = week(emphasis: .physique)
+        for p in plans where !p.type.isGymWorkout && p.type != .football {
+            let weekday = cal.component(.weekday, from: p.date)
+            if weekday == 1 { // Sunday
+                XCTAssertEqual(p.type, .rest, "Sunday stays a full rest day")
+            } else {
+                XCTAssertNotEqual(p.type, .rest, "Spare weekdays are cross-training, never idle rest")
+                XCTAssertTrue([.pool, .run, .conditioning, .mobility].contains(p.type),
+                              "A spare weekday resolves to a cross-training modality")
+            }
+        }
     }
 
     // MARK: - Soccer re-shapes spare days

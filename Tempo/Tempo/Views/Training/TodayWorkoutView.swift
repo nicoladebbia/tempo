@@ -1279,6 +1279,8 @@ struct TodayWorkoutView: View {
         case .run: "figure.run"
         case .sprint: "figure.run.treadmill"
         case .conditioning: "bolt.heart.fill"
+        case .pool: "figure.pool.swim"
+        case .mobility: "figure.cooldown"
         default: "figure.mixed.cardio"
         }
     }
@@ -1289,6 +1291,8 @@ struct TodayWorkoutView: View {
         case .run: "Run day. Log it from Health — no sets to track here."
         case .sprint: "Sprint work today. Warm up properly before you go."
         case .conditioning: "Conditioning today. Push the engine, not the barbell."
+        case .pool: "Pool day. Easy laps — active recovery, not a race."
+        case .mobility: "Mobility today. Move well and recover — don't grind it."
         default: "Training today."
         }
     }

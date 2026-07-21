@@ -356,7 +356,11 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         let cal = Calendar.current
         var plans: [WorkoutPlan] = []
         var splitIndex = 0
-        var soccerConditioningAssigned = false
+        var conditioningDaysAssigned = 0
+        // Alternates the easy cross-training modality (pool → run → pool …) by a
+        // counter, NOT absolute weekday, so both modalities actually appear
+        // instead of the parity skewing every easy day to one of them.
+        var easyCrossTrainingAssigned = 0
 
         // Per MODULE_TRAINING.md Section 15.4 — Phase 1: Assign workout types to days
         let splitSequence = getSplitSequence(split)
@@ -506,38 +510,50 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                 ))
                 splitIndex += 1
             } else {
-                // Extra days → rest (prefer Sunday)
+                // Spare capacity → standing auto cross-training (Slice 1).
+                // Games, red-recovery and required lifts are handled above; here
+                // zone is green/yellow with no lift scheduled. Sunday stays a
+                // full rest day. Every other spare day becomes recovery-
+                // appropriate cross-training so the week is VARIED (swim / easy
+                // run) instead of idle — with a capped HARD conditioning day
+                // under soccer emphasis only, never on T-1 or the day after legs
+                // (protect the legs Nicola both trains and plays football on).
                 let weekday = cal.component(.weekday, from: meta.date)
-                if weekday == 1 { // Sunday
+                let prevType = plans.last?.type
+                let afterLegs = prevType == .legs || prevType == .lower
+                // Physique = easy variety only (cap 0); soccer earns one hard day.
+                let conditioningCap = emphasis == .soccer ? 1 : 0
+                if weekday == 1 { // Sunday — protected full rest
                     plans.append(WorkoutPlan(date: meta.date, type: .rest))
-                } else if emphasis == .soccer, zone != .red {
-                    // §12 soccer-emphasis: spare capacity becomes soccer work,
-                    // not generic recovery. ONE conditioning day per week —
-                    // never on T-1 (no high-intensity the day before a match);
-                    // every other spare day is an easy pool swim (real active
-                    // recovery that doesn't fight the conditioning load).
-                    if zone == .green, !meta.isTMinus1, !soccerConditioningAssigned {
-                        soccerConditioningAssigned = true
-                        plans.append(WorkoutPlan(
-                            date: meta.date,
-                            type: .conditioning,
-                            notes: "Soccer conditioning — emphasis"
-                        ))
-                    } else {
-                        plans.append(WorkoutPlan(
-                            date: meta.date,
-                            type: .pool,
-                            notes: "Pool recovery — easy swim"
-                        ))
-                    }
-                } else if zone == .green {
+                } else if zone == .green, !meta.isTMinus1, !afterLegs,
+                          conditioningDaysAssigned < conditioningCap {
+                    conditioningDaysAssigned += 1
                     plans.append(WorkoutPlan(
                         date: meta.date,
-                        type: .mobility,
-                        notes: "Active recovery"
+                        type: .conditioning,
+                        durationMinutes: 30,
+                        notes: "Cross-training — conditioning"
+                    ))
+                } else if meta.isTMinus1 {
+                    // Pre-match: pool only — no leg-loading impact before a game.
+                    plans.append(WorkoutPlan(
+                        date: meta.date,
+                        type: .pool,
+                        durationMinutes: 20,
+                        notes: "Pool — pre-match easy"
                     ))
                 } else {
-                    plans.append(WorkoutPlan(date: meta.date, type: .rest))
+                    // Easy recovery cross-training; alternate swim / easy run by
+                    // a counter so the week genuinely varies (first easy day is
+                    // always the low-impact pool).
+                    let easy: WorkoutType = easyCrossTrainingAssigned % 2 == 0 ? .pool : .run
+                    easyCrossTrainingAssigned += 1
+                    plans.append(WorkoutPlan(
+                        date: meta.date,
+                        type: easy,
+                        durationMinutes: easy == .pool ? 30 : 25,
+                        notes: easy == .pool ? "Pool — easy recovery" : "Easy run — Zone 2"
+                    ))
                 }
             }
         }
