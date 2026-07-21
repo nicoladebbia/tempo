@@ -1279,7 +1279,9 @@ final class TrainingViewModel {
             emphasis: currentBlockEmphasis(modelContext: modelContext) ?? .physique,
             // §14 requirement (d) — bias the spare-day easy modality toward what
             // he actually logs (runs vs swims) over the trailing 4 weeks.
-            easyModalityPreference: learnedEasyModalityOrder(modelContext: modelContext)
+            easyModalityPreference: learnedEasyModalityOrder(modelContext: modelContext),
+            // §21 (b) — the two-a-day slot skips days already past this week.
+            referenceDate: today
         )
 
         // Check deload week status (Phase 3: fatigue trend can trigger early).

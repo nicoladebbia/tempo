@@ -93,7 +93,10 @@ protocol TrainingEngineProtocol: Sendable {
         emphasis: BlockEmphasis,
         // §14 auto-variety (requirement (d)) — learned spare-day easy-modality
         // cycle order; the user's most-logged modality leads. Defaults to pool-first.
-        easyModalityPreference: [WorkoutType]
+        easyModalityPreference: [WorkoutType],
+        // §21 (b) — "today" for the two-a-day scheduler; the capped weekly slot
+        // is never spent on a day already past. Injected for test purity.
+        referenceDate: Date
     ) -> [WorkoutPlan]
 
     /// Returns true if the given date falls in a deload week. The fixed periodic

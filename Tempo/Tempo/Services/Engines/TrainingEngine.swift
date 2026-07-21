@@ -356,10 +356,16 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         // history (see `easyModalityOrder(poolLogged:runLogged:)`). The user's
         // revealed-preferred modality leads; the other still appears for variety.
         // Defaults to the launch behavior (low-impact pool first).
-        easyModalityPreference: [WorkoutType] = [.pool, .run]
+        easyModalityPreference: [WorkoutType] = [.pool, .run],
+        // "Today" for the §21 (b) two-a-day scheduler: the capped weekly slot is
+        // never spent on a day already in the past (it can't be trained), so it
+        // slides to the next eligible upper day. Injected (not Date() inline) to
+        // keep the function pure for tests. Default = now for production callers.
+        referenceDate: Date = Date()
     ) -> [WorkoutPlan] {
         let tMinus1MatchDays = competitiveMatchDayKeys ?? matchDayKeys
         let cal = Calendar.current
+        let todayStart = cal.startOfDay(for: referenceDate)
         var plans: [WorkoutPlan] = []
         var splitIndex = 0
         var conditioningDaysAssigned = 0
@@ -505,6 +511,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                     // skip it, so custom splits never got two-a-days).
                     if let secondary = twoADaySecondary(
                         workoutType: workoutType, zone: zone, isTMinus1: meta.isTMinus1,
+                        isPast: cal.startOfDay(for: meta.date) < todayStart,
                         assignedSoFar: twoADaysAssigned, max: maxTwoADays,
                         preference: easyModalityPreference
                     ) {
@@ -541,6 +548,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                 // leader. The daily brain still drops it on a low-readiness morning.
                 if let secondary = twoADaySecondary(
                     workoutType: workoutType, zone: zone, isTMinus1: meta.isTMinus1,
+                    isPast: cal.startOfDay(for: meta.date) < todayStart,
                     assignedSoFar: twoADaysAssigned, max: maxTwoADays,
                     preference: easyModalityPreference
                 ) {
@@ -667,9 +675,12 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
     /// the eligibility rule cannot diverge between them (the custom path used to
     /// omit it entirely, so a custom split never got two-a-days).
     private func twoADaySecondary(workoutType: WorkoutType, zone: RecoveryZone, isTMinus1: Bool,
-                                  assignedSoFar: Int, max: Int, preference: [WorkoutType]) -> WorkoutType? {
+                                  isPast: Bool, assignedSoFar: Int, max: Int,
+                                  preference: [WorkoutType]) -> WorkoutType? {
         let upperLift = workoutType == .push || workoutType == .pull || workoutType == .upper
-        guard zone == .green, upperLift, !isTMinus1, assignedSoFar < max else { return nil }
+        // isPast: never spend the (capped) weekly slot on a day already gone — it
+        // can't be trained, so it slides to the next eligible upper day.
+        guard !isPast, zone == .green, upperLift, !isTMinus1, assignedSoFar < max else { return nil }
         let order = preference.isEmpty ? [.pool, .run] : preference
         return order[0] == .run ? .run : .pool
     }

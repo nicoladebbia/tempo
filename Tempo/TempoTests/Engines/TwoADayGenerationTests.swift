@@ -43,7 +43,10 @@ final class TwoADayGenerationTests: XCTestCase {
             split: .pushPullLegs,
             matchDayKeys: matchDayKeys,
             emphasis: emphasis,
-            easyModalityPreference: easyModalityPreference
+            easyModalityPreference: easyModalityPreference,
+            // Reference = the week's Monday, so every day is "today or later" and
+            // the past-day skip never fires — pins the eligibility, not the clock.
+            referenceDate: monday
         )
     }
 
@@ -142,7 +145,9 @@ final class TwoADayGenerationTests: XCTestCase {
             split: .custom,
             customWeekdayMap: map,
             matchDayKeys: [],
-            emphasis: .physique
+            emphasis: .physique,
+            // Anchor "today" to the week's Monday so no day counts as past.
+            referenceDate: monday
         )
         let seconds = twoADays(plans)
         XCTAssertFalse(seconds.isEmpty,
@@ -150,6 +155,32 @@ final class TwoADayGenerationTests: XCTestCase {
         for p in seconds {
             XCTAssertTrue([.push, .pull, .upper].contains(p.type),
                           "Only upper-body custom days two-a-day, never legs/rest")
+        }
+    }
+
+    // MARK: - (b) "Prefer future days" — the weekly slot never lands on a past day
+
+    func testTwoADaySlotSkipsPastDaysToTheNextEligibleDay() {
+        // Physique PPL, cap = 2. Anchor "today" to WEDNESDAY (offset 2). Mon/Tue
+        // are now in the past; the two-a-day slots must skip them and land only
+        // on today-or-future upper days (Thu push / Fri pull), never Mon/Tue.
+        let wednesday = cal.date(byAdding: .day, value: 2, to: monday)!
+        let plans = engine.generateWeekPlan(
+            startDate: monday,
+            recoveryScores: [:],
+            footballDays: ActiveDays(rawValue: 0),
+            split: .pushPullLegs,
+            matchDayKeys: [],
+            emphasis: .physique,
+            referenceDate: wednesday
+        )
+        let seconds = twoADays(plans)
+        XCTAssertFalse(seconds.isEmpty, "Future upper days should still earn two-a-days")
+        for p in seconds {
+            XCTAssertGreaterThanOrEqual(
+                cal.startOfDay(for: p.date), cal.startOfDay(for: wednesday),
+                "A two-a-day must never be assigned to a day already in the past (\(p.date))"
+            )
         }
     }
 
