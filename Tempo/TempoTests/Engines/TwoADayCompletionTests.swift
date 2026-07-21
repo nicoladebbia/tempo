@@ -17,7 +17,7 @@ import XCTest
 final class TwoADayCompletionTests: XCTestCase {
     private func makeContext() throws -> ModelContext {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: WorkoutPlan.self, configurations: config)
+        let container = try ModelContainer(for: WorkoutPlan.self, ActivitySession.self, configurations: config)
         return ModelContext(container)
     }
 
@@ -53,6 +53,40 @@ final class TwoADayCompletionTests: XCTestCase {
 
         vm.toggleSecondarySessionComplete(modelContext: context)
         XCTAssertFalse(plan.secondaryCompleted, "A day with no second session is never flagged complete")
+    }
+
+    func testMarkDoneLogsAManualActivitySessionForTheCardio() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = WorkoutPlan(date: Date(), type: .push)
+        plan.secondarySessionType = .run
+        context.insert(plan)
+        vm.todayPlan = plan
+
+        vm.toggleSecondarySessionComplete(modelContext: context) // done
+        let logged = try context.fetch(FetchDescriptor<ActivitySession>())
+        XCTAssertEqual(logged.count, 1, "Marking the cardio done logs it as a real activity (feeds the (d) learner + load)")
+        XCTAssertEqual(logged.first?.workoutType, WorkoutType.run.rawValue)
+        XCTAssertEqual(logged.first?.source, "manual")
+
+        vm.toggleSecondarySessionComplete(modelContext: context) // undo
+        XCTAssertEqual(try context.fetch(FetchDescriptor<ActivitySession>()).count, 0,
+                       "Undo removes the logged cardio — flag and activity never disagree")
+    }
+
+    func testReDoneDoesNotDoubleLog() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = WorkoutPlan(date: Date(), type: .pull)
+        plan.secondarySessionType = .pool
+        context.insert(plan)
+        vm.todayPlan = plan
+
+        vm.toggleSecondarySessionComplete(modelContext: context) // done
+        vm.toggleSecondarySessionComplete(modelContext: context) // undo
+        vm.toggleSecondarySessionComplete(modelContext: context) // done again
+        XCTAssertEqual(try context.fetch(FetchDescriptor<ActivitySession>()).count, 1,
+                       "Re-completing never accumulates duplicate activity rows")
     }
 
     func testCardioCompletionIsIndependentOfTheLift() throws {

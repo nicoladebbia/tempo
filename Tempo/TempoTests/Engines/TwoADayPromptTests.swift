@@ -44,6 +44,19 @@ final class TwoADayPromptTests: XCTestCase {
                       "The drop condition (yellow-or-worse) is stated")
     }
 
+    func testPromptStatesTheCalendarWindows() {
+        let msg = DailyCoachPrompt.userMessage(for: picture(), plannedModality: "push",
+                                               plannedSecondary: "run", secondaryWindows: (8 * 60, 18 * 60))
+        XCTAssertTrue(msg.contains("free windows"),
+                      "When real calendar windows exist, the brain is told to place the parts there")
+    }
+
+    func testNoWindowHintWhenNoneProvided() {
+        let msg = DailyCoachPrompt.userMessage(for: picture(), plannedModality: "push", plannedSecondary: "run")
+        XCTAssertTrue(msg.contains("TWO-A-DAY"))
+        XCTAssertFalse(msg.contains("free windows"), "No calendar data → no window hint, just the ≥6h rule")
+    }
+
     func testSingleSessionPromptHasNoTwoADayLine() {
         let msg = DailyCoachPrompt.userMessage(for: picture(), plannedModality: "push", plannedSecondary: nil)
         XCTAssertTrue(msg.contains("TODAY'S PLANNED SESSION: push"),

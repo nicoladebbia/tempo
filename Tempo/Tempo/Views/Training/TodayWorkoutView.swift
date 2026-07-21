@@ -432,10 +432,13 @@ struct TodayWorkoutView: View {
 
             // §21 (b) two-a-day — the cardio SECOND session is a bonus tracked
             // apart from the lift (the day counts as trained on the lift itself),
-            // so it gets its own check-off. Only appears when the plan carries a
-            // second session; the brain may still have dropped it from today's
-            // prescription, but the plan-level flag is what history reads.
-            if let plan = viewModel.todayPlan,
+            // so it gets its own check-off. Gate on TODAY'S actual prescription
+            // (parts >= 2) — not just the plan-level flag: a low-readiness morning
+            // DROPS the second part from the prescription, and offering to "mark
+            // done" a session that readiness prescribed away would contradict the
+            // card above. When kept, the plan-level flag is what completion writes.
+            if session.blocks.parts.count >= 2,
+               let plan = viewModel.todayPlan,
                plan.isTwoADay,
                let second = plan.secondarySessionType {
                 Divider().overlay(Color.tempoTextTertiary.opacity(0.3))

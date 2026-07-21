@@ -494,7 +494,11 @@ final class TrainingViewModel {
 
         // 3. Deterministic candidate (cold-start / offline / 402 / parse-fail
         //    fallback) built from the planned modality. Floor still applies to it.
-        let candidate = deterministicCandidate(for: plan, readiness: picture)
+        //    (b)+(c) compose: a two-a-day places its two parts in real calendar
+        //    windows (lift in the preferred/free slot, cardio spaced) rather than
+        //    a fixed clock; nil → the 08:00/18:00 fallback inside the candidate.
+        let secondaryWindows = plan.isTwoADay ? await twoADayWindows(modelContext: modelContext) : nil
+        let candidate = deterministicCandidate(for: plan, readiness: picture, secondaryWindows: secondaryWindows)
 
         // 4. Coach: produce-then-floor.
         let coach = DailyReadinessCoach(apiClient: apiClient)
@@ -714,7 +718,30 @@ final class TrainingViewModel {
     /// when the brain is skipped or fails. Gym → pointer (engine fills loads);
     /// non-gym → an easy modality-appropriate block so cold-start/offline never
     /// empty-renders (§15.1/§15.4). The floor still clamps/vetoes this.
-    func deterministicCandidate(for plan: WorkoutPlan, readiness: ReadinessPicture? = nil) -> DailySessionDTO {
+    /// §21 (b) + (c) compose — place a two-a-day's two sessions in REAL calendar
+    /// windows: the LIFT in the user's preferred/available training window (the
+    /// same `suggestWorkoutWindow` that drives the "best window" banner), the
+    /// CARDIO spaced ≥6h away on the opposite side of the day. Returns nil — so
+    /// the deterministic 08:00/18:00 fallback stands — when there's no calendar,
+    /// no free window, or no placement that keeps a valid ≥6h gap in waking hours.
+    private func twoADayWindows(modelContext: ModelContext) async -> (liftMin: Int, cardioMin: Int)? {
+        guard let calendarService else { return nil }
+        let pref = (try? modelContext.fetch(FetchDescriptor<UserDailyPlanProfile>()))?
+            .first?.trainingTimePreference ?? .anyFree
+        guard let window = await calendarService.suggestWorkoutWindow(for: Date(), preferring: pref) else { return nil }
+        let cal = Calendar.current
+        let liftMin = cal.component(.hour, from: window.start) * 60 + cal.component(.minute, from: window.start)
+        // Space the cardio flush ≥8h from the lift, on the opposite side of the
+        // day, clamped to a waking-hours start (06:00–21:00).
+        let cardioMin = liftMin < 13 * 60
+            ? min(liftMin + 8 * 60, 21 * 60) // morning lift → evening flush
+            : max(liftMin - 8 * 60, 6 * 60)  // later lift → morning flush
+        guard abs(cardioMin - liftMin) >= 6 * 60 else { return nil } // gap collapsed → fallback
+        return (min(liftMin, cardioMin), max(liftMin, cardioMin))    // earliest part first
+    }
+
+    func deterministicCandidate(for plan: WorkoutPlan, readiness: ReadinessPicture? = nil,
+                                secondaryWindows: (liftMin: Int, cardioMin: Int)? = nil) -> DailySessionDTO {
         let type = plan.type
         let dur = plan.durationMinutes ?? 45
         // Rich-signal ease gate (recovery number + acute:chronic strain + HRV
@@ -752,9 +779,14 @@ final class TrainingViewModel {
             // low-readiness morning — the same §2 ease gate that trims cross-
             // training; the safety floor's ACWR/gap rules are the backstop.
             if let second = plan.secondarySessionType, !ease {
+                // Timing (requirement (c) composes here): the caller places the
+                // lift in the user's REAL calendar/preferred window and spaces the
+                // cardio; absent calendar data we fall back to a fixed 08:00/18:00
+                // split (still a valid ≥6h gap for the floor).
+                let (liftMin, cardioMin) = secondaryWindows ?? (8 * 60, 18 * 60)
                 let lift = SessionBlockDTO(
                     kind: .gym, label: type.displayName, notes: nil, cue: nil,
-                    scheduledMin: 8 * 60, split: type.rawValue, reps: nil, distanceM: nil,
+                    scheduledMin: liftMin, split: type.rawValue, reps: nil, distanceM: nil,
                     restSec: nil, intensityPct: nil, durationSec: nil, stroke: nil,
                     runType: nil, paceSecPerKm: nil, sets: nil)
                 let isRun = second == .run
@@ -762,7 +794,7 @@ final class TrainingViewModel {
                     kind: isRun ? .run : .pool,
                     label: isRun ? "Easy run" : "Easy swim", notes: nil,
                     cue: "Easy pace — this is the flush, not extra work.",
-                    scheduledMin: 18 * 60, split: nil, reps: nil, distanceM: nil,
+                    scheduledMin: cardioMin, split: nil, reps: nil, distanceM: nil,
                     restSec: nil, intensityPct: nil, durationSec: 30 * 60,
                     stroke: isRun ? nil : "freestyle", runType: nil,
                     paceSecPerKm: nil, sets: nil)
@@ -2040,14 +2072,52 @@ final class TrainingViewModel {
 
     /// §21 (b) — check off (or undo) the cardio SECOND session of a gym+cardio
     /// two-a-day. The lift's completion rides `status` (the DAY counts as trained
-    /// on the lift), so this flag tracks the bonus cardio INDEPENDENTLY for
-    /// history/adherence — it never gates the day. No-op on a single-session day.
+    /// on the lift), so this flag tracks the bonus cardio INDEPENDENTLY — it never
+    /// gates the day. No-op on a single-session day.
+    ///
+    /// Marking it done LOGS the cardio as a manual `ActivitySession` — the same
+    /// record a standalone cross-training day writes (persistNonGymCompletion) —
+    /// so the bonus session feeds the real intelligence: the §14 (d) modality
+    /// learner (doing the two-a-day cardio reinforces the learned preference),
+    /// venue patterns, and the load/replan cascade. Undo removes that row, so the
+    /// flag and the logged activity never disagree.
     func toggleSecondarySessionComplete(modelContext: ModelContext) {
-        guard let plan = todayPlan, plan.isTwoADay else { return }
+        guard let plan = todayPlan, plan.isTwoADay, let second = plan.secondarySessionType else { return }
         plan.secondaryCompleted.toggle()
+
+        let planID = plan.id
+        let typeRaw = second.rawValue
+        // The cardio's own ActivitySession, keyed (planID, type) so it's found on
+        // undo. The gym lift writes ExerciseHistory (not ActivitySession), so this
+        // is the ONLY ActivitySession for the plan — no collision with the lift.
+        let existing = (try? modelContext.fetch(FetchDescriptor<ActivitySession>(
+            predicate: #Predicate<ActivitySession> { $0.workoutPlanID == planID && $0.workoutType == typeRaw }
+        ))) ?? []
+        for row in existing { modelContext.delete(row) } // dedup / undo both start clean
+
+        if plan.secondaryCompleted {
+            let cardio = ActivitySession(
+                date: Date(), startTime: Date(), workoutType: typeRaw, sportID: -1,
+                source: "manual", workoutPlanID: planID,
+                strain: nil, averageHeartRate: nil, maxHeartRate: nil,
+                caloriesBurned: nil, durationMinutes: 30
+            )
+            modelContext.insert(cardio)
+        }
         try? modelContext.save()
+
+        if plan.secondaryCompleted {
+            // Same cross-surface signals as any non-gym completion — feeds venue
+            // learning and lets the Move quadrant / recovery cascade react.
+            VenuePatternLearner.recompute(modelContext: modelContext)
+            NotificationCenter.default.post(
+                name: .tempoDayPlanReplanRequested, object: nil,
+                userInfo: ["reason": DayPlanReason.workoutLogged.rawValue]
+            )
+            NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
+        }
         #if DEBUG
-            print("\(DebugTrace.prefix)[daily_coach] two-a-day second session → \(plan.secondaryCompleted ? "done" : "undone")")
+            print("\(DebugTrace.prefix)[daily_coach] two-a-day second session → \(plan.secondaryCompleted ? "done (logged \(typeRaw))" : "undone (removed)")")
         #endif
     }
 

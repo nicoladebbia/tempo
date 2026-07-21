@@ -149,7 +149,8 @@ enum DailyCoachPrompt {
     ///     Already readiness-gated upstream: the deterministic candidate this is
     ///     derived from is single-part on an eased morning, so nil arrives here.
     static func userMessage(for p: ReadinessPicture, plannedModality: String? = nil,
-                            plannedSecondary: String? = nil) -> String {
+                            plannedSecondary: String? = nil,
+                            secondaryWindows: (Int, Int)? = nil) -> String {
         var lines: [String] = []
         lines.append("TODAY'S BODY DATA:")
         lines.append("- Recovery score: \(Int(p.recoveryScore))/100")
@@ -240,7 +241,10 @@ enum DailyCoachPrompt {
         }
         if let planned = plannedModality {
             if let second = plannedSecondary {
-                lines.append("- TODAY'S PLANNED SESSION: a TWO-A-DAY — \(planned) (the lift) PLUS an easy \(second) second session. The weekly planner decided today has the headroom for both. KEEP both parts: prescribe the lift, then an EASY \(second) block scheduled >= 6h later, each tagged with scheduledMin. The second part stays easy (intensityPct <= 75 / mobility-grade) — never a second hard effort. DROP the second part and prescribe the lift ALONE if readiness is yellow-or-worse, the acute:chronic load ratio is already high, or a pain flag loads that work. When you keep the lift, its own INTENSITY still follows today's readiness.")
+                let windowHint = secondaryWindows.map {
+                    " The user's free windows today are around \(VenuePatternMath.clockLabel($0.0)) and \(VenuePatternMath.clockLabel($0.1)) — place the two parts there."
+                } ?? ""
+                lines.append("- TODAY'S PLANNED SESSION: a TWO-A-DAY — \(planned) (the lift) PLUS an easy \(second) second session. The weekly planner decided today has the headroom for both. KEEP both parts: prescribe the lift, then an EASY \(second) block scheduled >= 6h later, each tagged with scheduledMin.\(windowHint) The second part stays easy (intensityPct <= 75 / mobility-grade) — never a second hard effort. DROP the second part and prescribe the lift ALONE if readiness is yellow-or-worse, the acute:chronic load ratio is already high, or a pain flag loads that work. When you keep the lift, its own INTENSITY still follows today's readiness.")
             } else {
                 lines.append("- TODAY'S PLANNED SESSION: \(planned). This is the week's plan for today — KEEP this modality. Adjust only its INTENSITY to today's readiness. Override the modality ONLY if readiness forces recovery, or a hard constraint applies (match T-1 → no heavy legs; a pain flag on the muscle this would load). Any override stays in-emphasis.")
             }

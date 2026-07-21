@@ -99,6 +99,27 @@ final class TwoADaySessionShapeTests: XCTestCase {
         XCTAssertFalse(session.isComposite, "An acute load spike drops the second session even on middling recovery")
     }
 
+    // MARK: - Calendar-aware timing (requirement c composes)
+
+    func testProvidedWindowsPlaceTheTwoParts() {
+        let vm = makeVM()
+        let plan = WorkoutPlan(date: today, type: .push)
+        plan.secondarySessionType = .run
+        let session = vm.deterministicCandidate(for: plan, readiness: picture(recovery: 80),
+                                                secondaryWindows: (10 * 60, 17 * 60))
+        let mins = session.parts.compactMap(\.scheduledMin).sorted()
+        XCTAssertEqual(mins, [600, 1020], "The two parts land in the caller's real calendar windows")
+    }
+
+    func testFallsBackToFixedSplitWhenNoWindows() {
+        let vm = makeVM()
+        let plan = WorkoutPlan(date: today, type: .pull)
+        plan.secondarySessionType = .pool
+        let session = vm.deterministicCandidate(for: plan, readiness: picture(recovery: 80)) // no windows
+        let mins = session.parts.compactMap(\.scheduledMin).sorted()
+        XCTAssertEqual(mins, [8 * 60, 18 * 60], "Absent calendar data, fall back to the fixed 08:00/18:00 split")
+    }
+
     // MARK: - No regression on plain gym days
 
     func testPlainGymDayStaysASinglePart() {
