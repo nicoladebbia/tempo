@@ -1172,9 +1172,10 @@ struct TrainingSettingsDetailView: View {
                     // Experience level — feeds the cold-start weight estimator.
                     // Shows Beginner when unset (matches the engine's default) so
                     // an intermediate/advanced lifter sees it's wrong and corrects
-                    // it; otherwise every first-session weight is beginner-scaled.
-                    SettingsControlRow(label: "Experience", icon: "figure.strengthtraining.traditional", iconTint: .tempoAmber) {
-                        Picker("", selection: Binding(
+                    // it. Full-row Menu (same as Split) so a long value like
+                    // "Intermediate" doesn't wrap in a cramped trailing control.
+                    Menu {
+                        Picker("Experience", selection: Binding(
                             get: { settings?.experienceLevelRaw ?? "Beginner" },
                             set: { newValue in
                                 settings?.experienceLevelRaw = newValue
@@ -1185,8 +1186,25 @@ struct TrainingSettingsDetailView: View {
                                 Text(level).tag(level)
                             }
                         }
-                        .pickerStyle(.menu)
-                        .tint(Color.tempoTextSecondary)
+                    } label: {
+                        HStack(spacing: TempoSpacing.md) {
+                            SettingsIconTile(systemName: "figure.strengthtraining.traditional", tint: .tempoAmber)
+                            Text("Experience")
+                                .font(.tempoSubheadline)
+                                .foregroundStyle(Color.tempoTextPrimary)
+                            Spacer(minLength: TempoSpacing.sm)
+                            Text(settings?.experienceLevelRaw ?? "Beginner")
+                                .font(.tempoSubheadline)
+                                .foregroundStyle(Color.tempoTextSecondary)
+                                .lineLimit(1)
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color.tempoTextTertiary)
+                        }
+                        .padding(.horizontal, TempoSpacing.lg)
+                        .padding(.vertical, TempoSpacing.md)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                     }
                 }
 

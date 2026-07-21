@@ -1129,6 +1129,27 @@ struct TodayWorkoutView: View {
                 }
             }
 
+            // The actual cross-training prescription (what to DO), so a cardio
+            // day isn't just an icon + one line. Reads type + duration off the
+            // plan. FALLBACK ONLY: when the daily brain already produced a
+            // DailySession card above, defer to it — don't show two prescriptions.
+            if viewModel.dailySession == nil, let rx = cardioPrescription(for: plan) {
+                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+                    Text(rx.headline)
+                        .font(.tempoHeadline)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                    Text(rx.detail)
+                        .font(.tempoSubheadline)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(TempoSpacing.lg)
+                .background(Color.tempoSurfaceCard)
+                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+                .padding(.horizontal, TempoSpacing.lg)
+            }
+
             // Whoop activity confirm / saved summary.
             nonGymActivitySection(plan: plan)
 
@@ -1294,6 +1315,37 @@ struct TodayWorkoutView: View {
         case .pool: "Pool day. Easy laps — active recovery, not a race."
         case .mobility: "Mobility today. Move well and recover — don't grind it."
         default: "Training today."
+        }
+    }
+
+    /// The concrete cross-training session — headline + what to actually do —
+    /// derived from the plan's type + duration. nil for gym/football (they have
+    /// their own content). This is what makes a pool/run day a real prescription
+    /// instead of just an icon and one line.
+    private func cardioPrescription(for plan: WorkoutPlan) -> (headline: String, detail: String)? {
+        let mins = plan.durationMinutes ?? 30
+        switch plan.type {
+        case .pool:
+            if plan.notes?.localizedCaseInsensitiveContains("pre-match") == true {
+                return ("Pool flush · \(mins) min",
+                        "Very easy continuous swim. Loosen the legs and keep breathing smooth — nothing hard the day before a match.")
+            }
+            return ("Continuous swim · \(mins) min",
+                    "Steady, relaxed pace the whole way — one continuous effort, no intervals. Active recovery: you should finish looser, not tired.")
+        case .run:
+            return ("Zone 2 easy run · \(mins) min",
+                    "Conversational pace — you should be able to talk in full sentences the whole way. Keep the heart rate easy; this builds the aerobic base without adding fatigue.")
+        case .conditioning:
+            return ("Conditioning · \(mins) min",
+                    "5 min easy warm-up, then 6 × (1 min hard / 90 sec easy), 5 min cool-down. Bike, row, or run the intervals — push the engine, not the barbell.")
+        case .sprint:
+            return ("Sprint work",
+                    "Warm up thoroughly first. 10–12 × 20–30 m at 90–95%, walk back for full recovery between reps. Stop if form breaks — quality over quantity.")
+        case .mobility:
+            return ("Mobility flow · \(mins) min",
+                    "Slow, controlled full-body flow — hips, shoulders, thoracic spine. This is recovery, not a session to grind.")
+        default:
+            return nil
         }
     }
 
