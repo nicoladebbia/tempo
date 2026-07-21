@@ -638,6 +638,7 @@
 		DABADB6C9F50536C99FE90BA /* GroceryList.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9CCF4B7D9CC50534C6C341D /* GroceryList.swift */; };
 		DB6B578D48FA96C8AC6701AD /* cue_move_wall_slides.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = BFBF593CC34485A16F12BA2C /* cue_move_wall_slides.mp3 */; };
 		DBC508F29612C8644AF70513 /* OutcomeGrader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 070EACE8EE54D1E51F44B535 /* OutcomeGrader.swift */; };
+		DBFF1D829626E9ACCF90A13B /* TwoADayPromptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF36526E5A1930A9C0FC864A /* TwoADayPromptTests.swift */; };
 		DC474F4F02D725F031A4DB1A /* MealPlanPromptsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09AFD987E2C8CA8FE0171129 /* MealPlanPromptsTests.swift */; };
 		DC8BEFF95B9D8BFDCE98C8A9 /* PlannedSet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2149CE481641E8287288817C /* PlannedSet.swift */; };
 		DCED9BB91B053164284F1E13 /* MockCalendarService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16EC0F22D503CB01821342D /* MockCalendarService.swift */; };
@@ -1520,6 +1521,7 @@
 		EE6AD43928676FF103558F6A /* TempoCardModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoCardModifier.swift; sourceTree = "<group>"; };
 		EEA2A493C5DEAAB15751E788 /* CoachMemoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachMemoryView.swift; sourceTree = "<group>"; };
 		EEC118BC5209B7C05459E125 /* TrainingOutcomeEvaluatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingOutcomeEvaluatorTests.swift; sourceTree = "<group>"; };
+		EF36526E5A1930A9C0FC864A /* TwoADayPromptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwoADayPromptTests.swift; sourceTree = "<group>"; };
 		EFC3245FEE0EA4FF71654A46 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		EFCCA9728FE6827715A4AA66 /* DailySession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailySession.swift; sourceTree = "<group>"; };
 		F045772FFE7A153F6103A51F /* TempoSettingsToolbarModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoSettingsToolbarModifier.swift; sourceTree = "<group>"; };
@@ -2009,6 +2011,7 @@
 				EEC118BC5209B7C05459E125 /* TrainingOutcomeEvaluatorTests.swift */,
 				5435AF79E5FFA9DD522DA742 /* TrainingSafetyFloorTests.swift */,
 				C4F17140A988C75F8633C5D2 /* TwoADayGenerationTests.swift */,
+				EF36526E5A1930A9C0FC864A /* TwoADayPromptTests.swift */,
 				4B386A3D49497363D09C36A8 /* TwoADaySessionShapeTests.swift */,
 				E5D2020122EC0E82C858B757 /* VenuePatternTests.swift */,
 				F59E5F9A8766E914CFE91E78 /* WhoopPersonalizationTests.swift */,
@@ -3658,6 +3661,7 @@
 				7D97118FE2F6DACB4CE3B849 /* TrainingSafetyFloorTests.swift in Sources */,
 				BDA84F71745C7DEF9F65EFEC /* TrainingSplitOnboardingTests.swift in Sources */,
 				793D59232933B55DF585921B /* TwoADayGenerationTests.swift in Sources */,
+				DBFF1D829626E9ACCF90A13B /* TwoADayPromptTests.swift in Sources */,
 				F59E67956E985EA8AB09BA7C /* TwoADaySessionShapeTests.swift in Sources */,
 				38162A7ADCA2F417C6EA60B9 /* VenuePatternTests.swift in Sources */,
 				C498B8EF5C1A72790D0E7DBB /* VoicePantryParseTests.swift in Sources */,
