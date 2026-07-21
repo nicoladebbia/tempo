@@ -76,6 +76,17 @@ final class TrainingViewModel {
     var isLoading = true
     var isDeloadWeek = false
 
+    /// Re-entrancy guard for `loadToday`. The load is a heavy async pipeline
+    /// (week-gen → AI hydration → readiness session) fired from several view
+    /// lifecycle points (`.task` on the Training tab, the Move quadrant detail,
+    /// a manual "Generate" button) and none of it checks `Task.isCancelled`.
+    /// Without coalescing, tab-switching/taps over a long session stack
+    /// overlapping pipelines that each hold fetches + regenerate plans —
+    /// unbounded memory growth (a jetsam suspect). This is a private
+    /// in-flight flag (NOT `isLoading`, which defaults true and would block
+    /// the first load); a concurrent call is dropped, the next `.task` reloads.
+    private var isReloadInFlight = false
+
     /// AI rationale for this week's reconciled plan (Phase 2). Non-nil ONLY when
     /// the AI program ran and was reconciled against the floor — nil whenever
     /// the deterministic plan stands (offline, not Pro, no consent, failure).
@@ -228,6 +239,13 @@ final class TrainingViewModel {
     // MARK: - Load Today's Workout
 
     func loadToday(modelContext: ModelContext) async {
+        // Coalesce re-entrant loads: if a pipeline is already running, drop this
+        // call rather than stacking a second heavy run. `@MainActor` means the
+        // flag flip is race-free; `defer` clears it on every exit path.
+        guard !isReloadInFlight else { return }
+        isReloadInFlight = true
+        defer { isReloadInFlight = false }
+
         isLoading = true
 
         // Display unit for the session (weights are stored kg).
