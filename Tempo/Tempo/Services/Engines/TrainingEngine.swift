@@ -363,6 +363,13 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         var plans: [WorkoutPlan] = []
         var splitIndex = 0
         var conditioningDaysAssigned = 0
+        // §21 requirement (b) — how many GYM days this week also earned an easy
+        // cardio SECOND session (a "two-a-day"). Capped: soccer emphasis is
+        // already cardio-loaded by football, so it earns at most one; a physique
+        // block (no football) can take two. Bounds weekly load so the auto-
+        // decision never over-reaches.
+        var twoADaysAssigned = 0
+        let maxTwoADays = emphasis == .soccer ? 1 : 2
         // Alternates the easy cross-training modality (pool → run → pool …) by a
         // counter, NOT absolute weekday, so both modalities actually appear
         // instead of the parity skewing every easy day to one of them.
@@ -508,12 +515,30 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                     ? ((dayRecoveryScore ?? 50) >= 50 ? 0.8 : 0.75)
                     : 1.0
 
-                plans.append(WorkoutPlan(
+                let liftPlan = WorkoutPlan(
                     date: meta.date,
                     type: workoutType,
                     recoveryAdjustment: adjustment,
                     notes: zone == .yellow ? "Recovery-adjusted" : nil
-                ))
+                )
+
+                // §21 requirement (b) — a gym day can carry an easy cardio SECOND
+                // session (a two-a-day) when the body clearly has headroom: GREEN
+                // recovery, an UPPER-body lift (never stack cardio on legs/lower —
+                // protect the legs he also plays football on), NOT the day before a
+                // match (no added pre-game load), and under the weekly cap. The
+                // cardio modality is the learned easy preference leader (§14 (d)).
+                // The daily brain drops it on a low-readiness morning (§2 ease gate,
+                // Slice 2). Recovery already gates this to green — a yellow/red day
+                // never two-a-days at generation time.
+                let upperLift = workoutType == .push || workoutType == .pull || workoutType == .upper
+                if zone == .green, upperLift, !meta.isTMinus1, twoADaysAssigned < maxTwoADays {
+                    let order = easyModalityPreference.isEmpty ? [.pool, .run] : easyModalityPreference
+                    liftPlan.secondarySessionType = order[0] == .run ? .run : .pool
+                    twoADaysAssigned += 1
+                }
+
+                plans.append(liftPlan)
                 splitIndex += 1
             } else {
                 // Spare capacity → standing auto cross-training (Slice 1).

@@ -58,6 +58,23 @@ final class WorkoutPlan {
     /// this, not just `status`. Defaulted nil → SwiftData auto-migrates.
     var skipReasonRaw: String?
 
+    /// §21 two-a-day (requirement (b) "gym + cardio only") — when the week
+    /// generator decides a GYM day has clear headroom to also carry a second,
+    /// EASY cardio session (green recovery, an upper-body lift, no match nearby),
+    /// this holds that second session's modality (e.g. `.run` / `.pool`). nil =
+    /// ordinary single-session day. The daily brain DROPS it on a low-readiness
+    /// morning — the same §2 ease gate, applied to the second session. The lift
+    /// stays on `typeRaw`; this is strictly the ADDED cardio. Defaulted nil →
+    /// SwiftData auto-migrates.
+    var secondarySessionTypeRaw: String?
+
+    /// Whether the user completed the cardio SECOND session of a two-a-day.
+    /// Primary (lift) completion rides `status`; the secondary needs its own flag
+    /// so the day can distinguish "lift done, cardio pending" from "both done".
+    /// Only meaningful when `secondarySessionTypeRaw != nil`. Defaulted →
+    /// SwiftData auto-migrates.
+    var secondaryCompleted: Bool = false
+
     // MARK: - Relationships
 
     @Relationship(deleteRule: .cascade, inverse: \PlannedExercise.workoutPlan)
@@ -84,6 +101,18 @@ final class WorkoutPlan {
         get { skipReasonRaw.flatMap(SkipReason.init(rawValue:)) }
         set { skipReasonRaw = newValue?.rawValue }
     }
+
+    /// The easy cardio SECOND session's modality on a two-a-day, or nil for an
+    /// ordinary single-session day (§21, requirement (b)).
+    @Transient
+    var secondarySessionType: WorkoutType? {
+        get { secondarySessionTypeRaw.flatMap(WorkoutType.init(rawValue:)) }
+        set { secondarySessionTypeRaw = newValue?.rawValue }
+    }
+
+    /// True when this day carries a gym lift AND an easy cardio second session.
+    @Transient
+    var isTwoADay: Bool { secondarySessionTypeRaw != nil }
 
     @Transient
     var orderedExercises: [PlannedExercise] {
