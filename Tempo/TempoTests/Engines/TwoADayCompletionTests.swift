@@ -89,6 +89,48 @@ final class TwoADayCompletionTests: XCTestCase {
                        "Re-completing never accumulates duplicate activity rows")
     }
 
+    func testPersistedPlannedDayPicksUpANewlyAddedSecondSession() throws {
+        // The device case: a pull day persisted BEFORE two-a-days existed
+        // (secondary nil), then the freshly-generated week marks today a
+        // two-a-day. The kept .planned plan must sync the second session, or the
+        // Today card (persisted) and Week view (fresh) desync.
+        let context = try makeContext()
+        let vm = makeVM()
+        let today = Calendar.current.startOfDay(for: Date())
+
+        let persisted = WorkoutPlan(date: today, type: .pull) // .planned, secondary nil
+        context.insert(persisted)
+        try context.save()
+
+        let fresh = WorkoutPlan(date: today, type: .pull)
+        fresh.secondarySessionType = .run
+        vm.weekPlans = [fresh]
+
+        let resolved = vm.ensureTodayPlanPersisted(modelContext: context)
+        XCTAssertEqual(resolved.plan.secondarySessionType, .run,
+                       "A kept .planned day syncs the newly-added second session — no Today/Week desync")
+    }
+
+    func testCompletedDayIsNotRetroactivelyMadeATwoADay() throws {
+        // A finished day is sacred — never mutate its planning state.
+        let context = try makeContext()
+        let vm = makeVM()
+        let today = Calendar.current.startOfDay(for: Date())
+
+        let done = WorkoutPlan(date: today, type: .pull)
+        done.status = .completed
+        context.insert(done)
+        try context.save()
+
+        let fresh = WorkoutPlan(date: today, type: .pull)
+        fresh.secondarySessionType = .run
+        vm.weekPlans = [fresh]
+
+        let resolved = vm.ensureTodayPlanPersisted(modelContext: context)
+        XCTAssertNil(resolved.plan.secondarySessionType,
+                     "A completed day is not retroactively turned into a two-a-day")
+    }
+
     func testCardioCompletionIsIndependentOfTheLift() throws {
         let context = try makeContext()
         let vm = makeVM()

@@ -1191,6 +1191,21 @@ final class TrainingViewModel {
             }
             // Keep it — matches the Week Plan type, OR holds real training
             // (completed/in-progress) and must be preserved regardless of type.
+            // BUT a still-PLANNED day must pick up planning-only attributes the
+            // fresh template gained since it was persisted — specifically the §21
+            // two-a-day second session (added by a newer build, or by today
+            // flipping green). Without this, the persisted plan keeps
+            // secondary=nil while the freshly-generated Week view shows "+RUN":
+            // the Today card and Week view desync, and the daily coach never
+            // composes the second part. Sync ONLY the planning attribute, ONLY
+            // while .planned (never mutate a completed/in-progress day's state).
+            if existing.status == .planned,
+               let canonical = weekPlanForToday,
+               existing.secondarySessionTypeRaw != canonical.secondarySessionTypeRaw {
+                existing.secondarySessionTypeRaw = canonical.secondarySessionTypeRaw
+                if canonical.secondarySessionTypeRaw == nil { existing.secondaryCompleted = false }
+                try? modelContext.save()
+            }
             return ResolvedTodayPlan(plan: existing, isCrashedInProgress: false)
         }
 
