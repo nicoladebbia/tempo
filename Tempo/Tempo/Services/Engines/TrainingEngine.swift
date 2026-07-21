@@ -311,6 +311,11 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         recoveryScores: [Date: Double],
         footballDays: ActiveDays,
         split: TrainingSplit,
+        // Advanced custom split — a user-assigned WorkoutType per weekday
+        // (Mon-first, length 7). Non-nil only when split == .custom and the user
+        // configured it; then it supplies the type for each normal training day
+        // (football / T+1 / red-recovery still apply on top, unchanged).
+        customWeekdayMap: [WorkoutType]? = nil,
         recoveryThresholdOffset: Double = 0,
         // D3 — start-of-day keys of DATED matches (distinct from the recurring
         // footballDays weekdays). A match here makes that day T-0 (a session day)
@@ -438,8 +443,32 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                 continue
             }
 
-            // Normal training day
-            if splitIndex < trainingDaysNeeded {
+            // Normal training day. For an advanced custom split the user maps a
+            // type to each weekday (Mon-first); a valid map takes over here.
+            // Football / T+1 / red-recovery already ran above, so the map only
+            // supplies the type for an ordinary training day. An explicit .rest
+            // is honoured verbatim (not auto-filled with active recovery).
+            if split == .custom, let customMap = customWeekdayMap, customMap.count == 7 {
+                let idx = (cal.component(.weekday, from: meta.date) + 5) % 7 // Mon=0…Sun=6
+                let mapped = customMap[idx]
+                if mapped != .rest {
+                    var workoutType = mapped
+                    if meta.isTMinus1 && workoutType == .legs {
+                        workoutType = swapLegsForUpper(split: split)
+                    }
+                    let adjustment: Double = zone == .yellow
+                        ? ((dayRecoveryScore ?? 50) >= 50 ? 0.8 : 0.75)
+                        : 1.0
+                    plans.append(WorkoutPlan(
+                        date: meta.date,
+                        type: workoutType,
+                        recoveryAdjustment: adjustment,
+                        notes: zone == .yellow ? "Recovery-adjusted" : nil
+                    ))
+                } else {
+                    plans.append(WorkoutPlan(date: meta.date, type: .rest))
+                }
+            } else if splitIndex < trainingDaysNeeded {
                 var workoutType = splitSequence[splitIndex]
 
                 // Per MODULE_TRAINING.md Section 18.2 — T-1: no legs

@@ -1065,6 +1065,10 @@ struct TrainingSettingsDetailView: View {
     private var autoDeload = true
     @State
     private var deloadWeeks = 5
+    @State
+    private var autoStartRest = true
+    @State
+    private var defaultRestSeconds = 120
 
     private var footballCount: Int {
         settings?.footballDaysRaw.nonzeroBitCount ?? 0
@@ -1121,6 +1125,28 @@ struct TrainingSettingsDetailView: View {
                     .onChange(of: trainingSplit) { _, newValue in
                         settings?.trainingSplit = newValue
                         save()
+                    }
+
+                    if trainingSplit == .custom {
+                        SettingsRowDivider()
+                        NavigationLink {
+                            CustomSplitEditorView()
+                        } label: {
+                            HStack(spacing: TempoSpacing.md) {
+                                SettingsIconTile(systemName: "calendar", tint: .tempoViolet)
+                                Text("Customise days")
+                                    .font(.tempoSubheadline)
+                                    .foregroundStyle(Color.tempoTextPrimary)
+                                Spacer(minLength: TempoSpacing.sm)
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(Color.tempoTextTertiary)
+                            }
+                            .padding(.horizontal, TempoSpacing.lg)
+                            .padding(.vertical, TempoSpacing.md)
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
+                        }
                     }
 
                     SettingsRowDivider()
@@ -1264,6 +1290,37 @@ struct TrainingSettingsDetailView: View {
                         }
                     }
                 }
+
+                SettingsFormCard(
+                    title: "Rest Timer",
+                    footnote: autoStartRest
+                        ? "Rest starts automatically after each set. Default \(formatRest(defaultRestSeconds)) — override it per exercise on any exercise's detail screen."
+                        : "Rest timer is off — you advance to the next set yourself."
+                ) {
+                    SettingsControlRow(label: "Auto-start timer", icon: "timer", iconTint: .tempoAccent) {
+                        Toggle("", isOn: $autoStartRest)
+                            .labelsHidden()
+                            .tint(Color.tempoAccent)
+                    }
+                    .onChange(of: autoStartRest) { _, newValue in
+                        settings?.autoStartRestTimer = newValue
+                        save()
+                    }
+
+                    if autoStartRest {
+                        SettingsRowDivider()
+                        SettingsControlRow(label: "Default rest", icon: "clock.arrow.circlepath", iconTint: .tempoViolet) {
+                            Stepper(formatRest(defaultRestSeconds), value: $defaultRestSeconds, in: 30 ... 300, step: 15)
+                                .font(.tempoSubheadline)
+                                .foregroundStyle(Color.tempoTextSecondary)
+                                .fixedSize()
+                        }
+                        .onChange(of: defaultRestSeconds) { _, newValue in
+                            settings?.defaultRestSeconds = newValue
+                            save()
+                        }
+                    }
+                }
             }
             .padding(.horizontal, TempoSpacing.xl)
             .padding(.vertical, TempoSpacing.lg)
@@ -1276,7 +1333,17 @@ struct TrainingSettingsDetailView: View {
             trainingSplit = settings?.trainingSplit ?? .pushPullLegs
             autoDeload = settings?.autoDeload ?? true
             deloadWeeks = settings?.deloadFrequencyWeeks ?? 5
+            autoStartRest = settings?.autoStartRestTimer ?? true
+            defaultRestSeconds = settings?.defaultRestSeconds ?? 120
         }
+    }
+
+    /// Compact m/s label for a rest duration (e.g. 45→"45s", 90→"1m 30s", 120→"2m").
+    private func formatRest(_ seconds: Int) -> String {
+        if seconds < 60 { return "\(seconds)s" }
+        let m = seconds / 60
+        let s = seconds % 60
+        return s == 0 ? "\(m)m" : "\(m)m \(s)s"
     }
 
     /// Declares a new open-ended block starting today (§14 Decision 1). The
@@ -1312,6 +1379,117 @@ struct TrainingSettingsDetailView: View {
             name: .tempoTrainingSettingsChanged,
             object: nil
         )
+    }
+}
+
+// MARK: - CustomSplitEditorView
+
+/// Advanced custom split — assign a session type to each weekday (Mon-first).
+/// Football days lock automatically from the football-days setting; the engine
+/// keeps them as football regardless of what's stored here. Persists to
+/// UserSettings.customWeekdayPlan and replans the week on every change (recovery
+/// and deload still adjust the result automatically).
+struct CustomSplitEditorView: View {
+    @Environment(\.modelContext)
+    private var modelContext
+    @Query
+    private var allSettings: [UserSettings]
+
+    private var settings: UserSettings? { allSettings.first }
+
+    private let dayNames = [
+        "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+    ]
+
+    /// Types the user can assign per day. Football is auto (from the football
+    /// setting); run/sprint are covered by conditioning for a gym+football user.
+    private let selectable: [WorkoutType] = [
+        .push, .pull, .legs, .upper, .lower, .fullBody, .conditioning, .pool, .mobility, .rest,
+    ]
+
+    static let defaultPlan: [WorkoutType] = [.push, .pull, .legs, .upper, .lower, .rest, .rest]
+
+    @State
+    private var plan: [WorkoutType] = CustomSplitEditorView.defaultPlan
+
+    /// Calendar weekday (1=Sun) for a Mon-first row index.
+    private func calWeekday(_ index: Int) -> Int { (index + 1) % 7 + 1 }
+
+    private func isFootballDay(_ index: Int) -> Bool {
+        ActiveDays(rawValue: settings?.footballDaysRaw ?? 0).isActive(on: calWeekday(index))
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: TempoSpacing.sm) {
+                SettingsFormCard(
+                    title: "Your week",
+                    footnote: "Assign each day. Football days are set on the Training screen and lock here. Recovery and deload still adjust these automatically."
+                ) {
+                    ForEach(0 ..< 7, id: \.self) { i in
+                        if i > 0 { SettingsRowDivider() }
+                        dayRow(i)
+                    }
+                }
+            }
+            .padding(.horizontal, TempoSpacing.xl)
+            .padding(.vertical, TempoSpacing.lg)
+        }
+        .scrollContentBackground(.hidden)
+        .background(Color.tempoBgPrimary)
+        .navigationTitle("Custom Split")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            if let stored = settings?.customWeekdayPlan, stored.count == 7 {
+                plan = stored
+            } else {
+                // Seed a sensible week so "Custom" isn't a blank/PPL fallback.
+                plan = Self.defaultPlan
+                persist()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func dayRow(_ i: Int) -> some View {
+        SettingsControlRow(label: dayNames[i], icon: "calendar", iconTint: .tempoViolet) {
+            if isFootballDay(i) {
+                Text("Football")
+                    .font(.tempoSubheadline)
+                    .foregroundStyle(Color.tempoTextTertiary)
+            } else {
+                Menu {
+                    Picker("", selection: Binding(
+                        get: { plan[i] },
+                        set: { newValue in
+                            plan[i] = newValue
+                            persist()
+                            HapticManager.selection()
+                        }
+                    )) {
+                        ForEach(selectable, id: \.self) { type in
+                            Text(type.displayName).tag(type)
+                        }
+                    }
+                } label: {
+                    HStack(spacing: TempoSpacing.xs) {
+                        Text(plan[i].displayName)
+                            .font(.tempoSubheadline)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Color.tempoTextTertiary)
+                    }
+                }
+            }
+        }
+    }
+
+    private func persist() {
+        guard let s = settings else { return }
+        s.customWeekdayPlan = plan
+        try? modelContext.save()
+        NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
     }
 }
 

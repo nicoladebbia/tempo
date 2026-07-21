@@ -79,6 +79,9 @@ protocol TrainingEngineProtocol: Sendable {
         recoveryScores: [Date: Double],
         footballDays: ActiveDays,
         split: TrainingSplit,
+        // Advanced custom split — a user-assigned WorkoutType per weekday
+        // (Mon-first, length 7). Non-nil only when split == .custom and configured.
+        customWeekdayMap: [WorkoutType]?,
         recoveryThresholdOffset: Double,
         // D3 — start-of-day keys of dated matches (§14 mid-week-match trigger).
         // matchDayKeys = all matches (T-0); competitiveMatchDayKeys = the subset

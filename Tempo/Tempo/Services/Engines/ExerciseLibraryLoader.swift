@@ -14,25 +14,40 @@ import SwiftData
 @MainActor
 struct ExerciseLibraryLoader {
     static func loadIfNeeded(context: ModelContext) throws {
-        let descriptor = FetchDescriptor<Exercise>()
-        let count = try context.fetchCount(descriptor)
-        guard count == 0 else {
-            return
-        }
+        let entries = try loadFromBundle()
+        let existing = try context.fetch(FetchDescriptor<Exercise>())
 
-        let exercises = try loadFromBundle()
-        for entry in exercises {
-            let exercise = Exercise(
-                name: entry.name,
-                muscleGroup: MuscleGroup(rawValue: entry.muscleGroup) ?? .chest,
-                secondaryMuscles: entry.secondaryMuscles.compactMap { MuscleGroup(rawValue: $0) },
-                equipment: Equipment(rawValue: entry.equipment) ?? .barbell,
-                movementPattern: MovementPattern(rawValue: entry.movementPattern) ?? .isolation,
-                isCompound: entry.isCompound,
-                instructions: entry.instructions,
-                cues: entry.cues ?? []
-            )
-            context.insert(exercise)
+        if existing.isEmpty {
+            // Fresh install — seed the full library.
+            for entry in entries {
+                let exercise = Exercise(
+                    name: entry.name,
+                    muscleGroup: MuscleGroup(rawValue: entry.muscleGroup) ?? .chest,
+                    secondaryMuscles: entry.secondaryMuscles.compactMap { MuscleGroup(rawValue: $0) },
+                    equipment: Equipment(rawValue: entry.equipment) ?? .barbell,
+                    movementPattern: MovementPattern(rawValue: entry.movementPattern) ?? .isolation,
+                    isCompound: entry.isCompound,
+                    demoAsset: entry.demoAsset,
+                    instructions: entry.instructions,
+                    cues: entry.cues ?? []
+                )
+                context.insert(exercise)
+            }
+        } else {
+            // Already seeded (possibly before demoAsset existed): backfill demo
+            // photos onto existing rows that lack one. Idempotent — once set, the
+            // `where` clause skips it. Preserves the user's workout history.
+            var assetByName: [String: String] = [:]
+            for entry in entries {
+                if let asset = entry.demoAsset {
+                    assetByName[entry.name] = asset
+                }
+            }
+            for exercise in existing where exercise.demoAsset == nil {
+                if let asset = assetByName[exercise.name] {
+                    exercise.demoAsset = asset
+                }
+            }
         }
         try context.save()
     }
@@ -64,4 +79,5 @@ private struct ExerciseEntry: Decodable {
     let restSeconds: Int
     let instructions: String
     let cues: [String]?
+    let demoAsset: String?
 }

@@ -53,6 +53,7 @@ final class MockTrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         recoveryScores: [Date: Double],
         footballDays: ActiveDays,
         split: TrainingSplit,
+        customWeekdayMap: [WorkoutType]? = nil,
         recoveryThresholdOffset: Double = 0,
         matchDayKeys: Set<Date> = [],
         competitiveMatchDayKeys: Set<Date>? = nil,

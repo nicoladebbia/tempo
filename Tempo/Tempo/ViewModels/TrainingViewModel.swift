@@ -116,6 +116,14 @@ final class TrainingViewModel {
     /// All stored weights are kg; this is display-only conversion.
     var weightUnit: WeightUnit = .kg
 
+    /// Rest-timer prefs, loaded from UserSettings in loadToday. `autoStartRest`
+    /// gates whether the rest timer starts automatically after a logged set
+    /// (false → advance straight to the next set). `defaultRestSeconds` is the
+    /// global fallback used by restDuration(for:) when an exercise has no
+    /// per-exercise override.
+    var autoStartRest: Bool = true
+    var defaultRestSeconds: Int = 120
+
     // MARK: - Non-Gym Activity (football / sprint / conditioning) confirm flow
 
     /// Drives the non-gym day card. Resolved by `loadNonGymActivity` from Whoop
@@ -225,6 +233,8 @@ final class TrainingViewModel {
         // Display unit for the session (weights are stored kg).
         if let settings = try? modelContext.fetch(FetchDescriptor<UserSettings>()).first {
             weightUnit = settings.weightUnit
+            autoStartRest = settings.autoStartRestTimer
+            defaultRestSeconds = settings.defaultRestSeconds
         }
 
         // Source of truth: the Week Plan. Generate the whole week first so Today
@@ -1115,6 +1125,8 @@ final class TrainingViewModel {
 
         let footballDays = loadFootballDays(modelContext: modelContext)
         let split = loadTrainingSplit(modelContext: modelContext)
+        // Advanced custom split — user's per-weekday map (nil unless configured).
+        let customWeekdayMap = loadCustomWeekdayPlan(modelContext: modelContext)
         let recoveryScores = loadRecoveryScores(modelContext: modelContext, startDate: monday)
         // Phase 3: per-user learned recovery-threshold offset (clamped ±10).
         let signals = adaptiveSignals(modelContext: modelContext)
@@ -1133,6 +1145,7 @@ final class TrainingViewModel {
             recoveryScores: recoveryScores,
             footballDays: footballDays,
             split: split,
+            customWeekdayMap: customWeekdayMap,
             recoveryThresholdOffset: signals.thresholdOffset,
             matchDayKeys: matchDayKeys,
             competitiveMatchDayKeys: competitiveMatchDayKeys,
@@ -1391,22 +1404,35 @@ final class TrainingViewModel {
             sessionState = .summary
         } else if isLastSet {
             // Per STATE_MACHINES.md — between exercises
-            let restDuration = restDuration(for: plannedExercise)
-            startRestTimer(duration: restDuration, nextAction: .nextExercise)
-            sessionState = .exercise(.resting(
-                exerciseIndex: currentExerciseIndex,
-                setIndex: currentSetIndex,
-                remainingSeconds: restDuration
-            ))
+            if autoStartRest {
+                let restDuration = restDuration(for: plannedExercise)
+                startRestTimer(duration: restDuration, nextAction: .nextExercise)
+                sessionState = .exercise(.resting(
+                    exerciseIndex: currentExerciseIndex,
+                    setIndex: currentSetIndex,
+                    remainingSeconds: restDuration
+                ))
+            } else {
+                // Auto-start off — skip rest, advance straight to the next
+                // exercise via the same path the timer uses on completion.
+                pendingRestAction = .nextExercise
+                advanceAfterRest()
+            }
         } else {
             // Per STATE_MACHINES.md — rest between sets
-            let restDuration = restDuration(for: plannedExercise)
-            startRestTimer(duration: restDuration, nextAction: .nextSet)
-            sessionState = .exercise(.resting(
-                exerciseIndex: currentExerciseIndex,
-                setIndex: currentSetIndex,
-                remainingSeconds: restDuration
-            ))
+            if autoStartRest {
+                let restDuration = restDuration(for: plannedExercise)
+                startRestTimer(duration: restDuration, nextAction: .nextSet)
+                sessionState = .exercise(.resting(
+                    exerciseIndex: currentExerciseIndex,
+                    setIndex: currentSetIndex,
+                    remainingSeconds: restDuration
+                ))
+            } else {
+                // Auto-start off — skip rest, advance straight to the next set.
+                pendingRestAction = .nextSet
+                advanceAfterRest()
+            }
         }
     }
 
@@ -2433,6 +2459,11 @@ final class TrainingViewModel {
             return settings.trainingSplit
         }
         return .pushPullLegs // default
+    }
+
+    private func loadCustomWeekdayPlan(modelContext: ModelContext) -> [WorkoutType]? {
+        let descriptor = FetchDescriptor<UserSettings>()
+        return (try? modelContext.fetch(descriptor))?.first?.customWeekdayPlan
     }
 
     private func loadDeloadSettings(modelContext: ModelContext) -> (frequency: Int, startDate: Date?) {

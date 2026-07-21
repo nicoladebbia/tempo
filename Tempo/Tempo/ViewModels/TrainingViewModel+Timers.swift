@@ -387,35 +387,23 @@ extension TrainingViewModel {
     }
 
     func restDuration(for exercise: PlannedExercise) -> TimeInterval {
-        // Per MODULE_TRAINING.md Section 15.6 — Rest times by exercise type
+        // Per MODULE_TRAINING.md Section 15.6 — Rest between sets.
         guard let ex = exercise.exercise else {
-            return 90
+            return TimeInterval(defaultRestSeconds)
         }
 
-        // Check per-exercise custom rest time first. An explicit user override
-        // is honoured verbatim — the conditioning-debt multiplier below applies
-        // ONLY to the auto-computed defaults, never to a value the user set.
+        // Per-exercise custom rest wins, verbatim — the conditioning-debt
+        // multiplier below applies ONLY to the global default, never to a value
+        // the user set explicitly on this exercise.
         if let preferred = ex.preferredRestSeconds {
             return TimeInterval(preferred)
         }
 
-        let base: TimeInterval
-        if ex.isCompound {
-            // Heavy compound: 150-180s, moderate compound: 120-150s
-            switch ex.equipment {
-            case .barbell: base = 150
-            case .dumbbell: base = 120
-            default: base = 120
-            }
-        } else {
-            // Isolation: 60-90s
-            base = 75
-        }
-
-        // Phase 1 (TRAINING_INTELLIGENCE_TO_10.md Fix 1.2) — conditioning debt.
-        // When recent sessions on this exercise repeatedly gassed the user,
-        // the engine lengthens rest (+25%) so the next set isn't under-recovered.
-        // 1.0 when there's no breath signal → identical to prior behaviour.
+        // Global default (user-set in Training settings), lengthened by
+        // conditioning debt: when recent sessions on this exercise repeatedly
+        // gassed the user, the engine adds +25% so the next set isn't
+        // under-recovered. 1.0 when there's no breath signal.
+        let base = TimeInterval(defaultRestSeconds)
         let multiplier = trainingEngine.restMultiplier(history: ex.history ?? [])
         return base * multiplier
     }
