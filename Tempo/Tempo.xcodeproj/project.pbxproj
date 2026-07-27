@@ -152,6 +152,7 @@
 		318C5D6E753DB62A68372967 /* PlanResolutionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D6E13B4FD38CBAA47FB7B6C /* PlanResolutionTests.swift */; };
 		3191A7AD614F15982C5C75B2 /* cue_ex_overhead_squat.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 85C0098EAF43D8948A14F42A /* cue_ex_overhead_squat.mp3 */; };
 		325C8C2C6263920E5CCB395C /* DashboardSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C5B1331799BBAE62F6E1ECE /* DashboardSettingsView.swift */; };
+		327ACF1379BFA1B3AA989A2C /* Tempo.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 1D5FAB6EFE599358733DEC50 /* Tempo.storekit */; };
 		32A243A55DB5F5B329135CA8 /* SyncState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61A364A3A9D6DD964A981AA0 /* SyncState.swift */; };
 		32F4E02C0A889C96EE790C7A /* ReceiptStructuringDTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30BAAE5E8871F724400475AB /* ReceiptStructuringDTOs.swift */; };
 		32FF0ABDF7B87B6706CFF4FE /* CoachTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92D3A8599DF88C6309EA3F37 /* CoachTools.swift */; };
@@ -880,6 +881,7 @@
 		1C6AF2C5780FC47F5D791B88 /* TempoIconButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoIconButton.swift; sourceTree = "<group>"; };
 		1CD41DB168043F4F644E867F /* DashboardFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardFlowTests.swift; sourceTree = "<group>"; };
 		1D4B3C8EF80A2C18A4822F09 /* MilestoneService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilestoneService.swift; sourceTree = "<group>"; };
+		1D5FAB6EFE599358733DEC50 /* Tempo.storekit */ = {isa = PBXFileReference; path = Tempo.storekit; sourceTree = "<group>"; };
 		1D8313F03B023E258D2DEBF2 /* cue_ex_pendlay_row.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_pendlay_row.mp3; sourceTree = "<group>"; };
 		1E140F593B22BE3B1AC57871 /* PendingSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingSync.swift; sourceTree = "<group>"; };
 		1E356D7A09971080F781E42A /* testScoreRingEmpty.1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = testScoreRingEmpty.1.png; sourceTree = "<group>"; };
@@ -2400,6 +2402,7 @@
 				43DB6BEFC11B05818008A600 /* ContentView.swift */,
 				270B87214C8958180521CF6C /* Info.plist */,
 				F32F128E1D77765991B47C81 /* Tempo.entitlements */,
+				1D5FAB6EFE599358733DEC50 /* Tempo.storekit */,
 				DE37B2DC31D748FD529F6B6B /* TempoApp.swift */,
 			);
 			path = Tempo;
@@ -3299,6 +3302,7 @@
 				78D431FC734932DC2397F4AB /* Assets.xcassets in Resources */,
 				B7538C58C97145FFEDC98F6F /* Exercises.json in Resources */,
 				AAA3DFCFB482F225B2312138 /* Preview Assets.xcassets in Resources */,
+				327ACF1379BFA1B3AA989A2C /* Tempo.storekit in Resources */,
 				F6935930B0B4E3B98E29F71E /* cue_ex_ab_wheel_rollout.mp3 in Resources */,
 				40C4F7D1BAF472C35F8004A3 /* cue_ex_arnold_press.mp3 in Resources */,
 				9CCE2D735EEB16F1C6A3B2D6 /* cue_ex_band_pull_apart.mp3 in Resources */,

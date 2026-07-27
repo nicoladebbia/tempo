@@ -166,11 +166,23 @@ targets:
       - name: Increment Build Number
         shell: /bin/zsh
         script: |
+          # Xcode Cloud assigns build numbers itself; skip the manual bump there.
+          if [ "$CI" = "TRUE" ]; then
+              echo "Xcode Cloud detected (CI=TRUE) — skipping manual build-number bump"
+              exit 0
+          fi
           if [ "${CONFIGURATION}" = "Release" ] || [ "${CONFIGURATION}" = "Staging" ]; then
-              buildNumber=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "${INFOPLIST_FILE}")
-              buildNumber=$(($buildNumber + 1))
-              /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $buildNumber" "${INFOPLIST_FILE}"
-              echo "Build number incremented to $buildNumber"
+              plist="${INFOPLIST_FILE}"
+              if [ -z "$plist" ]; then plist="${PRODUCT_SETTINGS_PATH}"; fi
+              if [ -n "$plist" ] && [ -f "$plist" ]; then
+                  buildNumber=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$plist" 2>/dev/null)
+                  case "$buildNumber" in
+                      ''|*[!0-9]*) echo "CFBundleVersion '$buildNumber' is not an integer — skipping bump" ;;
+                      *) buildNumber=$((buildNumber + 1)); /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $buildNumber" "$plist" && echo "Build number incremented to $buildNumber" ;;
+                  esac
+              else
+                  echo "No writable Info.plist (INFOPLIST_FILE='${INFOPLIST_FILE}') — skipping bump"
+              fi
           fi
         basedOnDependencyAnalysis: false
     scheme:
