@@ -45,6 +45,14 @@ final class AdaptiveProfile {
     /// nil until the first entered-feedback session.
     var fatigueEWMA: Double?
 
+    /// Exercise substitutions the user taught us by swapping: source
+    /// `Exercise.id` → the replacement they actually do (e.g. cable pushdown
+    /// → the pushdown machine they use). Plan generation prescribes the
+    /// replacement from then on; its own logged history drives its weights.
+    /// Single-hop (chain-collapsed on write, never resolved recursively).
+    /// Inline default → migration-safe on existing rows.
+    var preferredSwaps: [UUID: UUID] = [:]
+
     // MARK: - Persisted run-once guards
     //
     // These MUST be persisted, not in-memory on the VM: the VM is rebuilt on

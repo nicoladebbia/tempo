@@ -1803,6 +1803,11 @@ private struct SwapExerciseSheet: View {
                         }
                         .listRowBackground(Color.tempoSurfaceCard)
                     }
+                    // §2.13b — swaps teach the planner.
+                    Text("Tempo remembers your pick — future days prescribe it instead. Swap back anytime to undo.")
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                        .listRowBackground(Color.clear)
                 }
             }
             .listStyle(.plain)

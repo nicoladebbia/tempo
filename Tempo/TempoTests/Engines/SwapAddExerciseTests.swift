@@ -187,4 +187,110 @@ final class SwapAddExerciseTests: XCTestCase {
         XCTAssertFalse(names.contains("Barbell Bench Press"),
                        "The movement being swapped is not its own alternative")
     }
+
+    // MARK: - Preferred swaps (§2.13b — the planner learns your machines)
+
+    private func profile(_ context: ModelContext) -> AdaptiveProfile {
+        (try? context.fetch(FetchDescriptor<AdaptiveProfile>()))?.first ?? {
+            let p = AdaptiveProfile()
+            context.insert(p)
+            return p
+        }()
+    }
+
+    func testSwapRemembersPreference() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let old = bench()
+        let (_, slot) = seedPlan(with: old, context: context)
+        let fly = cableFly()
+        context.insert(fly)
+
+        vm.swapExercise(slot, with: fly, modelContext: context)
+
+        XCTAssertEqual(profile(context).preferredSwaps[old.id], fly.id,
+                       "A manual swap teaches the planner")
+    }
+
+    func testSwapBackForgetsPreference() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let old = bench()
+        let (_, slot) = seedPlan(with: old, context: context)
+        let fly = cableFly()
+        context.insert(fly)
+
+        vm.swapExercise(slot, with: fly, modelContext: context)
+        vm.swapExercise(slot, with: old, modelContext: context)
+
+        XCTAssertTrue(profile(context).preferredSwaps.isEmpty,
+                      "Swapping back to the original undoes the preference, never stores a loop")
+    }
+
+    func testRepeatSwapChainCollapses() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let old = bench()
+        let (_, slot) = seedPlan(with: old, context: context)
+        let fly = cableFly()
+        let press = Exercise(name: "Machine Chest Press", muscleGroup: .chest,
+                             equipment: .machine, movementPattern: .horizontalPush, isCompound: true)
+        context.insert(fly)
+        context.insert(press)
+
+        vm.swapExercise(slot, with: fly, modelContext: context)
+        vm.swapExercise(slot, with: press, modelContext: context)
+
+        let prefs = profile(context).preferredSwaps
+        XCTAssertEqual(prefs, [old.id: press.id],
+                       "X→Y then Y→Z stores the single hop X→Z")
+    }
+
+    func testApplyPreferredSwapsSubstitutesInSelection() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let cable = Exercise(name: "Tricep Pushdown", muscleGroup: .triceps,
+                             equipment: .cable, movementPattern: .isolation, isCompound: false)
+        let machine = Exercise(name: "Pushdown Machine", muscleGroup: .triceps,
+                               equipment: .machine, movementPattern: .isolation, isCompound: false)
+        context.insert(cable)
+        context.insert(machine)
+        profile(context).preferredSwaps = [cable.id: machine.id]
+        try context.save()
+
+        let out = vm.applyPreferredSwaps(
+            to: [cable], library: [cable, machine], modelContext: context
+        )
+        XCTAssertEqual(out.map(\.name), ["Pushdown Machine"],
+                       "The planner prescribes the movement the user actually does")
+
+        // Replacement already selected → no duplicate slot, source stays.
+        let both = vm.applyPreferredSwaps(
+            to: [cable, machine], library: [cable, machine], modelContext: context
+        )
+        XCTAssertEqual(both.map(\.name), ["Tricep Pushdown", "Pushdown Machine"])
+    }
+
+    func testApplyPreferredSwapsSkipsPainFlaggedReplacement() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let cable = Exercise(name: "Tricep Pushdown", muscleGroup: .triceps,
+                             equipment: .cable, movementPattern: .isolation, isCompound: false)
+        let machine = Exercise(name: "Pushdown Machine", muscleGroup: .triceps,
+                               equipment: .machine, movementPattern: .isolation, isCompound: false)
+        context.insert(cable)
+        context.insert(machine)
+        profile(context).preferredSwaps = [cable.id: machine.id]
+        let feedback = SetFeedback(exerciseID: machine.id, rpe: 7,
+                                   note: "sharp elbow pain on this machine")
+        feedback.userProvidedFeedback = true
+        context.insert(feedback)
+        try context.save()
+
+        let out = vm.applyPreferredSwaps(
+            to: [cable], library: [cable, machine], modelContext: context
+        )
+        XCTAssertEqual(out.map(\.name), ["Tricep Pushdown"],
+                       "Safety wins — a pain-flagged replacement is not auto-prescribed")
+    }
 }

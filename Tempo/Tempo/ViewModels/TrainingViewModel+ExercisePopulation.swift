@@ -99,10 +99,16 @@ extension TrainingViewModel {
         }
 
         // Select exercises: priority-ordered compounds first, then isolations
-        let selected = selectExercises(
-            from: allExercises,
-            targetGroups: targetGroups,
-            workoutType: plan.type
+        // — then substitute any movement the user has taught us they swap
+        // (e.g. cable pushdown → their pushdown machine).
+        let selected = applyPreferredSwaps(
+            to: selectExercises(
+                from: allExercises,
+                targetGroups: targetGroups,
+                workoutType: plan.type
+            ),
+            library: allExercises,
+            modelContext: modelContext
         )
 
         // Assign superset groups for compatible exercise pairs.
@@ -610,6 +616,57 @@ extension TrainingViewModel {
 
     // MARK: - Swap / Add Exercise (§2.13 / §2.14)
 
+    /// Apply the user's remembered substitutions to a fresh selection: each
+    /// selected exercise with a preference prescribes the replacement instead.
+    /// A substitution is skipped when the replacement is already in the
+    /// selection (no duplicate slots) or currently pain-flagged (safety wins
+    /// over preference). Single-hop by design — the map was chain-collapsed
+    /// on write, so no recursion here.
+    func applyPreferredSwaps(
+        to selection: [Exercise],
+        library: [Exercise],
+        modelContext: ModelContext
+    ) -> [Exercise] {
+        let prefs = (try? modelContext.fetch(FetchDescriptor<AdaptiveProfile>()))?
+            .first?.preferredSwaps ?? [:]
+        guard !prefs.isEmpty else {
+            return selection
+        }
+        let byID = Dictionary(library.map { ($0.id, $0) }) { first, _ in first }
+        let painFlagged = painFlaggedExerciseIDs(modelContext: modelContext)
+        var chosen = Set(selection.map(\.id))
+        return selection.map { exercise in
+            guard let targetID = prefs[exercise.id],
+                  let target = byID[targetID],
+                  !chosen.contains(targetID),
+                  !painFlagged.contains(targetID)
+            else {
+                return exercise
+            }
+            chosen.remove(exercise.id)
+            chosen.insert(targetID)
+            return target
+        }
+    }
+
+    /// Remember a manual swap so future plans prescribe the user's pick.
+    /// Chain-collapses: X→Y then (on a later plan) Y→Z stores X→Z, never a
+    /// two-hop chain. Swapping BACK to the original forgets the preference
+    /// instead of storing a loop. Caller persists (swapExercise saves).
+    func rememberSwapPreference(from oldID: UUID, to newID: UUID, modelContext: ModelContext) {
+        let profile = fetchOrCreateAdaptiveProfile(modelContext: modelContext)
+        if let root = profile.preferredSwaps.first(where: { $0.value == oldID })?.key {
+            if root == newID {
+                profile.preferredSwaps.removeValue(forKey: root)
+            } else {
+                profile.preferredSwaps[root] = newID
+            }
+        } else {
+            profile.preferredSwaps[oldID] = newID
+        }
+        profile.updatedAt = Date()
+    }
+
     /// Alternatives offered by the swap sheet: same muscle group, not already
     /// in the plan. Closest substitutes first — same movement pattern, then
     /// same compound-ness, then name.
@@ -671,6 +728,8 @@ extension TrainingViewModel {
         // now; prescribedSets logged the new one in its place.
         if let oldID = oldExerciseID {
             deleteUnresolvedPrediction(planID: plan.id, exerciseID: oldID, modelContext: modelContext)
+            // Learn the substitution — future plans prescribe this pick.
+            rememberSwapPreference(from: oldID, to: newExercise.id, modelContext: modelContext)
         }
         try? modelContext.save()
         HapticManager.selection()

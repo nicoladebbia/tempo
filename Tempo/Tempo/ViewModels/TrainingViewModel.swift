@@ -1151,8 +1151,10 @@ final class TrainingViewModel {
         return (profile.clampedThresholdOffset, profile.fatigueEWMA, profile.learnedIncrements)
     }
 
-    /// Fetch the single AdaptiveProfile, creating it on first use.
-    private func fetchOrCreateAdaptiveProfile(modelContext: ModelContext) -> AdaptiveProfile {
+    /// Fetch the single AdaptiveProfile, creating it on first use. Internal
+    /// (not private) so the split extension files (+ExercisePopulation's swap
+    /// preferences) reach the same row.
+    func fetchOrCreateAdaptiveProfile(modelContext: ModelContext) -> AdaptiveProfile {
         if let existing = try? modelContext.fetch(FetchDescriptor<AdaptiveProfile>()).first {
             return existing
         }
