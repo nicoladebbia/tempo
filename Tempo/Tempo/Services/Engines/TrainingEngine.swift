@@ -445,41 +445,16 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
 
             // Per MODULE_TRAINING.md Section 18.2 — T+1
             if meta.isTPlus1 {
-                switch zone {
-                case .red:
-                    plans.append(WorkoutPlan(
-                        date: meta.date,
-                        type: .rest,
-                        notes: "Rest — T+1 after football"
-                    ))
-                case .yellow:
-                    let score = dayRecoveryScore ?? 50
-                    if score < 50 {
-                        plans.append(WorkoutPlan(
-                            date: meta.date,
-                            type: .mobility,
-                            notes: "Mobility — T+1 after football"
-                        ))
-                    } else {
-                        let upperType = preferredUpperType(for: meta.date, split: split)
-                        plans.append(WorkoutPlan(
-                            date: meta.date,
-                            type: upperType,
-                            recoveryAdjustment: 0.8,
-                            notes: "Reduced upper body — T+1"
-                        ))
-                        splitIndex += 1
-                    }
-                case .green:
-                    // Upper body only even with green (neuromuscular impairment)
-                    let upperType = preferredUpperType(for: meta.date, split: split)
-                    plans.append(WorkoutPlan(
-                        date: meta.date,
-                        type: upperType,
-                        notes: "Upper body only — T+1 after football"
-                    ))
-                    splitIndex += 1
-                }
+                let t1 = tPlus1Plan(
+                    date: meta.date,
+                    zone: zone,
+                    score: dayRecoveryScore,
+                    split: split,
+                    customWeekdayMap: customWeekdayMap,
+                    cal: cal
+                )
+                plans.append(t1.plan)
+                if t1.advancesRotation { splitIndex += 1 }
                 continue
             }
 
@@ -820,6 +795,82 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
             .upper
         case .fullBody:
             .upper
+        }
+    }
+
+    /// The full T+1 (day-after-football) prescription for one week-plan day,
+    /// plus whether it consumed a rotation slot (an upper lift advances the
+    /// split rotation; rest/mobility/easy days don't).
+    ///
+    /// Custom split: the user's explicit weekday assignment survives T+1 as
+    /// long as it respects the "no leg loading after football" ceiling.
+    /// push/pull/upper replace the split's preferred upper pick;
+    /// rest/mobility/pool are even EASIER than the upper override and stand
+    /// verbatim. A leg-loading assignment (legs/lower/full-body/conditioning)
+    /// still falls back to the T+1 upper override. Without this, T+1 silently
+    /// repainted custom days (Settings said Push, Today said Pull) and no
+    /// settings edit could ever change them — the regenerated template agreed
+    /// with the stale row, so planResolution kept it.
+    private func tPlus1Plan(
+        date: Date,
+        zone: RecoveryZone,
+        score: Double?,
+        split: TrainingSplit,
+        customWeekdayMap: [WorkoutType]?,
+        cal: Calendar
+    ) -> (plan: WorkoutPlan, advancesRotation: Bool) {
+        var customUpperT1: WorkoutType?
+        var customEasyT1: WorkoutType?
+        if split == .custom, let customMap = customWeekdayMap, customMap.count == 7 {
+            let idx = (cal.component(.weekday, from: date) + 5) % 7
+            switch customMap[idx] {
+            case .push, .pull, .upper: customUpperT1 = customMap[idx]
+            case .rest, .mobility, .pool: customEasyT1 = customMap[idx]
+            default: break
+            }
+        }
+        switch zone {
+        case .red:
+            return (WorkoutPlan(
+                date: date,
+                type: .rest,
+                notes: "Rest — T+1 after football"
+            ), false)
+        case .yellow:
+            if (score ?? 50) < 50 {
+                return (WorkoutPlan(
+                    date: date,
+                    type: .mobility,
+                    notes: "Mobility — T+1 after football"
+                ), false)
+            }
+            if let easy = customEasyT1 {
+                return (WorkoutPlan(
+                    date: date,
+                    type: easy,
+                    notes: easy == .rest ? nil : "Easy day — T+1 after football"
+                ), false)
+            }
+            return (WorkoutPlan(
+                date: date,
+                type: customUpperT1 ?? preferredUpperType(for: date, split: split),
+                recoveryAdjustment: 0.8,
+                notes: "Reduced upper body — T+1"
+            ), true)
+        case .green:
+            // Upper body only even with green (neuromuscular impairment)
+            if let easy = customEasyT1 {
+                return (WorkoutPlan(
+                    date: date,
+                    type: easy,
+                    notes: easy == .rest ? nil : "Easy day — T+1 after football"
+                ), false)
+            }
+            return (WorkoutPlan(
+                date: date,
+                type: customUpperT1 ?? preferredUpperType(for: date, split: split),
+                notes: "Upper body only — T+1 after football"
+            ), true)
         }
     }
 

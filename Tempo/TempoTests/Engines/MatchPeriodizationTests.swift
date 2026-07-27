@@ -181,4 +181,87 @@ final class MatchPeriodizationTests: XCTestCase {
         XCTAssertEqual(plan(plans, dayOffset: 4)?.type, .legs,
                        "The deferred legs slot must land on the next open rotation day")
     }
+
+    // MARK: - Custom split survives T+1 (Settings said Push, Today said Pull)
+
+    /// The device case: Wed+Sun football makes Monday AND Thursday T+1. The T+1
+    /// branch used to ignore the custom map entirely and paint every T+1 with
+    /// `preferredUpperType` (= pull for custom) — so the user's "Monday: push /
+    /// Thursday: upper" in Settings could never reach the Today card, and the
+    /// regenerated template always agreed with the stale row it should replace.
+    /// An upper-body custom assignment satisfies the "no legs after football"
+    /// ceiling and must stand verbatim.
+    func testCustomUpperDaysSurviveTPlus1() {
+        let footballWedSun = ActiveDays(rawValue: (1 << 2) | (1 << 6)) // Wed + Sun
+        let map: [WorkoutType] = [.push, .push, .rest, .upper, .lower, .pull, .rest]
+        let plans = engine.generateWeekPlan(
+            startDate: monday(),
+            recoveryScores: [:], // green everywhere
+            footballDays: footballWedSun,
+            split: .custom,
+            customWeekdayMap: map
+        )
+        XCTAssertEqual(plan(plans, dayOffset: 0)?.type, .push,
+                       "Monday (T+1 after Sunday football) must keep the custom Push, not default to Pull")
+        XCTAssertEqual(plan(plans, dayOffset: 3)?.type, .upper,
+                       "Thursday (T+1 after Wednesday football) must keep the custom Upper")
+        XCTAssertEqual(plan(plans, dayOffset: 2)?.type, .football)
+        XCTAssertEqual(plan(plans, dayOffset: 6)?.type, .football)
+    }
+
+    /// The ceiling still holds: a LEG-LOADING custom assignment on a T+1 day
+    /// falls back to the split's preferred upper type — honoring the user never
+    /// licenses heavy legs the day after a match.
+    func testCustomLegDaysStillSwapOffTPlus1() {
+        let footballWedSun = ActiveDays(rawValue: (1 << 2) | (1 << 6)) // Wed + Sun
+        let map: [WorkoutType] = [.legs, .push, .rest, .lower, .push, .pull, .rest]
+        let plans = engine.generateWeekPlan(
+            startDate: monday(),
+            recoveryScores: [:],
+            footballDays: footballWedSun,
+            split: .custom,
+            customWeekdayMap: map
+        )
+        XCTAssertEqual(plan(plans, dayOffset: 0)?.type, .pull,
+                       "Custom Legs on T+1 must fall back to the preferred upper (pull), never legs")
+        XCTAssertEqual(plan(plans, dayOffset: 3)?.type, .pull,
+                       "Custom Lower on T+1 must fall back to the preferred upper (pull), never lower")
+    }
+
+    /// An assignment EASIER than the T+1 upper override (rest / pool / mobility)
+    /// is also honored verbatim — more recovery than prescribed is always safe.
+    func testCustomEasyDaysSurviveTPlus1() {
+        let footballWedSun = ActiveDays(rawValue: (1 << 2) | (1 << 6)) // Wed + Sun
+        let map: [WorkoutType] = [.pool, .push, .rest, .rest, .lower, .pull, .rest]
+        let plans = engine.generateWeekPlan(
+            startDate: monday(),
+            recoveryScores: [:],
+            footballDays: footballWedSun,
+            split: .custom,
+            customWeekdayMap: map
+        )
+        XCTAssertEqual(plan(plans, dayOffset: 0)?.type, .pool,
+                       "Custom Pool on T+1 stands — easier than the upper override")
+        XCTAssertEqual(plan(plans, dayOffset: 3)?.type, .rest,
+                       "Custom Rest on T+1 stands verbatim")
+    }
+
+    /// Yellow (score ≥ 50) T+1 keeps the custom upper type AND the reduced-load
+    /// adjustment — honoring the map changes the TYPE, never the recovery math.
+    func testCustomUpperOnYellowTPlus1KeepsReducedLoad() {
+        let footballWedSun = ActiveDays(rawValue: (1 << 2) | (1 << 6)) // Wed + Sun
+        let map: [WorkoutType] = [.push, .push, .rest, .upper, .lower, .pull, .rest]
+        let plans = engine.generateWeekPlan(
+            startDate: monday(),
+            recoveryScores: [cal.startOfDay(for: monday()): 60], // Monday yellow-good
+            footballDays: footballWedSun,
+            split: .custom,
+            customWeekdayMap: map
+        )
+        let mondayPlan = plan(plans, dayOffset: 0)
+        XCTAssertEqual(mondayPlan?.type, .push,
+                       "Yellow-good T+1 keeps the custom Push")
+        XCTAssertEqual(mondayPlan?.recoveryAdjustment, 0.8,
+                       "Yellow-good T+1 still reduces load 20%")
+    }
 }
