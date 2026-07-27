@@ -8,6 +8,7 @@
 
 import SwiftData
 import SwiftUI
+import UniformTypeIdentifiers
 
 // MARK: - Workout History View
 
@@ -57,6 +58,14 @@ struct WorkoutHistoryView: View {
     @State
     private var pendingDelete: WorkoutPlan?
 
+    // §20 — CSV import/export.
+    @State
+    private var showCSVImporter = false
+    @State
+    private var csvResultMessage: String?
+    @State
+    private var exportFileURL: URL?
+
     private var weightUnit: WeightUnit {
         userSettings.first?.weightUnit ?? .kg
     }
@@ -94,6 +103,51 @@ struct WorkoutHistoryView: View {
                     Image(systemName: "figure.run")
                 }
             }
+            // §20 — CSV import (Strong/Hevy/generic) + Strong-compatible export.
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    Button {
+                        showCSVImporter = true
+                    } label: {
+                        Label("Import CSV (Strong/Hevy)", systemImage: "square.and.arrow.down")
+                    }
+                    Button {
+                        exportHistory()
+                    } label: {
+                        Label("Export CSV", systemImage: "square.and.arrow.up")
+                    }
+                    .disabled(completedWorkouts.isEmpty)
+                } label: {
+                    Image(systemName: "arrow.up.arrow.down.square")
+                }
+            }
+        }
+        .fileImporter(
+            isPresented: $showCSVImporter,
+            allowedContentTypes: [.commaSeparatedText, .plainText]
+        ) { result in
+            importCSV(result)
+        }
+        .sheet(
+            isPresented: Binding(
+                get: { exportFileURL != nil },
+                set: { if !$0 { exportFileURL = nil } }
+            )
+        ) {
+            if let url = exportFileURL {
+                ShareSheet(items: [url])
+            }
+        }
+        .alert(
+            "Workout Import",
+            isPresented: Binding(
+                get: { csvResultMessage != nil },
+                set: { if !$0 { csvResultMessage = nil } }
+            )
+        ) {
+            Button("OK") { csvResultMessage = nil }
+        } message: {
+            Text(csvResultMessage ?? "")
         }
         .alert(
             "Delete this workout?",
@@ -246,6 +300,46 @@ struct WorkoutHistoryView: View {
         swipedWorkoutID = nil
         pendingDelete = nil
         HapticManager.notification(.success)
+    }
+
+    // MARK: - CSV Import / Export (§20)
+
+    private func importCSV(_ result: Result<URL, Error>) {
+        switch result {
+        case let .success(url):
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer {
+                if scoped { url.stopAccessingSecurityScopedResource() }
+            }
+            guard let text = try? String(contentsOf: url, encoding: .utf8) else {
+                csvResultMessage = "Couldn't read that file."
+                return
+            }
+            do {
+                let summary = try WorkoutCSVService.importCSV(text, modelContext: modelContext)
+                csvResultMessage = summary.label
+                if summary.workouts > 0 {
+                    NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
+                    HapticManager.notification(.success)
+                }
+            } catch {
+                csvResultMessage = error.localizedDescription
+            }
+        case let .failure(error):
+            csvResultMessage = error.localizedDescription
+        }
+    }
+
+    private func exportHistory() {
+        let csv = WorkoutCSVService.exportCSV(plans: completedWorkouts)
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tempo-workout-history.csv")
+        do {
+            try csv.write(to: url, atomically: true, encoding: .utf8)
+            exportFileURL = url
+        } catch {
+            csvResultMessage = "Export failed: \(error.localizedDescription)"
+        }
     }
 
     // MARK: - Workout Card
