@@ -1285,15 +1285,16 @@ final class TrainingViewModel {
 
     // MARK: - Load Week Plan
 
-    func loadWeekPlan(modelContext: ModelContext) {
+    /// Shared week assembly: reads every generation input (split, custom map,
+    /// recovery, matches, emphasis, learned modality) and generates the week
+    /// starting at `monday`. Ephemeral — nothing is persisted here; callers
+    /// decide whether to populate exercises / assign to `weekPlans`.
+    private func assembleWeekPlans(
+        startingMonday monday: Date,
+        modelContext: ModelContext,
+        referenceDate: Date
+    ) -> [WorkoutPlan] {
         let cal = Calendar.current
-        let today = Date()
-
-        // Find Monday of this week
-        var comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: today)
-        comps.weekday = 2 // Monday
-        let monday = cal.date(from: comps) ?? today
-
         let footballDays = loadFootballDays(modelContext: modelContext)
         let split = loadTrainingSplit(modelContext: modelContext)
         // Advanced custom split — user's per-weekday map (nil unless configured).
@@ -1311,7 +1312,7 @@ final class TrainingViewModel {
         let competitiveMatchDayKeys = Set(upcomingMatches
             .filter(\.isCompetitive).map { cal.startOfDay(for: $0.kickoff) })
 
-        weekPlans = trainingEngine.generateWeekPlan(
+        return trainingEngine.generateWeekPlan(
             startDate: monday,
             recoveryScores: recoveryScores,
             footballDays: footballDays,
@@ -1327,6 +1328,34 @@ final class TrainingViewModel {
             // he actually logs (runs vs swims) over the trailing 4 weeks.
             easyModalityPreference: learnedEasyModalityOrder(modelContext: modelContext),
             // §21 (b) — the two-a-day slot skips days already past this week.
+            referenceDate: referenceDate
+        )
+    }
+
+    /// Ephemeral preview of a future week (§9.4 week navigation) — generated
+    /// from the same inputs as the live week but NEVER persisted and never
+    /// exercise-populated. Future recovery scores don't exist → green defaults.
+    func previewWeekPlans(startingMonday monday: Date, modelContext: ModelContext) -> [WorkoutPlan] {
+        assembleWeekPlans(
+            startingMonday: monday,
+            modelContext: modelContext,
+            // All days are "future" relative to that week's own Monday.
+            referenceDate: monday
+        )
+    }
+
+    func loadWeekPlan(modelContext: ModelContext) {
+        let cal = Calendar.current
+        let today = Date()
+
+        // Find Monday of this week
+        var comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: today)
+        comps.weekday = 2 // Monday
+        let monday = cal.date(from: comps) ?? today
+
+        weekPlans = assembleWeekPlans(
+            startingMonday: monday,
+            modelContext: modelContext,
             referenceDate: today
         )
 
@@ -1336,7 +1365,7 @@ final class TrainingViewModel {
             date: Date(),
             deloadFrequencyWeeks: deloadSettings.frequency,
             trainingStartDate: deloadSettings.startDate,
-            fatigueEWMA: signals.fatigueEWMA
+            fatigueEWMA: adaptiveSignals(modelContext: modelContext).fatigueEWMA
         )
 
         // Populate exercises for each gym workout

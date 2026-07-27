@@ -26,6 +26,18 @@ struct WeekPlanView: View {
     @State
     private var showMatchSchedule = false
 
+    /// §9.4 week navigation. 0 = this week (the live, persisted-today week);
+    /// negative = HISTORY (persisted rows only — past weeks are what happened,
+    /// never regenerated fiction); +1 = NEXT WEEK preview (ephemeral engine
+    /// output, nothing persisted).
+    @State
+    private var weekOffset = 0
+    /// Aligned Mon..Sun slots for a non-zero offset; nil slot = no data that day.
+    @State
+    private var offWeekSlots: [WorkoutPlan?] = []
+
+    private static let historyWeeksBack = 8
+
     private let dayAbbreviations = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
     private let calendar = Calendar.current
 
@@ -35,19 +47,23 @@ struct WeekPlanView: View {
                 // Week header
                 weekHeader
 
-                // Deload week indicator
-                if viewModel.isDeloadWeek {
-                    deloadBanner
-                }
+                // Live-week-only context cards — a history/preview week must
+                // not wear this week's deload banner or coach review.
+                if weekOffset == 0 {
+                    // Deload week indicator
+                    if viewModel.isDeloadWeek {
+                        deloadBanner
+                    }
 
-                // Coach Review — last week's graded outcome (Phase 4).
-                if let outcome = viewModel.lastWeekOutcome {
-                    coachReviewCard(outcome)
-                }
+                    // Coach Review — last week's graded outcome (Phase 4).
+                    if let outcome = viewModel.lastWeekOutcome {
+                        coachReviewCard(outcome)
+                    }
 
-                // AI plan rationale (Phase 2) — only when the AI ran this week.
-                if let rationale = viewModel.aiWeekRationale {
-                    aiRationaleCard(rationale)
+                    // AI plan rationale (Phase 2) — only when the AI ran this week.
+                    if let rationale = viewModel.aiWeekRationale {
+                        aiRationaleCard(rationale)
+                    }
                 }
 
                 // 7-day grid
@@ -61,9 +77,21 @@ struct WeekPlanView: View {
             .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
         }
         .background(Color.tempoBgPrimary)
-        .navigationTitle("This Week")
+        .navigationTitle(navTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                // §9.4 — regenerate this week from current inputs on demand
+                // (same path the settings-changed observer runs).
+                Button {
+                    viewModel.repersonalizeSchedule(modelContext: modelContext)
+                    HapticManager.selection()
+                } label: {
+                    Label("Regenerate", systemImage: "arrow.clockwise")
+                        .font(.tempoBody)
+                        .foregroundStyle(Color.tempoSignal)
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     showMatchSchedule = true
@@ -94,23 +122,125 @@ struct WeekPlanView: View {
         }
     }
 
-    // MARK: - Week Header
+    // MARK: - Week Header / Navigation (§9.4)
+
+    private var navTitle: String {
+        switch weekOffset {
+        case 0: "This Week"
+        case 1: "Next Week"
+        default: "History"
+        }
+    }
+
+    /// Monday of the DISPLAYED week.
+    private var displayedMonday: Date {
+        var comps = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())
+        comps.weekday = 2
+        let thisMonday = calendar.date(from: comps) ?? Date()
+        return calendar.date(byAdding: .day, value: weekOffset * 7, to: thisMonday) ?? thisMonday
+    }
+
+    /// Mon..Sun slots for whatever week is displayed. Offset 0 aligns the
+    /// live weekPlans (defensive against a short generation); other offsets
+    /// use the loaded history/preview slots.
+    private var displayedSlots: [WorkoutPlan?] {
+        weekOffset == 0 ? aligned(viewModel.weekPlans, to: displayedMonday) : offWeekSlots
+    }
+
+    private func aligned(_ plans: [WorkoutPlan], to monday: Date) -> [WorkoutPlan?] {
+        (0 ..< 7).map { i in
+            guard let day = calendar.date(byAdding: .day, value: i, to: monday) else { return nil }
+            let candidates = plans.filter { calendar.isDate($0.date, inSameDayAs: day) }
+            // Completed row wins (a history week can hold a completed row next
+            // to leftover planned scaffolding for the same day).
+            return candidates.first { $0.status == .completed } ?? candidates.first
+        }
+    }
+
+    private func loadOffsetWeek() {
+        guard weekOffset != 0 else {
+            offWeekSlots = []
+            return
+        }
+        let monday = calendar.startOfDay(for: displayedMonday)
+        if weekOffset > 0 {
+            offWeekSlots = aligned(
+                viewModel.previewWeekPlans(startingMonday: monday, modelContext: modelContext),
+                to: monday
+            )
+        } else {
+            // History = persisted truth only. Never regenerate the past.
+            guard let end = calendar.date(byAdding: .day, value: 7, to: monday) else {
+                offWeekSlots = []
+                return
+            }
+            let descriptor = FetchDescriptor<WorkoutPlan>(
+                predicate: #Predicate<WorkoutPlan> { $0.date >= monday && $0.date < end },
+                sortBy: [SortDescriptor(\.date)]
+            )
+            offWeekSlots = aligned((try? modelContext.fetch(descriptor)) ?? [], to: monday)
+        }
+    }
 
     private var weekHeader: some View {
-        let plans = viewModel.weekPlans
         let dateText: String = {
-            guard let first = plans.first?.date, let last = plans.last?.date else {
+            guard let last = calendar.date(byAdding: .day, value: 6, to: displayedMonday) else {
                 return ""
             }
             let formatter = DateFormatter()
             formatter.dateFormat = "MMM d"
-            return "\(formatter.string(from: first)) – \(formatter.string(from: last)), \(calendar.component(.year, from: first))"
+            return "\(formatter.string(from: displayedMonday)) – \(formatter.string(from: last)), \(calendar.component(.year, from: displayedMonday))"
         }()
 
-        return Text(dateText)
-            .font(.tempoCaption1)
-            .foregroundStyle(Color.tempoTextSecondary)
-            .padding(.top, TempoSpacing.md)
+        return HStack(spacing: TempoSpacing.md) {
+            Button {
+                weekOffset -= 1
+                loadOffsetWeek()
+                HapticManager.selection()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(weekOffset > -Self.historyWeeksBack ? Color.tempoSignal : Color.tempoTextTertiary)
+                    .frame(width: 32, height: 32)
+            }
+            .disabled(weekOffset <= -Self.historyWeeksBack)
+
+            Spacer()
+
+            VStack(spacing: 2) {
+                Text(dateText)
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                if weekOffset != 0 {
+                    // Tap the label to jump back to the live week.
+                    Button {
+                        weekOffset = 0
+                        loadOffsetWeek()
+                        HapticManager.selection()
+                    } label: {
+                        Text(weekOffset > 0 ? "PREVIEW — tap for this week" : "HISTORY — tap for this week")
+                            .font(.tempoCaption2)
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.tempoAmber)
+                    }
+                }
+            }
+
+            Spacer()
+
+            Button {
+                weekOffset += 1
+                loadOffsetWeek()
+                HapticManager.selection()
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(weekOffset < 1 ? Color.tempoSignal : Color.tempoTextTertiary)
+                    .frame(width: 32, height: 32)
+            }
+            .disabled(weekOffset >= 1)
+        }
+        .padding(.top, TempoSpacing.md)
     }
 
     // MARK: - Deload Banner
@@ -220,10 +350,32 @@ struct WeekPlanView: View {
 
     private var dayGrid: some View {
         HStack(spacing: TempoSpacing.xxs) {
-            ForEach(Array(viewModel.weekPlans.enumerated()), id: \.element.id) { index, plan in
-                dayCell(plan: plan, dayLabel: dayAbbreviations[safe: index] ?? "")
+            ForEach(Array(displayedSlots.enumerated()), id: \.offset) { index, slot in
+                if let plan = slot {
+                    dayCell(plan: plan, dayLabel: dayAbbreviations[safe: index] ?? "")
+                } else {
+                    emptyDayCell(dayLabel: dayAbbreviations[safe: index] ?? "")
+                }
             }
         }
+    }
+
+    /// A day with no data (history week before the app existed, or a gap).
+    private func emptyDayCell(dayLabel: String) -> some View {
+        VStack(spacing: TempoSpacing.xxs) {
+            Text(dayLabel)
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextTertiary)
+            Circle()
+                .fill(Color.tempoTextTertiary.opacity(0.25))
+                .frame(width: 8, height: 8)
+            Text("—")
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextTertiary)
+            Color.clear.frame(width: 10, height: 10)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, TempoSpacing.sm)
     }
 
     private func dayCell(plan: WorkoutPlan, dayLabel: String) -> some View {
@@ -289,8 +441,14 @@ struct WeekPlanView: View {
 
     private var dailyCards: some View {
         VStack(spacing: TempoSpacing.sm) {
-            ForEach(viewModel.weekPlans, id: \.id) { plan in
+            ForEach(displayedSlots.compactMap { $0 }, id: \.id) { plan in
                 dailyCard(plan: plan)
+            }
+            if weekOffset < 0, displayedSlots.allSatisfy({ $0 == nil }) {
+                Text("No training recorded this week.")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                    .padding(.top, TempoSpacing.md)
             }
         }
     }
