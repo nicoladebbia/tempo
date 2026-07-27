@@ -56,6 +56,15 @@ final class RecoveryViewModel {
     private let recoveryEngine: any RecoveryEngineProtocol
     private let calendar: any CalendarServiceProtocol
 
+    /// Serializes refresh passes so no two run concurrently. Two overlapping
+    /// runs each upsert today's DailyRecovery from a PRE-save snapshot — the
+    /// second's `buildDailyRecovery` fetch (line ~1130) can't see the first's
+    /// un-saved insert → a duplicate row for the same day + the SwiftData
+    /// relationship assertion the insert comment already fears + memory pile-up.
+    /// A Task handle (not a bool) so `forceRefresh` can AWAIT the in-flight pass
+    /// and then run its own instead of silently dropping the user's pull.
+    private var refreshInFlight: Task<Void, Never>?
+
     init(
         whoop: any WhoopServiceProtocol,
         recoveryEngine: any RecoveryEngineProtocol,
@@ -73,12 +82,43 @@ final class RecoveryViewModel {
     /// Pull-to-refresh entry point: drops the Whoop in-memory cache so the
     /// user-initiated refresh actually hits the network instead of returning
     /// the value cached during the most-recent Dashboard load.
+    ///
+    /// The user explicitly asked for fresh data, so this NEVER drops: it waits
+    /// for any in-flight pass to settle, then runs a guaranteed pass AFTER the
+    /// cache is invalidated. (Coalescing it away — the naive shared guard —
+    /// would leave the post-invalidation fetch unexecuted and the pull would
+    /// silently no-op.)
     func forceRefresh(modelContext: ModelContext) async {
         await whoop.invalidateCache()
-        await refresh(modelContext: modelContext)
+        await refreshInFlight?.value
+        await runRefresh(modelContext: modelContext)
     }
 
+    /// On-appear / coalescing entry point. If a refresh is already running,
+    /// await it and return rather than starting a concurrent one (that in-flight
+    /// pass produces the same fresh data). Only the duplicate-row race matters
+    /// here; the running pass satisfies this caller.
     func refresh(modelContext: ModelContext) async {
+        if let inFlight = refreshInFlight {
+            await inFlight.value
+            return
+        }
+        await runRefresh(modelContext: modelContext)
+    }
+
+    /// Runs one refresh pass behind `refreshInFlight` so callers can serialize
+    /// on it. The starter (the call that actually created the task) is the only
+    /// one that clears the handle, and only if it hasn't been replaced.
+    private func runRefresh(modelContext: ModelContext) async {
+        let task = Task { @MainActor in
+            await self.performRefresh(modelContext: modelContext)
+        }
+        refreshInFlight = task
+        await task.value
+        if refreshInFlight == task { refreshInFlight = nil }
+    }
+
+    private func performRefresh(modelContext: ModelContext) async {
         loadState = .loading
 
         let today = Date()

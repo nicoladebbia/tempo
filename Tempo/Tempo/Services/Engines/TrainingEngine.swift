@@ -84,8 +84,8 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         // Determine workout type from split rotation
         var workoutType = nextWorkoutType(for: date, split: split)
 
-        // Per MODULE_TRAINING.md Section 18.2 — T-1: no legs
-        if isTMinus1, workoutType == .legs {
+        // Per MODULE_TRAINING.md Section 18.2 — T-1: no legs (or heavy lower)
+        if isTMinus1, isLegLoading(workoutType) {
             workoutType = swapLegsForUpper(split: split)
         }
 
@@ -159,15 +159,16 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         // Need at least 2 sessions of data
         let recentSessions = history.sorted { $0.date > $1.date }.prefix(3)
         guard recentSessions.count >= 2 else {
-            // Not enough data — keep current or use last known weight
-            let lastWeight = history.first?.bestSetWeight ?? 0
+            // Not enough data — hold at the most recent session's target-rep
+            // equivalent weight (e1RM-derived; see anchorWeight).
+            let lastWeight = anchorWeight(from: recentSessions.first, reps: defaultReps)
             return ProgressionDecision(
                 weight: lastWeight, reps: defaultReps,
                 deltaApplied: 0, rationale: .heldInsufficientData
             )
         }
 
-        let currentWeight = recentSessions.first?.bestSetWeight ?? 0
+        let currentWeight = anchorWeight(from: recentSessions.first, reps: defaultReps)
 
         // Tier 2 — feedback gate. The MOST RECENT session that carries real
         // user feedback (feedbackSampleCount > 0) can veto a progression: if it
@@ -237,6 +238,23 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
             weight: currentWeight, reps: defaultReps,
             deltaApplied: 0, rationale: .standardProgression
         )
+    }
+
+    /// Working-weight anchor for `reps`, derived from a session's stored e1RM
+    /// (Epley) rather than the raw heaviest set. Fixes the weight/reps decoupling:
+    /// a set ground out at 100 kg × 3 no longer anchors an 8-rep target at 100 kg
+    /// — it anchors at the 8-rep equivalent of that e1RM. Falls back to
+    /// `bestSetWeight` when a row carries no e1RM (legacy rows, unit-test
+    /// fixtures), so rep-MATCHED history round-trips to exactly the logged weight
+    /// and pre-e1RM behavior is preserved where there's no e1RM to use.
+    private func anchorWeight(from session: ExerciseHistory?, reps: Int) -> Double {
+        guard let session else {
+            return 0
+        }
+        if let e1RM = session.estimated1RM, e1RM > 0 {
+            return StrengthStandards.inverseEpleyWeight(e1RM: e1RM, reps: reps)
+        }
+        return session.bestSetWeight ?? 0
     }
 
     // MARK: - Conditioning Debt (rest prescription)
@@ -311,6 +329,11 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         recoveryScores: [Date: Double],
         footballDays: ActiveDays,
         split: TrainingSplit,
+        // Advanced custom split — a user-assigned WorkoutType per weekday
+        // (Mon-first, length 7). Non-nil only when split == .custom and the user
+        // configured it; then it supplies the type for each normal training day
+        // (football / T+1 / red-recovery still apply on top, unchanged).
+        customWeekdayMap: [WorkoutType]? = nil,
         recoveryThresholdOffset: Double = 0,
         // D3 — start-of-day keys of DATED matches (distinct from the recurring
         // footballDays weekdays). A match here makes that day T-0 (a session day)
@@ -327,13 +350,46 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         // soccer turns spare capacity into soccer work (one conditioning day,
         // never beside a match, plus pool recovery) while gym days stay put
         // (strength held at maintenance, §12 — never fewer lifting days).
-        emphasis: BlockEmphasis = .physique
+        emphasis: BlockEmphasis = .physique,
+        // §14 auto-variety (requirement (d) "based on what he did before") — the
+        // ORDER the spare-day EASY modality cycles through, learned from logged
+        // history (see `easyModalityOrder(poolLogged:runLogged:)`). The user's
+        // revealed-preferred modality leads; the other still appears for variety.
+        // Defaults to the launch behavior (low-impact pool first).
+        easyModalityPreference: [WorkoutType] = [.pool, .run],
+        // "Today" for the §21 (b) two-a-day scheduler: the capped weekly slot is
+        // never spent on a day already in the past (it can't be trained), so it
+        // slides to the next eligible upper day. Injected (not Date() inline) to
+        // keep the function pure for tests. Default = now for production callers.
+        referenceDate: Date = Date()
     ) -> [WorkoutPlan] {
         let tMinus1MatchDays = competitiveMatchDayKeys ?? matchDayKeys
         let cal = Calendar.current
+        let todayStart = cal.startOfDay(for: referenceDate)
         var plans: [WorkoutPlan] = []
         var splitIndex = 0
-        var soccerConditioningAssigned = false
+        var conditioningDaysAssigned = 0
+        // §21 requirement (b) — how many GYM days this week also earned an easy
+        // cardio SECOND session (a "two-a-day"). Capped: soccer emphasis is
+        // already cardio-loaded by football, so it earns at most one; a physique
+        // block (no football) can take two. Bounds weekly load so the auto-
+        // decision never over-reaches.
+        var twoADaysAssigned = 0
+        let maxTwoADays = emphasis == .soccer ? 1 : 2
+        // Alternates the easy cross-training modality (pool → run → pool …) by a
+        // counter, NOT absolute weekday, so both modalities actually appear
+        // instead of the parity skewing every easy day to one of them.
+        var easyCrossTrainingAssigned = 0
+        // §Legs guarantee — plans-indices of CLEAN upper days (green/yellow,
+        // not football-adjacent) that took a push/pull from the rotation. With
+        // two football days a week the rotation can spend every clean day on
+        // push/pull and only reach its legs slot on a T-1 (swapped off) or T+1
+        // (discarded) day — so legs silently vanishes for the whole week. If
+        // that happens, the last clean upper day here is converted to legs
+        // AFTER the loop. This only flips a type on an existing lift day; it
+        // never changes how many days are lifts vs spare (so the conditioning/
+        // spare-day count is untouched).
+        var cleanLegsCandidates: [Int] = []
 
         // Per MODULE_TRAINING.md Section 15.4 — Phase 1: Assign workout types to days
         let splitSequence = getSplitSequence(split)
@@ -389,41 +445,16 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
 
             // Per MODULE_TRAINING.md Section 18.2 — T+1
             if meta.isTPlus1 {
-                switch zone {
-                case .red:
-                    plans.append(WorkoutPlan(
-                        date: meta.date,
-                        type: .rest,
-                        notes: "Rest — T+1 after football"
-                    ))
-                case .yellow:
-                    let score = dayRecoveryScore ?? 50
-                    if score < 50 {
-                        plans.append(WorkoutPlan(
-                            date: meta.date,
-                            type: .mobility,
-                            notes: "Mobility — T+1 after football"
-                        ))
-                    } else {
-                        let upperType = preferredUpperType(for: meta.date, split: split)
-                        plans.append(WorkoutPlan(
-                            date: meta.date,
-                            type: upperType,
-                            recoveryAdjustment: 0.8,
-                            notes: "Reduced upper body — T+1"
-                        ))
-                        splitIndex += 1
-                    }
-                case .green:
-                    // Upper body only even with green (neuromuscular impairment)
-                    let upperType = preferredUpperType(for: meta.date, split: split)
-                    plans.append(WorkoutPlan(
-                        date: meta.date,
-                        type: upperType,
-                        notes: "Upper body only — T+1 after football"
-                    ))
-                    splitIndex += 1
-                }
+                let t1 = tPlus1Plan(
+                    date: meta.date,
+                    zone: zone,
+                    score: dayRecoveryScore,
+                    split: split,
+                    customWeekdayMap: customWeekdayMap,
+                    cal: cal
+                )
+                plans.append(t1.plan)
+                if t1.advancesRotation { splitIndex += 1 }
                 continue
             }
 
@@ -438,12 +469,49 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                 continue
             }
 
-            // Normal training day
-            if splitIndex < trainingDaysNeeded {
+            // Normal training day. For an advanced custom split the user maps a
+            // type to each weekday (Mon-first); a valid map takes over here.
+            // Football / T+1 / red-recovery already ran above, so the map only
+            // supplies the type for an ordinary training day. An explicit .rest
+            // is honoured verbatim (not auto-filled with active recovery).
+            if split == .custom, let customMap = customWeekdayMap, customMap.count == 7 {
+                let idx = (cal.component(.weekday, from: meta.date) + 5) % 7 // Mon=0…Sun=6
+                let mapped = customMap[idx]
+                if mapped != .rest {
+                    var workoutType = mapped
+                    if meta.isTMinus1 && isLegLoading(workoutType) {
+                        workoutType = swapLegsForUpper(split: split)
+                    }
+                    let adjustment: Double = zone == .yellow
+                        ? ((dayRecoveryScore ?? 50) >= 50 ? 0.8 : 0.75)
+                        : 1.0
+                    let customPlan = WorkoutPlan(
+                        date: meta.date,
+                        type: workoutType,
+                        recoveryAdjustment: adjustment,
+                        notes: zone == .yellow ? "Recovery-adjusted" : nil
+                    )
+                    // §21 (b) — a custom-split gym day earns a two-a-day on the
+                    // SAME eligibility as the standard path (this branch used to
+                    // skip it, so custom splits never got two-a-days).
+                    if let secondary = twoADaySecondary(
+                        workoutType: workoutType, zone: zone, isTMinus1: meta.isTMinus1,
+                        isPast: cal.startOfDay(for: meta.date) < todayStart,
+                        assignedSoFar: twoADaysAssigned, max: maxTwoADays,
+                        preference: easyModalityPreference
+                    ) {
+                        customPlan.secondarySessionType = secondary
+                        twoADaysAssigned += 1
+                    }
+                    plans.append(customPlan)
+                } else {
+                    plans.append(WorkoutPlan(date: meta.date, type: .rest))
+                }
+            } else if splitIndex < trainingDaysNeeded {
                 var workoutType = splitSequence[splitIndex]
 
-                // Per MODULE_TRAINING.md Section 18.2 — T-1: no legs
-                if meta.isTMinus1 && workoutType == .legs {
+                // Per MODULE_TRAINING.md Section 18.2 — T-1: no legs (or heavy lower)
+                if meta.isTMinus1 && isLegLoading(workoutType) {
                     workoutType = swapLegsForUpper(split: split)
                 }
 
@@ -451,51 +519,127 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                     ? ((dayRecoveryScore ?? 50) >= 50 ? 0.8 : 0.75)
                     : 1.0
 
-                plans.append(WorkoutPlan(
+                let liftPlan = WorkoutPlan(
                     date: meta.date,
                     type: workoutType,
                     recoveryAdjustment: adjustment,
                     notes: zone == .yellow ? "Recovery-adjusted" : nil
-                ))
+                )
+
+                // §21 requirement (b) — a gym day can carry an easy cardio SECOND
+                // session (a two-a-day) when the body clearly has headroom. Same
+                // shared eligibility as the custom-split path (green + upper lift +
+                // not T-1 + under the weekly cap); modality = the learned (d)
+                // leader. The daily brain still drops it on a low-readiness morning.
+                if let secondary = twoADaySecondary(
+                    workoutType: workoutType, zone: zone, isTMinus1: meta.isTMinus1,
+                    isPast: cal.startOfDay(for: meta.date) < todayStart,
+                    assignedSoFar: twoADaysAssigned, max: maxTwoADays,
+                    preference: easyModalityPreference
+                ) {
+                    liftPlan.secondarySessionType = secondary
+                    twoADaysAssigned += 1
+                }
+
+                plans.append(liftPlan)
+                // A clean (non-football-adjacent) upper day is a valid host for
+                // a deferred leg session — record it for the §Legs guarantee.
+                // `.upper` counts too: an Upper/Lower week reclaims a `.lower`
+                // onto a clean `.upper` day, just as PPL reclaims onto push/pull.
+                if !meta.isTMinus1,
+                   workoutType == .push || workoutType == .pull || workoutType == .upper {
+                    cleanLegsCandidates.append(plans.count - 1)
+                }
                 splitIndex += 1
             } else {
-                // Extra days → rest (prefer Sunday)
+                // Spare capacity → standing auto cross-training (Slice 1).
+                // Games, red-recovery and required lifts are handled above; here
+                // zone is green/yellow with no lift scheduled. Sunday stays a
+                // full rest day. Every other spare day becomes recovery-
+                // appropriate cross-training so the week is VARIED (swim / easy
+                // run) instead of idle — with a capped HARD conditioning day
+                // under soccer emphasis only, never on T-1 or the day after legs
+                // (protect the legs Nicola both trains and plays football on).
                 let weekday = cal.component(.weekday, from: meta.date)
-                if weekday == 1 { // Sunday
+                let prevType = plans.last?.type
+                let afterLegs = prevType == .legs || prevType == .lower
+                // Physique = easy variety only (cap 0); soccer earns one hard day.
+                let conditioningCap = emphasis == .soccer ? 1 : 0
+                if weekday == 1 { // Sunday — protected full rest
                     plans.append(WorkoutPlan(date: meta.date, type: .rest))
-                } else if emphasis == .soccer, zone != .red {
-                    // §12 soccer-emphasis: spare capacity becomes soccer work,
-                    // not generic recovery. ONE conditioning day per week —
-                    // never on T-1 (no high-intensity the day before a match);
-                    // every other spare day is an easy pool swim (real active
-                    // recovery that doesn't fight the conditioning load).
-                    if zone == .green, !meta.isTMinus1, !soccerConditioningAssigned {
-                        soccerConditioningAssigned = true
-                        plans.append(WorkoutPlan(
-                            date: meta.date,
-                            type: .conditioning,
-                            notes: "Soccer conditioning — emphasis"
-                        ))
-                    } else {
-                        plans.append(WorkoutPlan(
-                            date: meta.date,
-                            type: .pool,
-                            notes: "Pool recovery — easy swim"
-                        ))
-                    }
-                } else if zone == .green {
+                } else if zone == .green, !meta.isTMinus1, !afterLegs,
+                          conditioningDaysAssigned < conditioningCap {
+                    conditioningDaysAssigned += 1
                     plans.append(WorkoutPlan(
                         date: meta.date,
-                        type: .mobility,
-                        notes: "Active recovery"
+                        type: .conditioning,
+                        durationMinutes: 30,
+                        notes: "Cross-training — conditioning"
+                    ))
+                } else if meta.isTMinus1 {
+                    // Pre-match: pool only — no leg-loading impact before a game.
+                    plans.append(WorkoutPlan(
+                        date: meta.date,
+                        type: .pool,
+                        durationMinutes: 20,
+                        notes: "Pool — pre-match easy"
                     ))
                 } else {
-                    plans.append(WorkoutPlan(date: meta.date, type: .rest))
+                    // Easy recovery cross-training; cycle the modality by a
+                    // counter so the week genuinely varies. The ORDER is the
+                    // learned preference (§14 requirement (d)) — the modality the
+                    // user actually logs most leads; the other still appears.
+                    // Empty guard keeps a valid cycle if a caller passes [].
+                    let order = easyModalityPreference.isEmpty ? [.pool, .run] : easyModalityPreference
+                    let easy = order[easyCrossTrainingAssigned % order.count]
+                    easyCrossTrainingAssigned += 1
+                    plans.append(WorkoutPlan(
+                        date: meta.date,
+                        type: easy,
+                        durationMinutes: easy == .pool ? 45 : 30,
+                        notes: easy == .pool ? "Pool — easy recovery" : "Easy run — Zone 2"
+                    ))
                 }
             }
         }
 
+        // §Legs guarantee — if the rotation lost legs entirely (the two-football-
+        // day sandwich: legs' turn only comes up after every clean day is spent on
+        // push/pull, then lands on a T-1/T+1 day and is dropped), reclaim it. Flip
+        // the LAST clean upper day to legs so the athlete still trains legs once.
+        // A legs day never carries a cardio second session, so clear any two-a-day
+        // that was assigned to the reclaimed day. Only fires when zero legs exist
+        // AND a clean host is available — the normal (≤1 football day) week already
+        // places legs on a clean day and skips this entirely.
+        // `legDayType` is the split's leg-day type (`.legs` for PPL/bro/custom,
+        // `.lower` for Upper/Lower, nil for full-body which needs no guarantee).
+        // The "no leg day exists" test spans BOTH types so an Upper/Lower week
+        // that lost its `.lower` is caught. Custom never records a candidate, so
+        // `cleanLegsCandidates.last` is nil there and its map stays untouched.
+        if let legType = legDayType(for: split),
+           !plans.contains(where: { isLegLoading($0.type) }),
+           let idx = cleanLegsCandidates.last {
+            plans[idx].type = legType
+            if plans[idx].secondarySessionType != nil {
+                plans[idx].secondarySessionType = nil
+                twoADaysAssigned -= 1
+            }
+        }
+
         return plans
+    }
+
+    /// Revealed cross-training preference — the ORDER the spare-day EASY modality
+    /// cycles through, learned from what the user actually logs (§14 auto-variety,
+    /// requirement (d) "based on what he did before"). Both modalities still
+    /// appear for variety; the one he genuinely does more LEADS. A clear lean
+    /// toward running (≥3 runs AND ≥2× the swims) promotes it — a real signal, not
+    /// noise; otherwise the low-impact pool leads (the launch behavior, and the
+    /// safe pick when history is thin or balanced). Pure — the caller supplies the
+    /// counts from an `ActivitySession` history fetch.
+    static func easyModalityOrder(poolLogged: Int, runLogged: Int) -> [WorkoutType] {
+        if runLogged >= 3, runLogged >= poolLogged * 2 { return [.run, .pool] }
+        return [.pool, .run]
     }
 
     // MARK: - Deload Detection
@@ -539,6 +683,23 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
 
     // Recovery zone classification
     // Per CROSS_DOC_AUDIT.md canonical boundaries: Green >= 67, Yellow 34-66, Red < 34
+
+    /// §21 (b) — the easy cardio SECOND session a gym day earns when it has clear
+    /// headroom (GREEN recovery + an UPPER-body lift + not the day before a match
+    /// + under the weekly cap), or nil for no two-a-day. Pure — the caller owns
+    /// the running counter. Shared by the standard-split AND custom-split paths so
+    /// the eligibility rule cannot diverge between them (the custom path used to
+    /// omit it entirely, so a custom split never got two-a-days).
+    private func twoADaySecondary(workoutType: WorkoutType, zone: RecoveryZone, isTMinus1: Bool,
+                                  isPast: Bool, assignedSoFar: Int, max: Int,
+                                  preference: [WorkoutType]) -> WorkoutType? {
+        let upperLift = workoutType == .push || workoutType == .pull || workoutType == .upper
+        // isPast: never spend the (capped) weekly slot on a day already gone — it
+        // can't be trained, so it slides to the next eligible upper day.
+        guard !isPast, zone == .green, upperLift, !isTMinus1, assignedSoFar < max else { return nil }
+        let order = preference.isEmpty ? [.pool, .run] : preference
+        return order[0] == .run ? .run : .pool
+    }
 
     private func classifyRecoveryZone(score: Double?, offset: Double = 0) -> RecoveryZone {
         guard let score else {
@@ -600,6 +761,27 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         return sequence[dayOfYear % sequence.count]
     }
 
+    /// Both split vocabularies for a leg-loading day: PPL/bro/custom use `.legs`,
+    /// Upper/Lower uses `.lower`. The T-1 "no heavy legs before a match" swap and
+    /// the §Legs guarantee must treat BOTH — otherwise an Upper/Lower athlete
+    /// keeps a heavy `.lower` on a T-1 (the swap only checked `.legs`) and the
+    /// guarantee (which only counted `.legs`) never fires to save their week.
+    private func isLegLoading(_ type: WorkoutType) -> Bool {
+        type == .legs || type == .lower
+    }
+
+    /// The leg-loading day type this split uses for a DEDICATED leg day, or nil
+    /// when the split trains legs every session (full-body → no separate leg day,
+    /// no guarantee needed). Custom is handled by never recording a reclaim host,
+    /// so its map is respected verbatim regardless of this value.
+    private func legDayType(for split: TrainingSplit) -> WorkoutType? {
+        switch split {
+        case .upperLower: .lower
+        case .fullBody: nil
+        default: .legs // PPL, bro, custom
+        }
+    }
+
     // Swap legs for an upper body type based on split
     // Per MODULE_TRAINING.md Section 18.2 — T-1 swap
 
@@ -613,6 +795,82 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
             .upper
         case .fullBody:
             .upper
+        }
+    }
+
+    /// The full T+1 (day-after-football) prescription for one week-plan day,
+    /// plus whether it consumed a rotation slot (an upper lift advances the
+    /// split rotation; rest/mobility/easy days don't).
+    ///
+    /// Custom split: the user's explicit weekday assignment survives T+1 as
+    /// long as it respects the "no leg loading after football" ceiling.
+    /// push/pull/upper replace the split's preferred upper pick;
+    /// rest/mobility/pool are even EASIER than the upper override and stand
+    /// verbatim. A leg-loading assignment (legs/lower/full-body/conditioning)
+    /// still falls back to the T+1 upper override. Without this, T+1 silently
+    /// repainted custom days (Settings said Push, Today said Pull) and no
+    /// settings edit could ever change them — the regenerated template agreed
+    /// with the stale row, so planResolution kept it.
+    private func tPlus1Plan(
+        date: Date,
+        zone: RecoveryZone,
+        score: Double?,
+        split: TrainingSplit,
+        customWeekdayMap: [WorkoutType]?,
+        cal: Calendar
+    ) -> (plan: WorkoutPlan, advancesRotation: Bool) {
+        var customUpperT1: WorkoutType?
+        var customEasyT1: WorkoutType?
+        if split == .custom, let customMap = customWeekdayMap, customMap.count == 7 {
+            let idx = (cal.component(.weekday, from: date) + 5) % 7
+            switch customMap[idx] {
+            case .push, .pull, .upper: customUpperT1 = customMap[idx]
+            case .rest, .mobility, .pool: customEasyT1 = customMap[idx]
+            default: break
+            }
+        }
+        switch zone {
+        case .red:
+            return (WorkoutPlan(
+                date: date,
+                type: .rest,
+                notes: "Rest — T+1 after football"
+            ), false)
+        case .yellow:
+            if (score ?? 50) < 50 {
+                return (WorkoutPlan(
+                    date: date,
+                    type: .mobility,
+                    notes: "Mobility — T+1 after football"
+                ), false)
+            }
+            if let easy = customEasyT1 {
+                return (WorkoutPlan(
+                    date: date,
+                    type: easy,
+                    notes: easy == .rest ? nil : "Easy day — T+1 after football"
+                ), false)
+            }
+            return (WorkoutPlan(
+                date: date,
+                type: customUpperT1 ?? preferredUpperType(for: date, split: split),
+                recoveryAdjustment: 0.8,
+                notes: "Reduced upper body — T+1"
+            ), true)
+        case .green:
+            // Upper body only even with green (neuromuscular impairment)
+            if let easy = customEasyT1 {
+                return (WorkoutPlan(
+                    date: date,
+                    type: easy,
+                    notes: easy == .rest ? nil : "Easy day — T+1 after football"
+                ), false)
+            }
+            return (WorkoutPlan(
+                date: date,
+                type: customUpperT1 ?? preferredUpperType(for: date, split: split),
+                notes: "Upper body only — T+1 after football"
+            ), true)
         }
     }
 

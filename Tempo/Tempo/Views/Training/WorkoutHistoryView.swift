@@ -40,6 +40,9 @@ struct WorkoutHistoryView: View {
     @Query
     private var allActivitySessions: [ActivitySession]
 
+    @Query
+    private var allDailySessions: [DailySession]
+
     @Environment(\.modelContext)
     private var modelContext
 
@@ -218,6 +221,15 @@ struct WorkoutHistoryView: View {
         //     session from history would orphan its ActivitySession record.
         for session in allActivitySessions where session.workoutPlanID == workout.id {
             modelContext.delete(session)
+        }
+        // 3c. The brain's DailySession for this day. Its `workoutPlan` link is a
+        //     one-way `.nullify` with NO inverse, so deleting the plan (step 4)
+        //     would leave this session pointing at dangling backing — later read
+        //     in sessionRPEAccuracy → crash. Matched by DAY (never by traversing
+        //     `.workoutPlan`, which could itself already be dangling); the §8
+        //     model is write-once one-session-per-day, so the day is the key.
+        for s in allDailySessions where cal.isDate(s.date, inSameDayAs: sessionDay) {
+            modelContext.delete(s)
         }
         // 4. The plan itself (cascades to PlannedExercise → PlannedSet).
         modelContext.delete(workout)

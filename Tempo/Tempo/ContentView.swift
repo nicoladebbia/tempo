@@ -77,6 +77,21 @@ struct ContentView: View {
         if (try? modelContext.fetchCount(settingsDescriptor)) == 0 {
             let settings = UserSettings()
             settings.userProfile = profile
+            // Seed durable experience level from onboarding BEFORE the blob is
+            // deleted at completion — otherwise the cold-start estimator reads
+            // nil forever and treats every user as a beginner.
+            if let raw = data?["experienceLevel"] as? String, !raw.isEmpty {
+                settings.experienceLevelRaw = raw
+            }
+            // Requirement (a): rescue the user's chosen split too — it was captured
+            // at onboarding then discarded, so every new user silently got PPL. An
+            // explicit pick wins; "I Don't Know" falls back to a days/week inference.
+            if let label = data?["preferredSplit"] as? String,
+               let split = TrainingSplit.fromOnboardingLabel(label) {
+                settings.trainingSplit = split
+            } else if let days = data?["daysPerWeek"] as? Int {
+                settings.trainingSplit = TrainingSplit.forDaysPerWeek(days)
+            }
             modelContext.insert(settings)
         }
 

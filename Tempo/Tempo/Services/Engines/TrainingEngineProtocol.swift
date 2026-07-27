@@ -79,6 +79,9 @@ protocol TrainingEngineProtocol: Sendable {
         recoveryScores: [Date: Double],
         footballDays: ActiveDays,
         split: TrainingSplit,
+        // Advanced custom split — a user-assigned WorkoutType per weekday
+        // (Mon-first, length 7). Non-nil only when split == .custom and configured.
+        customWeekdayMap: [WorkoutType]?,
         recoveryThresholdOffset: Double,
         // D3 — start-of-day keys of dated matches (§14 mid-week-match trigger).
         // matchDayKeys = all matches (T-0); competitiveMatchDayKeys = the subset
@@ -87,7 +90,13 @@ protocol TrainingEngineProtocol: Sendable {
         competitiveMatchDayKeys: Set<Date>?,
         // §14 Decision 1 — block emphasis re-shapes spare days (soccer →
         // conditioning + pool); physique = pre-emphasis behavior exactly.
-        emphasis: BlockEmphasis
+        emphasis: BlockEmphasis,
+        // §14 auto-variety (requirement (d)) — learned spare-day easy-modality
+        // cycle order; the user's most-logged modality leads. Defaults to pool-first.
+        easyModalityPreference: [WorkoutType],
+        // §21 (b) — "today" for the two-a-day scheduler; the capped weekly slot
+        // is never spent on a day already past. Injected for test purity.
+        referenceDate: Date
     ) -> [WorkoutPlan]
 
     /// Returns true if the given date falls in a deload week. The fixed periodic

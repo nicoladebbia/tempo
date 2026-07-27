@@ -60,11 +60,34 @@ final class EmphasisPeriodizationTests: XCTestCase {
 
     // MARK: - Physique = pre-emphasis behavior exactly
 
-    func testPhysiqueWeekHasNoSoccerWork() {
+    func testPhysiqueWeekHasEasyCrossTrainingButNoHardConditioning() {
+        // §14 REVISED (auto-variety, Slice 1): physique spare days are no longer
+        // idle mobility/rest — they become EASY cross-training (swim / easy run)
+        // so every week is varied. The HARD conditioning day stays soccer-
+        // emphasis-only, so physique still contains zero conditioning.
         let plans = week(emphasis: .physique)
-        XCTAssertFalse(plans.contains { $0.type == .conditioning }, "Physique spares stay mobility/rest")
-        XCTAssertFalse(plans.contains { $0.type == .pool })
-        XCTAssertTrue(plans.contains { $0.type == .mobility && $0.notes == "Active recovery" })
+        XCTAssertFalse(plans.contains { $0.type == .conditioning },
+                       "Hard conditioning is soccer-emphasis only")
+        XCTAssertTrue(plans.contains { $0.type == .pool || $0.type == .run },
+                      "Spare days become easy cross-training, not idle mobility/rest")
+        XCTAssertFalse(plans.contains { $0.type == .mobility && $0.notes == "Active recovery" },
+                       "Spare days are cross-training now, not generic active recovery")
+    }
+
+    func testSpareWeekdaysAreCrossTrainingAndSundayStaysRest() {
+        // Slice 1 invariant: no idle spare weekdays — each becomes a cross-
+        // training modality — while Sunday is preserved as a full rest day.
+        let plans = week(emphasis: .physique)
+        for p in plans where !p.type.isGymWorkout && p.type != .football {
+            let weekday = cal.component(.weekday, from: p.date)
+            if weekday == 1 { // Sunday
+                XCTAssertEqual(p.type, .rest, "Sunday stays a full rest day")
+            } else {
+                XCTAssertNotEqual(p.type, .rest, "Spare weekdays are cross-training, never idle rest")
+                XCTAssertTrue([.pool, .run, .conditioning, .mobility].contains(p.type),
+                              "A spare weekday resolves to a cross-training modality")
+            }
+        }
     }
 
     // MARK: - Soccer re-shapes spare days
@@ -96,6 +119,36 @@ final class EmphasisPeriodizationTests: XCTestCase {
         }
         XCTAssertEqual(plans.filter { $0.type == .conditioning }.count, 1,
                        "The conditioning day still exists — just not on T-1")
+    }
+
+    // MARK: - §14 requirement (d): learned easy-modality preference
+
+    func testEasyModalityOrderLearnsRunPreference() {
+        // A clear running lean (≥3 runs AND ≥2× the swims) promotes run to lead.
+        XCTAssertEqual(TrainingEngine.easyModalityOrder(poolLogged: 1, runLogged: 6), [.run, .pool],
+                       "He runs far more than he swims → runs lead")
+        // Thin history → safe low-impact pool-first default.
+        XCTAssertEqual(TrainingEngine.easyModalityOrder(poolLogged: 0, runLogged: 0), [.pool, .run],
+                       "No history → pool leads (launch behavior)")
+        // Balanced / not a clear lean → pool still leads (no over-fitting noise).
+        XCTAssertEqual(TrainingEngine.easyModalityOrder(poolLogged: 3, runLogged: 4), [.pool, .run],
+                       "4 runs vs 3 swims is not a 2× lean → stays pool-first")
+        // A run count below the floor doesn't flip it even at a high ratio.
+        XCTAssertEqual(TrainingEngine.easyModalityOrder(poolLogged: 0, runLogged: 2), [.pool, .run],
+                       "Only 2 runs is below the ≥3 signal floor → stays pool-first")
+    }
+
+    func testEasyModalityPreferenceReordersSpareDays() {
+        // The first easy cross-training day is pool by default; passing a run-first
+        // preference flips it — proving the learned order actually drives the week.
+        let plans = engine.generateWeekPlan(
+            startDate: monday, recoveryScores: [:], footballDays: ActiveDays(rawValue: 0),
+            split: .custom, matchDayKeys: [], emphasis: .physique,
+            easyModalityPreference: [.run, .pool]
+        )
+        let firstEasy = plans.first { $0.type == .pool || $0.type == .run }
+        XCTAssertEqual(firstEasy?.type, .run, "A run-first preference makes the first easy day a run, not the default pool")
+        XCTAssertTrue(plans.contains { $0.type == .pool }, "The other modality still appears for variety")
     }
 
     // MARK: - §14 label split (the recurring-vs-dated conflation fix)

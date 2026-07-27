@@ -84,8 +84,28 @@ final class DailyReadinessCoach: @unchecked Sendable {
         var source: DailySessionSource
         var candidate: DailySessionDTO
 
+        // §21 (b) — the deterministic candidate is the single source of the
+        // two-a-day decision: it's composite when the planner assigned a gym+
+        // cardio day AND readiness didn't ease it away (deterministicCandidate
+        // already drops the second part on a low-readiness morning). Derive the
+        // second modality from it so the brain KEEPS/refines it with full
+        // context; nil (single-part) means no second session to keep.
+        let plannedSecondary: String? = deterministicCandidate.isComposite
+            ? deterministicCandidate.blocks.first { $0.kind != .gym }?.kind.rawValue
+            : nil
+        // The candidate's parts already carry the REAL calendar windows (§21 c);
+        // hand them to the brain so it places its two parts in the same free
+        // slots rather than inventing times.
+        let secondaryWindows: (Int, Int)? = {
+            guard deterministicCandidate.isComposite else { return nil }
+            let mins = deterministicCandidate.blocks.compactMap(\.scheduledMin).sorted()
+            return mins.count >= 2 ? (mins.first!, mins.last!) : nil
+        }()
+
         if brainEligible {
-            if let brain = await callBrain(picture: picture, plannedModality: plannedModality) {
+            if let brain = await callBrain(picture: picture, plannedModality: plannedModality,
+                                           plannedSecondary: plannedSecondary,
+                                           secondaryWindows: secondaryWindows) {
                 candidate = brain
                 source = .brain
             } else {
@@ -109,13 +129,17 @@ final class DailyReadinessCoach: @unchecked Sendable {
 
     /// Returns a parsed+contract-valid DTO, or nil on ANY failure (network, 402,
     /// parse-fail, truncation) → caller falls back to deterministic. Never throws.
-    private func callBrain(picture: ReadinessPicture, plannedModality: String?) async -> DailySessionDTO? {
+    private func callBrain(picture: ReadinessPicture, plannedModality: String?,
+                           plannedSecondary: String?,
+                           secondaryWindows: (Int, Int)?) async -> DailySessionDTO? {
         for attempt in 0 ... maxRetries {
             do {
                 let body = NutritionProxyTextRequest(
                     model: "haiku",
                     system: DailyCoachPrompt.system,
-                    userMessage: DailyCoachPrompt.userMessage(for: picture, plannedModality: plannedModality),
+                    userMessage: DailyCoachPrompt.userMessage(for: picture, plannedModality: plannedModality,
+                                                              plannedSecondary: plannedSecondary,
+                                                              secondaryWindows: secondaryWindows),
                     maxTokens: 700,
                     temperature: 0.6,
                     caller: "daily_training"

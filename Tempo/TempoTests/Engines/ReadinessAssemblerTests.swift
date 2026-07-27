@@ -119,6 +119,44 @@ final class ReadinessAssemblerTests: XCTestCase {
                        "No rating → prompt unchanged (calibration stays intact)")
     }
 
+    // MARK: - Calendar awareness (§5) — exams + day load reach the prompt
+
+    func testExamLineSortedSoonestWithCount() {
+        let p = ReadinessAssembler.assemble(
+            history: [], today: nil,
+            examsSoon: [
+                ExamSnapshot(subject: "Statistics", daysUntil: 5),
+                ExamSnapshot(subject: "Linear Algebra", daysUntil: 2),
+            ]
+        )
+        XCTAssertEqual(p.examsSoon.first?.subject, "Linear Algebra", "Assembler must sort soonest-first")
+        let msg = DailyCoachPrompt.userMessage(for: p)
+        XCTAssertTrue(msg.contains("- Exam: Linear Algebra in 2 days (+1 more within 7 days)"))
+    }
+
+    func testExamTomorrowPhrasing() {
+        let p = ReadinessAssembler.assemble(
+            history: [], today: nil,
+            examsSoon: [ExamSnapshot(subject: "Econ", daysUntil: 1)]
+        )
+        XCTAssertTrue(DailyCoachPrompt.userMessage(for: p).contains("- Exam: Econ TOMORROW"))
+    }
+
+    func testBusyDayLineOnlyWhenPacked() {
+        let packed = ReadinessAssembler.assemble(history: [], today: nil, busyHoursToday: 7.5)
+        XCTAssertTrue(DailyCoachPrompt.userMessage(for: packed).contains("- Packed day: 7.5h"))
+
+        let normal = ReadinessAssembler.assemble(history: [], today: nil, busyHoursToday: 3.0)
+        XCTAssertFalse(DailyCoachPrompt.userMessage(for: normal).contains("Packed day"),
+                       "A normal day stays out of the prompt — calibration intact")
+    }
+
+    func testNoCalendarSignalNoLines() {
+        let msg = DailyCoachPrompt.userMessage(for: ReadinessAssembler.assemble(history: [], today: nil))
+        XCTAssertFalse(msg.contains("- Exam:"))
+        XCTAssertFalse(msg.contains("Packed day"))
+    }
+
     // MARK: - The assembled picture flows into the floor without crashing
 
     func testAssembledPictureClassifiesInFloor() {

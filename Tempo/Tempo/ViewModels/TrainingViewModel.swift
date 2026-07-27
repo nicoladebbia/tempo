@@ -76,6 +76,17 @@ final class TrainingViewModel {
     var isLoading = true
     var isDeloadWeek = false
 
+    /// Re-entrancy guard for `loadToday`. The load is a heavy async pipeline
+    /// (week-gen → AI hydration → readiness session) fired from several view
+    /// lifecycle points (`.task` on the Training tab, the Move quadrant detail,
+    /// a manual "Generate" button) and none of it checks `Task.isCancelled`.
+    /// Without coalescing, tab-switching/taps over a long session stack
+    /// overlapping pipelines that each hold fetches + regenerate plans —
+    /// unbounded memory growth (a jetsam suspect). This is a private
+    /// in-flight flag (NOT `isLoading`, which defaults true and would block
+    /// the first load); a concurrent call is dropped, the next `.task` reloads.
+    private var isReloadInFlight = false
+
     /// AI rationale for this week's reconciled plan (Phase 2). Non-nil ONLY when
     /// the AI program ran and was reconciled against the floor — nil whenever
     /// the deterministic plan stands (offline, not Pro, no consent, failure).
@@ -115,6 +126,14 @@ final class TrainingViewModel {
     /// User weight-unit preference, loaded from UserSettings in loadToday.
     /// All stored weights are kg; this is display-only conversion.
     var weightUnit: WeightUnit = .kg
+
+    /// Rest-timer prefs, loaded from UserSettings in loadToday. `autoStartRest`
+    /// gates whether the rest timer starts automatically after a logged set
+    /// (false → advance straight to the next set). `defaultRestSeconds` is the
+    /// global fallback used by restDuration(for:) when an exercise has no
+    /// per-exercise override.
+    var autoStartRest: Bool = true
+    var defaultRestSeconds: Int = 120
 
     // MARK: - Non-Gym Activity (football / sprint / conditioning) confirm flow
 
@@ -190,6 +209,10 @@ final class TrainingViewModel {
     let trainingEngine: any TrainingEngineProtocol
     private let whoop: any WhoopServiceProtocol
     private let healthKit: any HealthKitServiceProtocol
+    /// §5 calendar awareness — exams + day load into the daily prompt.
+    /// Optional: paths that only ensure the plan (DailyResetCoordinator)
+    /// don't need it; the picture just omits the calendar lines.
+    private let calendarService: (any CalendarServiceProtocol)?
 
     /// Optional network client for the AI training path (Phase 2). When nil
     /// (previews, tests, offline-only builds) the view model runs the pure
@@ -203,22 +226,33 @@ final class TrainingViewModel {
         trainingEngine: any TrainingEngineProtocol,
         whoop: any WhoopServiceProtocol,
         healthKit: any HealthKitServiceProtocol,
-        apiClient: APIClient? = nil
+        apiClient: APIClient? = nil,
+        calendarService: (any CalendarServiceProtocol)? = nil
     ) {
         self.trainingEngine = trainingEngine
         self.whoop = whoop
         self.healthKit = healthKit
         self.apiClient = apiClient
+        self.calendarService = calendarService
     }
 
     // MARK: - Load Today's Workout
 
     func loadToday(modelContext: ModelContext) async {
+        // Coalesce re-entrant loads: if a pipeline is already running, drop this
+        // call rather than stacking a second heavy run. `@MainActor` means the
+        // flag flip is race-free; `defer` clears it on every exit path.
+        guard !isReloadInFlight else { return }
+        isReloadInFlight = true
+        defer { isReloadInFlight = false }
+
         isLoading = true
 
         // Display unit for the session (weights are stored kg).
         if let settings = try? modelContext.fetch(FetchDescriptor<UserSettings>()).first {
             weightUnit = settings.weightUnit
+            autoStartRest = settings.autoStartRestTimer
+            defaultRestSeconds = settings.defaultRestSeconds
         }
 
         // Source of truth: the Week Plan. Generate the whole week first so Today
@@ -402,6 +436,23 @@ final class TrainingViewModel {
         return rows.map { Int($0.recoveryScore.rounded()) }
     }
 
+    /// §14 requirement (d) — the learned spare-day easy-modality cycle order,
+    /// derived from what the user actually logged (manual completions AND Whoop
+    /// imports both write canonical `WorkoutType` rawValues) over the trailing 4
+    /// weeks. Runs vs swims decide which modality leads; the pure ranking lives in
+    /// `TrainingEngine.easyModalityOrder`. Thin/balanced history → pool-first.
+    private func learnedEasyModalityOrder(modelContext: ModelContext) -> [WorkoutType] {
+        let cal = Calendar.current
+        guard let cutoff = cal.date(byAdding: .day, value: -28, to: Date()) else { return [.pool, .run] }
+        let descriptor = FetchDescriptor<ActivitySession>(
+            predicate: #Predicate { $0.date >= cutoff }
+        )
+        let rows = (try? modelContext.fetch(descriptor)) ?? []
+        let pools = rows.filter { $0.workoutType == WorkoutType.pool.rawValue }.count
+        let runs = rows.filter { $0.workoutType == WorkoutType.run.rawValue }.count
+        return TrainingEngine.easyModalityOrder(poolLogged: pools, runLogged: runs)
+    }
+
     // MARK: - Daily Readiness Session (D2 — the brain + floor)
 
     /// Once-daily: assemble today's ReadinessPicture from stored history, ask the
@@ -449,7 +500,10 @@ final class TrainingViewModel {
         }
 
         // 1. Assemble the picture from stored 30-day history (oldest→newest).
-        let picture = assembleTodayPicture(modelContext: modelContext)
+        //    Calendar context (exams ≤7d, today's event load) is fetched here —
+        //    the only async input — and handed to the sync assembler.
+        let calendarContext = await fetchCalendarContext()
+        let picture = assembleTodayPicture(modelContext: modelContext, calendarContext: calendarContext)
 
         // 2. brainEligible = DATA readiness only (≥30d history AND Whoop fresh).
         //    Entitlement (Pro/consent) is NOT checked here — the coach's 402→
@@ -458,7 +512,11 @@ final class TrainingViewModel {
 
         // 3. Deterministic candidate (cold-start / offline / 402 / parse-fail
         //    fallback) built from the planned modality. Floor still applies to it.
-        let candidate = deterministicCandidate(for: plan)
+        //    (b)+(c) compose: a two-a-day places its two parts in real calendar
+        //    windows (lift in the preferred/free slot, cardio spaced) rather than
+        //    a fixed clock; nil → the 08:00/18:00 fallback inside the candidate.
+        let secondaryWindows = plan.isTwoADay ? await twoADayWindows(modelContext: modelContext) : nil
+        let candidate = deterministicCandidate(for: plan, readiness: picture, secondaryWindows: secondaryWindows)
 
         // 4. Coach: produce-then-floor.
         let coach = DailyReadinessCoach(apiClient: apiClient)
@@ -511,7 +569,10 @@ final class TrainingViewModel {
 
     /// Assemble today's ReadinessPicture from the trailing-30-day DailyRecovery
     /// history (reuses the canonical forward-sorted fetch).
-    private func assembleTodayPicture(modelContext: ModelContext) -> ReadinessPicture {
+    private func assembleTodayPicture(
+        modelContext: ModelContext,
+        calendarContext: (exams: [ExamSnapshot], busyHours: Double?) = ([], nil)
+    ) -> ReadinessPicture {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
         let cutoff = cal.date(byAdding: .day, value: -31, to: today) ?? today
@@ -552,8 +613,34 @@ final class TrainingViewModel {
             checkIn: checkIn,
             daysUntilNextMatch: daysUntilNextMatch,
             blockEmphasis: currentBlockEmphasis(modelContext: modelContext),
-            venueToday: venueTodaySnapshot(modelContext: modelContext)
+            venueToday: venueTodaySnapshot(modelContext: modelContext),
+            examsSoon: calendarContext.exams,
+            busyHoursToday: calendarContext.busyHours
         )
+    }
+
+    /// §5 calendar awareness — exams in the next 7 days + today's scheduled
+    /// hours. EventKit failures (no auth, no service) read as "no calendar
+    /// signal", never an error: the picture just omits the lines.
+    private func fetchCalendarContext() async -> (exams: [ExamSnapshot], busyHours: Double?) {
+        guard let calendarService else { return ([], nil) }
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        guard let weekEnd = cal.date(byAdding: .day, value: 7, to: today),
+              let dayEnd = cal.date(byAdding: .day, value: 1, to: today) else { return ([], nil) }
+
+        let exams = calendarService.detectExamDates(in: DateInterval(start: today, end: weekEnd)).map {
+            ExamSnapshot(
+                subject: $0.subject,
+                daysUntil: cal.dateComponents([.day], from: today, to: cal.startOfDay(for: $0.date)).day ?? 0
+            )
+        }
+
+        let events = (try? await calendarService.fetchEvents(for: DateInterval(start: today, end: dayEnd))) ?? []
+        let busyMinutes = events
+            .filter { !$0.isAllDay }
+            .reduce(0.0) { $0 + max(0, $1.endDate.timeIntervalSince($1.startDate) / 60) }
+        return (exams, busyMinutes > 0 ? busyMinutes / 60 : nil)
     }
 
     /// Yesterday's real activities (Whoop-detected, imported, or attested) —
@@ -649,16 +736,92 @@ final class TrainingViewModel {
     /// when the brain is skipped or fails. Gym → pointer (engine fills loads);
     /// non-gym → an easy modality-appropriate block so cold-start/offline never
     /// empty-renders (§15.1/§15.4). The floor still clamps/vetoes this.
-    private func deterministicCandidate(for plan: WorkoutPlan) -> DailySessionDTO {
+    /// §21 (b) + (c) compose — place a two-a-day's two sessions in REAL calendar
+    /// windows: the LIFT in the user's preferred/available training window (the
+    /// same `suggestWorkoutWindow` that drives the "best window" banner), the
+    /// CARDIO spaced ≥6h away on the opposite side of the day. Returns nil — so
+    /// the deterministic 08:00/18:00 fallback stands — when there's no calendar,
+    /// no free window, or no placement that keeps a valid ≥6h gap in waking hours.
+    private func twoADayWindows(modelContext: ModelContext) async -> (liftMin: Int, cardioMin: Int)? {
+        guard let calendarService else { return nil }
+        let pref = (try? modelContext.fetch(FetchDescriptor<UserDailyPlanProfile>()))?
+            .first?.trainingTimePreference ?? .anyFree
+        guard let window = await calendarService.suggestWorkoutWindow(for: Date(), preferring: pref) else { return nil }
+        let cal = Calendar.current
+        let liftMin = cal.component(.hour, from: window.start) * 60 + cal.component(.minute, from: window.start)
+        // Space the cardio flush ≥8h from the lift, on the opposite side of the
+        // day, clamped to a waking-hours start (06:00–21:00).
+        let cardioMin = liftMin < 13 * 60
+            ? min(liftMin + 8 * 60, 21 * 60) // morning lift → evening flush
+            : max(liftMin - 8 * 60, 6 * 60)  // later lift → morning flush
+        guard abs(cardioMin - liftMin) >= 6 * 60 else { return nil } // gap collapsed → fallback
+        return (min(liftMin, cardioMin), max(liftMin, cardioMin))    // earliest part first
+    }
+
+    func deterministicCandidate(for plan: WorkoutPlan, readiness: ReadinessPicture? = nil,
+                                secondaryWindows: (liftMin: Int, cardioMin: Int)? = nil) -> DailySessionDTO {
         let type = plan.type
         let dur = plan.durationMinutes ?? 45
+        // Rich-signal ease gate (recovery number + acute:chronic strain + HRV
+        // trend, not a bucket). Fires only for the cold-start / offline / 402
+        // deterministic path; the brain refines this when eligible, and the
+        // safety floor still tiers whatever comes out. nil (no data) = never ease.
+        let ease = readiness?.easeCrossTrainingToday ?? false
         let mk: (BlockKind, String?, String) -> SessionBlockDTO = { kind, split, label in
             SessionBlockDTO(kind: kind, label: label, notes: nil, cue: nil, scheduledMin: nil, split: split,
                             reps: nil, distanceM: nil, restSec: nil, intensityPct: nil,
                             durationSec: nil, stroke: nil, runType: nil, paceSecPerKm: nil, sets: nil)
         }
+        // An easy recovery swim — the flush a compromised hard cross-training day
+        // is stepped down to (conditioning/sprint → pool), and the shape pool days
+        // already take. Duration trimmed on an eased day.
+        let easySwim: (Int, String) -> DailySessionDTO = { minutes, why in
+            DailySessionDTO(
+                modality: "pool", intensity: .easy, durationMin: minutes,
+                blocks: [SessionBlockDTO(kind: .pool, label: "Easy swim", notes: nil,
+                                         cue: "Long strokes, easy pace.", scheduledMin: nil, split: nil,
+                                         reps: nil, distanceM: nil, restSec: nil, intensityPct: nil,
+                                         durationSec: minutes * 60, stroke: "freestyle", runType: nil,
+                                         paceSecPerKm: nil, sets: nil)],
+                shortWhy: why, fullWhy: nil, expectedStrain: nil, expectedSessionRPE: 3
+            )
+        }
         switch type {
         case .push, .pull, .legs, .upper, .lower, .fullBody:
+            // §21 two-a-day (requirement (b)) — the week generator marked this GYM
+            // day to also carry an easy cardio SECOND session. Emit BOTH as TIMED
+            // parts (lift 08:00, cardio 18:00 → a 10h gap that clears the floor's
+            // ≥6h composite rule; two untimed blocks would merge into one part, so
+            // both must carry a scheduledMin). The Today card then renders two
+            // time-separated sections via `.parts`. DROP the second session on a
+            // low-readiness morning — the same §2 ease gate that trims cross-
+            // training; the safety floor's ACWR/gap rules are the backstop.
+            if let second = plan.secondarySessionType, !ease {
+                // Timing (requirement (c) composes here): the caller places the
+                // lift in the user's REAL calendar/preferred window and spaces the
+                // cardio; absent calendar data we fall back to a fixed 08:00/18:00
+                // split (still a valid ≥6h gap for the floor).
+                let (liftMin, cardioMin) = secondaryWindows ?? (8 * 60, 18 * 60)
+                let lift = SessionBlockDTO(
+                    kind: .gym, label: type.displayName, notes: nil, cue: nil,
+                    scheduledMin: liftMin, split: type.rawValue, reps: nil, distanceM: nil,
+                    restSec: nil, intensityPct: nil, durationSec: nil, stroke: nil,
+                    runType: nil, paceSecPerKm: nil, sets: nil)
+                let isRun = second == .run
+                let cardio = SessionBlockDTO(
+                    kind: isRun ? .run : .pool,
+                    label: isRun ? "Easy run" : "Easy swim", notes: nil,
+                    cue: "Easy pace — this is the flush, not extra work.",
+                    scheduledMin: cardioMin, split: nil, reps: nil, distanceM: nil,
+                    restSec: nil, intensityPct: nil, durationSec: 30 * 60,
+                    stroke: isRun ? nil : "freestyle", runType: nil,
+                    paceSecPerKm: nil, sets: nil)
+                return DailySessionDTO(
+                    modality: type.rawValue, intensity: .moderate, durationMin: dur,
+                    blocks: [lift, cardio],
+                    shortWhy: "Lift, then an easy \(second.displayName.lowercased()) — you've got the headroom today.",
+                    fullWhy: nil, expectedStrain: nil, expectedSessionRPE: nil)
+            }
             return DailySessionDTO(
                 modality: type.rawValue, intensity: .moderate, durationMin: dur,
                 blocks: [mk(.gym, type.rawValue, type.displayName)],
@@ -666,15 +829,33 @@ final class TrainingViewModel {
                 expectedStrain: nil, expectedSessionRPE: nil
             )
         case .run:
+            // Already easy aerobic; on a compromised day, trim the duration.
+            let runDur = ease ? max(20, Int(Double(dur) * 0.7)) : dur
             return DailySessionDTO(
-                modality: "run", intensity: .easy, durationMin: dur,
+                modality: "run", intensity: .easy, durationMin: runDur,
                 blocks: [SessionBlockDTO(kind: .run, label: "Easy run", notes: nil, cue: nil, scheduledMin: nil, split: nil,
                                          reps: nil, distanceM: nil, restSec: nil, intensityPct: nil,
-                                         durationSec: dur * 60, stroke: nil, runType: "tempo",
+                                         durationSec: runDur * 60, stroke: nil, runType: "tempo",
                                          paceSecPerKm: nil, sets: nil)],
-                shortWhy: "Easy aerobic run.", fullWhy: nil, expectedStrain: nil, expectedSessionRPE: 4
+                shortWhy: ease ? "Recovery is down — keep the run short and easy." : "Easy aerobic run.",
+                fullWhy: nil, expectedStrain: nil, expectedSessionRPE: 4
             )
-        case .football, .sprint, .conditioning:
+        case .sprint, .conditioning:
+            // Discretionary HARD cross-training. On a compromised day, swap the
+            // modality itself for an easy flush — the floor only clamps intensity,
+            // it never does this. Football is a real fixture, handled below.
+            if ease {
+                return easySwim(max(20, Int(Double(dur) * 0.7)),
+                                "Recovery is down — swapped the hard conditioning for an easy flush swim.")
+            }
+            return DailySessionDTO(
+                modality: type.rawValue, intensity: .moderate, durationMin: dur,
+                blocks: [mk(.field, nil, type.displayName)],
+                shortWhy: "Today's \(type.displayName.lowercased()).", fullWhy: nil,
+                expectedStrain: nil, expectedSessionRPE: 5
+            )
+        case .football:
+            // A real fixture — the user shows up regardless; never swapped out.
             return DailySessionDTO(
                 modality: type.rawValue, intensity: .moderate, durationMin: dur,
                 blocks: [mk(.field, nil, type.displayName)],
@@ -682,16 +863,11 @@ final class TrainingViewModel {
                 expectedStrain: nil, expectedSessionRPE: 5
             )
         case .pool:
-            return DailySessionDTO(
-                modality: "pool", intensity: .easy, durationMin: dur,
-                blocks: [SessionBlockDTO(kind: .pool, label: "Easy swim", notes: nil,
-                                         cue: "Long strokes, easy pace.", scheduledMin: nil, split: nil,
-                                         reps: nil, distanceM: nil, restSec: nil, intensityPct: nil,
-                                         durationSec: dur * 60, stroke: "freestyle", runType: nil,
-                                         paceSecPerKm: nil, sets: nil)],
-                shortWhy: "Easy recovery swim — flush the legs.", fullWhy: nil,
-                expectedStrain: nil, expectedSessionRPE: 3
-            )
+            // Already easy; trim the duration on a compromised day.
+            let poolDur = ease ? max(20, Int(Double(dur) * 0.7)) : dur
+            return easySwim(poolDur,
+                            ease ? "Recovery is down — keep the swim short and easy."
+                                 : "Easy recovery swim — flush the legs.")
         case .mobility, .rest:
             return TrainingSafetyFloor.recoverySession(reason: "Recovery day.")
         }
@@ -744,8 +920,11 @@ final class TrainingViewModel {
         )
         let rows = (try? modelContext.fetch(descriptor)) ?? []
         let pairs = rows.compactMap { session -> SessionRPEPair? in
+            // Read the DENORMALIZED actual, never `session.workoutPlan?.sessionRPE`:
+            // that link is a one-way `.nullify` and a history-deleted plan leaves
+            // it dangling → traversing crashes (invalidated backing).
             guard let expected = session.expectedSessionRPE,
-                  let actual = session.workoutPlan?.sessionRPE else { return nil }
+                  let actual = session.actualSessionRPE else { return nil }
             return SessionRPEPair(date: session.date, expected: expected, actual: actual)
         }
         return PredictionAccuracy.summarizeSessions(pairs)
@@ -1033,6 +1212,21 @@ final class TrainingViewModel {
             }
             // Keep it — matches the Week Plan type, OR holds real training
             // (completed/in-progress) and must be preserved regardless of type.
+            // BUT a still-PLANNED day must pick up planning-only attributes the
+            // fresh template gained since it was persisted — specifically the §21
+            // two-a-day second session (added by a newer build, or by today
+            // flipping green). Without this, the persisted plan keeps
+            // secondary=nil while the freshly-generated Week view shows "+RUN":
+            // the Today card and Week view desync, and the daily coach never
+            // composes the second part. Sync ONLY the planning attribute, ONLY
+            // while .planned (never mutate a completed/in-progress day's state).
+            if existing.status == .planned,
+               let canonical = weekPlanForToday,
+               existing.secondarySessionTypeRaw != canonical.secondarySessionTypeRaw {
+                existing.secondarySessionTypeRaw = canonical.secondarySessionTypeRaw
+                if canonical.secondarySessionTypeRaw == nil { existing.secondaryCompleted = false }
+                try? modelContext.save()
+            }
             return ResolvedTodayPlan(plan: existing, isCrashedInProgress: false)
         }
 
@@ -1077,6 +1271,8 @@ final class TrainingViewModel {
 
         let footballDays = loadFootballDays(modelContext: modelContext)
         let split = loadTrainingSplit(modelContext: modelContext)
+        // Advanced custom split — user's per-weekday map (nil unless configured).
+        let customWeekdayMap = loadCustomWeekdayPlan(modelContext: modelContext)
         let recoveryScores = loadRecoveryScores(modelContext: modelContext, startDate: monday)
         // Phase 3: per-user learned recovery-threshold offset (clamped ±10).
         let signals = adaptiveSignals(modelContext: modelContext)
@@ -1095,12 +1291,18 @@ final class TrainingViewModel {
             recoveryScores: recoveryScores,
             footballDays: footballDays,
             split: split,
+            customWeekdayMap: customWeekdayMap,
             recoveryThresholdOffset: signals.thresholdOffset,
             matchDayKeys: matchDayKeys,
             competitiveMatchDayKeys: competitiveMatchDayKeys,
             // §14 Decision 1 — soccer emphasis re-shapes spare days (visible
             // in This Week); physique keeps the pre-emphasis week exactly.
-            emphasis: currentBlockEmphasis(modelContext: modelContext) ?? .physique
+            emphasis: currentBlockEmphasis(modelContext: modelContext) ?? .physique,
+            // §14 requirement (d) — bias the spare-day easy modality toward what
+            // he actually logs (runs vs swims) over the trailing 4 weeks.
+            easyModalityPreference: learnedEasyModalityOrder(modelContext: modelContext),
+            // §21 (b) — the two-a-day slot skips days already past this week.
+            referenceDate: today
         )
 
         // Check deload week status (Phase 3: fatigue trend can trigger early).
@@ -1279,6 +1481,7 @@ final class TrainingViewModel {
     func logSet(
         weight: Double,
         reps: Int,
+        addedLoadKg: Double? = nil,
         modelContext: ModelContext
     ) {
         guard let plan = todayPlan else {
@@ -1297,8 +1500,11 @@ final class TrainingViewModel {
         }
 
         let set = sets[currentSetIndex]
+        // `weight` is the EFFECTIVE load in kg (for bodyweight lifts the caller
+        // passes bodyweight ± addedLoadKg); addedLoadKg records the signed input.
         set.actualWeight = weight
         set.actualReps = reps
+        set.addedLoadKg = addedLoadKg
         set.completed = true
         set.completedAt = Date()
 
@@ -1353,22 +1559,35 @@ final class TrainingViewModel {
             sessionState = .summary
         } else if isLastSet {
             // Per STATE_MACHINES.md — between exercises
-            let restDuration = restDuration(for: plannedExercise)
-            startRestTimer(duration: restDuration, nextAction: .nextExercise)
-            sessionState = .exercise(.resting(
-                exerciseIndex: currentExerciseIndex,
-                setIndex: currentSetIndex,
-                remainingSeconds: restDuration
-            ))
+            if autoStartRest {
+                let restDuration = restDuration(for: plannedExercise)
+                startRestTimer(duration: restDuration, nextAction: .nextExercise)
+                sessionState = .exercise(.resting(
+                    exerciseIndex: currentExerciseIndex,
+                    setIndex: currentSetIndex,
+                    remainingSeconds: restDuration
+                ))
+            } else {
+                // Auto-start off — skip rest, advance straight to the next
+                // exercise via the same path the timer uses on completion.
+                pendingRestAction = .nextExercise
+                advanceAfterRest()
+            }
         } else {
             // Per STATE_MACHINES.md — rest between sets
-            let restDuration = restDuration(for: plannedExercise)
-            startRestTimer(duration: restDuration, nextAction: .nextSet)
-            sessionState = .exercise(.resting(
-                exerciseIndex: currentExerciseIndex,
-                setIndex: currentSetIndex,
-                remainingSeconds: restDuration
-            ))
+            if autoStartRest {
+                let restDuration = restDuration(for: plannedExercise)
+                startRestTimer(duration: restDuration, nextAction: .nextSet)
+                sessionState = .exercise(.resting(
+                    exerciseIndex: currentExerciseIndex,
+                    setIndex: currentSetIndex,
+                    remainingSeconds: restDuration
+                ))
+            } else {
+                // Auto-start off — skip rest, advance straight to the next set.
+                pendingRestAction = .nextSet
+                advanceAfterRest()
+            }
         }
     }
 
@@ -1863,6 +2082,10 @@ final class TrainingViewModel {
         guard (1 ... 10).contains(rpe) else { return }
         guard let plan = todayPlan, plan.status == .completed else { return }
         plan.sessionRPE = rpe
+        // Denormalize onto the linked session so the accuracy spine never has to
+        // traverse the one-way `.nullify` link (dangling-crash guard — see
+        // DailySession.actualSessionRPE). dailySession is today's 1:1 pair.
+        dailySession?.actualSessionRPE = rpe
         try? modelContext.save()
         #if DEBUG
             print("\(DebugTrace.prefix)[Workout] recordSessionRPE: plan=\(plan.id) rpe=\(rpe) expected=\(dailySession?.expectedSessionRPE.map(String.init) ?? "nil")")
@@ -1886,6 +2109,57 @@ final class TrainingViewModel {
         try? modelContext.save()
         #if DEBUG
             print("\(DebugTrace.prefix)[daily_coach] user kept planned workout → \(stashed)")
+        #endif
+    }
+
+    /// §21 (b) — check off (or undo) the cardio SECOND session of a gym+cardio
+    /// two-a-day. The lift's completion rides `status` (the DAY counts as trained
+    /// on the lift), so this flag tracks the bonus cardio INDEPENDENTLY — it never
+    /// gates the day. No-op on a single-session day.
+    ///
+    /// Marking it done LOGS the cardio as a manual `ActivitySession` — the same
+    /// record a standalone cross-training day writes (persistNonGymCompletion) —
+    /// so the bonus session feeds the real intelligence: the §14 (d) modality
+    /// learner (doing the two-a-day cardio reinforces the learned preference),
+    /// venue patterns, and the load/replan cascade. Undo removes that row, so the
+    /// flag and the logged activity never disagree.
+    func toggleSecondarySessionComplete(modelContext: ModelContext) {
+        guard let plan = todayPlan, plan.isTwoADay, let second = plan.secondarySessionType else { return }
+        plan.secondaryCompleted.toggle()
+
+        let planID = plan.id
+        let typeRaw = second.rawValue
+        // The cardio's own ActivitySession, keyed (planID, type) so it's found on
+        // undo. The gym lift writes ExerciseHistory (not ActivitySession), so this
+        // is the ONLY ActivitySession for the plan — no collision with the lift.
+        let existing = (try? modelContext.fetch(FetchDescriptor<ActivitySession>(
+            predicate: #Predicate<ActivitySession> { $0.workoutPlanID == planID && $0.workoutType == typeRaw }
+        ))) ?? []
+        for row in existing { modelContext.delete(row) } // dedup / undo both start clean
+
+        if plan.secondaryCompleted {
+            let cardio = ActivitySession(
+                date: Date(), startTime: Date(), workoutType: typeRaw, sportID: -1,
+                source: "manual", workoutPlanID: planID,
+                strain: nil, averageHeartRate: nil, maxHeartRate: nil,
+                caloriesBurned: nil, durationMinutes: 30
+            )
+            modelContext.insert(cardio)
+        }
+        try? modelContext.save()
+
+        if plan.secondaryCompleted {
+            // Same cross-surface signals as any non-gym completion — feeds venue
+            // learning and lets the Move quadrant / recovery cascade react.
+            VenuePatternLearner.recompute(modelContext: modelContext)
+            NotificationCenter.default.post(
+                name: .tempoDayPlanReplanRequested, object: nil,
+                userInfo: ["reason": DayPlanReason.workoutLogged.rawValue]
+            )
+            NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
+        }
+        #if DEBUG
+            print("\(DebugTrace.prefix)[daily_coach] two-a-day second session → \(plan.secondaryCompleted ? "done (logged \(typeRaw))" : "undone (removed)")")
         #endif
     }
 
@@ -2317,38 +2591,125 @@ final class TrainingViewModel {
 
     // MARK: - Injury / Pain Note Scan (Tier 2.3)
 
+    // MARK: - Note signals (free-text feedback → prescription nudges)
+
+    /// Coarse signals extracted from an exercise's recent free-text notes. Used
+    /// to nudge the next prescription: conservative signals cap the weight, an
+    /// "easy" signal nudges it up. PAIN DOMINATES — any pain note makes the
+    /// exercise conservative regardless of an "easy" note elsewhere.
+    struct NoteSignalSummary {
+        var pain = false // injury/pain → hold conservative until it clears
+        var tooHard = false // failed / too heavy / grind → hold conservative
+        var tooEasy = false // too light / could do more → allow a nudge up
+        var formIssue = false // form broke / sloppy → hold conservative
+
+        /// Any signal that should PREVENT a weight increase this session.
+        var isConservative: Bool { pain || tooHard || formIssue }
+
+        /// OR another row's signals into this summary (an exercise's notes across
+        /// several sets combine; any positive signal sticks).
+        mutating func merge(_ other: NoteSignalSummary) {
+            pain = pain || other.pain
+            tooHard = tooHard || other.tooHard
+            tooEasy = tooEasy || other.tooEasy
+            formIssue = formIssue || other.formIssue
+        }
+    }
+
+    // Pure keyword tables — immutable, so `nonisolated` lets the pure
+    // `classifyNote` classifier read them off the main actor.
+
     /// Pain/injury keywords scanned in user notes. Lowercased, substring match.
-    private static let painKeywords = [
+    private nonisolated static let painKeywords = [
         "hurt", "pain", "painful", "tweak", "strain", "pinch", "pinched",
         "sore", "injury", "injured", "tendon", "ache", "aching", "sharp",
     ]
 
-    /// Recently (last `days`) flagged exercise IDs — any USER-PROVIDED note
-    /// mentioning pain, mapped back to its exercise via the still-intact
-    /// plannedSet relationship. Transient (scanned fresh each call, no stored
-    /// flag) so it always reflects the latest notes and adds no migration.
-    /// Pruned/legacy feedback whose relationship is nil is simply skipped.
-    func painFlaggedExerciseIDs(within days: Int = 21, modelContext: ModelContext) -> Set<UUID> {
+    /// "Too hard / failed" keywords → hold conservative next session.
+    private nonisolated static let tooHardKeywords = [
+        "too heavy", "too hard", "failed", "couldn't", "could not", "grind",
+        "grinder", "grindy", "missed", "struggled", "barely", "way too heavy",
+    ]
+
+    /// Form-breakdown keywords → hold conservative next session.
+    private nonisolated static let formIssueKeywords = [
+        "form broke", "form broke down", "sloppy", "bad form", "lost form",
+        "cheated", "cheat rep", "cheat reps",
+    ]
+
+    /// "Too easy / too light" keywords → nudge next session UP. Deliberately
+    /// STRICT (explicit phrasing only) — bare "easy"/"light" false-trips
+    /// ("easy on the knees", "light headed"), and this is the riskier upward
+    /// direction, so we require the user to have clearly said it.
+    private nonisolated static let tooEasyKeywords = [
+        "too easy", "too light", "way too light", "way too easy",
+        "felt too light", "could do more", "could've done more",
+        "could have done more", "sandbagged", "sandbag", "left reps",
+    ]
+
+    /// Negators that cancel an "easy" match in the same note.
+    private nonisolated static let easyNegators = ["not easy", "wasn't easy", "not light", "n't easy", "far from easy"]
+
+    /// Classify a single already-lowercased note into coarse signals. Pure — the
+    /// unit of the keyword logic, independently testable. Pain/too-hard/form all
+    /// stack; "too easy" is dropped when a negator is present in the same note.
+    nonisolated static func classifyNote(_ note: String) -> NoteSignalSummary {
+        var s = NoteSignalSummary()
+        if painKeywords.contains(where: { note.contains($0) }) {
+            s.pain = true
+        }
+        if tooHardKeywords.contains(where: { note.contains($0) }) {
+            s.tooHard = true
+        }
+        if formIssueKeywords.contains(where: { note.contains($0) }) {
+            s.formIssue = true
+        }
+        if tooEasyKeywords.contains(where: { note.contains($0) }),
+           !easyNegators.contains(where: { note.contains($0) }) {
+            s.tooEasy = true
+        }
+        return s
+    }
+
+    /// Scan recent (last `days`) USER-PROVIDED SetFeedback notes and classify
+    /// each exercise's free text into coarse prescription signals. Deterministic
+    /// keyword matching — the honest floor, not full comprehension (that is the
+    /// batched AI coach review's job). Transient (scanned fresh each call, no
+    /// stored flag) so it always reflects the latest notes and adds no
+    /// migration. Feedback whose plannedSet relationship is nil is skipped.
+    func noteSignals(within days: Int = 21, modelContext: ModelContext) -> [UUID: NoteSignalSummary] {
         let cutoff = Calendar.current.date(byAdding: .day, value: -days, to: Date()) ?? .distantPast
         let descriptor = FetchDescriptor<SetFeedback>(
             predicate: #Predicate<SetFeedback> { $0.userProvidedFeedback && $0.capturedAt >= cutoff }
         )
         guard let rows = try? modelContext.fetch(descriptor) else {
-            return []
+            return [:]
         }
-        var flagged: Set<UUID> = []
+        var out: [UUID: NoteSignalSummary] = [:]
         for row in rows {
+            // Read the denormalized exercise id — NEVER traverse row.plannedSet
+            // here. That relationship is one-way and its .nullify does not fire,
+            // so after a set is deleted it dangles and faults on invalidated
+            // backing (crash). Rows captured before exerciseID existed read nil
+            // and are simply skipped (they're old feedback, not a regression).
+            guard let exID = row.exerciseID else {
+                continue
+            }
             guard let note = row.note?.lowercased(), !note.isEmpty else {
                 continue
             }
-            guard Self.painKeywords.contains(where: { note.contains($0) }) else {
-                continue
-            }
-            if let exID = row.plannedSet?.plannedExercise?.exercise?.id {
-                flagged.insert(exID)
-            }
+            var summary = out[exID] ?? NoteSignalSummary()
+            summary.merge(Self.classifyNote(note))
+            out[exID] = summary
         }
-        return flagged
+        return out
+    }
+
+    /// Recently (last `days`) flagged exercise IDs — any USER-PROVIDED note
+    /// mentioning pain. Thin wrapper over `noteSignals` (pain subset), kept for
+    /// existing call sites.
+    func painFlaggedExerciseIDs(within days: Int = 21, modelContext: ModelContext) -> Set<UUID> {
+        Set(noteSignals(within: days, modelContext: modelContext).filter { $0.value.pain }.map(\.key))
     }
 
     // MARK: - Feedback Aggregation (Tier 2.1, pure + unit-tested)
@@ -2395,6 +2756,11 @@ final class TrainingViewModel {
             return settings.trainingSplit
         }
         return .pushPullLegs // default
+    }
+
+    private func loadCustomWeekdayPlan(modelContext: ModelContext) -> [WorkoutType]? {
+        let descriptor = FetchDescriptor<UserSettings>()
+        return (try? modelContext.fetch(descriptor))?.first?.customWeekdayPlan
     }
 
     private func loadDeloadSettings(modelContext: ModelContext) -> (frequency: Int, startDate: Date?) {

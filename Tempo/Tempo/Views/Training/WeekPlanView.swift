@@ -247,6 +247,15 @@ struct WeekPlanView: View {
                 .fontWeight(.medium)
                 .foregroundStyle(workoutTypeColor(plan: plan))
 
+            // §21 (b) two-a-day — the day carries a cardio SECOND session; show a
+            // "+SWM"/"+RUN" tag so the variety is visible in the week scan, not
+            // hidden until the Today card opens.
+            if plan.isTwoADay, let second = plan.secondarySessionType {
+                Text("+\(workoutAbbreviation(second))")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(Color.tempoTextTertiary)
+            }
+
             // Status indicator
             if isCompleted {
                 Image(systemName: "checkmark")
@@ -354,6 +363,14 @@ struct WeekPlanView: View {
                                 Text("~25 min · Active recovery")
                                     .font(.tempoCaption1)
                                     .foregroundStyle(Color.tempoTextSecondary)
+                            }
+
+                            // §21 (b) two-a-day — name the cardio second session
+                            // in the detail card so the plan reads honestly.
+                            if plan.isTwoADay, let second = plan.secondarySessionType {
+                                Text("+ easy \(second.displayName.lowercased()) · second session")
+                                    .font(.tempoCaption1)
+                                    .foregroundStyle(Color.tempoSignal)
                             }
                         }
 

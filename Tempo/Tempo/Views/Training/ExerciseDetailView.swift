@@ -110,11 +110,11 @@ struct ExerciseDetailView: View {
             RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
                 .fill(Color.tempoSurfaceCard)
 
-            Image(systemName: exerciseIcon)
-                .font(.system(size: 48))
-                .foregroundStyle(Color.tempoTextTertiary)
+            ExerciseDemoImage(demoAsset: exercise.demoAsset, muscleGroup: exercise.muscleGroup)
+                .padding(TempoSpacing.md)
         }
         .frame(height: 200)
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
     }
 
     // MARK: - Info Pills
@@ -489,21 +489,62 @@ struct ExerciseDetailView: View {
         }
     }
 
-    private var exerciseIcon: String {
-        switch exercise.muscleGroup {
-        case .chest: "figure.strengthtraining.traditional"
-        case .back: "figure.strengthtraining.traditional"
-        case .shoulders: "figure.strengthtraining.traditional"
-        case .biceps,
-             .triceps,
-             .forearms: "figure.strengthtraining.traditional"
-        case .quads,
-             .hamstrings,
-             .glutes,
-             .calves: "figure.strengthtraining.traditional"
+}
+
+// MARK: - Exercise Demo Image
+
+/// Reference photo for an exercise, loaded remotely from the bundled free-exercise-db
+/// map. `demoAsset` is a relative path (e.g. "Barbell_Bench_Press_-_Medium_Grip/0.jpg")
+/// served via jsDelivr and cached by URLCache. Falls back to a muscle-group SF Symbol
+/// when the exercise has no mapped image or the fetch fails. Shared by ExerciseDetailView
+/// (demo area) and ActiveWorkoutView (session header).
+struct ExerciseDemoImage: View {
+    let demoAsset: String?
+    let muscleGroup: MuscleGroup
+    var symbolSize: CGFloat = 48
+
+    // jsDelivr CDN — rate-limit-friendly for repeated in-app fetches vs raw.githubusercontent.
+    private static let cdnBase = "https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/exercises/"
+
+    private var url: URL? {
+        guard let demoAsset, !demoAsset.isEmpty else { return nil }
+        return URL(string: Self.cdnBase + demoAsset)
+    }
+
+    var body: some View {
+        if let url {
+            AsyncImage(url: url, transaction: Transaction(animation: .easeInOut(duration: 0.2))) { phase in
+                switch phase {
+                case let .success(image):
+                    image
+                        .resizable()
+                        .scaledToFit()
+                case .empty:
+                    ProgressView()
+                        .tint(Color.tempoTextTertiary)
+                case .failure:
+                    fallback
+                @unknown default:
+                    fallback
+                }
+            }
+        } else {
+            fallback
+        }
+    }
+
+    private var fallback: some View {
+        Image(systemName: fallbackSymbol)
+            .font(.system(size: symbolSize))
+            .foregroundStyle(Color.tempoTextTertiary)
+    }
+
+    private var fallbackSymbol: String {
+        switch muscleGroup {
         case .core: "figure.core.training"
         case .fullBody: "figure.strengthtraining.functional"
         case .cardio: "figure.run"
+        default: "figure.strengthtraining.traditional"
         }
     }
 }

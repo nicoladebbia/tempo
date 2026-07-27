@@ -140,7 +140,17 @@ enum DailyCoachPrompt {
     ///     choice — §8: weekly OWNS the modality-default). The brain KEEPS this
     ///     unless readiness forces recovery or a hard constraint forces an
     ///     in-emphasis override. nil only in cold-start before a plan exists.
-    static func userMessage(for p: ReadinessPicture, plannedModality: String? = nil) -> String {
+    ///   - plannedSecondary: §21 requirement (b) — when the weekly planner marked
+    ///     today a gym+cardio TWO-A-DAY, this is the second session's easy-cardio
+    ///     modality ("run"/"pool"). Carries the planner's DECISION so the brain
+    ///     KEEPS/refines the second part with full context rather than inventing
+    ///     one — while still free to DROP it on poor readiness (the system
+    ///     prompt's two-a-day rules govern how). nil = ordinary single session.
+    ///     Already readiness-gated upstream: the deterministic candidate this is
+    ///     derived from is single-part on an eased morning, so nil arrives here.
+    static func userMessage(for p: ReadinessPicture, plannedModality: String? = nil,
+                            plannedSecondary: String? = nil,
+                            secondaryWindows: (Int, Int)? = nil) -> String {
         var lines: [String] = []
         lines.append("TODAY'S BODY DATA:")
         lines.append("- Recovery score: \(Int(p.recoveryScore))/100")
@@ -196,6 +206,16 @@ enum DailyCoachPrompt {
         } else {
             lines.append("- No match scheduled.")
         }
+        // §5 calendar awareness — academic crunch is load the body pays for.
+        // Silence when the week is clear; the prompt stays calibrated.
+        if let exam = p.examsSoon.first {
+            let when = exam.daysUntil == 0 ? "TODAY" : exam.daysUntil == 1 ? "TOMORROW" : "in \(exam.daysUntil) days"
+            let more = p.examsSoon.count > 1 ? " (+\(p.examsSoon.count - 1) more within 7 days)" : ""
+            lines.append("- Exam: \(exam.subject) \(when)\(more) — exam stress counts as load; keep sessions efficient, protect sleep over volume.")
+        }
+        if let busy = p.busyHoursToday, busy >= 6 {
+            lines.append("- Packed day: \(fmt(busy))h of calendar events — prescribe something short and low-logistics.")
+        }
         // The system prompt teaches the emphasis-week semantics (prescribe FOR
         // the emphasis, hold the other at maintenance); this line carries the
         // value. nil = no TrainingBlock declared → the pre-D3 default, verbatim.
@@ -220,7 +240,14 @@ enum DailyCoachPrompt {
             }
         }
         if let planned = plannedModality {
-            lines.append("- TODAY'S PLANNED SESSION: \(planned). This is the week's plan for today — KEEP this modality. Adjust only its INTENSITY to today's readiness. Override the modality ONLY if readiness forces recovery, or a hard constraint applies (match T-1 → no heavy legs; a pain flag on the muscle this would load). Any override stays in-emphasis.")
+            if let second = plannedSecondary {
+                let windowHint = secondaryWindows.map {
+                    " The user's free windows today are around \(VenuePatternMath.clockLabel($0.0)) and \(VenuePatternMath.clockLabel($0.1)) — place the two parts there."
+                } ?? ""
+                lines.append("- TODAY'S PLANNED SESSION: a TWO-A-DAY — \(planned) (the lift) PLUS an easy \(second) second session. The weekly planner decided today has the headroom for both. KEEP both parts: prescribe the lift, then an EASY \(second) block scheduled >= 6h later, each tagged with scheduledMin.\(windowHint) The second part stays easy (intensityPct <= 75 / mobility-grade) — never a second hard effort. DROP the second part and prescribe the lift ALONE if readiness is yellow-or-worse, the acute:chronic load ratio is already high, or a pain flag loads that work. When you keep the lift, its own INTENSITY still follows today's readiness.")
+            } else {
+                lines.append("- TODAY'S PLANNED SESSION: \(planned). This is the week's plan for today — KEEP this modality. Adjust only its INTENSITY to today's readiness. Override the modality ONLY if readiness forces recovery, or a hard constraint applies (match T-1 → no heavy legs; a pain flag on the muscle this would load). Any override stays in-emphasis.")
+            }
         }
 
         lines.append("")

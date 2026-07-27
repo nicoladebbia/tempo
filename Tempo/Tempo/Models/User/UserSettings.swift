@@ -47,6 +47,21 @@ final class UserSettings {
 
     var autoStartRestTimer: Bool
 
+    /// Global default rest between sets, in seconds. Applies to every exercise
+    /// unless it has a per-exercise `preferredRestSeconds` override. The inline
+    /// default keeps SwiftData lightweight-migration happy for existing stores
+    /// (the field was added after users already had a UserSettings row).
+    var defaultRestSeconds: Int = 120
+
+    /// Strength experience level ("Beginner"/"Intermediate"/"Advanced"), read by
+    /// the cold-start weight estimator (StrengthStandards.experienceMultiplier).
+    /// Optional + no default so lightweight migration is happy for existing
+    /// stores; nil → estimator treats as Beginner. Seeded from onboarding
+    /// (ContentView.ensureUserProfile) and editable in Settings → Programme.
+    /// This is the DURABLE home — onboarding's UserDefaults blob is deleted at
+    /// completion, so reading experienceLevel from there returned nil forever.
+    var experienceLevelRaw: String?
+
     var showPlateCalculator: Bool
 
     var autoDeload: Bool
@@ -54,6 +69,12 @@ final class UserSettings {
     var deloadFrequencyWeeks: Int
 
     var footballDaysRaw: Int
+
+    /// Advanced custom split — a user-assigned WorkoutType for each weekday,
+    /// Mon-first (index 0 = Monday), JSON-encoded (array of length 7). Nil until
+    /// the user configures a custom split (the engine falls back to the default
+    /// sequence). Optional Data? is SwiftData-migration-safe for existing rows.
+    var customWeekdayPlanJSON: Data?
 
     // MARK: - Schedule
 
@@ -179,6 +200,25 @@ final class UserSettings {
         set { footballDaysRaw = newValue.rawValue }
     }
 
+    /// Decoded custom weekday split (Mon-first, length 7). Nil/invalid → nil, so
+    /// the engine falls back to the default sequence.
+    @Transient
+    var customWeekdayPlan: [WorkoutType]? {
+        get {
+            guard let data = customWeekdayPlanJSON,
+                  let arr = try? JSONDecoder().decode([WorkoutType].self, from: data),
+                  arr.count == 7 else { return nil }
+            return arr
+        }
+        set {
+            if let arr = newValue, arr.count == 7 {
+                customWeekdayPlanJSON = try? JSONEncoder().encode(arr)
+            } else {
+                customWeekdayPlanJSON = nil
+            }
+        }
+    }
+
     @Transient
     var dailyXPGoal: DailyXPGoal {
         get { DailyXPGoal(rawValue: dailyXPGoalRaw) ?? .regular }
@@ -265,6 +305,7 @@ final class UserSettings {
         trainingSplit: TrainingSplit = .pushPullLegs,
         weightUnit: WeightUnit = .kg,
         autoStartRestTimer: Bool = true,
+        defaultRestSeconds: Int = 120,
         showPlateCalculator: Bool = true,
         autoDeload: Bool = true,
         deloadFrequencyWeeks: Int = 5,
@@ -300,6 +341,7 @@ final class UserSettings {
         trainingSplitRaw = trainingSplit.rawValue
         weightUnitRaw = weightUnit.rawValue
         self.autoStartRestTimer = autoStartRestTimer
+        self.defaultRestSeconds = defaultRestSeconds
         self.showPlateCalculator = showPlateCalculator
         self.autoDeload = autoDeload
         self.deloadFrequencyWeeks = deloadFrequencyWeeks

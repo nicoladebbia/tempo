@@ -24,7 +24,7 @@ protocol CalendarServiceProtocol: Sendable {
     /// window (08:00-22:00) of the given day, derived from the user's
     /// calendar events. Returns nil if no qualifying gap exists or access
     /// is denied. Requests calendar access lazily on first use.
-    func suggestWorkoutWindow(for date: Date) async -> DateInterval?
+    func suggestWorkoutWindow(for date: Date, preferring preference: TrainingTimePreference) async -> DateInterval?
 
     /// The user's saved workout event for `date` whose start is still in
     /// the future. Drives the live countdown banner. Resolution order:

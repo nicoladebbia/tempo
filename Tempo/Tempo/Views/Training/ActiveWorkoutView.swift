@@ -28,10 +28,17 @@ struct ActiveWorkoutView: View {
     private var inputWeight: Double = 0
     @State
     private var inputReps: Double = 8
+    /// Signed added load (display unit) for bodyweight-loaded lifts: positive =
+    /// weight belt/vest, negative = assistance (band/machine). Only used when the
+    /// current exercise is bodyweight-loaded; effective load = bodyweight ± this.
+    @State
+    private var inputAddedLoad: Double = 0
     @State
     private var showFinishConfirmation = false
     @Query
     private var allSettings: [UserSettings]
+    @Query
+    private var profiles: [UserProfile]
 
     /// User weight-unit preference. The stepper edits a *display* value in
     /// this unit; storage stays kg (converted at the log boundary) so
@@ -75,6 +82,42 @@ struct ActiveWorkoutView: View {
             return "\(perSideStr) \(unit)/side + \(barStr) \(unit) bar"
         }
         return "\(perSideStr) \(unit)/side"
+    }
+
+    /// Whether the current lift is bodyweight-loaded (pull-up/dip) — logged as a
+    /// signed added load on top of bodyweight rather than a raw total weight.
+    private var isBodyweightLift: Bool {
+        guard let eq = viewModel.currentExercise?.exercise?.equipment else {
+            return false
+        }
+        return StrengthStandards.isBodyweightLoaded(eq)
+    }
+
+    /// User bodyweight (kg) for effective-load math. 0 when unknown → the
+    /// effective load degrades to just the added load.
+    private var bodyweightKg: Double {
+        profiles.first?.weightKg ?? 0
+    }
+
+    /// Effective logged load (kg) for a bodyweight lift = bodyweight ± added,
+    /// never negative. `inputAddedLoad` is in the display unit.
+    private var bodyweightEffectiveKg: Double {
+        max(0, bodyweightKg + weightUnit.convert(inputAddedLoad, to: .kg))
+    }
+
+    /// Human hint under the added-load stepper: "= 77.7 kg effective · assisted".
+    private var bodyweightEffectiveHint: String {
+        let unit = weightUnit.abbreviation
+        let effDisplay = WeightUnit.kg.convert(bodyweightEffectiveKg, to: weightUnit)
+        let effStr = String(format: weightUnit == .kg ? "%.1f" : "%.0f", effDisplay)
+        let tag: String = if inputAddedLoad > 0 {
+            "weighted"
+        } else if inputAddedLoad < 0 {
+            "assisted"
+        } else {
+            "bodyweight"
+        }
+        return "= \(effStr) \(unit) effective · \(tag)"
     }
 
     var body: some View {
@@ -250,24 +293,45 @@ struct ActiveWorkoutView: View {
                     .font(.tempoCaption1)
                     .foregroundStyle(Color.tempoTextSecondary)
 
-                // Weight input — the logged number is TOTAL load including the
-                // bar. For bar-loaded lifts we show a per-side plate hint so
-                // there's no ambiguity about what to actually put on.
-                VStack(spacing: TempoSpacing.sm) {
-                    Text("WEIGHT — total incl. bar")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                    NumberStepperView(
-                        value: $inputWeight,
-                        range: 0 ... weightRangeMax,
-                        step: weightStep,
-                        format: weightUnit == .kg ? "%.1f" : "%.0f",
-                        unit: weightUnit.abbreviation
-                    )
-                    if let hint = perSideHint {
-                        Text(hint)
+                if isBodyweightLift {
+                    // Bodyweight-loaded lift (pull-up/dip): log a SIGNED added
+                    // load — negative = assistance (band/machine), positive =
+                    // weight belt/vest. Effective load = bodyweight ± this.
+                    VStack(spacing: TempoSpacing.sm) {
+                        Text("ADDED LOAD — − assisted / + weighted")
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                        NumberStepperView(
+                            value: $inputAddedLoad,
+                            range: -weightRangeMax ... weightRangeMax,
+                            step: weightStep,
+                            format: weightUnit == .kg ? "%+.1f" : "%+.0f",
+                            unit: weightUnit.abbreviation
+                        )
+                        Text(bodyweightEffectiveHint)
                             .font(.tempoCaption2)
                             .foregroundStyle(Color.tempoTextSecondary)
+                    }
+                } else {
+                    // Weight input — the logged number is TOTAL load including the
+                    // bar. For bar-loaded lifts we show a per-side plate hint so
+                    // there's no ambiguity about what to actually put on.
+                    VStack(spacing: TempoSpacing.sm) {
+                        Text("WEIGHT — total incl. bar")
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                        NumberStepperView(
+                            value: $inputWeight,
+                            range: 0 ... weightRangeMax,
+                            step: weightStep,
+                            format: weightUnit == .kg ? "%.1f" : "%.0f",
+                            unit: weightUnit.abbreviation
+                        )
+                        if let hint = perSideHint {
+                            Text(hint)
+                                .font(.tempoCaption2)
+                                .foregroundStyle(Color.tempoTextSecondary)
+                        }
                     }
                 }
 
@@ -293,13 +357,24 @@ struct ActiveWorkoutView: View {
 
                 // Done button
                 Button {
-                    // inputWeight is in the user's display unit; persist kg.
-                    let weightKg = weightUnit.convert(inputWeight, to: .kg)
-                    viewModel.logSet(
-                        weight: weightKg,
-                        reps: Int(inputReps),
-                        modelContext: modelContext
-                    )
+                    // Inputs are in the user's display unit; persist kg. For a
+                    // bodyweight lift the logged weight is the EFFECTIVE load
+                    // (bodyweight ± added) and we also record the signed added load.
+                    if isBodyweightLift {
+                        viewModel.logSet(
+                            weight: bodyweightEffectiveKg,
+                            reps: Int(inputReps),
+                            addedLoadKg: weightUnit.convert(inputAddedLoad, to: .kg),
+                            modelContext: modelContext
+                        )
+                    } else {
+                        let weightKg = weightUnit.convert(inputWeight, to: .kg)
+                        viewModel.logSet(
+                            weight: weightKg,
+                            reps: Int(inputReps),
+                            modelContext: modelContext
+                        )
+                    }
                     HapticManager.notification(.success)
                 } label: {
                     Text(currentSetIsWarmup ? "Finish Warm-Up Set" : "Finish Set")
@@ -497,8 +572,14 @@ struct ActiveWorkoutView: View {
     // MARK: - Exercise Header
 
     private var exerciseHeader: some View {
-        VStack(spacing: TempoSpacing.xs) {
+        VStack(spacing: TempoSpacing.sm) {
             if let exercise = viewModel.currentExercise?.exercise {
+                ExerciseDemoImage(demoAsset: exercise.demoAsset, muscleGroup: exercise.muscleGroup, symbolSize: 40)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 150)
+                    .background(Color.tempoSurfaceCard)
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+
                 Text(exercise.name.uppercased())
                     .font(.tempoTitle2)
                     .foregroundStyle(Color.tempoTextPrimary)
@@ -700,6 +781,19 @@ struct ActiveWorkoutView: View {
     // MARK: - Helpers
 
     private func loadCurrentSetInputs() {
+        // Bodyweight-loaded lift: seed the SIGNED added-load stepper from the
+        // set's planned suggestion (bodyweight ± this = effective target) rather
+        // than a total weight.
+        if isBodyweightLift {
+            let addedKg = viewModel.currentSet?.addedLoadKg ?? 0
+            let display = WeightUnit.kg.convert(addedKg, to: weightUnit)
+            inputAddedLoad = (display / weightStep).rounded() * weightStep
+            if let targetReps = viewModel.currentSet?.targetReps {
+                inputReps = Double(targetReps)
+            }
+            return
+        }
+
         // Warm-up (ramp) sets pre-fill their OWN target (the 50%/75% ramp
         // weight) — NOT the sticky/previous weight, which would carry the
         // working weight onto the ramps and make them identical. Working sets
