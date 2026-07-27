@@ -66,7 +66,11 @@ extension PhoneWatchConnectivityService {
     /// always-latest channel — WCSession delivers the newest context even
     /// when the watch app is closed). Other context keys are preserved.
     func pushWorkout(_ payload: WatchWorkoutPayload) {
-        guard WCSession.isSupported(), WCSession.default.activationState == .activated else {
+        guard WCSession.isSupported(),
+              WCSession.default.activationState == .activated,
+              WCSession.default.isPaired,
+              WCSession.default.isWatchAppInstalled
+        else {
             return
         }
         var context = WCSession.default.applicationContext
