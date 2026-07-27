@@ -19,6 +19,50 @@ import Foundation
 import SwiftData
 
 extension TrainingViewModel {
+    /// The user's display unit, read fresh from settings — prescriptions snap
+    /// to weights loadable in THIS unit (see WeightConverter.loadableKg).
+    /// Falls back to the VM property (set on loadToday) when settings are
+    /// missing (fresh install, unit defaults to kg).
+    func currentWeightUnit(modelContext: ModelContext) -> WeightUnit {
+        (try? modelContext.fetch(FetchDescriptor<UserSettings>()))?.first?.weightUnit ?? weightUnit
+    }
+
+    /// Normalize a persisted plan's prescriptions onto the loadable lattice —
+    /// covers plans generated before display-unit snapping existed, and plans
+    /// generated under the other unit after a kg↔lbs switch. Idempotent
+    /// (snapping a snapped value is a no-op); completed sets hold logged
+    /// actuals and are never touched, and bodyweight lifts pass through
+    /// (their "weight" is the lifter, not a load).
+    func snapPrescribedWeights(for plan: WorkoutPlan, modelContext: ModelContext) {
+        guard plan.status == .planned || plan.status == .inProgress else {
+            return
+        }
+        let unit = currentWeightUnit(modelContext: modelContext)
+        var changed = false
+        for slot in plan.orderedExercises {
+            guard let exercise = slot.exercise,
+                  !StrengthStandards.isBodyweightLoaded(exercise.equipment)
+            else {
+                continue
+            }
+            for set in slot.orderedSets where !set.completed {
+                guard let target = set.targetWeight, target > 0 else {
+                    continue
+                }
+                let snapped = WeightConverter.loadableKg(target, equipment: exercise.equipment, unit: unit)
+                if abs(snapped - target) > 0.001 {
+                    set.targetWeight = snapped
+                    changed = true
+                }
+            }
+        }
+        if changed {
+            // Cosmetic re-snap, not user data — a failed save just leaves the
+            // old numbers on screen until the next successful save.
+            try? modelContext.save()
+        }
+    }
+
     // MARK: - Exercise Population
 
     // Populates a WorkoutPlan with exercises from the library based on workout type.
@@ -43,6 +87,9 @@ extension TrainingViewModel {
         // §19.3 — how a deload week lightens this session (weight vs sets;
         // fullRest never reaches here — those days became mobility upstream).
         let deloadStyle = loadDeloadSettings(modelContext: modelContext).style
+
+        // Prescriptions snap to loadable weights in the user's display unit.
+        let unit = currentWeightUnit(modelContext: modelContext)
 
         // Fetch all exercises from library
         var descriptor = FetchDescriptor<Exercise>()
@@ -153,7 +200,11 @@ extension TrainingViewModel {
             let deloadMultiplier = (isDeloadWeek && deloadStyle == .intensityCut)
                 ? trainingEngine.deloadWeightMultiplier() : 1.0
             let adjustedWeight = weight * plan.recoveryAdjustment * deloadMultiplier
-            let roundedWeight = (adjustedWeight / 2.5).rounded() * 2.5 // Round to nearest 2.5kg
+            // Snap to a weight that physically loads in the user's unit —
+            // barbell plate math, machine stack pins, dumbbell rack steps.
+            let roundedWeight = WeightConverter.loadableKg(
+                adjustedWeight, equipment: exercise.equipment, unit: unit
+            )
 
             // Bodyweight-loaded lift (pull-up/dip): the prescribed weight is the
             // EFFECTIVE load; the per-set added-load suggestion is the signed
@@ -186,7 +237,9 @@ extension TrainingViewModel {
             // pull-up); those warm up with assistance or bodyweight reps instead.
             if exercise.isCompound, roundedWeight > 0, !isBodyweightLift {
                 // Warmup set 1: 50% working weight, same reps
-                let warmup1Weight = ((roundedWeight * 0.5) / 2.5).rounded() * 2.5
+                let warmup1Weight = WeightConverter.loadableKg(
+                    roundedWeight * 0.5, equipment: exercise.equipment, unit: unit
+                )
                 let ws1 = PlannedSet(
                     setNumber: setNum,
                     targetReps: reps,
@@ -198,7 +251,9 @@ extension TrainingViewModel {
                 setNum += 1
 
                 // Warmup set 2: 75% working weight, same reps
-                let warmup2Weight = ((roundedWeight * 0.75) / 2.5).rounded() * 2.5
+                let warmup2Weight = WeightConverter.loadableKg(
+                    roundedWeight * 0.75, equipment: exercise.equipment, unit: unit
+                )
                 let ws2 = PlannedSet(
                     setNumber: setNum,
                     targetReps: reps,
@@ -683,7 +738,8 @@ extension TrainingViewModel {
         let effectiveWorkingSets = (isDeloadWeek && deloadStyle == .volumeCut)
             ? max(1, (workingSets + 1) / 2) : workingSets
         let adjusted = weight * plan.recoveryAdjustment * deloadMultiplier
-        let rounded = (adjusted / 2.5).rounded() * 2.5
+        let unit = currentWeightUnit(modelContext: modelContext)
+        let rounded = WeightConverter.loadableKg(adjusted, equipment: exercise.equipment, unit: unit)
 
         let isBodyweightLift = StrengthStandards.isBodyweightLoaded(exercise.equipment)
         let addedLoad: Double? = {
@@ -697,7 +753,9 @@ extension TrainingViewModel {
         var setNum = 1
         if exercise.isCompound, rounded > 0, !isBodyweightLift {
             for fraction in [0.5, 0.75] {
-                let warmupWeight = ((rounded * fraction) / 2.5).rounded() * 2.5
+                let warmupWeight = WeightConverter.loadableKg(
+                    rounded * fraction, equipment: exercise.equipment, unit: unit
+                )
                 sets.append(PlannedSet(
                     setNumber: setNum,
                     targetReps: reps,

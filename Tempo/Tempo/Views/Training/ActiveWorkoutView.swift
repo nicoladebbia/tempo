@@ -67,26 +67,27 @@ struct ActiveWorkoutView: View {
         else {
             return nil
         }
-        let totalKg = weightUnit.convert(inputWeight, to: .kg)
-        let bar = equipment.barWeightKg
-        guard totalKg >= bar else {
+        // All math in the DISPLAY unit with the regional bar (a US bar is
+        // 45 lbs, not the 44.1 a 20 kg bar converts to) and regional plate
+        // denominations — "22.5 lbs/side" a lifter can actually build.
+        let bar = WeightConverter.barWeight(for: equipment, unit: weightUnit)
+        guard inputWeight >= bar else {
             return nil
         }
-        let perSideKg = (totalKg - bar) / 2
-        let perSide = WeightUnit.kg.convert(perSideKg, to: weightUnit)
+        let perSide = (inputWeight - bar) / 2
         let unit = weightUnit.abbreviation
-        let perSideStr = String(format: weightUnit == .kg ? "%.1f" : "%.0f", perSide)
+        let perSideStr = String(format: weightUnit == .kg ? "%.1f" : "%.1f", perSide)
+        let barStr = String(format: "%.0f", bar)
 
         // §5 plate calculator — the previously-orphaned showPlateCalculator
         // setting gates the actual PLATE breakdown ("20 + 2.5 per side");
         // the plain per-side weight stays either way.
-        if allSettings.first?.showPlateCalculator ?? true, perSideKg > 0 {
-            let plates = PlateMath.breakdown(perSideKg: perSideKg)
+        if allSettings.first?.showPlateCalculator ?? true, perSide > 0 {
+            let plates = PlateMath.breakdown(perSide: perSide, plates: PlateMath.plates(for: weightUnit))
             if !plates.isEmpty {
-                let approx = PlateMath.isExact(plates: plates, perSideKg: perSideKg) ? "" : "≈"
-                let plateStr = approx + PlateMath.label(plates: plates, in: weightUnit)
+                let approx = PlateMath.isExact(plates: plates, perSide: perSide) ? "" : "≈"
+                let plateStr = approx + PlateMath.label(values: plates)
                 if bar > 0 {
-                    let barStr = String(format: "%.0f", WeightUnit.kg.convert(bar, to: weightUnit))
                     return "\(plateStr) per side + \(barStr) \(unit) bar"
                 }
                 return "\(plateStr) per side"
@@ -94,8 +95,6 @@ struct ActiveWorkoutView: View {
         }
 
         if bar > 0 {
-            let barStr = String(format: weightUnit == .kg ? "%.0f" : "%.0f",
-                                WeightUnit.kg.convert(bar, to: weightUnit))
             return "\(perSideStr) \(unit)/side + \(barStr) \(unit) bar"
         }
         return "\(perSideStr) \(unit)/side"
@@ -899,14 +898,23 @@ enum PlateMath {
     /// Standard plates available per side, kg, descending.
     static let standardPlatesKg: [Double] = [25, 20, 15, 10, 5, 2.5, 1.25]
 
-    /// Plates (kg, descending) whose sum best approximates `perSideKg` from
-    /// below. An unreachable remainder < the smallest plate is dropped —
-    /// the label marks approximation with "≈".
+    /// Standard US plates per side, lbs, descending.
+    static let standardPlatesLbs: [Double] = [45, 35, 25, 10, 5, 2.5]
+
+    /// Regional plate denominations for the display unit — the breakdown is
+    /// computed directly in that unit, never converted.
+    static func plates(for unit: WeightUnit) -> [Double] {
+        unit == .kg ? standardPlatesKg : standardPlatesLbs
+    }
+
+    /// Plates (same unit as `perSide`, descending) whose sum best
+    /// approximates `perSide` from below. An unreachable remainder < the
+    /// smallest plate is dropped — the label marks approximation with "≈".
     static func breakdown(
-        perSideKg: Double,
+        perSide: Double,
         plates: [Double] = PlateMath.standardPlatesKg
     ) -> [Double] {
-        var remaining = perSideKg
+        var remaining = perSide
         var result: [Double] = []
         for plate in plates.sorted(by: >) {
             while remaining >= plate - 0.001 {
@@ -917,19 +925,16 @@ enum PlateMath {
         return result
     }
 
-    /// Human label: "20 + 2.5" (kg) or the lb-converted equivalents, with a
-    /// leading "≈" when the plates don't sum to the exact target.
-    static func label(plates: [Double], in unit: WeightUnit) -> String {
-        guard !plates.isEmpty else { return "" }
-        let parts = plates.map { plateKg -> String in
-            let v = WeightUnit.kg.convert(plateKg, to: unit)
-            return v == v.rounded() ? String(format: "%.0f", v) : String(format: "%.2g", v)
+    /// Human label: "45 + 2.5" — values are already in the display unit.
+    static func label(values: [Double]) -> String {
+        values.map { v in
+            v == v.rounded() ? String(format: "%.0f", v) : String(format: "%.2g", v)
         }
-        return parts.joined(separator: " + ")
+        .joined(separator: " + ")
     }
 
-    /// Whether `plates` exactly builds `perSideKg` (within 10 g).
-    static func isExact(plates: [Double], perSideKg: Double) -> Bool {
-        abs(plates.reduce(0, +) - perSideKg) < 0.01
+    /// Whether `plates` exactly builds `perSide` (within 10 g / 0.01 lb).
+    static func isExact(plates: [Double], perSide: Double) -> Bool {
+        abs(plates.reduce(0, +) - perSide) < 0.01
     }
 }

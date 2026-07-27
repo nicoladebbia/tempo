@@ -73,6 +73,7 @@ final class WatchSyncTests: XCTestCase {
         let payload = WatchWorkoutPayload(
             workoutType: "PUSH",
             dayKey: "2026-07-27",
+            unit: "lbs",
             exercises: [
                 .init(name: "Bench Press", totalSets: 3, completedSets: 1,
                       targetReps: 8, targetWeightKg: 82.5),

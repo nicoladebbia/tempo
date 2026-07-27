@@ -359,6 +359,15 @@ final class TrainingViewModel {
             sessionState = .crashedRecovery
         }
 
+        // Re-snap prescriptions onto the loadable lattice in the user's
+        // display unit — covers plans generated before snapping existed and
+        // plans generated under the other unit after a kg↔lbs switch.
+        // Idempotent; logged sets are never touched.
+        snapPrescribedWeights(for: resolved.plan, modelContext: modelContext)
+        for plan in weekPlans where plan.id != resolved.plan.id {
+            snapPrescribedWeights(for: plan, modelContext: modelContext)
+        }
+
         // Tier 2.3 — refresh the pain-flag cache for the session UI (covers
         // plans that were already populated in a prior load, where
         // populateExercises didn't run this time).

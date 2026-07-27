@@ -26,6 +26,9 @@ struct WatchWorkoutPayload: Codable, Equatable {
     let workoutType: String
     /// yyyy-MM-dd of the plan's day — the watch ignores stale contexts.
     let dayKey: String
+    /// "kg" / "lbs" — weights stay canonical kg on the wire; the watch
+    /// converts for display so the wrist matches the phone's unit.
+    let unit: String
     let exercises: [Exercise]
     let updatedAt: Date
 

@@ -49,6 +49,7 @@ extension TrainingViewModel {
         return WatchWorkoutPayload(
             workoutType: plan.type.displayName.uppercased(),
             dayKey: formatter.string(from: plan.date),
+            unit: weightUnit.rawValue,
             exercises: exercises,
             updatedAt: Date()
         )

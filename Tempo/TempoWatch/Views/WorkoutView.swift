@@ -39,6 +39,20 @@ struct WorkoutView: View {
         todayWorkout?.exercises.reduce(0) { $0 + max(0, $1.totalSets - $1.completedSets) } ?? 0
     }
 
+    /// Weights travel as canonical kg; display follows the phone's unit.
+    private var isLbs: Bool {
+        connectivity.latestWorkout?.unit == "lbs"
+    }
+
+    private var unitLabel: String {
+        isLbs ? "lbs" : "kg"
+    }
+
+    /// One plate-step in kg: ±5 lbs in lbs gyms, ±2.5 kg otherwise.
+    private var adjustStepKg: Double {
+        isLbs ? 5 / 2.20462 : 2.5
+    }
+
     var body: some View {
         if workoutState.isActive {
             if isResting {
@@ -130,7 +144,7 @@ struct WorkoutView: View {
                     .foregroundStyle(.secondary)
 
                 // Target display — monospaced in card
-                Text("\(workoutState.lastReps) reps × \(weightLabel(workoutState.lastWeight)) kg")
+                Text("\(workoutState.lastReps) reps × \(weightLabel(workoutState.lastWeight)) \(unitLabel)")
                     .font(.system(size: 20, weight: .bold, design: .monospaced))
                     .padding(.vertical, 12)
                     .frame(maxWidth: .infinity)
@@ -189,12 +203,12 @@ struct WorkoutView: View {
                 }
 
                 if showAdjust {
-                    // ±2.5 kg plate steps on the working weight.
+                    // One plate-step per tap (±5 lbs / ±2.5 kg) on the working weight.
                     HStack(spacing: 8) {
                         Button {
-                            workoutState.lastWeight = max(0, workoutState.lastWeight - 2.5)
+                            workoutState.lastWeight = max(0, workoutState.lastWeight - adjustStepKg)
                         } label: {
-                            Text("−2.5 kg")
+                            Text("−\(isLbs ? "5 lbs" : "2.5 kg")")
                                 .font(.system(size: 13, weight: .semibold))
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 36)
@@ -204,9 +218,9 @@ struct WorkoutView: View {
                         .buttonStyle(.plain)
 
                         Button {
-                            workoutState.lastWeight += 2.5
+                            workoutState.lastWeight += adjustStepKg
                         } label: {
-                            Text("+2.5 kg")
+                            Text("+\(isLbs ? "5 lbs" : "2.5 kg")")
                                 .font(.system(size: 13, weight: .semibold))
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 36)
@@ -243,7 +257,7 @@ struct WorkoutView: View {
                     .foregroundStyle(.secondary)
                 Text("\(workoutState.exerciseName) \(workoutState.currentSet)/\(workoutState.totalSets)")
                     .font(.system(size: 14, weight: .medium))
-                Text("\(workoutState.lastReps) reps × \(weightLabel(workoutState.lastWeight)) kg")
+                Text("\(workoutState.lastReps) reps × \(weightLabel(workoutState.lastWeight)) \(unitLabel)")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
@@ -353,8 +367,11 @@ struct WorkoutView: View {
         return String(format: "%d:%02d", m, s)
     }
 
-    private func weightLabel(_ weight: Double) -> String {
-        String(format: "%g", weight)
+    /// kg → display unit, rounded to the nearest 0.5 so a snapped 40.82 kg
+    /// shows as the 90 lbs it actually is, not 89.9997.
+    private func weightLabel(_ weightKg: Double) -> String {
+        let value = isLbs ? weightKg * 2.20462 : weightKg
+        return String(format: "%g", (value * 2).rounded() / 2)
     }
 
     private static func todayKey() -> String {
