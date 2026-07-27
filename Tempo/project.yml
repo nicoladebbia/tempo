@@ -240,6 +240,8 @@ targets:
       # is referenced by both `FocusTimerLiveActivity` (widget) and the
       # app's `FocusTimerActivityManager`.
       - path: Tempo/Services/LiveActivity/FocusTimerActivityAttributes.swift
+      # Same sharing for the workout Live Activity (§3.9).
+      - path: Tempo/Services/LiveActivity/WorkoutActivityAttributes.swift
     dependencies: []
     info:
       path: TempoWidget/Info.plist

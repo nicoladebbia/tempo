@@ -69,7 +69,86 @@ final class TrainingViewModel {
                     print("\(DebugTrace.prefix)[Workout] sessionState: \(oldValue) → \(sessionState) | exIdx=\(currentExerciseIndex) setIdx=\(currentSetIndex)")
                 }
             #endif
+            // §3.9 — every transition mirrors onto the Live Activity (started
+            // in startWorkout; update/end no-op when none is running).
+            if oldValue != sessionState {
+                syncLiveActivity()
+            }
         }
+    }
+
+    // MARK: - Live Activity (§3.9)
+
+    /// Snapshot of the running session for the lock screen / Dynamic Island.
+    /// nil in states that shouldn't show an activity (idle/summary/…).
+    private func liveActivityState() -> WorkoutActivityAttributes.ContentState? {
+        guard let plan = todayPlan else {
+            return nil
+        }
+        let exercises = plan.orderedExercises
+        let currentName = exercises.indices.contains(currentExerciseIndex)
+            ? (exercises[currentExerciseIndex].exercise?.name ?? "Exercise")
+            : "Exercise"
+
+        func state(
+            exerciseName: String,
+            setText: String,
+            isResting: Bool = false,
+            restEndsAt: Date? = nil,
+            isPaused: Bool = false
+        ) -> WorkoutActivityAttributes.ContentState {
+            WorkoutActivityAttributes.ContentState(
+                workoutType: plan.type.displayName.uppercased(),
+                exerciseName: exerciseName,
+                setText: setText,
+                completedSets: completedSets,
+                totalSets: totalSets,
+                isResting: isResting,
+                restEndsAt: restEndsAt,
+                startedAt: workoutStartTime,
+                isPaused: isPaused
+            )
+        }
+
+        switch sessionState {
+        case .warmup:
+            return state(exerciseName: "Warm-Up", setText: "Guided warm-up")
+        case .exercise(.setActive):
+            return state(exerciseName: currentName, setText: setCountText)
+        case .exercise(.resting):
+            return state(
+                exerciseName: restContext.exercise?.name ?? currentName,
+                setText: setCountText,
+                isResting: true,
+                restEndsAt: restEndDate
+            )
+        case .exercise(.betweenExercises):
+            return state(exerciseName: currentName, setText: "Next exercise")
+        case .paused, .interruptedCall:
+            return state(exerciseName: currentName, setText: setCountText, isPaused: true)
+        case .cooldown:
+            return state(exerciseName: "Cooldown", setText: "Almost done")
+        case .idle, .summary, .saved, .discarded, .crashedRecovery:
+            return nil
+        }
+    }
+
+    private func syncLiveActivity() {
+        if let state = liveActivityState() {
+            Task {
+                await WorkoutActivityManager.shared.update(state: state)
+            }
+        } else {
+            WorkoutActivityManager.shared.endCurrentDetached()
+        }
+    }
+
+    /// Request the activity at session start (updates keep it fresh after).
+    func startLiveActivity() {
+        guard let plan = todayPlan, let state = liveActivityState() else {
+            return
+        }
+        WorkoutActivityManager.shared.start(planID: plan.id.uuidString, state: state)
     }
 
     var todayPlan: WorkoutPlan?
@@ -1476,6 +1555,8 @@ final class TrainingViewModel {
             // Non-gym sessions have no warm-up block — start the clock now.
             startElapsedTimer()
         }
+        // §3.9 — put the session on the lock screen / Dynamic Island.
+        startLiveActivity()
         // Move quadrant should flip planned → in-progress on the Dashboard.
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
     }
@@ -1553,6 +1634,10 @@ final class TrainingViewModel {
         }
 
         startElapsedTimer()
+        // A recovered session earns its lock-screen presence back too (§3.9),
+        // and the call monitor that startWorkout would have armed.
+        startCallMonitoring()
+        startLiveActivity()
     }
 
     // MARK: - Discard Crashed Workout

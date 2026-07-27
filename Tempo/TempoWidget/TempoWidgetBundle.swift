@@ -19,5 +19,6 @@ struct TempoWidgetBundle: WidgetBundle {
         TempoWidget()
         TempoLockScreenWidget()
         FocusTimerLiveActivity()
+        WorkoutLiveActivity()
     }
 }

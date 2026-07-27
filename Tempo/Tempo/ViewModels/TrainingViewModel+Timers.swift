@@ -385,6 +385,9 @@ extension TrainingViewModel {
         stopWarmupMoveTimer()
         stopElapsedTimer()
         stopCallMonitoring()
+        // Belt-and-braces: terminal states already end it via the sessionState
+        // sync, but a reset must never leave a zombie activity on the lock screen.
+        WorkoutActivityManager.shared.endCurrentDetached()
     }
 
     func restDuration(for exercise: PlannedExercise) -> TimeInterval {
