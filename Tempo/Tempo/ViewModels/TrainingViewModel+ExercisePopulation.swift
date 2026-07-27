@@ -40,6 +40,10 @@ extension TrainingViewModel {
         // Empty for a new user → engine falls back to the equipment default.
         let learnedIncrements = adaptiveSignals(modelContext: modelContext).learnedIncrements
 
+        // §19.3 — how a deload week lightens this session (weight vs sets;
+        // fullRest never reaches here — those days became mobility upstream).
+        let deloadStyle = loadDeloadSettings(modelContext: modelContext).style
+
         // Fetch all exercises from library
         var descriptor = FetchDescriptor<Exercise>()
         descriptor.sortBy = [SortDescriptor(\Exercise.name)]
@@ -93,10 +97,17 @@ extension TrainingViewModel {
             }
 
             // Recovery-adjusted: drop 1 set from compounds, keep isolations as-is
-            let numSets: Int = if isRecoveryReduced && exercise.isCompound {
+            let recoverySets: Int = if isRecoveryReduced && exercise.isCompound {
                 max(2, baseNumSets - 1)
             } else {
                 baseNumSets
+            }
+
+            // §19.3 volume-cut deload: same weights, half the working sets.
+            let numSets: Int = if isDeloadWeek, deloadStyle == .volumeCut {
+                max(1, (recoverySets + 1) / 2)
+            } else {
+                recoverySets
             }
 
             let reps = exercise.isCompound ? 8 : 12
@@ -136,8 +147,11 @@ extension TrainingViewModel {
                 weight += StrengthStandards.increment(for: exercise.equipment)
             }
 
-            // Apply recovery adjustment and deload multiplier if applicable
-            let deloadMultiplier = isDeloadWeek ? trainingEngine.deloadWeightMultiplier() : 1.0
+            // Apply recovery adjustment and deload multiplier if applicable.
+            // Weight only drops on the intensity-cut style; volume-cut keeps
+            // the load and halves the sets instead (§19.3).
+            let deloadMultiplier = (isDeloadWeek && deloadStyle == .intensityCut)
+                ? trainingEngine.deloadWeightMultiplier() : 1.0
             let adjustedWeight = weight * plan.recoveryAdjustment * deloadMultiplier
             let roundedWeight = (adjustedWeight / 2.5).rounded() * 2.5 // Round to nearest 2.5kg
 
@@ -661,7 +675,13 @@ extension TrainingViewModel {
                 modelContext: modelContext
             )
 
-        let deloadMultiplier = isDeloadWeek ? trainingEngine.deloadWeightMultiplier() : 1.0
+        // §19.3 — same style split as populateExercises: intensity-cut drops
+        // weight, volume-cut halves the requested working sets.
+        let deloadStyle = loadDeloadSettings(modelContext: modelContext).style
+        let deloadMultiplier = (isDeloadWeek && deloadStyle == .intensityCut)
+            ? trainingEngine.deloadWeightMultiplier() : 1.0
+        let effectiveWorkingSets = (isDeloadWeek && deloadStyle == .volumeCut)
+            ? max(1, (workingSets + 1) / 2) : workingSets
         let adjusted = weight * plan.recoveryAdjustment * deloadMultiplier
         let rounded = (adjusted / 2.5).rounded() * 2.5
 
@@ -688,7 +708,7 @@ extension TrainingViewModel {
                 setNum += 1
             }
         }
-        for _ in 1 ... max(1, workingSets) {
+        for _ in 1 ... max(1, effectiveWorkingSets) {
             sets.append(PlannedSet(
                 setNumber: setNum,
                 targetReps: reps,

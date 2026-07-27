@@ -348,7 +348,7 @@ struct TodayWorkoutView: View {
                     .font(.tempoHeadline)
                     .foregroundStyle(Color.tempoRecoveryYellow)
 
-                Text("Weights reduced 40% — same reps, lighter load.")
+                Text(viewModel.deloadStyle.blurb)
                     .font(.tempoCaption1)
                     .foregroundStyle(Color.tempoTextSecondary)
             }

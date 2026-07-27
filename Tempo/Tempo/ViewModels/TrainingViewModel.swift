@@ -75,6 +75,9 @@ final class TrainingViewModel {
     var weekPlans: [WorkoutPlan] = []
     var isLoading = true
     var isDeloadWeek = false
+    /// §19.3 — the active deload style (drives banner copy + how the
+    /// prescription lightens). Loaded with the deload check.
+    var deloadStyle: DeloadStyle = .intensityCut
 
     /// Set when a data-guarding save fails after retry (workout completion,
     /// activity log, daily-coach session). The tab views bind an alert to this
@@ -282,8 +285,11 @@ final class TrainingViewModel {
         painFlaggedExercises = painFlaggedExerciseIDs(modelContext: modelContext)
 
         // Check deload week status (Phase 3: fatigue trend can trigger early).
+        // §19.3 — the Auto Deload toggle is now honored (it was saved but
+        // never read, so turning it off didn't actually stop deload weeks).
         let deloadSettings = loadDeloadSettings(modelContext: modelContext)
-        isDeloadWeek = trainingEngine.isDeloadWeek(
+        deloadStyle = deloadSettings.style
+        isDeloadWeek = deloadSettings.enabled && trainingEngine.isDeloadWeek(
             date: Date(),
             deloadFrequencyWeeks: deloadSettings.frequency,
             trainingStartDate: deloadSettings.startDate,
@@ -1277,6 +1283,19 @@ final class TrainingViewModel {
             // the split rotation and disagreed with the Week view under Custom.
             customWeekdayMap: loadCustomWeekdayPlan(modelContext: modelContext)
         )
+        // §19.3 full-rest deload — keep the single-day fallback consistent
+        // with the weekly transform (gym day → mobility on a deload week).
+        let deload = loadDeloadSettings(modelContext: modelContext)
+        if deload.enabled, deload.style == .fullRest, plan.type.isGymWorkout,
+           trainingEngine.isDeloadWeek(
+               date: Date(),
+               deloadFrequencyWeeks: deload.frequency,
+               trainingStartDate: deload.startDate,
+               fatigueEWMA: adaptiveSignals(modelContext: modelContext).fatigueEWMA
+           ) {
+            plan.type = .mobility
+            plan.notes = "Deload — full rest week. Move, stretch, recover."
+        }
         populateExercises(for: plan, modelContext: modelContext)
         modelContext.insert(plan)
         try? modelContext.save()
@@ -1312,7 +1331,7 @@ final class TrainingViewModel {
         let competitiveMatchDayKeys = Set(upcomingMatches
             .filter(\.isCompetitive).map { cal.startOfDay(for: $0.kickoff) })
 
-        return trainingEngine.generateWeekPlan(
+        let plans = trainingEngine.generateWeekPlan(
             startDate: monday,
             recoveryScores: recoveryScores,
             footballDays: footballDays,
@@ -1330,6 +1349,24 @@ final class TrainingViewModel {
             // §21 (b) — the two-a-day slot skips days already past this week.
             referenceDate: referenceDate
         )
+
+        // §19.3 full-rest deload: every gym day of a deload week becomes
+        // mobility. Football/rest/cardio days keep their shape — you still
+        // play; you just don't lift.
+        let deload = loadDeloadSettings(modelContext: modelContext)
+        if deload.enabled, deload.style == .fullRest,
+           trainingEngine.isDeloadWeek(
+               date: monday,
+               deloadFrequencyWeeks: deload.frequency,
+               trainingStartDate: deload.startDate,
+               fatigueEWMA: signals.fatigueEWMA
+           ) {
+            for plan in plans where plan.type.isGymWorkout {
+                plan.type = .mobility
+                plan.notes = "Deload — full rest week. Move, stretch, recover."
+            }
+        }
+        return plans
     }
 
     /// Ephemeral preview of a future week (§9.4 week navigation) — generated
@@ -1360,8 +1397,10 @@ final class TrainingViewModel {
         )
 
         // Check deload week status (Phase 3: fatigue trend can trigger early).
+        // Gated on the Auto Deload toggle (§19.3 — it was previously ignored).
         let deloadSettings = loadDeloadSettings(modelContext: modelContext)
-        isDeloadWeek = trainingEngine.isDeloadWeek(
+        deloadStyle = deloadSettings.style
+        isDeloadWeek = deloadSettings.enabled && trainingEngine.isDeloadWeek(
             date: Date(),
             deloadFrequencyWeeks: deloadSettings.frequency,
             trainingStartDate: deloadSettings.startDate,
@@ -2985,13 +3024,22 @@ final class TrainingViewModel {
         return (try? modelContext.fetch(descriptor))?.first?.customWeekdayPlan
     }
 
-    private func loadDeloadSettings(modelContext: ModelContext) -> (frequency: Int, startDate: Date?) {
+    /// Internal (not private) — the ExercisePopulation extension reads the
+    /// style for §19.3 volume/intensity application.
+    func loadDeloadSettings(
+        modelContext: ModelContext
+    ) -> (frequency: Int, startDate: Date?, style: DeloadStyle, enabled: Bool) {
         let descriptor = FetchDescriptor<UserSettings>()
         if let settings = try? modelContext.fetch(descriptor).first {
             let startDate = settings.userProfile?.createdAt
-            return (frequency: settings.deloadFrequencyWeeks, startDate: startDate)
+            return (
+                frequency: settings.deloadFrequencyWeeks,
+                startDate: startDate,
+                style: settings.deloadStyle,
+                enabled: settings.autoDeload
+            )
         }
-        return (frequency: 5, startDate: nil)
+        return (frequency: 5, startDate: nil, style: .intensityCut, enabled: true)
     }
 
     private func loadRecoveryScore(modelContext: ModelContext) -> Double? {

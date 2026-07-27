@@ -1064,6 +1064,8 @@ struct TrainingSettingsDetailView: View {
     @State
     private var autoDeload = true
     @State
+    private var deloadStyle: DeloadStyle = .intensityCut
+    @State
     private var deloadWeeks = 5
     @State
     private var autoStartRest = true
@@ -1303,7 +1305,7 @@ struct TrainingSettingsDetailView: View {
                 SettingsFormCard(
                     title: "Deload",
                     footnote: autoDeload
-                        ? "Auto-deload lightens your programme every \(deloadWeeks) weeks to manage fatigue."
+                        ? "Every \(deloadWeeks) weeks: \(deloadStyle.blurb)"
                         : "Auto-deload is off — you'll manage recovery weeks manually."
                 ) {
                     SettingsControlRow(label: "Auto Deload", icon: "arrow.down.right.circle", iconTint: .tempoAmber) {
@@ -1326,6 +1328,22 @@ struct TrainingSettingsDetailView: View {
                         }
                         .onChange(of: deloadWeeks) { _, newValue in
                             settings?.deloadFrequencyWeeks = newValue
+                            save()
+                        }
+
+                        SettingsRowDivider()
+                        // §19.3 — the three deload styles.
+                        SettingsControlRow(label: "Style", icon: "dial.low", iconTint: .tempoAccent) {
+                            Picker("", selection: $deloadStyle) {
+                                ForEach(DeloadStyle.allCases, id: \.self) { style in
+                                    Text(style.displayName).tag(style)
+                                }
+                            }
+                            .labelsHidden()
+                            .tint(Color.tempoTextSecondary)
+                        }
+                        .onChange(of: deloadStyle) { _, newValue in
+                            settings?.deloadStyle = newValue
                             save()
                         }
                     }
@@ -1373,6 +1391,7 @@ struct TrainingSettingsDetailView: View {
             trainingSplit = settings?.trainingSplit ?? .pushPullLegs
             autoDeload = settings?.autoDeload ?? true
             deloadWeeks = settings?.deloadFrequencyWeeks ?? 5
+            deloadStyle = settings?.deloadStyle ?? .intensityCut
             autoStartRest = settings?.autoStartRestTimer ?? true
             defaultRestSeconds = settings?.defaultRestSeconds ?? 120
         }

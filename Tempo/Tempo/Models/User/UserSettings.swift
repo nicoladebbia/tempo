@@ -68,6 +68,16 @@ final class UserSettings {
 
     var deloadFrequencyWeeks: Int
 
+    /// §19.3 deload style. Optional + no default so lightweight migration is
+    /// happy for existing stores; nil → `.intensityCut` (the original fixed
+    /// 0.6× behavior).
+    var deloadStyleRaw: String?
+
+    var deloadStyle: DeloadStyle {
+        get { deloadStyleRaw.flatMap(DeloadStyle.init(rawValue:)) ?? .intensityCut }
+        set { deloadStyleRaw = newValue.rawValue }
+    }
+
     var footballDaysRaw: Int
 
     /// Advanced custom split — a user-assigned WorkoutType for each weekday,

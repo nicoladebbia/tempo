@@ -157,6 +157,33 @@ extension Equipment {
 
 // MARK: - MovementPattern
 
+// MARK: - DeloadStyle
+
+/// §19.3 — how a deload week lightens the programme. Stored on UserSettings;
+/// nil/unknown raw decodes to `.intensityCut` (the original fixed behavior).
+enum DeloadStyle: String, Codable, CaseIterable {
+    case intensityCut = "intensity_cut"
+    case volumeCut = "volume_cut"
+    case fullRest = "full_rest"
+
+    var displayName: String {
+        switch self {
+        case .intensityCut: "Lighter weights"
+        case .volumeCut: "Fewer sets"
+        case .fullRest: "Full rest"
+        }
+    }
+
+    /// One-line description for the deload banner + settings footnote.
+    var blurb: String {
+        switch self {
+        case .intensityCut: "Weights reduced 40% — same reps, lighter load."
+        case .volumeCut: "Half the working sets — same weights, less volume."
+        case .fullRest: "No lifting this week — mobility and recovery only."
+        }
+    }
+}
+
 enum MovementPattern: String, Codable, CaseIterable {
     case horizontalPush = "horizontal_push"
     case horizontalPull = "horizontal_pull"

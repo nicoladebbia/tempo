@@ -256,7 +256,7 @@ struct WeekPlanView: View {
                     .font(.tempoHeadline)
                     .foregroundStyle(Color.tempoRecoveryYellow)
 
-                Text("Weights reduced 40% — same reps, lighter load. Your body rebuilds stronger.")
+                Text("\(viewModel.deloadStyle.blurb) Your body rebuilds stronger.")
                     .font(.tempoCaption1)
                     .foregroundStyle(Color.tempoTextSecondary)
             }
