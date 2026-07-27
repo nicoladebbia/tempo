@@ -26,6 +26,9 @@ struct ExerciseLibraryView: View {
     private var selectedMuscleGroup: MuscleGroup?
     @State
     private var selectedEquipment: Equipment?
+    /// §10.6 — custom exercise creation sheet.
+    @State
+    private var showCreateExercise = false
 
     /// Per UX_COPY_BIBLE.md Section 4.8
     private let muscleGroupFilters: [MuscleGroup] = [
@@ -63,6 +66,18 @@ struct ExerciseLibraryView: View {
         .background(Color.tempoBgPrimary)
         .navigationTitle("Exercises")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showCreateExercise = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+            }
+        }
+        .sheet(isPresented: $showCreateExercise) {
+            CustomExerciseFormView()
+        }
     }
 
     // MARK: - Search Bar
@@ -206,6 +221,16 @@ struct ExerciseLibraryView: View {
 
                 Spacer()
 
+                if exercise.isCustom {
+                    Text("CUSTOM")
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoSignal)
+                        .padding(.horizontal, TempoSpacing.xs)
+                        .padding(.vertical, 2)
+                        .background(Color.tempoSignal.opacity(0.12))
+                        .clipShape(Capsule())
+                }
+
                 Text(exercise.muscleGroup.displayName)
                     .font(.tempoCaption2)
                     .foregroundStyle(Color.tempoTextSecondary)
@@ -313,5 +338,149 @@ struct ExerciseLibraryView: View {
         case .bench: "Bench"
         case .none: "None"
         }
+    }
+}
+
+// MARK: - CustomExerciseFormView (§10.6)
+
+/// Create a custom exercise. Once saved it's a first-class library citizen:
+/// it appears in search/filters (CUSTOM badge), the add-exercise and swap
+/// pickers, and the engine's group-based selection can programme it. Delete
+/// lives on the exercise's detail screen (custom exercises only).
+struct CustomExerciseFormView: View {
+    @Environment(\.modelContext)
+    private var modelContext
+    @Environment(\.dismiss)
+    private var dismiss
+    @Query
+    private var allExercises: [Exercise]
+
+    @State
+    private var name = ""
+    @State
+    private var muscleGroup: MuscleGroup = .chest
+    @State
+    private var equipment: Equipment = .barbell
+    @State
+    private var movementPattern: MovementPattern = .isolation
+    @State
+    private var isCompound = false
+    @State
+    private var instructions = ""
+    @State
+    private var cue = ""
+
+    private var trimmedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Case-insensitive name collision with anything already in the library.
+    private var isDuplicate: Bool {
+        allExercises.contains { $0.name.compare(trimmedName, options: .caseInsensitive) == .orderedSame }
+    }
+
+    private var canSave: Bool {
+        !trimmedName.isEmpty && !isDuplicate
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Name") {
+                    TextField("e.g. Landmine Press", text: $name)
+                    if isDuplicate {
+                        Text("An exercise with this name already exists.")
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoWarning)
+                    }
+                }
+
+                Section("Classification") {
+                    Picker("Muscle group", selection: $muscleGroup) {
+                        ForEach(MuscleGroup.allCases, id: \.self) { group in
+                            Text(group.displayName).tag(group)
+                        }
+                    }
+                    Picker("Equipment", selection: $equipment) {
+                        ForEach(Equipment.allCases, id: \.self) { eq in
+                            Text(Self.equipmentLabel(eq)).tag(eq)
+                        }
+                    }
+                    Picker("Movement pattern", selection: $movementPattern) {
+                        ForEach(MovementPattern.allCases, id: \.self) { pattern in
+                            Text(Self.patternLabel(pattern)).tag(pattern)
+                        }
+                    }
+                    Toggle("Compound (multi-joint)", isOn: $isCompound)
+                }
+
+                Section {
+                    TextField("How to perform it", text: $instructions, axis: .vertical)
+                        .lineLimit(3 ... 6)
+                    TextField("One-line coaching cue", text: $cue)
+                } header: {
+                    Text("Guidance (optional)")
+                } footer: {
+                    Text("Compound exercises get a warm-up ramp and 8-rep prescriptions; isolations get 12 reps.")
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(Color.tempoBgPrimary)
+            .navigationTitle("New Exercise")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { save() }
+                        .disabled(!canSave)
+                }
+            }
+        }
+    }
+
+    private func save() {
+        let exercise = Exercise(
+            name: trimmedName,
+            muscleGroup: muscleGroup,
+            equipment: equipment,
+            movementPattern: movementPattern,
+            isCompound: isCompound,
+            isCustom: true,
+            instructions: instructions.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? nil : instructions.trimmingCharacters(in: .whitespacesAndNewlines),
+            cues: cue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? [] : [cue.trimmingCharacters(in: .whitespacesAndNewlines)]
+        )
+        modelContext.insert(exercise)
+        try? modelContext.save()
+        HapticManager.notification(.success)
+        dismiss()
+    }
+
+    static func equipmentLabel(_ equipment: Equipment) -> String {
+        switch equipment {
+        case .barbell: "Barbell"
+        case .dumbbell: "Dumbbell"
+        case .cable: "Cable"
+        case .machine: "Machine"
+        case .bodyweight: "Bodyweight"
+        case .kettlebell: "Kettlebell"
+        case .resistanceBand: "Band"
+        case .smithMachine: "Smith Machine"
+        case .ezBar: "EZ Bar"
+        case .trapBar: "Trap Bar"
+        case .pullUpBar: "Pull-Up Bar"
+        case .bench: "Bench"
+        case .none: "None"
+        }
+    }
+
+    static func patternLabel(_ pattern: MovementPattern) -> String {
+        pattern.rawValue
+            .split(separator: "_")
+            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+            .joined(separator: " ")
     }
 }

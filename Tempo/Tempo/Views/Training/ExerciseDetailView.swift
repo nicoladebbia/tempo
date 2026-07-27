@@ -21,10 +21,15 @@ struct ExerciseDetailView: View {
 
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(\.dismiss)
+    private var dismiss
     @Query
     private var allSettings: [UserSettings]
     @State
     private var chartRange: ChartRange = .thirtyDays
+    /// §10.6 — delete confirmation for custom exercises.
+    @State
+    private var showDeleteConfirm = false
 
     private var settings: UserSettings? {
         allSettings.first
@@ -99,6 +104,40 @@ struct ExerciseDetailView: View {
         .background(Color.tempoBgPrimary)
         .navigationTitle(exercise.name)
         .navigationBarTitleDisplayMode(.inline)
+        // §10.6 — custom exercises can be deleted; seeded library ones can't.
+        .toolbar {
+            if exercise.isCustom {
+                ToolbarItem(placement: .primaryAction) {
+                    Button(role: .destructive) {
+                        showDeleteConfirm = true
+                    } label: {
+                        Image(systemName: "trash")
+                    }
+                }
+            }
+        }
+        .confirmationDialog(
+            "Delete this custom exercise?",
+            isPresented: $showDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                deleteCustomExercise()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("It disappears from the library and pickers. Past sessions that used it keep their logged sets, but lose the exercise name.")
+        }
+    }
+
+    private func deleteCustomExercise() {
+        guard exercise.isCustom else {
+            return
+        }
+        modelContext.delete(exercise)
+        try? modelContext.save()
+        HapticManager.notification(.success)
+        dismiss()
     }
 
     // MARK: - Demo Area
