@@ -84,8 +84,8 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         // Determine workout type from split rotation
         var workoutType = nextWorkoutType(for: date, split: split)
 
-        // Per MODULE_TRAINING.md Section 18.2 — T-1: no legs
-        if isTMinus1, workoutType == .legs {
+        // Per MODULE_TRAINING.md Section 18.2 — T-1: no legs (or heavy lower)
+        if isTMinus1, isLegLoading(workoutType) {
             workoutType = swapLegsForUpper(split: split)
         }
 
@@ -504,7 +504,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                 let mapped = customMap[idx]
                 if mapped != .rest {
                     var workoutType = mapped
-                    if meta.isTMinus1 && workoutType == .legs {
+                    if meta.isTMinus1 && isLegLoading(workoutType) {
                         workoutType = swapLegsForUpper(split: split)
                     }
                     let adjustment: Double = zone == .yellow
@@ -535,8 +535,8 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
             } else if splitIndex < trainingDaysNeeded {
                 var workoutType = splitSequence[splitIndex]
 
-                // Per MODULE_TRAINING.md Section 18.2 — T-1: no legs
-                if meta.isTMinus1 && workoutType == .legs {
+                // Per MODULE_TRAINING.md Section 18.2 — T-1: no legs (or heavy lower)
+                if meta.isTMinus1 && isLegLoading(workoutType) {
                     workoutType = swapLegsForUpper(split: split)
                 }
 
@@ -568,8 +568,11 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
 
                 plans.append(liftPlan)
                 // A clean (non-football-adjacent) upper day is a valid host for
-                // a deferred legs session — record it for the §Legs guarantee.
-                if !meta.isTMinus1, workoutType == .push || workoutType == .pull {
+                // a deferred leg session — record it for the §Legs guarantee.
+                // `.upper` counts too: an Upper/Lower week reclaims a `.lower`
+                // onto a clean `.upper` day, just as PPL reclaims onto push/pull.
+                if !meta.isTMinus1,
+                   workoutType == .push || workoutType == .pull || workoutType == .upper {
                     cleanLegsCandidates.append(plans.count - 1)
                 }
                 splitIndex += 1
@@ -633,8 +636,15 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         // that was assigned to the reclaimed day. Only fires when zero legs exist
         // AND a clean host is available — the normal (≤1 football day) week already
         // places legs on a clean day and skips this entirely.
-        if !plans.contains(where: { $0.type == .legs }), let idx = cleanLegsCandidates.last {
-            plans[idx].type = .legs
+        // `legDayType` is the split's leg-day type (`.legs` for PPL/bro/custom,
+        // `.lower` for Upper/Lower, nil for full-body which needs no guarantee).
+        // The "no leg day exists" test spans BOTH types so an Upper/Lower week
+        // that lost its `.lower` is caught. Custom never records a candidate, so
+        // `cleanLegsCandidates.last` is nil there and its map stays untouched.
+        if let legType = legDayType(for: split),
+           !plans.contains(where: { isLegLoading($0.type) }),
+           let idx = cleanLegsCandidates.last {
+            plans[idx].type = legType
             if plans[idx].secondarySessionType != nil {
                 plans[idx].secondarySessionType = nil
                 twoADaysAssigned -= 1
@@ -774,6 +784,27 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
             return .push
         }
         return sequence[dayOfYear % sequence.count]
+    }
+
+    /// Both split vocabularies for a leg-loading day: PPL/bro/custom use `.legs`,
+    /// Upper/Lower uses `.lower`. The T-1 "no heavy legs before a match" swap and
+    /// the §Legs guarantee must treat BOTH — otherwise an Upper/Lower athlete
+    /// keeps a heavy `.lower` on a T-1 (the swap only checked `.legs`) and the
+    /// guarantee (which only counted `.legs`) never fires to save their week.
+    private func isLegLoading(_ type: WorkoutType) -> Bool {
+        type == .legs || type == .lower
+    }
+
+    /// The leg-loading day type this split uses for a DEDICATED leg day, or nil
+    /// when the split trains legs every session (full-body → no separate leg day,
+    /// no guarantee needed). Custom is handled by never recording a reclaim host,
+    /// so its map is respected verbatim regardless of this value.
+    private func legDayType(for split: TrainingSplit) -> WorkoutType? {
+        switch split {
+        case .upperLower: .lower
+        case .fullBody: nil
+        default: .legs // PPL, bro, custom
+        }
     }
 
     // Swap legs for an upper body type based on split

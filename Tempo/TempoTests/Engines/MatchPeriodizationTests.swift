@@ -109,6 +109,53 @@ final class MatchPeriodizationTests: XCTestCase {
         XCTAssertEqual(plan(plans, dayOffset: 2)?.type, .legs, "friendly must NOT swap legs off T-1")
     }
 
+    // MARK: - Upper/Lower: `.lower` is leg-loading and gets the same T-1 protection as `.legs`
+
+    /// The Upper/Lower split loads legs on a `.lower` day, never a `.legs` day.
+    /// The T-1 "no heavy legs before a match" swap only knew `.legs`, so a
+    /// `.lower` scheduled the day before football was left UNSWAPPED — heavy
+    /// squats/deadlifts before a match. Wed+Sun football lands `.lower` on Tue
+    /// (T-1 before Wed): it must swap to `.upper`, and Friday's clean `.lower`
+    /// still stands (the week keeps its leg day).
+    func testUpperLowerSwapsLowerOffTMinus1() {
+        let footballWedSun = ActiveDays(rawValue: (1 << 2) | (1 << 6)) // Wed + Sun
+        let plans = engine.generateWeekPlan(
+            startDate: monday(),
+            recoveryScores: [:], // green everywhere
+            footballDays: footballWedSun,
+            split: .upperLower
+        )
+        // Tuesday is T-1 (before Wed football) → no heavy lower body.
+        XCTAssertNotEqual(plan(plans, dayOffset: 1)?.type, .lower,
+                          "A `.lower` day the day before a match must be swapped off T-1")
+        XCTAssertEqual(plan(plans, dayOffset: 1)?.type, .upper,
+                       "The T-1 swap turns `.lower` into `.upper` for an Upper/Lower split")
+        // Legs still trained: Friday's clean lower survives.
+        XCTAssertTrue(plans.contains { $0.type == .lower },
+                      "The week must still contain a lower day")
+    }
+
+    /// When football erases every clean `.lower` slot (Wed+Fri football leaves
+    /// Tuesday's lower on a T-1, which then swaps away), the §Legs guarantee —
+    /// which only knew `.legs` — used to be blind to an Upper/Lower week and let
+    /// it degrade to zero lower. It must now reclaim a clean upper host as a
+    /// `.lower`, exactly as it reclaims `.legs` for a PPL week.
+    func testUpperLowerGuaranteesALowerWhenFootballErasesIt() {
+        let footballWedFri = ActiveDays(rawValue: (1 << 2) | (1 << 4)) // Wed + Fri
+        let plans = engine.generateWeekPlan(
+            startDate: monday(),
+            recoveryScores: [:], // green everywhere
+            footballDays: footballWedFri,
+            split: .upperLower
+        )
+        // Tuesday (T-1 before Wed) must not be a heavy lower day.
+        XCTAssertNotEqual(plan(plans, dayOffset: 1)?.type, .lower,
+                          "The only rotation lower sits on T-1 and must swap off it")
+        // …but legs must not vanish: the guarantee reclaims a clean upper day.
+        XCTAssertTrue(plans.contains { $0.type == .lower },
+                      "The guarantee must reclaim a lower day for the Upper/Lower week")
+    }
+
     // MARK: - Legs DEFERS past a T+1 day, never vanishes for the week
 
     /// Two football days a week (Wed + Sun) put a T+1 (Thursday) exactly where
