@@ -424,6 +424,7 @@
 		8DBBF0C0A227134A529E232D /* Logger+Tempo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63036777C50F6966F1074820 /* Logger+Tempo.swift */; };
 		8DDB8A2735A3A81B9240D422 /* FoodSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7E99872CBF166AF9BB8CBC4 /* FoodSearchView.swift */; };
 		8EB17ACAEE3C794413BE3C3D /* FocusTimerLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B145BCF3F31F04A4BC34F9B /* FocusTimerLiveActivity.swift */; };
+		8EF1C02EDA276CAB3A1EF070 /* PlateMathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3521C957133BE48E2144639 /* PlateMathTests.swift */; };
 		8F081E7F38C53590ABD4C3BD /* NutritionTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3670CDF17EB8AE0425A97BE /* NutritionTabView.swift */; };
 		8F3B1F6EE03712FC6AB8A367 /* TempoFAB.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEEC3BBC4CB4A0EFA2D9A673 /* TempoFAB.swift */; };
 		8F69C6D1C2E02B3504673EAE /* testEmptyStateView.1.png in Resources */ = {isa = PBXBuildFile; fileRef = 168D553A578F7CBCED4C7DEE /* testEmptyStateView.1.png */; };
@@ -1538,6 +1539,7 @@
 		F2DCF3CD46C5AFFDA584B7E3 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		F3019ADEA9FE0C6BB7E6B1C3 /* cue_ex_box_jump.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_box_jump.mp3; sourceTree = "<group>"; };
 		F32F128E1D77765991B47C81 /* Tempo.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Tempo.entitlements; sourceTree = "<group>"; };
+		F3521C957133BE48E2144639 /* PlateMathTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlateMathTests.swift; sourceTree = "<group>"; };
 		F3670CDF17EB8AE0425A97BE /* NutritionTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionTabView.swift; sourceTree = "<group>"; };
 		F3E70F6075A532B3BF3B9380 /* NutritionDTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionDTOs.swift; sourceTree = "<group>"; };
 		F3E7E036F124A1068F1A60FB /* OnboardingPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingPage.swift; sourceTree = "<group>"; };
@@ -2002,6 +2004,7 @@
 				48F722B29A34629657B4C5F2 /* NoteSignalTests.swift */,
 				F0BC8EEC5355166E4A46CD79 /* OutcomeReviewIdempotencyTests.swift */,
 				9D6E13B4FD38CBAA47FB7B6C /* PlanResolutionTests.swift */,
+				F3521C957133BE48E2144639 /* PlateMathTests.swift */,
 				BE31636DB3A566593228F39C /* PredictionAccuracyTests.swift */,
 				4335B86394607E6C78CE2648 /* PredictionHoldoutTests.swift */,
 				47F16E9BB42C5AAF3A4D52F2 /* PredictionLogSpineTests.swift */,
@@ -3644,6 +3647,7 @@
 				69AFDA29F7B83353099A330B /* PerformanceTests.swift in Sources */,
 				2F990B15D97FD709B048147B /* PlanArchiveNoDuplicateTests.swift in Sources */,
 				318C5D6E753DB62A68372967 /* PlanResolutionTests.swift in Sources */,
+				8EF1C02EDA276CAB3A1EF070 /* PlateMathTests.swift in Sources */,
 				4FB3955E8478355A9266BCDC /* PredictionAccuracyTests.swift in Sources */,
 				7E098FE0998397C7D492F969 /* PredictionHoldoutTests.swift in Sources */,
 				CF62D72EA878FFB8C74A99C2 /* PredictionLogSpineTests.swift in Sources */,

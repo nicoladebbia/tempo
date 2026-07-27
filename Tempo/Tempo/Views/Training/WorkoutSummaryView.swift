@@ -22,6 +22,23 @@ struct WorkoutSummaryView: View {
     @Environment(\.dismiss)
     private var dismiss
 
+    // §8.2 completion ring animation state.
+    @State
+    private var ringProgress: Double = 0
+    @State
+    private var checkScale: Double = 0.3
+
+    /// Completed working sets over planned working sets (warmups excluded).
+    /// No sets at all → 1.0 (nothing was cut short).
+    private var completionFraction: Double {
+        guard let plan = viewModel.todayPlan else { return 1 }
+        let working = plan.orderedExercises
+            .flatMap { $0.sets ?? [] }
+            .filter { !$0.isWarmup }
+        guard !working.isEmpty else { return 1 }
+        return Double(working.filter(\.completed).count) / Double(working.count)
+    }
+
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: TempoSpacing.xl) {
@@ -72,9 +89,33 @@ struct WorkoutSummaryView: View {
 
     private var headerSection: some View {
         VStack(spacing: TempoSpacing.md) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 64))
-                .foregroundStyle(Color.tempoRecoveryGreen)
+            // §8.2 — completion RING (was a static checkmark): sweeps to the
+            // fraction of working sets actually completed, so a cut-short
+            // session visibly reads as partial, not falsely "done".
+            ZStack {
+                Circle()
+                    .stroke(Color.tempoSurfaceCard, lineWidth: 8)
+                Circle()
+                    .trim(from: 0, to: ringProgress)
+                    .stroke(
+                        Color.tempoRecoveryGreen,
+                        style: StrokeStyle(lineWidth: 8, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(-90))
+                Image(systemName: "checkmark")
+                    .font(.system(size: 36, weight: .bold))
+                    .foregroundStyle(Color.tempoRecoveryGreen)
+                    .scaleEffect(checkScale)
+            }
+            .frame(width: 96, height: 96)
+            .onAppear {
+                withAnimation(.easeOut(duration: 0.8)) {
+                    ringProgress = completionFraction
+                }
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.6).delay(0.5)) {
+                    checkScale = 1
+                }
+            }
 
             Text("WORKOUT COMPLETE")
                 .font(.tempoTitle1)

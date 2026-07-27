@@ -76,6 +76,23 @@ struct ActiveWorkoutView: View {
         let perSide = WeightUnit.kg.convert(perSideKg, to: weightUnit)
         let unit = weightUnit.abbreviation
         let perSideStr = String(format: weightUnit == .kg ? "%.1f" : "%.0f", perSide)
+
+        // §5 plate calculator — the previously-orphaned showPlateCalculator
+        // setting gates the actual PLATE breakdown ("20 + 2.5 per side");
+        // the plain per-side weight stays either way.
+        if allSettings.first?.showPlateCalculator ?? true, perSideKg > 0 {
+            let plates = PlateMath.breakdown(perSideKg: perSideKg)
+            if !plates.isEmpty {
+                let approx = PlateMath.isExact(plates: plates, perSideKg: perSideKg) ? "" : "≈"
+                let plateStr = approx + PlateMath.label(plates: plates, in: weightUnit)
+                if bar > 0 {
+                    let barStr = String(format: "%.0f", WeightUnit.kg.convert(bar, to: weightUnit))
+                    return "\(plateStr) per side + \(barStr) \(unit) bar"
+                }
+                return "\(plateStr) per side"
+            }
+        }
+
         if bar > 0 {
             let barStr = String(format: weightUnit == .kg ? "%.0f" : "%.0f",
                                 WeightUnit.kg.convert(bar, to: weightUnit))
@@ -812,5 +829,50 @@ struct ActiveWorkoutView: View {
         if let targetReps = viewModel.currentSet?.targetReps {
             inputReps = Double(targetReps)
         }
+    }
+}
+
+// MARK: - PlateMath (§5 — pure, unit-tested)
+
+/// Greedy per-side plate breakdown over a standard kg plate set. Pure and
+/// Date-free so it unit-tests cleanly. Greedy is exact for this plate set
+/// (each denomination ≥ the sum of all smaller ones), so "largest first" is
+/// also "fewest plates".
+enum PlateMath {
+    /// Standard plates available per side, kg, descending.
+    static let standardPlatesKg: [Double] = [25, 20, 15, 10, 5, 2.5, 1.25]
+
+    /// Plates (kg, descending) whose sum best approximates `perSideKg` from
+    /// below. An unreachable remainder < the smallest plate is dropped —
+    /// the label marks approximation with "≈".
+    static func breakdown(
+        perSideKg: Double,
+        plates: [Double] = PlateMath.standardPlatesKg
+    ) -> [Double] {
+        var remaining = perSideKg
+        var result: [Double] = []
+        for plate in plates.sorted(by: >) {
+            while remaining >= plate - 0.001 {
+                result.append(plate)
+                remaining -= plate
+            }
+        }
+        return result
+    }
+
+    /// Human label: "20 + 2.5" (kg) or the lb-converted equivalents, with a
+    /// leading "≈" when the plates don't sum to the exact target.
+    static func label(plates: [Double], in unit: WeightUnit) -> String {
+        guard !plates.isEmpty else { return "" }
+        let parts = plates.map { plateKg -> String in
+            let v = WeightUnit.kg.convert(plateKg, to: unit)
+            return v == v.rounded() ? String(format: "%.0f", v) : String(format: "%.2g", v)
+        }
+        return parts.joined(separator: " + ")
+    }
+
+    /// Whether `plates` exactly builds `perSideKg` (within 10 g).
+    static func isExact(plates: [Double], perSideKg: Double) -> Bool {
+        abs(plates.reduce(0, +) - perSideKg) < 0.01
     }
 }
