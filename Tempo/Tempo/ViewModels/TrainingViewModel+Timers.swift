@@ -384,6 +384,7 @@ extension TrainingViewModel {
         stopRestTimer()
         stopWarmupMoveTimer()
         stopElapsedTimer()
+        stopCallMonitoring()
     }
 
     func restDuration(for exercise: PlannedExercise) -> TimeInterval {

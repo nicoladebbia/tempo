@@ -162,6 +162,9 @@ struct ActiveWorkoutView: View {
                 case .paused:
                     pausedOverlay
 
+                case .interruptedCall:
+                    interruptedCallOverlay
+
                 case .crashedRecovery:
                     crashRecoveryContent
 
@@ -763,6 +766,41 @@ struct ActiveWorkoutView: View {
                 }
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
+
+            Spacer()
+        }
+    }
+
+    // MARK: - Call Interruption Overlay
+
+    /// STATE_MACHINES §1 — a live phone call parks the session here; it
+    /// restores itself when the call ends (no buttons needed, but an escape
+    /// hatch resumes manually if CallKit never reports the end).
+    private var interruptedCallOverlay: some View {
+        VStack(spacing: TempoSpacing.xxl) {
+            Spacer()
+
+            Image(systemName: "phone.fill")
+                .font(.system(size: 60))
+                .foregroundStyle(Color.tempoSignal)
+
+            Text("ON A CALL")
+                .font(.tempoTitle2)
+                .foregroundStyle(Color.tempoTextPrimary)
+
+            Text("Workout paused — it resumes by itself when you hang up.")
+                .font(.tempoBody)
+                .foregroundStyle(Color.tempoTextSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, TempoSpacing.screenEdge)
+
+            Button {
+                viewModel.handleCallChange(callEnded: true)
+            } label: {
+                Text("Resume now")
+                    .font(.tempoSubheadline)
+                    .foregroundStyle(Color.tempoTextSecondary)
+            }
 
             Spacer()
         }

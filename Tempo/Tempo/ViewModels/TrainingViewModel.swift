@@ -8,6 +8,7 @@
 
 import AudioToolbox
 import AVFoundation
+import CallKit
 import Foundation
 import SwiftData
 import SwiftUI
@@ -1446,6 +1447,8 @@ final class TrainingViewModel {
         currentExerciseIndex = 0
         currentSetIndex = 0
         detectedPRs = []
+        // STATE_MACHINES §1 — watch for phone calls only while a session runs.
+        startCallMonitoring()
 
         // Always enter the warmup state for a gym workout so the guided
         // workout-specific warm-up + mobility block (WarmupRoutine) is shown
@@ -2786,20 +2789,42 @@ final class TrainingViewModel {
 
     // Per STATE_MACHINES.md — any active → paused
 
-    func pause() {
-        guard sessionState.isActive else {
-            return
-        }
-
-        let previousState: WorkoutSessionState.PausedFromState
+    /// Snapshot of the current live state for the pause/interruption overlays.
+    /// nil when the session isn't in a pausable state.
+    private func capturePausedFromState() -> WorkoutSessionState.PausedFromState? {
         switch sessionState {
         case let .warmup(ei, si):
-            previousState = .warmup(exerciseIndex: ei, warmupSetIndex: si)
+            .warmup(exerciseIndex: ei, warmupSetIndex: si)
         case let .exercise(sub):
-            previousState = .exercise(sub)
+            .exercise(sub)
         case .cooldown:
-            previousState = .cooldown
+            .cooldown
         default:
+            nil
+        }
+    }
+
+    /// Re-enter the state a pause/interruption captured, re-arming the right
+    /// clock (warm-up move timer during warm-up; the elapsed clock otherwise).
+    private func restore(_ previousState: WorkoutSessionState.PausedFromState) {
+        switch previousState {
+        case let .warmup(ei, si):
+            sessionState = .warmup(exerciseIndex: ei, warmupSetIndex: si)
+            // Re-arm the guided warm-up move timer; the elapsed clock does not
+            // run during warm-up, so don't start it here.
+            startWarmupMoveTimerForCurrent()
+            return
+        case let .exercise(sub):
+            sessionState = .exercise(sub)
+        case .cooldown:
+            sessionState = .cooldown
+        }
+
+        startElapsedTimer()
+    }
+
+    func pause() {
+        guard sessionState.isActive, let previousState = capturePausedFromState() else {
             return
         }
 
@@ -2817,21 +2842,50 @@ final class TrainingViewModel {
         // Track pause duration
         totalPauseDuration += Date().timeIntervalSince(pauseStart)
 
-        // Restore previous state
-        switch previousState {
-        case let .warmup(ei, si):
-            sessionState = .warmup(exerciseIndex: ei, warmupSetIndex: si)
-            // Re-arm the guided warm-up move timer; the elapsed clock does not
-            // run during warm-up, so don't start it here.
-            startWarmupMoveTimerForCurrent()
-            return
-        case let .exercise(sub):
-            sessionState = .exercise(sub)
-        case .cooldown:
-            sessionState = .cooldown
-        }
+        restore(previousState)
+    }
 
-        startElapsedTimer()
+    // MARK: - Call Interruption (STATE_MACHINES §1 — interruptedCall)
+
+    /// React to the phone-call state from the CXCallObserver. A connected or
+    /// dialing call during a live session parks it in `.interruptedCall`; the
+    /// call ending restores exactly the captured state. Everything else
+    /// no-ops, so a call while idle/paused/summary never touches the session.
+    func handleCallChange(callEnded: Bool) {
+        if callEnded {
+            guard case let .interruptedCall(previousState) = sessionState else {
+                return
+            }
+            restore(previousState)
+            HapticManager.notification(.warning)
+        } else {
+            guard sessionState.isActive, let previousState = capturePausedFromState() else {
+                return
+            }
+            stopRestTimer()
+            stopWarmupMoveTimer()
+            stopElapsedTimer()
+            sessionState = .interruptedCall(previousState: previousState)
+        }
+    }
+
+    /// Live only while a session runs (armed in startWorkout, dropped in
+    /// resetState) — no reason to observe the phone from the Today screen.
+    private var callMonitor: CallInterruptionMonitor?
+
+    func startCallMonitoring() {
+        guard callMonitor == nil else {
+            return
+        }
+        let monitor = CallInterruptionMonitor()
+        monitor.onCallChange = { [weak self] ended in
+            self?.handleCallChange(callEnded: ended)
+        }
+        callMonitor = monitor
+    }
+
+    func stopCallMonitoring() {
+        callMonitor = nil
     }
 
     // MARK: - Computed Properties
@@ -3069,5 +3123,30 @@ final class TrainingViewModel {
             result[key] = row.recoveryScore
         }
         return result
+    }
+}
+
+// MARK: - CallInterruptionMonitor
+
+/// NSObject shim between CXCallObserver and the @Observable view-model
+/// (which can't be an NSObject delegate itself). Forwards only what the
+/// session cares about: a call becoming live, or ending. Delegate callbacks
+/// arrive on the main queue, so hopping to the main actor is assumption-safe.
+@MainActor
+private final class CallInterruptionMonitor: NSObject, CXCallObserverDelegate {
+    private let observer = CXCallObserver()
+    /// `true` = the call ended.
+    var onCallChange: ((Bool) -> Void)?
+
+    override init() {
+        super.init()
+        observer.setDelegate(self, queue: .main)
+    }
+
+    nonisolated func callObserver(_: CXCallObserver, callChanged call: CXCall) {
+        let ended = call.hasEnded
+        MainActor.assumeIsolated {
+            onCallChange?(ended)
+        }
     }
 }

@@ -134,6 +134,7 @@
 		2B334E33B5E3E359DBFD88EE /* IdentitySetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC5981B0EFEC084C01932A34 /* IdentitySetupView.swift */; };
 		2BBAD223CA83E633E4474E2E /* cue_move_scapular_pull_ups_scap_retractions.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 7920E9A3B7A33E273FCC381D /* cue_move_scapular_pull_ups_scap_retractions.mp3 */; };
 		2BE996135EF79EB70B46B64F /* cue_ex_russian_twist.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 530C90A76B92CDF955FB1302 /* cue_ex_russian_twist.mp3 */; };
+		2C245E4ACE787C825648F601 /* CallInterruptionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94FE4167F2348EA7977B335E /* CallInterruptionTests.swift */; };
 		2C65C47C4C84778929A771D0 /* CookingCapacityStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 144CDA0CA84F5DD53308E70B /* CookingCapacityStepView.swift */; };
 		2CA01E6237D1640858B04EFB /* AccountabilityEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DA208BC33B6C4D4AA38FD49 /* AccountabilityEnums.swift */; };
 		2D0E9CC8400324883A00A1BA /* CoachMemoryGroupingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA29422AC4FD2D83A5B93B8E /* CoachMemoryGroupingTests.swift */; };
@@ -1235,6 +1236,7 @@
 		9354789CD22E8064188D8E5B /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		93D7F4DBD9EB186AEEF687CF /* FoodPortionLabelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodPortionLabelTests.swift; sourceTree = "<group>"; };
 		9492EE850B765197321370E3 /* MockWhoopService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockWhoopService.swift; sourceTree = "<group>"; };
+		94FE4167F2348EA7977B335E /* CallInterruptionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallInterruptionTests.swift; sourceTree = "<group>"; };
 		9526D8969F0F1B31CA19AB4C /* WeeklyMealPlanCoversTodayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyMealPlanCoversTodayTests.swift; sourceTree = "<group>"; };
 		95440962533954510637504A /* MealFoodItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealFoodItem.swift; sourceTree = "<group>"; };
 		95833B963F9A7BCF275FCF10 /* RestTimerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestTimerView.swift; sourceTree = "<group>"; };
@@ -2001,6 +2003,7 @@
 				D4688A47205DFFEB4EAE9EA0 /* AccountabilityEngineTests.swift */,
 				5013D6692ECB56F906BDDE2B /* AdaptiveProfileUpdaterTests.swift */,
 				836DA2F2EF4B0792BC102B0E /* AIProgramReconcileTests.swift */,
+				94FE4167F2348EA7977B335E /* CallInterruptionTests.swift */,
 				6A18F99546F38233D4C66D73 /* CompositeDayTests.swift */,
 				075E5FE40988704364F6C8A8 /* CustomExerciseTests.swift */,
 				B70F4CB3E290DECE744BC163 /* DailyCoachPromptCalibrationTests.swift */,
@@ -3614,6 +3617,7 @@
 				3A49CBB5AFDC2D2988CF3A39 /* AccountabilityEngineTests.swift in Sources */,
 				CA01271E64DB72E636A07AA9 /* AdaptiveProfileUpdaterTests.swift in Sources */,
 				0DB24BEF600B2337002D5885 /* BehaviorObserverTests.swift in Sources */,
+				2C245E4ACE787C825648F601 /* CallInterruptionTests.swift in Sources */,
 				FE23AA5BB530DD8212F81922 /* CoachAdaptersTests.swift in Sources */,
 				98EED5987E62D1089FCD5E6A /* CoachAnalyticsTests.swift in Sources */,
 				820A038F312A97A144E299CD /* CoachContextAssemblerTests.swift in Sources */,
