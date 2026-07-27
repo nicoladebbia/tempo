@@ -19,6 +19,10 @@ final class WatchConnectivityService: NSObject, @unchecked Sendable {
     static let shared = WatchConnectivityService()
 
     var latestSnapshot: WatchSnapshot = .placeholder
+    /// §21 — today's real workout queue pushed by the phone (application
+    /// context, so it survives the watch app being closed). nil until the
+    /// phone has synced once.
+    var latestWorkout: WatchWorkoutPayload?
     var isReachable: Bool = false
 
     override private init() {
@@ -58,13 +62,13 @@ extension WatchConnectivityService: WCSessionDelegate {
             self.isReachable = session.isReachable
         }
         // Load latest context on activation
-        if let context = session.receivedApplicationContext as? [String: Any],
-           let snapshot = WatchSnapshot.from(dictionary: context)
-        {
+        let context = session.receivedApplicationContext
+        if let snapshot = WatchSnapshot.from(dictionary: context) {
             DispatchQueue.main.async {
                 self.latestSnapshot = snapshot
             }
         }
+        ingestWorkout(from: context)
     }
 
     func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
@@ -73,6 +77,7 @@ extension WatchConnectivityService: WCSessionDelegate {
                 self.latestSnapshot = snapshot
             }
         }
+        ingestWorkout(from: message)
     }
 
     func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
@@ -80,6 +85,24 @@ extension WatchConnectivityService: WCSessionDelegate {
             DispatchQueue.main.async {
                 self.latestSnapshot = snapshot
             }
+        }
+        ingestWorkout(from: applicationContext)
+    }
+
+    /// §21 — pull the workout payload out of any incoming dictionary. Keyed
+    /// under its own context key so it coexists with the snapshot fields.
+    private func ingestWorkout(from dict: [String: Any]) {
+        guard let raw = dict[WatchWorkoutPayload.contextKey] as? [String: Any],
+              let payload = WatchWorkoutPayload.from(dictionary: raw)
+        else {
+            return
+        }
+        DispatchQueue.main.async {
+            // Latest-wins: ignore an out-of-order older context.
+            if let current = self.latestWorkout, current.updatedAt > payload.updatedAt {
+                return
+            }
+            self.latestWorkout = payload
         }
     }
 

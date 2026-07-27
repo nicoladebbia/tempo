@@ -44,6 +44,10 @@ final class ServiceContainer {
     /// survives view remounts — otherwise rapid `.task` re-fires each spawn a
     /// fresh paid Haiku call (the retry-storm bug).
     let recoveryInsight: RecoveryAIInsightService
+    /// §21 — phone side of the WCSession pair. Singleton (WCSession.default
+    /// allows exactly one delegate); activated here so watch quick actions
+    /// queued while the app was closed are delivered at launch.
+    let watchConnectivity = PhoneWatchConnectivityService.shared
     let appState: AppState
 
     init(
@@ -90,6 +94,7 @@ final class ServiceContainer {
         self.nutritionIntelligence = NutritionIntelligenceService()
         self.recoveryInsight = RecoveryAIInsightService(apiClient: apiClient)
         appState = AppState(authService: authService)
+        watchConnectivity.activate()
     }
 
     static func mock() -> ServiceContainer {

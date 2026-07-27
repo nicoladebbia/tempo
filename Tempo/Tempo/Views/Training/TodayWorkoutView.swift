@@ -167,9 +167,28 @@ struct TodayWorkoutView: View {
         }
         .task {
             await viewModel.loadToday(modelContext: modelContext)
+            // §21 — hand the watch today's real queue, and route wrist-logged
+            // sets (including ones queued while the app was closed) onto the
+            // plan. Registration replays any buffered actions immediately.
+            services.watchConnectivity.setQuickActionHandler { [weak viewModel] action in
+                guard action.action == .logSet, let viewModel else {
+                    return
+                }
+                viewModel.applyWatchSetLog(
+                    exerciseName: action.payload["exercise"] ?? "",
+                    reps: action.payload["reps"].flatMap(Int.init),
+                    weightKg: action.payload["weight"].flatMap(Double.init),
+                    modelContext: modelContext
+                )
+            }
+            viewModel.pushWorkoutToWatch()
         }
         .task {
             await refreshWorkoutSchedule()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .tempoWorkoutChanged)) { _ in
+            // Any surface that mutates the workout re-syncs the wrist.
+            viewModel.pushWorkoutToWatch()
         }
         .onReceive(countdownTick) { tick in
             now = tick

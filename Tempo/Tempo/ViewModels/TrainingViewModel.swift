@@ -2076,8 +2076,10 @@ final class TrainingViewModel {
     /// Returns whether the save landed; on false, `saveErrorMessage` is set
     /// and the CALLER must revert any status flags it optimistically flipped
     /// (so the day stays open and a retry can re-run the full path).
+    /// Internal (not private) so the split extension files (+WatchSync etc.)
+    /// route their persists through the same guard.
     @discardableResult
-    private func saveGuarded(_ modelContext: ModelContext, operation: String) -> Bool {
+    func saveGuarded(_ modelContext: ModelContext, operation: String) -> Bool {
         for attempt in 0 ..< 2 {
             do {
                 try modelContext.save()
