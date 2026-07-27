@@ -33,7 +33,8 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         for date: Date,
         recoveryScore: Double?,
         footballDays: ActiveDays,
-        split: TrainingSplit
+        split: TrainingSplit,
+        customWeekdayMap: [WorkoutType]? = nil
     ) -> WorkoutPlan {
         let cal = Calendar.current
         let weekday = cal.component(.weekday, from: date)
@@ -55,6 +56,23 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         // Determine recovery zone
         let zone = classifyRecoveryZone(score: recoveryScore)
 
+        // Per MODULE_TRAINING.md Section 18.2 — T+1: recovery-dependent, no
+        // legs. SAME helper and SAME ordering as generateWeekPlan (T+1 before
+        // the red check — tPlus1Plan owns the red→rest and low-yellow→mobility
+        // downgrades). This path had drifted: it ignored the custom map and
+        // prescribed upper even at low yellow, so the fallback Today disagreed
+        // with the Week view for the same day.
+        if isTPlus1 {
+            return tPlus1Plan(
+                date: date,
+                zone: zone,
+                score: recoveryScore,
+                split: split,
+                customWeekdayMap: customWeekdayMap,
+                cal: cal
+            ).plan
+        }
+
         // Per MODULE_TRAINING.md Section 17.2 — Red: mobility or rest
         if zone == .red {
             return WorkoutPlan(
@@ -65,24 +83,18 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
             )
         }
 
-        // Per MODULE_TRAINING.md Section 18.2 — T+1: recovery-dependent, no legs
-        if isTPlus1 {
-            if zone == .red {
-                return WorkoutPlan(date: date, type: .rest, notes: "Rest after yesterday's match")
+        // Determine workout type: the custom split's explicit weekday
+        // assignment wins on an ordinary day (mirrors the weekly path; an
+        // explicit .rest is honoured verbatim), else the split rotation.
+        var workoutType: WorkoutType
+        if split == .custom, let customMap = customWeekdayMap, customMap.count == 7 {
+            workoutType = customMap[(weekday + 5) % 7]
+            if workoutType == .rest {
+                return WorkoutPlan(date: date, type: .rest)
             }
-            // Upper body only on T+1, even with green recovery
-            let upperType = preferredUpperType(for: date, split: split)
-            let adjustment = zone == .yellow ? 0.8 : 1.0
-            return WorkoutPlan(
-                date: date,
-                type: upperType,
-                recoveryAdjustment: adjustment,
-                notes: "Upper body only — T+1 after football"
-            )
+        } else {
+            workoutType = nextWorkoutType(for: date, split: split)
         }
-
-        // Determine workout type from split rotation
-        var workoutType = nextWorkoutType(for: date, split: split)
 
         // Per MODULE_TRAINING.md Section 18.2 — T-1: no legs (or heavy lower)
         if isTMinus1, isLegLoading(workoutType) {
@@ -114,32 +126,6 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
             recoveryAdjustment: recoveryAdjustment,
             notes: zone == .yellow ? "Recovery-adjusted workout" : nil
         )
-    }
-
-    // MARK: - Adjust For Recovery
-
-    // Per MODULE_TRAINING.md Section 17.2 — Apply volume/intensity adjustments
-
-    func adjustForRecovery(plan: WorkoutPlan, score: Double) -> WorkoutPlan {
-        let zone = classifyRecoveryZone(score: score)
-
-        switch zone {
-        case .red:
-            plan.type = .mobility
-            plan.recoveryAdjustment = 0.0
-            plan.notes = "Recovery is low — mobility session instead"
-        case .yellow:
-            if score >= 50 {
-                plan.recoveryAdjustment = 0.8
-            } else {
-                plan.recoveryAdjustment = 0.75
-            }
-            plan.notes = "Recovery-adjusted: reduced volume"
-        case .green:
-            plan.recoveryAdjustment = 1.0
-        }
-
-        return plan
     }
 
     // MARK: - Progressive Overload

@@ -109,7 +109,31 @@ struct MoveQuadrantDetailView: View {
             if case .summary = newState {
                 showActiveWorkout = false
                 showSummary = true
+            } else if case .discarded = newState {
+                // Mirror TrainingTabView: without this branch a discard from a
+                // session started HERE left sessionState stuck at .discarded —
+                // covers stayed torn down but the VM never reset, so the next
+                // start from this screen ran on stale state.
+                showActiveWorkout = false
+                showSummary = false
+                if let trainingVM {
+                    Task { @MainActor in
+                        await trainingVM.loadToday(modelContext: modelContext)
+                        trainingVM.sessionState = .idle
+                    }
+                }
             }
+        }
+        .alert(
+            "Save failed",
+            isPresented: Binding(
+                get: { trainingVM?.saveErrorMessage != nil },
+                set: { if !$0 { trainingVM?.saveErrorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(trainingVM?.saveErrorMessage ?? "")
         }
     }
 
@@ -217,7 +241,25 @@ struct MoveQuadrantDetailView: View {
                     .font(.tempoTitle2)
                     .foregroundStyle(Color.tempoTextTertiary)
 
-                Button {} label: {
+                Button {
+                    // Was an EMPTY closure — a dead-end that looked tappable.
+                    // Generate today's plan through the same pipeline the
+                    // Training tab uses; the .tempoWorkoutChanged fan-out then
+                    // flips the Dashboard's workoutStatus to .planned.
+                    Task { @MainActor in
+                        let vm = trainingVM ?? TrainingViewModel(
+                            trainingEngine: services.trainingEngine,
+                            whoop: services.whoop,
+                            healthKit: services.healthKit,
+                            apiClient: services.apiClient,
+                            calendarService: services.calendar
+                        )
+                        trainingVM = vm
+                        await vm.loadToday(modelContext: modelContext)
+                        NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
+                        HapticManager.notification(.success)
+                    }
+                } label: {
                     Text("+ Plan Workout")
                         .font(.tempoCallout)
                         .foregroundStyle(Color.tempoAmber)

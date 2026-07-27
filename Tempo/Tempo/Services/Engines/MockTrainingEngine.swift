@@ -14,7 +14,8 @@ final class MockTrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         for date: Date,
         recoveryScore: Double?,
         footballDays: ActiveDays,
-        split: TrainingSplit
+        split: TrainingSplit,
+        customWeekdayMap: [WorkoutType]? = nil
     ) -> WorkoutPlan {
         WorkoutPlan(
             date: date,
@@ -22,10 +23,6 @@ final class MockTrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
             status: .planned,
             notes: "Mock push workout"
         )
-    }
-
-    func adjustForRecovery(plan: WorkoutPlan, score: Double) -> WorkoutPlan {
-        plan
     }
 
     func calculateProgressiveOverload(

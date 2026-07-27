@@ -76,6 +76,13 @@ final class TrainingViewModel {
     var isLoading = true
     var isDeloadWeek = false
 
+    /// Set when a data-guarding save fails after retry (workout completion,
+    /// activity log, daily-coach session). The tab views bind an alert to this
+    /// so a failure that would lose logged training is LOUD, never silent —
+    /// the old `try? save()` here was indistinguishable from success while the
+    /// user's history evaporated. nil = no pending failure.
+    var saveErrorMessage: String?
+
     /// Re-entrancy guard for `loadToday`. The load is a heavy async pipeline
     /// (week-gen → AI hydration → readiness session) fired from several view
     /// lifecycle points (`.task` on the Training tab, the Move quadrant detail,
@@ -528,6 +535,13 @@ final class TrainingViewModel {
         )
 
         // 5. Persist the DailySession 1:1 (every day — uniform link, §8 revised).
+        //    Dedup BEFORE insert — always on, not just the DEBUG force path: a
+        //    failed save below leaves today's pending row in the context with
+        //    the day-key unconsumed, so the next loadToday re-enters here and
+        //    must not stack a second row for the same day.
+        if let stale = fetchTodayDailySession(modelContext: modelContext) {
+            modelContext.delete(stale)
+        }
         let session = DailySession.from(
             decision: result.decision,
             date: Date(),
@@ -558,8 +572,16 @@ final class TrainingViewModel {
             #endif
         }
 
+        // Consume the day-key and save ATOMICALLY: key set before the save so
+        // success persists both together; on failure the key is REVERTED so
+        // the guard at the top doesn't strand the user on a fallback for 24h —
+        // the next loadToday re-runs the coach (the dedup above absorbs the
+        // pending row, and a duplicate cheap coach call beats a lost day).
+        let priorDayKey = profile.lastDailySessionDayKey
         profile.lastDailySessionDayKey = todayKey
-        try? modelContext.save()
+        if !saveGuarded(modelContext, operation: "coach session") {
+            profile.lastDailySessionDayKey = priorDayKey
+        }
         dailySession = session
 
         #if DEBUG
@@ -1250,7 +1272,10 @@ final class TrainingViewModel {
             for: Date(),
             recoveryScore: recoveryScore,
             footballDays: footballDays,
-            split: split
+            split: split,
+            // Same map the weekly path reads — without it this fallback used
+            // the split rotation and disagreed with the Week view under Custom.
+            customWeekdayMap: loadCustomWeekdayPlan(modelContext: modelContext)
         )
         populateExercises(for: plan, modelContext: modelContext)
         modelContext.insert(plan)
@@ -1783,6 +1808,29 @@ final class TrainingViewModel {
 
     // MARK: - Save Workout
 
+    /// Save that guards user data: one retry, then loud failure. Every path
+    /// that persists real training (history rows, activity sessions, the daily
+    /// coach's session) must route through this instead of `try? save()` —
+    /// a swallowed failure here loses logged sets while the UI reports success.
+    /// Returns whether the save landed; on false, `saveErrorMessage` is set
+    /// and the CALLER must revert any status flags it optimistically flipped
+    /// (so the day stays open and a retry can re-run the full path).
+    @discardableResult
+    private func saveGuarded(_ modelContext: ModelContext, operation: String) -> Bool {
+        for attempt in 0 ..< 2 {
+            do {
+                try modelContext.save()
+                return true
+            } catch {
+                #if DEBUG
+                    print("\(DebugTrace.prefix)[Workout] saveGuarded(\(operation)) attempt \(attempt) FAILED: \(error)")
+                #endif
+            }
+        }
+        saveErrorMessage = "Couldn't save your \(operation). Nothing is lost yet — hit retry, and free up iPhone storage if this keeps happening."
+        return false
+    }
+
     // Per STATE_MACHINES.md — summary → saved
 
     /// Persist the completed workout: flip status to `.completed` and write one
@@ -1886,6 +1934,13 @@ final class TrainingViewModel {
             return false
         }
 
+        // Capture pre-completion state so a failed save can revert it — the
+        // status flip below is optimistic, and leaving `.completed` standing
+        // over an unsaved context locks the day around vanished history.
+        let priorStatus = plan.status
+        let priorFinishedAt = plan.finishedAt
+        let priorDuration = plan.durationMinutes
+
         plan.status = .completed
         plan.finishedAt = Date()
         plan.durationMinutes = Int(elapsedSeconds / 60)
@@ -1946,8 +2001,18 @@ final class TrainingViewModel {
         // duration, inferred venue, completion). Cheap pure recompute.
         VenuePatternLearner.recompute(modelContext: modelContext)
 
-        // Persist to SwiftData
-        try? modelContext.save()
+        // Persist to SwiftData — LOUD on failure. On a failed save the status
+        // flip is reverted so the day stays open: the pending history inserts
+        // remain in the context, the idempotency guard no longer short-circuits,
+        // and the SAVE button can re-run this whole path (stale-row dedup above
+        // absorbs the re-insert). Bail BEFORE the learning/notification side
+        // effects — none of them may act on a completion that didn't land.
+        guard saveGuarded(modelContext, operation: "workout") else {
+            plan.status = priorStatus
+            plan.finishedAt = priorFinishedAt
+            plan.durationMinutes = priorDuration
+            return false
+        }
         #if DEBUG
             print("\(DebugTrace.prefix)[Workout] persistCompletion: plan=\(planID) wrote \(snapshots.count) history rows, status=.completed")
         #endif
@@ -1982,9 +2047,18 @@ final class TrainingViewModel {
     }
 
     func saveWorkout(modelContext: ModelContext) async {
+        // Fresh attempt = fresh slate: a STALE failure flag from an unrelated
+        // earlier save (e.g. the coach path) must not block THIS save's
+        // success path below from resetting the session.
+        saveErrorMessage = nil
         // Completion may already be persisted (auto-saved on entering
         // .summary). This call is idempotent; it writes only if it hasn't yet.
         persistCompletion(modelContext: modelContext)
+
+        // A failed save (saveErrorMessage set) must keep the summary open —
+        // resetting here would close the session over data that never landed.
+        // The alert bound to saveErrorMessage owns the retry.
+        guard saveErrorMessage == nil else { return }
 
         // Write to HealthKit (via step 5.7) — best-effort, Phase 5.
 
@@ -2045,13 +2119,27 @@ final class TrainingViewModel {
         )
         modelContext.insert(session)
 
+        let priorStatus = plan.status
+        let priorFinishedAt = plan.finishedAt
+        let priorDuration = plan.durationMinutes
+
         plan.status = .completed
         plan.finishedAt = Date()
         if let mins = whoop?.durationMinutes {
             plan.durationMinutes = Int(mins)
         }
 
-        try? modelContext.save()
+        // LOUD on failure, mirroring persistCompletion: revert the optimistic
+        // status flip so the day stays open and a retry re-runs the whole path
+        // (the stale-ActivitySession dedup above absorbs the re-insert). Bail
+        // before venue learning + notifications — nothing may act on an
+        // activity log that didn't land.
+        guard saveGuarded(modelContext, operation: "activity") else {
+            plan.status = priorStatus
+            plan.finishedAt = priorFinishedAt
+            plan.durationMinutes = priorDuration
+            return false
+        }
 
         // §16.2 — non-gym completions are venue-pattern evidence too.
         VenuePatternLearner.recompute(modelContext: modelContext)

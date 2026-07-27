@@ -264,4 +264,75 @@ final class MatchPeriodizationTests: XCTestCase {
         XCTAssertEqual(mondayPlan?.recoveryAdjustment, 0.8,
                        "Yellow-good T+1 still reduces load 20%")
     }
+
+    // MARK: - Single-day fallback agrees with the weekly path (drift guard)
+
+    /// generateWorkout (the ensureTodayPlanPersisted fallback) had drifted from
+    /// generateWeekPlan: it ignored the custom map entirely and prescribed
+    /// upper even at low-yellow T+1. Both paths now route T+1 through the SAME
+    /// tPlus1Plan helper — these pin the previously-divergent cases.
+    func testSingleDayHonorsCustomMapOnTPlus1() {
+        let footballWedSun = ActiveDays(rawValue: (1 << 2) | (1 << 6)) // Wed + Sun
+        let map: [WorkoutType] = [.push, .push, .rest, .upper, .lower, .pull, .rest]
+        let day = engine.generateWorkout(
+            for: monday(), // T+1 after Sunday football
+            recoveryScore: nil, // green default
+            footballDays: footballWedSun,
+            split: .custom,
+            customWeekdayMap: map
+        )
+        XCTAssertEqual(day.type, .push,
+                       "Fallback Monday (T+1) must keep the custom Push, matching the Week view")
+    }
+
+    func testSingleDayLowYellowTPlus1IsMobility() {
+        let footballWedSun = ActiveDays(rawValue: (1 << 2) | (1 << 6))
+        let day = engine.generateWorkout(
+            for: monday(),
+            recoveryScore: 45, // low yellow — weekly path downgrades to mobility
+            footballDays: footballWedSun,
+            split: .pushPullLegs,
+            customWeekdayMap: nil
+        )
+        XCTAssertEqual(day.type, .mobility,
+                       "Low-yellow T+1 must downgrade to mobility in the fallback too")
+    }
+
+    func testSingleDayHonorsCustomMapOnOrdinaryDay() {
+        let map: [WorkoutType] = [.push, .push, .conditioning, .upper, .legs, .rest, .rest]
+        let friday = cal.date(byAdding: .day, value: 4, to: monday())!
+        let legsDay = engine.generateWorkout(
+            for: friday,
+            recoveryScore: nil,
+            footballDays: ActiveDays(rawValue: 0),
+            split: .custom,
+            customWeekdayMap: map
+        )
+        XCTAssertEqual(legsDay.type, .legs,
+                       "Ordinary custom day must use the mapped type, not the rotation")
+
+        let saturday = cal.date(byAdding: .day, value: 5, to: monday())!
+        let restDay = engine.generateWorkout(
+            for: saturday,
+            recoveryScore: nil,
+            footballDays: ActiveDays(rawValue: 0),
+            split: .custom,
+            customWeekdayMap: map
+        )
+        XCTAssertEqual(restDay.type, .rest,
+                       "An explicit custom .rest is honoured verbatim in the fallback")
+    }
+
+    func testSingleDayRedTPlus1IsRest() {
+        let footballWedSun = ActiveDays(rawValue: (1 << 2) | (1 << 6))
+        let day = engine.generateWorkout(
+            for: monday(),
+            recoveryScore: 20, // red
+            footballDays: footballWedSun,
+            split: .pushPullLegs,
+            customWeekdayMap: nil
+        )
+        XCTAssertEqual(day.type, .rest,
+                       "Red T+1 must rest in the fallback, matching the weekly path")
+    }
 }

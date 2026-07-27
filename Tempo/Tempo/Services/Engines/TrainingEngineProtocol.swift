@@ -43,14 +43,16 @@ enum ProgressionReason: String, Equatable, Sendable, Codable {
 }
 
 protocol TrainingEngineProtocol: Sendable {
+    /// Single-day fallback generator (used only when the week plan produced
+    /// nothing for today). `customWeekdayMap` mirrors generateWeekPlan's — the
+    /// two paths must prescribe the same day or Today desyncs from Week.
     func generateWorkout(
         for date: Date,
         recoveryScore: Double?,
         footballDays: ActiveDays,
-        split: TrainingSplit
+        split: TrainingSplit,
+        customWeekdayMap: [WorkoutType]?
     ) -> WorkoutPlan
-
-    func adjustForRecovery(plan: WorkoutPlan, score: Double) -> WorkoutPlan
 
     func calculateProgressiveOverload(
         for exercise: Exercise,

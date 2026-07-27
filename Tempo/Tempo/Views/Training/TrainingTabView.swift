@@ -121,6 +121,17 @@ struct TrainingTabView: View {
             guard let viewModel, !(viewModel.sessionState.isActive) else { return }
             viewModel.repersonalizeSchedule(modelContext: modelContext)
         }
+        .alert(
+            "Save failed",
+            isPresented: Binding(
+                get: { viewModel?.saveErrorMessage != nil },
+                set: { if !$0 { viewModel?.saveErrorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(viewModel?.saveErrorMessage ?? "")
+        }
         .onChange(of: viewModel?.sessionState) { _, newState in
             if case .summary = newState {
                 // Persist completion the moment the session reaches summary —
