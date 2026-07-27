@@ -27,7 +27,7 @@ struct TodayWorkoutView: View {
     @Query
     private var allSettings: [UserSettings]
     @State
-    private var showMobilityAlert = false
+    private var showMobilityFlows = false
     @State
     private var showMonthlyReview = false
     /// Captured at card-tap. The sheet reads THIS, not monthlyReviewDueKey —
@@ -162,10 +162,8 @@ struct TodayWorkoutView: View {
                 MonthlyReviewView(monthKey: key, viewModel: viewModel)
             }
         }
-        .alert("Mobility Flows", isPresented: $showMobilityAlert) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("Mobility flows coming soon")
+        .sheet(isPresented: $showMobilityFlows) {
+            MobilityFlowPickerView(viewModel: viewModel)
         }
         .task {
             await viewModel.loadToday(modelContext: modelContext)
@@ -1195,20 +1193,24 @@ struct TodayWorkoutView: View {
             }
 
             // Mobility flow button
-            Button {
-                showMobilityAlert = true
-            } label: {
-                HStack(spacing: TempoSpacing.sm) {
-                    Image(systemName: "figure.flexibility")
-                    Text("Start a Mobility Flow")
-                }
-                .font(.tempoHeadline)
-                .frame(maxWidth: .infinity)
-                .frame(height: 44)
-                .background(Color.tempoSurfaceCard)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+            mobilityFlowButton
+        }
+    }
+
+    private var mobilityFlowButton: some View {
+        Button {
+            showMobilityFlows = true
+        } label: {
+            HStack(spacing: TempoSpacing.sm) {
+                Image(systemName: "figure.flexibility")
+                Text("Start a Mobility Flow")
             }
+            .font(.tempoHeadline)
+            .frame(maxWidth: .infinity)
+            .frame(height: 44)
+            .background(Color.tempoSurfaceCard)
+            .foregroundStyle(Color.tempoTextPrimary)
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
         }
     }
 
@@ -1260,6 +1262,13 @@ struct TodayWorkoutView: View {
                             .foregroundStyle(Color.tempoTextPrimary)
                     }
                 }
+            }
+
+            // §10 — a mobility DAY gets the guided flows as its session (the
+            // flow's completion marks the day done through the non-gym path).
+            if plan.type == .mobility, plan.status != .completed {
+                mobilityFlowButton
+                    .padding(.horizontal, TempoSpacing.lg)
             }
 
             // The actual cross-training prescription (what to DO), so a cardio

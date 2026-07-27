@@ -278,3 +278,211 @@ struct WarmupRoutine {
         ),
     ]
 }
+
+// MARK: - MobilityFlow (§10 mobility / rest-day flows)
+
+/// A standalone guided mobility flow for rest and mobility days. Reuses
+/// `WarmupMove` (same player mechanics: timed moves auto-advance, rep-based
+/// wait for a tap) but lives apart from the pre-lift warm-up routine — these
+/// are recovery sessions, not session prep. Same static-value-data rule:
+/// nothing persisted, no schema.
+struct MobilityFlow: Identifiable, Equatable {
+    let id: String
+    let name: String
+    /// One-line focus, shown under the name in the picker.
+    let focus: String
+    let moves: [WarmupMove]
+
+    /// "~8 min" style estimate from the timed moves (rep-based counted at 45s).
+    var estimatedDuration: String {
+        let seconds = moves.reduce(0) { $0 + ($1.durationSeconds ?? 45) }
+        return "~\(max(1, Int((Double(seconds) / 60).rounded()))) min"
+    }
+
+    static let all: [MobilityFlow] = [fullBodyReset, hipsHamstrings, shouldersTSpine, legsFlush]
+
+    static let fullBodyReset = MobilityFlow(
+        id: "full_body_reset",
+        name: "Full-Body Reset",
+        focus: "Head-to-toe — the default when nothing specific hurts.",
+        moves: [
+            WarmupMove(
+                name: "Cat-cow",
+                dose: "1 min",
+                howTo: "On all fours, alternate slowly between arching the spine up (chin tucked) and letting it sag (chest forward, eyes up). Move with the breath — exhale up, inhale down.",
+                cue: "Segment the spine — one vertebra at a time, no rushing.",
+                durationSeconds: 60
+            ),
+            WarmupMove(
+                name: "World's greatest stretch",
+                dose: "45s per side",
+                howTo: "Long lunge, back knee down. Drop the inside elbow toward the front foot, then rotate that arm up to the ceiling following it with your eyes. Flow between the two positions.",
+                cue: "The rotation comes from the mid-back, not the shoulder.",
+                durationSeconds: 90
+            ),
+            WarmupMove(
+                name: "Downward dog → cobra flow",
+                dose: "1 min",
+                howTo: "From a push-up position, push hips up and back into an inverted V, pedal the heels, then lower and slide through to a cobra — hips down, chest up. Flow between the two.",
+                cue: "In the dog, push the floor away; in the cobra, keep the glutes soft.",
+                durationSeconds: 60
+            ),
+            WarmupMove(
+                name: "Deep squat hold",
+                dose: "1 min",
+                howTo: "Feet shoulder-width, sink into the deepest squat you can keep your heels down in. Elbows inside the knees, gently pry them out. Shift weight side to side.",
+                cue: "Chest tall — use a doorframe for balance if you tip back.",
+                durationSeconds: 60
+            ),
+            WarmupMove(
+                name: "Hamstring flow",
+                dose: "45s per side",
+                howTo: "Kneel on one knee, straighten the front leg, hands on the floor either side. Rock the hips back to load the stretch, then ease off. Keep the front foot flexed.",
+                cue: "Hinge from the hips — a flat back finds the hamstring faster.",
+                durationSeconds: 90
+            ),
+            WarmupMove(
+                name: "Thread the needle",
+                dose: "45s per side",
+                howTo: "On all fours, slide one arm under the other, palm up, until the shoulder and ear rest on the floor. Reach through, hold, then unwind and reach that arm to the ceiling.",
+                cue: "Let the upper back do the twisting — hips stay square.",
+                durationSeconds: 90
+            ),
+            WarmupMove(
+                name: "Child's pose + breathing",
+                dose: "1 min",
+                howTo: "Knees wide, big toes together, sit back onto the heels and walk the hands long. Forehead down. Slow nasal breaths — in for 4, out for 6.",
+                cue: "Every exhale, sink a little heavier into the floor.",
+                durationSeconds: 60
+            ),
+        ]
+    )
+
+    static let hipsHamstrings = MobilityFlow(
+        id: "hips_hamstrings",
+        name: "Hips & Hamstrings",
+        focus: "For heavy leg days, long sitting, or tight sprint hips.",
+        moves: [
+            WarmupMove(
+                name: "90/90 hip switches",
+                dose: "1 min",
+                howTo: "Sit with both knees bent at 90° — one leg in front, one to the side. Keeping the chest tall, rotate both knees together over to the other side and back. Hands down for support if needed.",
+                cue: "Lead with the knees, keep the heels planted.",
+                durationSeconds: 60
+            ),
+            WarmupMove(
+                name: "Pigeon stretch",
+                dose: "1 min per side",
+                howTo: "Front shin angled on the floor, back leg long behind. Square the hips, then fold the chest over the front shin. Breathe into the glute.",
+                cue: "If the front knee complains, pull the foot closer to the hip.",
+                durationSeconds: 120
+            ),
+            WarmupMove(
+                name: "Couch stretch",
+                dose: "45s per side",
+                howTo: "Back foot up against a wall or couch, knee on the floor close to it, front foot planted. Squeeze the glute of the back leg and lift the chest tall.",
+                cue: "The glute squeeze is the stretch — no arching the lower back.",
+                durationSeconds: 90
+            ),
+            WarmupMove(
+                name: "Hamstring flow",
+                dose: "45s per side",
+                howTo: "Kneel on one knee, straighten the front leg, hands on the floor either side. Rock the hips back to load the stretch, then ease off. Keep the front foot flexed.",
+                cue: "Hinge from the hips — a flat back finds the hamstring faster.",
+                durationSeconds: 90
+            ),
+            WarmupMove(
+                name: "Deep squat hold",
+                dose: "1 min",
+                howTo: "Feet shoulder-width, sink into the deepest squat you can keep your heels down in. Elbows inside the knees, gently pry them out. Shift weight side to side.",
+                cue: "Chest tall — use a doorframe for balance if you tip back.",
+                durationSeconds: 60
+            ),
+        ]
+    )
+
+    static let shouldersTSpine = MobilityFlow(
+        id: "shoulders_tspine",
+        name: "Shoulders & T-Spine",
+        focus: "For push/pull days and desk-hunched study blocks.",
+        moves: [
+            WarmupMove(
+                name: "Arm circles",
+                dose: "1 min",
+                howTo: "Big, slow circles — forward, then backward. Let the circles grow to full range as the shoulders warm.",
+                cue: "Slow and tall — no shrugging into the ears.",
+                durationSeconds: 60
+            ),
+            WarmupMove(
+                name: "Thread the needle",
+                dose: "45s per side",
+                howTo: "On all fours, slide one arm under the other, palm up, until the shoulder and ear rest on the floor. Reach through, hold, then unwind and reach that arm to the ceiling.",
+                cue: "Let the upper back do the twisting — hips stay square.",
+                durationSeconds: 90
+            ),
+            WarmupMove(
+                name: "Wall slides",
+                dose: "2 × 10",
+                howTo: "Back flat on a wall, arms in a goalpost. Slide the arms up overhead keeping wrists and elbows on the wall, then pull the elbows down and in.",
+                cue: "Ribs down — don't let the lower back peel off the wall."
+            ),
+            WarmupMove(
+                name: "Doorway pec stretch",
+                dose: "45s per side",
+                howTo: "Forearm on a doorframe, elbow at shoulder height. Step through the doorway until the chest opens. Vary the elbow height to hit different fibers.",
+                cue: "Lean from the hips — the whole body steps through, not just the shoulder.",
+                durationSeconds: 90
+            ),
+            WarmupMove(
+                name: "Prone swimmers",
+                dose: "1 min",
+                howTo: "Lie face down, arms long overhead. Lift the arms slightly, sweep them in a wide arc down toward the hips, then back overhead — like a slow backstroke in reverse.",
+                cue: "Keep the forehead down; the arms hover the whole way.",
+                durationSeconds: 60
+            ),
+        ]
+    )
+
+    static let legsFlush = MobilityFlow(
+        id: "legs_flush",
+        name: "Legs Flush",
+        focus: "Post-football or post-legs: easy blood flow, nothing intense.",
+        moves: [
+            WarmupMove(
+                name: "Standing quad stretch",
+                dose: "45s per side",
+                howTo: "Stand tall, pull one heel to the glute, knees together. Squeeze the glute of the standing leg to deepen the front-of-thigh stretch. Hold something for balance.",
+                cue: "Knee points at the floor — don't let it drift forward.",
+                durationSeconds: 90
+            ),
+            WarmupMove(
+                name: "Wall calf stretch",
+                dose: "45s per side",
+                howTo: "Hands on a wall, one leg back with the heel pressed down. Hold with a straight knee, then bend it slightly to move the stretch lower into the soleus.",
+                cue: "The heel never leaves the floor — small stance changes, big difference.",
+                durationSeconds: 90
+            ),
+            WarmupMove(
+                name: "Hamstring flow",
+                dose: "45s per side",
+                howTo: "Kneel on one knee, straighten the front leg, hands on the floor either side. Rock the hips back to load the stretch, then ease off. Keep the front foot flexed.",
+                cue: "Hinge from the hips — a flat back finds the hamstring faster.",
+                durationSeconds: 90
+            ),
+            WarmupMove(
+                name: "Figure-4 glute stretch",
+                dose: "45s per side",
+                howTo: "Lie on your back, cross one ankle over the other knee, then pull the bottom thigh toward the chest. Keep the crossed knee pushed gently away.",
+                cue: "Head stays down — pull with the arms, not the neck.",
+                durationSeconds: 90
+            ),
+            WarmupMove(
+                name: "Legs up + slow breathing",
+                dose: "2 min",
+                howTo: "Lie on your back with legs up a wall or on a couch. Arms wide, palms up. Nasal breathing — in for 4, hold 2, out for 6. Let the legs drain.",
+                cue: "This is the recovery part — actually slow the breath down.",
+                durationSeconds: 120
+            ),
+        ]
+    )
+}
