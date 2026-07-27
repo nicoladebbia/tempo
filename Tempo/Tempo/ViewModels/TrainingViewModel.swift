@@ -1606,6 +1606,44 @@ final class TrainingViewModel {
             print("\(DebugTrace.prefix)[Workout] logSet: exIdx=\(currentExerciseIndex)/\(exercises.count) setIdx=\(currentSetIndex)/\(sets.count) (warmups=\(warmupCount)) → isLastSet=\(isLastSet) isLastExercise=\(isLastExercise)")
         #endif
 
+        // §6 superset alternation — A1 → B1 with NO rest, then the pair's
+        // shared rest, then back: A2 → B2 … Warmup ramps stay in the normal
+        // per-exercise flow; alternation starts at the first working set.
+        if !set.isWarmup, let partnerIdx = supersetPartnerIndex(of: currentExerciseIndex) {
+            let partner = exercises[partnerIdx]
+            let isFirstOfPair = partnerIdx > currentExerciseIndex
+
+            if isFirstOfPair, let partnerSet = firstUncompletedSetIndex(in: partner) {
+                // First lift logged → straight into the partner, no rest.
+                currentExerciseIndex = partnerIdx
+                currentSetIndex = partnerSet
+                sessionState = .exercise(.setActive(
+                    exerciseIndex: partnerIdx, setIndex: partnerSet
+                ))
+                HapticManager.selection()
+                return
+            }
+            if !isFirstOfPair, let backSet = firstUncompletedSetIndex(in: partner) {
+                // Second lift logged → the pair's one rest, then back to the first.
+                restOrJump(to: partnerIdx, setIndex: backSet, after: plannedExercise)
+                return
+            }
+            if firstUncompletedSetIndex(in: plannedExercise) == nil {
+                // Both lifts fully logged → advance PAST the pair (the standard
+                // next-exercise path would land on the already-finished partner).
+                let afterPair = max(currentExerciseIndex, partnerIdx) + 1
+                if afterPair >= exercises.count {
+                    stopElapsedTimer()
+                    sessionState = .summary
+                } else {
+                    restOrJump(to: afterPair, setIndex: 0, after: plannedExercise)
+                }
+                return
+            }
+            // Partner done, this lift still has sets → finish it in the
+            // standard flow below.
+        }
+
         if isLastSet, isLastExercise {
             // Workout complete → straight to summary (cooldown screen removed;
             // the last set's feedback is editable at the top of the summary).
@@ -1733,12 +1771,71 @@ final class TrainingViewModel {
 
     // MARK: - Advance After Rest
 
-    enum RestNextAction {
+    enum RestNextAction: Equatable {
         case nextSet
         case nextExercise
+        /// §6 superset flow — rest ends on an explicit (exercise, set) target:
+        /// back to the pair's first lift, or past a fully-logged pair.
+        case supersetJump(exerciseIndex: Int, setIndex: Int)
     }
 
     var pendingRestAction: RestNextAction = .nextSet
+
+    // MARK: - Superset Flow (§6 / §2.8)
+
+    /// Adjacent partner in the same superset pair, or nil. Pairing mirrors the
+    /// render logic: CONSECUTIVE orderedExercises sharing a non-nil group
+    /// (a reorder that splits adjacency deliberately breaks the pair).
+    func supersetPartnerIndex(of index: Int) -> Int? {
+        guard let exercises = todayPlan?.orderedExercises,
+              index >= 0, index < exercises.count,
+              let group = exercises[index].supersetGroup
+        else {
+            return nil
+        }
+        if index + 1 < exercises.count, exercises[index + 1].supersetGroup == group {
+            return index + 1
+        }
+        if index - 1 >= 0, exercises[index - 1].supersetGroup == group {
+            return index - 1
+        }
+        return nil
+    }
+
+    /// Partner name for the active screen's superset banner. nil when the
+    /// current exercise is not part of a pair.
+    var currentSupersetPartnerName: String? {
+        guard let idx = supersetPartnerIndex(of: currentExerciseIndex),
+              let exercises = todayPlan?.orderedExercises
+        else {
+            return nil
+        }
+        return exercises[idx].exercise?.name
+    }
+
+    private func firstUncompletedSetIndex(in plannedExercise: PlannedExercise) -> Int? {
+        plannedExercise.orderedSets.firstIndex { !$0.completed }
+    }
+
+    /// Rest toward an explicit (exercise, set) target — honoring the
+    /// auto-start-rest preference exactly like the standard paths.
+    private func restOrJump(to exerciseIndex: Int, setIndex: Int, after plannedExercise: PlannedExercise) {
+        if autoStartRest {
+            let duration = restDuration(for: plannedExercise)
+            startRestTimer(
+                duration: duration,
+                nextAction: .supersetJump(exerciseIndex: exerciseIndex, setIndex: setIndex)
+            )
+            sessionState = .exercise(.resting(
+                exerciseIndex: currentExerciseIndex,
+                setIndex: currentSetIndex,
+                remainingSeconds: duration
+            ))
+        } else {
+            pendingRestAction = .supersetJump(exerciseIndex: exerciseIndex, setIndex: setIndex)
+            advanceAfterRest()
+        }
+    }
 
     func advanceAfterRest() {
         guard let plan = todayPlan else {
@@ -1754,6 +1851,14 @@ final class TrainingViewModel {
                 setIndex: currentSetIndex
             ))
             HapticManager.notification(.warning) // rest complete haptic
+        case let .supersetJump(exerciseIndex, setIndex):
+            currentExerciseIndex = exerciseIndex
+            currentSetIndex = setIndex
+            sessionState = .exercise(.setActive(
+                exerciseIndex: exerciseIndex,
+                setIndex: setIndex
+            ))
+            HapticManager.notification(.warning)
         case .nextExercise:
             let nextIndex = currentExerciseIndex + 1
             if nextIndex < exercises.count {

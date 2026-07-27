@@ -302,6 +302,25 @@ struct ActiveWorkoutView: View {
                     .padding(.horizontal, TempoSpacing.screenEdge)
                 }
 
+                // §6 superset banner — the pair alternates with no rest inside
+                // it; the one rest comes after the second lift.
+                if let partner = viewModel.currentSupersetPartnerName {
+                    HStack(spacing: TempoSpacing.xs) {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Color.tempoSignal)
+                        Text("Superset with \(partner) — no rest between the pair.")
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(TempoSpacing.sm)
+                    .background(Color.tempoSignal.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                    .padding(.horizontal, TempoSpacing.screenEdge)
+                }
+
                 // Exercise info
                 exerciseHeader
 

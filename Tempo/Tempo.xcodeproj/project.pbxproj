@@ -16,6 +16,7 @@
 		026F702222A6BDC1F06BAA06 /* WorkoutEventEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEC8AAF749959309F143444C /* WorkoutEventEditView.swift */; };
 		02B882A7716DE0127237CD96 /* TempoComplicationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F5617B8CC7FC99BB27B9CDC /* TempoComplicationProvider.swift */; };
 		031A1DE2FC51EEA2354288B1 /* ComponentSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F24339E7F4E89021158D0722 /* ComponentSnapshotTests.swift */; };
+		0394C75064738D1B7175DDAD /* SupersetFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0147B6486D21E391375FDA64 /* SupersetFlowTests.swift */; };
 		03C16B8E743FDD2B1EEAEF2E /* PreferenceHealthCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14D972D584C1C67F7C608E48 /* PreferenceHealthCheck.swift */; };
 		0466C9C37F5D53370C30FA24 /* cue_ex_romanian_deadlift.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = BBAD135EB05D4B3B092D8D48 /* cue_ex_romanian_deadlift.mp3 */; };
 		04A6999A83228F3500FF781B /* AdaptiveProfileUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CE0A45FF303D919BB324B11 /* AdaptiveProfileUpdater.swift */; };
@@ -797,6 +798,7 @@
 /* Begin PBXFileReference section */
 		0007C47A803E50EC62CA019C /* Staging.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Staging.xcconfig; sourceTree = "<group>"; };
 		001CF84AC3DC22E5C8471149 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		0147B6486D21E391375FDA64 /* SupersetFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupersetFlowTests.swift; sourceTree = "<group>"; };
 		015BC25A2789414F87DA7B24 /* CalendarServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarServiceProtocol.swift; sourceTree = "<group>"; };
 		01F2BF0C16DB0F432CE25512 /* cue_ex_push_up.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_push_up.mp3; sourceTree = "<group>"; };
 		0274EF643686CCE017A0F2B5 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
@@ -2017,6 +2019,7 @@
 				B5D716D5E3223A9FA8FE3D40 /* RecoveryEngineTests.swift */,
 				F59BAE0104B3A7E11A8FC878 /* ScoringEngineTests.swift */,
 				64079C959A6E84E4A443D982 /* StrengthStandardsTests.swift */,
+				0147B6486D21E391375FDA64 /* SupersetFlowTests.swift */,
 				FEB9962AE0B2ABA3E0C9811F /* SwapAddExerciseTests.swift */,
 				34D601274D0F5FE16076BBF2 /* TrainingBlockTests.swift */,
 				7684AE39ECA95CC4599B5653 /* TrainingEngineProgressionTests.swift */,
@@ -3669,6 +3672,7 @@
 				82FD282E596E3D34B30935A1 /* SetFeedbackExerciseIDTests.swift in Sources */,
 				65B34591E018303AA064EB1F /* SetFeedbackTests.swift in Sources */,
 				067B1FDF785F63247700E1EB /* StrengthStandardsTests.swift in Sources */,
+				0394C75064738D1B7175DDAD /* SupersetFlowTests.swift in Sources */,
 				29DFDAD3216429D972CA6E34 /* SupplementTests.swift in Sources */,
 				11A2EE134CC418FE9A6E2398 /* SwapAddExerciseTests.swift in Sources */,
 				3DB8DB1158C12767682AC2C0 /* TDEEGoalWeightTests.swift in Sources */,

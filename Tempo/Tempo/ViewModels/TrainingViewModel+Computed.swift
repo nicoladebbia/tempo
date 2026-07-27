@@ -133,6 +133,22 @@ extension TrainingViewModel {
 
     var restContext: RestContext {
         let exercises = todayPlan?.orderedExercises ?? []
+        // §6 superset rest — the pair's one rest leads to an explicit target
+        // (back to the first lift, or the exercise after a finished pair).
+        if case let .supersetJump(exIdx, setIdx) = pendingRestAction {
+            let target = exIdx < exercises.count ? exercises[exIdx] : nil
+            let ex = target?.exercise
+            let total = target?.orderedSets.count ?? 0
+            let isTransition = exIdx != currentExerciseIndex
+            return RestContext(
+                exercise: ex,
+                isExerciseTransition: isTransition,
+                label: ex.map { "Next: \($0.name) · set \(min(setIdx + 1, max(total, 1))) of \(total)" }
+                    ?? "Up next",
+                instructions: isTransition ? ex?.instructions : nil,
+                cues: isTransition ? (ex?.cues ?? []) : []
+            )
+        }
         if pendingRestAction == .nextExercise {
             let nextIndex = currentExerciseIndex + 1
             let next = nextIndex < exercises.count ? exercises[nextIndex] : nil
