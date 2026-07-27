@@ -64,6 +64,15 @@ final class DailySession {
     /// locked. Defaulted → auto-migrates.
     var userOverrode: Bool = false
 
+    /// §14 #3 — the user's one-tap actual session RPE, DENORMALIZED off the
+    /// linked WorkoutPlan at record time. sessionRPEAccuracy reads THIS, not
+    /// `workoutPlan?.sessionRPE`: the 1:1 link is a one-way `.nullify` with no
+    /// inverse, so a history-delete of the WorkoutPlan leaves this relationship
+    /// dangling and traversing it crashes (invalidated backing). Reading the
+    /// denormalized copy is crash-proof regardless of the plan's fate.
+    /// Defaulted → auto-migrates; nil for sessions recorded before this field.
+    var actualSessionRPE: Int? = nil
+
     var createdAt: Date
 
     // MARK: - 1:1 link to the day's WorkoutPlan (§8 desync guard)

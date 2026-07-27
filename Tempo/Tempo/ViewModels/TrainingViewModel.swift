@@ -920,8 +920,11 @@ final class TrainingViewModel {
         )
         let rows = (try? modelContext.fetch(descriptor)) ?? []
         let pairs = rows.compactMap { session -> SessionRPEPair? in
+            // Read the DENORMALIZED actual, never `session.workoutPlan?.sessionRPE`:
+            // that link is a one-way `.nullify` and a history-deleted plan leaves
+            // it dangling → traversing crashes (invalidated backing).
             guard let expected = session.expectedSessionRPE,
-                  let actual = session.workoutPlan?.sessionRPE else { return nil }
+                  let actual = session.actualSessionRPE else { return nil }
             return SessionRPEPair(date: session.date, expected: expected, actual: actual)
         }
         return PredictionAccuracy.summarizeSessions(pairs)
@@ -2079,6 +2082,10 @@ final class TrainingViewModel {
         guard (1 ... 10).contains(rpe) else { return }
         guard let plan = todayPlan, plan.status == .completed else { return }
         plan.sessionRPE = rpe
+        // Denormalize onto the linked session so the accuracy spine never has to
+        // traverse the one-way `.nullify` link (dangling-crash guard — see
+        // DailySession.actualSessionRPE). dailySession is today's 1:1 pair.
+        dailySession?.actualSessionRPE = rpe
         try? modelContext.save()
         #if DEBUG
             print("\(DebugTrace.prefix)[Workout] recordSessionRPE: plan=\(plan.id) rpe=\(rpe) expected=\(dailySession?.expectedSessionRPE.map(String.init) ?? "nil")")
