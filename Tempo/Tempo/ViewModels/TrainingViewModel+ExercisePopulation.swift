@@ -539,6 +539,191 @@ extension TrainingViewModel {
         return nil
     }
 
+    // MARK: - Swap / Add Exercise (§2.13 / §2.14)
+
+    /// Alternatives offered by the swap sheet: same muscle group, not already
+    /// in the plan. Closest substitutes first — same movement pattern, then
+    /// same compound-ness, then name.
+    func swapAlternatives(for plannedEx: PlannedExercise, modelContext: ModelContext) -> [Exercise] {
+        guard let current = plannedEx.exercise, let plan = plannedEx.workoutPlan else {
+            return []
+        }
+        let inPlan = Set(plan.orderedExercises.compactMap { $0.exercise?.id })
+        let all = (try? modelContext.fetch(FetchDescriptor<Exercise>())) ?? []
+        return all
+            .filter { $0.muscleGroup == current.muscleGroup && !inPlan.contains($0.id) }
+            .sorted { a, b in
+                let aPattern = a.movementPatternRaw == current.movementPatternRaw
+                let bPattern = b.movementPatternRaw == current.movementPatternRaw
+                if aPattern != bPattern {
+                    return aPattern
+                }
+                if a.isCompound != b.isCompound {
+                    return a.isCompound == current.isCompound
+                }
+                return a.name < b.name
+            }
+    }
+
+    /// §2.13 — replace a planned slot's movement in place. Keeps the slot
+    /// (order, superset pairing) and the working-set COUNT already prescribed;
+    /// reps/weights re-prescribe for the NEW movement from its own history or
+    /// the cold-start model. Refuses once any set on the slot is completed —
+    /// logged work must never be re-attributed to a different exercise.
+    func swapExercise(
+        _ plannedEx: PlannedExercise,
+        with newExercise: Exercise,
+        modelContext: ModelContext
+    ) {
+        guard let plan = plannedEx.workoutPlan,
+              plan.status == .planned || plan.status == .inProgress,
+              newExercise.id != plannedEx.exercise?.id,
+              plannedEx.orderedSets.allSatisfy({ !$0.completed })
+        else {
+            return
+        }
+
+        let oldExerciseID = plannedEx.exercise?.id
+        let workingCount = max(1, plannedEx.orderedSets.filter { !$0.isWarmup }.count)
+
+        for stale in plannedEx.orderedSets {
+            modelContext.delete(stale)
+        }
+        plannedEx.exercise = newExercise
+        plannedEx.sets = prescribedSets(
+            for: newExercise,
+            workingSets: workingCount,
+            plan: plan,
+            plannedExercise: plannedEx,
+            modelContext: modelContext
+        )
+
+        // The old movement's unresolved prediction can never be outcome-matched
+        // now; prescribedSets logged the new one in its place.
+        if let oldID = oldExerciseID {
+            deleteUnresolvedPrediction(planID: plan.id, exerciseID: oldID, modelContext: modelContext)
+        }
+        try? modelContext.save()
+        HapticManager.selection()
+    }
+
+    /// §2.14 — append a chosen movement to today's plan with a full
+    /// prescription (3 working sets, warmup ramp for loadable compounds).
+    func addExercise(_ exercise: Exercise, modelContext: ModelContext) {
+        guard let plan = todayPlan,
+              plan.type.isGymWorkout,
+              plan.status == .planned || plan.status == .inProgress,
+              !plan.orderedExercises.contains(where: { $0.exercise?.id == exercise.id })
+        else {
+            return
+        }
+
+        let order = (plan.orderedExercises.map(\.order).max() ?? -1) + 1
+        let planned = PlannedExercise(order: order, workoutPlan: plan, exercise: exercise)
+        planned.sets = prescribedSets(
+            for: exercise,
+            workingSets: 3,
+            plan: plan,
+            plannedExercise: planned,
+            modelContext: modelContext
+        )
+        try? modelContext.save()
+        HapticManager.selection()
+    }
+
+    /// Shared prescription builder for swap/add — mirrors the per-exercise body
+    /// of `populateExercises`: reps by compound-ness, weight from progressive
+    /// overload falling back to cold-start, the plan's recovery + deload
+    /// multipliers, 50%/75% warmup ramp for loadable compounds, bodyweight
+    /// added-load hint. Also records the PredictionLog row (measurement spine).
+    private func prescribedSets(
+        for exercise: Exercise,
+        workingSets: Int,
+        plan: WorkoutPlan,
+        plannedExercise: PlannedExercise,
+        modelContext: ModelContext
+    ) -> [PlannedSet] {
+        let reps = exercise.isCompound ? 8 : 12
+        let learnedIncrements = adaptiveSignals(modelContext: modelContext).learnedIncrements
+        let history = exercise.history ?? []
+        let overload = trainingEngine.calculateProgressiveOverload(
+            for: exercise,
+            history: history,
+            learnedIncrement: learnedIncrements[exercise.id]
+        )
+        let allExercises = (try? modelContext.fetch(FetchDescriptor<Exercise>())) ?? []
+        let weight = overload.weight > 0
+            ? overload.weight
+            : coldStartWeight(
+                for: exercise,
+                targetReps: reps,
+                allExercises: allExercises,
+                modelContext: modelContext
+            )
+
+        let deloadMultiplier = isDeloadWeek ? trainingEngine.deloadWeightMultiplier() : 1.0
+        let adjusted = weight * plan.recoveryAdjustment * deloadMultiplier
+        let rounded = (adjusted / 2.5).rounded() * 2.5
+
+        let isBodyweightLift = StrengthStandards.isBodyweightLoaded(exercise.equipment)
+        let addedLoad: Double? = {
+            guard isBodyweightLift, let bw = currentBodyweightKg(modelContext: modelContext) else {
+                return nil
+            }
+            return rounded - bw
+        }()
+
+        var sets: [PlannedSet] = []
+        var setNum = 1
+        if exercise.isCompound, rounded > 0, !isBodyweightLift {
+            for fraction in [0.5, 0.75] {
+                let warmupWeight = ((rounded * fraction) / 2.5).rounded() * 2.5
+                sets.append(PlannedSet(
+                    setNumber: setNum,
+                    targetReps: reps,
+                    targetWeight: warmupWeight,
+                    isWarmup: true,
+                    plannedExercise: plannedExercise
+                ))
+                setNum += 1
+            }
+        }
+        for _ in 1 ... max(1, workingSets) {
+            sets.append(PlannedSet(
+                setNumber: setNum,
+                targetReps: reps,
+                targetWeight: rounded,
+                addedLoadKg: addedLoad,
+                plannedExercise: plannedExercise
+            ))
+            setNum += 1
+        }
+
+        let lastLogged = history.sorted { $0.date > $1.date }.first?.bestSetWeight
+        logPrediction(
+            planID: plan.id,
+            exercise: exercise,
+            predictedWeight: rounded,
+            predictedReps: reps,
+            rationale: overload.rationale,
+            learnedIncrement: learnedIncrements[exercise.id],
+            baselineWeight: lastLogged.map { $0 + 2.5 },
+            modelContext: modelContext
+        )
+        return sets
+    }
+
+    /// Drop the unresolved PredictionLog row for a plan+exercise pairing that
+    /// no longer exists (the movement was swapped out before any outcome).
+    private func deleteUnresolvedPrediction(planID: UUID, exerciseID: UUID, modelContext: ModelContext) {
+        let descriptor = FetchDescriptor<PredictionLog>(
+            predicate: #Predicate { $0.workoutPlanID == planID && $0.exerciseID == exerciseID }
+        )
+        for row in (try? modelContext.fetch(descriptor)) ?? [] where !row.outcomeResolved {
+            modelContext.delete(row)
+        }
+    }
+
     /// Onboarding experience level ("Beginner"/"Intermediate"/"Advanced"),
     /// persisted to UserDefaults during onboarding. nil when never set → the
     /// strength model treats it as Beginner (the lowest, safest coefficient).
