@@ -1271,6 +1271,24 @@ struct TodayWorkoutView: View {
                     .padding(.horizontal, TempoSpacing.lg)
             }
 
+            // §13 — running days link to the run history (HealthKit-mirrored
+            // distance/pace/splits).
+            if plan.type == .run || plan.type == .sprint || plan.type == .conditioning {
+                NavigationLink(destination: RunHistoryView()) {
+                    HStack(spacing: TempoSpacing.sm) {
+                        Image(systemName: "figure.run")
+                        Text("Your Runs")
+                    }
+                    .font(.tempoHeadline)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .background(Color.tempoSurfaceCard)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+                }
+                .padding(.horizontal, TempoSpacing.lg)
+            }
+
             // The actual cross-training prescription (what to DO), so a cardio
             // day isn't just an icon + one line. Reads type + duration off the
             // plan. FALLBACK ONLY: when the daily brain already produced a

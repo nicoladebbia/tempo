@@ -87,6 +87,14 @@ struct WorkoutHistoryView: View {
         .background(Color.tempoBgPrimary)
         .navigationTitle("Workout History")
         .navigationBarTitleDisplayMode(.inline)
+        // §13 — cardio lives on its own surface; gym history stays this one.
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                NavigationLink(destination: RunHistoryView()) {
+                    Image(systemName: "figure.run")
+                }
+            }
+        }
         .alert(
             "Delete this workout?",
             isPresented: Binding(
