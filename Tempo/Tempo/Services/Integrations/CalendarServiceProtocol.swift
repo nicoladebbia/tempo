@@ -14,6 +14,11 @@ protocol CalendarServiceProtocol: Sendable {
     func requestAuthorization() async throws
     func fetchEvents(for dateRange: DateInterval) async throws -> [CalendarEvent]
     func detectFootballDays(in range: DateInterval) -> [Date]
+    /// The football-keyword events themselves (title + date), for surfaces
+    /// that propose rather than repaint — the keyword list is deliberately
+    /// loose ("game", "practice"), so anything consuming this must keep the
+    /// user in the loop instead of silently rewriting the training week.
+    func detectFootballEvents(in range: DateInterval) -> [CalendarEvent]
     func detectExamDates(in range: DateInterval) -> [CalendarExam]
     func detectClassSchedule(for date: Date) -> [CalendarClass]
     /// Persist an exam-tagged event to the user's default calendar.

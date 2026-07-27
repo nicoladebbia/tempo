@@ -141,7 +141,12 @@ struct ExerciseLibraryView: View {
     }
 
     private func filterChip(label: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        // Haptic parity with every other toggleable chip in the app (RPE
+        // buttons, emphasis chips) — these were the only silent ones.
+        Button {
+            HapticManager.selection()
+            action()
+        } label: {
             Text(label)
                 .font(.tempoCaption1)
                 .fontWeight(.medium)

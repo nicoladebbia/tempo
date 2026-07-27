@@ -98,13 +98,16 @@ final class CalendarService: CalendarServiceProtocol, @unchecked Sendable {
 
     func detectFootballDays(in range: DateInterval) -> [Date] {
         let calendar = Calendar.current
-        let relevant = eventsInRange(range)
-
         return Array(Set(
-            relevant
-                .filter { isFootballEvent($0) }
+            detectFootballEvents(in: range)
                 .map { calendar.startOfDay(for: $0.startDate) }
         )).sorted()
+    }
+
+    func detectFootballEvents(in range: DateInterval) -> [CalendarEvent] {
+        eventsInRange(range)
+            .filter { isFootballEvent($0) }
+            .sorted { $0.startDate < $1.startDate }
     }
 
     // MARK: - Exam Detection

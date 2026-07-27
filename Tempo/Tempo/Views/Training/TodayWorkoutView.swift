@@ -54,6 +54,10 @@ struct TodayWorkoutView: View {
     /// Expands the daily session card's full "why" (D2).
     @State
     private var showFullWhy = false
+    /// §2.15 — reorder sheet. The styled card stack can't host `.onMove`
+    /// (List-only), so reordering lives in a purpose-built List sheet.
+    @State
+    private var showReorderSheet = false
 
     private let countdownTick = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
@@ -99,6 +103,10 @@ struct TodayWorkoutView: View {
                         monthlyReviewCard(dueKey)
                     }
 
+                    // §18.4 — calendar-detected football, confirm-gated.
+                    // Renders nothing when there's nothing to propose.
+                    MatchProposalCard()
+
                     if viewModel.isLoading {
                         loadingState
                     } else if viewModel.isRestDay {
@@ -120,6 +128,11 @@ struct TodayWorkoutView: View {
                 .padding(.bottom, 120) // space for floating button
             }
             .background(Color.tempoBgPrimary)
+            // §2.16 — pull-to-refresh: full reload through the same coalesced
+            // pipeline the .task uses (an in-flight load absorbs the pull).
+            .refreshable {
+                await viewModel.loadToday(modelContext: modelContext)
+            }
 
             // Floating Start Workout button — ONLY on a loggable gym day.
             // Non-gym days (rest, mobility, football, run, sprint, conditioning)
@@ -127,6 +140,9 @@ struct TodayWorkoutView: View {
             if viewModel.canStartWorkout, !viewModel.isLoading {
                 startWorkoutButton
             }
+        }
+        .sheet(isPresented: $showReorderSheet) {
+            ExerciseReorderSheet(viewModel: viewModel)
         }
         .sheet(isPresented: $showMonthlyReview) {
             if let key = activeReviewKey {
@@ -689,6 +705,26 @@ struct TodayWorkoutView: View {
             Text("\(plan.totalSets) sets")
                 .font(.tempoCaption1)
                 .foregroundStyle(Color.tempoTextSecondary)
+
+            Spacer()
+
+            // §2.15 — reorder entry point. Planned days only: mid-session
+            // reordering would fight currentExerciseIndex, and a completed
+            // day's order is history.
+            if plan.status == .planned, plan.orderedExercises.count > 1 {
+                Button {
+                    showReorderSheet = true
+                    HapticManager.selection()
+                } label: {
+                    HStack(spacing: TempoSpacing.xxs) {
+                        Image(systemName: "arrow.up.arrow.down")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text("Reorder")
+                            .font(.tempoCaption1)
+                    }
+                    .foregroundStyle(Color.tempoAmber)
+                }
+            }
         }
     }
 
@@ -1568,6 +1604,60 @@ struct TodayWorkoutView: View {
             return PerformanceTrend(symbol: "\u{2193}", color: Color.tempoRecoveryRed) // down arrow
         } else {
             return PerformanceTrend(symbol: "\u{2192}", color: Color.tempoTextTertiary) // right arrow
+        }
+    }
+}
+
+// MARK: - ExerciseReorderSheet (§2.15)
+
+/// Drag-to-reorder for today's planned exercises. A dedicated List because
+/// `.onMove` is List-only — the styled card stack in TodayWorkoutView can't
+/// host it. Order writes through `moveExercises` (which renumbers
+/// `PlannedExercise.order`) and persists immediately; moving one member of a
+/// superset out of adjacency deliberately splits that superset (grouping is
+/// consecutive-run based).
+private struct ExerciseReorderSheet: View {
+    @Bindable
+    var viewModel: TrainingViewModel
+    @Environment(\.modelContext)
+    private var modelContext
+    @Environment(\.dismiss)
+    private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(viewModel.todayPlan?.orderedExercises ?? [], id: \.id) { ex in
+                    HStack(spacing: TempoSpacing.sm) {
+                        Text(ex.exercise?.name ?? "Exercise")
+                            .font(.tempoBody)
+                            .foregroundStyle(Color.tempoTextPrimary)
+                        Spacer()
+                        if ex.supersetGroup != nil {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(Color.tempoSignal)
+                        }
+                    }
+                    .listRowBackground(Color.tempoSurfaceCard)
+                }
+                .onMove { source, destination in
+                    viewModel.moveExercises(from: source, to: destination)
+                    try? modelContext.save()
+                    HapticManager.selection()
+                }
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.tempoBgPrimary)
+            .environment(\.editMode, .constant(.active))
+            .navigationTitle("Reorder")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
         }
     }
 }

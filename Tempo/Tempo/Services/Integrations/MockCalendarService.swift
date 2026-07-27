@@ -58,6 +58,18 @@ final class MockCalendarService: CalendarServiceProtocol, @unchecked Sendable {
         return events
     }
 
+    func detectFootballEvents(in range: DateInterval) -> [CalendarEvent] {
+        detectFootballDays(in: range).map { day in
+            CalendarEvent(
+                title: "Football (mock)",
+                startDate: day,
+                endDate: day.addingTimeInterval(3600),
+                isAllDay: false,
+                calendarName: "Mock"
+            )
+        }
+    }
+
     func detectFootballDays(in range: DateInterval) -> [Date] {
         let calendar = Calendar.current
         var dates: [Date] = []
