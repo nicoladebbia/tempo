@@ -637,6 +637,12 @@ struct ActiveWorkoutView: View {
                     .frame(height: 150)
                     .background(Color.tempoSurfaceCard)
                     .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+                    // §11.6 — the whole-session progress ring rides the demo
+                    // card's corner: fill = completed/planned sets today.
+                    .overlay(alignment: .topTrailing) {
+                        sessionRing
+                            .padding(TempoSpacing.sm)
+                    }
 
                 Text(exercise.name.uppercased())
                     .font(.tempoTitle2)
@@ -649,6 +655,37 @@ struct ActiveWorkoutView: View {
             }
         }
         .padding(.top, TempoSpacing.md)
+        // Slide-in on exercise change — .id remounts the header so the
+        // asymmetric transition fires exactly once per movement.
+        .id(viewModel.currentExerciseIndex)
+        .transition(.asymmetric(
+            insertion: .move(edge: .trailing).combined(with: .opacity),
+            removal: .move(edge: .leading).combined(with: .opacity)
+        ))
+        .animation(.spring(duration: 0.45), value: viewModel.currentExerciseIndex)
+    }
+
+    /// Compact session ring: today's completed working sets over planned.
+    private var sessionRing: some View {
+        let total = max(1, viewModel.totalSets)
+        let fraction = Double(viewModel.completedSets) / Double(total)
+        return ZStack {
+            Circle()
+                .stroke(Color.tempoTextTertiary.opacity(0.2), lineWidth: 4)
+            Circle()
+                .trim(from: 0, to: fraction)
+                .stroke(Color.tempoAccent, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .animation(.spring(duration: 0.5), value: fraction)
+            Text("\(viewModel.completedSets)/\(viewModel.totalSets)")
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundStyle(Color.tempoTextPrimary)
+                .contentTransition(.numericText())
+        }
+        .frame(width: 46, height: 46)
+        .padding(6)
+        .background(Color.tempoBgPrimary.opacity(0.85))
+        .clipShape(Circle())
     }
 
     // MARK: - Set Progress
@@ -662,16 +699,22 @@ struct ActiveWorkoutView: View {
                     // array; a ForEach over `.indices` keeps a stale range
                     // and crashes (Index out of range) on the next render.
                     ForEach(Array(exercise.orderedSets.enumerated()), id: \.element.id) { idx, set in
-                        if set.isWarmup {
-                            // Warmup sets shown as smaller, outlined dots
-                            Circle()
-                                .stroke(setDotColor(set: set, index: idx), lineWidth: 1.5)
-                                .frame(width: 10, height: 10)
-                        } else {
-                            Circle()
-                                .fill(setDotColor(set: set, index: idx))
-                                .frame(width: 12, height: 12)
+                        Group {
+                            if set.isWarmup {
+                                // Warmup sets shown as smaller, outlined dots
+                                Circle()
+                                    .stroke(setDotColor(set: set, index: idx), lineWidth: 1.5)
+                                    .frame(width: 10, height: 10)
+                            } else {
+                                Circle()
+                                    .fill(setDotColor(set: set, index: idx))
+                                    .frame(width: 12, height: 12)
+                            }
                         }
+                        // §11.6 — the live dot breathes; completion springs.
+                        .scaleEffect(idx == viewModel.currentSetIndex ? 1.35 : 1)
+                        .animation(.spring(duration: 0.35), value: viewModel.currentSetIndex)
+                        .animation(.spring(duration: 0.35), value: set.completed)
                     }
                 }
             }

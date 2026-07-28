@@ -29,6 +29,17 @@ struct RestTimerView: View {
         .background(Color.tempoBgPrimary)
     }
 
+    /// Whole seconds left — drives the end-of-rest color shift and pulse.
+    private var secondsLeft: Int {
+        Int(viewModel.restTimerRemaining.rounded(.up))
+    }
+
+    /// §11.6 — dial goes amber for the final 10s so the color itself says
+    /// "get ready" without reading the number.
+    private var ringColor: Color {
+        secondsLeft <= 10 ? .tempoAmber : .tempoSignal
+    }
+
     @ViewBuilder
     private var restBody: some View {
         Group {
@@ -43,22 +54,28 @@ struct RestTimerView: View {
                 // Progress ring
                 Circle()
                     .trim(from: 0, to: viewModel.restTimerProgress)
-                    .stroke(Color.tempoSignal, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                    .stroke(ringColor, style: StrokeStyle(lineWidth: 8, lineCap: .round))
                     .frame(width: 200, height: 200)
                     .rotationEffect(.degrees(-90))
                     .animation(.linear(duration: 1), value: viewModel.restTimerProgress)
+                    .animation(.easeInOut(duration: 0.4), value: secondsLeft <= 10)
 
-                // Time display
+                // Time display — digits roll instead of blinking, and the
+                // final 5 seconds heartbeat-pulse the whole readout.
                 VStack(spacing: TempoSpacing.xxs) {
                     Text(viewModel.formattedRestTimer)
                         .font(.tempoDataLarge)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .foregroundStyle(secondsLeft <= 10 ? Color.tempoAmber : Color.tempoTextPrimary)
                         .monospacedDigit()
+                        .contentTransition(.numericText(countsDown: true))
+                        .animation(.snappy(duration: 0.3), value: viewModel.formattedRestTimer)
 
                     Text("REST")
                         .font(.tempoCaption1)
                         .foregroundStyle(Color.tempoTextTertiary)
                 }
+                .scaleEffect(secondsLeft <= 5 && secondsLeft > 0 && secondsLeft % 2 == 1 ? 1.08 : 1.0)
+                .animation(.spring(duration: 0.5), value: secondsLeft)
             }
 
             // Inline "how was that set?" — edits the eagerly-created feedback
