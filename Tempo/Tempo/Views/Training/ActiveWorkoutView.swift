@@ -424,6 +424,26 @@ struct ActiveWorkoutView: View {
                         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
                 }
                 .padding(.horizontal, TempoSpacing.screenEdge)
+
+                // §2.16 — skip without logging. On a warmup set one tap drops
+                // the whole remaining ramp; on a working set it skips just
+                // this set. No rest either way.
+                Button {
+                    if currentSetIsWarmup {
+                        viewModel.skipRemainingWarmups(modelContext: modelContext)
+                    } else {
+                        viewModel.skipCurrentSet(modelContext: modelContext)
+                    }
+                } label: {
+                    Text(currentSetIsWarmup ? "Skip Warm-Up — I'm Ready" : "Skip Set")
+                        .font(.tempoSubheadline)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(Color.tempoBgSecondary)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+                }
+                .padding(.horizontal, TempoSpacing.screenEdge)
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.vertical, TempoSpacing.lg)

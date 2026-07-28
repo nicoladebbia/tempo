@@ -188,6 +188,26 @@ final class SwapAddExerciseTests: XCTestCase {
                        "The movement being swapped is not its own alternative")
     }
 
+    // MARK: - Warmup ramp placement (§2.16)
+
+    func testSecondCompoundGetsSingleFeelSetNotFullRamp() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let (plan, _) = seedPlan(with: bench(), context: context)
+        vm.todayPlan = plan
+        let incline = Exercise(name: "Incline Press", muscleGroup: .chest,
+                               equipment: .barbell, movementPattern: .horizontalPush, isCompound: true)
+        context.insert(incline)
+
+        vm.addExercise(incline, modelContext: context)
+
+        let slot = try XCTUnwrap(plan.orderedExercises.first { $0.exercise?.name == "Incline Press" })
+        let warmups = slot.orderedSets.filter(\.isWarmup)
+        XCTAssertEqual(warmups.count, 1,
+                       "A compound after another compound works warm muscle — one feel set")
+        XCTAssertEqual(warmups.first?.targetWeight, 60, "75% of the 80 kg working weight")
+    }
+
     // MARK: - Preferred swaps (§2.13b — the planner learns your machines)
 
     private func profile(_ context: ModelContext) -> AdaptiveProfile {

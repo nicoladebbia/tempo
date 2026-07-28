@@ -138,6 +138,11 @@ extension TrainingViewModel {
         // signed added-load suggestion per set. Fetched once per build.
         let bodyweightKg = currentBodyweightKg(modelContext: modelContext)
 
+        // §2.16 — only the FIRST compound of the session earns the full
+        // 50%/75% ramp (cold muscle, heaviest risk). Later compounds work
+        // already-warm tissue: one 75% feel set. Isolations get none.
+        var rampGiven = false
+
         for (index, exercise) in selected.enumerated() {
             let baseNumSets: Int
             if exercise.isCompound {
@@ -242,33 +247,23 @@ extension TrainingViewModel {
             // bodyweight load is not a loadable warmup (you can't do half a
             // pull-up); those warm up with assistance or bodyweight reps instead.
             if exercise.isCompound, roundedWeight > 0, !isBodyweightLift {
-                // Warmup set 1: 50% working weight, same reps
-                let warmup1Weight = WeightConverter.loadableKg(
-                    roundedWeight * 0.5, equipment: exercise.equipment, unit: unit
-                )
-                let ws1 = PlannedSet(
-                    setNumber: setNum,
-                    targetReps: reps,
-                    targetWeight: warmup1Weight,
-                    isWarmup: true,
-                    plannedExercise: planned
-                )
-                plannedSets.append(ws1)
-                setNum += 1
-
-                // Warmup set 2: 75% working weight, same reps
-                let warmup2Weight = WeightConverter.loadableKg(
-                    roundedWeight * 0.75, equipment: exercise.equipment, unit: unit
-                )
-                let ws2 = PlannedSet(
-                    setNumber: setNum,
-                    targetReps: reps,
-                    targetWeight: warmup2Weight,
-                    isWarmup: true,
-                    plannedExercise: planned
-                )
-                plannedSets.append(ws2)
-                setNum += 1
+                // First compound: full 50%/75% ramp. Later compounds: one
+                // 75% feel set — the muscle is already warm.
+                let fractions = rampGiven ? [0.75] : [0.5, 0.75]
+                rampGiven = true
+                for fraction in fractions {
+                    let warmupWeight = WeightConverter.loadableKg(
+                        roundedWeight * fraction, equipment: exercise.equipment, unit: unit
+                    )
+                    plannedSets.append(PlannedSet(
+                        setNumber: setNum,
+                        targetReps: reps,
+                        targetWeight: warmupWeight,
+                        isWarmup: true,
+                        plannedExercise: planned
+                    ))
+                    setNum += 1
+                }
             }
 
             // Working sets
@@ -811,7 +806,14 @@ extension TrainingViewModel {
         var sets: [PlannedSet] = []
         var setNum = 1
         if exercise.isCompound, rounded > 0, !isBodyweightLift {
-            for fraction in [0.5, 0.75] {
+            // §2.16 — full 50%/75% ramp only when this is the plan's FIRST
+            // compound; a swap/add landing after another compound works warm
+            // muscle and gets one 75% feel set.
+            let earlierCompoundExists = plan.orderedExercises.contains {
+                $0.order < plannedExercise.order && $0.exercise?.isCompound == true
+                    && $0.exercise?.id != exercise.id
+            }
+            for fraction in earlierCompoundExists ? [0.75] : [0.5, 0.75] {
                 let warmupWeight = WeightConverter.loadableKg(
                     rounded * fraction, equipment: exercise.equipment, unit: unit
                 )

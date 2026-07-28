@@ -1821,6 +1821,93 @@ final class TrainingViewModel {
         }
     }
 
+    // MARK: - Skip set / warmup (§2.16)
+
+    /// Skip the current set without logging it. The set is REMOVED from the
+    /// plan — an unperformed set must not linger uncompleted (the superset
+    /// flow would loop back to it and the completion ring could never
+    /// close). No rest starts: skipping isn't work.
+    func skipCurrentSet(modelContext: ModelContext) {
+        guard case .exercise(.setActive) = sessionState, let plan = todayPlan else {
+            return
+        }
+        let exercises = plan.orderedExercises
+        guard currentExerciseIndex < exercises.count else {
+            return
+        }
+        let slot = exercises[currentExerciseIndex]
+        let sets = slot.orderedSets
+        guard currentSetIndex < sets.count, !sets[currentSetIndex].completed else {
+            return
+        }
+        modelContext.delete(sets[currentSetIndex])
+        try? modelContext.save()
+        advanceAfterSkip(in: slot, plan: plan)
+    }
+
+    /// One tap drops the exercise's remaining warmup ramp ("already warm")
+    /// and lands on the first working set.
+    func skipRemainingWarmups(modelContext: ModelContext) {
+        guard case .exercise(.setActive) = sessionState, let plan = todayPlan else {
+            return
+        }
+        let exercises = plan.orderedExercises
+        guard currentExerciseIndex < exercises.count else {
+            return
+        }
+        let slot = exercises[currentExerciseIndex]
+        let doomed = slot.orderedSets.filter { $0.isWarmup && !$0.completed }
+        guard !doomed.isEmpty else {
+            return
+        }
+        for set in doomed {
+            modelContext.delete(set)
+        }
+        try? modelContext.save()
+        advanceAfterSkip(in: slot, plan: plan)
+    }
+
+    /// Land on the next real work after a skip: same exercise's next
+    /// uncompleted set, else the superset partner's, else the next exercise
+    /// that still has one, else summary. Mirrors logSet's routing minus the
+    /// rest timer.
+    private func advanceAfterSkip(in slot: PlannedExercise, plan: WorkoutPlan) {
+        let exercises = plan.orderedExercises
+        if let next = firstUncompletedSetIndex(in: slot) {
+            currentSetIndex = next
+            sessionState = .exercise(.setActive(
+                exerciseIndex: currentExerciseIndex, setIndex: next
+            ))
+            HapticManager.selection()
+            return
+        }
+        if let partnerIdx = supersetPartnerIndex(of: currentExerciseIndex),
+           let partnerSet = firstUncompletedSetIndex(in: exercises[partnerIdx]) {
+            currentExerciseIndex = partnerIdx
+            currentSetIndex = partnerSet
+            sessionState = .exercise(.setActive(
+                exerciseIndex: partnerIdx, setIndex: partnerSet
+            ))
+            HapticManager.selection()
+            return
+        }
+        var candidate = currentExerciseIndex + 1
+        while candidate < exercises.count {
+            if let setIdx = firstUncompletedSetIndex(in: exercises[candidate]) {
+                currentExerciseIndex = candidate
+                currentSetIndex = setIdx
+                sessionState = .exercise(.setActive(
+                    exerciseIndex: candidate, setIndex: setIdx
+                ))
+                HapticManager.selection()
+                return
+            }
+            candidate += 1
+        }
+        stopElapsedTimer()
+        sessionState = .summary
+    }
+
     /// Write-through update for the inline set-feedback panel. Every field
     /// change persists immediately so the record survives the rest timer
     /// auto-advancing or the user skipping rest. Mirrors RPE onto the set so
