@@ -33,6 +33,7 @@ struct ProgressChartsView: View {
     private var selectedTab: ProgressTab = .overview
 
     enum ProgressTab: String, CaseIterable {
+        case lab = "Lab"
         case overview = "Overview"
         case exercises = "Exercises"
         case muscles = "Muscles"
@@ -66,6 +67,10 @@ struct ProgressChartsView: View {
 
                 ScrollView(.vertical, showsIndicators: false) {
                     switch selectedTab {
+                    case .lab:
+                        // §11.2 — the interactive Strength Lab (scrubbable
+                        // e1RM curve, PR stars, compare lift, volume bars).
+                        StrengthProgressLabView()
                     case .overview:
                         overviewTab
                     case .exercises:
