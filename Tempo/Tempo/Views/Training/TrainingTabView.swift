@@ -68,6 +68,12 @@ struct TrainingTabView: View {
                         }
 
                         NavigationLink {
+                            MuscleHeatmapView()
+                        } label: {
+                            Label("Muscle Map", systemImage: "figure.arms.open")
+                        }
+
+                        NavigationLink {
                             WorkoutHistoryView()
                         } label: {
                             Label("History", systemImage: "clock.arrow.circlepath")
