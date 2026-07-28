@@ -35,6 +35,14 @@ struct WeekPlanView: View {
     /// Aligned Mon..Sun slots for a non-zero offset; nil slot = no data that day.
     @State
     private var offWeekSlots: [WorkoutPlan?] = []
+    /// §11.6 Week Pulse — the scrubbed day (0 = Mon). Scrubbing also expands
+    /// that day's detail card below.
+    @State
+    private var pulseIndex: Int?
+    @State
+    private var pulseGestureStart: Int?
+    @Query
+    private var userSettings: [UserSettings]
 
     private static let historyWeeksBack = 8
 
@@ -46,6 +54,10 @@ struct WeekPlanView: View {
             VStack(spacing: TempoSpacing.xl) {
                 // Week header
                 weekHeader
+
+                // §11.6 — scrubbable volume-pulse strip: drag across the week
+                // to inspect any day; the day's card expands in sync.
+                weekPulse
 
                 // Live-week-only context cards — a history/preview week must
                 // not wear this week's deload banner or coach review.
@@ -119,6 +131,10 @@ struct WeekPlanView: View {
         }
         .onAppear {
             viewModel.loadWeekPlan(modelContext: modelContext)
+        }
+        .onChange(of: weekOffset) {
+            // A different week is different data — drop the scrub selection.
+            pulseIndex = nil
         }
     }
 
@@ -241,6 +257,163 @@ struct WeekPlanView: View {
             .disabled(weekOffset >= 1)
         }
         .padding(.top, TempoSpacing.md)
+    }
+
+    // MARK: - Week Pulse (§11.6)
+
+    private var weightUnit: WeightUnit {
+        userSettings.first?.weightUnit ?? .kg
+    }
+
+    /// A day's training load: completed days report real logged volume;
+    /// planned days report the prescription (target weight × target reps,
+    /// working sets only) so the strip previews the week's shape.
+    private func dayVolume(_ plan: WorkoutPlan) -> Double {
+        if plan.status == .completed {
+            return plan.totalVolume
+        }
+        return (plan.exercises ?? []).reduce(0) { total, ex in
+            total + (ex.sets ?? []).reduce(0) { setTotal, set in
+                guard !set.isWarmup else {
+                    return setTotal
+                }
+                let weight = set.actualWeight ?? set.targetWeight ?? 0
+                let reps = set.actualReps ?? set.targetReps
+                return setTotal + (weight * Double(reps))
+            }
+        }
+    }
+
+    private func volumeLabel(_ kg: Double) -> String {
+        let value = WeightUnit.kg.convert(kg, to: weightUnit)
+        if value >= 10_000 {
+            return String(format: "%.1fk %@", value / 1000, weightUnit.abbreviation)
+        }
+        return String(format: "%.0f %@", value, weightUnit.abbreviation)
+    }
+
+    private var weekPulse: some View {
+        let volumes = displayedSlots.map { $0.map(dayVolume) ?? 0 }
+        let peak = max(volumes.max() ?? 0, 1)
+
+        return VStack(spacing: TempoSpacing.sm) {
+            if let idx = pulseIndex {
+                pulseCallout(index: idx)
+            }
+
+            GeometryReader { geo in
+                let slotWidth = geo.size.width / 7
+                HStack(alignment: .bottom, spacing: TempoSpacing.xs) {
+                    ForEach(0 ..< 7, id: \.self) { idx in
+                        pulseBar(
+                            plan: displayedSlots[safe: idx] ?? nil,
+                            volume: volumes[safe: idx] ?? 0,
+                            peak: peak,
+                            isSelected: pulseIndex == idx
+                        )
+                    }
+                }
+                .frame(maxHeight: .infinity, alignment: .bottom)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            if pulseGestureStart == nil {
+                                pulseGestureStart = pulseIndex
+                            }
+                            let idx = min(6, max(0, Int(value.location.x / slotWidth)))
+                            if pulseIndex != idx {
+                                pulseIndex = idx
+                                HapticManager.selection()
+                                if let plan = displayedSlots[safe: idx] ?? nil {
+                                    expandedPlanID = plan.id
+                                }
+                            }
+                        }
+                        .onEnded { value in
+                            // A stationary tap on the already-selected day
+                            // collapses the scrub.
+                            let idx = min(6, max(0, Int(value.location.x / slotWidth)))
+                            if abs(value.translation.width) < 4, pulseGestureStart == idx {
+                                pulseIndex = nil
+                                expandedPlanID = nil
+                            }
+                            pulseGestureStart = nil
+                        }
+                )
+            }
+            .frame(height: 72)
+        }
+        .animation(.spring(duration: 0.3), value: pulseIndex)
+    }
+
+    private func pulseBar(plan: WorkoutPlan?, volume: Double, peak: Double, isSelected: Bool) -> some View {
+        let hasLoad = volume > 0
+        let height = hasLoad ? 12 + 56 * (volume / peak) : 8
+        let color: Color = {
+            guard let plan else {
+                return Color.tempoTextTertiary.opacity(0.25)
+            }
+            if !hasLoad {
+                // Non-lifting days (football, run, rest) — a neutral stub.
+                return Color.tempoTextTertiary.opacity(0.4)
+            }
+            let base = recoveryDotColor(plan: plan)
+            return plan.status == .completed ? base : base.opacity(0.45)
+        }()
+
+        return VStack(spacing: 0) {
+            Capsule()
+                .fill(color)
+                .frame(height: height)
+                .overlay(
+                    Capsule().stroke(
+                        isSelected ? Color.tempoTextPrimary : Color.clear,
+                        lineWidth: 1.5
+                    )
+                )
+        }
+        .frame(maxWidth: .infinity)
+        .scaleEffect(isSelected ? 1.08 : 1.0, anchor: .bottom)
+    }
+
+    @ViewBuilder
+    private func pulseCallout(index: Int) -> some View {
+        HStack(spacing: TempoSpacing.sm) {
+            if let plan = displayedSlots[safe: index] ?? nil {
+                Circle()
+                    .fill(recoveryDotColor(plan: plan))
+                    .frame(width: 8, height: 8)
+                Text(dayName(for: plan.date))
+                    .font(.tempoHeadline)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                Text(workoutAbbreviation(plan.type))
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                Spacer()
+                if dayVolume(plan) > 0 {
+                    Text(volumeLabel(dayVolume(plan)))
+                        .font(.tempoHeadline)
+                        .foregroundStyle(Color.tempoAccent)
+                        .monospacedDigit()
+                }
+                if plan.totalSets > 0 {
+                    Text("\(plan.completedSets)/\(plan.totalSets) sets")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                }
+            } else {
+                Text("\(dayAbbreviations[safe: index] ?? "") — no data")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextTertiary)
+                Spacer()
+            }
+        }
+        .padding(.horizontal, TempoSpacing.md)
+        .padding(.vertical, TempoSpacing.sm)
+        .background(Color.tempoSurfaceCard)
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+        .transition(.opacity.combined(with: .move(edge: .bottom)))
     }
 
     // MARK: - Deload Banner
