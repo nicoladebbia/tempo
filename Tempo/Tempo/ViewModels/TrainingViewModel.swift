@@ -1356,14 +1356,24 @@ final class TrainingViewModel {
                 try? modelContext.save()
             }
             // Backstop for EVERY path that can leave a still-planned gym row
-            // without exercises (e.g. the daily coach flipping football → upper
-            // on a row that never had any): a kept gym plan must be startable.
-            // populateExercises is a no-op when exercises already exist.
-            if existing.status == .planned, existing.type.isGymWorkout,
-               existing.orderedExercises.isEmpty {
-                populateExercises(for: existing, modelContext: modelContext)
-                snapPrescribedWeights(for: existing, modelContext: modelContext)
-                try? modelContext.save()
+            // unstartable: no exercises at all (coach flipped football → upper
+            // on a bare row), or exercises whose sets are missing/warmup-only
+            // (§11.13 — landing on one froze the session). A planned row holds
+            // no logged training, so wiping and rebuilding loses nothing.
+            if existing.status == .planned, existing.type.isGymWorkout {
+                let broken = existing.orderedExercises.isEmpty
+                    || existing.orderedExercises.contains { pe in
+                        !(pe.sets ?? []).contains { !$0.isWarmup }
+                    }
+                if broken {
+                    for pe in existing.orderedExercises {
+                        modelContext.delete(pe)
+                    }
+                    existing.exercises = []
+                    populateExercises(for: existing, modelContext: modelContext)
+                    snapPrescribedWeights(for: existing, modelContext: modelContext)
+                    try? modelContext.save()
+                }
             }
             return ResolvedTodayPlan(plan: existing, isCrashedInProgress: false)
         }
@@ -1628,7 +1638,36 @@ final class TrainingViewModel {
         elapsedSeconds = 0
         totalPauseDuration = 0
         startElapsedTimer()
-        sessionState = .exercise(.setActive(exerciseIndex: 0, setIndex: firstWorkingIndex))
+        // §11.13 — never land on an exercise with no sets (Finish Set would
+        // have nothing to log and the session would freeze).
+        if sets.isEmpty {
+            recoverFromEmptyExercise(startingAt: 0)
+        } else {
+            sessionState = .exercise(.setActive(exerciseIndex: 0, setIndex: firstWorkingIndex))
+        }
+    }
+
+    /// §11.13 — a planned exercise can arrive with ZERO sets (corrupted or
+    /// legacy rows). Landing on one froze the session: Finish Set and Skip
+    /// had nothing to act on and silently returned. Jump to the next exercise
+    /// that still has an uncompleted set, or wrap the session when none does.
+    func recoverFromEmptyExercise(startingAt startIndex: Int? = nil) {
+        guard let plan = todayPlan else {
+            return
+        }
+        let exercises = plan.orderedExercises
+        var idx = startIndex ?? (currentExerciseIndex + 1)
+        while idx < exercises.count {
+            if let setIdx = firstUncompletedSetIndex(in: exercises[idx]) {
+                currentExerciseIndex = idx
+                currentSetIndex = setIdx
+                sessionState = .exercise(.setActive(exerciseIndex: idx, setIndex: setIdx))
+                return
+            }
+            idx += 1
+        }
+        stopElapsedTimer()
+        sessionState = .summary
     }
 
     // MARK: - Resume from Crash Recovery
@@ -1707,6 +1746,11 @@ final class TrainingViewModel {
         let sets = plannedExercise.orderedSets
 
         guard currentSetIndex < sets.count else {
+            // §11.13 — an empty exercise means the tap must MOVE the session,
+            // not silently die.
+            if sets.isEmpty {
+                recoverFromEmptyExercise()
+            }
             return
         }
 
@@ -1857,6 +1901,10 @@ final class TrainingViewModel {
         let slot = exercises[currentExerciseIndex]
         let sets = slot.orderedSets
         guard currentSetIndex < sets.count, !sets[currentSetIndex].completed else {
+            // §11.13 — same self-heal as logSet: an empty exercise moves on.
+            if sets.isEmpty {
+                recoverFromEmptyExercise()
+            }
             return
         }
         modelContext.delete(sets[currentSetIndex])
@@ -2113,12 +2161,18 @@ final class TrainingViewModel {
                 // Short delay for transition animation, then advance
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(300))
-                    currentExerciseIndex = nextIndex
-                    currentSetIndex = 0
-                    sessionState = .exercise(.setActive(
-                        exerciseIndex: nextIndex,
-                        setIndex: 0
-                    ))
+                    // §11.13 — the next slot may hold no sets; land on the
+                    // first one that does instead of freezing there.
+                    if exercises[nextIndex].orderedSets.isEmpty {
+                        recoverFromEmptyExercise(startingAt: nextIndex)
+                    } else {
+                        currentExerciseIndex = nextIndex
+                        currentSetIndex = 0
+                        sessionState = .exercise(.setActive(
+                            exerciseIndex: nextIndex,
+                            setIndex: 0
+                        ))
+                    }
                 }
             } else {
                 // Workout complete after the last inter-exercise rest.

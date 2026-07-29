@@ -35,6 +35,9 @@ struct ActiveWorkoutView: View {
     private var inputAddedLoad: Double = 0
     @State
     private var showFinishConfirmation = false
+    /// §11.13 — "How to" sheet: full exercise detail from the set screen.
+    @State
+    private var showHowTo = false
     @Query
     private var allSettings: [UserSettings]
     @Query
@@ -211,6 +214,13 @@ struct ActiveWorkoutView: View {
         } message: {
             Text("Save keeps the sets you've logged. Discard throws this session away — the day stays open to redo.")
         }
+        .sheet(isPresented: $showHowTo) {
+            if let exercise = viewModel.currentExercise?.exercise {
+                NavigationStack {
+                    ExerciseDetailView(exercise: exercise)
+                }
+            }
+        }
         .onAppear { loadCurrentSetInputs() }
         // NOTE: cover teardown on .discarded is owned SOLELY by TrainingTabView
         // (it owns showActiveWorkout). No child dismiss() here — two owners
@@ -345,6 +355,8 @@ struct ActiveWorkoutView: View {
             Spacer(minLength: 0)
 
             setProgress
+
+            upNextLine
 
             actionRow
         }
@@ -695,32 +707,56 @@ struct ActiveWorkoutView: View {
 
     // MARK: - Exercise Header
 
-    // §11.7 — compact header row: 64pt demo thumb, name + muscle/set line,
-    // session ring. The old 150pt card + centered titles ate a third of the
-    // screen; this says the same in one row.
+    // §11.13 rework — the demo picture is the hero again: full-width 150pt
+    // card, name + muscle/set line on a bottom gradient, session ring
+    // top-right, and a "How to" button opening the full exercise detail
+    // (instructions + cues) without spending page height on them.
     private var exerciseHeader: some View {
-        HStack(spacing: TempoSpacing.md) {
+        Group {
             if let exercise = viewModel.currentExercise?.exercise {
-                ExerciseDemoImage(demoAsset: exercise.demoAsset, muscleGroup: exercise.muscleGroup, symbolSize: 24)
-                    .frame(width: 64, height: 64)
+                ExerciseDemoImage(demoAsset: exercise.demoAsset, muscleGroup: exercise.muscleGroup, symbolSize: 48)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 150)
                     .background(Color.tempoSurfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(exercise.name.uppercased())
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.8)
-                    Text("\(exercise.muscleGroup.displayName) · \(viewModel.setCountText)")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .contentTransition(.numericText())
-                }
-
-                Spacer(minLength: TempoSpacing.sm)
-
-                sessionRing
+                    .overlay(
+                        LinearGradient(
+                            colors: [.clear, .clear, Color.black.opacity(0.8)],
+                            startPoint: .top, endPoint: .bottom
+                        )
+                    )
+                    .overlay(alignment: .bottomLeading) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(exercise.name.uppercased())
+                                .font(.tempoTitle3)
+                                .foregroundStyle(.white)
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.75)
+                            Text("\(exercise.muscleGroup.displayName) · \(viewModel.setCountText)")
+                                .font(.tempoCaption1)
+                                .foregroundStyle(.white.opacity(0.85))
+                                .contentTransition(.numericText())
+                        }
+                        .padding(TempoSpacing.md)
+                    }
+                    .overlay(alignment: .topTrailing) {
+                        sessionRing
+                            .padding(TempoSpacing.sm)
+                    }
+                    .overlay(alignment: .topLeading) {
+                        Button {
+                            showHowTo = true
+                        } label: {
+                            Label("How to", systemImage: "info.circle.fill")
+                                .font(.tempoCaption1)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, TempoSpacing.sm)
+                                .padding(.vertical, 6)
+                                .background(Color.black.opacity(0.45))
+                                .clipShape(Capsule())
+                        }
+                        .padding(TempoSpacing.sm)
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
             }
         }
         // Slide-in on exercise change — .id remounts the header so the
@@ -731,6 +767,32 @@ struct ActiveWorkoutView: View {
             removal: .move(edge: .leading).combined(with: .opacity)
         ))
         .animation(.spring(duration: 0.45), value: viewModel.currentExerciseIndex)
+    }
+
+    /// §11.13 — what's coming after this exercise, visible WHILE lifting
+    /// (the rest screen already previews it; the set screen didn't).
+    private var upNextLine: some View {
+        HStack(spacing: TempoSpacing.xs) {
+            Text("UP NEXT")
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextTertiary)
+            Text(upNextName ?? "Last exercise — finish strong")
+                .font(.tempoCaption1)
+                .fontWeight(.semibold)
+                .foregroundStyle(Color.tempoTextSecondary)
+                .lineLimit(1)
+            Spacer()
+        }
+    }
+
+    private var upNextName: String? {
+        guard let plan = viewModel.todayPlan else {
+            return nil
+        }
+        let exercises = plan.orderedExercises
+        return exercises.indices
+            .first { $0 > viewModel.currentExerciseIndex && !exercises[$0].orderedSets.isEmpty }
+            .flatMap { exercises[$0].exercise?.name }
     }
 
     /// Compact session ring: today's completed working sets over planned.

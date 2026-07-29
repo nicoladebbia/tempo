@@ -87,9 +87,19 @@ struct ScheduleEditorView: View {
                             Text(split.displayName).tag(split)
                         }
                     } label: {
-                        Label("Split", systemImage: "dumbbell.fill")
-                            .font(.tempoSubheadline)
+                        // Explicit colors — an unstyled Label picks up the
+                        // ambient accent and flip-flopped red↔blue whenever a
+                        // day toggle re-rendered the sheet.
+                        Label {
+                            Text("Split")
+                                .font(.tempoSubheadline)
+                                .foregroundStyle(Color.tempoTextPrimary)
+                        } icon: {
+                            Image(systemName: "dumbbell.fill")
+                                .foregroundStyle(Color.tempoSignal)
+                        }
                     }
+                    .tint(Color.tempoSignal)
                 }
                 .listRowBackground(Color.tempoSurfaceCard)
             }
