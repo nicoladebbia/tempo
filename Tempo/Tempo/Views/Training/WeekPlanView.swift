@@ -43,6 +43,14 @@ struct WeekPlanView: View {
     private var pulseGestureStart: Int?
     @Query
     private var userSettings: [UserSettings]
+    @Query
+    private var allMatches: [Match]
+
+    /// Matches management only makes sense for someone who plays: football
+    /// days configured, or matches already logged. Everyone else never sees it.
+    private var playsFootball: Bool {
+        (userSettings.first?.footballDaysRaw ?? 0) != 0 || !allMatches.isEmpty
+    }
 
     private static let historyWeeksBack = 8
 
@@ -104,13 +112,15 @@ struct WeekPlanView: View {
                         .foregroundStyle(Color.tempoSignal)
                 }
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showMatchSchedule = true
-                } label: {
-                    Label("Matches", systemImage: "calendar")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoSignal)
+            if playsFootball {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showMatchSchedule = true
+                    } label: {
+                        Label("Matches", systemImage: "calendar")
+                            .font(.tempoBody)
+                            .foregroundStyle(Color.tempoSignal)
+                    }
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
