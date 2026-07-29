@@ -53,6 +53,8 @@ struct ContentView: View {
 
     /// Creates a UserProfile from onboarding data if one doesn't exist yet.
     private func ensureUserProfile() {
+        // Runs every launch (cheap when there's nothing to heal).
+        dedupeUserSettings()
         let descriptor = FetchDescriptor<UserProfile>()
         guard (try? modelContext.fetchCount(descriptor)) == 0 else {
             return
@@ -96,6 +98,40 @@ struct ContentView: View {
         }
 
         try? modelContext.save()
+    }
+
+    /// Self-healing: collapse duplicate UserSettings rows into one canonical
+    /// row. Three creation sites exist (onboarding, AI-meals settings, coach
+    /// interview) and every reader does an UNSORTED `.first` — with two rows,
+    /// two screens can each pick a different one (the Settings page showed
+    /// football days while the schedule editor showed none). Union the
+    /// football bitmask, prefer configured values over defaults, delete extras.
+    private func dedupeUserSettings() {
+        let all = (try? modelContext.fetch(FetchDescriptor<UserSettings>())) ?? []
+        guard all.count > 1 else {
+            return
+        }
+        let survivor = all.first { $0.userProfile != nil }
+            ?? all.max { $0.footballDaysRaw.nonzeroBitCount < $1.footballDaysRaw.nonzeroBitCount }
+            ?? all[0]
+        for dupe in all where dupe !== survivor {
+            survivor.footballDaysRaw |= dupe.footballDaysRaw
+            if survivor.trainingSplitRaw == TrainingSplit.pushPullLegs.rawValue,
+               dupe.trainingSplitRaw != TrainingSplit.pushPullLegs.rawValue {
+                survivor.trainingSplitRaw = dupe.trainingSplitRaw
+            }
+            if survivor.experienceLevelRaw == nil {
+                survivor.experienceLevelRaw = dupe.experienceLevelRaw
+            }
+            if survivor.userProfile == nil {
+                survivor.userProfile = dupe.userProfile
+            }
+            modelContext.delete(dupe)
+        }
+        try? modelContext.save()
+        #if DEBUG
+            print("[Settings] deduped UserSettings: \(all.count) rows → 1")
+        #endif
     }
 
     private var mainTabView: some View {
