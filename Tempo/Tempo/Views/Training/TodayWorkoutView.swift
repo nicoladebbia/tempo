@@ -1239,18 +1239,45 @@ struct TodayWorkoutView: View {
     // run, sprint, conditioning. These have no exercises/sets to log, so there
     // is no "Start Workout" button; this card just tells the user what today is.
     private func nonGymContent(plan: WorkoutPlan) -> some View {
-        VStack(spacing: TempoSpacing.xxl) {
-            Spacer().frame(height: TempoSpacing.xxxl)
-
-            TimelineView(.everyMinute) { context in
-                Text(context.date, format: .dateTime.weekday(.wide).month(.wide).day())
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+        // §11.7 — compact: the old xxl spacing + top spacer + 60pt icon pushed
+        // half the content below the fold; one screen, no dead air.
+        VStack(spacing: TempoSpacing.md) {
+            // Day header as one compact row: icon + type + date.
+            HStack(spacing: TempoSpacing.sm) {
+                Image(systemName: nonGymIcon(for: plan.type))
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(Color.tempoTextSecondary)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(plan.type.displayName.uppercased())
+                        .font(.tempoTitle2)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                    TimelineView(.everyMinute) { context in
+                        Text(context.date, format: .dateTime.weekday(.wide).month(.wide).day())
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                    }
+                }
+                Spacer()
+                if let nextType = nextWorkoutType {
+                    VStack(alignment: .trailing, spacing: 0) {
+                        Text("TOMORROW")
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                        Text(nextType.uppercased())
+                            .font(.tempoCaption1)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.tempoTextPrimary)
+                    }
+                }
             }
+            .padding(.horizontal, TempoSpacing.lg)
+            .padding(.top, TempoSpacing.sm)
 
-            Text(plan.type.displayName.uppercased())
-                .font(.tempoTitle1)
-                .foregroundStyle(Color.tempoTextPrimary)
+            Text(nonGymMessage(for: plan.type))
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoTextSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, TempoSpacing.lg)
 
             // §16 — venue propose-confirm, same placement as the gym path.
             VenueProposalCard()
@@ -1259,28 +1286,6 @@ struct TodayWorkoutView: View {
             // (modality/intensity/why + blocks with cues; there's no exercise list).
             if let session = viewModel.dailySession {
                 dailySessionCard(session)
-            }
-
-            Image(systemName: nonGymIcon(for: plan.type))
-                .font(.system(size: 60))
-                .foregroundStyle(Color.tempoTextTertiary)
-
-            VStack(spacing: TempoSpacing.sm) {
-                Text(nonGymMessage(for: plan.type))
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .multilineTextAlignment(.center)
-
-                if let nextType = nextWorkoutType {
-                    VStack(spacing: TempoSpacing.xxs) {
-                        Text("Next workout: Tomorrow")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                        Text(nextType.uppercased())
-                            .font(.tempoHeadline)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                    }
-                }
             }
 
             // §10 — a mobility DAY gets the guided flows as its session (the

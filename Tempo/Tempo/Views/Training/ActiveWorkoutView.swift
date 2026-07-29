@@ -262,76 +262,18 @@ struct ActiveWorkoutView: View {
 
     // Per MODULE_TRAINING.md Section 3 — Weight/reps inputs, DONE button
 
+    // §11.7 rework — a single-screen cockpit: compact header, one-line alert
+    // chips, LAST/TARGET/BEST context from real history, steppers, dots, and
+    // a Skip+Finish action row. No ScrollView: everything fits one page.
     private var setActiveContent: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.xl) {
-                // Ramp-up banner — makes it unmistakable that this is a warm-up
-                // set (not a working set), on EVERY exercise that has them
-                // (e.g. Lat Pulldown), not just the first.
-                if currentSetIsWarmup {
-                    VStack(spacing: TempoSpacing.xxs) {
-                        Text("RAMP-UP SET")
-                            .font(.tempoCaption1)
-                            .tracking(TempoTracking.drillLabel)
-                            .foregroundStyle(Color.tempoSignal)
-                        Text("Warm up to your working weight — these don't count toward your sets.")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(TempoSpacing.sm)
-                    .background(Color.tempoSignal.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-                }
+        VStack(spacing: TempoSpacing.md) {
+            exerciseHeader
 
-                // Tier 2.3 — pain caution: a recent note flagged this exercise.
-                if let exID = viewModel.currentExercise?.exercise?.id,
-                   viewModel.painFlaggedExercises.contains(exID) {
-                    HStack(spacing: TempoSpacing.xs) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(Color.tempoWarning)
-                        Text("You noted pain here recently — weight held, go easy and stop if it hurts.")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(TempoSpacing.sm)
-                    .background(Color.tempoWarning.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-                }
+            alertChips
 
-                // §6 superset banner — the pair alternates with no rest inside
-                // it; the one rest comes after the second lift.
-                if let partner = viewModel.currentSupersetPartnerName {
-                    HStack(spacing: TempoSpacing.xs) {
-                        Image(systemName: "arrow.triangle.2.circlepath")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(Color.tempoSignal)
-                        Text("Superset with \(partner) — no rest between the pair.")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(TempoSpacing.sm)
-                    .background(Color.tempoSignal.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-                }
+            contextStrip
 
-                // Exercise info
-                exerciseHeader
-
-                // Set counter
-                Text(viewModel.setCountText)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-
-                if isBodyweightLift {
+            if isBodyweightLift {
                     // Bodyweight-loaded lift (pull-up/dip): log a SIGNED added
                     // load — negative = assistance (band/machine), positive =
                     // weight belt/vest. Effective load = bodyweight ± this.
@@ -387,66 +329,180 @@ struct ActiveWorkoutView: View {
                     )
                 }
 
-                // RPE is collected end-of-set in the inline feedback panel
-                // (under the rest timer), not here — one prompt, not two.
+            // RPE is collected end-of-set in the inline feedback panel
+            // (under the rest timer), not here — one prompt, not two.
 
-                // Set progress
-                setProgress
+            Spacer(minLength: 0)
 
-                // Done button
-                Button {
-                    // Inputs are in the user's display unit; persist kg. For a
-                    // bodyweight lift the logged weight is the EFFECTIVE load
-                    // (bodyweight ± added) and we also record the signed added load.
-                    if isBodyweightLift {
-                        viewModel.logSet(
-                            weight: bodyweightEffectiveKg,
-                            reps: Int(inputReps),
-                            addedLoadKg: weightUnit.convert(inputAddedLoad, to: .kg),
-                            modelContext: modelContext
-                        )
-                    } else {
-                        let weightKg = weightUnit.convert(inputWeight, to: .kg)
-                        viewModel.logSet(
-                            weight: weightKg,
-                            reps: Int(inputReps),
-                            modelContext: modelContext
-                        )
-                    }
-                    HapticManager.notification(.success)
-                } label: {
-                    Text(currentSetIsWarmup ? "Finish Warm-Up Set" : "Finish Set")
-                        .font(.tempoHeadline)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 56)
-                        .background(Color.tempoSignal)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
-                }
-                .padding(.horizontal, TempoSpacing.screenEdge)
+            setProgress
 
-                // §2.16 — skip without logging. On a warmup set one tap drops
-                // the whole remaining ramp; on a working set it skips just
-                // this set. No rest either way.
-                Button {
+            actionRow
+        }
+        .padding(.horizontal, TempoSpacing.screenEdge)
+        .padding(.vertical, TempoSpacing.md)
+    }
+
+    /// One-line condition chips (ramp / pain / superset) — the old full-width
+    /// banners each ate a screen row; these say the same thing in 28pt.
+    @ViewBuilder
+    private var alertChips: some View {
+        let exerciseID: UUID? = viewModel.currentExercise?.exercise?.id
+        let painFlagged = exerciseID.map { viewModel.painFlaggedExercises.contains($0) } ?? false
+        if currentSetIsWarmup || painFlagged || viewModel.currentSupersetPartnerName != nil {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: TempoSpacing.xs) {
                     if currentSetIsWarmup {
-                        viewModel.skipRemainingWarmups(modelContext: modelContext)
-                    } else {
-                        viewModel.skipCurrentSet(modelContext: modelContext)
+                        chip("flame", "RAMP-UP — doesn't count", Color.tempoSignal)
                     }
-                } label: {
-                    Text(currentSetIsWarmup ? "Skip Warm-Up — I'm Ready" : "Skip Set")
-                        .font(.tempoSubheadline)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 44)
-                        .background(Color.tempoBgSecondary)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+                    if painFlagged {
+                        chip("exclamationmark.triangle.fill", "Pain flagged — weight held, go easy", Color.tempoWarning)
+                    }
+                    if let partner = viewModel.currentSupersetPartnerName {
+                        chip("arrow.triangle.2.circlepath", "Superset: \(partner)", Color.tempoSignal)
+                    }
                 }
-                .padding(.horizontal, TempoSpacing.screenEdge)
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.vertical, TempoSpacing.lg)
+        }
+    }
+
+    private func chip(_ icon: String, _ text: String, _ color: Color) -> some View {
+        HStack(spacing: TempoSpacing.xxs) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .semibold))
+            Text(text)
+                .font(.tempoCaption2)
+                .lineLimit(1)
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, TempoSpacing.sm)
+        .padding(.vertical, 6)
+        .background(color.opacity(0.12))
+        .clipShape(Capsule())
+    }
+
+    // MARK: - Context Strip (§11.7 — the "more data")
+
+    /// Display-unit conversion for stored-kg history values.
+    private func displayWeight(_ kg: Double) -> String {
+        String(format: "%.0f", WeightUnit.kg.convert(kg, to: weightUnit))
+    }
+
+    /// Best working set of the most recent PRIOR session of this lift.
+    private var lastSessionStat: String? {
+        guard let rows = viewModel.currentExercise?.exercise?.history else {
+            return nil
+        }
+        let cal = Calendar.current
+        let prior = rows
+            .filter { !cal.isDateInToday($0.date) }
+            .max { $0.date < $1.date }
+        guard let prior, let w = prior.bestSetWeight, let r = prior.bestSetReps else {
+            return nil
+        }
+        return "\(displayWeight(w)) × \(r)"
+    }
+
+    /// Today's prescription for the CURRENT set.
+    private var targetStat: String? {
+        guard let set = viewModel.currentSet, let w = set.targetWeight else {
+            return nil
+        }
+        return "\(displayWeight(w)) × \(set.targetReps)"
+    }
+
+    /// All-time best estimated 1RM for this lift.
+    private var bestE1RMStat: String? {
+        let best = (viewModel.currentExercise?.exercise?.history ?? [])
+            .compactMap(\.estimated1RM)
+            .max()
+        guard let best, best > 0 else {
+            return nil
+        }
+        return displayWeight(best)
+    }
+
+    /// LAST / TARGET / BEST — the numbers a lifter actually wants mid-set:
+    /// what you did last time, what today asks, what your ceiling is.
+    private var contextStrip: some View {
+        HStack(spacing: TempoSpacing.sm) {
+            statCell("LAST", lastSessionStat ?? "—")
+            statCell("TARGET", targetStat ?? "—", highlight: true)
+            statCell("BEST e1RM", bestE1RMStat ?? "—")
+        }
+    }
+
+    private func statCell(_ label: String, _ value: String, highlight: Bool = false) -> some View {
+        VStack(spacing: 2) {
+            Text(label)
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextTertiary)
+            Text(value)
+                .font(.tempoSubheadline)
+                .fontWeight(.semibold)
+                .foregroundStyle(highlight ? Color.tempoAccent : Color.tempoTextPrimary)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .contentTransition(.numericText())
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, TempoSpacing.sm)
+        .background(Color.tempoSurfaceCard)
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+    }
+
+    // MARK: - Action Row
+
+    /// Skip + Finish side by side — skip always visible, never the hero.
+    private var actionRow: some View {
+        HStack(spacing: TempoSpacing.sm) {
+            // §2.16 — skip without logging. On a warmup set one tap drops the
+            // whole remaining ramp; on a working set it skips just this set.
+            Button {
+                if currentSetIsWarmup {
+                    viewModel.skipRemainingWarmups(modelContext: modelContext)
+                } else {
+                    viewModel.skipCurrentSet(modelContext: modelContext)
+                }
+            } label: {
+                Text(currentSetIsWarmup ? "Skip Ramp" : "Skip")
+                    .font(.tempoSubheadline)
+                    .frame(width: 104)
+                    .frame(height: 56)
+                    .background(Color.tempoBgSecondary)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+            }
+
+            Button {
+                // Inputs are in the user's display unit; persist kg. For a
+                // bodyweight lift the logged weight is the EFFECTIVE load
+                // (bodyweight ± added) and we also record the signed added load.
+                if isBodyweightLift {
+                    viewModel.logSet(
+                        weight: bodyweightEffectiveKg,
+                        reps: Int(inputReps),
+                        addedLoadKg: weightUnit.convert(inputAddedLoad, to: .kg),
+                        modelContext: modelContext
+                    )
+                } else {
+                    let weightKg = weightUnit.convert(inputWeight, to: .kg)
+                    viewModel.logSet(
+                        weight: weightKg,
+                        reps: Int(inputReps),
+                        modelContext: modelContext
+                    )
+                }
+                HapticManager.notification(.success)
+            } label: {
+                Text(currentSetIsWarmup ? "Finish Warm-Up" : "Finish Set")
+                    .font(.tempoHeadline)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 56)
+                    .background(Color.tempoSignal)
+                    .foregroundStyle(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+            }
         }
     }
 
@@ -629,32 +685,34 @@ struct ActiveWorkoutView: View {
 
     // MARK: - Exercise Header
 
+    // §11.7 — compact header row: 64pt demo thumb, name + muscle/set line,
+    // session ring. The old 150pt card + centered titles ate a third of the
+    // screen; this says the same in one row.
     private var exerciseHeader: some View {
-        VStack(spacing: TempoSpacing.sm) {
+        HStack(spacing: TempoSpacing.md) {
             if let exercise = viewModel.currentExercise?.exercise {
-                ExerciseDemoImage(demoAsset: exercise.demoAsset, muscleGroup: exercise.muscleGroup, symbolSize: 40)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 150)
+                ExerciseDemoImage(demoAsset: exercise.demoAsset, muscleGroup: exercise.muscleGroup, symbolSize: 24)
+                    .frame(width: 64, height: 64)
                     .background(Color.tempoSurfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-                    // §11.6 — the whole-session progress ring rides the demo
-                    // card's corner: fill = completed/planned sets today.
-                    .overlay(alignment: .topTrailing) {
-                        sessionRing
-                            .padding(TempoSpacing.sm)
-                    }
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
 
-                Text(exercise.name.uppercased())
-                    .font(.tempoTitle2)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                    .multilineTextAlignment(.center)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(exercise.name.uppercased())
+                        .font(.tempoHeadline)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
+                    Text("\(exercise.muscleGroup.displayName) · \(viewModel.setCountText)")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                        .contentTransition(.numericText())
+                }
 
-                Text(exercise.muscleGroup.displayName)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                Spacer(minLength: TempoSpacing.sm)
+
+                sessionRing
             }
         }
-        .padding(.top, TempoSpacing.md)
         // Slide-in on exercise change — .id remounts the header so the
         // asymmetric transition fires exactly once per movement.
         .id(viewModel.currentExerciseIndex)

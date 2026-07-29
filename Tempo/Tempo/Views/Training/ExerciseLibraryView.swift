@@ -20,6 +20,9 @@ struct ExerciseLibraryView: View {
     @Query(sort: \Exercise.name)
     private var allExercises: [Exercise]
 
+    @Query
+    private var userSettings: [UserSettings]
+
     @State
     private var searchText = ""
     @State
@@ -29,6 +32,20 @@ struct ExerciseLibraryView: View {
     /// §10.6 — custom exercise creation sheet.
     @State
     private var showCreateExercise = false
+
+    private var weightUnit: WeightUnit {
+        userSettings.first?.weightUnit ?? .kg
+    }
+
+    /// Best estimated 1RM (display unit) across a lift's history, nil if none.
+    private func bestE1RM(_ exercise: Exercise) -> String? {
+        let best = (exercise.history ?? []).compactMap(\.estimated1RM).max()
+        guard let best, best > 0 else {
+            return nil
+        }
+        let value = WeightUnit.kg.convert(best, to: weightUnit)
+        return String(format: "%.0f %@", value, weightUnit.abbreviation)
+    }
 
     /// Per UX_COPY_BIBLE.md Section 4.8
     private let muscleGroupFilters: [MuscleGroup] = [
@@ -53,6 +70,12 @@ struct ExerciseLibraryView: View {
 
                 // Equipment filter chips
                 equipmentChips
+
+                // §11.9 — your most-trained lifts, one tap away. Only on the
+                // unfiltered view: a filter/search means you're hunting.
+                if searchText.isEmpty, selectedMuscleGroup == nil, selectedEquipment == nil {
+                    mostTrainedStrip
+                }
 
                 // Results
                 if filteredExercises.isEmpty {
@@ -173,6 +196,58 @@ struct ExerciseLibraryView: View {
         }
     }
 
+    // MARK: - Most Trained Strip (§11.9)
+
+    @ViewBuilder
+    private var mostTrainedStrip: some View {
+        let top = allExercises
+            .filter { !($0.history?.isEmpty ?? true) }
+            .sorted { ($0.history?.count ?? 0) > ($1.history?.count ?? 0) }
+            .prefix(6)
+        if !top.isEmpty {
+            VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+                Text("MOST TRAINED")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextTertiary)
+                    .padding(.horizontal, TempoSpacing.screenEdge)
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: TempoSpacing.sm) {
+                        ForEach(Array(top), id: \.id) { exercise in
+                            NavigationLink {
+                                ExerciseDetailView(exercise: exercise)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(exercise.name)
+                                        .font(.tempoCaption1)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(Color.tempoTextPrimary)
+                                        .lineLimit(1)
+                                    HStack(spacing: TempoSpacing.xxs) {
+                                        if let best = bestE1RM(exercise) {
+                                            Text(best)
+                                                .font(.tempoCaption2)
+                                                .foregroundStyle(Color.tempoAccent)
+                                                .monospacedDigit()
+                                        }
+                                        Text("· \(exercise.history?.count ?? 0)×")
+                                            .font(.tempoCaption2)
+                                            .foregroundStyle(Color.tempoTextTertiary)
+                                    }
+                                }
+                                .padding(.horizontal, TempoSpacing.md)
+                                .padding(.vertical, TempoSpacing.sm)
+                                .background(Color.tempoSurfaceCard)
+                                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                            }
+                        }
+                    }
+                    .padding(.horizontal, TempoSpacing.screenEdge)
+                }
+            }
+        }
+    }
+
     // MARK: - Exercise List
 
     // Per MODULE_TRAINING.md Section 10.1 — grouped by muscle group with count
@@ -210,48 +285,51 @@ struct ExerciseLibraryView: View {
         .background(Color.tempoBgPrimary)
     }
 
-    /// Per WIREFRAMES.md Screen 19 — exercise row: name, muscle group pill, equipment + compound/isolation
+    /// §11.9 — row: demo thumb, name, equipment/type line, and YOUR numbers
+    /// (best e1RM + times trained) when the lift has history.
     private func exerciseRow(_ exercise: Exercise) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-            HStack {
-                Text(exercise.name.uppercased())
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                    .lineLimit(1)
+        HStack(spacing: TempoSpacing.md) {
+            ExerciseDemoImage(demoAsset: exercise.demoAsset, muscleGroup: exercise.muscleGroup, symbolSize: 18)
+                .frame(width: 44, height: 44)
+                .background(Color.tempoSurfaceElevated)
+                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
 
-                Spacer()
-
-                if exercise.isCustom {
-                    Text("CUSTOM")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoSignal)
-                        .padding(.horizontal, TempoSpacing.xs)
-                        .padding(.vertical, 2)
-                        .background(Color.tempoSignal.opacity(0.12))
-                        .clipShape(Capsule())
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: TempoSpacing.xs) {
+                    Text(exercise.name.uppercased())
+                        .font(.tempoSubheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                        .lineLimit(1)
+                    if exercise.isCustom {
+                        Text("CUSTOM")
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoSignal)
+                            .padding(.horizontal, TempoSpacing.xs)
+                            .padding(.vertical, 1)
+                            .background(Color.tempoSignal.opacity(0.12))
+                            .clipShape(Capsule())
+                    }
                 }
 
-                Text(exercise.muscleGroup.displayName)
-                    .font(.tempoCaption2)
+                Text("\(equipmentLabel(exercise.equipment)) · \(exercise.isCompound ? "Compound" : "Isolation")")
+                    .font(.tempoCaption1)
                     .foregroundStyle(Color.tempoTextSecondary)
-                    .padding(.horizontal, TempoSpacing.xs)
-                    .padding(.vertical, 2)
-                    .background(Color.tempoSurfaceElevated)
-                    .clipShape(Capsule())
             }
 
-            HStack(spacing: TempoSpacing.xs) {
-                Text(equipmentLabel(exercise.equipment))
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+            Spacer(minLength: TempoSpacing.xs)
 
-                Text("·")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-
-                Text(exercise.isCompound ? "Compound" : "Isolation")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+            if let best = bestE1RM(exercise) {
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text(best)
+                        .font(.tempoCaption1)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.tempoAccent)
+                        .monospacedDigit()
+                    Text("\(exercise.history?.count ?? 0)× trained")
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                }
             }
         }
         .padding(TempoSpacing.md)

@@ -28,6 +28,12 @@ struct ProgressChartsView: View {
     private var workoutPlans: [WorkoutPlan]
     @Query(sort: \ActivitySession.date, order: .reverse)
     private var activitySessions: [ActivitySession]
+    @Query
+    private var userSettings: [UserSettings]
+
+    private var weightUnit: WeightUnit {
+        userSettings.first?.weightUnit ?? .kg
+    }
 
     @State
     private var selectedTab: ProgressTab = .overview
@@ -102,6 +108,10 @@ struct ProgressChartsView: View {
 
     private var overviewTab: some View {
         VStack(spacing: TempoSpacing.xl) {
+            // §11.8 — the week-in-motion hero: this week's volume, delta vs
+            // last week, 8-week trend, streak + fresh PRs.
+            thisWeekHero
+
             // All-time stats
             allTimeStats
 
@@ -113,6 +123,144 @@ struct ProgressChartsView: View {
         }
         .padding(.horizontal, TempoSpacing.screenEdge)
         .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+    }
+
+    // MARK: - This Week Hero (§11.8)
+
+    /// Trailing 8 ISO weeks of logged volume, oldest first (current week last).
+    private var weeklyVolumes: [(weekStart: Date, volume: Double)] {
+        let cal = Calendar.current
+        guard let thisMonday = cal.dateInterval(of: .weekOfYear, for: Date())?.start else {
+            return []
+        }
+        return (0 ..< 8).reversed().compactMap { back in
+            guard let start = cal.date(byAdding: .weekOfYear, value: -back, to: thisMonday),
+                  let end = cal.date(byAdding: .weekOfYear, value: 1, to: start)
+            else {
+                return nil
+            }
+            let vol = allHistory
+                .filter { $0.date >= start && $0.date < end }
+                .reduce(0.0) { $0 + $1.totalVolume }
+            return (start, vol)
+        }
+    }
+
+    /// New running-max e1RMs set in the trailing 30 days, across all lifts.
+    private var prCount30d: Int {
+        let cutoff = Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? Date()
+        var count = 0
+        for exercise in exercises {
+            let rows = (exercise.history ?? []).sorted { $0.date < $1.date }
+            var runningMax = 0.0
+            for row in rows {
+                guard let e1RM = row.estimated1RM else { continue }
+                if e1RM > runningMax {
+                    runningMax = e1RM
+                    if row.date >= cutoff { count += 1 }
+                }
+            }
+        }
+        return count
+    }
+
+    /// Consecutive training weeks (≥1 completed workout). The current week
+    /// counts when trained but never BREAKS the run while still in progress.
+    private var weekStreak: Int {
+        let cal = Calendar.current
+        guard let thisMonday = cal.dateInterval(of: .weekOfYear, for: Date())?.start else {
+            return 0
+        }
+        let completedDates = workoutPlans.filter { $0.status == .completed }.map(\.date)
+        func trained(weekStarting cursor: Date) -> Bool {
+            guard let end = cal.date(byAdding: .weekOfYear, value: 1, to: cursor) else {
+                return false
+            }
+            return completedDates.contains { $0 >= cursor && $0 < end }
+        }
+        var streak = trained(weekStarting: thisMonday) ? 1 : 0
+        var cursor = thisMonday
+        for _ in 0 ..< 200 {
+            guard let prev = cal.date(byAdding: .weekOfYear, value: -1, to: cursor) else {
+                break
+            }
+            cursor = prev
+            guard trained(weekStarting: cursor) else {
+                break
+            }
+            streak += 1
+        }
+        return streak
+    }
+
+    private var thisWeekHero: some View {
+        let weeks = weeklyVolumes
+        let current = weeks.last?.volume ?? 0
+        let previous = weeks.dropLast().last?.volume ?? 0
+        let delta = previous > 0 ? (current - previous) / previous : nil
+
+        return VStack(alignment: .leading, spacing: TempoSpacing.md) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("THIS WEEK")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                    Text(formatVolume(current))
+                        .font(.tempoTitle2)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                        .monospacedDigit()
+                }
+                Spacer()
+                if let delta {
+                    HStack(spacing: 2) {
+                        Image(systemName: delta >= 0 ? "arrow.up.right" : "arrow.down.right")
+                            .font(.system(size: 11, weight: .bold))
+                        Text("\(abs(Int((delta * 100).rounded())))% vs last week")
+                            .font(.tempoCaption1)
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundStyle(delta >= 0 ? Color.tempoRecoveryGreen : Color.tempoAmber)
+                }
+            }
+
+            if weeks.contains(where: { $0.volume > 0 }) {
+                Chart(weeks, id: \.weekStart) { week in
+                    AreaMark(
+                        x: .value("Week", week.weekStart),
+                        y: .value("Volume", week.volume)
+                    )
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [Color.tempoAccent.opacity(0.3), .clear],
+                            startPoint: .top, endPoint: .bottom
+                        )
+                    )
+                    .interpolationMethod(.monotone)
+                    LineMark(
+                        x: .value("Week", week.weekStart),
+                        y: .value("Volume", week.volume)
+                    )
+                    .foregroundStyle(Color.tempoAccent)
+                    .lineStyle(StrokeStyle(lineWidth: 2))
+                    .interpolationMethod(.monotone)
+                }
+                .chartXAxis(.hidden)
+                .chartYAxis(.hidden)
+                .frame(height: 56)
+            }
+
+            HStack(spacing: TempoSpacing.lg) {
+                Label("\(weekStreak)-week streak", systemImage: "flame.fill")
+                    .foregroundStyle(weekStreak > 0 ? Color.tempoAmber : Color.tempoTextTertiary)
+                Label("\(prCount30d) PRs this month", systemImage: "star.fill")
+                    .foregroundStyle(prCount30d > 0 ? Color.tempoAccent : Color.tempoTextTertiary)
+                Spacer()
+            }
+            .font(.tempoCaption1)
+        }
+        .padding(TempoSpacing.cardPadding)
+        .background(Color.tempoSurfaceCard)
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
     }
 
     private var allTimeStats: some View {
@@ -153,29 +301,52 @@ struct ProgressChartsView: View {
         }
     }
 
-    /// Per MODULE_TRAINING.md Section 11.4 — Workout frequency bar chart
+    /// Per MODULE_TRAINING.md Section 11.4 — Workout frequency bar chart.
+    /// §11.8 — 8 weeks with the average as a dashed rule, current week accented.
     private var workoutFrequencyCard: some View {
-        let last4Weeks = weeklyWorkoutCounts(weeks: 4)
+        let recentWeeks = weeklyWorkoutCounts(weeks: 8)
+        let average = recentWeeks.isEmpty
+            ? 0
+            : Double(recentWeeks.reduce(0) { $0 + $1.count }) / Double(recentWeeks.count)
 
         return VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("WORKOUT FREQUENCY")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
+            HStack(alignment: .firstTextBaseline) {
+                Text("WORKOUT FREQUENCY")
+                    .font(.tempoHeadline)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                Spacer()
+                if average > 0 {
+                    Text(String(format: "avg %.1f/wk", average))
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                }
+            }
 
-            if last4Weeks.isEmpty {
+            if recentWeeks.isEmpty {
                 Text("No workouts yet")
                     .font(.tempoCaption1)
                     .foregroundStyle(Color.tempoTextSecondary)
                     .frame(maxWidth: .infinity)
                     .frame(height: 120)
             } else {
-                Chart(last4Weeks, id: \.weekLabel) { item in
-                    BarMark(
-                        x: .value("Week", item.weekLabel),
-                        y: .value("Count", item.count)
-                    )
-                    .foregroundStyle(Color.tempoSignal)
-                    .cornerRadius(TempoRadius.xs)
+                Chart {
+                    ForEach(Array(recentWeeks.enumerated()), id: \.element.weekLabel) { idx, item in
+                        BarMark(
+                            x: .value("Week", item.weekLabel),
+                            y: .value("Count", item.count)
+                        )
+                        .foregroundStyle(
+                            idx == recentWeeks.count - 1
+                                ? Color.tempoAccent
+                                : Color.tempoSignal.opacity(0.7)
+                        )
+                        .cornerRadius(TempoRadius.xs)
+                    }
+                    if average > 0 {
+                        RuleMark(y: .value("Average", average))
+                            .foregroundStyle(Color.tempoTextTertiary.opacity(0.5))
+                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                    }
                 }
                 .chartYAxis {
                     AxisMarks { _ in
@@ -542,10 +713,12 @@ struct ProgressChartsView: View {
             .sorted { $0.volume > $1.volume }
     }
 
-    private func formatVolume(_ volume: Double) -> String {
-        if volume >= 1000 {
-            return String(format: "%.1fk", volume / 1000)
+    /// Stored kg → the user's display unit (a lbs lifter reads lbs totals).
+    private func formatVolume(_ volumeKg: Double) -> String {
+        let value = WeightUnit.kg.convert(volumeKg, to: weightUnit)
+        if value >= 1000 {
+            return String(format: "%.1fk %@", value / 1000, weightUnit.abbreviation)
         }
-        return "\(Int(volume)) kg"
+        return "\(Int(value)) \(weightUnit.abbreviation)"
     }
 }
