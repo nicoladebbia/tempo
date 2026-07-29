@@ -662,8 +662,17 @@ final class TrainingViewModel {
             // override and the planResolution keep-rule.
             if plan.plannedTypeRaw == nil { plan.plannedTypeRaw = plan.typeRaw }
             plan.type = mapped
+            // A non-gym day moved TO a gym modality (football → upper: "you've
+            // got the headroom, lift") starts with ZERO exercises — without
+            // populating here, Start Workout launches a 0/0 session where
+            // Finish Set and Skip are both dead. populateExercises no-ops when
+            // the plan already has exercises, so this is safe for gym → gym.
+            if mapped.isGymWorkout {
+                populateExercises(for: plan, modelContext: modelContext)
+                snapPrescribedWeights(for: plan, modelContext: modelContext)
+            }
             #if DEBUG
-                print("\(DebugTrace.prefix)[daily_coach] plan reshaped \(plan.plannedTypeRaw ?? "?") → \(mapped.rawValue) (tier=\(result.decision.tier.rawValue))")
+                print("\(DebugTrace.prefix)[daily_coach] plan reshaped \(plan.plannedTypeRaw ?? "?") → \(mapped.rawValue) (tier=\(result.decision.tier.rawValue)) exercises=\(plan.orderedExercises.count)")
             #endif
         }
 
@@ -1344,6 +1353,16 @@ final class TrainingViewModel {
                existing.secondarySessionTypeRaw != canonical.secondarySessionTypeRaw {
                 existing.secondarySessionTypeRaw = canonical.secondarySessionTypeRaw
                 if canonical.secondarySessionTypeRaw == nil { existing.secondaryCompleted = false }
+                try? modelContext.save()
+            }
+            // Backstop for EVERY path that can leave a still-planned gym row
+            // without exercises (e.g. the daily coach flipping football → upper
+            // on a row that never had any): a kept gym plan must be startable.
+            // populateExercises is a no-op when exercises already exist.
+            if existing.status == .planned, existing.type.isGymWorkout,
+               existing.orderedExercises.isEmpty {
+                populateExercises(for: existing, modelContext: modelContext)
+                snapPrescribedWeights(for: existing, modelContext: modelContext)
                 try? modelContext.save()
             }
             return ResolvedTodayPlan(plan: existing, isCrashedInProgress: false)
