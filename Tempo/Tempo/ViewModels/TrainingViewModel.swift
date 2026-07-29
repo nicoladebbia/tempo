@@ -399,7 +399,11 @@ final class TrainingViewModel {
         // modalities, applies the deterministic safety floor on EVERY path, and is
         // the single daily card. Runs after hydration so it reads the reconciled
         // WorkoutPlan (§8: weekly owns the modality-default; daily adjusts within).
-        await runDailyReadinessSession(modelContext: modelContext)
+        // §11.14 — if the persisted session contradicts today's (re-resolved)
+        // plan, drop it first and re-run FREE so the card matches the day.
+        let staleSession = todayPlan
+            .map { invalidateStaleDailySession(for: $0, modelContext: modelContext) } ?? false
+        await runDailyReadinessSession(modelContext: modelContext, deterministicOnly: staleSession)
 
         // Phase 4 — grade last week once per ISO week and feed the result back
         // into the on-device profile (the macro self-correction loop). Also
@@ -563,7 +567,39 @@ final class TrainingViewModel {
     /// resolve the plan's state (severe → mark .skipped/.floorForced). The floor
     /// runs on EVERY path (the coach guarantees produce-then-floor). Persisted
     /// once-daily guard caps it at ≤1 Haiku/day.
-    func runDailyReadinessSession(modelContext: ModelContext) async {
+    /// §11.14 — a schedule edit can reshape TODAY after the coach already
+    /// spoke (football day removed → upper, then re-added → football again).
+    /// The persisted DailySession then contradicts the plan row — header says
+    /// FOOTBALL, card says UPPER — and the day-key guard would hold that
+    /// contradiction until midnight. When today's still-PLANNED row no longer
+    /// matches the session's modality, drop the stale session and release the
+    /// day key so the next coach pass speaks for the day as it now is.
+    /// Returns true when a resync is needed. Never touches a decided day
+    /// (completed/inProgress/skipped) or an unmappable modality.
+    @discardableResult
+    func invalidateStaleDailySession(for plan: WorkoutPlan, modelContext: ModelContext) -> Bool {
+        guard plan.status == .planned,
+              let session = fetchTodayDailySession(modelContext: modelContext),
+              let mapped = WorkoutType.fromModality(session.modality),
+              mapped != plan.type
+        else {
+            return false
+        }
+        modelContext.delete(session)
+        dailySession = nil
+        let profile = fetchOrCreateAdaptiveProfile(modelContext: modelContext)
+        profile.lastDailySessionDayKey = nil
+        guard saveGuarded(modelContext, operation: "stale session resync") else { return false }
+        #if DEBUG
+            print("\(DebugTrace.prefix)[daily_coach] stale session invalidated (session=\(session.modality) plan=\(plan.typeRaw)) — resync")
+        #endif
+        return true
+    }
+
+    /// `deterministicOnly` — COST NOTE (CLAUDE.md AI guardrail): schedule-edit
+    /// resyncs re-run the coach for FREE (deterministic candidate only, no
+    /// brain call). Only the normal once-daily pass may be brain-eligible.
+    func runDailyReadinessSession(modelContext: ModelContext, deterministicOnly: Bool = false) async {
         guard let apiClient else { return }
         guard !sessionState.isActive else { return }
         guard let plan = todayPlan else { return }
@@ -610,7 +646,9 @@ final class TrainingViewModel {
         // 2. brainEligible = DATA readiness only (≥30d history AND Whoop fresh).
         //    Entitlement (Pro/consent) is NOT checked here — the coach's 402→
         //    fallback owns that; duplicating risks the two disagreeing.
-        let brainEligible = picture.hasBaselineForBrain && isWhoopFresh(modelContext: modelContext)
+        //    A §11.14 resync pass is never brain-eligible (free by design).
+        let brainEligible = !deterministicOnly
+            && picture.hasBaselineForBrain && isWhoopFresh(modelContext: modelContext)
 
         // 3. Deterministic candidate (cold-start / offline / 402 / parse-fail
         //    fallback) built from the planned modality. Floor still applies to it.
@@ -1545,6 +1583,15 @@ final class TrainingViewModel {
         // disagrees with the new template; keeps completed/in-progress (sacred).
         let resolved = ensureTodayPlanPersisted(modelContext: modelContext)
         todayPlan = resolved.plan
+        // §11.14 — the schedule edit may have just changed today's TYPE while
+        // the coach's persisted session still describes the old day. Drop the
+        // stale card and re-run the coach deterministically (free) so the
+        // header and the card can never contradict each other.
+        if invalidateStaleDailySession(for: resolved.plan, modelContext: modelContext) {
+            Task { @MainActor in
+                await runDailyReadinessSession(modelContext: modelContext, deterministicOnly: true)
+            }
+        }
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
     }
 
