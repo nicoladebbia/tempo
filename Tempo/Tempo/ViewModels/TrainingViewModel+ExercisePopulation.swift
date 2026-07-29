@@ -168,8 +168,6 @@ extension TrainingViewModel {
                 recoverySets
             }
 
-            let reps = exercise.isCompound ? 8 : 12
-
             // Use progressive overload from history, or sensible defaults
             let history = exercise.history ?? []
             let overload = trainingEngine.calculateProgressiveOverload(
@@ -177,14 +175,54 @@ extension TrainingViewModel {
                 history: history,
                 learnedIncrement: learnedIncrements[exercise.id]
             )
-            var weight: Double = overload.weight > 0
-                ? overload.weight
-                : coldStartWeight(
-                    for: exercise,
-                    targetReps: reps,
-                    allExercises: allExercises,
-                    modelContext: modelContext
-                )
+
+            // §11.12 — e1RM-anchored prescription. With ≥2 scored sessions in
+            // the window, the load comes from the rolling e1RM via reverse
+            // Epley for the role's (reps @ RIR) scheme; a second same-type day
+            // this week undulates to a volume scheme (DUP); a stalled lift
+            // gets an 8% wave reset. Thin history → the legacy increment
+            // engine, byte-for-byte the old behavior (targetRIR nil).
+            let samples = history.map {
+                PrescriptionMath.HistorySample(date: $0.date, e1RM: $0.estimated1RM)
+            }
+            let role: PrescriptionMath.Role = if exercise.isCompound {
+                selected.prefix(index).contains(where: \.isCompound)
+                    ? .secondaryCompound : .primaryCompound
+            } else {
+                .isolation
+            }
+            let scheme = PrescriptionMath.scheme(
+                role: role, weekOccurrence: weekOccurrenceIndex(for: plan)
+            )
+
+            let reps: Int
+            var targetRIR: Int?
+            var weight: Double
+            var rationale = overload.rationale
+            if let e1RM = PrescriptionMath.currentE1RM(samples: samples) {
+                reps = scheme.reps
+                // Feedback backoff: last session maximal or form broke → one
+                // more rep in reserve instead of a flat hold.
+                var rir = scheme.rir
+                if overload.rationale == .heldHighRPE || overload.rationale == .heldBrokenForm {
+                    rir += 1
+                }
+                let plateaued = PrescriptionMath.isPlateaued(samples: samples)
+                let anchor = plateaued ? e1RM * PrescriptionMath.plateauResetFactor : e1RM
+                weight = PrescriptionMath.weight(e1RM: anchor, reps: reps, rir: rir)
+                targetRIR = rir
+                rationale = plateaued ? .plateauReset : .e1RMAnchored
+            } else {
+                reps = exercise.isCompound ? 8 : 12
+                weight = overload.weight > 0
+                    ? overload.weight
+                    : coldStartWeight(
+                        for: exercise,
+                        targetReps: reps,
+                        allExercises: allExercises,
+                        modelContext: modelContext
+                    )
+            }
 
             // Note-driven adjustment. A conservative note (pain / too-hard / form
             // breakdown) → never prescribe MORE than last session's weight until
@@ -272,6 +310,7 @@ extension TrainingViewModel {
                     setNumber: setNum,
                     targetReps: reps,
                     targetWeight: roundedWeight,
+                    targetRIR: targetRIR,
                     addedLoadKg: plannedAddedLoad,
                     plannedExercise: planned
                 )
@@ -297,11 +336,22 @@ extension TrainingViewModel {
                 exercise: exercise,
                 predictedWeight: roundedWeight,
                 predictedReps: reps,
-                rationale: overload.rationale,
+                rationale: rationale,
                 learnedIncrement: learnedIncrements[exercise.id],
                 baselineWeight: baselineWeight,
                 modelContext: modelContext
             )
+        }
+    }
+
+    /// §11.12 DUP — how many same-type days precede `plan` in ITS week.
+    /// 0 = first occurrence (heavy schemes); ≥1 = volume day. weekPlans may
+    /// be empty on the single-day fallback path → 0, the safe default.
+    private func weekOccurrenceIndex(for plan: WorkoutPlan) -> Int {
+        let cal = Calendar.current
+        return weekPlans.count {
+            $0.id != plan.id && $0.type == plan.type && $0.date < plan.date
+                && cal.isDate($0.date, equalTo: plan.date, toGranularity: .weekOfYear)
         }
     }
 

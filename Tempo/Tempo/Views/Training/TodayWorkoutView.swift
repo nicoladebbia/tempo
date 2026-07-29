@@ -1028,6 +1028,22 @@ struct TodayWorkoutView: View {
 
                 Spacer()
 
+                // §11.12 — intensity zone (HEAVY/BUILD/PUMP), recovered from
+                // the rep target; only e1RM-anchored prescriptions carry RIR,
+                // so gate on that to avoid mislabeling legacy 8/12 fallbacks.
+                if let firstWorking = plannedExercise.orderedSets.first(where: { !$0.isWarmup }),
+                   firstWorking.targetRIR != nil {
+                    let zone = PrescriptionMath.zoneLabel(forReps: firstWorking.targetReps)
+                    Text(zone)
+                        .font(.tempoCaption2)
+                        .fontWeight(.bold)
+                        .foregroundStyle(zone == "HEAVY" ? Color.tempoSignal : Color.tempoAmber)
+                        .padding(.horizontal, TempoSpacing.xs)
+                        .padding(.vertical, 2)
+                        .background((zone == "HEAVY" ? Color.tempoSignal : Color.tempoAmber).opacity(0.12))
+                        .clipShape(Capsule())
+                }
+
                 if let muscleGroup = plannedExercise.exercise?.muscleGroup {
                     Text(muscleGroup.displayName.uppercased())
                         .font(.tempoCaption2)
@@ -1654,6 +1670,12 @@ struct TodayWorkoutView: View {
             text = "\(setCount) x \(reps) @ \(Int(displayWeight))\(unit.abbreviation)"
         } else {
             text = "\(setCount) x \(reps) (BW)"
+        }
+
+        // §11.12 — effort target rides the prescription line when the
+        // e1RM-anchored path set one.
+        if let rir = (workingSets.first ?? firstSet).targetRIR {
+            text += " · RIR \(rir)"
         }
 
         if !warmupSets.isEmpty {

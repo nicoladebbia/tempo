@@ -2950,6 +2950,8 @@ final class TrainingViewModel {
             setNumber: newSetNumber,
             targetReps: targetReps,
             targetWeight: targetWeight,
+            // A user-added set inherits the effort target of the set it clones.
+            targetRIR: lastSet?.targetRIR,
             plannedExercise: plannedExercise
         )
 

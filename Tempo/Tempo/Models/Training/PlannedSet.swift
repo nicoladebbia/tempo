@@ -24,6 +24,11 @@ final class PlannedSet {
 
     var targetWeight: Double?
 
+    /// §11.12 — effort target: reps left in the tank when the set ends.
+    /// Set by the e1RM-anchored prescription path; nil on warmups, legacy
+    /// rows, and fallback prescriptions (optional → lightweight migration).
+    var targetRIR: Int?
+
     // MARK: - Actuals
 
     var actualReps: Int?
@@ -91,6 +96,7 @@ final class PlannedSet {
         setNumber: Int,
         targetReps: Int,
         targetWeight: Double? = nil,
+        targetRIR: Int? = nil,
         actualReps: Int? = nil,
         actualWeight: Double? = nil,
         rpe: Int? = nil,
@@ -104,6 +110,7 @@ final class PlannedSet {
         self.setNumber = setNumber
         self.targetReps = targetReps
         self.targetWeight = targetWeight
+        self.targetRIR = targetRIR
         self.actualReps = actualReps
         self.actualWeight = actualWeight
         self.rpe = rpe

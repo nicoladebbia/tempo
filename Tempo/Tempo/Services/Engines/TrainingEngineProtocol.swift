@@ -40,6 +40,12 @@ enum ProgressionReason: String, Equatable, Sendable, Codable {
     case heldInsufficientData
     /// Failed 3 sessions in a row well below target → step weight down.
     case deloadedRepeatedFailure
+    /// §11.12 — load derived from the rolling e1RM via reverse Epley
+    /// (reps + RIR scheme), not from last-session weight + increment.
+    case e1RMAnchored
+    /// §11.12 — lift's rolling e1RM stalled across two windows → anchor
+    /// waved down 8% to rebuild.
+    case plateauReset
 }
 
 protocol TrainingEngineProtocol: Sendable {

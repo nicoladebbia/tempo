@@ -327,6 +327,16 @@ struct ActiveWorkoutView: View {
                         format: "%.0f",
                         unit: "reps"
                     )
+                    // §11.12 — the effort target that makes the weight make
+                    // sense: the load is computed FOR this rep count at this
+                    // proximity to failure.
+                    if !currentSetIsWarmup, let rir = viewModel.currentSet?.targetRIR {
+                        Text(rir == 0
+                            ? "All out — nothing left in the tank"
+                            : "Effort: leave \(rir) rep\(rir == 1 ? "" : "s") in the tank")
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoAmber)
+                    }
                 }
 
             // RPE is collected end-of-set in the inline feedback panel
