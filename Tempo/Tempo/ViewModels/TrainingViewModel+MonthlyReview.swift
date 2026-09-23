@@ -191,7 +191,7 @@ extension TrainingViewModel {
         // tagged match; everything else is "untagged".
         let expectedSportID = Self.whoopSportID(for: plan.type)
 
-        let activities = (try? await whoop.fetchWorkouts(for: Date())) ?? []
+        let activities = whoop.providesRealData ? ((try? await whoop.fetchWorkouts(for: Date())) ?? []) : []
         let cal = Calendar.current
         let todayStart = cal.startOfDay(for: Date())
         let todays = activities.filter { cal.isDate($0.startTime, inSameDayAs: todayStart) }

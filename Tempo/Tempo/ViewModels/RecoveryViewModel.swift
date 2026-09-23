@@ -123,11 +123,12 @@ final class RecoveryViewModel {
 
         let today = Date()
 
-        // Fetch Whoop data only when connected (skip if backend unreachable)
+        // Fetch Whoop data only when connected to a real account — this path
+        // persists today's DailyRecovery, so demo numbers must never enter it.
         let recoveryData: WhoopRecoveryData?
         let sleepData: WhoopSleepData?
         let cycleData: WhoopCycleData?
-        if whoop.connectionState == .connected {
+        if whoop.providesRealData {
             recoveryData = try? await whoop.fetchRecovery(for: today)
             sleepData = try? await whoop.fetchSleep(for: today)
             cycleData = try? await whoop.fetchCycle(for: today)
@@ -189,7 +190,7 @@ final class RecoveryViewModel {
 
         // Seed historical records from Whoop batch data (fills trends on first launch).
         // Only creates new records for dates that don't already exist in the database.
-        if whoop.connectionState == .connected {
+        if whoop.providesRealData {
             // One-time 30-day historical backfill on first successful connect.
             // No-op once WhoopConnection.didBackfill is set.
             await backfillIfNeeded(modelContext: modelContext)

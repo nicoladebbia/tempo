@@ -320,6 +320,7 @@
 		64E272D3C1E005B212AC4874 /* TempoToggleStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D3FC2199480AA920ACA87B0 /* TempoToggleStyle.swift */; };
 		64F43FA846FEED138435DA22 /* PantryDecrementService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E026D0CA8F35CC9670E0EC1 /* PantryDecrementService.swift */; };
 		65B34591E018303AA064EB1F /* SetFeedbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7010369E576E52A315266579 /* SetFeedbackTests.swift */; };
+		65C0C8993D8361510138FE57 /* WhoopDemoDataCleanupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F742D64AF2181D43B99A021F /* WhoopDemoDataCleanupTests.swift */; };
 		65E01C8A5994A38DA2D2AF77 /* ReadinessTrendMathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DB66F89B4E66CA3E302908F /* ReadinessTrendMathTests.swift */; };
 		65FEACD20A4CAFF1EBC23EC6 /* VoicePantryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 422C16C025153ACD2F8B2D8A /* VoicePantryView.swift */; };
 		66B96EACA18DB2E637B3037A /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6631C5AF683ED649E1C7D40 /* HapticManager.swift */; };
@@ -471,6 +472,7 @@
 		958FCA1A0FC60F4BD20EDF93 /* TempoButtonStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCE1EB7DEE588195D13E85C1 /* TempoButtonStyle.swift */; };
 		95C0E42676C7EDA1BEC21B24 /* ObservedMealTimesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D750DE2292F984DF5F6B66CC /* ObservedMealTimesTests.swift */; };
 		95CD8F1678E652E152BD938D /* MilestoneCelebrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AC15A4D0B363856BE5565EF /* MilestoneCelebrationView.swift */; };
+		95D971AB81C1B23C9A4AF5F6 /* WhoopDemoDataCleanup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B19C98CE1960DD511B24C9C /* WhoopDemoDataCleanup.swift */; };
 		95E7B6FD52C4DC238CBF987B /* UIImage+Downsample.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F2FB811CDD5E309A51050B /* UIImage+Downsample.swift */; };
 		967008CC37A7F717011CEBF5 /* NutritionTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FD1A05ED2974E0C4CCF4B04 /* NutritionTarget.swift */; };
 		96751995B5027A1C69DE7FD8 /* MockSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 395473472C40337A7A1B8A18 /* MockSyncCoordinator.swift */; };
@@ -1116,6 +1118,7 @@
 		5A93B54D04BEE62E4B642859 /* cue_ex_spider_curl.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_spider_curl.mp3; sourceTree = "<group>"; };
 		5AB8AB1654F71DE516210944 /* VisionReceiptOCR.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisionReceiptOCR.swift; sourceTree = "<group>"; };
 		5B145BCF3F31F04A4BC34F9B /* FocusTimerLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTimerLiveActivity.swift; sourceTree = "<group>"; };
+		5B19C98CE1960DD511B24C9C /* WhoopDemoDataCleanup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhoopDemoDataCleanup.swift; sourceTree = "<group>"; };
 		5B1BD6649FE3F5F144BBFBA5 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
 		5B9423F06A6B475E607E2C6B /* DietaryProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DietaryProfile.swift; sourceTree = "<group>"; };
 		5BDD8224D23BF8A5CB9F6865 /* AnalyticsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsService.swift; sourceTree = "<group>"; };
@@ -1638,6 +1641,7 @@
 		F6230171383359970DD84D4F /* ValueDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValueDemoView.swift; sourceTree = "<group>"; };
 		F6A356D1AB190EB64207EB24 /* WatchSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSnapshot.swift; sourceTree = "<group>"; };
 		F7073F332EC51ED92B9C4021 /* RecoveryEnums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryEnums.swift; sourceTree = "<group>"; };
+		F742D64AF2181D43B99A021F /* WhoopDemoDataCleanupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhoopDemoDataCleanupTests.swift; sourceTree = "<group>"; };
 		F82D15601D7F2B8663962DE0 /* cue_ex_pallof_press.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_pallof_press.mp3; sourceTree = "<group>"; };
 		F859E605E2B5AE51BF7585CF /* CoachViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachViewModelTests.swift; sourceTree = "<group>"; };
 		F8601ABEAB250DF4BB5B2B3C /* cue_move_full_body_mobility_flow.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_move_full_body_mobility_flow.mp3; sourceTree = "<group>"; };
@@ -2041,6 +2045,7 @@
 				BA74EB2223C2F4A0594BF2F5 /* UniversityDirectoryTests.swift */,
 				ADFECB175E6DE25E2E0EAC8B /* VoicePantryParseTests.swift */,
 				154ACDE48A4E20FA9E40358F /* VoiceTranscriberContinuousTests.swift */,
+				F742D64AF2181D43B99A021F /* WhoopDemoDataCleanupTests.swift */,
 				B201B7B14A7B7E428621680B /* WhoopServiceTokenTests.swift */,
 				FC7572EE190E48CFFB0FA46D /* WorkoutWindowPreferenceTests.swift */,
 			);
@@ -2181,6 +2186,7 @@
 				9492EE850B765197321370E3 /* MockWhoopService.swift */,
 				D7D589689C5451EE86CAFCEB /* PhoneWatchConnectivityService.swift */,
 				955790D2A9AD521A2FAEA43C /* WatchWorkoutPayload.swift */,
+				5B19C98CE1960DD511B24C9C /* WhoopDemoDataCleanup.swift */,
 				A9DA903B98B64A76F00531DD /* WhoopService.swift */,
 				5277163BE577CEBD3272EF24 /* WhoopServiceProtocol.swift */,
 			);
@@ -3840,6 +3846,7 @@
 				17FA1A6C89A40813B25CAD58 /* WeeklySelfGradeStatsTests.swift in Sources */,
 				F335543946281F0394AEB1F0 /* WeeklyTrainingScheduleTests.swift in Sources */,
 				1535EFE6E194583984DF349C /* WeightRoundingTests.swift in Sources */,
+				65C0C8993D8361510138FE57 /* WhoopDemoDataCleanupTests.swift in Sources */,
 				11E85146F342443841A7A712 /* WhoopPersonalizationTests.swift in Sources */,
 				A1F821DB2035DCC6B7BB0028 /* WhoopServiceTokenTests.swift in Sources */,
 				13660388289E515DDE632192 /* WorkoutCSVServiceTests.swift in Sources */,
@@ -4314,6 +4321,7 @@
 				5706A03676F43998082CD81F /* WhoopConnectView.swift in Sources */,
 				677E977A69F8CB7878C942F5 /* WhoopConnection.swift in Sources */,
 				602956ABA23D68B18B0F61C5 /* WhoopConnectionView.swift in Sources */,
+				95D971AB81C1B23C9A4AF5F6 /* WhoopDemoDataCleanup.swift in Sources */,
 				801188139E594FDCE850DAC1 /* WhoopExportImporter.swift in Sources */,
 				F58B3D8A08F272CB576A836A /* WhoopExportParser.swift in Sources */,
 				83F7247364B8C165EFACD9EA /* WhoopService.swift in Sources */,

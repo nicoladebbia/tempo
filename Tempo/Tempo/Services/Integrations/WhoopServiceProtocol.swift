@@ -19,6 +19,16 @@ enum WhoopConnectionState: Sendable, Equatable {
 
 // MARK: - WhoopServiceProtocol
 
+extension WhoopServiceProtocol {
+    /// Connected to a REAL Whoop account. Demo mode is display-only: anything
+    /// that persists or plans off Whoop data (DailyRecovery rows, backfill,
+    /// meal-plan anchors, non-gym completions) must check this, never
+    /// `connectionState` alone, or mock numbers get saved as the user's own.
+    var providesRealData: Bool {
+        connectionState == .connected && !isDemoMode
+    }
+}
+
 protocol WhoopServiceProtocol: Sendable {
     var connectionState: WhoopConnectionState { get }
     var isDemoMode: Bool { get }

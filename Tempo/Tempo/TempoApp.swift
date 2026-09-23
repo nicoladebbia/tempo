@@ -54,6 +54,8 @@ struct TempoApp: App {
                 // One-shot backfill of NonNegotiableProgress.wasSkipped from
                 // the legacy sentinel encoding. Idempotent.
                 DailyResetCoordinator.backfillWasSkippedIfNeeded(container: container)
+                // One-shot purge of Whoop demo data older builds saved as real.
+                WhoopDemoDataCleanup.runIfNeeded(container: container)
             }
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")

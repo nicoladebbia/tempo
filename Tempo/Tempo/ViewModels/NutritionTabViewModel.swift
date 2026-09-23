@@ -903,7 +903,8 @@ final class NutritionTabViewModel {
                 // woke. Use last night's Whoop wake (minutes from midnight)
                 // to anchor meal times; nil falls back to UserSettings wake.
                 var whoopWakeMinutes: Int?
-                if let sleep = try? await whoop.fetchSleep(for: Date()),
+                if whoop.providesRealData,
+                   let sleep = try? await whoop.fetchSleep(for: Date()),
                    let wake = sleep.wakeTime
                 {
                     let comps = Calendar.current.dateComponents([.hour, .minute], from: wake)
@@ -1196,7 +1197,7 @@ final class NutritionTabViewModel {
         // Whoop snapshot — non-throw == connected
         var whoopSnapshot: WhoopSnapshot?
         let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()
-        if let recovery = try? await whoop.fetchRecovery(for: yesterday) {
+        if whoop.providesRealData, let recovery = try? await whoop.fetchRecovery(for: yesterday) {
             whoopSnapshot = WhoopSnapshot(recoveryScore: recovery.score)
         }
 

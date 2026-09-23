@@ -697,7 +697,7 @@ final class DashboardViewModel {
     /// (when Whoop returned one), then the once-a-day body-comp snapshot.
     private func persistDailySnapshots(recovery: WhoopRecoveryData?, sleepHours: Double) async {
         guard let context = fuelContext else { return }
-        if let recovery {
+        if let recovery, whoop.providesRealData {
             upsertDailyRecovery(recovery, sleepHours: sleepHours, context: context)
         }
         await snapshotBodyCompositionIfNeeded(context: context)
