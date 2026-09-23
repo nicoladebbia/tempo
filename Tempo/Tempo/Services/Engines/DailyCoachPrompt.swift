@@ -175,7 +175,9 @@ enum DailyCoachPrompt {
                             secondaryWindows: (Int, Int)? = nil) -> String {
         var lines: [String] = []
         lines.append("TODAY'S BODY DATA:")
-        lines.append("- Recovery score: \(Int(p.recoveryScore))/100")
+        lines.append(p.hasRecoveryScore
+            ? "- Recovery score: \(Int(p.recoveryScore))/100"
+            : "- Recovery score: not synced today — judge from the other signals, don't assume red.")
 
         lines += baselineTrendLines(for: p)
 

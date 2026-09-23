@@ -25,7 +25,15 @@ struct ReadinessPicture: Equatable, Sendable {
     // MARK: Today's raw signals (from DailyRecovery)
 
     /// Whoop's fused recovery score, 0–100. The composite Route-A signal.
+    /// 0 = not synced today (Whoop never reports 0) — see `hasRecoveryScore`.
     let recoveryScore: Double
+
+    /// A real recovery score exists for today. Without one, missing data must
+    /// never read as "red": the floor would force rest on every day the strap
+    /// hasn't synced (or for users with no Whoop at all).
+    var hasRecoveryScore: Bool {
+        recoveryScore > 0
+    }
     /// Today's HRV (rMSSD, ms). nil when not synced.
     let hrv: Double?
     /// Today's resting HR (bpm). nil when not synced.
@@ -156,9 +164,9 @@ struct ReadinessPicture: Equatable, Sendable {
     /// (just "at moderate") instead of an easy swim. The floor still runs on top;
     /// this only softens the candidate the floor then tiers.
     var easeCrossTrainingToday: Bool {
-        if recoveryScore < 50 { return true }                                 // Whoop red-ish
+        if hasRecoveryScore, recoveryScore < 50 { return true }               // Whoop red-ish
         if let acwr = acuteChronicStrainRatio, acwr > 1.5 { return true }      // acute load spike (overreaching)
-        if hrvTrend7d == .falling, recoveryScore < 67 { return true }          // declining HRV + not genuinely fresh
+        if hrvTrend7d == .falling, hasRecoveryScore, recoveryScore < 67 { return true } // declining HRV + not genuinely fresh
         return false
     }
 }

@@ -64,6 +64,16 @@ final class TrainingSafetyFloorTests: XCTestCase {
         XCTAssertEqual(F.classifyFloorTier(picture(recovery: 30)), .severe)
     }
 
+    func testMissingRecoveryIsNotRed() {
+        // No sync today (score 0 sentinel) must not force a rest day.
+        let p = picture(recovery: 0)
+        XCTAssertFalse(p.hasRecoveryScore)
+        XCTAssertNotEqual(F.classifyFloorTier(p), .severe)
+        XCTAssertFalse(p.easeCrossTrainingToday)
+        let decision = F.apply(goHardLegs(), picture: p)
+        XCTAssertNotEqual(decision.session.intensity, .recovery)
+    }
+
     func testRouteB_hrvCrashAndRhrSpikeIsSevere() {
         // HRV z ≤ -1.5 AND RHR ≥ +5 bpm → the cooked-day AND-gate.
         let p = picture(recovery: 70, hrvZ: -1.8, rhrDelta: 6)

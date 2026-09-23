@@ -396,12 +396,14 @@ struct TodayWorkoutView: View {
     // recovery badge + deload banner restating what the card says).
 
     private func recoveryStatusLine(plan: WorkoutPlan) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        // No synced recovery today → say so instead of implying green.
+        let hasRecovery = (viewModel.loadRecoveryScore(modelContext: modelContext) ?? 0) > 0
+        return VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: TempoSpacing.xs) {
                 Circle()
-                    .fill(recoveryDotColor(plan: plan))
+                    .fill(hasRecovery ? recoveryDotColor(plan: plan) : Color.tempoTextTertiary)
                     .frame(width: 8, height: 8)
-                Text(recoveryText(plan: plan))
+                Text(hasRecovery ? recoveryText(plan: plan) : "No recovery data today")
                     .foregroundStyle(Color.tempoTextPrimary)
                 Text("·")
                     .foregroundStyle(Color.tempoTextTertiary)

@@ -84,8 +84,9 @@ enum TrainingSafetyFloor {
     /// SEVERE = ANY of the routes (logical OR). The raw routes (B / resp / RHR)
     /// only fire when the baseline is established (§6.3 cold-start gate).
     static func isSevere(_ p: ReadinessPicture) -> Bool {
-        // Route A — composite. Always available; trust Whoop's fused score. [L]
-        if p.recoveryScore < recoveryRed { return true }
+        // Route A — composite. Trust Whoop's fused score — when there is one
+        // (no sync today ≠ red). [L]
+        if p.hasRecoveryScore, p.recoveryScore < recoveryRed { return true }
 
         // Sleep route — high debt on an already-suppressed (non-green) recovery. [D]
         if let debt = p.sleepDebt, debt >= sleepDebtSevere, p.recoveryScore < recoveryGreen {
@@ -242,7 +243,7 @@ enum TrainingSafetyFloor {
     }
 
     private static func severeReason(_ p: ReadinessPicture) -> String {
-        if p.recoveryScore < recoveryRed { return "Recovery red (\(Int(p.recoveryScore))). Recover today." }
+        if p.hasRecoveryScore, p.recoveryScore < recoveryRed { return "Recovery red (\(Int(p.recoveryScore))). Recover today." }
         if let debt = p.sleepDebt, debt >= sleepDebtSevere { return "Sleep debt \(String(format: "%.1f", debt))h. Recover today." }
         if let rd = p.respDeltaBrMin, rd >= respSevereBrMin { return "Respiratory rate elevated — possible illness. Recover." }
         if let td = p.skinTempDeltaC, td >= skinTempSevereDeltaC { return "Skin temp +\(String(format: "%.1f", td))°C vs baseline — possible illness. Recover." }
