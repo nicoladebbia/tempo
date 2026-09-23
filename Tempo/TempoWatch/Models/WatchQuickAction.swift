@@ -34,4 +34,12 @@ enum WatchQuickAction: String, Codable {
 struct WatchActionPayload: Codable {
     let action: WatchQuickAction
     let payload: [String: String]
+
+    /// §11 — unique per send, so the phone-side `WatchActionRouter` can
+    /// recognize (and ignore) a duplicate delivery of the exact same action:
+    /// WCSession can redeliver a queued `transferUserInfo` transfer, and a
+    /// lost ack can leave the watch retrying. Defaulted so every existing
+    /// `WatchActionPayload(action:payload:)` call site needs no change —
+    /// each construction still gets its own fresh id.
+    var id: String = UUID().uuidString
 }

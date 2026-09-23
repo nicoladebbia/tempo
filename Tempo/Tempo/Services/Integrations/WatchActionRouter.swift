@@ -38,6 +38,28 @@ final class WatchActionRouter {
     /// write. Cleared when the session stops or is cancelled.
     private var activeFocusViewModel: AccountabilityViewModel?
 
+    /// §11 — bounded recent-id ring so a redelivered `WatchActionPayload`
+    /// (WCSession can replay a queued `transferUserInfo`, or the watch can
+    /// retry after a lost ack) is a no-op instead of being applied twice —
+    /// most dangerous for `.logSet`, where a replay could complete a SECOND
+    /// set the user never actually did.
+    private var recentActionIDs: [String] = []
+    private let maxRecentActionIDs = 30
+
+    /// Returns whether `id` has already been handled. Records it either way
+    /// (the first sighting reserves the slot) and trims the ring so this
+    /// never grows unbounded across a long session.
+    private func isDuplicate(_ id: String) -> Bool {
+        if recentActionIDs.contains(id) {
+            return true
+        }
+        recentActionIDs.append(id)
+        if recentActionIDs.count > maxRecentActionIDs {
+            recentActionIDs.removeFirst(recentActionIDs.count - maxRecentActionIDs)
+        }
+        return false
+    }
+
     init(
         accountabilityEngine: AccountabilityEngine,
         notifications: any NotificationServiceProtocol
@@ -71,7 +93,14 @@ final class WatchActionRouter {
     /// this is `true` (§22 — no optimistic success haptics).
     @discardableResult
     func handle(_ action: WatchActionPayload) -> Bool {
-        switch action.action {
+        // §11 — a redelivered action is treated as already-applied: the
+        // original round trip presumably already changed state, so replying
+        // `true` (not silently `false`) keeps the watch's success haptic
+        // honest without doing the work twice.
+        guard !isDuplicate(action.id) else {
+            return true
+        }
+        return switch action.action {
         case .logSet:
             routeLogSet(action)
         case .markNonNegotiableDone:
@@ -186,6 +215,13 @@ final class WatchActionRouter {
     /// `.inProgress` — the same field-level effect `applyWatchSetLog`
     /// already performs on the FIRST logged set. Deliberately does not
     /// touch ExerciseHistory / set completion (Training-owned territory).
+    /// This has no live `TrainingViewModel` to route through (unlike
+    /// `.logSet`, which waits for `setLogSetHandler` to register one), so it
+    /// mutates the plan directly. §11 — `TrainingViewModel.loadToday` now
+    /// recognizes an `.inProgress` plan with zero completed sets as a
+    /// watch-started session and adopts it as LIVE instead of showing
+    /// "Resume your workout?" (a real phone crash, by contrast, always has
+    /// at least the sets logged before it died).
     private func startWorkout() -> Bool {
         guard let modelContext else {
             return false

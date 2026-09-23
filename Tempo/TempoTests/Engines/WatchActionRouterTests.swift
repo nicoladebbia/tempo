@@ -187,14 +187,14 @@ final class WatchActionRouterTests: XCTestCase {
         let context = try makeContext()
         let router = makeRouter(configured: context)
 
-        let action = WatchActionPayload(
+        let firstAction = WatchActionPayload(
             action: .logSet,
             payload: ["exercise": "Bench Press", "reps": "8", "weight": "80"]
         )
 
         // Arrives before Training has ever loaded — buffered, honestly not
         // yet applied.
-        XCTAssertFalse(router.handle(action))
+        XCTAssertFalse(router.handle(firstAction))
 
         var replayed: [WatchActionPayload] = []
         router.setLogSetHandler { received in
@@ -205,8 +205,34 @@ final class WatchActionRouterTests: XCTestCase {
         XCTAssertEqual(replayed.count, 1, "The buffered set must replay on registration")
         XCTAssertEqual(replayed.first?.payload["exercise"], "Bench Press")
 
-        // Once registered, new sets route straight through.
-        XCTAssertTrue(router.handle(action))
+        // A genuinely NEW set (its own fresh id) routes straight through.
+        let secondAction = WatchActionPayload(
+            action: .logSet,
+            payload: ["exercise": "Bench Press", "reps": "6", "weight": "82.5"]
+        )
+        XCTAssertTrue(router.handle(secondAction))
         XCTAssertEqual(replayed.count, 2)
+    }
+
+    // MARK: - Duplicate delivery (§11)
+
+    func testDuplicateActionIDIsIgnoredButAcksSuccess() throws {
+        let context = try makeContext()
+        let router = makeRouter(configured: context)
+
+        let nn = NonNegotiable(name: "Train", type: .train, targetValue: 1)
+        context.insert(nn)
+        try context.save()
+
+        let action = WatchActionPayload(action: .markNonNegotiableDone, payload: ["id": nn.id.uuidString])
+        XCTAssertTrue(router.handle(action), "First delivery applies for real")
+
+        let progress = try XCTUnwrap(try context.fetch(FetchDescriptor<NonNegotiableProgress>()).first)
+        XCTAssertTrue(progress.isCompleted)
+
+        // A REDELIVERY of the exact same action (same id — e.g. WCSession
+        // replaying a queued transferUserInfo) must not re-apply, but still
+        // acks true — the watch already earned its success haptic.
+        XCTAssertTrue(router.handle(action), "Duplicate delivery acks success without redoing the work")
     }
 }

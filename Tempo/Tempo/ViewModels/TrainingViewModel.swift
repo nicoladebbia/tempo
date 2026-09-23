@@ -8,7 +8,6 @@
 
 import AudioToolbox
 import AVFoundation
-import CallKit
 import Foundation
 import SwiftData
 import SwiftUI
@@ -369,7 +368,18 @@ final class TrainingViewModel {
         let resolved = ensureTodayPlanPersisted(modelContext: modelContext)
         todayPlan = resolved.plan
         if resolved.isCrashedInProgress {
-            sessionState = .crashedRecovery
+            // §11 fix — WatchActionRouter.startWorkout() flips a plan to
+            // `.inProgress` directly (it has no live TrainingViewModel to run
+            // the real startWorkout() through), which looks identical here to
+            // a genuine phone crash. Tell them apart: zero completed sets
+            // means nothing was actually lost, so adopt it as a LIVE session
+            // instead of showing "Resume your workout?" for a day that never
+            // really started on the phone.
+            if hasNoCompletedSets(resolved.plan) {
+                adoptWatchStartedSession(resolved.plan)
+            } else {
+                sessionState = .crashedRecovery
+            }
         }
 
         // Re-snap prescriptions onto the loadable lattice in the user's
@@ -799,6 +809,44 @@ final class TrainingViewModel {
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
     }
 
+    /// True when a plan has logged zero sets — used in `loadToday` to tell a
+    /// genuine phone crash (real progress at risk) apart from a plan
+    /// `WatchActionRouter.startWorkout()` flipped to `.inProgress` before the
+    /// phone ever opened a live session (§11). Internal (not private) so it's
+    /// directly unit-testable without driving the whole async `loadToday`
+    /// pipeline.
+    func hasNoCompletedSets(_ plan: WorkoutPlan) -> Bool {
+        !plan.orderedExercises.contains { ex in ex.orderedSets.contains { $0.completed } }
+    }
+
+    /// Bring a watch-started session (plan already `.inProgress`, nothing
+    /// logged yet) onto the phone as a genuinely LIVE session — the same
+    /// shape `startWorkout()` leaves one in, minus re-flipping `plan.status`
+    /// / re-stamping `startedAt` (the watch already did both). §11 fix: this
+    /// is what lets `loadToday` skip `.crashedRecovery` for a session that
+    /// never actually crashed. Internal (not private) for the same testing
+    /// reason as `hasNoCompletedSets`.
+    func adoptWatchStartedSession(_ plan: WorkoutPlan) {
+        currentExerciseIndex = 0
+        currentSetIndex = 0
+        detectedPRs = []
+        startCallMonitoring()
+        if plan.type.isGymWorkout {
+            warmupRoutine = WarmupRoutine.routine(for: plan.type)
+            warmupMoveIndex = 0
+            Self.activateRestAudioSession()
+            sessionState = .warmup(exerciseIndex: 0, warmupSetIndex: 0)
+            startWarmupMoveTimerForCurrent()
+        } else {
+            let startedAt = plan.startedAt ?? Date()
+            workoutStartTime = startedAt
+            elapsedSeconds = Date().timeIntervalSince(startedAt)
+            sessionState = .exercise(.setActive(exerciseIndex: 0, setIndex: 0))
+            startElapsedTimer()
+        }
+        startLiveActivity()
+    }
+
     // MARK: - Advance Past Warmup
 
     // Per STATE_MACHINES.md §1 line 158 — warmup → exercise.setActive once
@@ -813,7 +861,11 @@ final class TrainingViewModel {
         stopWarmupMoveTimer()
         let exercises = plan.orderedExercises
         guard let first = exercises.first else {
-            sessionState = .cooldown
+            // §3 fix — a plan with zero exercises has nothing to warm up
+            // into. `.cooldown` used to render a blank screen here
+            // (ActiveWorkoutView has no case for it); go straight to the
+            // summary, matching recoverFromEmptyExercise's own terminal path.
+            sessionState = .summary
             return
         }
         let sets = first.orderedSets
@@ -898,8 +950,13 @@ final class TrainingViewModel {
             }
         }
 
-        if !foundActiveExercise {
-            sessionState = .cooldown
+        guard foundActiveExercise else {
+            // §3 fix — every exercise is already complete (or the plan holds
+            // none): there's nothing left to resume into. `.cooldown` used to
+            // render a blank screen here; go straight to the summary instead
+            // of starting timers/monitoring for a session that's already done.
+            sessionState = .summary
+            return
         }
 
         startElapsedTimer()
@@ -955,6 +1012,19 @@ final class TrainingViewModel {
         }
 
         let set = sets[currentSetIndex]
+        // §11 fix — the watch can complete this exact set (routed through
+        // this same function — see TrainingViewModel+WatchSync.applyWatchSetLog)
+        // moments before a phone tap lands on a UI that hadn't re-rendered
+        // yet. Logging again here would silently overwrite the watch's real
+        // numbers with whatever's sitting in the phone's stale input fields.
+        guard !set.completed else {
+            #if DEBUG
+                print(
+                    "\(DebugTrace.prefix)[Workout] logSet: set already completed (exIdx=\(currentExerciseIndex) setIdx=\(currentSetIndex)) — ignoring stale tap"
+                )
+            #endif
+            return
+        }
         // `weight` is the EFFECTIVE load in kg (for bodyweight lifts the caller
         // passes bodyweight ± addedLoadKg); addedLoadKg records the signed input.
         set.actualWeight = weight
@@ -1389,22 +1459,33 @@ final class TrainingViewModel {
 
     // Per STATE_MACHINES.md — any active state → cooldown → summary
 
+    /// Whether today's plan has at least one completed WORKING (non-warmup)
+    /// set — the bar for "actually did something". §3 fix: a Finish with
+    /// nothing logged must not mint a phantom `.inProgress` plan that can
+    /// never be regenerated (persistCompletion's own zero-sets guard leaves
+    /// status exactly where it found it, so nothing else ever reverts it).
+    private var hasAnyCompletedWorkingSet: Bool {
+        guard let plan = todayPlan else {
+            return false
+        }
+        return plan.orderedExercises.contains { ex in
+            ex.orderedSets.contains { $0.completed && !$0.isWarmup }
+        }
+    }
+
     /// Finish the session early (user tapped Finish before all sets). Saving is
     /// the caller's choice — see `discardActiveWorkout`. This path goes straight
     /// to the summary (no cooldown screen); persistCompletion (fired on .summary
     /// entry by the tab) saves only the working sets actually logged.
-    func finishWorkout() {
-        stopRestTimer()
-        stopWarmupMoveTimer()
-        stopElapsedTimer()
-        sessionState = .summary
-    }
-
-    /// Discard the in-progress session: mark the day skipped, drop any sets
-    /// logged this session WITHOUT writing ExerciseHistory, and reset. The day
-    /// stays open to redo. Used by the Finish → "Discard" choice.
-    func discardActiveWorkout(modelContext: ModelContext) {
-        // Allow discard from any live state (active / paused / cooldown).
+    ///
+    /// §3 fix — guarded per-state: `.crashedRecovery` has no restored
+    /// elapsed/duration to save (that needs `resumeFromCrash`'s timing
+    /// restore first) and every other non-live state is already past this
+    /// point, so this used to be reachable from anywhere via the toolbar's
+    /// unconditional Finish button. A zero-working-set finish (e.g. tapped
+    /// from `.warmup`) is routed to the SAME rollback `discardActiveWorkout`
+    /// does instead of leaving the day wedged `.inProgress` forever.
+    func finishWorkout(modelContext: ModelContext) {
         switch sessionState {
         case .warmup,
              .exercise,
@@ -1414,16 +1495,50 @@ final class TrainingViewModel {
         default:
             return
         }
+        guard hasAnyCompletedWorkingSet else {
+            discardActiveWorkout(modelContext: modelContext)
+            return
+        }
         stopRestTimer()
         stopWarmupMoveTimer()
         stopElapsedTimer()
+        sessionState = .summary
+    }
+
+    /// Discard the in-progress session: restore the plan to `.planned`, roll
+    /// back any sets logged THIS session WITHOUT writing ExerciseHistory, and
+    /// reset. The day stays open to redo. Used by the Finish → "Discard"
+    /// choice, and by `finishWorkout` when nothing was actually logged.
+    ///
+    /// §3 fix — now also valid from `.interruptedCall` and `.crashedRecovery`
+    /// (previously a silent no-op there, e.g. if the toolbar's Finish/Discard
+    /// flow was reached while a crash-recovery prompt was up).
+    func discardActiveWorkout(modelContext: ModelContext) {
+        switch sessionState {
+        case .warmup,
+             .exercise,
+             .cooldown,
+             .paused,
+             .interruptedCall,
+             .crashedRecovery:
+            break
+        default:
+            return
+        }
+        // Full teardown (timers + call monitor + cursor) — this now also
+        // covers `.crashedRecovery`, which needs the SAME complete reset
+        // `discardCrashedWorkout` already does, not just the timer stops the
+        // live-session path used to settle for.
+        resetState()
         if let plan = todayPlan {
             // Roll back this session's logged sets so a re-do starts clean.
             // Keep the plan .planned (NOT .skipped/.completed) so the day stays
             // OPEN TO REDO, exactly as the dialog promises — and writes no
             // ExerciseHistory.
+            var rolledBackSetIDs: Set<UUID> = []
             for ex in plan.orderedExercises {
                 for set in ex.orderedSets where set.completed {
+                    rolledBackSetIDs.insert(set.id)
                     set.completed = false
                     set.actualWeight = nil
                     set.actualReps = nil
@@ -1432,6 +1547,15 @@ final class TrainingViewModel {
             }
             plan.status = .planned
             plan.startedAt = nil
+            // A rolled-back set's SetFeedback row would otherwise linger and
+            // shadow the redo (the inline panel would show stale RPE/notes
+            // from the discarded attempt on the very first re-log).
+            if !rolledBackSetIDs.isEmpty {
+                let allFeedback = (try? modelContext.fetch(FetchDescriptor<SetFeedback>())) ?? []
+                for feedback in allFeedback where rolledBackSetIDs.contains(feedback.setID) {
+                    modelContext.delete(feedback)
+                }
+            }
         }
         try? modelContext.save()
         currentFeedback = nil
@@ -2008,108 +2132,26 @@ final class TrainingViewModel {
     // Drop-set logging (§6.4/§7.7) and manual group control (§6.5) live in
     // TrainingViewModel+Groups.swift, alongside the circuit helpers above.
 
-    // MARK: - Pause / Resume
+    // MARK: - Pause / Resume / Call Interruption
 
-    // Per STATE_MACHINES.md — any active → paused
+    // Pause/resume, call-interruption handling, and the rest-timer-remaining
+    // capture that makes both of them restart a mid-rest countdown correctly
+    // (§2) live in TrainingViewModel+PauseResume.swift — split out to keep
+    // this file under the SwiftLint length caps. The two stored properties
+    // below stay here (extensions can't add stored properties); they're
+    // internal, not private, so that file can reach them.
 
-    /// Snapshot of the current live state for the pause/interruption overlays.
-    /// nil when the session isn't in a pausable state.
-    private func capturePausedFromState() -> WorkoutSessionState.PausedFromState? {
-        switch sessionState {
-        case let .warmup(ei, si):
-            .warmup(exerciseIndex: ei, warmupSetIndex: si)
-        case let .exercise(sub):
-            .exercise(sub)
-        case .cooldown:
-            .cooldown
-        default:
-            nil
-        }
-    }
-
-    /// Re-enter the state a pause/interruption captured, re-arming the right
-    /// clock (warm-up move timer during warm-up; the elapsed clock otherwise).
-    private func restore(_ previousState: WorkoutSessionState.PausedFromState) {
-        switch previousState {
-        case let .warmup(ei, si):
-            sessionState = .warmup(exerciseIndex: ei, warmupSetIndex: si)
-            // Re-arm the guided warm-up move timer; the elapsed clock does not
-            // run during warm-up, so don't start it here.
-            startWarmupMoveTimerForCurrent()
-            return
-        case let .exercise(sub):
-            sessionState = .exercise(sub)
-        case .cooldown:
-            sessionState = .cooldown
-        }
-
-        startElapsedTimer()
-    }
-
-    func pause() {
-        guard sessionState.isActive, let previousState = capturePausedFromState() else {
-            return
-        }
-
-        stopRestTimer()
-        stopWarmupMoveTimer()
-        stopElapsedTimer()
-        sessionState = .paused(previousState: previousState, pauseStartTime: Date())
-    }
-
-    func resume() {
-        guard case let .paused(previousState, pauseStart) = sessionState else {
-            return
-        }
-
-        // Track pause duration
-        totalPauseDuration += Date().timeIntervalSince(pauseStart)
-
-        restore(previousState)
-    }
-
-    // MARK: - Call Interruption (STATE_MACHINES §1 — interruptedCall)
-
-    /// React to the phone-call state from the CXCallObserver. A connected or
-    /// dialing call during a live session parks it in `.interruptedCall`; the
-    /// call ending restores exactly the captured state. Everything else
-    /// no-ops, so a call while idle/paused/summary never touches the session.
-    func handleCallChange(callEnded: Bool) {
-        if callEnded {
-            guard case let .interruptedCall(previousState) = sessionState else {
-                return
-            }
-            restore(previousState)
-            HapticManager.notification(.warning)
-        } else {
-            guard sessionState.isActive, let previousState = capturePausedFromState() else {
-                return
-            }
-            stopRestTimer()
-            stopWarmupMoveTimer()
-            stopElapsedTimer()
-            sessionState = .interruptedCall(previousState: previousState)
-        }
-    }
+    /// Remaining rest-timer seconds captured at the moment a pause/call
+    /// interruption caught the session mid-rest (§2 / STATE_MACHINES §1).
+    /// `stopRestTimer()` (called right after) zeroes `restEndDate`, so this
+    /// is the ONLY place the real remaining time survives — `restore()`
+    /// reads it to restart the rest timer instead of leaving RestTimerView
+    /// frozen at 0:00 forever. nil when the interruption wasn't mid-rest.
+    var pausedRestRemaining: TimeInterval?
 
     /// Live only while a session runs (armed in startWorkout, dropped in
     /// resetState) — no reason to observe the phone from the Today screen.
-    private var callMonitor: CallInterruptionMonitor?
-
-    func startCallMonitoring() {
-        guard callMonitor == nil else {
-            return
-        }
-        let monitor = CallInterruptionMonitor()
-        monitor.onCallChange = { [weak self] ended in
-            self?.handleCallChange(callEnded: ended)
-        }
-        callMonitor = monitor
-    }
-
-    func stopCallMonitoring() {
-        callMonitor = nil
-    }
+    var callMonitor: CallInterruptionMonitor?
 
     // MARK: - Computed Properties
 
@@ -2204,30 +2246,5 @@ final class TrainingViewModel {
             result[key] = row.recoveryScore
         }
         return result
-    }
-}
-
-// MARK: - CallInterruptionMonitor
-
-/// NSObject shim between CXCallObserver and the @Observable view-model
-/// (which can't be an NSObject delegate itself). Forwards only what the
-/// session cares about: a call becoming live, or ending. Delegate callbacks
-/// arrive on the main queue, so hopping to the main actor is assumption-safe.
-@MainActor
-private final class CallInterruptionMonitor: NSObject, CXCallObserverDelegate {
-    private let observer = CXCallObserver()
-    /// `true` = the call ended.
-    var onCallChange: ((Bool) -> Void)?
-
-    override init() {
-        super.init()
-        observer.setDelegate(self, queue: .main)
-    }
-
-    nonisolated func callObserver(_: CXCallObserver, callChanged call: CXCall) {
-        let ended = call.hasEnded
-        MainActor.assumeIsolated {
-            onCallChange?(ended)
-        }
     }
 }
