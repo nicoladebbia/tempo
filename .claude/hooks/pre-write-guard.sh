@@ -9,6 +9,10 @@ FILE_PATH=$(printf '%s' "$INPUT" | python3 -c "import sys,json; d=json.load(sys.
 
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)}"
 PROJECT_DIR="${PROJECT_DIR%/}"
+if [[ -z "$PROJECT_DIR" ]]; then
+    echo "BLOCKED: cannot determine the project directory; refusing write to $FILE_PATH." >&2
+    exit 2
+fi
 
 # 1. Block writes outside the project (worktrees included via CLAUDE_PROJECT_DIR).
 #    Claude's own state (~/.claude) and temp/scratchpad dirs are allowed.
@@ -28,7 +32,8 @@ case "$FILE_PATH" in
 esac
 
 # 3. No secrets files in the repo.
-if [[ "$(basename "$FILE_PATH")" == ".env" ]]; then
+BASE=$(basename "$FILE_PATH")
+if [[ "$BASE" == .env || "$BASE" == *.env || "$BASE" == .env.* ]] && [[ "$BASE" != *.example && "$BASE" != *.sample && "$BASE" != *.template ]]; then
     echo "BLOCKED: do not create .env files in the repo; use .env.example as the template." >&2
     exit 2
 fi
