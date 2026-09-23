@@ -45,14 +45,14 @@ Nicola runs Tempo on his **physical iPhone** ("iPhone di Nicola"), not the simul
 5. **Arena (ClutchTime)** — XP, levels, leaderboards, challenges, achievements
 
 ## Parallel Claude Sessions — One Terminal Per Worktree (IMPORTANT)
-Nicola runs several `claude` sessions at once, each in its own terminal, working on Tempo simultaneously ("you do Recovery, you do Arena, you do Training"). **The hard rule that makes this safe: each terminal must be in a SEPARATE git worktree — never multiple sessions in the same directory.** Two `claude` sessions in the same `~/Projects/tempo` are independent processes editing the same files on disk; the second write silently clobbers the first with no conflict. Git cannot fix that. Separate worktrees physically isolate the files.
+Nicola runs several `claude` sessions at once, each in its own terminal, working on Tempo simultaneously ("you do Recovery, you do Arena, you do Training"). **The hard rule that makes this safe: each terminal must be in a SEPARATE git worktree — never multiple sessions in the same directory.** Two `claude` sessions in the same `~/dev/tempo` are independent processes editing the same files on disk; the second write silently clobbers the first with no conflict. Git cannot fix that. Separate worktrees physically isolate the files.
 
 **Layout (sibling worktrees, each its own branch off `main`):**
 ```
-~/Projects/tempo/            ← MAIN repo. Merge here. Do NOT run parallel sessions in this dir.
-~/Projects/tempo-recovery/   ← terminal 1, branch `recovery`
-~/Projects/tempo-arena/      ← terminal 2, branch `arena`
-~/Projects/tempo-training/   ← terminal 3, branch `training`
+~/dev/tempo/            ← MAIN repo. Merge here. Do NOT run parallel sessions in this dir.
+~/dev/tempo-recovery/   ← terminal 1, branch `recovery`
+~/dev/tempo-arena/      ← terminal 2, branch `arena`
+~/dev/tempo-training/   ← terminal 3, branch `training`
 ```
 
 **The helper script is `scripts/parallel.sh`** (run from the main repo):
@@ -101,5 +101,5 @@ A change that compiles is NOT a change that's connected. The compile check passe
 See `docs/INDEX.md` for the complete directory with reading orders, cross-references, and glossary.
 
 ## Related Projects
-- `~/Projects/nutrition-app/` — NutriTrack (Flask, 140+ API endpoints, Whoop integration built-in)
-- `~/Projects/saife/` — Swift/SwiftUI iOS project (reference for patterns)
+- `~/dev/nutrition-app/` — NutriTrack (Flask, 140+ API endpoints, Whoop integration built-in)
+- `~/dev/saife/` — Swift/SwiftUI iOS project (reference for patterns)
