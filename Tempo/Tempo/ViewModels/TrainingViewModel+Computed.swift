@@ -223,12 +223,13 @@ extension TrainingViewModel {
         guard currentSetIndex < sets.count else {
             return sets.last?.targetWeight
         }
-        // Carry from the most recent WORKING set (skip ramps) so the first
-        // working set pre-fills the working weight, not the 75% ramp. Fall back
-        // to the current set's own target if no prior working set exists.
+        // Carry from the most recent WORKING set (skip ramps and drop steps) so
+        // the next working set pre-fills the working weight, not the 75% ramp
+        // or a ~80% drop. Fall back to the current set's own target if no
+        // prior working set exists.
         for i in stride(from: currentSetIndex - 1, through: 0, by: -1) {
             let prev = sets[i]
-            if !prev.isWarmup {
+            if !prev.isWarmup, !prev.isDropStep {
                 return prev.actualWeight ?? prev.targetWeight
             }
         }

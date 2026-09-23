@@ -1008,7 +1008,7 @@ struct TodayWorkoutView: View {
                     Label("Swap Exercise", systemImage: "arrow.triangle.2.circlepath")
                 }
             }
-            if canSwap(plannedExercise), let next = nextExercise(after: plannedExercise, in: allExercises),
+            if canSwap(plannedExercise), let next = nextExercise(after: plannedExercise, in: allExercises), canSwap(next),
                plannedExercise.supersetGroup == nil || plannedExercise.supersetGroup != next.supersetGroup
             {
                 Button {

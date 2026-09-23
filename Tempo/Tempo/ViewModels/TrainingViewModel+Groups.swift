@@ -222,6 +222,11 @@ extension TrainingViewModel {
             return
         }
         let next = exercises[idx + 1]
+        // Never regroup logged work: rotation assumes members advance in step,
+        // so an exercise already mid-way through its sets can't join a group.
+        guard !([exercise, next].contains { $0.orderedSets.contains(where: \.completed) }) else {
+            return
+        }
         guard exercise.supersetGroup == nil || exercise.supersetGroup != next.supersetGroup else {
             return // already grouped together
         }

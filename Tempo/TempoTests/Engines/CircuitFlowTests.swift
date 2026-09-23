@@ -226,6 +226,21 @@ final class CircuitFlowTests: XCTestCase {
         XCTAssertEqual(exercises[0].supersetGroup, exercises[2].supersetGroup)
     }
 
+    func testGroupWithNextRefusesAnExerciseWithLoggedSets() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedThreeIndependentExercises(context: context)
+        plan.status = .inProgress
+        vm.todayPlan = plan
+        let exercises = plan.orderedExercises
+        exercises[1].orderedSets[0].completed = true
+
+        vm.groupWithNext(exercises[0], modelContext: context)
+
+        XCTAssertNil(exercises[0].supersetGroup)
+        XCTAssertNil(exercises[1].supersetGroup)
+    }
+
     func testGroupWithNextIsNoOpAtTheEndOfThePlan() throws {
         let context = try makeContext()
         let vm = makeVM()

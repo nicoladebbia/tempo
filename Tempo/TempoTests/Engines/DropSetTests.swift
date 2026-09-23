@@ -348,4 +348,24 @@ final class DropSetTests: XCTestCase {
         XCTAssertEqual(e1RM, 100 * (1 + 5.0 / 30.0), accuracy: 0.001, "e1RM comes from the top set only")
         _ = slot // silence unused-var warning if slot goes unread on some paths
     }
+
+    // MARK: - Review fixes
+
+    func testNextWorkingSetPrefillsTopSetWeightNotTheDrop() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let (plan, slot) = seedSingleExercise(working: 2, context: context)
+        vm.todayPlan = plan
+        enterSetActive(vm)
+        vm.addDropSet(modelContext: context) // set 0 → drop at index 1, next working at 2
+        let sets = slot.orderedSets
+        sets[0].actualWeight = 100
+        sets[0].completed = true
+        sets[1].actualWeight = 80
+        sets[1].completed = true
+
+        enterSetActive(vm, set: 2)
+
+        XCTAssertEqual(vm.stickyWeight, 100, "Pre-fill carries the top set, not the 80kg drop")
+    }
 }
