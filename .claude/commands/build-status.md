@@ -1,3 +1,7 @@
+---
+description: Show build progress: phases done, next step, blockers.
+---
+
 # /build-status — Show Build Progress
 
 Read `docs/BUILD_PROGRESS.md` and `docs/BUILD_PLAN.md`, then display a concise status report:

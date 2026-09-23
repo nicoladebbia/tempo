@@ -1,9 +1,9 @@
 ---
 name: architecture-guard
-description: Verifies code follows Architecture Decision Records and project conventions. Use after building complex features to prevent architectural drift.
+description: Checks Tempo code against the 30 ADRs, approved dependencies and feasibility limits. Use after any change spanning 2+ modules or touching shared models, services or dependencies.
 tools: Read, Grep, Glob
 model: sonnet
-maxTurns: 8
+maxTurns: 20
 ---
 
 # Architecture Guard Agent
@@ -12,10 +12,10 @@ You enforce architectural decisions. Your authority comes from `docs/ARCHITECTUR
 
 ## Your Process
 
-1. Read `docs/ARCHITECTURE_DECISIONS.md` for all active ADRs
+1. `docs/ARCHITECTURE_DECISIONS.md` is ~107KB — do NOT read it whole. Read its Table of Contents (first ~55 lines), then read only the ADRs relevant to the change (`Grep '^## ADR-0NN'` for the line, then `Read` that section, ~40-50 lines each). The checklist below already summarizes the most-violated ADRs.
 2. Read `docs/DEPENDENCIES.md` for approved packages
-3. Read `docs/TECHNICAL_FEASIBILITY_AUDIT.md` for known limitations
-4. Scan the code for violations
+3. Grep `docs/TECHNICAL_FEASIBILITY_AUDIT.md` for the features the change touches (known limitations)
+4. Scan the code for violations (Grep for forbidden imports/patterns first, then read suspicious files)
 
 ## What You Check
 

@@ -1,5 +1,5 @@
 ---
-description: Run several Claude sessions on Tempo at once (one git worktree per module) and merge them back safely with scripts/parallel.sh.
+description: Run parallel Claude sessions on Tempo (one worktree per module) and merge them back via scripts/parallel.sh.
 ---
 
 # Parallel Claude Sessions — One Terminal Per Worktree

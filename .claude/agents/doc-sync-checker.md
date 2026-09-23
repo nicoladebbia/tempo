@@ -1,6 +1,6 @@
 ---
 name: doc-sync-checker
-description: Verifies that built code stays in sync with documentation specs. Catches drift between docs and implementation.
+description: Finds drift between code and its spec docs (DATA_MODELS_IOS, WIREFRAMES, STATE_MACHINES, UX_COPY_BIBLE). Use after changing models, views, state machines or copy.
 tools: Read, Grep, Glob
 model: haiku
 maxTurns: 10

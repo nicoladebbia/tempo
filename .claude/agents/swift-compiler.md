@@ -1,7 +1,7 @@
 ---
 name: swift-compiler
-description: Validates Swift code compiles and catches type errors, missing imports, and protocol conformance issues. Use after writing Swift files.
-tools: Read, Bash, Glob
+description: Fast static check of Swift files for missing imports, undefined types, conformances and optionals, with an optional xcodebuild compile. Use after writing Swift files.
+tools: Read, Grep, Glob, Bash
 model: haiku
 maxTurns: 5
 ---

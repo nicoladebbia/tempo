@@ -1,8 +1,8 @@
 ---
 name: test-runner
-description: Runs unit tests, parses results, and reports failures with context. Use after completing a build phase to verify correctness.
+description: Runs the iOS (xcodebuild) or backend (swift test) suites, parses failures and diagnoses root causes. Use after a build phase or any change that needs tests run.
 tools: Read, Bash, Glob, Grep
-model: sonnet
+model: haiku
 maxTurns: 10
 ---
 
@@ -18,7 +18,7 @@ You run tests and analyze results. You don't just report pass/fail — you diagn
    - If Views were built → run snapshot tests (if available)
    - If everything → run full suite
 2. Run the appropriate test command:
-   - iOS: `xcodebuild test -scheme Tempo -destination 'platform=iOS Simulator,name=iPhone 15'`
+   - iOS: `xcodebuild test -project Tempo/Tempo.xcodeproj -scheme Tempo -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TempoTests` (targets: TempoTests, TempoUITests, TempoSnapshotTests; if the simulator name is missing, pick one from `xcrun simctl list devices available`)
    - Backend: `cd tempo-backend && swift test`
 3. Parse the output:
    - Count total tests, passes, failures, skips
