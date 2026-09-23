@@ -1,3 +1,8 @@
+---
+description: Show or execute one build step (e.g. 3.2); no number = next step.
+argument-hint: "[step number]"
+---
+
 # /build-step — Show or Execute a Specific Build Step
 
 **Usage:** `/build-step [step_number]` (e.g., `/build-step 3.2`)

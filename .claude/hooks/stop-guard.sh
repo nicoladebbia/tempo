@@ -1,28 +1,17 @@
 #!/bin/bash
-# Stop Guard Hook
-# Runs when Claude tries to stop/finish responding
-# Checks if the current build step is properly completed
-# Exit 0 = allow stop, Exit 2 = block stop (Claude must keep working)
+# Stop Guard — if a /build step is still marked 🔨 in BUILD_PROGRESS.md, block the
+# stop ONCE with a reminder (stop_hook_active prevents loops). Otherwise silent.
 
-PROGRESS_FILE="docs/BUILD_PROGRESS.md"
-BUILD_PLAN="docs/BUILD_PLAN.md"
+INPUT=$(cat)
+ACTIVE=$(printf '%s' "$INPUT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('stop_hook_active', False))" 2>/dev/null)
+[[ "$ACTIVE" == "True" ]] && exit 0
 
-# Only run if we're in a /build session (check if BUILD_PROGRESS exists and has in-progress items)
-if [[ ! -f "$PROGRESS_FILE" ]]; then
-    exit 0
-fi
+ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)}"
+PROGRESS_FILE="$ROOT/docs/BUILD_PROGRESS.md"
+[[ -f "$PROGRESS_FILE" ]] || exit 0
 
-# Check for any step marked as "in progress" (🔨) but not completed
-IN_PROGRESS=$(grep -c '🔨' "$PROGRESS_FILE" 2>/dev/null || echo 0)
+STEP=$(/usr/bin/grep -m1 '🔨' "$PROGRESS_FILE")
+[[ -z "$STEP" ]] && exit 0
 
-if [[ "$IN_PROGRESS" -gt 0 ]]; then
-    STEP=$(grep '🔨' "$PROGRESS_FILE" | head -1)
-    echo "⚠️ Build step still in progress: $STEP"
-    echo "Please complete this step and mark it done before stopping."
-    echo "Update BUILD_PROGRESS.md: change 🔨 to [x] when the step passes acceptance criteria."
-    # Don't block — just remind. Claude will see this feedback.
-    exit 0
-fi
-
-# All good — allow stop
+python3 -c 'import json,sys; print(json.dumps({"decision":"block","reason":"Build step still marked in progress: "+sys.argv[1].strip()[:120]+". Finish it and change 🔨 to [x] in docs/BUILD_PROGRESS.md, or log it under ## Blockers if you are blocked."}))' "$STEP"
 exit 0

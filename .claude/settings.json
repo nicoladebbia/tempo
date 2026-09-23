@@ -2,7 +2,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Write",
+        "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
@@ -66,8 +66,15 @@
       "Bash(curl *POST*password*)",
       "Bash(curl *DELETE*)",
       "Bash(git push --force:*)",
-      "Bash(git push -f:*)"
+      "Bash(git push -f:*)",
+      "Read(**/build/**)",
+      "Read(**/build_sim/**)",
+      "Read(**/DerivedData/**)",
+      "Read(**/SourcePackages/**)",
+      "Read(**/.build/**)",
+      "Read(**/xcuserdata/**)",
+      "Read(**/*.xcuserstate)",
+      "Read(**/.DS_Store)"
     ]
-  },
-  "effortLevel": "high"
+  }
 }
