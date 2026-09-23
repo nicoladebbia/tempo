@@ -2,7 +2,7 @@
 // PlannedExercise.swift
 // Tempo
 //
-// Created by Tempo on 25/03/2026.
+// Created by Tempo on 3/25/26.
 //
 //
 
@@ -57,9 +57,10 @@ final class PlannedExercise {
     @Transient
     var bestSet: PlannedSet? {
         // Working sets only — a warmup ramp set must never be reported as the
-        // "best" set of an exercise.
+        // "best" set of an exercise, and neither can a drop step (§6.4): it's
+        // a reduced-weight backoff, never the max-effort signal "best" means.
         (sets ?? [])
-            .filter { !$0.isWarmup && $0.completed && $0.actualWeight != nil }
+            .filter { !$0.isWarmup && !$0.isDropStep && $0.completed && $0.actualWeight != nil }
             .max { ($0.actualWeight ?? 0) < ($1.actualWeight ?? 0) }
     }
 
