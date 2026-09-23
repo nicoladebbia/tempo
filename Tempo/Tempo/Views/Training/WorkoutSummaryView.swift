@@ -166,11 +166,14 @@ struct WorkoutSummaryView: View {
                             .font(.tempoBody)
                             .foregroundStyle(Color.tempoTextPrimary)
 
-                        if let context = pr.context {
-                            Text(context)
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextSecondary)
-                        }
+                        // §15 fix — `pr.context` is a kg-only, unit-unaware
+                        // string from TrainingEngine ("82kg x 5 reps" even
+                        // for an lbs user). PRDisplay never renders that
+                        // embedded weight; the number on the right already
+                        // shows pr.value converted to the user's unit.
+                        Text(PRDisplay.subtitle(pr))
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextSecondary)
                     }
 
                     Spacer()
@@ -312,7 +315,14 @@ struct WorkoutSummaryView: View {
         Button {
             Task {
                 await viewModel.saveWorkout(modelContext: modelContext)
-                dismiss()
+                // §4 fix — only close on success. saveWorkout leaves
+                // saveErrorMessage set (and sessionState still .summary) on
+                // failure; dismissing anyway threw away the only screen with
+                // a SAVE button to retry from, while the loud "Save failed"
+                // alert popped up over an already-closed summary.
+                if viewModel.saveErrorMessage == nil {
+                    dismiss()
+                }
             }
         } label: {
             Text("SAVE & CLOSE")
