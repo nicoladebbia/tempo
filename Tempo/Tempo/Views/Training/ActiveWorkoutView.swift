@@ -238,7 +238,7 @@ struct ActiveWorkoutView: View {
                         .toolbar {
                             ToolbarItem(placement: .confirmationAction) {
                                 Button("Done") {
-                                    try? modelContext.save()
+                                    modelContext.saveOrAlert("session notes")
                                     showNotes = false
                                 }
                             }
@@ -247,6 +247,20 @@ struct ActiveWorkoutView: View {
                 .presentationDetents([.medium])
             }
         }
+        // Save failures while the full-screen cover is up (the Training tab's
+        // alerts can't present over it).
+        .alert(
+            "Save failed",
+            isPresented: Binding(
+                get: { viewModel.saveErrorMessage != nil },
+                set: { if !$0 { viewModel.saveErrorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(viewModel.saveErrorMessage ?? "")
+        }
+        .persistenceAlert()
         .navigationBarBackButtonHidden()
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {

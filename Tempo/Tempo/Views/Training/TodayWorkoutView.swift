@@ -156,6 +156,7 @@ struct TodayWorkoutView: View {
         }
         .sheet(isPresented: $showReorderSheet) {
             ExerciseReorderSheet(viewModel: viewModel)
+                .persistenceAlert()
         }
         .sheet(item: $swapTarget) { target in
             SwapExerciseSheet(viewModel: viewModel, target: target)
@@ -169,6 +170,7 @@ struct TodayWorkoutView: View {
                         }
                     }
             }
+            .persistenceAlert()
         }
         .alert("Save as routine", isPresented: $showSaveRoutine) {
             TextField("Name (e.g. Upper A)", text: $routineName)

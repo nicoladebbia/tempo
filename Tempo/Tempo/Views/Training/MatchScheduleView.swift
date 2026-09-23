@@ -130,7 +130,7 @@ struct MatchScheduleView: View {
     }
 
     private func persistAndReplan() {
-        try? modelContext.save()
+        modelContext.saveOrAlert("match schedule")
         HapticManager.selection()
         // Deterministic re-periodization only (see COST NOTE in the file header):
         // re-shapes T-0/T-1 around the new fixture without a paid AI call.

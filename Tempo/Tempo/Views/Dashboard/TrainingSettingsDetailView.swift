@@ -422,7 +422,7 @@ struct TrainingSettingsDetailView: View {
             profile.footballDaysRaw = s.footballDaysRaw
             profile.trainingSplitRaw = s.trainingSplit.rawValue
         }
-        try? modelContext.save()
+        modelContext.saveOrAlert("training settings")
         // Tell the Nutrition tab to regenerate its plan with the new
         // trainingSplit/footballDays. We intentionally post on EVERY save
         // (every chip toggle); the observer side debounces so a burst of
@@ -540,7 +540,7 @@ struct CustomSplitEditorView: View {
     private func persist() {
         guard let s = settings else { return }
         s.customWeekdayPlan = plan
-        try? modelContext.save()
+        modelContext.saveOrAlert("custom split")
         NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
     }
 }

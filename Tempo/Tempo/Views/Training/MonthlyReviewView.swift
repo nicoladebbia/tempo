@@ -186,7 +186,7 @@ struct MonthlyReviewView: View {
         review.subjectiveProgress = blankToNil(subjectiveProgress)
         review.goalsNextMonth = blankToNil(goalsNextMonth)
         review.chosenEmphasis = chosenEmphasis
-        try? modelContext.save()
+        modelContext.saveOrAlert("monthly review")
 
         viewModel.applyMonthlyEmphasisChoice(review, modelContext: modelContext)
 

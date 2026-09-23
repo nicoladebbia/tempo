@@ -45,7 +45,7 @@ struct ExerciseReorderSheet: View {
                 }
                 .onMove { source, destination in
                     viewModel.moveExercises(from: source, to: destination)
-                    try? modelContext.save()
+                    modelContext.saveOrAlert("exercise order")
                     HapticManager.selection()
                 }
             }

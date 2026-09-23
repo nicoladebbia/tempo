@@ -141,7 +141,7 @@ extension TrainingViewModel {
 
         review.summaryText = text
         review.summaryGeneratedAt = Date()
-        try? modelContext.save()
+        saveGuarded(modelContext, operation: "monthly review")
         monthlyReviewDueKey = monthlyReviewDue(modelContext: modelContext)
         #if DEBUG
             print("\(DebugTrace.prefix)[monthly_review] summary persisted month=\(review.monthKey) chars=\(text.count)")
@@ -159,7 +159,7 @@ extension TrainingViewModel {
         let existing = (try? modelContext.fetch(FetchDescriptor<TrainingBlock>())) ?? []
         guard !existing.contains(where: { Calendar.current.startOfDay(for: $0.startDate) == day }) else { return }
         modelContext.insert(TrainingBlock(emphasis: emphasis, startDate: day))
-        try? modelContext.save()
+        saveGuarded(modelContext, operation: "monthly focus")
         #if DEBUG
             print("\(DebugTrace.prefix)[monthly_review] emphasis block inserted \(emphasis.rawValue) from \(day)")
         #endif

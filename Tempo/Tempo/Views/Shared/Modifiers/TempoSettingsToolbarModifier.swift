@@ -45,6 +45,7 @@ struct TempoSettingsToolbarModifier: ViewModifier {
                 NavigationStack {
                     DashboardSettingsView()
                 }
+                .persistenceAlert()
             }
     }
 }

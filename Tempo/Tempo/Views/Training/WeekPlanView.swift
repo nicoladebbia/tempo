@@ -82,6 +82,13 @@ struct WeekPlanView: View {
                     } else if let rationale = viewModel.aiWeekRationale {
                         aiRationaleCard(rationale)
                     }
+
+                    if viewModel.aiWeekUnavailable, viewModel.aiWeekRationale == nil {
+                        Label("Couldn't reach the AI coach — this is your standard plan. It'll retry shortly.", systemImage: "wifi.exclamationmark")
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
 
                 // 7-day grid
@@ -144,9 +151,11 @@ struct WeekPlanView: View {
                         }
                     }
             }
+            .persistenceAlert()
         }
         .sheet(isPresented: $showMatchSchedule) {
             MatchScheduleView()
+                .persistenceAlert()
         }
         .onAppear {
             viewModel.loadWeekPlan(modelContext: modelContext)

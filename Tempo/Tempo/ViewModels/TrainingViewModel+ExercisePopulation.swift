@@ -776,7 +776,7 @@ extension TrainingViewModel {
             // Learn the substitution — future plans prescribe this pick.
             rememberSwapPreference(from: oldID, to: newExercise.id, modelContext: modelContext)
         }
-        try? modelContext.save()
+        saveGuarded(modelContext, operation: "exercise swap")
         HapticManager.selection()
     }
 
@@ -800,7 +800,7 @@ extension TrainingViewModel {
             plannedExercise: planned,
             modelContext: modelContext
         )
-        try? modelContext.save()
+        saveGuarded(modelContext, operation: "added exercise")
         HapticManager.selection()
     }
 

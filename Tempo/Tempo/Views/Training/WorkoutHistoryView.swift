@@ -295,7 +295,7 @@ struct WorkoutHistoryView: View {
         }
         // 4. The plan itself (cascades to PlannedExercise → PlannedSet).
         modelContext.delete(workout)
-        try? modelContext.save()
+        modelContext.saveOrAlert("history change")
 
         swipedWorkoutID = nil
         pendingDelete = nil

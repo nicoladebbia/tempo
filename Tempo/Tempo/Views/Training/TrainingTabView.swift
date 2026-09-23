@@ -135,6 +135,7 @@ struct TrainingTabView: View {
             guard let viewModel, !(viewModel.sessionState.isActive) else { return }
             viewModel.repersonalizeSchedule(modelContext: modelContext)
         }
+        .persistenceAlert()
         .alert(
             "Save failed",
             isPresented: Binding(

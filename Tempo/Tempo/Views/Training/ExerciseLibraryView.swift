@@ -532,7 +532,7 @@ struct CustomExerciseFormView: View {
                 ? [] : [cue.trimmingCharacters(in: .whitespacesAndNewlines)]
         )
         modelContext.insert(exercise)
-        try? modelContext.save()
+        modelContext.saveOrAlert("custom exercise")
         HapticManager.notification(.success)
         dismiss()
     }

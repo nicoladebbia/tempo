@@ -60,7 +60,7 @@ struct RoutinesView: View {
                     .swipeActions {
                         Button(role: .destructive) {
                             modelContext.delete(routine)
-                            try? modelContext.save()
+                            modelContext.saveOrAlert("routine change")
                         } label: {
                             Label("Delete", systemImage: "trash")
                         }
@@ -176,6 +176,11 @@ struct RoutineEditorView: View {
     }
 
     var body: some View {
+        editorBody
+            .persistenceAlert()
+    }
+
+    private var editorBody: some View {
         NavigationStack {
             List {
                 Section {
@@ -310,8 +315,9 @@ struct RoutineEditorView: View {
         } else {
             modelContext.insert(WorkoutRoutine(name: trimmed, items: items))
         }
-        try? modelContext.save()
-        dismiss()
+        if modelContext.saveOrAlert("routine") {
+            dismiss()
+        }
     }
 }
 

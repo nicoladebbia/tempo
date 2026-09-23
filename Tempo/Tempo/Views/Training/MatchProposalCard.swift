@@ -138,7 +138,7 @@ struct MatchProposalCard: View {
             isCompetitive: true // protect by default — same as the model's default
         )
         modelContext.insert(match)
-        try? modelContext.save()
+        modelContext.saveOrAlert("match")
         // Same fan-out MatchScheduleView posts on add — replans the week.
         NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
         HapticManager.notification(.success)

@@ -135,7 +135,7 @@ struct ExerciseDetailView: View {
             return
         }
         modelContext.delete(exercise)
-        try? modelContext.save()
+        modelContext.saveOrAlert("exercise")
         HapticManager.notification(.success)
         dismiss()
     }
@@ -439,7 +439,7 @@ struct ExerciseDetailView: View {
                     get: { exercise.preferredRestSeconds ?? 90 },
                     set: { newValue in
                         exercise.preferredRestSeconds = newValue
-                        try? modelContext.save()
+                        modelContext.saveOrAlert("exercise")
                     }
                 ),
                 in: 30 ... 300,
@@ -455,7 +455,7 @@ struct ExerciseDetailView: View {
             if exercise.preferredRestSeconds != nil {
                 Button {
                     exercise.preferredRestSeconds = nil
-                    try? modelContext.save()
+                    modelContext.saveOrAlert("exercise")
                 } label: {
                     Text("Reset to Default")
                         .font(.tempoCaption1)

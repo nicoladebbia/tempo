@@ -172,7 +172,7 @@ extension TrainingViewModel {
             plannedExercise.sets = [dropSet]
         }
 
-        try? modelContext.save()
+        saveGuarded(modelContext, operation: "drop set")
         HapticManager.selection()
     }
 
@@ -197,7 +197,7 @@ extension TrainingViewModel {
         }
         plannedExercise.sets?.removeAll { $0.id == trailing.id }
         modelContext.delete(trailing)
-        try? modelContext.save()
+        saveGuarded(modelContext, operation: "drop set change")
         HapticManager.selection()
     }
 
@@ -237,7 +237,7 @@ extension TrainingViewModel {
 
         exercise.supersetGroup = groupID
         next.supersetGroup = groupID
-        try? modelContext.save()
+        saveGuarded(modelContext, operation: "superset")
         HapticManager.selection()
     }
 
@@ -250,7 +250,7 @@ extension TrainingViewModel {
             return
         }
         exercise.supersetGroup = nil
-        try? modelContext.save()
+        saveGuarded(modelContext, operation: "superset change")
         HapticManager.selection()
     }
 }

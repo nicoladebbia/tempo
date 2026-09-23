@@ -176,7 +176,7 @@ struct VenueProposalCard: View {
     private func confirm(venue: TrainingVenue, startMin: Int?) {
         let today = Calendar.current.startOfDay(for: Date())
         modelContext.insert(VenueConfirmation(dayKey: today, venue: venue, startMin: startMin))
-        try? modelContext.save()
+        modelContext.saveOrAlert("venue answer")
         // The answer is the highest-quality sample — fold it in immediately.
         VenuePatternLearner.recompute(modelContext: modelContext)
         answeredToday = true

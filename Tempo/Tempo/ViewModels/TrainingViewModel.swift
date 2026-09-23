@@ -182,6 +182,10 @@ final class TrainingViewModel {
     /// the deterministic plan stands (offline, not Pro, no consent, failure).
     /// The Week Plan view shows it as a "why" line when present.
     var aiWeekRationale: String?
+    /// The AI week call failed on network/server (not entitlement) — Week Plan
+    /// is showing the standard plan and says so.
+    var aiWeekUnavailable = false
+    var aiWeekLastFailure: Date?
 
     /// Last week's graded outcome (Phase 4). Non-nil after the weekly review has
     /// run; drives the Coach Review card. nil before there's a full prior week.
@@ -500,6 +504,10 @@ final class TrainingViewModel {
         // start in the same week doesn't re-spend the call.
         let profile = fetchOrCreateAdaptiveProfile(modelContext: modelContext)
         guard profile.lastAIHydratedWeekKey != weekKey else { return }
+        // A failed attempt retries at most hourly (not on every loadToday).
+        if let lastFailure = aiWeekLastFailure, Date().timeIntervalSince(lastFailure) < 3600 {
+            return
+        }
 
         let footballDays = loadFootballDays(modelContext: modelContext)
         let recovery7Day = loadRecovery7DayTrend(modelContext: modelContext)
@@ -517,8 +525,15 @@ final class TrainingViewModel {
             goal: (currentBlockEmphasis(modelContext: modelContext) ?? .physique).weeklyGoal
         )
 
-        // Mark the week done regardless of whether AI ran — a 402 (not Pro / no
-        // consent) or a network failure should NOT retrigger on every loadToday.
+        // A network/server failure leaves the week open for a later retry and
+        // says so on Week Plan; a 402 (not Pro / no consent) or a real answer
+        // marks the week done so it never re-spends the call.
+        aiWeekUnavailable = result.failed
+        if result.failed {
+            aiWeekLastFailure = Date()
+            return
+        }
+        aiWeekLastFailure = nil
         profile.lastAIHydratedWeekKey = weekKey
         try? modelContext.save()
 
@@ -934,7 +949,7 @@ final class TrainingViewModel {
         }
 
         // Persist immediately (crash recovery)
-        try? modelContext.save()
+        saveGuarded(modelContext, operation: "set")
 
         // PR detection — working sets only. Warmup ramp sets must never trigger
         // a PR (this is why duplicate/low PRs appeared, e.g. two "Face Pull" PRs:
@@ -948,7 +963,7 @@ final class TrainingViewModel {
                 reps: reps
             ) {
                 modelContext.insert(pr)
-                try? modelContext.save()
+                saveGuarded(modelContext, operation: "PR")
                 detectedPRs.append(pr)
                 HapticManager.notification(.success)
             }
@@ -1084,7 +1099,7 @@ final class TrainingViewModel {
             return
         }
         modelContext.delete(sets[currentSetIndex])
-        try? modelContext.save()
+        saveGuarded(modelContext, operation: "skipped set")
         advanceAfterSkip(in: slot, plan: plan)
     }
 
@@ -1106,7 +1121,7 @@ final class TrainingViewModel {
         for set in doomed {
             modelContext.delete(set)
         }
-        try? modelContext.save()
+        saveGuarded(modelContext, operation: "warm-up skip")
         advanceAfterSkip(in: slot, plan: plan)
     }
 
@@ -1183,7 +1198,7 @@ final class TrainingViewModel {
             let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
             feedback.note = trimmed.isEmpty ? nil : trimmed
         }
-        try? modelContext.save()
+        saveGuarded(modelContext, operation: "set feedback")
 
         // If the workout is ALREADY persisted (the last set's feedback is now
         // edited in the summary, after persistCompletion ran on .summary entry),
@@ -1414,7 +1429,8 @@ final class TrainingViewModel {
                 #endif
             }
         }
-        saveErrorMessage = "Couldn't save your \(operation). Nothing is lost yet — hit retry, and free up iPhone storage if this keeps happening."
+        saveErrorMessage = "Couldn't save your \(operation). Try it again — if this keeps happening, free up iPhone storage."
+        PersistenceAlert.shared.report(operation)
         return false
     }
 
@@ -1767,7 +1783,7 @@ final class TrainingViewModel {
         // traverse the one-way `.nullify` link (dangling-crash guard — see
         // DailySession.actualSessionRPE). dailySession is today's 1:1 pair.
         dailySession?.actualSessionRPE = rpe
-        try? modelContext.save()
+        saveGuarded(modelContext, operation: "session RPE")
         #if DEBUG
             print("\(DebugTrace.prefix)[Workout] recordSessionRPE: plan=\(plan.id) rpe=\(rpe) expected=\(dailySession?.expectedSessionRPE.map(String.init) ?? "nil")")
         #endif
@@ -1787,7 +1803,7 @@ final class TrainingViewModel {
         plan.typeRaw = stashed
         plan.plannedTypeRaw = nil
         dailySession?.userOverrode = true
-        try? modelContext.save()
+        saveGuarded(modelContext, operation: "workout choice")
         #if DEBUG
             print("\(DebugTrace.prefix)[daily_coach] user kept planned workout → \(stashed)")
         #endif
@@ -1827,7 +1843,7 @@ final class TrainingViewModel {
             )
             modelContext.insert(cardio)
         }
-        try? modelContext.save()
+        saveGuarded(modelContext, operation: "second session")
 
         if plan.secondaryCompleted {
             // Same cross-surface signals as any non-gym completion — feeds venue
@@ -1895,7 +1911,7 @@ final class TrainingViewModel {
             plannedExercise.sets = [newSet]
         }
 
-        try? modelContext.save()
+        saveGuarded(modelContext, operation: "added set")
         HapticManager.selection()
     }
 
@@ -1920,7 +1936,7 @@ final class TrainingViewModel {
         if let lastUncompleted = sets.last(where: { !$0.completed }) {
             plannedExercise.sets?.removeAll { $0.id == lastUncompleted.id }
             modelContext.delete(lastUncompleted)
-            try? modelContext.save()
+            saveGuarded(modelContext, operation: "set change")
             HapticManager.selection()
         }
     }
