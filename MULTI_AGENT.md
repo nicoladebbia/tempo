@@ -28,7 +28,7 @@ review and merge them one at a time.
 From the repo root, start clean and create one worktree per agent:
 
 ```bash
-cd ~/Projects/tempo
+cd ~/dev/tempo
 git checkout main && git pull
 
 git worktree add ../tempo-agent1 -b feature/agent1-<thing>
