@@ -1,7 +1,8 @@
 ---
 name: build-reviewer
-description: Reviews code written during build steps for quality, consistency with docs, and correctness
-tools: Read, Glob, Grep, Bash
+description: Reviews code written in a /build step against the docs (design system, data models, state machines, copy, ADRs, feasibility). Use for build steps touching 3+ files.
+tools: Read, Grep, Glob, Bash
+model: sonnet
 ---
 
 # Build Reviewer Agent

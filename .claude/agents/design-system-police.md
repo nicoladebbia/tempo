@@ -1,6 +1,6 @@
 ---
 name: design-system-police
-description: Audits Swift/SwiftUI code for design token violations. Use after building any View to verify colors, typography, spacing, and component patterns match the Design System.
+description: Audits SwiftUI views for design-token violations (hex colors, font sizes, magic spacing, non-standard components). Use after creating or restyling a View.
 tools: Read, Grep, Glob
 model: haiku
 maxTurns: 8

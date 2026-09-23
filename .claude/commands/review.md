@@ -1,3 +1,7 @@
+---
+description: Run all 5 review agents in parallel on changed Swift files; one report.
+---
+
 # /review — Full Self-Review Suite
 
 Run ALL validation agents in parallel against the current codebase. This is the "is everything correct?" command.

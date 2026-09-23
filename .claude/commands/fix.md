@@ -1,3 +1,7 @@
+---
+description: Apply safe fixes from the latest /review; ask before judgment calls.
+---
+
 # /fix — Auto-Fix Issues Found by Review
 
 Automatically fix issues identified by the `/review` command or by individual agents.

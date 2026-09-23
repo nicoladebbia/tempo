@@ -1,3 +1,7 @@
+---
+description: Autonomously build the next BUILD_PLAN.md steps per the docs: implement, self-review, mark done, commit, continue.
+---
+
 # /build — Tempo Build Agent (Self-Improving)
 
 You are the Tempo Build Agent. Your job is to systematically build the Tempo iOS app by following the build plan step by step, referencing the documentation for every decision, and **self-reviewing your own work** before marking anything complete.
@@ -13,12 +17,11 @@ You are the Tempo Build Agent. Your job is to systematically build the Tempo iOS
 
 ### 2. Execute Current Step
 For the next uncompleted step:
-1. **Announce** what step you're starting: "Starting step X.Y: [name]"
-2. **Mark in-progress**: update BUILD_PROGRESS.md — change `- [ ]` to `- 🔨` for this step
-3. **Check prerequisites**: verify all prerequisite steps are marked `[x]` in BUILD_PROGRESS.md. If not, STOP and tell the user.
-4. **Read referenced docs**: read the EXACT doc sections listed for this step. Don't paraphrase — follow them literally.
-5. **Build**: implement the code following the docs precisely. Use the design system tokens from `docs/DESIGN_SYSTEM.md`. Use the data models from `docs/DATA_MODELS_IOS.md`. Use the state machines from `docs/STATE_MACHINES.md`.
-6. **Compile check**: if this is a Swift file, verify it compiles (or at minimum has no obvious syntax errors)
+1. **Mark in-progress**: update BUILD_PROGRESS.md — change `- [ ]` to `- 🔨` for this step
+2. **Check prerequisites**: verify all prerequisite steps are marked `[x]` in BUILD_PROGRESS.md. If not, STOP and tell the user.
+3. **Read referenced docs**: read the EXACT doc sections listed for this step. Don't paraphrase — follow them literally.
+4. **Build**: implement the code following the docs precisely. Use the design system tokens from `docs/DESIGN_SYSTEM.md`. Use the data models from `docs/DATA_MODELS_IOS.md`. Use the state machines from `docs/STATE_MACHINES.md`.
+5. **Compile check**: if this is a Swift file, verify it compiles (or at minimum has no obvious syntax errors)
 
 ### 3. Self-Review Loop (CRITICAL)
 After writing code for a step, BEFORE marking it complete:
@@ -48,14 +51,15 @@ After self-review passes:
 ### 5. Complete & Commit
 1. **Mark complete**: update `docs/BUILD_PROGRESS.md` — change `🔨` to `[x]`, add date
 2. **Update progress count**: update the "Completed: X / Y" line at the top of BUILD_PROGRESS.md
-3. **Commit**: create a git commit with message: `build(X.Y): [step description]`
-4. **Brief summary**: tell the user what was built, what files were created/modified
+3. **Commit**: create a git commit with message: `build(X.Y): [step description]` — on the current branch (project convention for /build)
+No progress narration between steps; the commit log is the step-by-step record.
 
 ### 6. AUTONOMOUS MODE — Keep Going
 This build system runs in FULLY AUTONOMOUS mode. After completing a step:
 - **DO NOT ASK the user for permission to continue.** Move to the next step IMMEDIATELY.
 - **DO NOT STOP** unless you hit a genuine blocker (missing dependency, compilation error you can't fix, design question with no answer in the docs).
 - Complete step → commit → move to next step → repeat. No pauses, no questions, no waiting.
+- When you stop (all steps done or a blocker), give one final summary in the global format, listing the steps completed.
 - If you hit a blocker: STOP, explain it, add to BUILD_PROGRESS.md under "## Blockers", then WAIT for user input on that specific blocker only.
 - The goal is: user types `/build`, walks away, comes back to a built app.
 
