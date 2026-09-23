@@ -101,17 +101,6 @@ struct TodayWorkoutView: View {
         ZStack(alignment: .bottom) {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: TempoSpacing.xl) {
-                    // D4 §17 — month-boundary review card. Above the day branch
-                    // on purpose: the month ends whether today is gym, field,
-                    // or rest.
-                    if let dueKey = viewModel.monthlyReviewDueKey {
-                        monthlyReviewCard(dueKey)
-                    }
-
-                    // §18.4 — calendar-detected football, confirm-gated.
-                    // Renders nothing when there's nothing to propose.
-                    MatchProposalCard()
-
                     if viewModel.isLoading {
                         loadingState
                     } else if viewModel.isRestDay {
@@ -127,6 +116,18 @@ struct TodayWorkoutView: View {
                         }
                     } else {
                         emptyState
+                    }
+
+                    // Suggestions and rituals sit BELOW today's work — the
+                    // exercise list is what this screen is for.
+                    // §18.4 — calendar-detected football, confirm-gated.
+                    // Renders nothing when there's nothing to propose.
+                    MatchProposalCard()
+
+                    // D4 §17 — month-boundary review card, on every day type
+                    // (the month ends whether today is gym, field, or rest).
+                    if let dueKey = viewModel.monthlyReviewDueKey {
+                        monthlyReviewCard(dueKey)
                     }
                 }
                 .padding(.horizontal, TempoSpacing.screenEdge)
@@ -286,25 +287,49 @@ struct TodayWorkoutView: View {
     // MARK: - Workout Content
 
     private func workoutContent(plan: WorkoutPlan) -> some View {
+        // Order: what today IS → what you'll do → the list. Planning banners
+        // and suggestions follow the work instead of stacking above it.
         VStack(spacing: TempoSpacing.lg) {
             // Workout type header
             workoutHeader(plan: plan)
 
-            // Deload week banner
-            if viewModel.isDeloadWeek {
-                deloadBanner
+            // D2 — the daily readiness prescription (supersedes the legacy
+            // pendingAdjustment card). Modality + intensity + why + blocks/cues,
+            // with recovery zone + deload folded in as its status line.
+            if let session = viewModel.dailySession, !session.userOverrode {
+                dailySessionCard(session, statusPlan: plan)
+            } else {
+                if let session = viewModel.dailySession {
+                    dailySessionCard(session)
+                }
+                recoveryStatusLine(plan: plan)
+                    .padding(TempoSpacing.cardPadding)
+                    .background(Color.tempoSurfaceCard)
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+            }
+
+            // Workout meta bar
+            // Per MODULE_TRAINING.md Section 2.6
+            workoutMeta(plan: plan)
+
+            // Exercise list
+            // Per MODULE_TRAINING.md Section 2.7
+            exerciseList(plan: plan)
+
+            // §14 #3 — one-tap session RPE, only after completion.
+            sessionRPESection(plan: plan)
+
+            // Saved-event countdown takes precedence over the suggestion;
+            // both are non-blocking (Phase 4 + follow-up).
+            if let saved = savedWorkoutEvent {
+                workoutCountdownBanner(saved)
+            } else if let window = suggestedWindow {
+                workoutWindowBanner(window)
             }
 
             // §16 — venue propose-confirm (renders only with a learned pattern
             // for today's weekday; collapses once answered or dismissed).
             VenueProposalCard()
-
-            // D2 — the daily readiness prescription (supersedes the legacy
-            // pendingAdjustment card). Modality + intensity + why + blocks/cues.
-            // Reads WHY/intensity from DailySession, sets from the linked plan.
-            if let session = viewModel.dailySession {
-                dailySessionCard(session)
-            }
 
             #if DEBUG
             // Force a fresh coach run in-place (no .task / relaunch dependency —
@@ -316,29 +341,6 @@ struct TodayWorkoutView: View {
             .font(.tempoCaption1)
             .foregroundStyle(Color.tempoSignal)
             #endif
-
-            // Saved-event countdown takes precedence over the suggestion;
-            // both are non-blocking (Phase 4 + follow-up).
-            if let saved = savedWorkoutEvent {
-                workoutCountdownBanner(saved)
-            } else if let window = suggestedWindow {
-                workoutWindowBanner(window)
-            }
-
-            // Recovery badge bar
-            // Per MODULE_TRAINING.md Section 2.5
-            recoveryBadge(plan: plan)
-
-            // Workout meta bar
-            // Per MODULE_TRAINING.md Section 2.6
-            workoutMeta(plan: plan)
-
-            // §14 #3 — one-tap session RPE, only after completion.
-            sessionRPESection(plan: plan)
-
-            // Exercise list
-            // Per MODULE_TRAINING.md Section 2.7
-            exerciseList(plan: plan)
         }
     }
 
@@ -359,40 +361,53 @@ struct TodayWorkoutView: View {
         .padding(.top, TempoSpacing.md)
     }
 
-    // MARK: - Deload Banner
+    // MARK: - Recovery / Deload Status Line
 
-    private var deloadBanner: some View {
-        HStack(spacing: TempoSpacing.sm) {
-            Image(systemName: "arrow.down.circle.fill")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(Color.tempoRecoveryYellow)
+    // Per MODULE_TRAINING.md Section 2.5 — recovery zone + volume change, and
+    // the deload week, as one line inside the session card (was a separate
+    // recovery badge + deload banner restating what the card says).
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text("DELOAD WEEK")
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoRecoveryYellow)
+    private func recoveryStatusLine(plan: WorkoutPlan) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: TempoSpacing.xs) {
+                Circle()
+                    .fill(recoveryDotColor(plan: plan))
+                    .frame(width: 8, height: 8)
+                Text(recoveryText(plan: plan))
+                    .foregroundStyle(Color.tempoTextPrimary)
+                Text("·")
+                    .foregroundStyle(Color.tempoTextTertiary)
+                Text(adjustmentLabel(plan: plan))
+                    .foregroundStyle(recoveryDotColor(plan: plan))
+                if viewModel.isDeloadWeek {
+                    Text("·")
+                        .foregroundStyle(Color.tempoTextTertiary)
+                    Text("DELOAD WEEK")
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.tempoRecoveryYellow)
+                }
+                Spacer(minLength: 0)
+            }
+            .font(.tempoCaption1)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
 
+            if viewModel.isDeloadWeek {
                 Text(viewModel.deloadStyle.blurb)
-                    .font(.tempoCaption1)
+                    .font(.tempoCaption2)
                     .foregroundStyle(Color.tempoTextSecondary)
             }
-
-            Spacer()
         }
-        .padding(.horizontal, TempoSpacing.md)
-        .padding(.vertical, TempoSpacing.sm)
-        .background(Color.tempoRecoveryYellow.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous)
-                .stroke(Color.tempoRecoveryYellow.opacity(0.3), lineWidth: 1)
-        )
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Daily Session Card (D2 — the readiness prescription)
 
+    /// `statusPlan` — gym days pass today's plan to show the recovery/deload
+    /// status line at the top of the card.
     @ViewBuilder
-    private func dailySessionCard(_ session: DailySession) -> some View {
+    private func dailySessionCard(_ session: DailySession, statusPlan: WorkoutPlan? = nil) -> some View {
         if session.userOverrode {
             // §8 connect — he declined the brain's move. One honest line; the
             // plan row (restored) is the day again.
@@ -408,12 +423,16 @@ struct TodayWorkoutView: View {
             .background(Color.tempoSurfaceCard)
             .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
         } else {
-            dailySessionCardBody(session)
+            dailySessionCardBody(session, statusPlan: statusPlan)
         }
     }
 
-    private func dailySessionCardBody(_ session: DailySession) -> some View {
+    private func dailySessionCardBody(_ session: DailySession, statusPlan: WorkoutPlan?) -> some View {
         VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            if let statusPlan {
+                recoveryStatusLine(plan: statusPlan)
+            }
+
             HStack {
                 Text(session.modality.uppercased())
                     .font(.tempoHeadline)
@@ -676,36 +695,6 @@ struct TodayWorkoutView: View {
 
     private func timeString(_ date: Date) -> String {
         date.formatted(.dateTime.hour().minute())
-    }
-
-    // MARK: - Recovery Badge
-
-    // Per MODULE_TRAINING.md Section 2.5
-
-    private func recoveryBadge(plan: WorkoutPlan) -> some View {
-        HStack(spacing: TempoSpacing.sm) {
-            Circle()
-                .fill(recoveryDotColor(plan: plan))
-                .frame(width: 10, height: 10)
-
-            Text(recoveryText(plan: plan))
-                .font(.tempoBody)
-                .fontWeight(.medium)
-                .foregroundStyle(Color.tempoTextPrimary)
-
-            Text("·")
-                .foregroundStyle(Color.tempoTextTertiary)
-
-            Text(adjustmentLabel(plan: plan))
-                .font(.tempoBody)
-                .foregroundStyle(recoveryDotColor(plan: plan))
-
-            Spacer()
-        }
-        .padding(.horizontal, TempoSpacing.md)
-        .padding(.vertical, TempoSpacing.sm)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
     }
 
     // MARK: - Workout Meta
