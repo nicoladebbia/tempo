@@ -1,64 +1,52 @@
 #!/bin/bash
-# Pre-Write Guard — Runs BEFORE any file write
-# Blocks writes that violate project conventions
-# Exit 0 = allow, Exit 2 = block
+# Pre-Write Guard — PreToolUse on Write|Edit.
+# exit 2 + stderr = block (Claude sees the reason). Folder-placement hints for NEW
+# Swift files go to Claude as additionalContext. Otherwise silent.
 
 INPUT=$(cat)
-FILE_PATH=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" 2>/dev/null)
+FILE_PATH=$(printf '%s' "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" 2>/dev/null)
+[[ -z "$FILE_PATH" ]] && exit 0
 
-if [[ -z "$FILE_PATH" ]]; then
-    exit 0
-fi
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)}"
+PROJECT_DIR="${PROJECT_DIR%/}"
 
-# 1. Block writes outside the project directory
-PROJECT_DIR="/Users/nicoladebbia/Projects/tempo"
-if [[ "$FILE_PATH" != "$PROJECT_DIR"* ]]; then
-    echo "BLOCKED: Cannot write outside the Tempo project directory" >&2
+# 1. Block writes outside the project (worktrees included via CLAUDE_PROJECT_DIR).
+#    Claude's own state (~/.claude) and temp/scratchpad dirs are allowed.
+case "$FILE_PATH" in
+    "$PROJECT_DIR"/*|"$HOME"/.claude/*|/tmp/*|/private/tmp/*|/var/folders/*|/private/var/folders/*) ;;
+    *)
+        echo "BLOCKED: $FILE_PATH is outside the Tempo project ($PROJECT_DIR)." >&2
+        exit 2 ;;
+esac
+
+# 2. Read-only meta-audits. (The module/spec docs became AS-BUILT docs on 2026-05-19
+#    and are editable; only these two stay protected.)
+case "$FILE_PATH" in
+    */docs/CROSS_DOC_AUDIT.md|*/docs/TECHNICAL_FEASIBILITY_AUDIT.md)
+        echo "BLOCKED: $(basename "$FILE_PATH") is a read-only audit reference." >&2
+        exit 2 ;;
+esac
+
+# 3. No secrets files in the repo.
+if [[ "$(basename "$FILE_PATH")" == ".env" ]]; then
+    echo "BLOCKED: do not create .env files in the repo; use .env.example as the template." >&2
     exit 2
 fi
 
-# 2. Block writes to the remaining read-only audit references.
-# NOTE (2026-05-19): the module/spec docs (DESIGN_SYSTEM, DATA_MODELS_IOS,
-# STATE_MACHINES, UX_COPY_BIBLE, the MODULE_* set, etc.) were reconciled into
-# AS-BUILT documentation describing the actual codebase. They are no longer
-# aspirational specs, so they are no longer write-protected. The two files
-# below remain protected because they are meta-audits, not specs.
-if [[ "$FILE_PATH" == */docs/CROSS_DOC_AUDIT.md ]] || \
-   [[ "$FILE_PATH" == */docs/TECHNICAL_FEASIBILITY_AUDIT.md ]]; then
-    echo "BLOCKED: Cannot modify audit reference docs. These are read-only references." >&2
-    exit 2
-fi
-
-# 3. Enforce folder structure — Swift files must be in correct directories
-if [[ "$FILE_PATH" == *.swift ]]; then
-    FILENAME=$(basename "$FILE_PATH")
-
-    # Models must be in Models/
-    if [[ "$FILENAME" == *Model* ]] || [[ "$FILENAME" == *Entity* ]]; then
-        if [[ "$FILE_PATH" != *"/Models/"* ]] && [[ "$FILE_PATH" != *"/DTOs/"* ]]; then
-            echo "Warning: Model file '$FILENAME' should be in a Models/ directory"
-        fi
+# 4. Folder placement hint — only when creating a NEW Swift file.
+if [[ "$FILE_PATH" == *.swift && ! -e "$FILE_PATH" && "$FILE_PATH" != *Tests/* ]]; then
+    NAME=$(basename "$FILE_PATH")
+    HINT=""
+    if [[ "$NAME" == *View.swift && "$FILE_PATH" != */Views/* && "$FILE_PATH" != *"/Preview Content/"* && "$FILE_PATH" != *Widget* ]]; then
+        HINT="New view $NAME is outside a Views/ directory."
+    elif [[ ("$NAME" == *Service.swift || "$NAME" == *Engine.swift) && "$FILE_PATH" != */Services/* ]]; then
+        HINT="New service/engine $NAME is outside a Services/ directory."
+    elif [[ ("$NAME" == *Model*.swift || "$NAME" == *Entity*.swift) && "$NAME" != *ViewModel* && "$FILE_PATH" != */Models/* && "$FILE_PATH" != */DTOs/* && "$FILE_PATH" != */Services/* ]]; then
+        HINT="New model $NAME is outside a Models/ directory."
     fi
-
-    # Views must be in Views/
-    if [[ "$FILENAME" == *View.swift ]]; then
-        if [[ "$FILE_PATH" != *"/Views/"* ]] && [[ "$FILE_PATH" != *"/Preview Content/"* ]]; then
-            echo "Warning: View file '$FILENAME' should be in a Views/ directory"
-        fi
+    if [[ -n "$HINT" ]]; then
+        python3 -c 'import json,sys; print(json.dumps({"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":sys.argv[1]}}))' "Folder convention: $HINT Move it unless there is a reason."
     fi
-
-    # Services must be in Services/
-    if [[ "$FILENAME" == *Service.swift ]] || [[ "$FILENAME" == *Engine.swift ]]; then
-        if [[ "$FILE_PATH" != *"/Services/"* ]]; then
-            echo "Warning: Service file '$FILENAME' should be in a Services/ directory"
-        fi
-    fi
-fi
-
-# 4. Block .env files from being created (secrets must not be in repo)
-if [[ "$FILE_PATH" == *".env" ]] && [[ "$FILE_PATH" != *".env.example"* ]]; then
-    echo "BLOCKED: Do not create .env files in the repo. Use .env.example as template." >&2
-    exit 2
 fi
 
 exit 0

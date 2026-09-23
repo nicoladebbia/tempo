@@ -1,41 +1,37 @@
 #!/bin/bash
-# Pre-Bash Guard — Runs BEFORE any Bash command
-# Validates git commit messages follow the convention
-# Exit 0 = allow, Exit 2 = block
+# Pre-Bash Guard — PreToolUse on Bash.
+# 1. Blocks root/home wipes and disk formatting (exit 2 + stderr).
+# 2. Checks git commit subjects follow Conventional Commits; a mismatch goes to
+#    Claude as additionalContext (non-blocking).
 
 INPUT=$(cat)
-COMMAND=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))" 2>/dev/null)
+COMMAND=$(printf '%s' "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))" 2>/dev/null)
+[[ -z "$COMMAND" ]] && exit 0
 
-if [[ -z "$COMMAND" ]]; then
-    exit 0
-fi
-
-# 1. Validate git commit messages follow convention: build(X.Y): description
-if echo "$COMMAND" | grep -q "git commit"; then
-    # Extract the commit message
-    MSG=$(echo "$COMMAND" | grep -oP '(?<=-m ["\x27])[^"\x27]+' | head -1)
-
-    if [[ -n "$MSG" ]]; then
-        # Must start with: build(, fix(, feat(, refactor(, docs(, test(, chore(
-        if ! echo "$MSG" | grep -qE '^(build|fix|feat|refactor|docs|test|chore)\('; then
-            echo "Warning: Commit message should follow Conventional Commits format: 'build(X.Y): description'"
-            echo "Got: '$MSG'"
-            # Warn but don't block — Claude will see the warning
-        fi
-    fi
-fi
-
-# 2. Block dangerous commands that slipped through permissions
-# Note: `format` must be anchored as the first word so we don't block
-# swiftformat / clang-format / rustfmt --format etc.
-if echo "$COMMAND" | grep -qE 'rm\s+-rf\s+/|rm\s+-rf\s+~|(^|;|&&|\|\|)\s*format\s+|mkfs'; then
-    echo "BLOCKED: Dangerous command detected" >&2
+# Dangerous commands. `format` is anchored as a command word so swiftformat /
+# clang-format are not caught; rm only when the target is / or ~ / $HOME itself.
+if printf '%s' "$COMMAND" | /usr/bin/grep -qE 'rm[[:space:]]+-[a-zA-Z]*[rR][a-zA-Z]*[[:space:]]+(-[a-zA-Z]+[[:space:]]+)*("?(/|~|\$HOME)/?\*?"?)([[:space:];&|]|$)|(^|[;&|])[[:space:]]*format[[:space:]]|mkfs'; then
+    echo "BLOCKED: dangerous command (wipes / or ~, or formats a disk)." >&2
     exit 2
 fi
 
-# 3. Block npm install / pip install without review (dependency control)
-if echo "$COMMAND" | grep -qE 'npm install|pip install|brew install'; then
-    echo "Warning: Package installation detected. Verify against docs/DEPENDENCIES.md — only approved packages allowed."
-fi
+# Commit-message convention: type(scope)?: subject
+case "$COMMAND" in
+    *"git commit"*)
+        HOOK_CMD="$COMMAND" python3 - <<'PY'
+import json, os, re
+cmd = os.environ.get("HOOK_CMD", "")
+m = re.search(r"""(?:-m|--message)[= ]\s*(["'])(.*?)\1""", cmd, re.S)
+msg = m.group(2) if m else ""
+h = re.match(r"""\$\(cat <<-?\s*["']?\w+["']?\s*\n(.*)""", msg, re.S)
+if h:
+    msg = h.group(1)
+subject = next((l.strip() for l in msg.splitlines() if l.strip()), "")
+if subject and not re.match(r"^(build|fix|feat|refactor|docs|test|chore|perf|style|ci|revert)(\([^)]+\))?!?: \S", subject):
+    print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse",
+        "additionalContext": "Commit subject \"%s\" is not Conventional Commits (type(scope): subject, e.g. build(3.2): ..., fix: ...). Amend it if this commit goes through." % subject[:80]}}))
+PY
+        ;;
+esac
 
 exit 0
