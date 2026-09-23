@@ -2,7 +2,7 @@
 // AccountabilityViewModel.swift
 // Tempo
 //
-// Created by Tempo on 25/03/2026.
+// Created by Tempo on 3/25/26.
 //
 //
 
@@ -253,6 +253,7 @@ final class AccountabilityViewModel {
 
         refreshProgressItems()
         checkForUnlock(modelContext: modelContext)
+        NotificationCenter.default.post(name: .tempoNonNegotiableChanged, object: nil)
     }
 
     func updateItemProgress(
@@ -275,6 +276,7 @@ final class AccountabilityViewModel {
 
         refreshProgressItems()
         checkForUnlock(modelContext: modelContext)
+        NotificationCenter.default.post(name: .tempoNonNegotiableChanged, object: nil)
     }
 
     func skipItem(
@@ -285,6 +287,7 @@ final class AccountabilityViewModel {
 
         refreshProgressItems()
         checkForUnlock(modelContext: modelContext)
+        NotificationCenter.default.post(name: .tempoNonNegotiableChanged, object: nil)
     }
 
     private func refreshProgressItems() {

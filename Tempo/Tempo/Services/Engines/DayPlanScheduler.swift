@@ -2,21 +2,8 @@
 // DayPlanScheduler.swift
 // Tempo
 //
-// Listens for re-plan signals and debounces them into actual
-// DayPlannerService.replan() calls. Per
-// docs/INTELLIGENCE_REMEDIATION_PLAN.md §9.3.
+// Created by Tempo on 5/14/26.
 //
-// v1 signals wired:
-//   • UIApplication.willEnterForegroundNotification — re-plan when the
-//     user returns to the app (cheap; debounced).
-//   • .EKEventStoreChanged — re-plan when calendar events change.
-//   • .tempoDayPlanReplanRequested — broadcast trigger any subsystem can
-//     post (Whoop sync completion, workout logging, meal-eaten off
-//     schedule, manual user "re-plan today" tap).
-//
-// Debounce window is 1.5s so a burst of signals (e.g. EventKit fires
-// three .EKEventStoreChanged notifications for one batch edit) collapses
-// into a single solver run.
 //
 
 import EventKit
@@ -50,11 +37,20 @@ extension Notification.Name {
     /// the Training tab without waiting for a cold refresh. Same
     /// decoupling pattern as tempoNutritionLogged.
     static let tempoWorkoutChanged = Notification.Name("tempo.workout.changed")
+
+    /// Posted when a non-negotiable's completion state changes (checked
+    /// off, unchecked, skipped, or progress updated) from ANY surface —
+    /// Lockdown or a `WatchActionRouter`-routed wrist tap (§22). The
+    /// Dashboard observes this to re-run refreshAccountability + push an
+    /// updated watch snapshot, so the wrist and Lockdown never diverge.
+    /// Same decoupling pattern as tempoNutritionLogged / tempoWorkoutChanged.
+    static let tempoNonNegotiableChanged = Notification.Name("tempo.nonNegotiable.changed")
 }
+
+// MARK: - DayPlanScheduler
 
 @MainActor
 final class DayPlanScheduler {
-
     private let service: DayPlannerService
     private var observers: [NSObjectProtocol] = []
     private var debounceTask: Task<Void, Never>?
@@ -63,6 +59,7 @@ final class DayPlanScheduler {
         self.service = service
         register()
     }
+
     // No deinit cleanup: NotificationCenter holds the observer tokens via
     // `[weak self]` closures, so when this object deallocates the closures
     // stop having a target and the observers become inert. An explicit
@@ -117,7 +114,9 @@ final class DayPlanScheduler {
         debounceTask = Task { @MainActor [weak self] in
             // 1.5s debounce — burst-collapses EventKit + sync chatter.
             try? await Task.sleep(nanoseconds: 1_500_000_000)
-            guard !Task.isCancelled, let self else { return }
+            guard !Task.isCancelled, let self else {
+                return
+            }
             _ = await self.service.replan(reason: reason)
         }
     }
