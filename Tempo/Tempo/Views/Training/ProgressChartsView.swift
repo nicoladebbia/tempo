@@ -112,6 +112,9 @@ struct ProgressChartsView: View {
             // last week, 8-week trend, streak + fresh PRs.
             thisWeekHero
 
+            // Acute:chronic load vs the safety floor's limit.
+            TrainingLoadCard()
+
             // All-time stats
             allTimeStats
 
