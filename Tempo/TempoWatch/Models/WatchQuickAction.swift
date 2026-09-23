@@ -2,7 +2,7 @@
 // WatchQuickAction.swift
 // Tempo
 //
-// Created by Tempo on 25/03/2026.
+// Created by Tempo on 3/25/26.
 //
 //
 
@@ -18,9 +18,15 @@ enum WatchQuickAction: String, Codable {
     case startFocusTimer
     case stopFocusTimer
     case pauseFocusTimer
+    case resumeFocusTimer
     case markMealEaten
     case startWorkout
-    case endWorkout
+    // §22 — `.endWorkout` was removed: there is no honest phone-side
+    // equivalent that doesn't reach into ActiveWorkoutView's set-completion
+    // internals (ExerciseHistory + per-set feedback aggregation, owned by
+    // the Training surface). The watch's own "ALL SETS DONE" screen already
+    // reflects reality once the last `.logSet` syncs back down — see
+    // WorkoutView.swift.
 }
 
 // MARK: - WatchActionPayload

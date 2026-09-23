@@ -2,7 +2,7 @@
 // ComplicationViews.swift
 // Tempo
 //
-// Created by Tempo on 25/03/2026.
+// Created by Tempo on 3/25/26.
 //
 //
 
@@ -53,6 +53,14 @@ struct RectangularComplicationView: View {
                 Text("All clear. Earned.")
                     .font(.system(size: 12))
                     .foregroundStyle(.green)
+            } else if data.nextTaskName.isEmpty {
+                Text("Open Tempo on iPhone")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            } else if data.nextTaskTimeRemaining.isEmpty {
+                Text(data.nextTaskName)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
             } else {
                 Text("\(data.nextTaskName) — \(data.nextTaskTimeRemaining)")
                     .font(.system(size: 12))
@@ -66,6 +74,7 @@ struct RectangularComplicationView: View {
         case "green": .green
         case "yellow": .yellow
         case "red": .red
+        case "unknown": .gray
         default: .green
         }
     }

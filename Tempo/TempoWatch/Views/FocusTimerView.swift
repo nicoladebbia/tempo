@@ -2,7 +2,7 @@
 // FocusTimerView.swift
 // Tempo
 //
-// Created by Tempo on 25/03/2026.
+// Created by Tempo on 3/25/26.
 //
 //
 
@@ -54,10 +54,15 @@ struct FocusTimerView: View {
                 timerState.isRunning = true
                 timerState.totalSeconds = selectedDuration
                 timerState.remainingSeconds = selectedDuration
-                WatchHapticService.playWorkoutStart()
                 connectivity.sendAction(.startFocusTimer, payload: [
                     "duration": "\(selectedDuration)",
-                ])
+                ]) { ack in
+                    switch ack {
+                    case .confirmed: WatchHapticService.playWorkoutStart()
+                    case .queued: WatchHapticService.playQueued()
+                    case .failed: WatchHapticService.playError()
+                    }
+                }
                 startCountdown()
             } label: {
                 Text("START")
@@ -113,6 +118,7 @@ struct FocusTimerView: View {
                 if timerState.isPaused {
                     Button {
                         timerState.isPaused = false
+                        connectivity.sendAction(.resumeFocusTimer)
                         startCountdown()
                     } label: {
                         Text("RESUME")
@@ -197,11 +203,16 @@ struct FocusTimerView: View {
                 timer.invalidate()
                 timerState.isRunning = false
                 timerState.sessionCount += 1
-                WatchHapticService.playFocusTimerEnd()
                 connectivity.sendAction(.stopFocusTimer, payload: [
                     "completed": "true",
                     "duration": "\(timerState.totalSeconds)",
-                ])
+                ]) { ack in
+                    switch ack {
+                    case .confirmed: WatchHapticService.playFocusTimerEnd()
+                    case .queued: WatchHapticService.playQueued()
+                    case .failed: WatchHapticService.playError()
+                    }
+                }
             }
         }
     }

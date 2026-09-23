@@ -2,7 +2,7 @@
 // RecoveryView.swift
 // Tempo
 //
-// Created by Tempo on 25/03/2026.
+// Created by Tempo on 3/25/26.
 //
 //
 
@@ -19,36 +19,40 @@ struct RecoveryView: View {
     var body: some View {
         let data = connectivity.latestSnapshot
         ScrollView {
-            VStack(spacing: 12) {
-                Text("RECOVERY")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.secondary)
+            if !data.hasRealData {
+                WatchEmptyStateView()
+            } else {
+                VStack(spacing: 12) {
+                    Text("RECOVERY")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.secondary)
 
-                // Zone badge
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(zoneColor(data.recoveryZone))
-                        .frame(width: 12, height: 12)
-                    Text(data.recoveryZone.uppercased())
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundStyle(zoneColor(data.recoveryZone))
+                    // Zone badge
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(zoneColor(data.recoveryZone))
+                            .frame(width: 12, height: 12)
+                        Text(data.recoveryZone.uppercased())
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundStyle(zoneColor(data.recoveryZone))
+                    }
+
+                    Text("\(data.recoveryScore)%")
+                        .font(.system(size: 36, weight: .bold))
+
+                    // Stats
+                    VStack(spacing: 6) {
+                        statRow(label: "HRV", value: String(format: "%.0f ms", data.hrv))
+                        statRow(label: "RHR", value: "\(data.rhr) bpm")
+                        statRow(label: "Sleep", value: String(format: "%.1fh", data.sleepHours))
+                    }
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.white.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
-
-                Text("\(data.recoveryScore)%")
-                    .font(.system(size: 36, weight: .bold))
-
-                // Stats
-                VStack(spacing: 6) {
-                    statRow(label: "HRV", value: String(format: "%.0f ms", data.hrv))
-                    statRow(label: "RHR", value: "\(data.rhr) bpm")
-                    statRow(label: "Sleep", value: String(format: "%.1fh", data.sleepHours))
-                }
-                .padding(.vertical, 8)
-                .frame(maxWidth: .infinity)
-                .background(Color.white.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .padding(.horizontal, 4)
             }
-            .padding(.horizontal, 4)
         }
     }
 
@@ -69,6 +73,7 @@ struct RecoveryView: View {
         case "green": .green
         case "yellow": .yellow
         case "red": .red
+        case "unknown": .gray
         default: .green
         }
     }
