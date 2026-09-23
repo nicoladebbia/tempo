@@ -17,10 +17,12 @@ fi
 
 # Commit-message convention: type(scope)?: subject
 case "$COMMAND" in
-    *"git commit"*)
+    *git*commit*)
         HOOK_CMD="$COMMAND" python3 - <<'PY'
 import json, os, re
 cmd = os.environ.get("HOOK_CMD", "")
+if not re.search(r"\bgit\b[^;&|]*\scommit\b", cmd):
+    raise SystemExit(0)
 m = re.search(r"""(?:-m|--message)[= ]\s*(["'])(.*?)\1""", cmd, re.S)
 msg = m.group(2) if m else ""
 h = re.match(r"""\$\(cat <<-?\s*["']?\w+["']?\s*\n(.*)""", msg, re.S)
