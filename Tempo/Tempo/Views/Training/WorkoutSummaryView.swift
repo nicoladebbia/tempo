@@ -75,6 +75,11 @@ struct WorkoutSummaryView: View {
                 // Per-exercise summary
                 exerciseSummary
 
+                // The athlete's own notes — saved with the workout.
+                if let plan = viewModel.todayPlan {
+                    SessionNotesField(plan: plan)
+                }
+
                 // Save button
                 saveButton
             }

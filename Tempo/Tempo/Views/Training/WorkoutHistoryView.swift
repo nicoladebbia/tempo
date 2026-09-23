@@ -457,6 +457,16 @@ struct WorkoutHistoryView: View {
                 Divider()
                     .background(Color.tempoTextTertiary.opacity(0.2))
 
+                if let notes = workout.userNotes {
+                    Text(notes)
+                        .font(.tempoCaption1)
+                        .italic()
+                        .foregroundStyle(Color.tempoTextSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, TempoSpacing.cardPadding)
+                        .padding(.top, TempoSpacing.sm)
+                }
+
                 Group {
                     if workout.orderedExercises.isEmpty,
                        let session = activitySession(for: workout) {

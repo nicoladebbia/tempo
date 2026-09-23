@@ -28,6 +28,11 @@ final class WorkoutPlan {
 
     var notes: String?
 
+    /// The athlete's own session notes ("gym packed", "left shoulder off").
+    /// Separate from `notes`, which the planner writes. Optional → lightweight
+    /// SwiftData migration.
+    var userNotes: String?
+
     /// Whether the user completed (or worked through) the guided general
     /// warm-up + mobility block for this session. The block logs no sets — this
     /// flag is the only record that it happened, shown in the summary/history.

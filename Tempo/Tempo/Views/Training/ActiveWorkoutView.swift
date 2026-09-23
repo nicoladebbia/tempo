@@ -143,6 +143,32 @@ struct ActiveWorkoutView: View {
         return "= \(effStr) \(unit) effective · \(tag)"
     }
 
+    @State
+    private var prToast: PersonalRecord?
+    @State
+    private var showNotes = false
+
+    private func prToastView(_ pr: PersonalRecord) -> some View {
+        HStack(spacing: TempoSpacing.sm) {
+            Image(systemName: "trophy.fill")
+                .foregroundStyle(Color.tempoPRGold)
+            VStack(alignment: .leading, spacing: 0) {
+                Text("NEW PR")
+                    .font(.tempoHeadline)
+                    .foregroundStyle(Color.tempoPRGold)
+                Text(pr.exercise?.name ?? "Exercise")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextPrimary)
+            }
+        }
+        .padding(.horizontal, TempoSpacing.lg)
+        .padding(.vertical, TempoSpacing.sm)
+        .background(Color.tempoSurfaceCard)
+        .clipShape(Capsule())
+        .overlay(Capsule().stroke(Color.tempoPRGold.opacity(0.6), lineWidth: 1))
+        .accessibilityElement(children: .combine)
+    }
+
     var body: some View {
         ZStack {
             Color.tempoBgPrimary.ignoresSafeArea()
@@ -182,6 +208,45 @@ struct ActiveWorkoutView: View {
                 }
             }
         }
+        // §12 — the PR moment lands on the set that earned it, not later on
+        // the summary. logSet appends to detectedPRs when one fires.
+        .overlay(alignment: .top) {
+            if let pr = prToast {
+                prToastView(pr)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .padding(.top, TempoSpacing.xxl)
+            }
+        }
+        .onChange(of: viewModel.detectedPRs.count) { old, new in
+            guard new > old, let pr = viewModel.detectedPRs.last else { return }
+            HapticManager.success()
+            withAnimation(.spring(duration: 0.35)) { prToast = pr }
+            Task {
+                try? await Task.sleep(for: .seconds(2.5))
+                if prToast?.id == pr.id {
+                    withAnimation(.easeOut(duration: 0.25)) { prToast = nil }
+                }
+            }
+        }
+        .sheet(isPresented: $showNotes) {
+            if let plan = viewModel.todayPlan {
+                NavigationStack {
+                    SessionNotesField(plan: plan)
+                        .padding(TempoSpacing.screenEdge)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                        .background(Color.tempoBgPrimary)
+                        .toolbar {
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("Done") {
+                                    try? modelContext.save()
+                                    showNotes = false
+                                }
+                            }
+                        }
+                }
+                .presentationDetents([.medium])
+            }
+        }
         .navigationBarBackButtonHidden()
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -192,6 +257,16 @@ struct ActiveWorkoutView: View {
                         .font(.tempoBody)
                         .foregroundStyle(Color.tempoTextSecondary)
                 }
+            }
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    showNotes = true
+                } label: {
+                    Image(systemName: viewModel.todayPlan?.userNotes == nil ? "note.text.badge.plus" : "note.text")
+                        .font(.tempoBody)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                }
+                .accessibilityLabel("Session notes")
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {

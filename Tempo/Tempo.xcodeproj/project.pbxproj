@@ -120,6 +120,7 @@
 		22B5AE0DD2967D0FB308A2DF /* cue_ex_step_up.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 69CFB187E0D3BAC4F05FB0CF /* cue_ex_step_up.mp3 */; };
 		22B89296F530A9DFDB8B665F /* cue_ex_seated_dumbbell_press.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 2EB0DA20DD44CBBB97062369 /* cue_ex_seated_dumbbell_press.mp3 */; };
 		22F75D2FC6D7DF893E278653 /* OnboardingBackendStepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC9501D2C83565DCAF804074 /* OnboardingBackendStepTests.swift */; };
+		2367FF58DC3858896718D988 /* SessionNotesField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B1D62692C68F3738217E9E7 /* SessionNotesField.swift */; };
 		2399410CE4FFE1FFC342D4DD /* cue_ex_jump_squat.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 388CFB171F4DC2FDAE59C22C /* cue_ex_jump_squat.mp3 */; };
 		23D3FDA2F34C1FEA7DDE7754 /* NutritionTabViewModel+Phase7.swift in Sources */ = {isa = PBXBuildFile; fileRef = F56136E3F6418EA68B56A8B2 /* NutritionTabViewModel+Phase7.swift */; };
 		2406709301E45DA98C95299D /* DailyNutritionSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4539B2940363761D247FF8E /* DailyNutritionSummaryView.swift */; };
@@ -1027,6 +1028,7 @@
 		3968C905E6F1D397714F365E /* cue_ex_machine_chest_press.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_machine_chest_press.mp3; sourceTree = "<group>"; };
 		398713E06F918469DCDDE4BF /* CoachTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachTabView.swift; sourceTree = "<group>"; };
 		3AF793C6007C4FCAEB54CAC7 /* PantryDecrementServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PantryDecrementServiceTests.swift; sourceTree = "<group>"; };
+		3B1D62692C68F3738217E9E7 /* SessionNotesField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionNotesField.swift; sourceTree = "<group>"; };
 		3B32EF534615B806F177ED41 /* NumericEntrySheetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NumericEntrySheetTests.swift; sourceTree = "<group>"; };
 		3B3C87DC459DD8011D7B9DB9 /* PantryPriceEntryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PantryPriceEntryTests.swift; sourceTree = "<group>"; };
 		3B98C74D0C6F400F29AFC5F2 /* HydrationMathTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HydrationMathTests.swift; sourceTree = "<group>"; };
@@ -2224,6 +2226,7 @@
 				2AA0FC7AB85FEF7648D5B360 /* ProgressChartsView.swift */,
 				95833B963F9A7BCF275FCF10 /* RestTimerView.swift */,
 				7A16F19C67EC623FBA0DEB1D /* RunHistoryView.swift */,
+				3B1D62692C68F3738217E9E7 /* SessionNotesField.swift */,
 				978BE071A3FFBE6D6B6FBCB2 /* StrengthProgressLabView.swift */,
 				F9A1021803B15D6FA4B4FB64 /* TodayWorkoutSheets.swift */,
 				2ED0527B188D9FBA91B55BD7 /* TodayWorkoutView.swift */,
@@ -4246,6 +4249,7 @@
 				752FF2D6D510F1A39DF2D2D4 /* ScoringEngine.swift in Sources */,
 				AC60119867E95F604E23BB31 /* ScoringEngineProtocol.swift in Sources */,
 				0B7F2528766515526AD24672 /* ServiceContainer.swift in Sources */,
+				2367FF58DC3858896718D988 /* SessionNotesField.swift in Sources */,
 				D5458F0CB3806B65E763D068 /* SetFeedback.swift in Sources */,
 				49CEEA453B99AD4ABA027BDD /* SettingsComponents.swift in Sources */,
 				196C0579ED7F6C96DA8105E9 /* SignInWithAppleView.swift in Sources */,
