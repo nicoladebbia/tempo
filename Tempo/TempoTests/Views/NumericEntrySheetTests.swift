@@ -5,6 +5,7 @@
 // Typed weight/reps parsing: locale decimals, clamping and snapping.
 //
 
+@testable import Tempo
 import XCTest
 
 final class NumericEntrySheetTests: XCTestCase {
