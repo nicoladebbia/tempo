@@ -316,7 +316,7 @@ struct WeekPlanView: View {
                 HStack(alignment: .bottom, spacing: TempoSpacing.xs) {
                     ForEach(0 ..< 7, id: \.self) { idx in
                         pulseBar(
-                            plan: displayedSlots[safe: idx] ?? nil,
+                            plan: displayedSlots[safe: idx].flatMap { $0 },
                             volume: volumes[safe: idx] ?? 0,
                             peak: peak,
                             isSelected: pulseIndex == idx
@@ -335,7 +335,7 @@ struct WeekPlanView: View {
                             if pulseIndex != idx {
                                 pulseIndex = idx
                                 HapticManager.selection()
-                                if let plan = displayedSlots[safe: idx] ?? nil {
+                                if let slot = displayedSlots[safe: idx], let plan = slot {
                                     expandedPlanID = plan.id
                                 }
                             }
@@ -390,7 +390,7 @@ struct WeekPlanView: View {
     @ViewBuilder
     private func pulseCallout(index: Int) -> some View {
         HStack(spacing: TempoSpacing.sm) {
-            if let plan = displayedSlots[safe: index] ?? nil {
+            if let slot = displayedSlots[safe: index], let plan = slot {
                 Circle()
                     .fill(recoveryDotColor(plan: plan))
                     .frame(width: 8, height: 8)

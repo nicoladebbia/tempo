@@ -295,7 +295,7 @@ struct MuscleHeatmapView: View {
             rows: rows, from: currentWindow.from, to: currentWindow.to
         )[muscle] ?? 0
         let deltas = MuscleHeatEngine.delta(current: currentVolumes, previous: previousVolumes)
-        let change = deltas[muscle] ?? nil
+        let change = deltas[muscle, default: nil]
         let exercises = contributions(for: muscle)
 
         return VStack(alignment: .leading, spacing: TempoSpacing.md) {

@@ -82,7 +82,8 @@ final class NutritionTabViewModelTests: XCTestCase {
 
     // MARK: - Meal Reminder Scheduling
 
-    func testScheduleMealReminders_skipsAlreadyEaten() {
+    func testScheduleMealReminders_skipsAlreadyEaten() throws {
+        try skipNearMidnight()
         let mock = MockNotificationService()
         viewModel._testSetTodayMeals([
             makePlanned(
@@ -109,7 +110,8 @@ final class NutritionTabViewModelTests: XCTestCase {
         XCTAssertEqual(reminders.count, 1, "Only the planned meal should be scheduled")
     }
 
-    func testScheduleMealReminders_skipsPastTimes() {
+    func testScheduleMealReminders_skipsPastTimes() throws {
+        try skipNearMidnight()
         let mock = MockNotificationService()
         viewModel._testSetTodayMeals([
             // Scheduled 30 minutes ago — skipped because the 5-min-prior fire time is in the past.
@@ -182,6 +184,13 @@ final class NutritionTabViewModelTests: XCTestCase {
     func testTodaySupplementDecisions_emptyWhenNoPlan() {
         viewModel._testSetWeeklyPlan(nil)
         XCTAssertTrue(viewModel.todaySupplementDecisions.isEmpty)
+    }
+
+    /// "HH:mm" + 60 min wraps past midnight after 23:00 and reads as a past
+    /// time, so these reminder tests would fail on the clock, not the code.
+    private func skipNearMidnight() throws {
+        let hour = Calendar.current.component(.hour, from: Date())
+        try XCTSkipIf(hour >= 22, "HH:mm offsets wrap past midnight late at night")
     }
 
     private func nextTimeString(addingMinutes minutes: Int) -> String {
