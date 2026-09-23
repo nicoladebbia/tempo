@@ -1,7 +1,7 @@
 #!/bin/bash
 # parallel.sh — run several Claude sessions on Tempo at once, each in its own
 # git worktree, then merge them all back onto main. Worktrees are siblings of
-# the main repo (~/Projects/tempo-<name>), each on its own branch <name>.
+# the main repo (~/dev/tempo-<name>), each on its own branch <name>.
 #
 # WHY: two `claude` sessions in the SAME directory clobber each other's edits
 # silently (last write wins, no conflict). Separate worktrees give each session
@@ -19,7 +19,7 @@ set -euo pipefail
 # --- locate the main repo (the non-worktree checkout) ---
 MAIN_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 if [ -z "$MAIN_ROOT" ]; then
-    echo "[ERR] not inside a git repo. cd into ~/Projects/tempo first."
+    echo "[ERR] not inside a git repo. cd into ~/dev/tempo first."
     exit 1
 fi
 PARENT="$(dirname "$MAIN_ROOT")"
