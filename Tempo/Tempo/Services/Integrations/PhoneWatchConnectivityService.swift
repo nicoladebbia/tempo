@@ -50,7 +50,13 @@ final class PhoneWatchConnectivityService: NSObject, WCSessionDelegate, @uncheck
     }
 
     func pushSnapshot(_ snapshot: [String: Any]) {
-        guard WCSession.default.activationState == .activated else {
+        // No paired watch / no watch app → nothing to push (the context write
+        // would just fail with WCErrorCodeDeviceNotPaired every refresh).
+        guard WCSession.isSupported(),
+              WCSession.default.activationState == .activated,
+              WCSession.default.isPaired,
+              WCSession.default.isWatchAppInstalled
+        else {
             return
         }
 

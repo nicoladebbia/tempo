@@ -554,7 +554,7 @@ final class TrainingViewModel {
             sortBy: [SortDescriptor(\.date, order: .forward)]
         )
         let rows = (try? modelContext.fetch(descriptor)) ?? []
-        return rows.map { Int($0.recoveryScore.rounded()) }
+        return rows.filter { $0.recoveryScore > 0 }.map { Int($0.recoveryScore.rounded()) }
     }
 
     /// §14 requirement (d) — the learned spare-day easy-modality cycle order,
@@ -2111,7 +2111,12 @@ final class TrainingViewModel {
             predicate: #Predicate { $0.date == today },
             sortBy: [SortDescriptor(\.date, order: .reverse)]
         )
-        return try? modelContext.fetch(descriptor).first?.recoveryScore
+        // A 0 row is the Recovery tab's no-data placeholder (Whoop never
+        // reports 0) — unknown, never "red".
+        guard let score = try? modelContext.fetch(descriptor).first?.recoveryScore, score > 0 else {
+            return nil
+        }
+        return score
     }
 
     /// Per-day recovery scores for the 7-day window starting at `startDate`.
@@ -2127,7 +2132,7 @@ final class TrainingViewModel {
         )
         guard let rows = try? modelContext.fetch(descriptor) else { return [:] }
         var result: [Date: Double] = [:]
-        for row in rows {
+        for row in rows where row.recoveryScore > 0 { // 0 = no data, not red
             let key = cal.startOfDay(for: row.date)
             result[key] = row.recoveryScore
         }
