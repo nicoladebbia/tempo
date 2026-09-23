@@ -976,8 +976,8 @@ final class NutritionTabViewModel {
                     wakeMinutesOverride: whoopWakeMinutes,
                     modelContext: modelContext,
                     intake: enrichedIntake,
-                    onStatus: { [weak self] state in
-                        self?.planGenerationStatusLabel = state.statusLabel
+                    onStatus: { [self] state in
+                        planGenerationStatusLabel = state.statusLabel
                     }
                 )
 

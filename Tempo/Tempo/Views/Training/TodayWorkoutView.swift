@@ -66,8 +66,6 @@ struct TodayWorkoutView: View {
     @State
     private var showAddExercise = false
 
-    private let countdownTick = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
-
     /// Reminder is scheduled at most once per saved-event start.
     private static let workoutReminderID = "tempo.workout.reminder"
 
@@ -170,8 +168,9 @@ struct TodayWorkoutView: View {
             // §21 — hand the watch today's real queue, and route wrist-logged
             // sets (including ones queued while the app was closed) onto the
             // plan. Registration replays any buffered actions immediately.
-            services.watchConnectivity.setQuickActionHandler { [weak viewModel] action in
-                guard action.action == .logSet, let viewModel else {
+            let watchHandlerViewModel = viewModel
+            services.watchConnectivity.setQuickActionHandler { [weak watchHandlerViewModel] action in
+                guard action.action == .logSet, let viewModel = watchHandlerViewModel else {
                     return
                 }
                 viewModel.applyWatchSetLog(
@@ -190,11 +189,17 @@ struct TodayWorkoutView: View {
             // Any surface that mutates the workout re-syncs the wrist.
             viewModel.pushWorkoutToWatch()
         }
-        .onReceive(countdownTick) { tick in
-            now = tick
-            // Saved event has started — drop the banner.
-            if let ev = savedWorkoutEvent, ev.start <= tick {
-                savedWorkoutEvent = nil
+        .task {
+            // Once-a-minute countdown refresh (was a Combine Timer.publish
+            // tick; replaced to keep this file Combine-free per project
+            // convention).
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(60))
+                now = Date()
+                // Saved event has started — drop the banner.
+                if let ev = savedWorkoutEvent, ev.start <= now {
+                    savedWorkoutEvent = nil
+                }
             }
         }
         .sheet(isPresented: $showAddToCalendar, onDismiss: {
@@ -383,11 +388,6 @@ struct TodayWorkoutView: View {
                 .stroke(Color.tempoRecoveryYellow.opacity(0.3), lineWidth: 1)
         )
     }
-
-    // MARK: - Live Recovery Adjustment Card (Phase 2 Fix 2.4)
-
-    
-
 
     // MARK: - Daily Session Card (D2 — the readiness prescription)
 
@@ -627,8 +627,8 @@ struct TodayWorkoutView: View {
     // MARK: - Workout Countdown Banner
 
     // Shown once an event is saved to the calendar: live "Gym in Xh Ym"
-    // counting down to the saved start, refreshed each minute by
-    // `countdownTick`. Clears itself when the start passes.
+    // counting down to the saved start, refreshed each minute by the
+    // once-a-minute countdown `.task`. Clears itself when the start passes.
 
     private func workoutCountdownBanner(_ event: DateInterval) -> some View {
         HStack(spacing: TempoSpacing.sm) {
@@ -660,7 +660,7 @@ struct TodayWorkoutView: View {
     }
 
     /// "3h 32m" / "47m" / "soon" — derived from `now` so it re-renders on
-    /// each `countdownTick`.
+    /// each once-a-minute countdown tick.
     private func countdownString(to start: Date) -> String {
         let remaining = Int(start.timeIntervalSince(now))
         guard remaining > 0 else {
