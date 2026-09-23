@@ -13,7 +13,7 @@ Primary source files referenced throughout (cited by file + symbol, never line n
 - `tempo-backend/Sources/App/Middleware/*.swift`
 - `tempo-backend/Sources/App/Migrations/*.swift`
 
-**Reality summary:** 16 controllers are registered. **68 routes** are actually reachable. The original spec documented ~95 endpoints across 31 sections; roughly half have no backend at all. Entire subsystems (Training, Study, Snapshots, Accountability, Sync, Outbound Webhooks, Reports, Search, Admin, App Config, WebSocket) were never built. The NutriTrack proxy was built and then deliberately deleted (`DropNutriTrackIntegrations` migration) and replaced by a Receipt/NutritionAI pipeline that the original spec never documented. See §32 for the reverse-drift endpoints that exist in code but were absent from this doc.
+**Reality summary:** 16 controllers are registered. **67 routes** are actually reachable. The original spec documented ~95 endpoints across 31 sections; roughly half have no backend at all. Entire subsystems (Training, Study, Snapshots, Accountability, Sync, Outbound Webhooks, Reports, Search, Admin, App Config, WebSocket) were never built. The NutriTrack proxy was built and then deliberately deleted (`DropNutriTrackIntegrations` migration) and replaced by a Receipt/NutritionAI pipeline that the original spec never documented. See §32 for the reverse-drift endpoints that exist in code but were absent from this doc.
 
 ---
 
@@ -517,7 +517,6 @@ Registered at `routes.swift` under `v1/subscription`, 30/min per user.
 
 | Method | Path | Handler | Auth |
 |--------|------|---------|------|
-| POST | `/v1/subscription/verify` | `verifyReceipt` | JWT (sub-group in controller) |
 | GET | `/v1/subscription/status` | `subscriptionStatus` | JWT (sub-group in controller) |
 | POST | `/v1/subscription/webhook` | `handleWebhook` | none — Apple App Store Server Notifications, JWS-verified (`Services/AppStoreNotificationVerifier.swift`) |
 
@@ -566,7 +565,7 @@ Eight endpoints beyond the two diverged spec ones: `GET /drill-sergeant`, `POST 
 
 ---
 
-## Appendix A — Route Inventory (ground truth, 68 routes)
+## Appendix A — Route Inventory (ground truth, 67 routes)
 
 | # | Method | Path |
 |---|--------|------|
@@ -628,13 +627,12 @@ Eight endpoints beyond the two diverged spec ones: `GET /drill-sergeant`, `POST 
 | 56 | POST | `/v1/insights/training-program` |
 | 57 | POST | `/v1/insights/study-schedule` |
 | 58 | POST | `/v1/insights/achievement-copy` |
-| 59 | POST | `/v1/subscription/verify` |
-| 60 | GET | `/v1/subscription/status` |
-| 61 | POST | `/v1/subscription/webhook` |
-| 62 | GET | `/v1/user/me` |
-| 63 | DELETE | `/v1/user/me` |
-| 64 | POST | `/v1/user/ai-consent` |
-| 65 | POST | `/v1/user/accept-tos` |
-| 66 | PUT | `/v1/user/daily-plan-profile` |
-| 67 | GET | `/v1/user/daily-plan-profile` |
-| 68 | POST | `/v1/webhooks/whoop` |
+| 59 | GET | `/v1/subscription/status` |
+| 60 | POST | `/v1/subscription/webhook` |
+| 61 | GET | `/v1/user/me` |
+| 62 | DELETE | `/v1/user/me` |
+| 63 | POST | `/v1/user/ai-consent` |
+| 64 | POST | `/v1/user/accept-tos` |
+| 65 | PUT | `/v1/user/daily-plan-profile` |
+| 66 | GET | `/v1/user/daily-plan-profile` |
+| 67 | POST | `/v1/webhooks/whoop` |

@@ -9,56 +9,10 @@ struct SubscriptionController: RouteCollection {
     func boot(routes: RoutesBuilder) throws {
         // Protected routes (JWT required)
         let protected = routes.grouped(JWTAuthMiddleware())
-        protected.post("verify", use: verifyReceipt)
         protected.get("status", use: subscriptionStatus)
 
         // Apple webhook (no JWT — Apple calls this directly)
         routes.post("webhook", use: handleWebhook)
-    }
-
-    // MARK: - POST /v1/subscription/verify
-    // Verifies a StoreKit 2 transaction and records it server-side.
-
-    func verifyReceipt(_ req: Request) async throws -> SubscriptionStatusResponse {
-        let userID = try req.auth.requireUserID()
-        let body = try req.content.decode(VerifyReceiptRequest.self)
-
-        // In production: verify JWS signed transaction with Apple's public key
-        // For now, trust the client-provided transaction data and record it
-
-        // Upsert subscription record
-        if let existing = try await UserSubscription.query(on: req.db)
-            .filter(\.$user.$id == userID)
-            .filter(\.$originalTransactionId == body.originalTransactionId)
-            .first() {
-            existing.expirationDate = body.expirationDate
-            existing.isActive = body.expirationDate > Date()
-            existing.isTrial = body.isTrial
-            existing.updatedAt = Date()
-            try await existing.save(on: req.db)
-        } else {
-            let subscription = UserSubscription(
-                userID: userID,
-                productId: body.productId,
-                originalTransactionId: body.originalTransactionId,
-                purchaseDate: body.purchaseDate,
-                expirationDate: body.expirationDate,
-                isTrial: body.isTrial,
-                environment: body.environment
-            )
-            try await subscription.save(on: req.db)
-        }
-
-        // Invalidate the SubscriptionMiddleware cache so the next AI request
-        // sees the new state immediately. Per INTELLIGENCE_REMEDIATION_PLAN.md §4.
-        await req.invalidateSubscriptionCache(userID: userID)
-
-        return SubscriptionStatusResponse(
-            isActive: body.expirationDate > Date(),
-            productId: body.productId,
-            expirationDate: body.expirationDate,
-            isTrial: body.isTrial
-        )
     }
 
     // MARK: - GET /v1/subscription/status
@@ -207,21 +161,15 @@ struct SubscriptionController: RouteCollection {
             .filter(\.$environment == txn.environment)
             .first()
 
-        // Initial purchase + DID_RENEW for an unknown originalTransactionId.
-        // Expected when (a) App Review's sandbox tester purchases without
-        // the iOS verify-receipt flow being reachable, or (b) a network
-        // failure dropped /v1/subscription/verify-receipt before it
-        // succeeded. We can't auto-create the row because we have no
-        // userId to attach it to: Apple's V2 payload doesn't carry
-        // appAccountToken in the JWS by default. The recovery path is
-        // self-healing — when the user next opens the app, iOS calls
-        // verify-receipt, the row is created, and any future
-        // notification finds it. Until then: log loudly so we notice if
-        // it persists past one app-open cycle.
+        // Notification for an originalTransactionId with no row. We can't
+        // create the row here because we have no userId to attach it to:
+        // Apple's V2 payload doesn't carry appAccountToken unless iOS set
+        // it at purchase time. (The old client-driven
+        // POST /v1/subscription/verify route that used to create rows was
+        // removed — it trusted unverified client data.) Log loudly.
         //
-        // Long-term upgrade: have iOS set appAccountToken to the user.id
-        // UUID on purchase. The webhook would then auto-create the row.
-        // That's deferred — needs a StoreKit-side change + sandbox test.
+        // Fix: have iOS set appAccountToken to the user.id UUID on
+        // purchase, then create the row here from the verified txn.
         if sub == nil {
             Self.logOrphanNotification(type: type, txn: txn)
             return
@@ -345,13 +293,9 @@ struct SubscriptionController: RouteCollection {
         return Date(timeIntervalSince1970: ms / 1000.0)
     }
 
-    /// Log a SUBSCRIBED / DID_RENEW for an originalTransactionId we don't
-    /// have a row for. This SHOULD self-heal on the user's next app open
-    /// — verify-receipt will create the row, and subsequent notifications
-    /// will hit the normal path. If we keep seeing the same
-    /// originalTransactionId orphaned across multiple notifications, that's
-    /// a real bug (probably a userId-mapping miss) and the on-call should
-    /// dig in.
+    /// Log a notification for an originalTransactionId we don't have a
+    /// row for. Until the webhook can create rows (see appAccountToken
+    /// note in applyNotification), every new purchase lands here.
     ///
     /// Uses print so it surfaces in Railway logs regardless of logger
     /// config; tag with `[orphan_appstore_notification]` so a future
@@ -361,21 +305,12 @@ struct SubscriptionController: RouteCollection {
             [orphan_appstore_notification] type=\(type) \
             originalTransactionId=\(txn.originalTransactionId) \
             env=\(txn.environment) productId=\(txn.productId) \
-            — no UserSubscription row found; expected to self-heal on user's next app open
+            — no UserSubscription row found
             """)
     }
 }
 
 // MARK: - Request / Response Models
-
-struct VerifyReceiptRequest: Content {
-    let productId: String
-    let originalTransactionId: String
-    let purchaseDate: Date
-    let expirationDate: Date
-    let isTrial: Bool
-    let environment: String
-}
 
 struct SubscriptionStatusResponse: Content {
     let isActive: Bool

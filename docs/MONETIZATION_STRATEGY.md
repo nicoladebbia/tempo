@@ -570,20 +570,11 @@ class SubscriptionManager {
 
 **Implementation (Vapor):**
 
-```
-POST /v1/subscription/verify
-Authorization: Bearer <jwt>
-Body: {
-    "transaction_id": "...",
-    "original_transaction_id": "...",
-    "product_id": "app.tempo.Tempo.pro.annual",
-    "environment": "production"  // or "sandbox"
-}
-```
+There is no client-facing verify endpoint. An earlier `POST /v1/subscription/verify` route trusted client-supplied transaction data (any authenticated user could grant themselves Pro) and was removed. The App Store Server Notifications V2 webhook (below) is the sole path that writes subscription state.
 
 **Server flow:**
-1. iOS app sends the JWS-signed transaction to the backend after purchase
-2. Vapor verifies the JWS signature using Apple's public keys (fetched from `https://appleid.apple.com/auth/keys`)
+1. iOS sets `appAccountToken` to the user's UUID at purchase (not yet implemented — until it is, the webhook cannot map a new purchase to a user and logs it as an orphan)
+2. Apple sends a signed notification to the webhook; Vapor verifies the JWS chain against Apple Root CA - G3 (`Services/AppStoreNotificationVerifier.swift`)
 3. Decode the transaction payload: product ID, purchase date, expiration date, revocation status
 4. Store in `user_subscriptions` table:
    ```sql
@@ -602,7 +593,7 @@ Body: {
        updated_at TIMESTAMPTZ DEFAULT NOW()
    );
    ```
-5. Return `{ "pro": true, "expires_at": "2027-03-24T..." }` to the iOS app
+5. iOS reads the resulting state via `GET /v1/subscription/status`
 
 **App Store Server Notifications V2:**
 Register a webhook URL in App Store Connect: `https://api.tempo.app/v1/subscription/webhook`
@@ -630,7 +621,7 @@ Handle these notification types:
 
 **On every app launch:**
 1. Call `Transaction.currentEntitlements` to check for active subscription
-2. If found and not yet synced today, verify with backend (`POST /v1/subscription/verify`)
+2. If found and not yet synced today, fetch server state (`GET /v1/subscription/status`)
 3. Cache result locally: `UserDefaults.standard.set(true, forKey: "isPro")` with `expirationDate`
 4. For offline support: honor cached `isPro` status if `expirationDate` is in the future. Re-verify when back online.
 

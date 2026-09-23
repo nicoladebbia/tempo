@@ -110,7 +110,6 @@ func routes(_ app: Application) throws {
 
     // ─────────────────────────────────────────────────
     // Subscriptions — per BUILD_PLAN Step 20.1 + INTELLIGENCE_REMEDIATION_PLAN.md §4
-    // POST /v1/subscription/verify  (JWT) — submit a signed StoreKit transaction
     // GET  /v1/subscription/status  (JWT) — current Pro tier + expiry
     // POST /v1/subscription/webhook (no JWT, JWS-verified by Apple)
     // ─────────────────────────────────────────────────

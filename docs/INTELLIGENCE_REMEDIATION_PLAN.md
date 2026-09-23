@@ -264,7 +264,6 @@ Add this block to `routes.swift` after the existing protected routes:
 
 ```swift
 // Subscriptions — per BUILD_PLAN Step 20.1
-// POST /v1/subscription/verify  (JWT)
 // GET  /v1/subscription/status  (JWT)
 // POST /v1/subscription/webhook (unauthenticated, JWS-verified)
 try v1.grouped("subscription")
