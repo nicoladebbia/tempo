@@ -859,11 +859,15 @@ struct TodayWorkoutView: View {
         return VStack(spacing: TempoSpacing.sm) {
             ForEach(Array(groups.enumerated()), id: \.offset) { _, group in
                 if group.count > 1 {
-                    // Superset group: shared card with connecting indicator
-                    supersetCard(exercises: group, startIndex: exercises.firstIndex(where: { $0.id == group[0].id }) ?? 0)
+                    // Superset/circuit group: shared card with connecting indicator
+                    supersetCard(
+                        exercises: group,
+                        startIndex: exercises.firstIndex(where: { $0.id == group[0].id }) ?? 0,
+                        allExercises: exercises
+                    )
                 } else if let single = group.first {
                     let idx = (exercises.firstIndex(where: { $0.id == single.id }) ?? 0)
-                    exerciseCard(index: idx + 1, plannedExercise: single)
+                    exerciseCard(index: idx + 1, plannedExercise: single, allExercises: exercises)
                 }
             }
 
@@ -941,13 +945,16 @@ struct TodayWorkoutView: View {
         return groups
     }
 
-    private func supersetCard(exercises: [PlannedExercise], startIndex: Int) -> some View {
-        VStack(spacing: 0) {
-            // Superset header badge
+    private func supersetCard(exercises: [PlannedExercise], startIndex: Int, allExercises: [PlannedExercise]) -> some View {
+        // §6.3 — a group of 2 is a superset, 3+ is a circuit. Same shared
+        // card either way; only the badge word changes.
+        let isCircuit = exercises.count > 2
+        return VStack(spacing: 0) {
+            // Superset/circuit header badge
             HStack(spacing: TempoSpacing.xxs) {
                 Image(systemName: "arrow.triangle.2.circlepath")
                     .font(.system(size: 10, weight: .semibold))
-                Text("SUPERSET")
+                Text(isCircuit ? "CIRCUIT" : "SUPERSET")
                     .font(.tempoCaption2)
                     .fontWeight(.bold)
             }
@@ -975,7 +982,7 @@ struct TodayWorkoutView: View {
                     .frame(width: 8)
 
                     // Exercise card content
-                    exerciseCard(index: startIndex + idx + 1, plannedExercise: plannedEx)
+                    exerciseCard(index: startIndex + idx + 1, plannedExercise: plannedEx, allExercises: allExercises)
                 }
             }
         }
@@ -988,7 +995,7 @@ struct TodayWorkoutView: View {
         )
     }
 
-    private func exerciseCard(index: Int, plannedExercise: PlannedExercise) -> some View {
+    private func exerciseCard(index: Int, plannedExercise: PlannedExercise, allExercises: [PlannedExercise]) -> some View {
         Group {
             if let exercise = plannedExercise.exercise {
                 NavigationLink(destination: ExerciseDetailView(exercise: exercise)) {
@@ -1000,6 +1007,10 @@ struct TodayWorkoutView: View {
             }
         }
         // §2.13 — long-press swap (TESTING_STRATEGY UT-005 / M-T-008).
+        // §6.5 — long-press group control: manually group with the next
+        // exercise (grows a superset into a circuit) or break out of the
+        // current group. Auto-assignment still runs by default; this is the
+        // manual override.
         .contextMenu {
             if canSwap(plannedExercise) {
                 Button {
@@ -1008,7 +1019,34 @@ struct TodayWorkoutView: View {
                     Label("Swap Exercise", systemImage: "arrow.triangle.2.circlepath")
                 }
             }
+            if canSwap(plannedExercise), let next = nextExercise(after: plannedExercise, in: allExercises),
+               plannedExercise.supersetGroup == nil || plannedExercise.supersetGroup != next.supersetGroup
+            {
+                Button {
+                    viewModel.groupWithNext(plannedExercise, modelContext: modelContext)
+                } label: {
+                    Label("Group with Next", systemImage: "link")
+                }
+            }
+            if canSwap(plannedExercise), plannedExercise.supersetGroup != nil {
+                Button(role: .destructive) {
+                    viewModel.breakGroup(plannedExercise, modelContext: modelContext)
+                } label: {
+                    Label("Break Group", systemImage: "link.badge.minus")
+                }
+            }
         }
+    }
+
+    /// The exercise immediately after `plannedExercise` in plan order, or nil
+    /// at the end of the list. Used only by the manual group-control menu.
+    private func nextExercise(after plannedExercise: PlannedExercise, in allExercises: [PlannedExercise]) -> PlannedExercise? {
+        guard let idx = allExercises.firstIndex(where: { $0.id == plannedExercise.id }),
+              idx + 1 < allExercises.count
+        else {
+            return nil
+        }
+        return allExercises[idx + 1]
     }
 
     private func exerciseCardContent(index: Int, plannedExercise: PlannedExercise) -> some View {

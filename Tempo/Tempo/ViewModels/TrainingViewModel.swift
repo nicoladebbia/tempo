@@ -938,8 +938,10 @@ final class TrainingViewModel {
 
         // PR detection — working sets only. Warmup ramp sets must never trigger
         // a PR (this is why duplicate/low PRs appeared, e.g. two "Face Pull" PRs:
-        // the warmup set and the working set each fired).
-        if !set.isWarmup, let exercise = plannedExercise.exercise {
+        // the warmup set and the working set each fired). A drop step (§6.4) is
+        // excluded too — a reduced-weight backoff set is never a max-effort
+        // signal, so it can never legitimately BE the PR.
+        if !set.isWarmup, !set.isDropStep, let exercise = plannedExercise.exercise {
             if let pr = trainingEngine.detectPersonalRecord(
                 exercise: exercise,
                 weight: weight,
@@ -960,42 +962,63 @@ final class TrainingViewModel {
             print("\(DebugTrace.prefix)[Workout] logSet: exIdx=\(currentExerciseIndex)/\(exercises.count) setIdx=\(currentSetIndex)/\(sets.count) (warmups=\(warmupCount)) → isLastSet=\(isLastSet) isLastExercise=\(isLastExercise)")
         #endif
 
-        // §6 superset alternation — A1 → B1 with NO rest, then the pair's
-        // shared rest, then back: A2 → B2 … Warmup ramps stay in the normal
-        // per-exercise flow; alternation starts at the first working set.
-        if !set.isWarmup, let partnerIdx = supersetPartnerIndex(of: currentExerciseIndex) {
-            let partner = exercises[partnerIdx]
-            let isFirstOfPair = partnerIdx > currentExerciseIndex
+        // §6.4/§7.7 drop sets — a queued drop step right after this set
+        // continues immediately with NO rest, in the same set-active flow.
+        // Takes priority over circuit rotation below: a drop chain is never
+        // interrupted by a partner exercise.
+        if currentSetIndex + 1 < sets.count, sets[currentSetIndex + 1].isDropStep {
+            currentSetIndex += 1
+            sessionState = .exercise(.setActive(
+                exerciseIndex: currentExerciseIndex, setIndex: currentSetIndex
+            ))
+            HapticManager.selection()
+            return
+        }
 
-            if isFirstOfPair, let partnerSet = firstUncompletedSetIndex(in: partner) {
-                // First lift logged → straight into the partner, no rest.
-                currentExerciseIndex = partnerIdx
-                currentSetIndex = partnerSet
-                sessionState = .exercise(.setActive(
-                    exerciseIndex: partnerIdx, setIndex: partnerSet
-                ))
-                HapticManager.selection()
-                return
-            }
-            if !isFirstOfPair, let backSet = firstUncompletedSetIndex(in: partner) {
-                // Second lift logged → the pair's one rest, then back to the first.
-                restOrJump(to: partnerIdx, setIndex: backSet, after: plannedExercise)
-                return
-            }
-            if firstUncompletedSetIndex(in: plannedExercise) == nil {
-                // Both lifts fully logged → advance PAST the pair (the standard
-                // next-exercise path would land on the already-finished partner).
-                let afterPair = max(currentExerciseIndex, partnerIdx) + 1
-                if afterPair >= exercises.count {
-                    stopElapsedTimer()
-                    sessionState = .summary
-                } else {
-                    restOrJump(to: afterPair, setIndex: 0, after: plannedExercise)
+        // §6.1-6.3 superset/circuit rotation — A1 → B1 → C1 … with NO rest
+        // between members, then the group's ONE shared rest before the next
+        // round: A2 → B2 → C2 … Warmup ramps stay in the normal per-exercise
+        // flow; rotation starts at the first working set. `circuitMembers`
+        // generalizes the old adjacent-PAIR lookup to 2..N members, so a
+        // 2-exercise superset is just the N=2 case of the same rotation.
+        if !set.isWarmup {
+            let members = circuitMembers(of: currentExerciseIndex)
+            if members.count > 1 {
+                let isLastOfRotation = isLastOfCircuitRotation(currentExerciseIndex)
+
+                if let next = nextCircuitMemberWithWork(after: currentExerciseIndex) {
+                    if !isLastOfRotation {
+                        // Any member except the round's last → straight into
+                        // the next member, no rest.
+                        currentExerciseIndex = next.exerciseIndex
+                        currentSetIndex = next.setIndex
+                        sessionState = .exercise(.setActive(
+                            exerciseIndex: next.exerciseIndex, setIndex: next.setIndex
+                        ))
+                        HapticManager.selection()
+                        return
+                    }
+                    // The round's last member → the group's one shared rest,
+                    // then continue the rotation from the first member with work.
+                    restOrJump(to: next.exerciseIndex, setIndex: next.setIndex, after: plannedExercise)
+                    return
                 }
-                return
+                if members.allSatisfy({ firstUncompletedSetIndex(in: exercises[$0]) == nil }) {
+                    // Whole group fully logged → advance PAST every member
+                    // (the standard next-exercise path would land on an
+                    // already-finished partner).
+                    let afterGroup = (members.max() ?? currentExerciseIndex) + 1
+                    if afterGroup >= exercises.count {
+                        stopElapsedTimer()
+                        sessionState = .summary
+                    } else {
+                        restOrJump(to: afterGroup, setIndex: 0, after: plannedExercise)
+                    }
+                    return
+                }
+                // Every other member is done, this lift still has sets →
+                // finish it in the standard flow below.
             }
-            // Partner done, this lift still has sets → finish it in the
-            // standard flow below.
         }
 
         if isLastSet, isLastExercise {
@@ -1088,9 +1111,10 @@ final class TrainingViewModel {
     }
 
     /// Land on the next real work after a skip: same exercise's next
-    /// uncompleted set, else the superset partner's, else the next exercise
-    /// that still has one, else summary. Mirrors logSet's routing minus the
-    /// rest timer.
+    /// uncompleted set, else the next circuit member's (§6.3 — generalizes
+    /// the old pair-only partner lookup to 2..N members), else the next
+    /// exercise that still has one, else summary. Mirrors logSet's routing
+    /// minus the rest timer.
     private func advanceAfterSkip(in slot: PlannedExercise, plan: WorkoutPlan) {
         let exercises = plan.orderedExercises
         if let next = firstUncompletedSetIndex(in: slot) {
@@ -1101,12 +1125,11 @@ final class TrainingViewModel {
             HapticManager.selection()
             return
         }
-        if let partnerIdx = supersetPartnerIndex(of: currentExerciseIndex),
-           let partnerSet = firstUncompletedSetIndex(in: exercises[partnerIdx]) {
-            currentExerciseIndex = partnerIdx
-            currentSetIndex = partnerSet
+        if let next = nextCircuitMemberWithWork(after: currentExerciseIndex) {
+            currentExerciseIndex = next.exerciseIndex
+            currentSetIndex = next.setIndex
             sessionState = .exercise(.setActive(
-                exerciseIndex: partnerIdx, setIndex: partnerSet
+                exerciseIndex: next.exerciseIndex, setIndex: next.setIndex
             ))
             HapticManager.selection()
             return
@@ -1226,39 +1249,16 @@ final class TrainingViewModel {
 
     var pendingRestAction: RestNextAction = .nextSet
 
-    // MARK: - Superset Flow (§6 / §2.8)
+    // MARK: - Superset / Circuit Flow (§6 / §2.8 / §6.3)
 
-    /// Adjacent partner in the same superset pair, or nil. Pairing mirrors the
-    /// render logic: CONSECUTIVE orderedExercises sharing a non-nil group
-    /// (a reorder that splits adjacency deliberately breaks the pair).
-    func supersetPartnerIndex(of index: Int) -> Int? {
-        guard let exercises = todayPlan?.orderedExercises,
-              index >= 0, index < exercises.count,
-              let group = exercises[index].supersetGroup
-        else {
-            return nil
-        }
-        if index + 1 < exercises.count, exercises[index + 1].supersetGroup == group {
-            return index + 1
-        }
-        if index - 1 >= 0, exercises[index - 1].supersetGroup == group {
-            return index - 1
-        }
-        return nil
-    }
+    //
+    // Circuit membership (`circuitMembers`), rotation helpers, and the
+    // active-screen group label live in TrainingViewModel+Groups.swift —
+    // pulled out to keep this file under the length guard. `logSet` and
+    // `advanceAfterSkip` below call into them directly (same target, no
+    // import needed).
 
-    /// Partner name for the active screen's superset banner. nil when the
-    /// current exercise is not part of a pair.
-    var currentSupersetPartnerName: String? {
-        guard let idx = supersetPartnerIndex(of: currentExerciseIndex),
-              let exercises = todayPlan?.orderedExercises
-        else {
-            return nil
-        }
-        return exercises[idx].exercise?.name
-    }
-
-    private func firstUncompletedSetIndex(in plannedExercise: PlannedExercise) -> Int? {
+    func firstUncompletedSetIndex(in plannedExercise: PlannedExercise) -> Int? {
         plannedExercise.orderedSets.firstIndex { !$0.completed }
     }
 
@@ -1492,7 +1492,13 @@ final class TrainingViewModel {
                 guard let w = set.actualWeight, let r = set.actualReps else { return acc }
                 return acc + (w * Double(r))
             }
-            let best = completedSets.max { ($0.actualWeight ?? 0) < ($1.actualWeight ?? 0) }
+            // §6.4 — a drop step is a reduced-weight backoff, never the
+            // session's "best" set; volume/set-count above still count it
+            // (the work was performed), but the history's headline
+            // weight/reps must come from a real working set.
+            let best = completedSets
+                .filter { !$0.isDropStep }
+                .max { ($0.actualWeight ?? 0) < ($1.actualWeight ?? 0) }
 
             // Aggregate ONLY user-provided feedback for this exercise's working
             // sets (pure helper, unit-tested). No entered feedback → nil/0.
@@ -1918,6 +1924,9 @@ final class TrainingViewModel {
             HapticManager.selection()
         }
     }
+
+    // Drop-set logging (§6.4/§7.7) and manual group control (§6.5) live in
+    // TrainingViewModel+Groups.swift, alongside the circuit helpers above.
 
     // MARK: - Pause / Resume
 

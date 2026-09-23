@@ -54,6 +54,16 @@ final class PlannedSet {
     /// Optional → lightweight SwiftData migration (nil on existing rows).
     var addedLoadKg: Double?
 
+    /// §6.4/§7.7 — 1-based position of this row within a DROP SET sequence:
+    /// the reduced-weight, no-rest continuation logged immediately after the
+    /// set before it. nil = a normal set (working, warmup, or the initiating
+    /// top set of a sequence — only the STEPS chained after it carry this).
+    /// Drop steps are excluded from PR/e1RM detection (a reduced-weight
+    /// backoff set is never a max-effort signal) but DO count toward volume
+    /// and set-count, since the work was still performed.
+    /// Optional → lightweight SwiftData migration (nil on existing rows).
+    var dropStepIndex: Int?
+
     // MARK: - Relationships
 
     @Relationship(deleteRule: .nullify)
@@ -71,13 +81,22 @@ final class PlannedSet {
 
     @Transient
     var estimated1RM: Double? {
-        guard completed, let w = actualWeight, let r = actualReps, r > 0 else {
+        // A drop step is a reduced-weight backoff, never a max-effort signal —
+        // excluded from e1RM/PR the same way warmup ramps are.
+        guard completed, dropStepIndex == nil, let w = actualWeight, let r = actualReps, r > 0 else {
             return nil
         }
         if r == 1 {
             return w
         }
         return w * (1 + Double(r) / 30.0)
+    }
+
+    /// Whether this row is a reduced-weight drop step chained onto the set
+    /// before it (§6.4). Read-only convenience over `dropStepIndex`.
+    @Transient
+    var isDropStep: Bool {
+        dropStepIndex != nil
     }
 
     @Transient
@@ -104,6 +123,7 @@ final class PlannedSet {
         restSeconds: Int? = nil,
         isWarmup: Bool = false,
         addedLoadKg: Double? = nil,
+        dropStepIndex: Int? = nil,
         plannedExercise: PlannedExercise? = nil
     ) {
         self.id = id
@@ -118,6 +138,7 @@ final class PlannedSet {
         self.restSeconds = restSeconds
         self.isWarmup = isWarmup
         self.addedLoadKg = addedLoadKg
+        self.dropStepIndex = dropStepIndex
         self.plannedExercise = plannedExercise
     }
 }
@@ -138,6 +159,7 @@ extension PlannedSet {
         let completed_at: Date?
         let is_warmup: Bool
         let added_load_kg: Double?
+        let drop_step_index: Int?
     }
 
     func toDTO() -> DTO {
@@ -153,7 +175,8 @@ extension PlannedSet {
             rest_seconds: restSeconds,
             completed_at: completedAt,
             is_warmup: isWarmup,
-            added_load_kg: addedLoadKg
+            added_load_kg: addedLoadKg,
+            drop_step_index: dropStepIndex
         )
     }
 }
