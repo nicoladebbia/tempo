@@ -89,7 +89,7 @@ enum TrainingSafetyFloor {
         if p.hasRecoveryScore, p.recoveryScore < recoveryRed { return true }
 
         // Sleep route — high debt on an already-suppressed (non-green) recovery. [D]
-        if let debt = p.sleepDebt, debt >= sleepDebtSevere, p.recoveryScore < recoveryGreen {
+        if let debt = p.sleepDebt, debt >= sleepDebtSevere, isKnownNonGreen(p) {
             return true
         }
 
@@ -102,7 +102,7 @@ enum TrainingSafetyFloor {
         }
 
         // Illness route — elevated resp rate AND recovery not green. [D] cutoff.
-        if let rd = p.respDeltaBrMin, rd >= respSevereBrMin, p.recoveryScore < recoveryGreen {
+        if let rd = p.respDeltaBrMin, rd >= respSevereBrMin, isKnownNonGreen(p) {
             return true
         }
 
@@ -110,7 +110,7 @@ enum TrainingSafetyFloor {
         // skin-temp deviation, and low SpO2 on a non-green day. Catches the
         // incubating-illness day the resp-only route misses (e.g. fever-warm
         // skin + low oxygen with normal breathing).
-        if p.recoveryScore < recoveryGreen {
+        if isKnownNonGreen(p) {
             var illnessSignals = 0
             if let rd = p.respDeltaBrMin, rd >= respSevereBrMin { illnessSignals += 1 }
             if let td = p.skinTempDeltaC, td >= skinTempSevereDeltaC { illnessSignals += 1 }
@@ -119,6 +119,12 @@ enum TrainingSafetyFloor {
         }
 
         return false
+    }
+
+    /// A synced recovery score below green. Unsynced (0 sentinel) is unknown,
+    /// never "non-green" — the recovery-conjunct routes must not fire on it.
+    private static func isKnownNonGreen(_ p: ReadinessPicture) -> Bool {
+        p.hasRecoveryScore && p.recoveryScore < recoveryGreen
     }
 
     /// MODERATE = NOT severe, recovery yellow, with ≥1 moderate flag.

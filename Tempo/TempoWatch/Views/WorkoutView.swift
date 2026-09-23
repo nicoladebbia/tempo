@@ -22,6 +22,8 @@ struct WorkoutView: View {
     @State private var exerciseIndex = 0
     @State private var isResting = false
     @State private var restSeconds = 120
+    /// The one live rest loop (see startRestTimer).
+    @State private var restTask: Task<Void, Never>?
     @State private var showAdjust = false
 
     /// The phone's payload, but only if it is actually TODAY's plan — a
@@ -364,13 +366,14 @@ struct WorkoutView: View {
     private func startRestTimer() {
         // Task loop on the main actor (a Timer closure is @Sendable and can't
         // touch @State under Swift 6).
-        Task { @MainActor in
-            while isResting, restSeconds > 0 {
+        restTask?.cancel()
+        restTask = Task { @MainActor in
+            while isResting, restSeconds > 0, !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
-                guard isResting else { return }
+                guard isResting, !Task.isCancelled else { return }
                 restSeconds -= 1
             }
-            if isResting {
+            if isResting, !Task.isCancelled {
                 WatchHapticService.playRestTimerEnd()
                 isResting = false
             }

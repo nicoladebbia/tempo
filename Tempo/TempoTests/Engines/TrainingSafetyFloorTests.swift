@@ -72,6 +72,12 @@ final class TrainingSafetyFloorTests: XCTestCase {
         XCTAssertFalse(p.easeCrossTrainingToday)
         let decision = F.apply(goHardLegs(), picture: p)
         XCTAssertNotEqual(decision.session.intensity, .recovery)
+        // Recovery-conjunct routes: high sleep debt / resp with no synced
+        // score is not "non-green".
+        XCTAssertNotEqual(F.classifyFloorTier(picture(recovery: 0, sleepDebt: 5)), .severe)
+        XCTAssertNotEqual(F.classifyFloorTier(picture(recovery: 0, respDelta: 3)), .severe)
+        // …but a real non-green day still trips them.
+        XCTAssertEqual(F.classifyFloorTier(picture(recovery: 55, sleepDebt: 5)), .severe)
     }
 
     func testRouteB_hrvCrashAndRhrSpikeIsSevere() {

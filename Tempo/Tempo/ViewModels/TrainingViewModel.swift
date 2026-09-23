@@ -1430,7 +1430,6 @@ final class TrainingViewModel {
             }
         }
         saveErrorMessage = "Couldn't save your \(operation). Try it again — if this keeps happening, free up iPhone storage."
-        PersistenceAlert.shared.report(operation)
         return false
     }
 
