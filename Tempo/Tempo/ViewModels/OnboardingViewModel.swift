@@ -325,8 +325,12 @@ final class OnboardingViewModel {
     /// the `.tosAccept` onboarding step. On success, advances the step.
     /// On failure, sets `tosAcceptError` so the View can surface a retry.
     @MainActor
-    func submitToSAcceptance(apiClient: APIClient) async {
+    func submitToSAcceptance(apiClient: APIClient, isSignedIn: Bool = true) async {
         tosAcceptError = nil
+        if Self.skipsBackendForDebugBypass(isSignedIn: isSignedIn) {
+            advance()
+            return
+        }
         do {
             let body = AcceptToSRequestDTO(documentVersion: nil)
             let _: AcceptToSResponseDTO = try await apiClient.request(
@@ -335,7 +339,7 @@ final class OnboardingViewModel {
             )
             advance()
         } catch {
-            tosAcceptError = error.localizedDescription
+            tosAcceptError = Self.readableMessage(for: error)
         }
     }
 
@@ -345,8 +349,13 @@ final class OnboardingViewModel {
     /// the `.aiConsent` onboarding step. On success, advances the step.
     /// On failure, sets `aiConsentError` so the View can surface a retry.
     @MainActor
-    func setAIConsent(_ granted: Bool, apiClient: APIClient) async {
+    func setAIConsent(_ granted: Bool, apiClient: APIClient, isSignedIn: Bool = true) async {
         aiConsentError = nil
+        if Self.skipsBackendForDebugBypass(isSignedIn: isSignedIn) {
+            aiConsentGranted = granted
+            advance()
+            return
+        }
         do {
             let body = AIConsentRequestDTO(consented: granted)
             let _: AIConsentResponseDTO = try await apiClient.request(
@@ -356,8 +365,26 @@ final class OnboardingViewModel {
             aiConsentGranted = granted
             advance()
         } catch {
-            aiConsentError = error.localizedDescription
+            aiConsentError = Self.readableMessage(for: error)
         }
+    }
+
+    /// DEBUG "Skip Sign In" leaves no JWT, so these authenticated calls
+    /// can only 401. Record the choice locally and move on instead of
+    /// dead-ending the simulator flow. Release builds always hit the backend
+    /// (the auth step has no skip there).
+    static func skipsBackendForDebugBypass(isSignedIn: Bool) -> Bool {
+        #if DEBUG
+            return !isSignedIn
+        #else
+            return false
+        #endif
+    }
+
+    /// Human copy instead of "The operation couldn't be completed.
+    /// (Tempo.APIError error 3.)".
+    static func readableMessage(for error: Error) -> String {
+        (error as? APIError)?.userMessage ?? error.localizedDescription
     }
 
     // MARK: - Persistence
@@ -468,20 +495,22 @@ final class OnboardingViewModel {
     }
 }
 
-// MARK: - In-memory value types for class/work blocks
+// MARK: - OnboardingClassBlock
 
 /// View-model representation of `ClassBlock`. Stays a value type so onboarding
 /// can edit it freely without touching SwiftData mid-flow; the final commit
 /// step materialises these into `ClassBlock` model rows.
 struct OnboardingClassBlock: Codable, Identifiable, Hashable {
     var id = UUID()
-    var weekday: Int          // 1 = Sunday … 7 = Saturday
+    var weekday: Int // 1 = Sunday … 7 = Saturday
     var startMinuteOfDay: Int
     var endMinuteOfDay: Int
     var courseCode: String
     var courseName: String?
     var location: String?
 }
+
+// MARK: - OnboardingWorkBlock
 
 struct OnboardingWorkBlock: Codable, Identifiable, Hashable {
     var id = UUID()
