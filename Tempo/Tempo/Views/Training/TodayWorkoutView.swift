@@ -65,6 +65,13 @@ struct TodayWorkoutView: View {
     /// §2.14 — add-exercise picker sheet.
     @State
     private var showAddExercise = false
+    /// My routines — picker sheet and "save as routine" name prompt.
+    @State
+    private var showRoutines = false
+    @State
+    private var showSaveRoutine = false
+    @State
+    private var routineName = ""
 
     /// Reminder is scheduled at most once per saved-event start.
     private static let workoutReminderID = "tempo.workout.reminder"
@@ -152,6 +159,25 @@ struct TodayWorkoutView: View {
         }
         .sheet(item: $swapTarget) { target in
             SwapExerciseSheet(viewModel: viewModel, target: target)
+        }
+        .sheet(isPresented: $showRoutines) {
+            NavigationStack {
+                RoutinesView(viewModel: viewModel)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Close") { showRoutines = false }
+                        }
+                    }
+            }
+        }
+        .alert("Save as routine", isPresented: $showSaveRoutine) {
+            TextField("Name (e.g. Upper A)", text: $routineName)
+            Button("Save") {
+                viewModel.saveTodayAsRoutine(named: routineName, modelContext: modelContext)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Keeps these exercises, sets and supersets. Tempo sets the loads each time you run it.")
         }
         .sheet(isPresented: $showAddExercise) {
             AddExerciseSheet(viewModel: viewModel)
@@ -864,7 +890,33 @@ struct TodayWorkoutView: View {
             if plan.status == .planned || plan.status == .inProgress {
                 addExerciseButton
             }
+
+            // My routines — run your own program today, or keep this one.
+            if plan.status == .planned {
+                routineButtons
+            }
         }
+    }
+
+    private var routineButtons: some View {
+        HStack(spacing: TempoSpacing.lg) {
+            Button {
+                showRoutines = true
+            } label: {
+                Label("Use a routine", systemImage: "list.bullet.rectangle")
+            }
+            Spacer()
+            Button {
+                routineName = ""
+                showSaveRoutine = true
+            } label: {
+                Label("Save as routine", systemImage: "square.and.arrow.down")
+            }
+        }
+        .font(.tempoCaption1)
+        .foregroundStyle(Color.tempoTextSecondary)
+        .buttonStyle(.plain)
+        .padding(.horizontal, TempoSpacing.xs)
     }
 
     private var addExerciseButton: some View {

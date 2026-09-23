@@ -809,7 +809,7 @@ extension TrainingViewModel {
     /// overload falling back to cold-start, the plan's recovery + deload
     /// multipliers, 50%/75% warmup ramp for loadable compounds, bodyweight
     /// added-load hint. Also records the PredictionLog row (measurement spine).
-    private func prescribedSets(
+    func prescribedSets(
         for exercise: Exercise,
         workingSets: Int,
         plan: WorkoutPlan,
@@ -904,7 +904,7 @@ extension TrainingViewModel {
 
     /// Drop the unresolved PredictionLog row for a plan+exercise pairing that
     /// no longer exists (the movement was swapped out before any outcome).
-    private func deleteUnresolvedPrediction(planID: UUID, exerciseID: UUID, modelContext: ModelContext) {
+    func deleteUnresolvedPrediction(planID: UUID, exerciseID: UUID, modelContext: ModelContext) {
         let descriptor = FetchDescriptor<PredictionLog>(
             predicate: #Predicate { $0.workoutPlanID == planID && $0.exerciseID == exerciseID }
         )

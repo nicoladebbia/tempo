@@ -55,6 +55,14 @@ struct TrainingTabView: View {
                             }
                         }
 
+                        if let viewModel {
+                            NavigationLink {
+                                RoutinesView(viewModel: viewModel)
+                            } label: {
+                                Label("My Routines", systemImage: "list.bullet.rectangle")
+                            }
+                        }
+
                         NavigationLink {
                             ExerciseLibraryView()
                         } label: {
@@ -84,7 +92,7 @@ struct TrainingTabView: View {
                             .foregroundStyle(Color.tempoTextSecondary)
                     }
                     .accessibilityLabel("More")
-                    .accessibilityHint("Open week plan, exercise library, progress, or history.")
+                    .accessibilityHint("Open week plan, routines, exercise library, progress, or history.")
                 }
             }
             .fullScreenCover(isPresented: $showActiveWorkout) {
