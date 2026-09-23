@@ -97,7 +97,6 @@ struct WorkoutView: View {
 
                     // Start button — Full width, 50pt, green
                     Button {
-                        WatchHapticService.playWorkoutStart()
                         begin(workout)
                     } label: {
                         Text("START WORKOUT")
@@ -153,13 +152,18 @@ struct WorkoutView: View {
 
                 // SET DONE — 56pt height, large tap target
                 Button {
-                    WatchHapticService.playSetComplete()
                     connectivity.sendAction(.logSet, payload: [
                         "exercise": workoutState.exerciseName,
                         "set": "\(workoutState.currentSet)",
                         "reps": "\(workoutState.lastReps)",
                         "weight": "\(workoutState.lastWeight)",
-                    ])
+                    ]) { ack in
+                        switch ack {
+                        case .confirmed: WatchHapticService.playSetComplete()
+                        case .queued: WatchHapticService.playQueued()
+                        case .failed: WatchHapticService.playError()
+                        }
+                    }
                     advance()
                 } label: {
                     Text("✓  SET DONE")
@@ -308,7 +312,13 @@ struct WorkoutView: View {
         }
         move(to: index, in: workout)
         workoutState.isActive = true
-        connectivity.sendAction(.startWorkout)
+        connectivity.sendAction(.startWorkout) { ack in
+            switch ack {
+            case .confirmed: WatchHapticService.playWorkoutStart()
+            case .queued: WatchHapticService.playQueued()
+            case .failed: WatchHapticService.playError()
+            }
+        }
     }
 
     private func move(to index: Int, in workout: WatchWorkoutPayload) {
@@ -331,14 +341,18 @@ struct WorkoutView: View {
         } else if let workout = todayWorkout,
                   let next = workout.exercises.indices.first(where: { index in
                       index > exerciseIndex && workout.exercises[index].completedSets < workout.exercises[index].totalSets
-                  }) {
+                  })
+        {
             move(to: next, in: workout)
             startRest()
         } else {
             workoutState.isActive = false
             isResting = false
+            // §22 — no `.endWorkout` send: there's no honest phone-side
+            // equivalent (see WatchQuickAction.swift). This haptic is purely
+            // local — the LOCAL queue is empty — and "ALL SETS DONE" above
+            // already reflects the real synced state from the last `.logSet`.
             WatchHapticService.playWorkoutEnd()
-            connectivity.sendAction(.endWorkout)
         }
     }
 
@@ -348,15 +362,17 @@ struct WorkoutView: View {
     }
 
     private func startRestTimer() {
-        Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { timer in
-            if isResting, restSeconds > 0 {
+        // Task loop on the main actor (a Timer closure is @Sendable and can't
+        // touch @State under Swift 6).
+        Task { @MainActor in
+            while isResting, restSeconds > 0 {
+                try? await Task.sleep(for: .seconds(1))
+                guard isResting else { return }
                 restSeconds -= 1
-            } else {
-                timer.invalidate()
-                if isResting {
-                    WatchHapticService.playRestTimerEnd()
-                    isResting = false
-                }
+            }
+            if isResting {
+                WatchHapticService.playRestTimerEnd()
+                isResting = false
             }
         }
     }
@@ -385,6 +401,7 @@ struct WorkoutView: View {
         case "green": .green
         case "yellow": .yellow
         case "red": .red
+        case "unknown": .gray
         default: .green
         }
     }

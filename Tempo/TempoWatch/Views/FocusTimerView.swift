@@ -54,10 +54,15 @@ struct FocusTimerView: View {
                 timerState.isRunning = true
                 timerState.totalSeconds = selectedDuration
                 timerState.remainingSeconds = selectedDuration
-                WatchHapticService.playWorkoutStart()
                 connectivity.sendAction(.startFocusTimer, payload: [
                     "duration": "\(selectedDuration)",
-                ])
+                ]) { ack in
+                    switch ack {
+                    case .confirmed: WatchHapticService.playWorkoutStart()
+                    case .queued: WatchHapticService.playQueued()
+                    case .failed: WatchHapticService.playError()
+                    }
+                }
                 startCountdown()
             } label: {
                 Text("START")
@@ -113,6 +118,7 @@ struct FocusTimerView: View {
                 if timerState.isPaused {
                     Button {
                         timerState.isPaused = false
+                        connectivity.sendAction(.resumeFocusTimer)
                         startCountdown()
                     } label: {
                         Text("RESUME")
@@ -184,24 +190,29 @@ struct FocusTimerView: View {
     }
 
     private func startCountdown() {
-        Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { timer in
-            guard timerState.isRunning, !timerState.isPaused else {
-                if !timerState.isRunning {
-                    timer.invalidate()
+        // Task loop on the main actor (a Timer closure is @Sendable and can't
+        // touch @State under Swift 6).
+        Task { @MainActor in
+            while timerState.isRunning {
+                try? await Task.sleep(for: .seconds(1))
+                guard timerState.isRunning else { return }
+                if timerState.isPaused { continue }
+                if timerState.remainingSeconds > 0 {
+                    timerState.remainingSeconds -= 1
+                    continue
                 }
-                return
-            }
-            if timerState.remainingSeconds > 0 {
-                timerState.remainingSeconds -= 1
-            } else {
-                timer.invalidate()
                 timerState.isRunning = false
                 timerState.sessionCount += 1
-                WatchHapticService.playFocusTimerEnd()
                 connectivity.sendAction(.stopFocusTimer, payload: [
                     "completed": "true",
                     "duration": "\(timerState.totalSeconds)",
-                ])
+                ]) { ack in
+                    switch ack {
+                    case .confirmed: WatchHapticService.playFocusTimerEnd()
+                    case .queued: WatchHapticService.playQueued()
+                    case .failed: WatchHapticService.playError()
+                    }
+                }
             }
         }
     }

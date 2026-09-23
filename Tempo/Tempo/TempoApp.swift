@@ -63,6 +63,11 @@ struct TempoApp: App {
         // ServiceContainer.live builds the APIClient itself so it can wire
         // the AuthInterceptor (Bearer-token attachment) at APIClient init.
         let serviceContainer = ServiceContainer.live()
+        // §22 — the watch action router needs a real ModelContext to act on
+        // (mark a non-negotiable done, log a meal eaten, ...); wire it here,
+        // immediately, using the SAME context `.modelContainer(container)`
+        // hands every view via `@Environment(\.modelContext)`.
+        serviceContainer.configure(modelContext: container.mainContext)
         _services = State(initialValue: serviceContainer)
 
         // Wire push registration service to AppDelegate

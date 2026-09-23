@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import SwiftData
 
 @Observable
 @MainActor
@@ -48,6 +49,11 @@ final class ServiceContainer {
     /// allows exactly one delegate); activated here so watch quick actions
     /// queued while the app was closed are delivered at launch.
     let watchConnectivity = PhoneWatchConnectivityService.shared
+    /// §22 — the one app-level handler for every watch quick action other
+    /// than `.logSet` (still owned by Training — see `setLogSetHandler`).
+    /// Needs a ModelContext before it can act; wired via `configure(modelContext:)`
+    /// from `TempoApp.init` once the ModelContainer exists.
+    let watchActionRouter: WatchActionRouter
     let appState: AppState
 
     init(
@@ -93,8 +99,25 @@ final class ServiceContainer {
         self.nutrition = nutrition
         self.nutritionIntelligence = NutritionIntelligenceService()
         self.recoveryInsight = RecoveryAIInsightService(apiClient: apiClient)
+        let router = WatchActionRouter(
+            accountabilityEngine: accountabilityEngine,
+            notifications: notifications
+        )
+        watchActionRouter = router
         appState = AppState(authService: authService)
         watchConnectivity.activate()
+        // §22 — single registrant PhoneWatchConnectivityService ever sees.
+        // Training layers `.logSet` on top via `router.setLogSetHandler`
+        // (TodayWorkoutView.task) once it loads.
+        watchConnectivity.setQuickActionHandler { action in
+            router.handle(action)
+        }
+    }
+
+    /// Called once at launch (`TempoApp.init`) once the ModelContainer
+    /// exists, so `watchActionRouter` can act on real SwiftData rows.
+    func configure(modelContext: ModelContext) {
+        watchActionRouter.configure(modelContext: modelContext)
     }
 
     static func mock() -> ServiceContainer {

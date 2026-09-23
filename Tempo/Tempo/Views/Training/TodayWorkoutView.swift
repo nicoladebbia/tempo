@@ -194,15 +194,18 @@ struct TodayWorkoutView: View {
         }
         .task {
             await viewModel.loadToday(modelContext: modelContext)
-            // §21 — hand the watch today's real queue, and route wrist-logged
-            // sets (including ones queued while the app was closed) onto the
-            // plan. Registration replays any buffered actions immediately.
+            // §21/§22 — hand the watch today's real queue, and route wrist-
+            // logged sets (including ones queued while the app was closed)
+            // onto the plan. Registered on the app-level router (not
+            // PhoneWatchConnectivityService directly) so every OTHER watch
+            // action still reaches its own handler — see WatchActionRouter.
+            // Registration replays any buffered actions immediately.
             let watchHandlerViewModel = viewModel
-            services.watchConnectivity.setQuickActionHandler { [weak watchHandlerViewModel] action in
-                guard action.action == .logSet, let viewModel = watchHandlerViewModel else {
-                    return
+            services.watchActionRouter.setLogSetHandler { [weak watchHandlerViewModel] action in
+                guard let viewModel = watchHandlerViewModel else {
+                    return false
                 }
-                viewModel.applyWatchSetLog(
+                return viewModel.applyWatchSetLog(
                     exerciseName: action.payload["exercise"] ?? "",
                     reps: action.payload["reps"].flatMap(Int.init),
                     weightKg: action.payload["weight"].flatMap(Double.init),

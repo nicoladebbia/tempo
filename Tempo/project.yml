@@ -62,6 +62,9 @@ targets:
       # Shared with the TempoWatch target — the quick-action wire types are
       # decoded by the phone's PhoneWatchConnectivityService (§21 sync).
       - path: TempoWatch/Models/WatchQuickAction.swift
+      # Shared with the TempoWatch target — WatchSnapshotBuilder (§22)
+      # builds one directly and pushes it via PhoneWatchConnectivityService.
+      - path: TempoWatch/Models/WatchSnapshot.swift
     dependencies:
       - target: TempoWidget
       - package: PostHog

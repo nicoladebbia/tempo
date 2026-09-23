@@ -25,6 +25,13 @@ struct TempoComplicationData: Codable {
     let xp: Int
     let leaderboardPosition: Int?
 
+    /// §22 — PREVIEW-ONLY fake numbers for the widget gallery
+    /// (`TempoComplicationProvider.placeholder(in:)`), which WidgetKit shows
+    /// while the user is choosing a complication — never a real user's
+    /// data. `getSnapshot`/`getTimeline` below build `TempoComplicationData`
+    /// from `WatchConnectivityService.shared.latestSnapshot` instead, which
+    /// is the real last-synced snapshot (or the honest `WatchSnapshot.empty`
+    /// zeros before the first real sync) — never this placeholder.
     static let placeholder = TempoComplicationData(
         dailyScore: 78,
         recoveryZone: "green",

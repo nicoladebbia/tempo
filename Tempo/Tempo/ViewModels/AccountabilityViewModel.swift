@@ -253,6 +253,7 @@ final class AccountabilityViewModel {
 
         refreshProgressItems()
         checkForUnlock(modelContext: modelContext)
+        NotificationCenter.default.post(name: .tempoNonNegotiableChanged, object: nil)
     }
 
     func updateItemProgress(
@@ -275,6 +276,7 @@ final class AccountabilityViewModel {
 
         refreshProgressItems()
         checkForUnlock(modelContext: modelContext)
+        NotificationCenter.default.post(name: .tempoNonNegotiableChanged, object: nil)
     }
 
     func skipItem(
@@ -285,6 +287,7 @@ final class AccountabilityViewModel {
 
         refreshProgressItems()
         checkForUnlock(modelContext: modelContext)
+        NotificationCenter.default.post(name: .tempoNonNegotiableChanged, object: nil)
     }
 
     private func refreshProgressItems() {
