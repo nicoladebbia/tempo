@@ -2,7 +2,7 @@
 // TrainingViewModel.swift
 // Tempo
 //
-// Created by Tempo on 25/03/2026.
+// Created by Tempo on 3/25/26.
 //
 //
 
@@ -66,7 +66,9 @@ final class TrainingViewModel {
         didSet {
             #if DEBUG
                 if oldValue != sessionState {
-                    print("\(DebugTrace.prefix)[Workout] sessionState: \(oldValue) → \(sessionState) | exIdx=\(currentExerciseIndex) setIdx=\(currentSetIndex)")
+                    print(
+                        "\(DebugTrace.prefix)[Workout] sessionState: \(oldValue) → \(sessionState) | exIdx=\(currentExerciseIndex) setIdx=\(currentSetIndex)"
+                    )
                 }
             #endif
             // §3.9 — every transition mirrors onto the Live Activity (started
@@ -124,11 +126,16 @@ final class TrainingViewModel {
             )
         case .exercise(.betweenExercises):
             return state(exerciseName: currentName, setText: "Next exercise")
-        case .paused, .interruptedCall:
+        case .paused,
+             .interruptedCall:
             return state(exerciseName: currentName, setText: setCountText, isPaused: true)
         case .cooldown:
             return state(exerciseName: "Cooldown", setText: "Almost done")
-        case .idle, .summary, .saved, .discarded, .crashedRecovery:
+        case .idle,
+             .summary,
+             .saved,
+             .discarded,
+             .crashedRecovery:
             return nil
         }
     }
@@ -332,7 +339,9 @@ final class TrainingViewModel {
         // Coalesce re-entrant loads: if a pipeline is already running, drop this
         // call rather than stacking a second heavy run. `@MainActor` means the
         // flag flip is race-free; `defer` clears it on every exit path.
-        guard !isReloadInFlight else { return }
+        guard !isReloadInFlight else {
+            return
+        }
         isReloadInFlight = true
         defer { isReloadInFlight = false }
 
@@ -429,10 +438,15 @@ final class TrainingViewModel {
         let weekKey = AIProgramPlanner.isoDay(thisMonday)
 
         let profile = fetchOrCreateAdaptiveProfile(modelContext: modelContext)
-        guard profile.lastOutcomeReviewWeekKey != weekKey else { return }
+        guard profile.lastOutcomeReviewWeekKey != weekKey else {
+            return
+        }
 
         guard let lastMonday = cal.date(byAdding: .day, value: -7, to: thisMonday),
-              let lastSunday = cal.date(byAdding: .day, value: -1, to: thisMonday) else { return }
+              let lastSunday = cal.date(byAdding: .day, value: -1, to: thisMonday)
+        else {
+            return
+        }
         let lastWeekStart = cal.startOfDay(for: lastMonday)
         let lastWeekEnd = cal.startOfDay(for: lastSunday)
 
@@ -450,7 +464,10 @@ final class TrainingViewModel {
 
         // Week-before tonnage for the trend.
         guard let priorStart = cal.date(byAdding: .day, value: -14, to: thisMonday),
-              let priorEnd = cal.date(byAdding: .day, value: -8, to: thisMonday) else { return }
+              let priorEnd = cal.date(byAdding: .day, value: -8, to: thisMonday)
+        else {
+            return
+        }
         let priorWeekStart = cal.startOfDay(for: priorStart)
         let priorWeekEnd = cal.startOfDay(for: priorEnd)
         let priorRows = (try? modelContext.fetch(FetchDescriptor<ExerciseHistory>(
@@ -460,7 +477,7 @@ final class TrainingViewModel {
 
         // Planned training days last week = distinct non-rest gym days in the
         // current week template (a stable proxy for the cadence).
-        let plannedTrainingDays = weekPlans.filter { $0.type.isGymWorkout }.count
+        let plannedTrainingDays = weekPlans.filter(\.type.isGymWorkout).count
 
         let outcome = TrainingOutcomeEvaluator.evaluate(
             lastWeek: lastWeekRows,
@@ -476,7 +493,9 @@ final class TrainingViewModel {
 
         lastWeekOutcome = outcome
         #if DEBUG
-            print("\(DebugTrace.prefix)[outcome] week graded: quality=\(String(format: "%.2f", outcome.qualityScore)) hits=\(outcome.progressionHits) overreach=\(outcome.overreachEvents) missed=\(outcome.missedSessions)")
+            print(
+                "\(DebugTrace.prefix)[outcome] week graded: quality=\(String(format: "%.2f", outcome.qualityScore)) hits=\(outcome.progressionHits) overreach=\(outcome.overreachEvents) missed=\(outcome.missedSessions)"
+            )
         #endif
     }
 
@@ -487,8 +506,12 @@ final class TrainingViewModel {
     /// run this week, or when a workout is in progress (never disturb a live
     /// session). All failures fall back to the deterministic plan silently.
     func hydrateWeekWithAI(modelContext: ModelContext) async {
-        guard let apiClient else { return }
-        guard !sessionState.isActive else { return }
+        guard let apiClient else {
+            return
+        }
+        guard !sessionState.isActive else {
+            return
+        }
 
         let cal = Calendar.current
         var comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())
@@ -499,7 +522,9 @@ final class TrainingViewModel {
         // Once per ISO week (the Sonnet cost cap) — PERSISTED guard so a cold
         // start in the same week doesn't re-spend the call.
         let profile = fetchOrCreateAdaptiveProfile(modelContext: modelContext)
-        guard profile.lastAIHydratedWeekKey != weekKey else { return }
+        guard profile.lastAIHydratedWeekKey != weekKey else {
+            return
+        }
 
         let footballDays = loadFootballDays(modelContext: modelContext)
         let recovery7Day = loadRecovery7DayTrend(modelContext: modelContext)
@@ -533,7 +558,9 @@ final class TrainingViewModel {
     private func loadRecovery7DayTrend(modelContext: ModelContext) -> [Int] {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
-        guard let weekAgo = cal.date(byAdding: .day, value: -7, to: today) else { return [] }
+        guard let weekAgo = cal.date(byAdding: .day, value: -7, to: today) else {
+            return []
+        }
         let descriptor = FetchDescriptor<DailyRecovery>(
             predicate: #Predicate { $0.date >= weekAgo },
             sortBy: [SortDescriptor(\.date, order: .forward)]
@@ -549,7 +576,9 @@ final class TrainingViewModel {
     /// `TrainingEngine.easyModalityOrder`. Thin/balanced history → pool-first.
     private func learnedEasyModalityOrder(modelContext: ModelContext) -> [WorkoutType] {
         let cal = Calendar.current
-        guard let cutoff = cal.date(byAdding: .day, value: -28, to: Date()) else { return [.pool, .run] }
+        guard let cutoff = cal.date(byAdding: .day, value: -28, to: Date()) else {
+            return [.pool, .run]
+        }
         let descriptor = FetchDescriptor<ActivitySession>(
             predicate: #Predicate { $0.date >= cutoff }
         )
@@ -589,7 +618,9 @@ final class TrainingViewModel {
         dailySession = nil
         let profile = fetchOrCreateAdaptiveProfile(modelContext: modelContext)
         profile.lastDailySessionDayKey = nil
-        guard saveGuarded(modelContext, operation: "stale session resync") else { return false }
+        guard saveGuarded(modelContext, operation: "stale session resync") else {
+            return false
+        }
         #if DEBUG
             print("\(DebugTrace.prefix)[daily_coach] stale session invalidated (session=\(session.modality) plan=\(plan.typeRaw)) — resync")
         #endif
@@ -600,9 +631,15 @@ final class TrainingViewModel {
     /// resyncs re-run the coach for FREE (deterministic candidate only, no
     /// brain call). Only the normal once-daily pass may be brain-eligible.
     func runDailyReadinessSession(modelContext: ModelContext, deterministicOnly: Bool = false) async {
-        guard let apiClient else { return }
-        guard !sessionState.isActive else { return }
-        guard let plan = todayPlan else { return }
+        guard let apiClient else {
+            return
+        }
+        guard !sessionState.isActive else {
+            return
+        }
+        guard let plan = todayPlan else {
+            return
+        }
 
         // Once-per-day cap (PERSISTED — survives relaunch, hardens the cost cap).
         let todayKey = AIProgramPlanner.isoDay(Date())
@@ -625,7 +662,9 @@ final class TrainingViewModel {
         #endif
 
         #if DEBUG
-            print("\(DebugTrace.prefix)[daily_coach] enter forceRerun=\(forceRerun) alreadyRan=\(profile.lastDailySessionDayKey == todayKey)")
+            print(
+                "\(DebugTrace.prefix)[daily_coach] enter forceRerun=\(forceRerun) alreadyRan=\(profile.lastDailySessionDayKey == todayKey)"
+            )
         #endif
 
         guard forceRerun || profile.lastDailySessionDayKey != todayKey else {
@@ -691,14 +730,17 @@ final class TrainingViewModel {
             plan.skipReason = .floorForced
         } else if plan.status == .planned,
                   let mapped = WorkoutType.fromModality(result.decision.session.modality),
-                  mapped != plan.type {
+                  mapped != plan.type
+        {
             // §8 connect — the brain kept the planned modality unless readiness
             // forced a move; when it DID move (planned pool → prescribed rest at
             // yellow), the plan ROW must follow, or the header/week views keep
             // showing the old day next to a card that says otherwise. The
             // template type is stashed once for the "keep planned workout"
             // override and the planResolution keep-rule.
-            if plan.plannedTypeRaw == nil { plan.plannedTypeRaw = plan.typeRaw }
+            if plan.plannedTypeRaw == nil {
+                plan.plannedTypeRaw = plan.typeRaw
+            }
             plan.type = mapped
             // A non-gym day moved TO a gym modality (football → upper: "you've
             // got the headroom, lift") starts with ZERO exercises — without
@@ -710,7 +752,9 @@ final class TrainingViewModel {
                 snapPrescribedWeights(for: plan, modelContext: modelContext)
             }
             #if DEBUG
-                print("\(DebugTrace.prefix)[daily_coach] plan reshaped \(plan.plannedTypeRaw ?? "?") → \(mapped.rawValue) (tier=\(result.decision.tier.rawValue)) exercises=\(plan.orderedExercises.count)")
+                print(
+                    "\(DebugTrace.prefix)[daily_coach] plan reshaped \(plan.plannedTypeRaw ?? "?") → \(mapped.rawValue) (tier=\(result.decision.tier.rawValue)) exercises=\(plan.orderedExercises.count)"
+                )
             #endif
         }
 
@@ -727,7 +771,9 @@ final class TrainingViewModel {
         dailySession = session
 
         #if DEBUG
-            print("\(DebugTrace.prefix)[daily_coach] session persisted source=\(result.source.rawValue) tier=\(result.decision.tier.rawValue) modality=\(session.modality) planSkipped=\(result.decision.tier == .severe)")
+            print(
+                "\(DebugTrace.prefix)[daily_coach] session persisted source=\(result.source.rawValue) tier=\(result.decision.tier.rawValue) modality=\(session.modality) planSkipped=\(result.decision.tier == .severe)"
+            )
         #endif
     }
 
@@ -787,11 +833,16 @@ final class TrainingViewModel {
     /// hours. EventKit failures (no auth, no service) read as "no calendar
     /// signal", never an error: the picture just omits the lines.
     private func fetchCalendarContext() async -> (exams: [ExamSnapshot], busyHours: Double?) {
-        guard let calendarService else { return ([], nil) }
+        guard let calendarService else {
+            return ([], nil)
+        }
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
         guard let weekEnd = cal.date(byAdding: .day, value: 7, to: today),
-              let dayEnd = cal.date(byAdding: .day, value: 1, to: today) else { return ([], nil) }
+              let dayEnd = cal.date(byAdding: .day, value: 1, to: today)
+        else {
+            return ([], nil)
+        }
 
         let exams = calendarService.detectExamDates(in: DateInterval(start: today, end: weekEnd)).map {
             ExamSnapshot(
@@ -800,7 +851,7 @@ final class TrainingViewModel {
             )
         }
 
-        let events = (try? await calendarService.fetchEvents(for: DateInterval(start: today, end: dayEnd))) ?? []
+        let events = await (try? calendarService.fetchEvents(for: DateInterval(start: today, end: dayEnd))) ?? []
         let busyMinutes = events
             .filter { !$0.isAllDay }
             .reduce(0.0) { $0 + max(0, $1.endDate.timeIntervalSince($1.startDate) / 60) }
@@ -812,7 +863,9 @@ final class TrainingViewModel {
     private func fetchYesterdaySessions(modelContext: ModelContext) -> [ActivitySnapshot] {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
-        guard let yesterday = cal.date(byAdding: .day, value: -1, to: today) else { return [] }
+        guard let yesterday = cal.date(byAdding: .day, value: -1, to: today) else {
+            return []
+        }
         let descriptor = FetchDescriptor<ActivitySession>(
             predicate: #Predicate { $0.date >= yesterday && $0.date < today }
         )
@@ -831,13 +884,14 @@ final class TrainingViewModel {
     private func fetchYesterdaySessionRPE(modelContext: ModelContext) -> Int? {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
-        guard let yesterday = cal.date(byAdding: .day, value: -1, to: today) else { return nil }
+        guard let yesterday = cal.date(byAdding: .day, value: -1, to: today) else {
+            return nil
+        }
         let descriptor = FetchDescriptor<WorkoutPlan>(
             predicate: #Predicate { $0.date >= yesterday && $0.date < today && $0.sessionRPE != nil }
         )
         return (try? modelContext.fetch(descriptor))?.first?.sessionRPE
     }
-
 
     /// Today's venue context for the prompt (§16): the user's confirmed answer
     /// when present (highest quality), else the learned weekday pattern. nil
@@ -864,7 +918,9 @@ final class TrainingViewModel {
                 assertsTime: true
             )
         }
-        guard let pattern, let venueRaw = pattern.venueRaw else { return nil }
+        guard let pattern, let venueRaw = pattern.venueRaw else {
+            return nil
+        }
         return VenueTodaySnapshot(
             venueRaw: venueRaw,
             startMin: pattern.medianStartMin,
@@ -907,23 +963,32 @@ final class TrainingViewModel {
     /// the deterministic 08:00/18:00 fallback stands — when there's no calendar,
     /// no free window, or no placement that keeps a valid ≥6h gap in waking hours.
     private func twoADayWindows(modelContext: ModelContext) async -> (liftMin: Int, cardioMin: Int)? {
-        guard let calendarService else { return nil }
+        guard let calendarService else {
+            return nil
+        }
         let pref = (try? modelContext.fetch(FetchDescriptor<UserDailyPlanProfile>()))?
             .first?.trainingTimePreference ?? .anyFree
-        guard let window = await calendarService.suggestWorkoutWindow(for: Date(), preferring: pref) else { return nil }
+        guard let window = await calendarService.suggestWorkoutWindow(for: Date(), preferring: pref) else {
+            return nil
+        }
         let cal = Calendar.current
         let liftMin = cal.component(.hour, from: window.start) * 60 + cal.component(.minute, from: window.start)
         // Space the cardio flush ≥8h from the lift, on the opposite side of the
         // day, clamped to a waking-hours start (06:00–21:00).
         let cardioMin = liftMin < 13 * 60
             ? min(liftMin + 8 * 60, 21 * 60) // morning lift → evening flush
-            : max(liftMin - 8 * 60, 6 * 60)  // later lift → morning flush
-        guard abs(cardioMin - liftMin) >= 6 * 60 else { return nil } // gap collapsed → fallback
-        return (min(liftMin, cardioMin), max(liftMin, cardioMin))    // earliest part first
+            : max(liftMin - 8 * 60, 6 * 60) // later lift → morning flush
+        guard abs(cardioMin - liftMin) >= 6 * 60 else {
+            return nil
+        } // gap collapsed → fallback
+        return (min(liftMin, cardioMin), max(liftMin, cardioMin)) // earliest part first
     }
 
-    func deterministicCandidate(for plan: WorkoutPlan, readiness: ReadinessPicture? = nil,
-                                secondaryWindows: (liftMin: Int, cardioMin: Int)? = nil) -> DailySessionDTO {
+    func deterministicCandidate(
+        for plan: WorkoutPlan,
+        readiness: ReadinessPicture? = nil,
+        secondaryWindows: (liftMin: Int, cardioMin: Int)? = nil
+    ) -> DailySessionDTO {
         let type = plan.type
         let dur = plan.durationMinutes ?? 45
         // Rich-signal ease gate (recovery number + acute:chronic strain + HRV
@@ -932,9 +997,23 @@ final class TrainingViewModel {
         // safety floor still tiers whatever comes out. nil (no data) = never ease.
         let ease = readiness?.easeCrossTrainingToday ?? false
         let mk: (BlockKind, String?, String) -> SessionBlockDTO = { kind, split, label in
-            SessionBlockDTO(kind: kind, label: label, notes: nil, cue: nil, scheduledMin: nil, split: split,
-                            reps: nil, distanceM: nil, restSec: nil, intensityPct: nil,
-                            durationSec: nil, stroke: nil, runType: nil, paceSecPerKm: nil, sets: nil)
+            SessionBlockDTO(
+                kind: kind,
+                label: label,
+                notes: nil,
+                cue: nil,
+                scheduledMin: nil,
+                split: split,
+                reps: nil,
+                distanceM: nil,
+                restSec: nil,
+                intensityPct: nil,
+                durationSec: nil,
+                stroke: nil,
+                runType: nil,
+                paceSecPerKm: nil,
+                sets: nil
+            )
         }
         // An easy recovery swim — the flush a compromised hard cross-training day
         // is stepped down to (conditioning/sprint → pool), and the shape pool days
@@ -942,16 +1021,33 @@ final class TrainingViewModel {
         let easySwim: (Int, String) -> DailySessionDTO = { minutes, why in
             DailySessionDTO(
                 modality: "pool", intensity: .easy, durationMin: minutes,
-                blocks: [SessionBlockDTO(kind: .pool, label: "Easy swim", notes: nil,
-                                         cue: "Long strokes, easy pace.", scheduledMin: nil, split: nil,
-                                         reps: nil, distanceM: nil, restSec: nil, intensityPct: nil,
-                                         durationSec: minutes * 60, stroke: "freestyle", runType: nil,
-                                         paceSecPerKm: nil, sets: nil)],
+                blocks: [SessionBlockDTO(
+                    kind: .pool,
+                    label: "Easy swim",
+                    notes: nil,
+                    cue: "Long strokes, easy pace.",
+                    scheduledMin: nil,
+                    split: nil,
+                    reps: nil,
+                    distanceM: nil,
+                    restSec: nil,
+                    intensityPct: nil,
+                    durationSec: minutes * 60,
+                    stroke: "freestyle",
+                    runType: nil,
+                    paceSecPerKm: nil,
+                    sets: nil
+                )],
                 shortWhy: why, fullWhy: nil, expectedStrain: nil, expectedSessionRPE: 3
             )
         }
         switch type {
-        case .push, .pull, .legs, .upper, .lower, .fullBody:
+        case .push,
+             .pull,
+             .legs,
+             .upper,
+             .lower,
+             .fullBody:
             // §21 two-a-day (requirement (b)) — the week generator marked this GYM
             // day to also carry an easy cardio SECOND session. Emit BOTH as TIMED
             // parts (lift 08:00, cardio 18:00 → a 10h gap that clears the floor's
@@ -970,7 +1066,8 @@ final class TrainingViewModel {
                     kind: .gym, label: type.displayName, notes: nil, cue: nil,
                     scheduledMin: liftMin, split: type.rawValue, reps: nil, distanceM: nil,
                     restSec: nil, intensityPct: nil, durationSec: nil, stroke: nil,
-                    runType: nil, paceSecPerKm: nil, sets: nil)
+                    runType: nil, paceSecPerKm: nil, sets: nil
+                )
                 let isRun = second == .run
                 let cardio = SessionBlockDTO(
                     kind: isRun ? .run : .pool,
@@ -979,12 +1076,14 @@ final class TrainingViewModel {
                     scheduledMin: cardioMin, split: nil, reps: nil, distanceM: nil,
                     restSec: nil, intensityPct: nil, durationSec: 30 * 60,
                     stroke: isRun ? nil : "freestyle", runType: nil,
-                    paceSecPerKm: nil, sets: nil)
+                    paceSecPerKm: nil, sets: nil
+                )
                 return DailySessionDTO(
                     modality: type.rawValue, intensity: .moderate, durationMin: dur,
                     blocks: [lift, cardio],
                     shortWhy: "Lift, then an easy \(second.displayName.lowercased()) — you've got the headroom today.",
-                    fullWhy: nil, expectedStrain: nil, expectedSessionRPE: nil)
+                    fullWhy: nil, expectedStrain: nil, expectedSessionRPE: nil
+                )
             }
             return DailySessionDTO(
                 modality: type.rawValue, intensity: .moderate, durationMin: dur,
@@ -997,20 +1096,36 @@ final class TrainingViewModel {
             let runDur = ease ? max(20, Int(Double(dur) * 0.7)) : dur
             return DailySessionDTO(
                 modality: "run", intensity: .easy, durationMin: runDur,
-                blocks: [SessionBlockDTO(kind: .run, label: "Easy run", notes: nil, cue: nil, scheduledMin: nil, split: nil,
-                                         reps: nil, distanceM: nil, restSec: nil, intensityPct: nil,
-                                         durationSec: runDur * 60, stroke: nil, runType: "tempo",
-                                         paceSecPerKm: nil, sets: nil)],
+                blocks: [SessionBlockDTO(
+                    kind: .run,
+                    label: "Easy run",
+                    notes: nil,
+                    cue: nil,
+                    scheduledMin: nil,
+                    split: nil,
+                    reps: nil,
+                    distanceM: nil,
+                    restSec: nil,
+                    intensityPct: nil,
+                    durationSec: runDur * 60,
+                    stroke: nil,
+                    runType: "tempo",
+                    paceSecPerKm: nil,
+                    sets: nil
+                )],
                 shortWhy: ease ? "Recovery is down — keep the run short and easy." : "Easy aerobic run.",
                 fullWhy: nil, expectedStrain: nil, expectedSessionRPE: 4
             )
-        case .sprint, .conditioning:
+        case .sprint,
+             .conditioning:
             // Discretionary HARD cross-training. On a compromised day, swap the
             // modality itself for an easy flush — the floor only clamps intensity,
             // it never does this. Football is a real fixture, handled below.
             if ease {
-                return easySwim(max(20, Int(Double(dur) * 0.7)),
-                                "Recovery is down — swapped the hard conditioning for an easy flush swim.")
+                return easySwim(
+                    max(20, Int(Double(dur) * 0.7)),
+                    "Recovery is down — swapped the hard conditioning for an easy flush swim."
+                )
             }
             return DailySessionDTO(
                 modality: type.rawValue, intensity: .moderate, durationMin: dur,
@@ -1029,10 +1144,13 @@ final class TrainingViewModel {
         case .pool:
             // Already easy; trim the duration on a compromised day.
             let poolDur = ease ? max(20, Int(Double(dur) * 0.7)) : dur
-            return easySwim(poolDur,
-                            ease ? "Recovery is down — keep the swim short and easy."
-                                 : "Easy recovery swim — flush the legs.")
-        case .mobility, .rest:
+            return easySwim(
+                poolDur,
+                ease ? "Recovery is down — keep the swim short and easy."
+                    : "Easy recovery swim — flush the legs."
+            )
+        case .mobility,
+             .rest:
             return TrainingSafetyFloor.recoverySession(reason: "Recovery day.")
         }
     }
@@ -1088,7 +1206,10 @@ final class TrainingViewModel {
             // that link is a one-way `.nullify` and a history-deleted plan leaves
             // it dangling → traversing crashes (invalidated backing).
             guard let expected = session.expectedSessionRPE,
-                  let actual = session.actualSessionRPE else { return nil }
+                  let actual = session.actualSessionRPE
+            else {
+                return nil
+            }
             return SessionRPEPair(date: session.date, expected: expected, actual: actual)
         }
         return PredictionAccuracy.summarizeSessions(pairs)
@@ -1130,11 +1251,15 @@ final class TrainingViewModel {
         let descriptor = FetchDescriptor<PredictionLog>(
             predicate: #Predicate { $0.workoutPlanID == planID }
         )
-        guard let rows = try? modelContext.fetch(descriptor), !rows.isEmpty else { return }
+        guard let rows = try? modelContext.fetch(descriptor), !rows.isEmpty else {
+            return
+        }
         let byExercise = Dictionary(rows.map { ($0.exerciseID, $0) }) { first, _ in first }
 
         for outcome in outcomes {
-            guard let log = byExercise[outcome.exerciseID] else { continue }
+            guard let log = byExercise[outcome.exerciseID] else {
+                continue
+            }
             log.actualReps = outcome.bestSetReps
             log.actualRPE = outcome.avgRPE
             log.actualFormRaw = outcome.worstFormRaw
@@ -1156,7 +1281,9 @@ final class TrainingViewModel {
             predicate: #Predicate { $0.workoutPlanID == planID && $0.outcomeResolved }
         )
         let resolved = (try? modelContext.fetch(descriptor)) ?? []
-        guard !resolved.isEmpty else { return }
+        guard !resolved.isEmpty else {
+            return
+        }
 
         let profile = fetchOrCreateAdaptiveProfile(modelContext: modelContext)
 
@@ -1164,7 +1291,9 @@ final class TrainingViewModel {
         let byExercise = Dictionary(grouping: resolved, by: { $0.exerciseID })
         for (exerciseID, rows) in byExercise {
             let errors = rows.compactMap(\.rpeError)
-            guard !errors.isEmpty else { continue }
+            guard !errors.isEmpty else {
+                continue
+            }
             let meanError = errors.reduce(0, +) / Double(errors.count)
 
             // Current learned step, or the one used at prescribe time, or the
@@ -1191,7 +1320,8 @@ final class TrainingViewModel {
     /// create a profile row (creation only happens on save) — returns neutral
     /// defaults when none exists yet, so a brand-new user runs the pure floor.
     func adaptiveSignals(modelContext: ModelContext)
-        -> (thresholdOffset: Double, fatigueEWMA: Double?, learnedIncrements: [UUID: Double]) {
+        -> (thresholdOffset: Double, fatigueEWMA: Double?, learnedIncrements: [UUID: Double])
+    {
         guard let profile = try? modelContext.fetch(FetchDescriptor<AdaptiveProfile>()).first else {
             return (0, nil, [:])
         }
@@ -1221,7 +1351,8 @@ final class TrainingViewModel {
                 switch row.exercise?.equipment {
                 case .barbell: 2.5
                 case .dumbbell: 2.0
-                case .cable, .machine: 2.5
+                case .cable,
+                     .machine: 2.5
                 default: 2.5
                 }
             },
@@ -1229,13 +1360,14 @@ final class TrainingViewModel {
         )
         try? modelContext.save()
         #if DEBUG
-            print("\(DebugTrace.prefix)[adaptive] profile updated: offset=\(profile.recoveryThresholdOffset) fatigueEWMA=\(profile.fatigueEWMA.map { String(format: "%.2f", $0) } ?? "nil") learnedExercises=\(profile.learnedIncrements.count)")
+            print(
+                "\(DebugTrace.prefix)[adaptive] profile updated: offset=\(profile.recoveryThresholdOffset) fatigueEWMA=\(profile.fatigueEWMA.map { String(format: "%.2f", $0) } ?? "nil") learnedExercises=\(profile.learnedIncrements.count)"
+            )
         #endif
     }
 
-    /// Map a recoveryAdjustment multiplier back to a representative recovery
-    /// score for the adjustment prompt (inverse of the engine's zone cuts).
-    
+    // Map a recoveryAdjustment multiplier back to a representative recovery
+    // score for the adjustment prompt (inverse of the engine's zone cuts).
 
     /// Short summaries of the last 4 completed sessions for the AI prompt.
     private func loadRecentSessionSummaries(modelContext: ModelContext) -> [String] {
@@ -1286,13 +1418,17 @@ final class TrainingViewModel {
     ) -> PlanResolution {
         switch existingStatus {
         case .planned:
-            if existingType == templateType { return .keep }
+            if existingType == templateType {
+                return .keep
+            }
             // §8 connect — the row WAS the template type before the daily
             // brain moved it (planned pool → rest at yellow). The mismatch is
             // deliberate; replacing would resurrect the desync every app-open.
             // If the TEMPLATE itself changed (user edited the schedule), the
             // stash no longer matches and the template rightly wins.
-            if existingPlannedTypeRaw == templateType.rawValue { return .keep }
+            if existingPlannedTypeRaw == templateType.rawValue {
+                return .keep
+            }
             return .replace
         default:
             // completed / inProgress / skipped — sacred, never replace.
@@ -1363,7 +1499,8 @@ final class TrainingViewModel {
                    existingType: existing.type,
                    existingPlannedTypeRaw: existing.plannedTypeRaw,
                    templateType: canonical.type
-               ) == .replace {
+               ) == .replace
+            {
                 // Only a still-PLANNED row whose type differs may be replaced
                 // (e.g. user changed Football Days). A completed/in-progress plan
                 // is sacred — planResolution returns .keep for it — so it
@@ -1388,9 +1525,12 @@ final class TrainingViewModel {
             // while .planned (never mutate a completed/in-progress day's state).
             if existing.status == .planned,
                let canonical = weekPlanForToday,
-               existing.secondarySessionTypeRaw != canonical.secondarySessionTypeRaw {
+               existing.secondarySessionTypeRaw != canonical.secondarySessionTypeRaw
+            {
                 existing.secondarySessionTypeRaw = canonical.secondarySessionTypeRaw
-                if canonical.secondarySessionTypeRaw == nil { existing.secondaryCompleted = false }
+                if canonical.secondarySessionTypeRaw == nil {
+                    existing.secondaryCompleted = false
+                }
                 try? modelContext.save()
             }
             // Backstop for EVERY path that can leave a still-planned gym row
@@ -1450,7 +1590,8 @@ final class TrainingViewModel {
                deloadFrequencyWeeks: deload.frequency,
                trainingStartDate: deload.startDate,
                fatigueEWMA: adaptiveSignals(modelContext: modelContext).fatigueEWMA
-           ) {
+           )
+        {
             plan.type = .mobility
             plan.notes = "Deload — full rest week. Move, stretch, recover."
         }
@@ -1518,7 +1659,8 @@ final class TrainingViewModel {
                deloadFrequencyWeeks: deload.frequency,
                trainingStartDate: deload.startDate,
                fatigueEWMA: signals.fatigueEWMA
-           ) {
+           )
+        {
             for plan in plans where plan.type.isGymWorkout {
                 plan.type = .mobility
                 plan.notes = "Deload — full rest week. Move, stretch, recover."
@@ -1668,7 +1810,9 @@ final class TrainingViewModel {
         let sets = first.orderedSets
         let firstWorkingIndex = sets.firstIndex { !$0.isWarmup } ?? 0
         #if DEBUG
-            print("\(DebugTrace.prefix)[Workout] advancePastWarmup: totalSets=\(sets.count) warmups=\(sets.filter(\.isWarmup).count) → firstWorkingIndex=\(firstWorkingIndex)")
+            print(
+                "\(DebugTrace.prefix)[Workout] advancePastWarmup: totalSets=\(sets.count) warmups=\(sets.filter(\.isWarmup).count) → firstWorkingIndex=\(firstWorkingIndex)"
+            )
         #endif
         currentExerciseIndex = 0
         currentSetIndex = firstWorkingIndex
@@ -1832,8 +1976,10 @@ final class TrainingViewModel {
 
         // PR detection — working sets only. Warmup ramp sets must never trigger
         // a PR (this is why duplicate/low PRs appeared, e.g. two "Face Pull" PRs:
-        // the warmup set and the working set each fired).
-        if !set.isWarmup, let exercise = plannedExercise.exercise {
+        // the warmup set and the working set each fired). A drop step (§6.4) is
+        // excluded too — a reduced-weight backoff set is never a max-effort
+        // signal, so it can never legitimately BE the PR.
+        if !set.isWarmup, !set.isDropStep, let exercise = plannedExercise.exercise {
             if let pr = trainingEngine.detectPersonalRecord(
                 exercise: exercise,
                 weight: weight,
@@ -1851,45 +1997,68 @@ final class TrainingViewModel {
         let isLastExercise = currentExerciseIndex >= exercises.count - 1
         #if DEBUG
             let warmupCount = sets.filter(\.isWarmup).count
-            print("\(DebugTrace.prefix)[Workout] logSet: exIdx=\(currentExerciseIndex)/\(exercises.count) setIdx=\(currentSetIndex)/\(sets.count) (warmups=\(warmupCount)) → isLastSet=\(isLastSet) isLastExercise=\(isLastExercise)")
+            print(
+                "\(DebugTrace.prefix)[Workout] logSet: exIdx=\(currentExerciseIndex)/\(exercises.count) setIdx=\(currentSetIndex)/\(sets.count) (warmups=\(warmupCount)) → isLastSet=\(isLastSet) isLastExercise=\(isLastExercise)"
+            )
         #endif
 
-        // §6 superset alternation — A1 → B1 with NO rest, then the pair's
-        // shared rest, then back: A2 → B2 … Warmup ramps stay in the normal
-        // per-exercise flow; alternation starts at the first working set.
-        if !set.isWarmup, let partnerIdx = supersetPartnerIndex(of: currentExerciseIndex) {
-            let partner = exercises[partnerIdx]
-            let isFirstOfPair = partnerIdx > currentExerciseIndex
+        // §6.4/§7.7 drop sets — a queued drop step right after this set
+        // continues immediately with NO rest, in the same set-active flow.
+        // Takes priority over circuit rotation below: a drop chain is never
+        // interrupted by a partner exercise.
+        if currentSetIndex + 1 < sets.count, sets[currentSetIndex + 1].isDropStep {
+            currentSetIndex += 1
+            sessionState = .exercise(.setActive(
+                exerciseIndex: currentExerciseIndex, setIndex: currentSetIndex
+            ))
+            HapticManager.selection()
+            return
+        }
 
-            if isFirstOfPair, let partnerSet = firstUncompletedSetIndex(in: partner) {
-                // First lift logged → straight into the partner, no rest.
-                currentExerciseIndex = partnerIdx
-                currentSetIndex = partnerSet
-                sessionState = .exercise(.setActive(
-                    exerciseIndex: partnerIdx, setIndex: partnerSet
-                ))
-                HapticManager.selection()
-                return
-            }
-            if !isFirstOfPair, let backSet = firstUncompletedSetIndex(in: partner) {
-                // Second lift logged → the pair's one rest, then back to the first.
-                restOrJump(to: partnerIdx, setIndex: backSet, after: plannedExercise)
-                return
-            }
-            if firstUncompletedSetIndex(in: plannedExercise) == nil {
-                // Both lifts fully logged → advance PAST the pair (the standard
-                // next-exercise path would land on the already-finished partner).
-                let afterPair = max(currentExerciseIndex, partnerIdx) + 1
-                if afterPair >= exercises.count {
-                    stopElapsedTimer()
-                    sessionState = .summary
-                } else {
-                    restOrJump(to: afterPair, setIndex: 0, after: plannedExercise)
+        // §6.1-6.3 superset/circuit rotation — A1 → B1 → C1 … with NO rest
+        // between members, then the group's ONE shared rest before the next
+        // round: A2 → B2 → C2 … Warmup ramps stay in the normal per-exercise
+        // flow; rotation starts at the first working set. `circuitMembers`
+        // generalizes the old adjacent-PAIR lookup to 2..N members, so a
+        // 2-exercise superset is just the N=2 case of the same rotation.
+        if !set.isWarmup {
+            let members = circuitMembers(of: currentExerciseIndex)
+            if members.count > 1 {
+                let isLastOfRotation = isLastOfCircuitRotation(currentExerciseIndex)
+
+                if let next = nextCircuitMemberWithWork(after: currentExerciseIndex) {
+                    if !isLastOfRotation {
+                        // Any member except the round's last → straight into
+                        // the next member, no rest.
+                        currentExerciseIndex = next.exerciseIndex
+                        currentSetIndex = next.setIndex
+                        sessionState = .exercise(.setActive(
+                            exerciseIndex: next.exerciseIndex, setIndex: next.setIndex
+                        ))
+                        HapticManager.selection()
+                        return
+                    }
+                    // The round's last member → the group's one shared rest,
+                    // then continue the rotation from the first member with work.
+                    restOrJump(to: next.exerciseIndex, setIndex: next.setIndex, after: plannedExercise)
+                    return
                 }
-                return
+                if members.allSatisfy({ firstUncompletedSetIndex(in: exercises[$0]) == nil }) {
+                    // Whole group fully logged → advance PAST every member
+                    // (the standard next-exercise path would land on an
+                    // already-finished partner).
+                    let afterGroup = (members.max() ?? currentExerciseIndex) + 1
+                    if afterGroup >= exercises.count {
+                        stopElapsedTimer()
+                        sessionState = .summary
+                    } else {
+                        restOrJump(to: afterGroup, setIndex: 0, after: plannedExercise)
+                    }
+                    return
+                }
+                // Every other member is done, this lift still has sets →
+                // finish it in the standard flow below.
             }
-            // Partner done, this lift still has sets → finish it in the
-            // standard flow below.
         }
 
         if isLastSet, isLastExercise {
@@ -1982,9 +2151,10 @@ final class TrainingViewModel {
     }
 
     /// Land on the next real work after a skip: same exercise's next
-    /// uncompleted set, else the superset partner's, else the next exercise
-    /// that still has one, else summary. Mirrors logSet's routing minus the
-    /// rest timer.
+    /// uncompleted set, else the next circuit member's (§6.3 — generalizes
+    /// the old pair-only partner lookup to 2..N members), else the next
+    /// exercise that still has one, else summary. Mirrors logSet's routing
+    /// minus the rest timer.
     private func advanceAfterSkip(in slot: PlannedExercise, plan: WorkoutPlan) {
         let exercises = plan.orderedExercises
         if let next = firstUncompletedSetIndex(in: slot) {
@@ -1995,12 +2165,11 @@ final class TrainingViewModel {
             HapticManager.selection()
             return
         }
-        if let partnerIdx = supersetPartnerIndex(of: currentExerciseIndex),
-           let partnerSet = firstUncompletedSetIndex(in: exercises[partnerIdx]) {
-            currentExerciseIndex = partnerIdx
-            currentSetIndex = partnerSet
+        if let next = nextCircuitMemberWithWork(after: currentExerciseIndex) {
+            currentExerciseIndex = next.exerciseIndex
+            currentSetIndex = next.setIndex
             sessionState = .exercise(.setActive(
-                exerciseIndex: partnerIdx, setIndex: partnerSet
+                exerciseIndex: next.exerciseIndex, setIndex: next.setIndex
             ))
             HapticManager.selection()
             return
@@ -2120,39 +2289,16 @@ final class TrainingViewModel {
 
     var pendingRestAction: RestNextAction = .nextSet
 
-    // MARK: - Superset Flow (§6 / §2.8)
+    // MARK: - Superset / Circuit Flow (§6 / §2.8 / §6.3)
 
-    /// Adjacent partner in the same superset pair, or nil. Pairing mirrors the
-    /// render logic: CONSECUTIVE orderedExercises sharing a non-nil group
-    /// (a reorder that splits adjacency deliberately breaks the pair).
-    func supersetPartnerIndex(of index: Int) -> Int? {
-        guard let exercises = todayPlan?.orderedExercises,
-              index >= 0, index < exercises.count,
-              let group = exercises[index].supersetGroup
-        else {
-            return nil
-        }
-        if index + 1 < exercises.count, exercises[index + 1].supersetGroup == group {
-            return index + 1
-        }
-        if index - 1 >= 0, exercises[index - 1].supersetGroup == group {
-            return index - 1
-        }
-        return nil
-    }
+    //
+    // Circuit membership (`circuitMembers`), rotation helpers, and the
+    // active-screen group label live in TrainingViewModel+Groups.swift —
+    // pulled out to keep this file under the length guard. `logSet` and
+    // `advanceAfterSkip` below call into them directly (same target, no
+    // import needed).
 
-    /// Partner name for the active screen's superset banner. nil when the
-    /// current exercise is not part of a pair.
-    var currentSupersetPartnerName: String? {
-        guard let idx = supersetPartnerIndex(of: currentExerciseIndex),
-              let exercises = todayPlan?.orderedExercises
-        else {
-            return nil
-        }
-        return exercises[idx].exercise?.name
-    }
-
-    private func firstUncompletedSetIndex(in plannedExercise: PlannedExercise) -> Int? {
+    func firstUncompletedSetIndex(in plannedExercise: PlannedExercise) -> Int? {
         plannedExercise.orderedSets.firstIndex { !$0.completed }
     }
 
@@ -2251,7 +2397,10 @@ final class TrainingViewModel {
     func discardActiveWorkout(modelContext: ModelContext) {
         // Allow discard from any live state (active / paused / cooldown).
         switch sessionState {
-        case .warmup, .exercise, .cooldown, .paused:
+        case .warmup,
+             .exercise,
+             .cooldown,
+             .paused:
             break
         default:
             return
@@ -2379,14 +2528,26 @@ final class TrainingViewModel {
             let gassedFraction: Double?
         }
         let snapshots: [HistorySnapshot] = plan.orderedExercises.compactMap { plannedEx in
-            guard let exercise = plannedEx.exercise else { return nil }
+            guard let exercise = plannedEx.exercise else {
+                return nil
+            }
             let completedSets = (plannedEx.sets ?? []).filter { $0.completed && !$0.isWarmup }
-            guard !completedSets.isEmpty else { return nil }
+            guard !completedSets.isEmpty else {
+                return nil
+            }
             let totalVolume = completedSets.reduce(0.0) { acc, set in
-                guard let w = set.actualWeight, let r = set.actualReps else { return acc }
+                guard let w = set.actualWeight, let r = set.actualReps else {
+                    return acc
+                }
                 return acc + (w * Double(r))
             }
-            let best = completedSets.max { ($0.actualWeight ?? 0) < ($1.actualWeight ?? 0) }
+            // §6.4 — a drop step is a reduced-weight backoff, never the
+            // session's "best" set; volume/set-count above still count it
+            // (the work was performed), but the history's headline
+            // weight/reps must come from a real working set.
+            let best = completedSets
+                .filter { !$0.isDropStep }
+                .max { ($0.actualWeight ?? 0) < ($1.actualWeight ?? 0) }
 
             // Aggregate ONLY user-provided feedback for this exercise's working
             // sets (pure helper, unit-tested). No entered feedback → nil/0.
@@ -2495,7 +2656,9 @@ final class TrainingViewModel {
             return false
         }
         #if DEBUG
-            print("\(DebugTrace.prefix)[Workout] persistCompletion: plan=\(planID) wrote \(snapshots.count) history rows, status=.completed")
+            print(
+                "\(DebugTrace.prefix)[Workout] persistCompletion: plan=\(planID) wrote \(snapshots.count) history rows, status=.completed"
+            )
         #endif
 
         // Phase 3 (TRAINING_INTELLIGENCE_TO_10.md Fix 3.2) — feed the session
@@ -2539,7 +2702,9 @@ final class TrainingViewModel {
         // A failed save (saveErrorMessage set) must keep the summary open —
         // resetting here would close the session over data that never landed.
         // The alert bound to saveErrorMessage owns the retry.
-        guard saveErrorMessage == nil else { return }
+        guard saveErrorMessage == nil else {
+            return
+        }
 
         // Write to HealthKit (via step 5.7) — best-effort, Phase 5.
 
@@ -2626,7 +2791,9 @@ final class TrainingViewModel {
         VenuePatternLearner.recompute(modelContext: modelContext)
 
         #if DEBUG
-            print("\(DebugTrace.prefix)[Workout] persistNonGymCompletion: plan=\(planID) type=\(plan.type.rawValue) source=\(session.source) strain=\(session.strain.map { String($0) } ?? "nil")")
+            print(
+                "\(DebugTrace.prefix)[Workout] persistNonGymCompletion: plan=\(planID) type=\(plan.type.rawValue) source=\(session.source) strain=\(session.strain.map { String($0) } ?? "nil")"
+            )
         #endif
 
         // Same cross-surface signals as the gym path — without these the
@@ -2648,8 +2815,12 @@ final class TrainingViewModel {
     /// so this is effectively write-once. No notification fan-out — sRPE feeds
     /// tomorrow's prompt + the accuracy spine, nothing re-renders live today.
     func recordSessionRPE(_ rpe: Int, modelContext: ModelContext) {
-        guard (1 ... 10).contains(rpe) else { return }
-        guard let plan = todayPlan, plan.status == .completed else { return }
+        guard (1 ... 10).contains(rpe) else {
+            return
+        }
+        guard let plan = todayPlan, plan.status == .completed else {
+            return
+        }
         plan.sessionRPE = rpe
         // Denormalize onto the linked session so the accuracy spine never has to
         // traverse the one-way `.nullify` link (dangling-crash guard — see
@@ -2657,7 +2828,9 @@ final class TrainingViewModel {
         dailySession?.actualSessionRPE = rpe
         try? modelContext.save()
         #if DEBUG
-            print("\(DebugTrace.prefix)[Workout] recordSessionRPE: plan=\(plan.id) rpe=\(rpe) expected=\(dailySession?.expectedSessionRPE.map(String.init) ?? "nil")")
+            print(
+                "\(DebugTrace.prefix)[Workout] recordSessionRPE: plan=\(plan.id) rpe=\(rpe) expected=\(dailySession?.expectedSessionRPE.map(String.init) ?? "nil")"
+            )
         #endif
     }
 
@@ -2671,7 +2844,10 @@ final class TrainingViewModel {
     func keepPlannedWorkout(modelContext: ModelContext) {
         guard let plan = todayPlan,
               plan.status == .planned,
-              let stashed = plan.plannedTypeRaw else { return }
+              let stashed = plan.plannedTypeRaw
+        else {
+            return
+        }
         plan.typeRaw = stashed
         plan.plannedTypeRaw = nil
         dailySession?.userOverrode = true
@@ -2693,7 +2869,9 @@ final class TrainingViewModel {
     /// venue patterns, and the load/replan cascade. Undo removes that row, so the
     /// flag and the logged activity never disagree.
     func toggleSecondarySessionComplete(modelContext: ModelContext) {
-        guard let plan = todayPlan, plan.isTwoADay, let second = plan.secondarySessionType else { return }
+        guard let plan = todayPlan, plan.isTwoADay, let second = plan.secondarySessionType else {
+            return
+        }
         plan.secondaryCompleted.toggle()
 
         let planID = plan.id
@@ -2704,7 +2882,9 @@ final class TrainingViewModel {
         let existing = (try? modelContext.fetch(FetchDescriptor<ActivitySession>(
             predicate: #Predicate<ActivitySession> { $0.workoutPlanID == planID && $0.workoutType == typeRaw }
         ))) ?? []
-        for row in existing { modelContext.delete(row) } // dedup / undo both start clean
+        for row in existing {
+            modelContext.delete(row)
+        } // dedup / undo both start clean
 
         if plan.secondaryCompleted {
             let cardio = ActivitySession(
@@ -2728,7 +2908,9 @@ final class TrainingViewModel {
             NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
         }
         #if DEBUG
-            print("\(DebugTrace.prefix)[daily_coach] two-a-day second session → \(plan.secondaryCompleted ? "done (logged \(typeRaw))" : "undone (removed)")")
+            print(
+                "\(DebugTrace.prefix)[daily_coach] two-a-day second session → \(plan.secondaryCompleted ? "done (logged \(typeRaw))" : "undone (removed)")"
+            )
         #endif
     }
 
@@ -2742,9 +2924,12 @@ final class TrainingViewModel {
     /// generated. An interview saved without a summary (offline) stays due so
     /// the Sonnet call retries on a later open within the window.
     func monthlyReviewDue(modelContext: ModelContext, now: Date = Date()) -> String? {
-        guard let key = MonthlyReviewSchedule.dueMonthKey(on: now) else { return nil }
+        guard let key = MonthlyReviewSchedule.dueMonthKey(on: now) else {
+            return nil
+        }
         if let existing = fetchMonthlyReview(monthKey: key, modelContext: modelContext),
-           existing.summaryText != nil {
+           existing.summaryText != nil
+        {
             return nil
         }
         return key
@@ -2770,7 +2955,9 @@ final class TrainingViewModel {
     /// Map a month of stored rows into the pure aggregator's snapshots
     /// (same @Model→snapshot seam as assembleTodayPicture).
     func assembleMonthlyData(monthKey: String, modelContext: ModelContext) -> MonthlyReviewData? {
-        guard let interval = MonthlyReviewSchedule.monthInterval(forKey: monthKey) else { return nil }
+        guard let interval = MonthlyReviewSchedule.monthInterval(forKey: monthKey) else {
+            return nil
+        }
         let start = interval.start
         let end = interval.end
         let cal = Calendar.current
@@ -2826,7 +3013,10 @@ final class TrainingViewModel {
         ))) ?? []
         let sessionPairs = sessionRows.compactMap { session -> SessionRPEPair? in
             guard let expected = session.expectedSessionRPE,
-                  let actual = session.workoutPlan?.sessionRPE else { return nil }
+                  let actual = session.workoutPlan?.sessionRPE
+            else {
+                return nil
+            }
             return SessionRPEPair(date: session.date, expected: expected, actual: actual)
         }
 
@@ -2848,9 +3038,15 @@ final class TrainingViewModel {
     /// hydration guard, a monthly report is worth the retry).
     @discardableResult
     func generateMonthlySummary(for review: MonthlyReview, modelContext: ModelContext) async -> Bool {
-        guard review.summaryText == nil else { return false }
-        guard let apiClient else { return false }
-        guard let data = assembleMonthlyData(monthKey: review.monthKey, modelContext: modelContext) else { return false }
+        guard review.summaryText == nil else {
+            return false
+        }
+        guard let apiClient else {
+            return false
+        }
+        guard let data = assembleMonthlyData(monthKey: review.monthKey, modelContext: modelContext) else {
+            return false
+        }
 
         let interview = MonthInterviewSnapshot(
             wentWell: review.wentWell,
@@ -2861,7 +3057,9 @@ final class TrainingViewModel {
             chosenEmphasis: review.chosenEmphasis?.rawValue
         )
         let coach = MonthlyReviewCoach(apiClient: apiClient)
-        guard let text = await coach.summary(data: data, interview: interview) else { return false }
+        guard let text = await coach.summary(data: data, interview: interview) else {
+            return false
+        }
 
         review.summaryText = text
         review.summaryGeneratedAt = Date()
@@ -2878,10 +3076,15 @@ final class TrainingViewModel {
     /// Idempotent: a block already starting that day means he declared one.
     func applyMonthlyEmphasisChoice(_ review: MonthlyReview, modelContext: ModelContext) {
         guard let emphasis = review.chosenEmphasis,
-              let start = MonthlyReviewSchedule.nextMonthStart(afterKey: review.monthKey) else { return }
+              let start = MonthlyReviewSchedule.nextMonthStart(afterKey: review.monthKey)
+        else {
+            return
+        }
         let day = Calendar.current.startOfDay(for: start)
         let existing = (try? modelContext.fetch(FetchDescriptor<TrainingBlock>())) ?? []
-        guard !existing.contains(where: { Calendar.current.startOfDay(for: $0.startDate) == day }) else { return }
+        guard !existing.contains(where: { Calendar.current.startOfDay(for: $0.startDate) == day }) else {
+            return
+        }
         modelContext.insert(TrainingBlock(emphasis: emphasis, startDate: day))
         try? modelContext.save()
         #if DEBUG
@@ -2915,7 +3118,7 @@ final class TrainingViewModel {
         // tagged match; everything else is "untagged".
         let expectedSportID = Self.whoopSportID(for: plan.type)
 
-        let activities = (try? await whoop.fetchWorkouts(for: Date())) ?? []
+        let activities = await (try? whoop.fetchWorkouts(for: Date())) ?? []
         let cal = Calendar.current
         let todayStart = cal.startOfDay(for: Date())
         let todays = activities.filter { cal.isDate($0.startTime, inSameDayAs: todayStart) }
@@ -2995,7 +3198,9 @@ final class TrainingViewModel {
     }
 
     private static func summary(from s: ActivitySession) -> WhoopActivitySummary? {
-        guard let strain = s.strain else { return nil } // manual entry: no metrics
+        guard let strain = s.strain else {
+            return nil
+        } // manual entry: no metrics
         return WhoopActivitySummary(
             strain: strain,
             averageHeartRate: s.averageHeartRate ?? 0,
@@ -3091,6 +3296,9 @@ final class TrainingViewModel {
             HapticManager.selection()
         }
     }
+
+    // Drop-set logging (§6.4/§7.7) and manual group control (§6.5) live in
+    // TrainingViewModel+Groups.swift, alongside the circuit helpers above.
 
     // MARK: - Pause / Resume
 
@@ -3226,7 +3434,9 @@ final class TrainingViewModel {
         var formIssue = false // form broke / sloppy → hold conservative
 
         /// Any signal that should PREVENT a weight increase this session.
-        var isConservative: Bool { pain || tooHard || formIssue }
+        var isConservative: Bool {
+            pain || tooHard || formIssue
+        }
 
         /// OR another row's signals into this summary (an exercise's notes across
         /// several sets combine; any positive signal sticks).
@@ -3287,7 +3497,8 @@ final class TrainingViewModel {
             s.formIssue = true
         }
         if tooEasyKeywords.contains(where: { note.contains($0) }),
-           !easyNegators.contains(where: { note.contains($0) }) {
+           !easyNegators.contains(where: { note.contains($0) })
+        {
             s.tooEasy = true
         }
         return s
@@ -3331,7 +3542,7 @@ final class TrainingViewModel {
     /// mentioning pain. Thin wrapper over `noteSignals` (pain subset), kept for
     /// existing call sites.
     func painFlaggedExerciseIDs(within days: Int = 21, modelContext: ModelContext) -> Set<UUID> {
-        Set(noteSignals(within: days, modelContext: modelContext).filter { $0.value.pain }.map(\.key))
+        Set(noteSignals(within: days, modelContext: modelContext).filter(\.value.pain).map(\.key))
     }
 
     // MARK: - Feedback Aggregation (Tier 2.1, pure + unit-tested)
@@ -3353,7 +3564,7 @@ final class TrainingViewModel {
         let worstForm = fb.map(\.formQuality).max { $0.severityRank < $1.severityRank }
         // Conditioning-debt signal: fraction of entered rows the user tagged
         // `.gassed`. Read by TrainingEngine.restMultiplier.
-        let gassedCount = fb.filter { $0.breathDifficulty.isNegativeSignal }.count
+        let gassedCount = fb.filter(\.breathDifficulty.isNegativeSignal).count
         let gassedFraction = Double(gassedCount) / Double(fb.count)
         return (avgRPE, worstForm?.rawValue, fb.count, gassedFraction)
     }
@@ -3423,7 +3634,9 @@ final class TrainingViewModel {
         let descriptor = FetchDescriptor<DailyRecovery>(
             predicate: #Predicate { $0.date >= weekStart && $0.date < weekEnd }
         )
-        guard let rows = try? modelContext.fetch(descriptor) else { return [:] }
+        guard let rows = try? modelContext.fetch(descriptor) else {
+            return [:]
+        }
         var result: [Date: Double] = [:]
         for row in rows {
             let key = cal.startOfDay(for: row.date)

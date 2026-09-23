@@ -2,11 +2,8 @@
 // WorkoutCSVService.swift
 // Tempo
 //
-// §20 — workout import/export. Imports lifting history from Strong, Hevy,
-// or a generic CSV into completed WorkoutPlans + ExerciseHistory rows (the
-// trend signal progression reads), and exports Tempo history as a
-// Strong-compatible CSV. Idempotent per workout start time — re-importing
-// the same file never duplicates history, mirroring RunImporter.
+// Created by Tempo on 7/27/26.
+//
 //
 
 import Foundation
@@ -47,8 +44,12 @@ enum WorkoutCSVService {
                 return "Nothing new — all \(duplicates) workouts were already in Tempo."
             }
             var parts = ["\(workouts) workouts", "\(sets) sets"]
-            if newExercises > 0 { parts.append("\(newExercises) new exercises") }
-            if duplicates > 0 { parts.append("\(duplicates) already in Tempo") }
+            if newExercises > 0 {
+                parts.append("\(newExercises) new exercises")
+            }
+            if duplicates > 0 {
+                parts.append("\(duplicates) already in Tempo")
+            }
             return "\(format.rawValue): " + parts.joined(separator: ", ") + "."
         }
     }
@@ -71,8 +72,10 @@ enum WorkoutCSVService {
     static func parse(_ text: String) throws -> (format: Format, sets: [ParsedSet]) {
         let rows = WhoopExportParser.keyedRows(text).map { row in
             Dictionary(row.map { key, value in
-                (key.trimmingCharacters(in: .whitespaces).lowercased(),
-                 value.trimmingCharacters(in: .whitespaces))
+                (
+                    key.trimmingCharacters(in: .whitespaces).lowercased(),
+                    value.trimmingCharacters(in: .whitespaces)
+                )
             }) { first, _ in first }
         }
         guard let first = rows.first else {
@@ -191,7 +194,9 @@ enum WorkoutCSVService {
                 summary.duplicates += 1
                 continue
             }
-            guard let groupSets = groups[key] else { continue }
+            guard let groupSets = groups[key] else {
+                continue
+            }
 
             let plan = WorkoutPlan(date: key.start, type: inferType(from: key.name))
             plan.status = .completed
@@ -215,9 +220,14 @@ enum WorkoutCSVService {
                 } else {
                     // Classification unknown from a CSV — land it as a custom
                     // exercise with neutral traits; editable in the library.
-                    exercise = Exercise(name: name, muscleGroup: .fullBody,
-                                        equipment: .none, movementPattern: .isolation,
-                                        isCompound: false, isCustom: true)
+                    exercise = Exercise(
+                        name: name,
+                        muscleGroup: .fullBody,
+                        equipment: .none,
+                        movementPattern: .isolation,
+                        isCompound: false,
+                        isCustom: true
+                    )
                     modelContext.insert(exercise)
                     exercisesByName[name.lowercased()] = exercise
                     summary.newExercises += 1
@@ -279,15 +289,21 @@ enum WorkoutCSVService {
             let name = plan.type.displayName
             let duration = plan.durationMinutes.map { "\($0)m" } ?? ""
             for slot in plan.orderedExercises {
-                guard let exercise = slot.exercise else { continue }
+                guard let exercise = slot.exercise else {
+                    continue
+                }
                 let working = slot.orderedSets.filter { $0.completed && !$0.isWarmup }
                 for (index, set) in working.enumerated() {
                     let weight = set.actualWeight.map { String(format: "%g", $0) } ?? ""
                     let rpe = set.rpe.map(String.init) ?? ""
+                    // §6.4 — a drop step is exported as a set like any other
+                    // (it counts toward volume/history), just annotated so
+                    // it isn't mistaken for a straight working set.
+                    let notes = set.dropStepIndex.map { "Drop \($0)" } ?? ""
                     lines.append([
                         date, escape(name), duration, escape(exercise.name),
                         "\(index + 1)", weight, "\(set.actualReps ?? 0)",
-                        "", "", "", "", rpe,
+                        "", "", escape(notes), "", rpe,
                     ].joined(separator: ","))
                 }
             }
@@ -299,11 +315,21 @@ enum WorkoutCSVService {
 
     static func inferType(from workoutName: String) -> WorkoutType {
         let name = workoutName.lowercased()
-        if name.contains("push") { return .push }
-        if name.contains("pull") { return .pull }
-        if name.contains("leg") { return .legs }
-        if name.contains("lower") { return .lower }
-        if name.contains("upper") { return .upper }
+        if name.contains("push") {
+            return .push
+        }
+        if name.contains("pull") {
+            return .pull
+        }
+        if name.contains("leg") {
+            return .legs
+        }
+        if name.contains("lower") {
+            return .lower
+        }
+        if name.contains("upper") {
+            return .upper
+        }
         return .fullBody
     }
 
