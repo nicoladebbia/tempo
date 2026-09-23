@@ -4,7 +4,7 @@
 //
 // Add + delete DATED matches (docs/INTELLIGENT_TRAINING_SYSTEM.md §9 D3,
 // §14 mid-week-match trigger). Distinct from the recurring football-weekday
-// chips in ScheduleEditorView: that sets "I usually play Tue/Thu"; this logs
+// chips in TrainingSettingsDetailView: that sets "I usually play Tue/Thu"; this logs
 // "there's a game on Saturday the 14th vs Inter."
 //
 // On any change (add/delete) it posts `.tempoTrainingSettingsChanged` — the SAME

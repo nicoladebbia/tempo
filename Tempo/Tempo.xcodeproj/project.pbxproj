@@ -349,7 +349,6 @@
 		6C55A146D24E6EDF5AFA1F65 /* FoodPortionLabelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93D7F4DBD9EB186AEEF687CF /* FoodPortionLabelTests.swift */; };
 		6DC496142556CD5E82C1CBF1 /* Inject in Frameworks */ = {isa = PBXBuildFile; productRef = 90CD821CB10484BF66BA1514 /* Inject */; };
 		6DFF7595281F8F673DB6D64D /* MindQuadrantDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90C1F73A5246EA787C32EEBE /* MindQuadrantDetailView.swift */; };
-		6E3C4D5408D309F3EB65264B /* ScheduleEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 758AF397CBAE522EDED17DD8 /* ScheduleEditorView.swift */; };
 		6EC0A720A3A92BE709CDF773 /* cue_ex_dumbbell_curl.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = DDBD4E73227F65F3D187D61B /* cue_ex_dumbbell_curl.mp3 */; };
 		6FB52930BB66E04010FE8C07 /* CompositeDayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A18F99546F38233D4C66D73 /* CompositeDayTests.swift */; };
 		6FEC5D35C4269D82177F0BBC /* StreakDotsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8526AED40421CE129D69C792 /* StreakDotsView.swift */; };
@@ -1205,7 +1204,6 @@
 		743A152AB0544E2787CEA05B /* cue_ex_sumo_squat.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_sumo_squat.mp3; sourceTree = "<group>"; };
 		747196CAA8117ACC7DD2F998 /* testQuadrantCardBody.1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = testQuadrantCardBody.1.png; sourceTree = "<group>"; };
 		74C3F68731BE06299EE41DB4 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
-		758AF397CBAE522EDED17DD8 /* ScheduleEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleEditorView.swift; sourceTree = "<group>"; };
 		75C37878C77D9359465AC7DE /* TrainingViewModel+Computed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TrainingViewModel+Computed.swift"; sourceTree = "<group>"; };
 		7684AE39ECA95CC4599B5653 /* TrainingEngineProgressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingEngineProgressionTests.swift; sourceTree = "<group>"; };
 		768B426FEBB8020F4F5B04F3 /* PreferenceExtractorAdapterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferenceExtractorAdapterTests.swift; sourceTree = "<group>"; };
@@ -2209,7 +2207,6 @@
 				2AA0FC7AB85FEF7648D5B360 /* ProgressChartsView.swift */,
 				95833B963F9A7BCF275FCF10 /* RestTimerView.swift */,
 				7A16F19C67EC623FBA0DEB1D /* RunHistoryView.swift */,
-				758AF397CBAE522EDED17DD8 /* ScheduleEditorView.swift */,
 				978BE071A3FFBE6D6B6FBCB2 /* StrengthProgressLabView.swift */,
 				F9A1021803B15D6FA4B4FB64 /* TodayWorkoutSheets.swift */,
 				2ED0527B188D9FBA91B55BD7 /* TodayWorkoutView.swift */,
@@ -4219,7 +4216,6 @@
 				3046635CFCA174C5D1FA40D7 /* RunHistoryView.swift in Sources */,
 				0CB5C48841258E5E16B44B79 /* RunImporter.swift in Sources */,
 				5519D9B6D77DC632422C374D /* RunSession.swift in Sources */,
-				6E3C4D5408D309F3EB65264B /* ScheduleEditorView.swift in Sources */,
 				B0135764495460D17EDC6DA5 /* ScoreRingView.swift in Sources */,
 				752FF2D6D510F1A39DF2D2D4 /* ScoringEngine.swift in Sources */,
 				AC60119867E95F604E23BB31 /* ScoringEngineProtocol.swift in Sources */,

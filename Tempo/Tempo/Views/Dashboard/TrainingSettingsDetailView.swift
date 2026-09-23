@@ -22,6 +22,8 @@ struct TrainingSettingsDetailView: View {
     private var modelContext
     @Query
     private var allSettings: [UserSettings]
+    @Query
+    private var allProfiles: [UserProfile]
 
     private var settings: UserSettings? {
         allSettings.first
@@ -414,6 +416,12 @@ struct TrainingSettingsDetailView: View {
     }
 
     private func save() {
+        // Mirror the schedule inputs onto UserProfile (sync DTO parity) —
+        // this screen is the single schedule editor (Week Plan's Edit opens it).
+        if let s = settings, let profile = allProfiles.first {
+            profile.footballDaysRaw = s.footballDaysRaw
+            profile.trainingSplitRaw = s.trainingSplit.rawValue
+        }
         try? modelContext.save()
         // Tell the Nutrition tab to regenerate its plan with the new
         // trainingSplit/footballDays. We intentionally post on EVERY save

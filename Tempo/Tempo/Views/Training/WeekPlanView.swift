@@ -75,13 +75,11 @@ struct WeekPlanView: View {
                         deloadBanner
                     }
 
-                    // Coach Review — last week's graded outcome (Phase 4).
+                    // One weekly coach card: last week's graded outcome (Phase 4)
+                    // with this week's AI plan rationale (Phase 2) folded in.
                     if let outcome = viewModel.lastWeekOutcome {
-                        coachReviewCard(outcome)
-                    }
-
-                    // AI plan rationale (Phase 2) — only when the AI ran this week.
-                    if let rationale = viewModel.aiWeekRationale {
+                        coachReviewCard(outcome, rationale: viewModel.aiWeekRationale)
+                    } else if let rationale = viewModel.aiWeekRationale {
                         aiRationaleCard(rationale)
                     }
                 }
@@ -134,7 +132,18 @@ struct WeekPlanView: View {
             }
         }
         .sheet(isPresented: $showScheduleEditor) {
-            ScheduleEditorView()
+            // Same editor as Settings → Training (one place for split,
+            // football days, deload and rest settings).
+            NavigationStack {
+                TrainingSettingsDetailView()
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { showScheduleEditor = false }
+                                .font(.tempoHeadline)
+                                .foregroundStyle(Color.tempoSignal)
+                        }
+                    }
+            }
         }
         .sheet(isPresented: $showMatchSchedule) {
             MatchScheduleView()
@@ -457,7 +466,7 @@ struct WeekPlanView: View {
 
     // MARK: - Coach Review (Phase 4)
 
-    private func coachReviewCard(_ outcome: WeekOutcome) -> some View {
+    private func coachReviewCard(_ outcome: WeekOutcome, rationale: String?) -> some View {
         // Green when the week was productive without overreach; yellow when it
         // overreached or quality dipped. Every number below is real.
         let good = outcome.qualityScore >= 0.6 && outcome.overreachEvents == 0
@@ -481,6 +490,11 @@ struct WeekPlanView: View {
                 .font(.tempoBody)
                 .foregroundStyle(Color.tempoTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
+
+            if let rationale {
+                Divider().overlay(accent.opacity(0.3))
+                rationaleRow(rationale)
+            }
         }
         .padding(TempoSpacing.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -510,7 +524,16 @@ struct WeekPlanView: View {
 
     // MARK: - AI Plan Rationale (Phase 2)
 
+    /// Rationale on its own — only when there's no graded last week yet.
     private func aiRationaleCard(_ rationale: String) -> some View {
+        rationaleRow(rationale)
+            .padding(TempoSpacing.cardPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.tempoBgSecondary)
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+    }
+
+    private func rationaleRow(_ rationale: String) -> some View {
         HStack(alignment: .top, spacing: TempoSpacing.sm) {
             Image(systemName: "sparkles")
                 .font(.system(size: 16, weight: .semibold))
@@ -521,10 +544,6 @@ struct WeekPlanView: View {
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
-        .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoBgSecondary)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
     }
 
     // MARK: - 7-Day Grid

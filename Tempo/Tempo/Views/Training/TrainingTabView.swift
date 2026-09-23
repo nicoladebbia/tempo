@@ -117,7 +117,7 @@ struct TrainingTabView: View {
         }
         .onReceive(
             // Tier 3.3 — re-personalize the training week when the schedule
-            // inputs change (football days / split edited in ScheduleEditorView).
+            // inputs change (football days / split edited in TrainingSettingsDetailView).
             // Debounced 0.6s so a burst of chip toggles regenerates once, matching
             // the Nutrition observer. Skips while a workout is active so an edit
             // can't disturb an in-progress session (the guard also protects this).
