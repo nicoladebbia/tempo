@@ -42,69 +42,65 @@ struct RestTimerView: View {
 
     @ViewBuilder
     private var restBody: some View {
-        Group {
-            // Countdown circle
-            // Per MODULE_TRAINING.md — 200pt countdown circle
-            ZStack {
-                // Background ring
-                Circle()
-                    .stroke(Color.tempoTextTertiary.opacity(0.2), lineWidth: 8)
-                    .frame(width: 200, height: 200)
+        ZStack {
+            // Background ring
+            Circle()
+                .stroke(Color.tempoTextTertiary.opacity(0.2), lineWidth: 8)
+                .frame(width: 200, height: 200)
 
-                // Progress ring
-                Circle()
-                    .trim(from: 0, to: viewModel.restTimerProgress)
-                    .stroke(ringColor, style: StrokeStyle(lineWidth: 8, lineCap: .round))
-                    .frame(width: 200, height: 200)
-                    .rotationEffect(.degrees(-90))
-                    .animation(.linear(duration: 1), value: viewModel.restTimerProgress)
-                    .animation(.easeInOut(duration: 0.4), value: secondsLeft <= 10)
+            // Progress ring
+            Circle()
+                .trim(from: 0, to: viewModel.restTimerProgress)
+                .stroke(ringColor, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                .frame(width: 200, height: 200)
+                .rotationEffect(.degrees(-90))
+                .animation(.linear(duration: 1), value: viewModel.restTimerProgress)
+                .animation(.easeInOut(duration: 0.4), value: secondsLeft <= 10)
 
-                // Time display — digits roll instead of blinking, and the
-                // final 5 seconds heartbeat-pulse the whole readout.
-                VStack(spacing: TempoSpacing.xxs) {
-                    Text(viewModel.formattedRestTimer)
-                        .font(.tempoDataLarge)
-                        .foregroundStyle(secondsLeft <= 10 ? Color.tempoAmber : Color.tempoTextPrimary)
-                        .monospacedDigit()
-                        .contentTransition(.numericText(countsDown: true))
-                        .animation(.snappy(duration: 0.3), value: viewModel.formattedRestTimer)
+            // Time display — digits roll instead of blinking, and the
+            // final 5 seconds heartbeat-pulse the whole readout.
+            VStack(spacing: TempoSpacing.xxs) {
+                Text(viewModel.formattedRestTimer)
+                    .font(.tempoDataLarge)
+                    .foregroundStyle(secondsLeft <= 10 ? Color.tempoAmber : Color.tempoTextPrimary)
+                    .monospacedDigit()
+                    .contentTransition(.numericText(countsDown: true))
+                    .animation(.snappy(duration: 0.3), value: viewModel.formattedRestTimer)
 
-                    Text("REST")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                }
-                .scaleEffect(secondsLeft <= 5 && secondsLeft > 0 && secondsLeft % 2 == 1 ? 1.08 : 1.0)
-                .animation(.spring(duration: 0.5), value: secondsLeft)
+                Text("REST")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextTertiary)
             }
-
-            // Inline "how was that set?" — edits the eagerly-created feedback
-            // row save-on-change. Only for working sets (warmups have none).
-            if viewModel.currentFeedback != nil {
-                InlineSetFeedbackView(viewModel: viewModel)
-            }
-
-            // What you're resting toward. Between sets: name + next set.
-            // Before the next exercise: name + full how-to so the user is never
-            // surprised by an exercise they don't know.
-            restPreview
-
-            // Single control: end the rest early and start the next set/exercise.
-            // (The old "+15s" button is gone; rest auto-advances anyway.)
-            Button {
-                viewModel.skipRest()
-                HapticManager.notification(.success)
-            } label: {
-                Text(skipButtonTitle)
-                    .font(.tempoHeadline)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 56)
-                    .background(Color.tempoSignal)
-                    .foregroundStyle(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
-            }
-            .padding(.horizontal, TempoSpacing.screenEdge)
+            .scaleEffect(secondsLeft <= 5 && secondsLeft > 0 && secondsLeft % 2 == 1 ? 1.08 : 1.0)
+            .animation(.spring(duration: 0.5), value: secondsLeft)
         }
+
+        // Inline "how was that set?" — edits the eagerly-created feedback
+        // row save-on-change. Only for working sets (warmups have none).
+        if viewModel.currentFeedback != nil {
+            InlineSetFeedbackView(viewModel: viewModel)
+        }
+
+        // What you're resting toward. Between sets: name + next set.
+        // Before the next exercise: name + full how-to so the user is never
+        // surprised by an exercise they don't know.
+        restPreview
+
+        // Single control: end the rest early and start the next set/exercise.
+        // (The old "+15s" button is gone; rest auto-advances anyway.)
+        Button {
+            viewModel.skipRest()
+            HapticManager.notification(.success)
+        } label: {
+            Text(skipButtonTitle)
+                .font(.tempoHeadline)
+                .frame(maxWidth: .infinity)
+                .frame(height: 56)
+                .background(Color.tempoSignal)
+                .foregroundStyle(.white)
+                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+        }
+        .padding(.horizontal, TempoSpacing.screenEdge)
     }
 
     // MARK: - Rest Preview

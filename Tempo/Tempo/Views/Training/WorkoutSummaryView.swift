@@ -22,7 +22,7 @@ struct WorkoutSummaryView: View {
     @Environment(\.dismiss)
     private var dismiss
 
-    // §8.2 completion ring animation state.
+    /// §8.2 completion ring animation state.
     @State
     private var ringProgress: Double = 0
     @State
@@ -31,11 +31,15 @@ struct WorkoutSummaryView: View {
     /// Completed working sets over planned working sets (warmups excluded).
     /// No sets at all → 1.0 (nothing was cut short).
     private var completionFraction: Double {
-        guard let plan = viewModel.todayPlan else { return 1 }
+        guard let plan = viewModel.todayPlan else {
+            return 1
+        }
         let working = plan.orderedExercises
             .flatMap { $0.sets ?? [] }
             .filter { !$0.isWarmup }
-        guard !working.isEmpty else { return 1 }
+        guard !working.isEmpty else {
+            return 1
+        }
         return Double(working.filter(\.completed).count) / Double(working.count)
     }
 

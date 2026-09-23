@@ -117,7 +117,9 @@ final class WorkoutPlan {
 
     /// True when this day carries a gym lift AND an easy cardio second session.
     @Transient
-    var isTwoADay: Bool { secondarySessionTypeRaw != nil }
+    var isTwoADay: Bool {
+        secondarySessionTypeRaw != nil
+    }
 
     @Transient
     var orderedExercises: [PlannedExercise] {

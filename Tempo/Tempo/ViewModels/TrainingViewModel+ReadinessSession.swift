@@ -42,7 +42,9 @@ extension TrainingViewModel {
         dailySession = nil
         let profile = fetchOrCreateAdaptiveProfile(modelContext: modelContext)
         profile.lastDailySessionDayKey = nil
-        guard saveGuarded(modelContext, operation: "stale session resync") else { return false }
+        guard saveGuarded(modelContext, operation: "stale session resync") else {
+            return false
+        }
         #if DEBUG
             print("\(DebugTrace.prefix)[daily_coach] stale session invalidated (session=\(session.modality) plan=\(plan.typeRaw)) — resync")
         #endif
@@ -53,9 +55,15 @@ extension TrainingViewModel {
     /// resyncs re-run the coach for FREE (deterministic candidate only, no
     /// brain call). Only the normal once-daily pass may be brain-eligible.
     func runDailyReadinessSession(modelContext: ModelContext, deterministicOnly: Bool = false) async {
-        guard let apiClient else { return }
-        guard !sessionState.isActive else { return }
-        guard let plan = todayPlan else { return }
+        guard let apiClient else {
+            return
+        }
+        guard !sessionState.isActive else {
+            return
+        }
+        guard let plan = todayPlan else {
+            return
+        }
 
         // Once-per-day cap (PERSISTED — survives relaunch, hardens the cost cap).
         let todayKey = AIProgramPlanner.isoDay(Date())
@@ -78,7 +86,9 @@ extension TrainingViewModel {
         #endif
 
         #if DEBUG
-            print("\(DebugTrace.prefix)[daily_coach] enter forceRerun=\(forceRerun) alreadyRan=\(profile.lastDailySessionDayKey == todayKey)")
+            print(
+                "\(DebugTrace.prefix)[daily_coach] enter forceRerun=\(forceRerun) alreadyRan=\(profile.lastDailySessionDayKey == todayKey)"
+            )
         #endif
 
         guard forceRerun || profile.lastDailySessionDayKey != todayKey else {
@@ -144,14 +154,17 @@ extension TrainingViewModel {
             plan.skipReason = .floorForced
         } else if plan.status == .planned,
                   let mapped = WorkoutType.fromModality(result.decision.session.modality),
-                  mapped != plan.type {
+                  mapped != plan.type
+        {
             // §8 connect — the brain kept the planned modality unless readiness
             // forced a move; when it DID move (planned pool → prescribed rest at
             // yellow), the plan ROW must follow, or the header/week views keep
             // showing the old day next to a card that says otherwise. The
             // template type is stashed once for the "keep planned workout"
             // override and the planResolution keep-rule.
-            if plan.plannedTypeRaw == nil { plan.plannedTypeRaw = plan.typeRaw }
+            if plan.plannedTypeRaw == nil {
+                plan.plannedTypeRaw = plan.typeRaw
+            }
             plan.type = mapped
             // A non-gym day moved TO a gym modality (football → upper: "you've
             // got the headroom, lift") starts with ZERO exercises — without
@@ -163,7 +176,9 @@ extension TrainingViewModel {
                 snapPrescribedWeights(for: plan, modelContext: modelContext)
             }
             #if DEBUG
-                print("\(DebugTrace.prefix)[daily_coach] plan reshaped \(plan.plannedTypeRaw ?? "?") → \(mapped.rawValue) (tier=\(result.decision.tier.rawValue)) exercises=\(plan.orderedExercises.count)")
+                print(
+                    "\(DebugTrace.prefix)[daily_coach] plan reshaped \(plan.plannedTypeRaw ?? "?") → \(mapped.rawValue) (tier=\(result.decision.tier.rawValue)) exercises=\(plan.orderedExercises.count)"
+                )
             #endif
         }
 
@@ -180,7 +195,9 @@ extension TrainingViewModel {
         dailySession = session
 
         #if DEBUG
-            print("\(DebugTrace.prefix)[daily_coach] session persisted source=\(result.source.rawValue) tier=\(result.decision.tier.rawValue) modality=\(session.modality) planSkipped=\(result.decision.tier == .severe)")
+            print(
+                "\(DebugTrace.prefix)[daily_coach] session persisted source=\(result.source.rawValue) tier=\(result.decision.tier.rawValue) modality=\(session.modality) planSkipped=\(result.decision.tier == .severe)"
+            )
         #endif
     }
 
@@ -240,11 +257,16 @@ extension TrainingViewModel {
     /// hours. EventKit failures (no auth, no service) read as "no calendar
     /// signal", never an error: the picture just omits the lines.
     private func fetchCalendarContext() async -> (exams: [ExamSnapshot], busyHours: Double?) {
-        guard let calendarService else { return ([], nil) }
+        guard let calendarService else {
+            return ([], nil)
+        }
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
         guard let weekEnd = cal.date(byAdding: .day, value: 7, to: today),
-              let dayEnd = cal.date(byAdding: .day, value: 1, to: today) else { return ([], nil) }
+              let dayEnd = cal.date(byAdding: .day, value: 1, to: today)
+        else {
+            return ([], nil)
+        }
 
         let exams = calendarService.detectExamDates(in: DateInterval(start: today, end: weekEnd)).map {
             ExamSnapshot(
@@ -253,7 +275,7 @@ extension TrainingViewModel {
             )
         }
 
-        let events = (try? await calendarService.fetchEvents(for: DateInterval(start: today, end: dayEnd))) ?? []
+        let events = await (try? calendarService.fetchEvents(for: DateInterval(start: today, end: dayEnd))) ?? []
         let busyMinutes = events
             .filter { !$0.isAllDay }
             .reduce(0.0) { $0 + max(0, $1.endDate.timeIntervalSince($1.startDate) / 60) }
@@ -265,7 +287,9 @@ extension TrainingViewModel {
     private func fetchYesterdaySessions(modelContext: ModelContext) -> [ActivitySnapshot] {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
-        guard let yesterday = cal.date(byAdding: .day, value: -1, to: today) else { return [] }
+        guard let yesterday = cal.date(byAdding: .day, value: -1, to: today) else {
+            return []
+        }
         let descriptor = FetchDescriptor<ActivitySession>(
             predicate: #Predicate { $0.date >= yesterday && $0.date < today }
         )
@@ -284,7 +308,9 @@ extension TrainingViewModel {
     private func fetchYesterdaySessionRPE(modelContext: ModelContext) -> Int? {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
-        guard let yesterday = cal.date(byAdding: .day, value: -1, to: today) else { return nil }
+        guard let yesterday = cal.date(byAdding: .day, value: -1, to: today) else {
+            return nil
+        }
         let descriptor = FetchDescriptor<WorkoutPlan>(
             predicate: #Predicate { $0.date >= yesterday && $0.date < today && $0.sessionRPE != nil }
         )
@@ -316,7 +342,9 @@ extension TrainingViewModel {
                 assertsTime: true
             )
         }
-        guard let pattern, let venueRaw = pattern.venueRaw else { return nil }
+        guard let pattern, let venueRaw = pattern.venueRaw else {
+            return nil
+        }
         return VenueTodaySnapshot(
             venueRaw: venueRaw,
             startMin: pattern.medianStartMin,
@@ -359,23 +387,32 @@ extension TrainingViewModel {
     /// the deterministic 08:00/18:00 fallback stands — when there's no calendar,
     /// no free window, or no placement that keeps a valid ≥6h gap in waking hours.
     private func twoADayWindows(modelContext: ModelContext) async -> (liftMin: Int, cardioMin: Int)? {
-        guard let calendarService else { return nil }
+        guard let calendarService else {
+            return nil
+        }
         let pref = (try? modelContext.fetch(FetchDescriptor<UserDailyPlanProfile>()))?
             .first?.trainingTimePreference ?? .anyFree
-        guard let window = await calendarService.suggestWorkoutWindow(for: Date(), preferring: pref) else { return nil }
+        guard let window = await calendarService.suggestWorkoutWindow(for: Date(), preferring: pref) else {
+            return nil
+        }
         let cal = Calendar.current
         let liftMin = cal.component(.hour, from: window.start) * 60 + cal.component(.minute, from: window.start)
         // Space the cardio flush ≥8h from the lift, on the opposite side of the
         // day, clamped to a waking-hours start (06:00–21:00).
         let cardioMin = liftMin < 13 * 60
             ? min(liftMin + 8 * 60, 21 * 60) // morning lift → evening flush
-            : max(liftMin - 8 * 60, 6 * 60)  // later lift → morning flush
-        guard abs(cardioMin - liftMin) >= 6 * 60 else { return nil } // gap collapsed → fallback
-        return (min(liftMin, cardioMin), max(liftMin, cardioMin))    // earliest part first
+            : max(liftMin - 8 * 60, 6 * 60) // later lift → morning flush
+        guard abs(cardioMin - liftMin) >= 6 * 60 else {
+            return nil
+        } // gap collapsed → fallback
+        return (min(liftMin, cardioMin), max(liftMin, cardioMin)) // earliest part first
     }
 
-    func deterministicCandidate(for plan: WorkoutPlan, readiness: ReadinessPicture? = nil,
-                                secondaryWindows: (liftMin: Int, cardioMin: Int)? = nil) -> DailySessionDTO {
+    func deterministicCandidate(
+        for plan: WorkoutPlan,
+        readiness: ReadinessPicture? = nil,
+        secondaryWindows: (liftMin: Int, cardioMin: Int)? = nil
+    ) -> DailySessionDTO {
         let type = plan.type
         let dur = plan.durationMinutes ?? 45
         // Rich-signal ease gate (recovery number + acute:chronic strain + HRV
@@ -384,9 +421,23 @@ extension TrainingViewModel {
         // safety floor still tiers whatever comes out. nil (no data) = never ease.
         let ease = readiness?.easeCrossTrainingToday ?? false
         let mk: (BlockKind, String?, String) -> SessionBlockDTO = { kind, split, label in
-            SessionBlockDTO(kind: kind, label: label, notes: nil, cue: nil, scheduledMin: nil, split: split,
-                            reps: nil, distanceM: nil, restSec: nil, intensityPct: nil,
-                            durationSec: nil, stroke: nil, runType: nil, paceSecPerKm: nil, sets: nil)
+            SessionBlockDTO(
+                kind: kind,
+                label: label,
+                notes: nil,
+                cue: nil,
+                scheduledMin: nil,
+                split: split,
+                reps: nil,
+                distanceM: nil,
+                restSec: nil,
+                intensityPct: nil,
+                durationSec: nil,
+                stroke: nil,
+                runType: nil,
+                paceSecPerKm: nil,
+                sets: nil
+            )
         }
         // An easy recovery swim — the flush a compromised hard cross-training day
         // is stepped down to (conditioning/sprint → pool), and the shape pool days
@@ -394,16 +445,33 @@ extension TrainingViewModel {
         let easySwim: (Int, String) -> DailySessionDTO = { minutes, why in
             DailySessionDTO(
                 modality: "pool", intensity: .easy, durationMin: minutes,
-                blocks: [SessionBlockDTO(kind: .pool, label: "Easy swim", notes: nil,
-                                         cue: "Long strokes, easy pace.", scheduledMin: nil, split: nil,
-                                         reps: nil, distanceM: nil, restSec: nil, intensityPct: nil,
-                                         durationSec: minutes * 60, stroke: "freestyle", runType: nil,
-                                         paceSecPerKm: nil, sets: nil)],
+                blocks: [SessionBlockDTO(
+                    kind: .pool,
+                    label: "Easy swim",
+                    notes: nil,
+                    cue: "Long strokes, easy pace.",
+                    scheduledMin: nil,
+                    split: nil,
+                    reps: nil,
+                    distanceM: nil,
+                    restSec: nil,
+                    intensityPct: nil,
+                    durationSec: minutes * 60,
+                    stroke: "freestyle",
+                    runType: nil,
+                    paceSecPerKm: nil,
+                    sets: nil
+                )],
                 shortWhy: why, fullWhy: nil, expectedStrain: nil, expectedSessionRPE: 3
             )
         }
         switch type {
-        case .push, .pull, .legs, .upper, .lower, .fullBody:
+        case .push,
+             .pull,
+             .legs,
+             .upper,
+             .lower,
+             .fullBody:
             // §21 two-a-day (requirement (b)) — the week generator marked this GYM
             // day to also carry an easy cardio SECOND session. Emit BOTH as TIMED
             // parts (lift 08:00, cardio 18:00 → a 10h gap that clears the floor's
@@ -422,7 +490,8 @@ extension TrainingViewModel {
                     kind: .gym, label: type.displayName, notes: nil, cue: nil,
                     scheduledMin: liftMin, split: type.rawValue, reps: nil, distanceM: nil,
                     restSec: nil, intensityPct: nil, durationSec: nil, stroke: nil,
-                    runType: nil, paceSecPerKm: nil, sets: nil)
+                    runType: nil, paceSecPerKm: nil, sets: nil
+                )
                 let isRun = second == .run
                 let cardio = SessionBlockDTO(
                     kind: isRun ? .run : .pool,
@@ -431,12 +500,14 @@ extension TrainingViewModel {
                     scheduledMin: cardioMin, split: nil, reps: nil, distanceM: nil,
                     restSec: nil, intensityPct: nil, durationSec: 30 * 60,
                     stroke: isRun ? nil : "freestyle", runType: nil,
-                    paceSecPerKm: nil, sets: nil)
+                    paceSecPerKm: nil, sets: nil
+                )
                 return DailySessionDTO(
                     modality: type.rawValue, intensity: .moderate, durationMin: dur,
                     blocks: [lift, cardio],
                     shortWhy: "Lift, then an easy \(second.displayName.lowercased()) — you've got the headroom today.",
-                    fullWhy: nil, expectedStrain: nil, expectedSessionRPE: nil)
+                    fullWhy: nil, expectedStrain: nil, expectedSessionRPE: nil
+                )
             }
             return DailySessionDTO(
                 modality: type.rawValue, intensity: .moderate, durationMin: dur,
@@ -449,20 +520,36 @@ extension TrainingViewModel {
             let runDur = ease ? max(20, Int(Double(dur) * 0.7)) : dur
             return DailySessionDTO(
                 modality: "run", intensity: .easy, durationMin: runDur,
-                blocks: [SessionBlockDTO(kind: .run, label: "Easy run", notes: nil, cue: nil, scheduledMin: nil, split: nil,
-                                         reps: nil, distanceM: nil, restSec: nil, intensityPct: nil,
-                                         durationSec: runDur * 60, stroke: nil, runType: "tempo",
-                                         paceSecPerKm: nil, sets: nil)],
+                blocks: [SessionBlockDTO(
+                    kind: .run,
+                    label: "Easy run",
+                    notes: nil,
+                    cue: nil,
+                    scheduledMin: nil,
+                    split: nil,
+                    reps: nil,
+                    distanceM: nil,
+                    restSec: nil,
+                    intensityPct: nil,
+                    durationSec: runDur * 60,
+                    stroke: nil,
+                    runType: "tempo",
+                    paceSecPerKm: nil,
+                    sets: nil
+                )],
                 shortWhy: ease ? "Recovery is down — keep the run short and easy." : "Easy aerobic run.",
                 fullWhy: nil, expectedStrain: nil, expectedSessionRPE: 4
             )
-        case .sprint, .conditioning:
+        case .sprint,
+             .conditioning:
             // Discretionary HARD cross-training. On a compromised day, swap the
             // modality itself for an easy flush — the floor only clamps intensity,
             // it never does this. Football is a real fixture, handled below.
             if ease {
-                return easySwim(max(20, Int(Double(dur) * 0.7)),
-                                "Recovery is down — swapped the hard conditioning for an easy flush swim.")
+                return easySwim(
+                    max(20, Int(Double(dur) * 0.7)),
+                    "Recovery is down — swapped the hard conditioning for an easy flush swim."
+                )
             }
             return DailySessionDTO(
                 modality: type.rawValue, intensity: .moderate, durationMin: dur,
@@ -481,10 +568,13 @@ extension TrainingViewModel {
         case .pool:
             // Already easy; trim the duration on a compromised day.
             let poolDur = ease ? max(20, Int(Double(dur) * 0.7)) : dur
-            return easySwim(poolDur,
-                            ease ? "Recovery is down — keep the swim short and easy."
-                                 : "Easy recovery swim — flush the legs.")
-        case .mobility, .rest:
+            return easySwim(
+                poolDur,
+                ease ? "Recovery is down — keep the swim short and easy."
+                    : "Easy recovery swim — flush the legs."
+            )
+        case .mobility,
+             .rest:
             return TrainingSafetyFloor.recoverySession(reason: "Recovery day.")
         }
     }

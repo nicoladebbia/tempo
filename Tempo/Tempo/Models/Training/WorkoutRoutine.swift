@@ -11,6 +11,8 @@
 import Foundation
 import SwiftData
 
+// MARK: - RoutineItem
+
 struct RoutineItem: Codable, Hashable, Identifiable {
     var id = UUID()
     var exerciseID: UUID
@@ -20,6 +22,8 @@ struct RoutineItem: Codable, Hashable, Identifiable {
     /// Items sharing a non-nil group run as a superset/circuit.
     var group: Int?
 }
+
+// MARK: - WorkoutRoutine
 
 @Model
 final class WorkoutRoutine {

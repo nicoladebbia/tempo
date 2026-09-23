@@ -84,10 +84,13 @@ struct WeekPlanView: View {
                     }
 
                     if viewModel.aiWeekUnavailable, viewModel.aiWeekRationale == nil {
-                        Label("Couldn't reach the AI coach — this is your standard plan. It'll retry shortly.", systemImage: "wifi.exclamationmark")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Label(
+                            "Couldn't reach the AI coach — this is your standard plan. It'll retry shortly.",
+                            systemImage: "wifi.exclamationmark"
+                        )
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
 
@@ -193,7 +196,9 @@ struct WeekPlanView: View {
 
     private func aligned(_ plans: [WorkoutPlan], to monday: Date) -> [WorkoutPlan?] {
         (0 ..< 7).map { i in
-            guard let day = calendar.date(byAdding: .day, value: i, to: monday) else { return nil }
+            guard let day = calendar.date(byAdding: .day, value: i, to: monday) else {
+                return nil
+            }
             let candidates = plans.filter { calendar.isDate($0.date, inSameDayAs: day) }
             // Completed row wins (a history week can hold a completed row next
             // to leftover planned scaffolding for the same day).
@@ -314,7 +319,7 @@ struct WeekPlanView: View {
 
     private func volumeLabel(_ kg: Double) -> String {
         let value = WeightUnit.kg.convert(kg, to: weightUnit)
-        if value >= 10_000 {
+        if value >= 10000 {
             return String(format: "%.1fk %@", value / 1000, weightUnit.abbreviation)
         }
         return String(format: "%.0f %@", value, weightUnit.abbreviation)
@@ -334,7 +339,7 @@ struct WeekPlanView: View {
                 HStack(alignment: .bottom, spacing: TempoSpacing.xs) {
                     ForEach(0 ..< 7, id: \.self) { idx in
                         pulseBar(
-                            plan: displayedSlots[safe: idx].flatMap { $0 },
+                            plan: displayedSlots[safe: idx].flatMap(\.self),
                             volume: volumes[safe: idx] ?? 0,
                             peak: peak,
                             isSelected: pulseIndex == idx
@@ -405,7 +410,6 @@ struct WeekPlanView: View {
         .scaleEffect(isSelected ? 1.08 : 1.0, anchor: .bottom)
     }
 
-    @ViewBuilder
     private func pulseCallout(index: Int) -> some View {
         HStack(spacing: TempoSpacing.sm) {
             if let slot = displayedSlots[safe: index], let plan = slot {
@@ -537,9 +541,9 @@ struct WeekPlanView: View {
     private func aiRationaleCard(_ rationale: String) -> some View {
         rationaleRow(rationale)
             .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoBgSecondary)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.tempoBgSecondary)
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
     }
 
     private func rationaleRow(_ rationale: String) -> some View {
@@ -652,7 +656,7 @@ struct WeekPlanView: View {
 
     private var dailyCards: some View {
         VStack(spacing: TempoSpacing.sm) {
-            ForEach(displayedSlots.compactMap { $0 }, id: \.id) { plan in
+            ForEach(displayedSlots.compactMap(\.self), id: \.id) { plan in
                 dailyCard(plan: plan)
             }
             if weekOffset < 0, displayedSlots.allSatisfy({ $0 == nil }) {
@@ -784,7 +788,12 @@ struct WeekPlanView: View {
     @ViewBuilder
     private func expandedContent(for plan: WorkoutPlan) -> some View {
         switch plan.type {
-        case .push, .pull, .legs, .upper, .lower, .fullBody:
+        case .push,
+             .pull,
+             .legs,
+             .upper,
+             .lower,
+             .fullBody:
             gymExerciseList(plan: plan)
         case .mobility:
             mobilityRoutine
@@ -792,7 +801,10 @@ struct WeekPlanView: View {
             footballContext(plan: plan)
         case .rest:
             restGuidance
-        case .run, .sprint, .conditioning, .pool:
+        case .run,
+             .sprint,
+             .conditioning,
+             .pool:
             conditioningGuidance(plan: plan)
         }
     }
@@ -927,7 +939,7 @@ struct WeekPlanView: View {
         let matchTomorrow = footballDates.contains(dayAfter)
         let matchYesterday = footballDates.contains(dayBefore)
 
-        if isMatchToday && matchYesterday {
+        if isMatchToday, matchYesterday {
             return ("Back-to-back match", "Second game in 24h. Focus on hydration, mobility between games, and active recovery walks.")
         }
         if isMatchToday {

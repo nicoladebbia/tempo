@@ -23,7 +23,9 @@ struct TrainingLoadCard: View {
     private struct Point: Identifiable {
         let date: Date
         let ratio: Double
-        var id: Date { date }
+        var id: Date {
+            date
+        }
     }
 
     /// One entry per calendar day over the window the chart needs, nil when
@@ -74,16 +76,20 @@ struct TrainingLoadCard: View {
             }
 
             if points.isEmpty {
-                Text("Building your baseline — \(min(strainDays, Self.minStrainDays))/\(Self.minStrainDays) days of Whoop strain. Keep the strap on.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .frame(maxWidth: .infinity, minHeight: 80, alignment: .leading)
+                Text(
+                    "Building your baseline — \(min(strainDays, Self.minStrainDays))/\(Self.minStrainDays) days of Whoop strain. Keep the strap on."
+                )
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoTextSecondary)
+                .frame(maxWidth: .infinity, minHeight: 80, alignment: .leading)
             } else {
                 chart(points)
-                Text("Last 7 days vs last 4 weeks. Under 0.8 you're detraining; over \(String(format: "%.1f", TrainingSafetyFloor.acwrCompositeMax)) injury risk climbs and the coach blocks two-a-days.")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
+                Text(
+                    "Last 7 days vs last 4 weeks. Under 0.8 you're detraining; over \(String(format: "%.1f", TrainingSafetyFloor.acwrCompositeMax)) injury risk climbs and the coach blocks two-a-days."
+                )
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextTertiary)
+                .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(TempoSpacing.cardPadding)
@@ -144,14 +150,22 @@ struct TrainingLoadCard: View {
     }
 
     private func zoneLabel(_ ratio: Double) -> String {
-        if ratio > TrainingSafetyFloor.acwrCompositeMax { return "High" }
-        if ratio < Self.lowBound { return "Low" }
+        if ratio > TrainingSafetyFloor.acwrCompositeMax {
+            return "High"
+        }
+        if ratio < Self.lowBound {
+            return "Low"
+        }
         return "Sweet spot"
     }
 
     private func zoneColor(_ ratio: Double) -> Color {
-        if ratio > TrainingSafetyFloor.acwrCompositeMax { return .tempoRecoveryRed }
-        if ratio < Self.lowBound { return .tempoRecoveryYellow }
+        if ratio > TrainingSafetyFloor.acwrCompositeMax {
+            return .tempoRecoveryRed
+        }
+        if ratio < Self.lowBound {
+            return .tempoRecoveryYellow
+        }
         return .tempoRecoveryGreen
     }
 }

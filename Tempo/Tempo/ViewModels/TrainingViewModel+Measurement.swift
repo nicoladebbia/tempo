@@ -40,7 +40,10 @@ extension TrainingViewModel {
             // that link is a one-way `.nullify` and a history-deleted plan leaves
             // it dangling → traversing crashes (invalidated backing).
             guard let expected = session.expectedSessionRPE,
-                  let actual = session.actualSessionRPE else { return nil }
+                  let actual = session.actualSessionRPE
+            else {
+                return nil
+            }
             return SessionRPEPair(date: session.date, expected: expected, actual: actual)
         }
         return PredictionAccuracy.summarizeSessions(pairs)
@@ -82,11 +85,15 @@ extension TrainingViewModel {
         let descriptor = FetchDescriptor<PredictionLog>(
             predicate: #Predicate { $0.workoutPlanID == planID }
         )
-        guard let rows = try? modelContext.fetch(descriptor), !rows.isEmpty else { return }
+        guard let rows = try? modelContext.fetch(descriptor), !rows.isEmpty else {
+            return
+        }
         let byExercise = Dictionary(rows.map { ($0.exerciseID, $0) }) { first, _ in first }
 
         for outcome in outcomes {
-            guard let log = byExercise[outcome.exerciseID] else { continue }
+            guard let log = byExercise[outcome.exerciseID] else {
+                continue
+            }
             log.actualReps = outcome.bestSetReps
             log.actualRPE = outcome.avgRPE
             log.actualFormRaw = outcome.worstFormRaw
@@ -108,7 +115,9 @@ extension TrainingViewModel {
             predicate: #Predicate { $0.workoutPlanID == planID && $0.outcomeResolved }
         )
         let resolved = (try? modelContext.fetch(descriptor)) ?? []
-        guard !resolved.isEmpty else { return }
+        guard !resolved.isEmpty else {
+            return
+        }
 
         let profile = fetchOrCreateAdaptiveProfile(modelContext: modelContext)
 
@@ -116,7 +125,9 @@ extension TrainingViewModel {
         let byExercise = Dictionary(grouping: resolved, by: { $0.exerciseID })
         for (exerciseID, rows) in byExercise {
             let errors = rows.compactMap(\.rpeError)
-            guard !errors.isEmpty else { continue }
+            guard !errors.isEmpty else {
+                continue
+            }
             let meanError = errors.reduce(0, +) / Double(errors.count)
 
             // Current learned step, or the one used at prescribe time, or the
@@ -143,7 +154,8 @@ extension TrainingViewModel {
     /// create a profile row (creation only happens on save) — returns neutral
     /// defaults when none exists yet, so a brand-new user runs the pure floor.
     func adaptiveSignals(modelContext: ModelContext)
-        -> (thresholdOffset: Double, fatigueEWMA: Double?, learnedIncrements: [UUID: Double]) {
+        -> (thresholdOffset: Double, fatigueEWMA: Double?, learnedIncrements: [UUID: Double])
+    {
         guard let profile = try? modelContext.fetch(FetchDescriptor<AdaptiveProfile>()).first else {
             return (0, nil, [:])
         }
@@ -173,7 +185,8 @@ extension TrainingViewModel {
                 switch row.exercise?.equipment {
                 case .barbell: 2.5
                 case .dumbbell: 2.0
-                case .cable, .machine: 2.5
+                case .cable,
+                     .machine: 2.5
                 default: 2.5
                 }
             },
@@ -181,7 +194,9 @@ extension TrainingViewModel {
         )
         try? modelContext.save()
         #if DEBUG
-            print("\(DebugTrace.prefix)[adaptive] profile updated: offset=\(profile.recoveryThresholdOffset) fatigueEWMA=\(profile.fatigueEWMA.map { String(format: "%.2f", $0) } ?? "nil") learnedExercises=\(profile.learnedIncrements.count)")
+            print(
+                "\(DebugTrace.prefix)[adaptive] profile updated: offset=\(profile.recoveryThresholdOffset) fatigueEWMA=\(profile.fatigueEWMA.map { String(format: "%.2f", $0) } ?? "nil") learnedExercises=\(profile.learnedIncrements.count)"
+            )
         #endif
     }
 

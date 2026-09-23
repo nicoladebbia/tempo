@@ -120,7 +120,7 @@ extension TrainingViewModel {
         // up. Pain subset is cached for the session UI. Scanned fresh each build
         // (no stored flag, no migration).
         let signals = noteSignals(modelContext: modelContext)
-        let painFlagged = Set(signals.filter { $0.value.pain }.map(\.key))
+        let painFlagged = Set(signals.filter(\.value.pain).map(\.key))
         painFlaggedExercises = painFlagged
 
         // Build PlannedExercise + PlannedSet objects with target weights
@@ -236,7 +236,8 @@ extension TrainingViewModel {
                 // conservative) estimate as-is. Must NOT fall through to the
                 // "too easy" bump even if the note also mentioned it (pain wins).
                 if let lastWeight = history.sorted(by: { $0.date > $1.date }).first?.bestSetWeight,
-                   lastWeight > 0 {
+                   lastWeight > 0
+                {
                     weight = min(weight, lastWeight)
                 }
             } else if sig?.tooEasy == true {
@@ -645,7 +646,8 @@ extension TrainingViewModel {
     /// exists → `StrengthStandards` falls back to a conservative absolute seed.
     private func currentBodyweightKg(modelContext: ModelContext) -> Double? {
         if let profile = try? modelContext.fetch(FetchDescriptor<UserProfile>()).first,
-           let w = profile.weightKg, w > 0 {
+           let w = profile.weightKg, w > 0
+        {
             return w
         }
         var descriptor = FetchDescriptor<BodyComposition>(
@@ -653,7 +655,8 @@ extension TrainingViewModel {
         )
         descriptor.fetchLimit = 1
         if let snap = try? modelContext.fetch(descriptor).first,
-           let w = snap.weightKg, w > 0 {
+           let w = snap.weightKg, w > 0
+        {
             return w
         }
         return nil
@@ -921,7 +924,8 @@ extension TrainingViewModel {
         // deleted at completion, so it's only a fallback for the brief in-session
         // window before materialization — never rely on it post-onboarding.
         if let settings = try? modelContext.fetch(FetchDescriptor<UserSettings>()).first,
-           let raw = settings.experienceLevelRaw, !raw.isEmpty {
+           let raw = settings.experienceLevelRaw, !raw.isEmpty
+        {
             return raw
         }
         let data = UserDefaults.standard.dictionary(forKey: "tempo.onboarding.data")

@@ -25,7 +25,9 @@ extension TrainingViewModel {
         var formIssue = false // form broke / sloppy → hold conservative
 
         /// Any signal that should PREVENT a weight increase this session.
-        var isConservative: Bool { pain || tooHard || formIssue }
+        var isConservative: Bool {
+            pain || tooHard || formIssue
+        }
 
         /// OR another row's signals into this summary (an exercise's notes across
         /// several sets combine; any positive signal sticks).
@@ -86,7 +88,8 @@ extension TrainingViewModel {
             s.formIssue = true
         }
         if tooEasyKeywords.contains(where: { note.contains($0) }),
-           !easyNegators.contains(where: { note.contains($0) }) {
+           !easyNegators.contains(where: { note.contains($0) })
+        {
             s.tooEasy = true
         }
         return s
@@ -130,7 +133,7 @@ extension TrainingViewModel {
     /// mentioning pain. Thin wrapper over `noteSignals` (pain subset), kept for
     /// existing call sites.
     func painFlaggedExerciseIDs(within days: Int = 21, modelContext: ModelContext) -> Set<UUID> {
-        Set(noteSignals(within: days, modelContext: modelContext).filter { $0.value.pain }.map(\.key))
+        Set(noteSignals(within: days, modelContext: modelContext).filter(\.value.pain).map(\.key))
     }
 
     // MARK: - Feedback Aggregation (Tier 2.1, pure + unit-tested)
@@ -152,7 +155,7 @@ extension TrainingViewModel {
         let worstForm = fb.map(\.formQuality).max { $0.severityRank < $1.severityRank }
         // Conditioning-debt signal: fraction of entered rows the user tagged
         // `.gassed`. Read by TrainingEngine.restMultiplier.
-        let gassedCount = fb.filter { $0.breathDifficulty.isNegativeSignal }.count
+        let gassedCount = fb.filter(\.breathDifficulty.isNegativeSignal).count
         let gassedFraction = Double(gassedCount) / Double(fb.count)
         return (avgRPE, worstForm?.rawValue, fb.count, gassedFraction)
     }

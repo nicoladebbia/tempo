@@ -94,7 +94,7 @@ final class TrainingBlock {
     }
 }
 
-// MARK: - Pure block math (testable, no SwiftData / no Date.now in core)
+// MARK: - BlockSpan
 
 /// Value mirror of a TrainingBlock's scheduling fields, so the selection math
 /// stays free of @Model (same separation as MatchSchedule over kickoff Dates).
@@ -104,6 +104,8 @@ struct BlockSpan: Equatable, Sendable {
     /// Inclusive last day; nil = open-ended.
     let end: Date?
 }
+
+// MARK: - TrainingBlockSchedule
 
 enum TrainingBlockSchedule {
     /// The emphasis in force on `date`, or nil when no block covers it (caller

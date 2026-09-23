@@ -58,7 +58,7 @@ struct WorkoutHistoryView: View {
     @State
     private var pendingDelete: WorkoutPlan?
 
-    // §20 — CSV import/export.
+    /// §20 — CSV import/export.
     @State
     private var showCSVImporter = false
     @State
@@ -131,7 +131,11 @@ struct WorkoutHistoryView: View {
         .sheet(
             isPresented: Binding(
                 get: { exportFileURL != nil },
-                set: { if !$0 { exportFileURL = nil } }
+                set: {
+                    if !$0 {
+                        exportFileURL = nil
+                    }
+                }
             )
         ) {
             if let url = exportFileURL {
@@ -142,7 +146,11 @@ struct WorkoutHistoryView: View {
             "Workout Import",
             isPresented: Binding(
                 get: { csvResultMessage != nil },
-                set: { if !$0 { csvResultMessage = nil } }
+                set: {
+                    if !$0 {
+                        csvResultMessage = nil
+                    }
+                }
             )
         ) {
             Button("OK") { csvResultMessage = nil }
@@ -153,7 +161,11 @@ struct WorkoutHistoryView: View {
             "Delete this workout?",
             isPresented: Binding(
                 get: { pendingDelete != nil },
-                set: { if !$0 { pendingDelete = nil } }
+                set: {
+                    if !$0 {
+                        pendingDelete = nil
+                    }
+                }
             ),
             presenting: pendingDelete
         ) { workout in
@@ -271,7 +283,8 @@ struct WorkoutHistoryView: View {
         //    this workout's exercises — saveWorkout stamps finishedAt).
         for h in allHistory
             where cal.isDate(h.date, inSameDayAs: sessionDay)
-            && (h.exercise?.id).map(exerciseIDs.contains) == true {
+            && (h.exercise?.id).map(exerciseIDs.contains) == true
+        {
             modelContext.delete(h)
         }
         // 3. PRs attributed to this exact plan.
@@ -309,7 +322,9 @@ struct WorkoutHistoryView: View {
         case let .success(url):
             let scoped = url.startAccessingSecurityScopedResource()
             defer {
-                if scoped { url.stopAccessingSecurityScopedResource() }
+                if scoped {
+                    url.stopAccessingSecurityScopedResource()
+                }
             }
             guard let text = try? String(contentsOf: url, encoding: .utf8) else {
                 csvResultMessage = "Couldn't read that file."
@@ -469,7 +484,8 @@ struct WorkoutHistoryView: View {
 
                 Group {
                     if workout.orderedExercises.isEmpty,
-                       let session = activitySession(for: workout) {
+                       let session = activitySession(for: workout)
+                    {
                         // Non-gym session (football etc.) — no exercises to
                         // list; show the Whoop activity detail instead.
                         activityDetail(session)
@@ -497,7 +513,6 @@ struct WorkoutHistoryView: View {
         allActivitySessions.first { $0.workoutPlanID == workout.id }
     }
 
-    @ViewBuilder
     private func activityDetail(_ session: ActivitySession) -> some View {
         VStack(alignment: .leading, spacing: TempoSpacing.sm) {
             HStack(spacing: TempoSpacing.lg) {

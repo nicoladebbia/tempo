@@ -16,10 +16,10 @@ import SwiftUI
 // Per WIREFRAMES.md Screen 21 — Progress chart per exercise.
 
 struct ProgressChartsView: View {
-    // modelContext intentionally removed — this view is now read-only. The
-    // only writer was the deleted purge; reintroducing context access here
-    // would invite another on-appearance mutation of history. Deletions
-    // happen in WorkoutHistoryView.
+    /// modelContext intentionally removed — this view is now read-only. The
+    /// only writer was the deleted purge; reintroducing context access here
+    /// would invite another on-appearance mutation of history. Deletions
+    /// happen in WorkoutHistoryView.
     @Query(sort: \ExerciseHistory.date, order: .reverse)
     private var allHistory: [ExerciseHistory]
     @Query(sort: \Exercise.name)
@@ -59,7 +59,6 @@ struct ProgressChartsView: View {
                     message: "Complete your first workout to start tracking progress."
                 )
             } else {
-
                 // Segmented picker
                 // Per MODULE_TRAINING.md Section 11.1 — segmented control at top
                 Picker("View", selection: $selectedTab) {
@@ -157,10 +156,14 @@ struct ProgressChartsView: View {
             let rows = (exercise.history ?? []).sorted { $0.date < $1.date }
             var runningMax = 0.0
             for row in rows {
-                guard let e1RM = row.estimated1RM else { continue }
+                guard let e1RM = row.estimated1RM else {
+                    continue
+                }
                 if e1RM > runningMax {
                     runningMax = e1RM
-                    if row.date >= cutoff { count += 1 }
+                    if row.date >= cutoff {
+                        count += 1
+                    }
                 }
             }
         }

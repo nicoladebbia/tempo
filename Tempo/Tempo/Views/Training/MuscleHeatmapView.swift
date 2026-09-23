@@ -13,7 +13,7 @@
 import SwiftData
 import SwiftUI
 
-// MARK: - Body geometry
+// MARK: - MuscleRegion
 
 /// One tappable segment of the figure, in normalized body space.
 private struct MuscleRegion {
@@ -39,7 +39,7 @@ private struct MuscleRegion {
             return Path(roundedRect: rect, cornerRadius: min(rect.width, rect.height) / 2)
         case .ellipse:
             return Path(ellipseIn: rect)
-        case .rounded(let fraction):
+        case let .rounded(fraction):
             return Path(roundedRect: rect, cornerRadius: rect.width * fraction)
         }
     }
@@ -54,6 +54,8 @@ private struct MuscleRegion {
     }
 }
 
+// MARK: - NeutralRegion
+
 /// Non-trainable filler segments (head, pelvis, shins…) that make the blob
 /// arrangement read as a human figure.
 private struct NeutralRegion {
@@ -64,6 +66,8 @@ private struct NeutralRegion {
         MuscleRegion(muscle: .core, frame: frame, kind: kind).path(in: body)
     }
 }
+
+// MARK: - BodyFigure
 
 private enum BodyFigure {
     /// Left-side regions are declared; right side mirrors automatically.
@@ -109,7 +113,7 @@ private enum BodyFigure {
     }
 }
 
-// MARK: - Heatmap View
+// MARK: - MuscleHeatmapView
 
 struct MuscleHeatmapView: View {
     @Query(sort: \ExerciseHistory.date, order: .reverse)

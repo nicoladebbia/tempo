@@ -18,9 +18,12 @@ extension TrainingViewModel {
     /// generated. An interview saved without a summary (offline) stays due so
     /// the Sonnet call retries on a later open within the window.
     func monthlyReviewDue(modelContext: ModelContext, now: Date = Date()) -> String? {
-        guard let key = MonthlyReviewSchedule.dueMonthKey(on: now) else { return nil }
+        guard let key = MonthlyReviewSchedule.dueMonthKey(on: now) else {
+            return nil
+        }
         if let existing = fetchMonthlyReview(monthKey: key, modelContext: modelContext),
-           existing.summaryText != nil {
+           existing.summaryText != nil
+        {
             return nil
         }
         return key
@@ -46,7 +49,9 @@ extension TrainingViewModel {
     /// Map a month of stored rows into the pure aggregator's snapshots
     /// (same @Model→snapshot seam as assembleTodayPicture).
     func assembleMonthlyData(monthKey: String, modelContext: ModelContext) -> MonthlyReviewData? {
-        guard let interval = MonthlyReviewSchedule.monthInterval(forKey: monthKey) else { return nil }
+        guard let interval = MonthlyReviewSchedule.monthInterval(forKey: monthKey) else {
+            return nil
+        }
         let start = interval.start
         let end = interval.end
         let cal = Calendar.current
@@ -102,7 +107,10 @@ extension TrainingViewModel {
         ))) ?? []
         let sessionPairs = sessionRows.compactMap { session -> SessionRPEPair? in
             guard let expected = session.expectedSessionRPE,
-                  let actual = session.workoutPlan?.sessionRPE else { return nil }
+                  let actual = session.workoutPlan?.sessionRPE
+            else {
+                return nil
+            }
             return SessionRPEPair(date: session.date, expected: expected, actual: actual)
         }
 
@@ -124,9 +132,15 @@ extension TrainingViewModel {
     /// hydration guard, a monthly report is worth the retry).
     @discardableResult
     func generateMonthlySummary(for review: MonthlyReview, modelContext: ModelContext) async -> Bool {
-        guard review.summaryText == nil else { return false }
-        guard let apiClient else { return false }
-        guard let data = assembleMonthlyData(monthKey: review.monthKey, modelContext: modelContext) else { return false }
+        guard review.summaryText == nil else {
+            return false
+        }
+        guard let apiClient else {
+            return false
+        }
+        guard let data = assembleMonthlyData(monthKey: review.monthKey, modelContext: modelContext) else {
+            return false
+        }
 
         let interview = MonthInterviewSnapshot(
             wentWell: review.wentWell,
@@ -137,7 +151,9 @@ extension TrainingViewModel {
             chosenEmphasis: review.chosenEmphasis?.rawValue
         )
         let coach = MonthlyReviewCoach(apiClient: apiClient)
-        guard let text = await coach.summary(data: data, interview: interview) else { return false }
+        guard let text = await coach.summary(data: data, interview: interview) else {
+            return false
+        }
 
         review.summaryText = text
         review.summaryGeneratedAt = Date()
@@ -154,10 +170,15 @@ extension TrainingViewModel {
     /// Idempotent: a block already starting that day means he declared one.
     func applyMonthlyEmphasisChoice(_ review: MonthlyReview, modelContext: ModelContext) {
         guard let emphasis = review.chosenEmphasis,
-              let start = MonthlyReviewSchedule.nextMonthStart(afterKey: review.monthKey) else { return }
+              let start = MonthlyReviewSchedule.nextMonthStart(afterKey: review.monthKey)
+        else {
+            return
+        }
         let day = Calendar.current.startOfDay(for: start)
         let existing = (try? modelContext.fetch(FetchDescriptor<TrainingBlock>())) ?? []
-        guard !existing.contains(where: { Calendar.current.startOfDay(for: $0.startDate) == day }) else { return }
+        guard !existing.contains(where: { Calendar.current.startOfDay(for: $0.startDate) == day }) else {
+            return
+        }
         modelContext.insert(TrainingBlock(emphasis: emphasis, startDate: day))
         saveGuarded(modelContext, operation: "monthly focus")
         #if DEBUG
@@ -191,7 +212,7 @@ extension TrainingViewModel {
         // tagged match; everything else is "untagged".
         let expectedSportID = Self.whoopSportID(for: plan.type)
 
-        let activities = whoop.providesRealData ? ((try? await whoop.fetchWorkouts(for: Date())) ?? []) : []
+        let activities = await whoop.providesRealData ? ((try? whoop.fetchWorkouts(for: Date())) ?? []) : []
         let cal = Calendar.current
         let todayStart = cal.startOfDay(for: Date())
         let todays = activities.filter { cal.isDate($0.startTime, inSameDayAs: todayStart) }
@@ -271,7 +292,9 @@ extension TrainingViewModel {
     }
 
     private static func summary(from s: ActivitySession) -> WhoopActivitySummary? {
-        guard let strain = s.strain else { return nil } // manual entry: no metrics
+        guard let strain = s.strain else {
+            return nil
+        } // manual entry: no metrics
         return WhoopActivitySummary(
             strain: strain,
             averageHeartRate: s.averageHeartRate ?? 0,

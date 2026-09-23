@@ -18,13 +18,19 @@ import SwiftUI
 
 struct WorkoutView: View {
     let connectivity: WatchConnectivityService
-    @State private var workoutState = WatchWorkoutState()
-    @State private var exerciseIndex = 0
-    @State private var isResting = false
-    @State private var restSeconds = 120
+    @State
+    private var workoutState = WatchWorkoutState()
+    @State
+    private var exerciseIndex = 0
+    @State
+    private var isResting = false
+    @State
+    private var restSeconds = 120
     /// The one live rest loop (see startRestTimer).
-    @State private var restTask: Task<Void, Never>?
-    @State private var showAdjust = false
+    @State
+    private var restTask: Task<Void, Never>?
+    @State
+    private var showAdjust = false
 
     /// The phone's payload, but only if it is actually TODAY's plan — a
     /// stale context from yesterday must not start yesterday's workout.
@@ -370,7 +376,9 @@ struct WorkoutView: View {
         restTask = Task { @MainActor in
             while isResting, restSeconds > 0, !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
-                guard isResting, !Task.isCancelled else { return }
+                guard isResting, !Task.isCancelled else {
+                    return
+                }
                 restSeconds -= 1
             }
             if isResting, !Task.isCancelled {

@@ -34,13 +34,17 @@ extension TrainingViewModel {
     ) -> PlanResolution {
         switch existingStatus {
         case .planned:
-            if existingType == templateType { return .keep }
+            if existingType == templateType {
+                return .keep
+            }
             // §8 connect — the row WAS the template type before the daily
             // brain moved it (planned pool → rest at yellow). The mismatch is
             // deliberate; replacing would resurrect the desync every app-open.
             // If the TEMPLATE itself changed (user edited the schedule), the
             // stash no longer matches and the template rightly wins.
-            if existingPlannedTypeRaw == templateType.rawValue { return .keep }
+            if existingPlannedTypeRaw == templateType.rawValue {
+                return .keep
+            }
             return .replace
         default:
             // completed / inProgress / skipped — sacred, never replace.
@@ -111,7 +115,8 @@ extension TrainingViewModel {
                    existingType: existing.type,
                    existingPlannedTypeRaw: existing.plannedTypeRaw,
                    templateType: canonical.type
-               ) == .replace {
+               ) == .replace
+            {
                 // Only a still-PLANNED row whose type differs may be replaced
                 // (e.g. user changed Football Days). A completed/in-progress plan
                 // is sacred — planResolution returns .keep for it — so it
@@ -136,9 +141,12 @@ extension TrainingViewModel {
             // while .planned (never mutate a completed/in-progress day's state).
             if existing.status == .planned,
                let canonical = weekPlanForToday,
-               existing.secondarySessionTypeRaw != canonical.secondarySessionTypeRaw {
+               existing.secondarySessionTypeRaw != canonical.secondarySessionTypeRaw
+            {
                 existing.secondarySessionTypeRaw = canonical.secondarySessionTypeRaw
-                if canonical.secondarySessionTypeRaw == nil { existing.secondaryCompleted = false }
+                if canonical.secondarySessionTypeRaw == nil {
+                    existing.secondaryCompleted = false
+                }
                 try? modelContext.save()
             }
             // Backstop for EVERY path that can leave a still-planned gym row
@@ -198,7 +206,8 @@ extension TrainingViewModel {
                deloadFrequencyWeeks: deload.frequency,
                trainingStartDate: deload.startDate,
                fatigueEWMA: adaptiveSignals(modelContext: modelContext).fatigueEWMA
-           ) {
+           )
+        {
             plan.type = .mobility
             plan.notes = "Deload — full rest week. Move, stretch, recover."
         }

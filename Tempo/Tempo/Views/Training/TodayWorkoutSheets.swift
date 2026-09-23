@@ -10,7 +10,7 @@
 import SwiftData
 import SwiftUI
 
-// MARK: - ExerciseReorderSheet (§2.15)
+// MARK: - ExerciseReorderSheet
 
 /// Drag-to-reorder for today's planned exercises. A dedicated List because
 /// `.onMove` is List-only — the styled card stack in TodayWorkoutView can't
@@ -64,7 +64,7 @@ struct ExerciseReorderSheet: View {
     }
 }
 
-// MARK: - SwapExerciseSheet (§2.13)
+// MARK: - SwapExerciseSheet
 
 /// Alternatives for one planned slot — same muscle group, closest movement
 /// pattern first. Selecting one swaps the movement in place (order and
@@ -118,7 +118,7 @@ struct SwapExerciseSheet: View {
     }
 }
 
-// MARK: - AddExerciseSheet (§2.14)
+// MARK: - AddExerciseSheet
 
 /// Full-library picker for appending an exercise to today's plan. Searchable,
 /// sectioned by muscle group; movements already in the plan are excluded.
@@ -187,6 +187,8 @@ struct AddExerciseSheet: View {
         }
     }
 }
+
+// MARK: - ExercisePickRow
 
 /// Shared row for the swap/add pickers: name + equipment, compound badge.
 struct ExercisePickRow: View {

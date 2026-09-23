@@ -218,7 +218,9 @@ struct ActiveWorkoutView: View {
             }
         }
         .onChange(of: viewModel.detectedPRs.count) { old, new in
-            guard new > old, let pr = viewModel.detectedPRs.last else { return }
+            guard new > old, let pr = viewModel.detectedPRs.last else {
+                return
+            }
             HapticManager.success()
             withAnimation(.spring(duration: 0.35)) { prToast = pr }
             Task {
@@ -253,7 +255,11 @@ struct ActiveWorkoutView: View {
             "Save failed",
             isPresented: Binding(
                 get: { viewModel.saveErrorMessage != nil },
-                set: { if !$0 { viewModel.saveErrorMessage = nil } }
+                set: {
+                    if !$0 {
+                        viewModel.saveErrorMessage = nil
+                    }
+                }
             )
         ) {
             Button("OK", role: .cancel) {}

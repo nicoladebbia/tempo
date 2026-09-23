@@ -198,6 +198,7 @@ extension TrainingViewModel {
     }
 
     // MARK: Rest Audio Cues
+
     //
     // Voice cues are played by CueAudioPlayer (premium pre-rendered clips for
     // the closed vocabulary; Apple-speech fallback for dynamic exercise names).

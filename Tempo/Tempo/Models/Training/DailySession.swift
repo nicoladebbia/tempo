@@ -20,6 +20,8 @@
 import Foundation
 import SwiftData
 
+// MARK: - DailySession
+
 @Model
 final class DailySession {
     @Attribute(.unique)
@@ -71,7 +73,7 @@ final class DailySession {
     /// dangling and traversing it crashes (invalidated backing). Reading the
     /// denormalized copy is crash-proof regardless of the plan's fate.
     /// Defaulted → auto-migrates; nil for sessions recorded before this field.
-    var actualSessionRPE: Int? = nil
+    var actualSessionRPE: Int?
 
     var createdAt: Date
 
@@ -117,20 +119,28 @@ final class DailySession {
     // MARK: - Computed
 
     @Transient
-    var intensity: SessionIntensity { SessionIntensity(rawValue: intensityRaw) ?? .moderate }
+    var intensity: SessionIntensity {
+        SessionIntensity(rawValue: intensityRaw) ?? .moderate
+    }
 
     @Transient
-    var floorTier: FloorTier { FloorTier(rawValue: floorTierRaw) ?? .normal }
+    var floorTier: FloorTier {
+        FloorTier(rawValue: floorTierRaw) ?? .normal
+    }
 
     @Transient
-    var source: DailySessionSource { DailySessionSource(rawValue: sourceRaw) ?? .brain }
+    var source: DailySessionSource {
+        DailySessionSource(rawValue: sourceRaw) ?? .brain
+    }
 
     /// Decoded blocks (the §13 wire shape). Empty on malformed JSON — never crashes.
     @Transient
     var blocks: [SessionBlockDTO] {
         guard let data = blocksJSON.data(using: .utf8),
               let decoded = try? JSONDecoder().decode([SessionBlockDTO].self, from: data)
-        else { return [] }
+        else {
+            return []
+        }
         return decoded
     }
 
@@ -163,7 +173,7 @@ final class DailySession {
     }
 }
 
-// MARK: - Source provenance
+// MARK: - DailySessionSource
 
 enum DailySessionSource: String, Codable, Sendable {
     /// Real Haiku brain call.
@@ -174,7 +184,7 @@ enum DailySessionSource: String, Codable, Sendable {
     case simple
 }
 
-// MARK: - Skip reason (on WorkoutPlan via skipReasonRaw, §8/§15.2)
+// MARK: - SkipReason
 
 enum SkipReason: String, Codable, Sendable {
     /// Floor forced recovery — body said no. Must NOT count against adherence.

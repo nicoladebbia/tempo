@@ -25,12 +25,18 @@ struct InlineSetFeedbackView: View {
     @Environment(\.modelContext)
     private var modelContext
 
-    @State private var rpe: Int = 7
-    @State private var breath: BreathDifficulty = .moderate
-    @State private var form: FormQuality = .clean
-    @State private var noteExpanded = false
-    @State private var note: String = ""
-    @FocusState private var noteFocused: Bool
+    @State
+    private var rpe: Int = 7
+    @State
+    private var breath: BreathDifficulty = .moderate
+    @State
+    private var form: FormQuality = .clean
+    @State
+    private var noteExpanded = false
+    @State
+    private var note: String = ""
+    @FocusState
+    private var noteFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: TempoSpacing.lg) {
@@ -222,5 +228,4 @@ struct InlineSetFeedbackView: View {
             }
         }
     }
-
 }

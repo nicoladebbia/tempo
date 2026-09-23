@@ -15,11 +15,14 @@ import SwiftUI
 
 struct FocusTimerView: View {
     let connectivity: WatchConnectivityService
-    @State private var timerState = WatchTimerState()
+    @State
+    private var timerState = WatchTimerState()
     /// The one live countdown loop — restarting (RESUME) cancels the old one,
     /// or two loops would tick at 2x and double-send the stop.
-    @State private var countdownTask: Task<Void, Never>?
-    @State private var selectedDuration = 1500 // 25 min default
+    @State
+    private var countdownTask: Task<Void, Never>?
+    @State
+    private var selectedDuration = 1500 // 25 min default
 
     private let durationPresets = [900, 1500, 2700, 3600] // 15, 25, 45, 60 min
 
@@ -199,8 +202,12 @@ struct FocusTimerView: View {
         countdownTask = Task { @MainActor in
             while timerState.isRunning, !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
-                guard timerState.isRunning, !Task.isCancelled else { return }
-                if timerState.isPaused { continue }
+                guard timerState.isRunning, !Task.isCancelled else {
+                    return
+                }
+                if timerState.isPaused {
+                    continue
+                }
                 if timerState.remainingSeconds > 0 {
                     timerState.remainingSeconds -= 1
                     continue

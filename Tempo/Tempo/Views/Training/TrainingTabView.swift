@@ -132,7 +132,9 @@ struct TrainingTabView: View {
             NotificationCenter.default.publisher(for: .tempoTrainingSettingsChanged)
                 .debounce(for: .seconds(0.6), scheduler: DispatchQueue.main)
         ) { _ in
-            guard let viewModel, !(viewModel.sessionState.isActive) else { return }
+            guard let viewModel, !(viewModel.sessionState.isActive) else {
+                return
+            }
             viewModel.repersonalizeSchedule(modelContext: modelContext)
         }
         .persistenceAlert()
@@ -140,7 +142,11 @@ struct TrainingTabView: View {
             "Save failed",
             isPresented: Binding(
                 get: { viewModel?.saveErrorMessage != nil },
-                set: { if !$0 { viewModel?.saveErrorMessage = nil } }
+                set: {
+                    if !$0 {
+                        viewModel?.saveErrorMessage = nil
+                    }
+                }
             )
         ) {
             Button("OK", role: .cancel) {}

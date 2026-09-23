@@ -363,14 +363,14 @@ struct TodayWorkoutView: View {
             VenueProposalCard()
 
             #if DEBUG
-            // Force a fresh coach run in-place (no .task / relaunch dependency —
-            // the flag + direct call run in one stack). Verifies the daily loop.
-            Button("⟳ Run coach now (force, DEBUG)") {
-                UserDefaults.standard.set(true, forKey: "tempo.debug.forceDailyRerun")
-                Task { await viewModel.runDailyReadinessSession(modelContext: modelContext) }
-            }
-            .font(.tempoCaption1)
-            .foregroundStyle(Color.tempoSignal)
+                // Force a fresh coach run in-place (no .task / relaunch dependency —
+                // the flag + direct call run in one stack). Verifies the daily loop.
+                Button("⟳ Run coach now (force, DEBUG)") {
+                    UserDefaults.standard.set(true, forKey: "tempo.debug.forceDailyRerun")
+                    Task { await viewModel.runDailyReadinessSession(modelContext: modelContext) }
+                }
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoSignal)
             #endif
         }
     }
@@ -447,9 +447,11 @@ struct TodayWorkoutView: View {
             HStack(spacing: TempoSpacing.sm) {
                 Image(systemName: "exclamationmark.triangle")
                     .foregroundStyle(Color.tempoWarning)
-                Text("Coach called \(session.modality.uppercased()). You kept \(viewModel.todayPlan?.type.displayName.uppercased() ?? "THE PLAN"). Your call.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                Text(
+                    "Coach called \(session.modality.uppercased()). You kept \(viewModel.todayPlan?.type.displayName.uppercased() ?? "THE PLAN"). Your call."
+                )
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoTextSecondary)
                 Spacer()
             }
             .padding(TempoSpacing.cardPadding)
@@ -538,7 +540,8 @@ struct TodayWorkoutView: View {
             if session.blocks.parts.count >= 2,
                let plan = viewModel.todayPlan,
                plan.isTwoADay,
-               let second = plan.secondarySessionType {
+               let second = plan.secondarySessionType
+            {
                 Divider().overlay(Color.tempoTextTertiary.opacity(0.3))
                 HStack(spacing: TempoSpacing.sm) {
                     Image(systemName: plan.secondaryCompleted ? "checkmark.circle.fill" : "circle")
@@ -565,7 +568,8 @@ struct TodayWorkoutView: View {
             if let plan = viewModel.todayPlan,
                plan.status == .planned,
                let plannedRaw = plan.plannedTypeRaw,
-               let plannedType = WorkoutType(rawValue: plannedRaw) {
+               let plannedType = WorkoutType(rawValue: plannedRaw)
+            {
                 Divider().overlay(Color.tempoTextTertiary.opacity(0.3))
                 HStack {
                     Text("Plan said \(plannedType.displayName.uppercased()).")
@@ -594,7 +598,6 @@ struct TodayWorkoutView: View {
         scheduledMin.map { "AT \(VenuePatternMath.clockLabel($0))" } ?? "ANYTIME"
     }
 
-    @ViewBuilder
     private func blockRow(_ block: SessionBlockDTO) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(block.label)
@@ -612,9 +615,11 @@ struct TodayWorkoutView: View {
 
     private func intensityColor(_ intensity: SessionIntensity) -> Color {
         switch intensity {
-        case .recovery, .easy: return Color.tempoRecoveryGreen
-        case .moderate: return Color.tempoRecoveryYellow
-        case .hard, .max: return Color.tempoRecoveryRed
+        case .recovery,
+             .easy: Color.tempoRecoveryGreen
+        case .moderate: Color.tempoRecoveryYellow
+        case .hard,
+             .max: Color.tempoRecoveryRed
         }
     }
 
@@ -1118,7 +1123,8 @@ struct TodayWorkoutView: View {
                 // the rep target; only e1RM-anchored prescriptions carry RIR,
                 // so gate on that to avoid mislabeling legacy 8/12 fallbacks.
                 if let firstWorking = plannedExercise.orderedSets.first(where: { !$0.isWarmup }),
-                   firstWorking.targetRIR != nil {
+                   firstWorking.targetRIR != nil
+                {
                     let zone = PrescriptionMath.zoneLabel(forReps: firstWorking.targetReps)
                     Text(zone)
                         .font(.tempoCaption2)
@@ -1337,9 +1343,9 @@ struct TodayWorkoutView: View {
 
     // MARK: - Non-Gym Training Day Content
 
-    // Shown for training days that aren't loggable gym sessions — football,
-    // run, sprint, conditioning. These have no exercises/sets to log, so there
-    // is no "Start Workout" button; this card just tells the user what today is.
+    /// Shown for training days that aren't loggable gym sessions — football,
+    /// run, sprint, conditioning. These have no exercises/sets to log, so there
+    /// is no "Start Workout" button; this card just tells the user what today is.
     private func nonGymContent(plan: WorkoutPlan) -> some View {
         // §11.7 — compact: the old xxl spacing + top spacer + 60pt icon pushed
         // half the content below the fold; one screen, no dead air.
@@ -1447,7 +1453,7 @@ struct TodayWorkoutView: View {
         }
     }
 
-    // The strain/HR confirm-and-save block beneath the non-gym card.
+    /// The strain/HR confirm-and-save block beneath the non-gym card.
     @ViewBuilder
     private func nonGymActivitySection(plan: WorkoutPlan) -> some View {
         switch viewModel.nonGymActivityState {
@@ -1482,7 +1488,8 @@ struct TodayWorkoutView: View {
                 }
             }
 
-        case .none, .dismissed:
+        case .none,
+             .dismissed:
             confirmButton(
                 title: "LOG THAT I PLAYED",
                 summary: nil
@@ -1521,9 +1528,9 @@ struct TodayWorkoutView: View {
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
     }
 
-    // Estimated sweat loss + hydration guidance from the same HydrationMath
-    // the daily target uses. Shown as a range (rough estimate), with an
-    // electrolyte nudge for larger losses.
+    /// Estimated sweat loss + hydration guidance from the same HydrationMath
+    /// the daily target uses. Shown as a range (rough estimate), with an
+    /// electrolyte nudge for larger losses.
     @ViewBuilder
     private func sweatHydrationNote(_ s: TrainingViewModel.WhoopActivitySummary) -> some View {
         if let range = HydrationMath.sweatLossLitres(
@@ -1613,23 +1620,35 @@ struct TodayWorkoutView: View {
         switch plan.type {
         case .pool:
             if plan.notes?.localizedCaseInsensitiveContains("pre-match") == true {
-                return ("Pool flush · \(mins) min",
-                        "Very easy continuous swim. Loosen the legs and keep breathing smooth — nothing hard the day before a match.")
+                return (
+                    "Pool flush · \(mins) min",
+                    "Very easy continuous swim. Loosen the legs and keep breathing smooth — nothing hard the day before a match."
+                )
             }
-            return ("Continuous swim · \(mins) min",
-                    "Steady, relaxed pace the whole way — one continuous effort, no intervals. Active recovery: you should finish looser, not tired.")
+            return (
+                "Continuous swim · \(mins) min",
+                "Steady, relaxed pace the whole way — one continuous effort, no intervals. Active recovery: you should finish looser, not tired."
+            )
         case .run:
-            return ("Zone 2 easy run · \(mins) min",
-                    "Conversational pace — you should be able to talk in full sentences the whole way. Keep the heart rate easy; this builds the aerobic base without adding fatigue.")
+            return (
+                "Zone 2 easy run · \(mins) min",
+                "Conversational pace — you should be able to talk in full sentences the whole way. Keep the heart rate easy; this builds the aerobic base without adding fatigue."
+            )
         case .conditioning:
-            return ("Conditioning · \(mins) min",
-                    "5 min easy warm-up, then 6 × (1 min hard / 90 sec easy), 5 min cool-down. Bike, row, or run the intervals — push the engine, not the barbell.")
+            return (
+                "Conditioning · \(mins) min",
+                "5 min easy warm-up, then 6 × (1 min hard / 90 sec easy), 5 min cool-down. Bike, row, or run the intervals — push the engine, not the barbell."
+            )
         case .sprint:
-            return ("Sprint work",
-                    "Warm up thoroughly first. 10–12 × 20–30 m at 90–95%, walk back for full recovery between reps. Stop if form breaks — quality over quantity.")
+            return (
+                "Sprint work",
+                "Warm up thoroughly first. 10–12 × 20–30 m at 90–95%, walk back for full recovery between reps. Stop if form breaks — quality over quantity."
+            )
         case .mobility:
-            return ("Mobility flow · \(mins) min",
-                    "Slow, controlled full-body flow — hips, shoulders, thoracic spine. This is recovery, not a session to grind.")
+            return (
+                "Mobility flow · \(mins) min",
+                "Slow, controlled full-body flow — hips, shoulders, thoracic spine. This is recovery, not a session to grind."
+            )
         default:
             return nil
         }

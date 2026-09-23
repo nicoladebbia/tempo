@@ -440,7 +440,9 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                     cal: cal
                 )
                 plans.append(t1.plan)
-                if t1.advancesRotation { splitIndex += 1 }
+                if t1.advancesRotation {
+                    splitIndex += 1
+                }
                 continue
             }
 
@@ -533,7 +535,8 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                 // `.upper` counts too: an Upper/Lower week reclaims a `.lower`
                 // onto a clean `.upper` day, just as PPL reclaims onto push/pull.
                 if !meta.isTMinus1,
-                   workoutType == .push || workoutType == .pull || workoutType == .upper {
+                   workoutType == .push || workoutType == .pull || workoutType == .upper
+                {
                     cleanLegsCandidates.append(plans.count - 1)
                 }
                 splitIndex += 1
@@ -554,7 +557,8 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                 if weekday == 1 { // Sunday — protected full rest
                     plans.append(WorkoutPlan(date: meta.date, type: .rest))
                 } else if zone == .green, !meta.isTMinus1, !afterLegs,
-                          conditioningDaysAssigned < conditioningCap {
+                          conditioningDaysAssigned < conditioningCap
+                {
                     conditioningDaysAssigned += 1
                     plans.append(WorkoutPlan(
                         date: meta.date,
@@ -604,7 +608,8 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         // `cleanLegsCandidates.last` is nil there and its map stays untouched.
         if let legType = legDayType(for: split),
            !plans.contains(where: { isLegLoading($0.type) }),
-           let idx = cleanLegsCandidates.last {
+           let idx = cleanLegsCandidates.last
+        {
             plans[idx].type = legType
             if plans[idx].secondarySessionType != nil {
                 plans[idx].secondarySessionType = nil
@@ -624,7 +629,9 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
     /// safe pick when history is thin or balanced). Pure — the caller supplies the
     /// counts from an `ActivitySession` history fetch.
     static func easyModalityOrder(poolLogged: Int, runLogged: Int) -> [WorkoutType] {
-        if runLogged >= 3, runLogged >= poolLogged * 2 { return [.run, .pool] }
+        if runLogged >= 3, runLogged >= poolLogged * 2 {
+            return [.run, .pool]
+        }
         return [.pool, .run]
     }
 
@@ -676,13 +683,21 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
     /// the running counter. Shared by the standard-split AND custom-split paths so
     /// the eligibility rule cannot diverge between them (the custom path used to
     /// omit it entirely, so a custom split never got two-a-days).
-    private func twoADaySecondary(workoutType: WorkoutType, zone: RecoveryZone, isTMinus1: Bool,
-                                  isPast: Bool, assignedSoFar: Int, max: Int,
-                                  preference: [WorkoutType]) -> WorkoutType? {
+    private func twoADaySecondary(
+        workoutType: WorkoutType,
+        zone: RecoveryZone,
+        isTMinus1: Bool,
+        isPast: Bool,
+        assignedSoFar: Int,
+        max: Int,
+        preference: [WorkoutType]
+    ) -> WorkoutType? {
         let upperLift = workoutType == .push || workoutType == .pull || workoutType == .upper
         // isPast: never spend the (capped) weekly slot on a day already gone — it
         // can't be trained, so it slides to the next eligible upper day.
-        guard !isPast, zone == .green, upperLift, !isTMinus1, assignedSoFar < max else { return nil }
+        guard !isPast, zone == .green, upperLift, !isTMinus1, assignedSoFar < max else {
+            return nil
+        }
         let order = preference.isEmpty ? [.pool, .run] : preference
         return order[0] == .run ? .run : .pool
     }
@@ -810,8 +825,12 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         if split == .custom, let customMap = customWeekdayMap, customMap.count == 7 {
             let idx = (cal.component(.weekday, from: date) + 5) % 7
             switch customMap[idx] {
-            case .push, .pull, .upper: customUpperT1 = customMap[idx]
-            case .rest, .mobility, .pool: customEasyT1 = customMap[idx]
+            case .push,
+                 .pull,
+                 .upper: customUpperT1 = customMap[idx]
+            case .rest,
+                 .mobility,
+                 .pool: customEasyT1 = customMap[idx]
             default: break
             }
         }

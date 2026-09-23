@@ -29,6 +29,7 @@ final class ExerciseHistory {
     var setsPerformed: Int?
 
     // MARK: - Feedback aggregates (Tier 2)
+
     // Aggregated from the session's SetFeedback rows, counting ONLY rows the
     // user actually filled in (userProvidedFeedback). All nullable/defaulted:
     // nil/0 means "no real feedback this session" → the engine progresses on
@@ -50,12 +51,12 @@ final class ExerciseHistory {
     /// avgRPE/worstFormRaw fields above).
     var gassedFraction: Double?
 
-    // Scalar back-reference to the WorkoutPlan that produced this row. NOT a
-    // relationship — ExerciseHistory is the permanent training record and must
-    // outlive the ephemeral daily plan. The ID enables exact, idempotent dedup
-    // on save and exact cleanup on explicit workout deletion, without
-    // re-coupling the two lifecycles. Optional so it stays a lightweight
-    // SwiftData migration (nil on legacy rows written before this field).
+    /// Scalar back-reference to the WorkoutPlan that produced this row. NOT a
+    /// relationship — ExerciseHistory is the permanent training record and must
+    /// outlive the ephemeral daily plan. The ID enables exact, idempotent dedup
+    /// on save and exact cleanup on explicit workout deletion, without
+    /// re-coupling the two lifecycles. Optional so it stays a lightweight
+    /// SwiftData migration (nil on legacy rows written before this field).
     var workoutPlanID: UUID?
 
     // MARK: - Relationships

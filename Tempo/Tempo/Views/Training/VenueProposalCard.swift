@@ -21,14 +21,21 @@ import SwiftData
 import SwiftUI
 
 struct VenueProposalCard: View {
-    @Environment(\.modelContext) private var modelContext
+    @Environment(\.modelContext)
+    private var modelContext
 
-    @State private var pattern: VenuePattern?
-    @State private var answeredToday = false
-    @State private var dismissed = false
-    @State private var changing = false
-    @State private var pickedVenue: TrainingVenue = .gym
-    @State private var pickedTime = Date()
+    @State
+    private var pattern: VenuePattern?
+    @State
+    private var answeredToday = false
+    @State
+    private var dismissed = false
+    @State
+    private var changing = false
+    @State
+    private var pickedVenue: TrainingVenue = .gym
+    @State
+    private var pickedTime = Date()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -41,7 +48,6 @@ struct VenueProposalCard: View {
 
     // MARK: - Card
 
-    @ViewBuilder
     private func card(pattern: VenuePattern, venue: TrainingVenue) -> some View {
         VStack(alignment: .leading, spacing: TempoSpacing.md) {
             HStack {
@@ -105,7 +111,6 @@ struct VenueProposalCard: View {
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
     }
 
-    @ViewBuilder
     private var changePickers: some View {
         VStack(alignment: .leading, spacing: TempoSpacing.sm) {
             HStack {
@@ -151,7 +156,8 @@ struct VenueProposalCard: View {
 
     private func proposalText(pattern: VenuePattern, venue: TrainingVenue) -> String {
         if pattern.sampleCount >= VenuePatternMath.minSamplesToAssertTime,
-           let start = pattern.medianStartMin {
+           let start = pattern.medianStartMin
+        {
             return "\(venue.displayName) day — your usual \(VenuePatternMath.clockLabel(start))?"
         }
         return "\(venue.displayName) today?"

@@ -66,7 +66,9 @@ final class TrainingViewModel {
         didSet {
             #if DEBUG
                 if oldValue != sessionState {
-                    print("\(DebugTrace.prefix)[Workout] sessionState: \(oldValue) → \(sessionState) | exIdx=\(currentExerciseIndex) setIdx=\(currentSetIndex)")
+                    print(
+                        "\(DebugTrace.prefix)[Workout] sessionState: \(oldValue) → \(sessionState) | exIdx=\(currentExerciseIndex) setIdx=\(currentSetIndex)"
+                    )
                 }
             #endif
             // §3.9 — every transition mirrors onto the Live Activity (started
@@ -124,11 +126,16 @@ final class TrainingViewModel {
             )
         case .exercise(.betweenExercises):
             return state(exerciseName: currentName, setText: "Next exercise")
-        case .paused, .interruptedCall:
+        case .paused,
+             .interruptedCall:
             return state(exerciseName: currentName, setText: setCountText, isPaused: true)
         case .cooldown:
             return state(exerciseName: "Cooldown", setText: "Almost done")
-        case .idle, .summary, .saved, .discarded, .crashedRecovery:
+        case .idle,
+             .summary,
+             .saved,
+             .discarded,
+             .crashedRecovery:
             return nil
         }
     }
@@ -336,7 +343,9 @@ final class TrainingViewModel {
         // Coalesce re-entrant loads: if a pipeline is already running, drop this
         // call rather than stacking a second heavy run. `@MainActor` means the
         // flag flip is race-free; `defer` clears it on every exit path.
-        guard !isReloadInFlight else { return }
+        guard !isReloadInFlight else {
+            return
+        }
         isReloadInFlight = true
         defer { isReloadInFlight = false }
 
@@ -433,10 +442,15 @@ final class TrainingViewModel {
         let weekKey = AIProgramPlanner.isoDay(thisMonday)
 
         let profile = fetchOrCreateAdaptiveProfile(modelContext: modelContext)
-        guard profile.lastOutcomeReviewWeekKey != weekKey else { return }
+        guard profile.lastOutcomeReviewWeekKey != weekKey else {
+            return
+        }
 
         guard let lastMonday = cal.date(byAdding: .day, value: -7, to: thisMonday),
-              let lastSunday = cal.date(byAdding: .day, value: -1, to: thisMonday) else { return }
+              let lastSunday = cal.date(byAdding: .day, value: -1, to: thisMonday)
+        else {
+            return
+        }
         let lastWeekStart = cal.startOfDay(for: lastMonday)
         let lastWeekEnd = cal.startOfDay(for: lastSunday)
 
@@ -454,7 +468,10 @@ final class TrainingViewModel {
 
         // Week-before tonnage for the trend.
         guard let priorStart = cal.date(byAdding: .day, value: -14, to: thisMonday),
-              let priorEnd = cal.date(byAdding: .day, value: -8, to: thisMonday) else { return }
+              let priorEnd = cal.date(byAdding: .day, value: -8, to: thisMonday)
+        else {
+            return
+        }
         let priorWeekStart = cal.startOfDay(for: priorStart)
         let priorWeekEnd = cal.startOfDay(for: priorEnd)
         let priorRows = (try? modelContext.fetch(FetchDescriptor<ExerciseHistory>(
@@ -464,7 +481,7 @@ final class TrainingViewModel {
 
         // Planned training days last week = distinct non-rest gym days in the
         // current week template (a stable proxy for the cadence).
-        let plannedTrainingDays = weekPlans.filter { $0.type.isGymWorkout }.count
+        let plannedTrainingDays = weekPlans.filter(\.type.isGymWorkout).count
 
         let outcome = TrainingOutcomeEvaluator.evaluate(
             lastWeek: lastWeekRows,
@@ -480,7 +497,9 @@ final class TrainingViewModel {
 
         lastWeekOutcome = outcome
         #if DEBUG
-            print("\(DebugTrace.prefix)[outcome] week graded: quality=\(String(format: "%.2f", outcome.qualityScore)) hits=\(outcome.progressionHits) overreach=\(outcome.overreachEvents) missed=\(outcome.missedSessions)")
+            print(
+                "\(DebugTrace.prefix)[outcome] week graded: quality=\(String(format: "%.2f", outcome.qualityScore)) hits=\(outcome.progressionHits) overreach=\(outcome.overreachEvents) missed=\(outcome.missedSessions)"
+            )
         #endif
     }
 
@@ -491,8 +510,12 @@ final class TrainingViewModel {
     /// run this week, or when a workout is in progress (never disturb a live
     /// session). All failures fall back to the deterministic plan silently.
     func hydrateWeekWithAI(modelContext: ModelContext) async {
-        guard let apiClient else { return }
-        guard !sessionState.isActive else { return }
+        guard let apiClient else {
+            return
+        }
+        guard !sessionState.isActive else {
+            return
+        }
 
         let cal = Calendar.current
         var comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())
@@ -503,7 +526,9 @@ final class TrainingViewModel {
         // Once per ISO week (the Sonnet cost cap) — PERSISTED guard so a cold
         // start in the same week doesn't re-spend the call.
         let profile = fetchOrCreateAdaptiveProfile(modelContext: modelContext)
-        guard profile.lastAIHydratedWeekKey != weekKey else { return }
+        guard profile.lastAIHydratedWeekKey != weekKey else {
+            return
+        }
         // A failed attempt retries at most hourly (not on every loadToday).
         if let lastFailure = aiWeekLastFailure, Date().timeIntervalSince(lastFailure) < 3600 {
             return
@@ -548,7 +573,9 @@ final class TrainingViewModel {
     private func loadRecovery7DayTrend(modelContext: ModelContext) -> [Int] {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
-        guard let weekAgo = cal.date(byAdding: .day, value: -7, to: today) else { return [] }
+        guard let weekAgo = cal.date(byAdding: .day, value: -7, to: today) else {
+            return []
+        }
         let descriptor = FetchDescriptor<DailyRecovery>(
             predicate: #Predicate { $0.date >= weekAgo },
             sortBy: [SortDescriptor(\.date, order: .forward)]
@@ -564,7 +591,9 @@ final class TrainingViewModel {
     /// `TrainingEngine.easyModalityOrder`. Thin/balanced history → pool-first.
     private func learnedEasyModalityOrder(modelContext: ModelContext) -> [WorkoutType] {
         let cal = Calendar.current
-        guard let cutoff = cal.date(byAdding: .day, value: -28, to: Date()) else { return [.pool, .run] }
+        guard let cutoff = cal.date(byAdding: .day, value: -28, to: Date()) else {
+            return [.pool, .run]
+        }
         let descriptor = FetchDescriptor<ActivitySession>(
             predicate: #Predicate { $0.date >= cutoff }
         )
@@ -639,7 +668,8 @@ final class TrainingViewModel {
                deloadFrequencyWeeks: deload.frequency,
                trainingStartDate: deload.startDate,
                fatigueEWMA: signals.fatigueEWMA
-           ) {
+           )
+        {
             for plan in plans where plan.type.isGymWorkout {
                 plan.type = .mobility
                 plan.notes = "Deload — full rest week. Move, stretch, recover."
@@ -789,7 +819,9 @@ final class TrainingViewModel {
         let sets = first.orderedSets
         let firstWorkingIndex = sets.firstIndex { !$0.isWarmup } ?? 0
         #if DEBUG
-            print("\(DebugTrace.prefix)[Workout] advancePastWarmup: totalSets=\(sets.count) warmups=\(sets.filter(\.isWarmup).count) → firstWorkingIndex=\(firstWorkingIndex)")
+            print(
+                "\(DebugTrace.prefix)[Workout] advancePastWarmup: totalSets=\(sets.count) warmups=\(sets.filter(\.isWarmup).count) → firstWorkingIndex=\(firstWorkingIndex)"
+            )
         #endif
         currentExerciseIndex = 0
         currentSetIndex = firstWorkingIndex
@@ -974,7 +1006,9 @@ final class TrainingViewModel {
         let isLastExercise = currentExerciseIndex >= exercises.count - 1
         #if DEBUG
             let warmupCount = sets.filter(\.isWarmup).count
-            print("\(DebugTrace.prefix)[Workout] logSet: exIdx=\(currentExerciseIndex)/\(exercises.count) setIdx=\(currentSetIndex)/\(sets.count) (warmups=\(warmupCount)) → isLastSet=\(isLastSet) isLastExercise=\(isLastExercise)")
+            print(
+                "\(DebugTrace.prefix)[Workout] logSet: exIdx=\(currentExerciseIndex)/\(exercises.count) setIdx=\(currentSetIndex)/\(sets.count) (warmups=\(warmupCount)) → isLastSet=\(isLastSet) isLastExercise=\(isLastExercise)"
+            )
         #endif
 
         // §6.4/§7.7 drop sets — a queued drop step right after this set
@@ -1372,7 +1406,10 @@ final class TrainingViewModel {
     func discardActiveWorkout(modelContext: ModelContext) {
         // Allow discard from any live state (active / paused / cooldown).
         switch sessionState {
-        case .warmup, .exercise, .cooldown, .paused:
+        case .warmup,
+             .exercise,
+             .cooldown,
+             .paused:
             break
         default:
             return
@@ -1500,11 +1537,17 @@ final class TrainingViewModel {
             let gassedFraction: Double?
         }
         let snapshots: [HistorySnapshot] = plan.orderedExercises.compactMap { plannedEx in
-            guard let exercise = plannedEx.exercise else { return nil }
+            guard let exercise = plannedEx.exercise else {
+                return nil
+            }
             let completedSets = (plannedEx.sets ?? []).filter { $0.completed && !$0.isWarmup }
-            guard !completedSets.isEmpty else { return nil }
+            guard !completedSets.isEmpty else {
+                return nil
+            }
             let totalVolume = completedSets.reduce(0.0) { acc, set in
-                guard let w = set.actualWeight, let r = set.actualReps else { return acc }
+                guard let w = set.actualWeight, let r = set.actualReps else {
+                    return acc
+                }
                 return acc + (w * Double(r))
             }
             // §6.4 — a drop step is a reduced-weight backoff, never the
@@ -1622,7 +1665,9 @@ final class TrainingViewModel {
             return false
         }
         #if DEBUG
-            print("\(DebugTrace.prefix)[Workout] persistCompletion: plan=\(planID) wrote \(snapshots.count) history rows, status=.completed")
+            print(
+                "\(DebugTrace.prefix)[Workout] persistCompletion: plan=\(planID) wrote \(snapshots.count) history rows, status=.completed"
+            )
         #endif
 
         // Phase 3 (TRAINING_INTELLIGENCE_TO_10.md Fix 3.2) — feed the session
@@ -1666,7 +1711,9 @@ final class TrainingViewModel {
         // A failed save (saveErrorMessage set) must keep the summary open —
         // resetting here would close the session over data that never landed.
         // The alert bound to saveErrorMessage owns the retry.
-        guard saveErrorMessage == nil else { return }
+        guard saveErrorMessage == nil else {
+            return
+        }
 
         // Write to HealthKit (via step 5.7) — best-effort, Phase 5.
 
@@ -1753,7 +1800,9 @@ final class TrainingViewModel {
         VenuePatternLearner.recompute(modelContext: modelContext)
 
         #if DEBUG
-            print("\(DebugTrace.prefix)[Workout] persistNonGymCompletion: plan=\(planID) type=\(plan.type.rawValue) source=\(session.source) strain=\(session.strain.map { String($0) } ?? "nil")")
+            print(
+                "\(DebugTrace.prefix)[Workout] persistNonGymCompletion: plan=\(planID) type=\(plan.type.rawValue) source=\(session.source) strain=\(session.strain.map { String($0) } ?? "nil")"
+            )
         #endif
 
         // Same cross-surface signals as the gym path — without these the
@@ -1775,8 +1824,12 @@ final class TrainingViewModel {
     /// so this is effectively write-once. No notification fan-out — sRPE feeds
     /// tomorrow's prompt + the accuracy spine, nothing re-renders live today.
     func recordSessionRPE(_ rpe: Int, modelContext: ModelContext) {
-        guard (1 ... 10).contains(rpe) else { return }
-        guard let plan = todayPlan, plan.status == .completed else { return }
+        guard (1 ... 10).contains(rpe) else {
+            return
+        }
+        guard let plan = todayPlan, plan.status == .completed else {
+            return
+        }
         plan.sessionRPE = rpe
         // Denormalize onto the linked session so the accuracy spine never has to
         // traverse the one-way `.nullify` link (dangling-crash guard — see
@@ -1784,7 +1837,9 @@ final class TrainingViewModel {
         dailySession?.actualSessionRPE = rpe
         saveGuarded(modelContext, operation: "session RPE")
         #if DEBUG
-            print("\(DebugTrace.prefix)[Workout] recordSessionRPE: plan=\(plan.id) rpe=\(rpe) expected=\(dailySession?.expectedSessionRPE.map(String.init) ?? "nil")")
+            print(
+                "\(DebugTrace.prefix)[Workout] recordSessionRPE: plan=\(plan.id) rpe=\(rpe) expected=\(dailySession?.expectedSessionRPE.map(String.init) ?? "nil")"
+            )
         #endif
     }
 
@@ -1798,7 +1853,10 @@ final class TrainingViewModel {
     func keepPlannedWorkout(modelContext: ModelContext) {
         guard let plan = todayPlan,
               plan.status == .planned,
-              let stashed = plan.plannedTypeRaw else { return }
+              let stashed = plan.plannedTypeRaw
+        else {
+            return
+        }
         plan.typeRaw = stashed
         plan.plannedTypeRaw = nil
         dailySession?.userOverrode = true
@@ -1820,7 +1878,9 @@ final class TrainingViewModel {
     /// venue patterns, and the load/replan cascade. Undo removes that row, so the
     /// flag and the logged activity never disagree.
     func toggleSecondarySessionComplete(modelContext: ModelContext) {
-        guard let plan = todayPlan, plan.isTwoADay, let second = plan.secondarySessionType else { return }
+        guard let plan = todayPlan, plan.isTwoADay, let second = plan.secondarySessionType else {
+            return
+        }
         plan.secondaryCompleted.toggle()
 
         let planID = plan.id
@@ -1831,7 +1891,9 @@ final class TrainingViewModel {
         let existing = (try? modelContext.fetch(FetchDescriptor<ActivitySession>(
             predicate: #Predicate<ActivitySession> { $0.workoutPlanID == planID && $0.workoutType == typeRaw }
         ))) ?? []
-        for row in existing { modelContext.delete(row) } // dedup / undo both start clean
+        for row in existing {
+            modelContext.delete(row)
+        } // dedup / undo both start clean
 
         if plan.secondaryCompleted {
             let cardio = ActivitySession(
@@ -1855,7 +1917,9 @@ final class TrainingViewModel {
             NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
         }
         #if DEBUG
-            print("\(DebugTrace.prefix)[daily_coach] two-a-day second session → \(plan.secondaryCompleted ? "done (logged \(typeRaw))" : "undone (removed)")")
+            print(
+                "\(DebugTrace.prefix)[daily_coach] two-a-day second session → \(plan.secondaryCompleted ? "done (logged \(typeRaw))" : "undone (removed)")"
+            )
         #endif
     }
 
@@ -1864,6 +1928,7 @@ final class TrainingViewModel {
     /// Month key with a review currently due (drives the Training-tab card).
     /// Set by loadToday; nil outside the window or once the summary exists.
     var monthlyReviewDueKey: String?
+
     // MARK: - Reorder Exercises
 
     func moveExercises(from source: IndexSet, to destination: Int) {
@@ -2130,7 +2195,9 @@ final class TrainingViewModel {
         let descriptor = FetchDescriptor<DailyRecovery>(
             predicate: #Predicate { $0.date >= weekStart && $0.date < weekEnd }
         )
-        guard let rows = try? modelContext.fetch(descriptor) else { return [:] }
+        guard let rows = try? modelContext.fetch(descriptor) else {
+            return [:]
+        }
         var result: [Date: Double] = [:]
         for row in rows where row.recoveryScore > 0 { // 0 = no data, not red
             let key = cal.startOfDay(for: row.date)

@@ -10,7 +10,7 @@ import Charts
 import SwiftData
 import SwiftUI
 
-// MARK: - Exercise Detail View
+// MARK: - ExerciseDetailView
 
 // Per MODULE_TRAINING.md Section 10 — Exercise detail with stats and progress.
 // Per WIREFRAMES.md Screen 20 — Name, info pills, stats card, progress chart, instructions.
@@ -126,7 +126,9 @@ struct ExerciseDetailView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("It disappears from the library and pickers. Past sessions that used it keep their logged sets, but lose the exercise name.")
+            Text(
+                "It disappears from the library and pickers. Past sessions that used it keep their logged sets, but lose the exercise name."
+            )
         }
     }
 
@@ -527,10 +529,9 @@ struct ExerciseDetailView: View {
         case .none: "None"
         }
     }
-
 }
 
-// MARK: - Exercise Demo Image
+// MARK: - ExerciseDemoImage
 
 /// Reference photo for an exercise, loaded remotely from the bundled free-exercise-db
 /// map. `demoAsset` is a relative path (e.g. "Barbell_Bench_Press_-_Medium_Grip/0.jpg")
@@ -542,11 +543,13 @@ struct ExerciseDemoImage: View {
     let muscleGroup: MuscleGroup
     var symbolSize: CGFloat = 48
 
-    // jsDelivr CDN — rate-limit-friendly for repeated in-app fetches vs raw.githubusercontent.
+    /// jsDelivr CDN — rate-limit-friendly for repeated in-app fetches vs raw.githubusercontent.
     private static let cdnBase = "https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/exercises/"
 
     private var url: URL? {
-        guard let demoAsset, !demoAsset.isEmpty else { return nil }
+        guard let demoAsset, !demoAsset.isEmpty else {
+            return nil
+        }
         return URL(string: Self.cdnBase + demoAsset)
     }
 
