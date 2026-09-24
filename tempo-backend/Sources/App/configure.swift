@@ -1,19 +1,19 @@
-import Vapor
+import APNS
+import APNSCore
 import Fluent
 import FluentPostgresDriver
 import NIOSSL
-import Redis
 import Queues
 import QueuesRedisDriver
-import APNS
-import APNSCore
+import Redis
+import Vapor
 import VaporAPNS
 
 // MARK: - Application Configuration
+
 // Per VAPOR_PROJECT_STRUCTURE.md Section 4 — configure.swift
 
 func configure(_ app: Application) async throws {
-
     // ─────────────────────────────────────────────────
     // 1. Content configuration
     // ─────────────────────────────────────────────────
@@ -99,8 +99,8 @@ func configure(_ app: Application) async throws {
     // ─────────────────────────────────────────────────
     if let rawP8 = Environment.get("APNS_KEY_P8"),
        let keyID = Environment.get("APNS_KEY_ID"),
-       let teamID = Environment.get("APNS_TEAM_ID") {
-
+       let teamID = Environment.get("APNS_TEAM_ID")
+    {
         // Some env-var setters (Railway, Heroku CLI, docker-compose) require
         // multi-line values to be encoded with literal `\n` escape sequences.
         // The PEM parser wants real newlines. Normalize both forms so either
@@ -109,8 +109,8 @@ func configure(_ app: Application) async throws {
 
         // Registers both .production and .development containers
         // so debug builds (sandbox) and release builds (production) both work.
-        app.apns.configure(.jwt(
-            privateKey: try .loadFrom(string: apnsKeyP8),
+        try app.apns.configure(.jwt(
+            privateKey: .loadFrom(string: apnsKeyP8),
             keyIdentifier: keyID,
             teamIdentifier: teamID
         ))
@@ -173,6 +173,7 @@ func configure(_ app: Application) async throws {
     app.migrations.add(AddCoachSpendToAIMonthlySpend())
     app.migrations.add(CreateAIResponseCache())
     app.migrations.add(CreateUserDailyPlanProfiles())
+    app.migrations.add(CreateTrainerProgramImports())
 
     // Arena module — per BUILD_PLAN step 14.1
     app.migrations.add(CreateXPEvents())

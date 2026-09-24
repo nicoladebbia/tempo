@@ -3,6 +3,7 @@ import Redis
 import Vapor
 
 // MARK: - SubscriptionMiddleware
+
 //
 // Gates Pro-only routes (AI insights, nutrition AI proxy, receipt structuring).
 // Must run AFTER JWTAuthMiddleware — relies on the authenticated user being in
@@ -27,12 +28,12 @@ struct SubscriptionMiddleware: AsyncMiddleware {
         // PRO_ALLOWLIST env var get full access with no subscription and no
         // AI-consent gate — used to grant the operator(s) their own access
         // without a purchase. Empty/unset env var = allowlist disabled.
-        if try await isAllowlisted(userID: userID, on: request) {
+        if try await ProEntitlement.isAllowlisted(userID: userID, on: request) {
             return try await next.respond(to: request)
         }
 
         // 1. Resolve subscription (Redis cache → Postgres fallback).
-        let isPro = try await isUserPro(userID: userID, on: request)
+        let isPro = try await ProEntitlement.isUserPro(userID: userID, on: request)
         guard isPro else {
             throw subscriptionRequired
         }
@@ -44,62 +45,6 @@ struct SubscriptionMiddleware: AsyncMiddleware {
         }
 
         return try await next.respond(to: request)
-    }
-
-    // MARK: - Allowlist
-
-    /// True when the authenticated user matches any entry in the
-    /// PRO_ALLOWLIST env var (comma-separated). An entry matches if it
-    /// equals the user's `apple_user_id` (exact), `id` (exact), or
-    /// `username` (case-insensitive) — so the operator can whitelist
-    /// themselves by whichever identifier is convenient without a DB
-    /// lookup. Empty/unset env var = allowlist disabled.
-    private func isAllowlisted(userID: String, on req: Request) async throws -> Bool {
-        guard let raw = Environment.get("PRO_ALLOWLIST"), !raw.isEmpty else {
-            return false
-        }
-        let entries = raw.split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-        guard !entries.isEmpty else {
-            return false
-        }
-        guard let user = try await User.find(userID, on: req.db) else {
-            return false
-        }
-
-        let exact = Set(entries)
-        if exact.contains(user.appleUserID) {
-            return true
-        }
-        if let id = user.id, exact.contains(id) {
-            return true
-        }
-        let lowerEntries = Set(entries.map { $0.lowercased() })
-        return lowerEntries.contains(user.username.lowercased())
-    }
-
-    // MARK: - Subscription lookup
-
-    private func isUserPro(userID: String, on req: Request) async throws -> Bool {
-        let cacheKey = RedisKey("sub:active:\(userID)")
-        if let cached = try await req.redis.get(cacheKey, as: String.self).get() {
-            return cached == "1"
-        }
-
-        let isActive = try await UserSubscription.query(on: req.db)
-            .filter(\.$user.$id == userID)
-            .filter(\.$isActive == true)
-            .filter(\.$expirationDate > Date())
-            .first() != nil
-
-        try await req.redis.setex(
-            cacheKey,
-            to: isActive ? "1" : "0",
-            expirationInSeconds: Self.cacheTTLSeconds
-        ).get()
-
-        return isActive
     }
 
     // MARK: - AI consent lookup
@@ -146,6 +91,7 @@ struct SubscriptionMiddleware: AsyncMiddleware {
 }
 
 // MARK: - Cache invalidation helper
+
 //
 // Called from SubscriptionController.verify, the webhook handler, and
 // UserController.aiConsent so the next AI request sees the change instantly

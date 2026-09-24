@@ -2,6 +2,7 @@ import Foundation
 import Vapor
 
 // MARK: - NutritionClaudeProxyService
+
 //
 // Generic Claude proxy for nutrition AI features that currently call Anthropic
 // directly from iOS via ClaudeAPIClient. This is the iOS-side migration target:
@@ -55,12 +56,41 @@ actor NutritionClaudeProxyService {
     ) async throws -> NutritionProxyTextResponse {
         let model = try resolveModel(input.model)
         let timeout = timeout(for: model)
-        let text = try await callClaudeWithImage(
+        let text = try await callClaudeWithImages(
             model: model,
             system: input.system,
             userMessage: input.userMessage,
-            imageMediaType: input.imageMediaType,
-            imageBase64: input.imageBase64,
+            images: [(mediaType: input.imageMediaType, base64: input.imageBase64, hint: nil)],
+            maxTokens: input.maxTokens,
+            temperature: input.temperature,
+            timeout: timeout,
+            caller: input.caller,
+            on: req
+        )
+        return NutritionProxyTextResponse(text: text)
+    }
+
+    /// Send a pre-rendered prompt with SEVERAL base64-encoded images in ONE
+    /// Claude call (multiple image content blocks in a single user message).
+    /// Used by the Trainer Program import TRANSCRIBE step so a multi-page
+    /// import costs one request per batch of pages instead of one per page.
+    /// Per-image `hint` text (e.g. on-device OCR for that specific page), when
+    /// present, is inserted as its own text block immediately after that
+    /// image so the model can weigh it against the image it describes.
+    func sendMultiImage(
+        input: NutritionProxyMultiImageRequest,
+        on req: Request
+    ) async throws -> NutritionProxyTextResponse {
+        let model = try resolveModel(input.model)
+        let timeout = timeout(for: model)
+        let text = try await callClaudeWithImages(
+            model: model,
+            system: input.system,
+            userMessage: input.userMessage,
+            images: input.images.enumerated().map { index, image in
+                let hint = input.hintTexts.indices.contains(index) ? input.hintTexts[index] : nil
+                return (mediaType: image.mediaType, base64: image.base64, hint: hint)
+            },
             maxTokens: input.maxTokens,
             temperature: input.temperature,
             timeout: timeout,
@@ -127,12 +157,15 @@ actor NutritionClaudeProxyService {
         )
     }
 
-    private func callClaudeWithImage(
+    /// Generalized N-image call. `images` are emitted in order, each
+    /// optionally followed by its own hint text block, then `userMessage` is
+    /// appended last. A single-image call (sendVision) is just this with a
+    /// one-element array and no hint.
+    private func callClaudeWithImages(
         model: String,
         system: String,
         userMessage: String,
-        imageMediaType: String,
-        imageBase64: String,
+        images: [(mediaType: String, base64: String, hint: String?)],
         maxTokens: Int,
         temperature: Double,
         timeout: TimeInterval,
@@ -143,10 +176,16 @@ actor NutritionClaudeProxyService {
             throw NutritionProxyError.missingAPIKey
         }
 
-        let blocks: [ProxyContentBlock] = [
-            .image(source: .init(type: "base64", mediaType: imageMediaType, data: imageBase64)),
-            .text(userMessage),
-        ]
+        var blocks: [ProxyContentBlock] = []
+        for image in images {
+            blocks.append(.image(source: .init(type: "base64", mediaType: image.mediaType, data: image.base64)))
+            if let hint = image.hint?.trimmingCharacters(in: .whitespacesAndNewlines), !hint.isEmpty {
+                blocks.append(.text(
+                    "(On-device text hint for the page above — may be imperfect or out of order; weigh it against the image):\n\(hint.prefix(4000))"
+                ))
+            }
+        }
+        blocks.append(.text(userMessage))
 
         let body = ProxyClaudeRequest(
             model: model,
@@ -264,6 +303,28 @@ struct NutritionProxyTextResponse: Content {
     let text: String
 }
 
+/// One image in a multi-image request.
+struct NutritionProxyImageInput: Content {
+    /// e.g. "image/jpeg", "image/png", "image/webp"
+    let mediaType: String
+    /// Base64-encoded image bytes (no data: prefix).
+    let base64: String
+}
+
+/// Several images in ONE Claude call — see `sendMultiImage`. `hintTexts`,
+/// when present, must be the same length as `images`; `nil`/absent entries
+/// simply mean "no hint for this page".
+struct NutritionProxyMultiImageRequest: Content {
+    let model: String
+    let system: String
+    let userMessage: String
+    let images: [NutritionProxyImageInput]
+    let hintTexts: [String?]
+    let maxTokens: Int
+    let temperature: Double
+    let caller: String
+}
+
 // MARK: - Errors
 
 enum NutritionProxyError: AbortError {
@@ -321,7 +382,9 @@ private struct ProxyMessage: Encodable {
         case let .text(s): s.count
         case let .blocks(blocks):
             blocks.reduce(0) { acc, b in
-                if case let .text(t) = b { return acc + t.count }
+                if case let .text(t) = b {
+                    return acc + t.count
+                }
                 return acc
             }
         }
