@@ -55,6 +55,7 @@ struct ContentView: View {
                         // sees an existing install's plan before any regen.
                         _ = ClearSkinFocusSetting.resolve(modelContext: modelContext)
                         handlePlanInputsChanged()
+                        rescheduleTrainerSessionReminders()
                     }
             } else {
                 OnboardingContainerView()
@@ -201,6 +202,31 @@ struct ContentView: View {
         ) { _ in
             handlePlanInputsChanged()
         }
+        // Fix #12 — trainer-session reminders follow the same real week the
+        // Training tab shows: a program edit, a settings toggle, or a logged
+        // workout can all change which of the next 7 days actually run a
+        // session (recovery/match pauses included). Debounced for the same
+        // reason as the nutrition regen above — `.tempoWorkoutChanged` in
+        // particular can fire several times in a row (each set logged).
+        .onReceive(
+            NotificationCenter.default.publisher(for: .tempoTrainingSettingsChanged)
+                .merge(with: NotificationCenter.default.publisher(for: .tempoWorkoutChanged))
+                .debounce(for: .seconds(1.0), scheduler: DispatchQueue.main)
+        ) { _ in
+            rescheduleTrainerSessionReminders()
+        }
+    }
+
+    /// Rebuilds the rolling 7-day window of trainer-session reminders. See
+    /// `TrainerSessionReminderScheduler`.
+    private func rescheduleTrainerSessionReminders() {
+        TrainerSessionReminderScheduler.reschedule(
+            notifications: services.notifications,
+            trainingEngine: services.trainingEngine,
+            whoop: services.whoop,
+            healthKit: services.healthKit,
+            modelContext: modelContext
+        )
     }
 
     /// Regenerates the active meal plan when its inputs fingerprint no longer
