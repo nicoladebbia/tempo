@@ -43,8 +43,74 @@ enum ExerciseMatcher {
             }
         }
 
-        return tokenOverlapMatch(query, in: library)
+        // Trainer shorthand ("SA DB OH Tricep Extension", "KT SL RDL"):
+        // expand abbreviations, then retry exact/alias before the fuzzy pass.
+        let expanded = expandShorthand(query)
+        if expanded != query {
+            if let exact = library.first(where: { normalize($0.name) == expanded }) {
+                return exact
+            }
+            if let canonical = aliases[expanded],
+               let aliased = library.first(where: { normalize($0.name) == normalize(canonical) })
+            {
+                return aliased
+            }
+        }
+
+        return tokenOverlapMatch(expanded, in: library)
     }
+
+    // MARK: - Shorthand
+
+    /// Abbreviations trainers write on sheets → words the library uses.
+    static let shorthand: [String: String] = [
+        "sa": "single arm", "sl": "single leg", "db": "dumbbell", "dbs": "dumbbell",
+        "kb": "kettlebell", "kt": "kettlebell", "bb": "barbell", "oh": "overhead",
+        "ohp": "overhead press", "rdl": "romanian deadlift", "lat": "lateral",
+        "ext": "extension", "iso": "isometric", "bw": "bodyweight",
+        "manubri": "dumbbell", "manubrio": "dumbbell", "bilanciere": "barbell",
+    ]
+
+    /// Expands shorthand tokens and singularizes simple plurals ("raises").
+    /// "lat" stays "lat" before pulldown/pull-down (lat pulldown).
+    static func expandShorthand(_ normalized: String) -> String {
+        let words = normalized
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+        var out: [String] = []
+        for (index, word) in words.enumerated() {
+            let next = index + 1 < words.count ? words[index + 1] : ""
+            if word == "lat", next.hasPrefix("pull") || next == "machine" {
+                out.append(word)
+            } else if let expansion = shorthand[word] {
+                out.append(expansion)
+            } else {
+                out.append(singular(word))
+            }
+        }
+        return out.joined(separator: " ")
+    }
+
+    private static func singular(_ word: String) -> String {
+        guard word.count > 4, word.hasSuffix("s"), !word.hasSuffix("ss") else {
+            return word
+        }
+        return String(word.dropLast())
+    }
+
+    /// Words that qualify HOW a lift is done (side, equipment, holds) rather
+    /// than WHICH lift it is. They don't count toward the required overlap —
+    /// "single arm dumbbell row" is a row — but they break ties, so a
+    /// dumbbell shoulder press prefers "Dumbbell Shoulder Press" over the
+    /// machine version.
+    private static let modifierTokens: Set<String> = [
+        "single", "arm", "leg", "unilateral", "alternating", "standing", "seated",
+        "kneeling", "half", "isometric", "hold", "ball", "squeeze", "bicep", "tempo",
+        "pause", "paused", "light", "heavy", "on", "position",
+    ]
+    private static let equipmentTokens: Set<String> = [
+        "dumbbell", "barbell", "kettlebell", "cable", "machine", "smith", "band", "bodyweight", "ez", "trap",
+    ]
 
     // MARK: - Normalization
 
@@ -71,32 +137,52 @@ enum ExerciseMatcher {
     /// happen to share one common word (e.g. "press").
     private static func tokenOverlapMatch(_ query: String, in library: [Candidate]) -> Candidate? {
         let queryTokens = tokens(query)
-        guard !queryTokens.isEmpty else {
+        let movementTokens = queryTokens.subtracting(modifierTokens).subtracting(equipmentTokens)
+        guard !movementTokens.isEmpty else {
             return nil
         }
+        let queryEquipment = queryTokens.intersection(equipmentTokens)
 
-        // Short queries (<=2 meaningful tokens) are too easy to false-positive
-        // on a single generic word — "band press" would otherwise share just
-        // "press" with "Overhead Press" and silently match the wrong lift.
-        // Require every token for a short query; longer queries can still
-        // match on a majority of their tokens.
-        let requiredOverlap = queryTokens.count <= 2
-            ? queryTokens.count
-            : Int((Double(queryTokens.count) / 2).rounded(.up))
+        // Short movement descriptions (<=2 words) must match fully — "band
+        // press" sharing only "press" with "Overhead Press" is not a match;
+        // longer ones can match on a majority of their movement words.
+        let requiredOverlap = movementTokens.count <= 2
+            ? movementTokens.count
+            : Int((Double(movementTokens.count) / 2).rounded(.up))
 
         var best: (candidate: Candidate, score: Double)?
         for candidate in library {
-            let candidateTokens = tokens(normalize(candidate.name))
+            let candidateTokens = tokens(expandShorthand(normalize(candidate.name)))
             guard !candidateTokens.isEmpty else {
                 continue
             }
-            let overlap = queryTokens.intersection(candidateTokens).count
-            guard overlap >= requiredOverlap else {
+            let movementOverlap = movementTokens.intersection(candidateTokens).count
+            guard movementOverlap >= requiredOverlap else {
                 continue
             }
-            let score = Double(overlap) / Double(queryTokens.count)
-            if best == nil
-                || score > best!.score
+            // Movement words dominate; shared qualifiers add a little; a
+            // candidate built on DIFFERENT equipment than the trainer wrote
+            // (machine vs dumbbell) is penalized; extra unrelated words in the
+            // candidate cost a little.
+            let candidateEquipment = candidateTokens.intersection(equipmentTokens)
+            // A one-word movement ("row", "press") is too generic on its own:
+            // when the trainer named the equipment, the candidate must use it
+            // ("band press" is not "Overhead Press"; "SA DB row" is the
+            // dumbbell row).
+            if movementTokens.count == 1, !queryEquipment.isEmpty,
+               queryEquipment.isDisjoint(with: candidateEquipment)
+            {
+                continue
+            }
+            let equipmentConflict = !queryEquipment.isEmpty && !candidateEquipment.isEmpty
+                && queryEquipment.isDisjoint(with: candidateEquipment)
+            let sharedAll = queryTokens.intersection(candidateTokens).count
+            let extra = candidateTokens.subtracting(queryTokens).count
+            let score = Double(movementOverlap) * 3
+                + Double(sharedAll - movementOverlap)
+                - (equipmentConflict ? 2 : 0)
+                - Double(extra) * 0.5
+            if best == nil || score > best!.score
                 || (score == best!.score && candidate.name.count < best!.candidate.name.count)
             {
                 best = (candidate, score)

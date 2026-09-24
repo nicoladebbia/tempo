@@ -89,4 +89,44 @@ final class ExerciseMatcherTests: XCTestCase {
     func testEmptyLibraryReturnsNil() {
         XCTAssertNil(ExerciseMatcher.match("bench", in: []))
     }
+
+    // MARK: - Real trainer shorthand (from a real program sheet)
+
+    private func realLibrary() throws -> [ExerciseMatcher.Candidate] {
+        struct Row: Decodable { let name: String }
+        let url = try XCTUnwrap(Bundle.main.url(forResource: "Exercises", withExtension: "json"))
+        return try JSONDecoder().decode([Row].self, from: Data(contentsOf: url))
+            .map { ExerciseMatcher.Candidate(id: UUID(), name: $0.name) }
+    }
+
+    func testRealSheetShorthandMatchesTheRightLibraryLift() throws {
+        let library = try realLibrary()
+        let expected: [String: String?] = [
+            "Leg Press": "Leg Press",
+            "SA Incline DB Chest Press": "Incline Dumbbell Press",
+            "Leg Curl": "Leg Curl",
+            "KT Lat Step Up": "Step-Up",
+            "SA DB Lat Raises": "Lateral Raise",
+            "KT Reverse Lunge": "Reverse Lunge",
+            "SA DB OH Tricep Extension": "Overhead Tricep Extension",
+            "SA DB Shoulder Press": "Dumbbell Shoulder Press",
+            "Leg Extension": "Leg Extension",
+            "SA DB Row": "Single-Arm Dumbbell Row",
+            "KT SL RDL": "Romanian Deadlift",
+            "SA DB Biceps Curl": "Dumbbell Curl",
+            "Glute Bridge ISO + Ball Squeezes": "Glute Bridge",
+            "SA Seated Cable Row": "Seated Cable Row",
+            // A genuinely different movement stays a custom exercise.
+            "SA KT Gorilla Row": nil,
+        ]
+        for (raw, want) in expected {
+            XCTAssertEqual(ExerciseMatcher.match(raw, in: library)?.name, want, raw)
+        }
+    }
+
+    func testShorthandExpansion() {
+        XCTAssertEqual(ExerciseMatcher.expandShorthand("sa db oh tricep extension"), "single arm dumbbell overhead tricep extension")
+        XCTAssertEqual(ExerciseMatcher.expandShorthand("lat pulldown"), "lat pulldown", "lat stays before pulldown")
+        XCTAssertEqual(ExerciseMatcher.expandShorthand("db lat raises"), "dumbbell lateral raise")
+    }
 }
