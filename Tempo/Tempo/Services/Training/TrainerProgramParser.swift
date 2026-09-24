@@ -133,11 +133,16 @@ enum TrainerProgramParser {
         var weeks: [ProgramWeek] = []
         for rawWeek in rawWeeks {
             let rawDays = rawWeek.days ?? []
-            let assignedWeekdays = assignWeekdays(rawDays.map(\.weekday))
+            let assignedWeekdays = assignWeekdays(rawDays.map { day in
+                day.weekday.flatMap { (1 ... 7).contains($0) ? $0 : nil }
+            })
             var days: [ProgramDay] = []
             for (index, rawDay) in rawDays.enumerated() {
-                let weekday = rawDay.weekday ?? assignedWeekdays[index]
-                if rawDay.weekday == nil {
+                // Out-of-range weekdays from the model (0, 8…) would make the
+                // day unreachable — treat them like a missing weekday.
+                let validWeekday = rawDay.weekday.flatMap { (1 ... 7).contains($0) ? $0 : nil }
+                let weekday = validWeekday ?? assignedWeekdays[index]
+                if validWeekday == nil {
                     autoAssigned = true
                 }
                 let exercises = (rawDay.exercises ?? []).compactMap(convert)

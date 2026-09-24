@@ -254,4 +254,11 @@ final class TrainerProgramParserTests: XCTestCase {
         XCTAssertEqual(parsed.weeks[0].days.first?.title, "W1D1")
         XCTAssertEqual(parsed.weeks[1].days.first?.title, "W2D1")
     }
+
+    func testOutOfRangeWeekdayIsReassignedNotLost() throws {
+        let json = #"{"name":"X","weeks":[{"days":[{"weekday":9,"exercises":[{"name":"Squat","sets":3,"reps_low":5}]}]}]}"#
+        let result = try TrainerProgramParser.parse(json)
+        let weekday = try XCTUnwrap(result.weeks.first?.days.first?.weekday)
+        XCTAssertTrue((1 ... 7).contains(weekday))
+    }
 }

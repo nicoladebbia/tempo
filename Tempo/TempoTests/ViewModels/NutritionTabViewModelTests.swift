@@ -190,7 +190,8 @@ final class NutritionTabViewModelTests: XCTestCase {
     /// time, so these reminder tests would fail on the clock, not the code.
     private func skipNearMidnight() throws {
         let hour = Calendar.current.component(.hour, from: Date())
-        try XCTSkipIf(hour >= 22, "HH:mm offsets wrap past midnight late at night")
+        // ±60-minute HH:mm offsets wrap across midnight from 22:00 to 01:59.
+        try XCTSkipIf(hour >= 22 || hour < 2, "HH:mm offsets wrap past midnight around midnight")
     }
 
     private func nextTimeString(addingMinutes minutes: Int) -> String {

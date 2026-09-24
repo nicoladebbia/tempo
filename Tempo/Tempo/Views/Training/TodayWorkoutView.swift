@@ -398,7 +398,9 @@ struct TodayWorkoutView: View {
                 .font(.tempoTitle1)
                 .foregroundStyle(Color.tempoTextPrimary)
 
-            if plan.programSessionKey != nil {
+            // Only while it's still a lifting day — if recovery eased it to
+            // rest/mobility, the session card explains; no trainer badge.
+            if plan.programSessionKey != nil, plan.type.isGymWorkout {
                 Label(plan.notes ?? "Trainer session", systemImage: "person.fill.checkmark")
                     .font(.tempoCaption1)
                     .foregroundStyle(Color.tempoSignal)

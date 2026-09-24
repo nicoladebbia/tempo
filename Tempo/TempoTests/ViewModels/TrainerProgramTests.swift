@@ -149,4 +149,35 @@ final class TrainerProgramTests: XCTestCase {
             60
         )
     }
+
+    // MARK: - Today row follows a newly activated program
+
+    func testActivatingAProgramReplacesAStalePlannedToday() throws {
+        let container = try TempoModelContainer.create(inMemory: true)
+        let context = container.mainContext
+        let vm = TrainingViewModel(
+            trainingEngine: TrainingEngine(), whoop: MockWhoopService(), healthKit: MockHealthKitService()
+        )
+        // Today already persisted as a generated gym day.
+        let first = vm.ensureTodayPlanPersisted(modelContext: context).plan
+        first.type = .push
+        try context.save()
+
+        // A program that trains only on a weekday that isn't today.
+        let todayWeekday = TrainerProgram.isoWeekday(of: Date())
+        let otherWeekday = todayWeekday == 1 ? 2 : 1
+        context.insert(TrainerProgram(
+            name: "PT", startDate: Date(),
+            weeks: [ProgramWeek(days: [day(otherWeekday, "legs")])],
+            sourceKind: "text"
+        ))
+        try context.save()
+
+        vm.loadWeekPlan(modelContext: context)
+        let resolved = vm.ensureTodayPlanPersisted(modelContext: context).plan
+
+        XCTAssertNotEqual(resolved.type, .push, "stale generated push day was replaced")
+        XCTAssertFalse(resolved.type.isGymWorkout, "not a program day → no lifting")
+        XCTAssertTrue(vm.weekPlans.contains { $0 === resolved }, "Week Plan shows the same object as Today")
+    }
 }

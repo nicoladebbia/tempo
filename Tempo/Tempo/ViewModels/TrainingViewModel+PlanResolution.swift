@@ -122,7 +122,10 @@ extension TrainingViewModel {
             // Pathological calendar — fall through to a fresh generate.
             return generateAndPersist(for: today, modelContext: modelContext)
         }
-        let weekPlanForToday = weekPlans.first { Calendar.current.isDate($0.date, inSameDayAs: today) }
+        // Compare against the fresh template, not the merged week (which
+        // already holds the persisted row for today — see `todayTemplate`).
+        let weekPlanForToday = todayTemplate
+            ?? weekPlans.first { Calendar.current.isDate($0.date, inSameDayAs: today) }
 
         // RANGE predicate (not `== today`) so we also catch any legacy row
         // persisted with a non-midnight date. The Dashboard's Move quadrant
@@ -184,6 +187,7 @@ extension TrainingViewModel {
                 populateExercises(for: canonical, modelContext: modelContext)
                 modelContext.insert(canonical)
                 try? modelContext.save()
+                spliceTodayIntoWeek(canonical)
                 return ResolvedTodayPlan(plan: canonical, isCrashedInProgress: false)
             }
             // Keep it — matches the Week Plan type, OR holds real training
@@ -233,10 +237,19 @@ extension TrainingViewModel {
             populateExercises(for: canonical, modelContext: modelContext)
             modelContext.insert(canonical)
             try? modelContext.save()
+            spliceTodayIntoWeek(canonical)
             return ResolvedTodayPlan(plan: canonical, isCrashedInProgress: false)
         }
 
         return generateAndPersist(for: today, modelContext: modelContext)
+    }
+
+    /// Keep Week Plan on the same object as Today after today's row is
+    /// (re)created from the template.
+    private func spliceTodayIntoWeek(_ plan: WorkoutPlan) {
+        if let index = weekPlans.firstIndex(where: { Calendar.current.isDate($0.date, inSameDayAs: plan.date) }) {
+            weekPlans[index] = plan
+        }
     }
 
     /// Single-day generate-and-persist fallback used when the Week Plan
