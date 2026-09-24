@@ -3,11 +3,14 @@
 // Tempo
 //
 // Edit-before-save for an imported Trainer Program: program name, start
-// date, repeats, then per-week -> per-day (weekday/title/focus/notes) ->
-// per-exercise (name with a live library-match indicator, sets/reps/weight/
-// RPE/%1RM/rest/superset group/notes, move/remove). Save resolves any
-// still-unmatched exercise into a custom library entry (TrainerProgramSaver),
-// deactivates any other active program, and posts
+// date, repeats, then per-week -> per-day (weekday/title/focus incl.
+// conditioning/notes) -> per-exercise. A strength day edits sets/reps/
+// weight/RPE/%1RM/rest/superset group/per-side/notes; a conditioning day
+// (focus run/sprint/conditioning/pool/mobility) edits a free-text `detail`
+// prescription instead of sets x reps. Two days can share a weekday (a lift
+// + a conditioning session) — shown as "Lift + conditioning". Save resolves
+// any still-unmatched exercise into a custom library entry
+// (TrainerProgramSaver), deactivates any other active program, and posts
 // `.tempoTrainingSettingsChanged` so the plan regenerates.
 //
 
@@ -42,6 +45,10 @@ struct TrainerProgramReviewView: View {
     private var autoAssignedWeekdays: Bool
     @State
     private var saveError: String?
+    /// Weekday-less sessions are placed around football once, on appear
+    /// (UserSettings isn't available at init).
+    @State
+    private var didPlaceAroundFootball = false
 
     init(
         parsed: TrainerProgramParser.ParsedProgram,
@@ -67,16 +74,26 @@ struct TrainerProgramReviewView: View {
     }
 
     var body: some View {
+        reviewContent
+            .task {
+                guard !didPlaceAroundFootball else {
+                    return
+                }
+                didPlaceAroundFootball = true
+                let football = ProgramScheduler.isoWeekdays(of: userSettings.first?.footballDays ?? ActiveDays(rawValue: 0))
+                weeks = ProgramScheduler.place(weeks: weeks, footballWeekdays: football)
+            }
+    }
+
+    private var reviewContent: some View {
         NavigationStack {
             Form {
                 programSection
                 if autoAssignedWeekdays {
                     Section {
-                        Text(
-                            "Some days had no weekday in the source — Tempo spread them across the week (Mon/Wed/Fri style). Change any day below."
-                        )
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        Text("We placed these around your football — change any day.")
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoTextSecondary)
                     }
                 }
                 ForEach($weeks) { $week in
@@ -198,6 +215,7 @@ private struct WeekEditorSection: View {
             ForEach($week.days) { $day in
                 DayEditorView(
                     day: $day,
+                    pairedSessionLabel: pairedSessionLabel(for: day),
                     libraryExercises: libraryExercises,
                     weightUnit: weightUnit,
                     onRemoveDay: { removeDay(day.id) }
@@ -220,6 +238,17 @@ private struct WeekEditorSection: View {
         }
     }
 
+    /// Two sessions land on the same weekday when a trainer schedules a
+    /// lift + a conditioning session on the same day — call that out rather
+    /// than let it read as an accidental duplicate.
+    private func pairedSessionLabel(for day: ProgramDay) -> String? {
+        let sameWeekday = week.days.filter { $0.weekday == day.weekday }
+        guard sameWeekday.count == 2 else {
+            return nil
+        }
+        return "Lift + conditioning"
+    }
+
     private func addDay() {
         let used = Set(week.days.map(\.weekday))
         let nextWeekday = (1 ... 7).first { !used.contains($0) } ?? 1
@@ -236,11 +265,20 @@ private struct WeekEditorSection: View {
 private struct DayEditorView: View {
     @Binding
     var day: ProgramDay
+    /// "Lift + conditioning" when another day shares this weekday — nil
+    /// otherwise.
+    let pairedSessionLabel: String?
     let libraryExercises: [Exercise]
     let weightUnit: WeightUnit
     let onRemoveDay: () -> Void
 
-    private static let gymWorkoutTypes = WorkoutType.allCases.filter(\.isGymWorkout)
+    /// Every focus a trainer program can carry — strength and conditioning
+    /// — excluding rest/football, which aren't sessions a program schedules.
+    private static let focusTypes = WorkoutType.allCases.filter { $0 != .rest && $0 != .football }
+
+    private var isConditioning: Bool {
+        !day.isStrength
+    }
 
     var body: some View {
         DisclosureGroup {
@@ -249,12 +287,16 @@ private struct DayEditorView: View {
                     Text(TrainerProgramView.shortWeekdayName(weekday)).tag(weekday)
                 }
             }
+            // The user chose this day — it's no longer an auto-placement.
+            .onChange(of: day.weekday) { _, _ in
+                day.weekdayGuessed = false
+            }
 
             TextField("Day title (optional)", text: stringBinding(for: $day.title))
 
             Picker("Focus", selection: $day.focus) {
                 Text("None").tag(String?.none)
-                ForEach(Self.gymWorkoutTypes, id: \.self) { type in
+                ForEach(Self.focusTypes, id: \.self) { type in
                     Text(type.displayName).tag(String?.some(type.rawValue))
                 }
             }
@@ -264,6 +306,7 @@ private struct DayEditorView: View {
             ForEach($day.exercises) { $exercise in
                 ExerciseRowEditor(
                     exercise: $exercise,
+                    isConditioning: isConditioning,
                     libraryExercises: libraryExercises,
                     weightUnit: weightUnit,
                     canMoveUp: canMove(exercise.id, delta: -1),
@@ -284,9 +327,22 @@ private struct DayEditorView: View {
                 .font(.tempoCaption1)
         } label: {
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(TrainerProgramView.shortWeekdayName(day.weekday)) — \(day.title ?? (day.workoutType.displayName))")
-                    .font(.tempoBodyBold)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                HStack(spacing: TempoSpacing.xs) {
+                    Text("\(TrainerProgramView.shortWeekdayName(day.weekday)) — \(day.title ?? (day.workoutType.displayName))")
+                        .font(.tempoBodyBold)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                    if day.weekdayGuessed == true {
+                        Image(systemName: "wand.and.stars")
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoWarning)
+                            .accessibilityLabel("Day auto-placed")
+                    }
+                }
+                if let pairedSessionLabel {
+                    Text(pairedSessionLabel)
+                        .font(.tempoCaption2.weight(.semibold))
+                        .foregroundStyle(Color.tempoSignal)
+                }
                 Text("\(day.exercises.count) exercise\(day.exercises.count == 1 ? "" : "s")")
                     .font(.tempoCaption2)
                     .foregroundStyle(Color.tempoTextTertiary)
@@ -298,15 +354,16 @@ private struct DayEditorView: View {
         day.exercises.append(ProgramExercise(
             name: "",
             exerciseID: nil,
-            sets: 3,
-            repsLow: 10,
+            sets: isConditioning ? 1 : 3,
+            repsLow: isConditioning ? 1 : 10,
             repsHigh: nil,
             weightKg: nil,
             rpe: nil,
             percentOf1RM: nil,
-            restSeconds: 90,
+            restSeconds: isConditioning ? nil : 90,
             group: nil,
-            notes: nil
+            notes: nil,
+            detail: isConditioning ? "" : nil
         ))
     }
 
@@ -339,6 +396,9 @@ private struct DayEditorView: View {
 private struct ExerciseRowEditor: View {
     @Binding
     var exercise: ProgramExercise
+    /// A conditioning day (run/sprint/conditioning/pool/mobility) edits a
+    /// free-text `detail` prescription instead of sets x reps/weight/%1RM.
+    let isConditioning: Bool
     let libraryExercises: [Exercise]
     let weightUnit: WeightUnit
     let canMoveUp: Bool
@@ -364,6 +424,7 @@ private struct ExerciseRowEditor: View {
 
     init(
         exercise: Binding<ProgramExercise>,
+        isConditioning: Bool,
         libraryExercises: [Exercise],
         weightUnit: WeightUnit,
         canMoveUp: Bool,
@@ -373,6 +434,7 @@ private struct ExerciseRowEditor: View {
         onRemove: @escaping () -> Void
     ) {
         _exercise = exercise
+        self.isConditioning = isConditioning
         self.libraryExercises = libraryExercises
         self.weightUnit = weightUnit
         self.canMoveUp = canMoveUp
@@ -423,40 +485,60 @@ private struct ExerciseRowEditor: View {
 
             matchIndicator
 
-            HStack(spacing: TempoSpacing.md) {
-                labeledField("Sets") {
-                    TextField("sets", text: $setsText)
-                        .keyboardType(.numberPad)
-                        .onChange(of: setsText) { _, newValue in
-                            if let parsed = Int(newValue), parsed > 0 {
-                                exercise.sets = parsed
+            if isConditioning {
+                labeledField("Prescription") {
+                    TextField("e.g. 35' — 2' slow / 1' fast / 30\" walk", text: stringBinding(for: $exercise.detail), axis: .vertical)
+                        .lineLimit(2 ... 4)
+                }
+                HStack(spacing: TempoSpacing.md) {
+                    labeledField("RPE") { TextField("rpe", text: stringBinding(for: $exercise.rpe)).keyboardType(.decimalPad) }
+                    labeledField("Rest (sec)") {
+                        TextField("rest", text: stringBinding(for: $exercise.restSeconds)).keyboardType(.numberPad)
+                    }
+                    labeledField("Superset #") { TextField("group", text: stringBinding(for: $exercise.group)).keyboardType(.numberPad) }
+                }
+            } else {
+                HStack(spacing: TempoSpacing.md) {
+                    labeledField("Sets") {
+                        TextField("sets", text: $setsText)
+                            .keyboardType(.numberPad)
+                            .onChange(of: setsText) { _, newValue in
+                                if let parsed = Int(newValue), parsed > 0 {
+                                    exercise.sets = parsed
+                                }
                             }
-                        }
-                }
-                labeledField("Reps low") {
-                    TextField("low", text: $repsLowText)
-                        .keyboardType(.numberPad)
-                        .onChange(of: repsLowText) { _, newValue in
-                            if let parsed = Int(newValue), parsed > 0 {
-                                exercise.repsLow = parsed
+                    }
+                    labeledField("Reps low") {
+                        TextField("low", text: $repsLowText)
+                            .keyboardType(.numberPad)
+                            .onChange(of: repsLowText) { _, newValue in
+                                if let parsed = Int(newValue), parsed > 0 {
+                                    exercise.repsLow = parsed
+                                }
                             }
-                        }
+                    }
+                    labeledField("Reps high") { TextField("high", text: stringBinding(for: $exercise.repsHigh)).keyboardType(.numberPad) }
                 }
-                labeledField("Reps high") { TextField("high", text: stringBinding(for: $exercise.repsHigh)).keyboardType(.numberPad) }
-            }
 
-            HStack(spacing: TempoSpacing.md) {
-                labeledField("Weight (\(weightUnit.abbreviation))") {
-                    TextField("weight", text: weightBinding(kgValue: $exercise.weightKg, unit: weightUnit))
-                        .keyboardType(.decimalPad)
+                Toggle("Per side (e.g. \"8+8\")", isOn: perSideBinding($exercise.perSide))
+                    .font(.tempoCaption1)
+                    .tint(Color.tempoSignal)
+
+                HStack(spacing: TempoSpacing.md) {
+                    labeledField("Weight (\(weightUnit.abbreviation))") {
+                        TextField("weight", text: weightBinding(kgValue: $exercise.weightKg, unit: weightUnit))
+                            .keyboardType(.decimalPad)
+                    }
+                    labeledField("RPE") { TextField("rpe", text: stringBinding(for: $exercise.rpe)).keyboardType(.decimalPad) }
+                    labeledField("% 1RM") { TextField("pct", text: percentBinding($exercise.percentOf1RM)).keyboardType(.numberPad) }
                 }
-                labeledField("RPE") { TextField("rpe", text: stringBinding(for: $exercise.rpe)).keyboardType(.decimalPad) }
-                labeledField("% 1RM") { TextField("pct", text: percentBinding($exercise.percentOf1RM)).keyboardType(.numberPad) }
-            }
 
-            HStack(spacing: TempoSpacing.md) {
-                labeledField("Rest (sec)") { TextField("rest", text: stringBinding(for: $exercise.restSeconds)).keyboardType(.numberPad) }
-                labeledField("Superset #") { TextField("group", text: stringBinding(for: $exercise.group)).keyboardType(.numberPad) }
+                HStack(spacing: TempoSpacing.md) {
+                    labeledField("Rest (sec)") {
+                        TextField("rest", text: stringBinding(for: $exercise.restSeconds)).keyboardType(.numberPad)
+                    }
+                    labeledField("Superset #") { TextField("group", text: stringBinding(for: $exercise.group)).keyboardType(.numberPad) }
+                }
             }
 
             TextField("Notes (optional)", text: stringBinding(for: $exercise.notes))
@@ -603,6 +685,15 @@ private func stringBinding(for value: Binding<Double?>) -> Binding<String> {
             let cleaned = newText.replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespaces)
             value.wrappedValue = cleaned.isEmpty ? nil : Double(cleaned)
         }
+    )
+}
+
+/// `perSide` is `Bool?` (nil = not per-side); the toggle only cares about
+/// true/false and always writes an explicit value, never nil.
+private func perSideBinding(_ value: Binding<Bool?>) -> Binding<Bool> {
+    Binding<Bool>(
+        get: { value.wrappedValue ?? false },
+        set: { newValue in value.wrappedValue = newValue }
     )
 }
 

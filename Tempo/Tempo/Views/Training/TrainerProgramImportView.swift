@@ -2,11 +2,21 @@
 // TrainerProgramImportView.swift
 // Tempo
 //
-// Source picker for a Trainer Program import: Camera, Photos (several
-// images = several pages), PDF, or pasted text. Extraction runs on-device
-// (ProgramTextExtractor); structuring calls the Sonnet proxy
-// (TrainerProgramImportService) and hands the result to
-// TrainerProgramReviewView for edit-before-save.
+// Multi-source intake for a Trainer Program import: the athlete adds several
+// sources to ONE import (e.g. "LIFT SESSIONS.pdf" + "CONDITIONING
+// SESSIONS.pdf"), sees them listed with remove buttons, then taps "Read
+// Program" to run the pipeline:
+//   NORMALIZE (TrainerProgramSourceNormalizer) — every source becomes page
+//     images (+ on-device text hints) or, for already-digital text, plain
+//     text that skips straight to structuring.
+//   TRANSCRIBE (TrainerProgramPageTranscriber) — every page image goes
+//     through the Sonnet vision proxy for a faithful row-by-row
+//     transcription; on-device OCR alone drops small table cells on real
+//     trainer sheets, which is why this step exists at all.
+//   STRUCTURE (TrainerProgramImportService / TrainerProgramParser) — the
+//     combined transcript is parsed into a program via the Sonnet text
+//     proxy, same as before.
+// TrainerProgramReviewView takes it from there for edit-before-save.
 //
 
 import PDFKit
@@ -27,7 +37,12 @@ struct TrainerProgramImportView: View {
     private var importService: TrainerProgramImportService?
 
     @State
+    private var sources: [ProgramImportSource] = []
+
+    @State
     private var isProcessing = false
+    @State
+    private var importTask: Task<Void, Never>?
     @State
     private var processingLabel = "Reading your program…"
     @State
@@ -38,12 +53,27 @@ struct TrainerProgramImportView: View {
     @State
     private var photosSelection: [PhotosPickerItem] = []
     @State
-    private var showPDFImporter = false
+    private var showFileImporter = false
     @State
-    private var pastedText = ""
+    private var showPasteSheet = false
 
     @State
     private var reviewPayload: ReviewPayload?
+
+    /// Fetched on appear (fix #1's quota UI). Nil while loading/unknown —
+    /// the screen doesn't block on it, it just doesn't show the "N free
+    /// imports left" line until it lands.
+    @State
+    private var quota: ProgramImportQuotaResponseDTO?
+    @State
+    private var showPaywall = false
+    /// Set when the free-tier monthly quota is exhausted, either up front
+    /// (button tap, before starting the pipeline) or from a 402 the
+    /// transcribe/structure calls return mid-import (e.g. a second device
+    /// on the same account used the last slot). Shown instead of the plain
+    /// `errorMessage` because it needs the "Upgrade" CTA.
+    @State
+    private var quotaExceededMessage: String?
 
     /// Bundles what TrainerProgramReviewView needs — a single Identifiable
     /// item keeps the sheet presentation simple.
@@ -68,7 +98,13 @@ struct TrainerProgramImportView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        // Stop any in-flight reading (page transcriptions and the
+                        // structure call are network requests — don't let them
+                        // run on, and bill, after the sheet is gone).
+                        importTask?.cancel()
+                        dismiss()
+                    }
                 }
             }
         }
@@ -79,19 +115,29 @@ struct TrainerProgramImportView: View {
             if importService == nil {
                 importService = TrainerProgramImportService(apiClient: services.apiClient)
             }
+            Task { await loadQuota() }
+        }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
         }
         .sheet(isPresented: $showCameraPicker) {
             TrainerProgramImagePicker(sourceType: .camera) { image in
                 showCameraPicker = false
                 if let image {
-                    Task { await processImages([image]) }
+                    addSource(.init(displayName: "Photo \(sources.count + 1)", payload: .image(image)))
                 }
             }
         }
-        .fileImporter(isPresented: $showPDFImporter, allowedContentTypes: [.pdf]) { result in
+        .fileImporter(
+            isPresented: $showFileImporter,
+            allowedContentTypes: TrainerProgramSourceNormalizer.allowedContentTypes,
+            allowsMultipleSelection: true
+        ) { result in
             switch result {
-            case let .success(url):
-                Task { await processPDF(at: url) }
+            case let .success(urls):
+                for url in urls {
+                    addSource(.init(displayName: url.lastPathComponent, payload: .fileURL(url)))
+                }
             case let .failure(error):
                 errorMessage = error.localizedDescription
             }
@@ -101,6 +147,11 @@ struct TrainerProgramImportView: View {
                 return
             }
             Task { await loadPhotos(newItems) }
+        }
+        .sheet(isPresented: $showPasteSheet) {
+            PasteTextSheet { text in
+                addSource(.init(displayName: "Pasted text \(sources.count + 1)", payload: .pastedText(text)))
+            }
         }
         .sheet(item: $reviewPayload) { payload in
             TrainerProgramReviewView(
@@ -125,13 +176,37 @@ struct TrainerProgramImportView: View {
                         .font(.tempoTitle3)
                         .foregroundStyle(Color.tempoTextPrimary)
                         .multilineTextAlignment(.center)
-                    Text("Photo of a sheet or whiteboard, a PDF, or paste the text. Tempo reads it and you review before it goes live.")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .multilineTextAlignment(.center)
+                    Text(
+                        "Add every sheet your coach sent — photos, PDFs, Word/Excel files, or pasted text. Tempo reads them all as one program and you review before it goes live."
+                    )
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                    .multilineTextAlignment(.center)
                 }
                 .padding(.top, TempoSpacing.xl)
                 .padding(.horizontal, TempoSpacing.xl)
+
+                if let quotaBanner {
+                    Text(quotaBanner)
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, TempoSpacing.xl)
+                }
+
+                if let quotaExceededMessage {
+                    VStack(spacing: TempoSpacing.sm) {
+                        Text(quotaExceededMessage)
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoError)
+                            .multilineTextAlignment(.center)
+                        Button("Upgrade to Tempo Pro") {
+                            showPaywall = true
+                        }
+                        .buttonStyle(.tempoSecondary)
+                    }
+                    .padding(.horizontal, TempoSpacing.xl)
+                }
 
                 if let errorMessage {
                     Text(errorMessage)
@@ -141,36 +216,28 @@ struct TrainerProgramImportView: View {
                         .padding(.horizontal, TempoSpacing.xl)
                 }
 
-                VStack(spacing: TempoSpacing.md) {
+                if !sources.isEmpty {
+                    sourceListSection
+                }
+
+                addSourceButtons
+
+                if !sources.isEmpty {
                     Button {
-                        showCameraPicker = true
+                        guard !isQuotaExhausted else {
+                            quotaExceededMessage = quotaExhaustedMessage
+                            return
+                        }
+                        quotaExceededMessage = nil
+                        importTask?.cancel()
+                        importTask = Task { await readProgram() }
                     } label: {
-                        Label("Take Photo", systemImage: "camera.fill")
+                        Text("Read Program")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.tempoPrimary)
-
-                    PhotosPicker(
-                        selection: $photosSelection,
-                        maxSelectionCount: 10,
-                        matching: .images
-                    ) {
-                        Label("Choose Photos", systemImage: "photo.on.rectangle")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.tempoSecondary)
-
-                    Button {
-                        showPDFImporter = true
-                    } label: {
-                        Label("Choose PDF", systemImage: "doc.richtext")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.tempoSecondary)
+                    .padding(.horizontal, TempoSpacing.screenEdge)
                 }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-
-                pasteSection
 
                 #if DEBUG
                     Button("Load Sample Program (DEBUG)") {
@@ -185,33 +252,75 @@ struct TrainerProgramImportView: View {
         }
     }
 
-    private var pasteSection: some View {
+    // MARK: - Added sources list
+
+    private var sourceListSection: some View {
         VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("OR PASTE TEXT")
+            Text("SOURCES")
                 .font(.tempoCaption2.weight(.bold))
                 .foregroundStyle(Color.tempoTextTertiary)
 
-            TextEditor(text: $pastedText)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .scrollContentBackground(.hidden)
-                .padding(TempoSpacing.sm)
-                .frame(minHeight: 140)
-                .background(Color.tempoInputBgDark.opacity(TempoOpacity.o40))
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl))
-                .overlay(
-                    RoundedRectangle(cornerRadius: TempoRadius.xl)
-                        .stroke(Color.tempoBorder, lineWidth: 1)
-                )
+            ForEach(sources) { source in
+                HStack(spacing: TempoSpacing.sm) {
+                    Image(systemName: source.systemImage)
+                        .foregroundStyle(Color.tempoViolet)
+                        .frame(width: 24)
+                    Text(source.displayName)
+                        .font(.tempoBody)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                        .lineLimit(1)
+                    Spacer()
+                    Button {
+                        removeSource(source.id)
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(Color.tempoTextTertiary)
+                    }
+                    .accessibilityLabel("Remove \(source.displayName)")
+                }
+                .padding(TempoSpacing.cardPaddingCompact)
+                .background(Color.tempoSurfaceCard)
+                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg))
+            }
+        }
+        .padding(.horizontal, TempoSpacing.screenEdge)
+    }
 
+    private var addSourceButtons: some View {
+        VStack(spacing: TempoSpacing.md) {
             Button {
-                Task { await processPastedText() }
+                showCameraPicker = true
             } label: {
-                Text("Structure This Program")
+                Label("Take Photo", systemImage: "camera.fill")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.tempoPrimary)
-            .disabled(pastedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+            PhotosPicker(
+                selection: $photosSelection,
+                maxSelectionCount: 10,
+                matching: .images
+            ) {
+                Label("Choose Photos", systemImage: "photo.on.rectangle")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.tempoSecondary)
+
+            Button {
+                showFileImporter = true
+            } label: {
+                Label("Choose Files", systemImage: "doc.badge.plus")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.tempoSecondary)
+
+            Button {
+                showPasteSheet = true
+            } label: {
+                Label("Paste Text", systemImage: "text.alignleft")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.tempoSecondary)
         }
         .padding(.horizontal, TempoSpacing.screenEdge)
     }
@@ -225,143 +334,305 @@ struct TrainerProgramImportView: View {
         }
     }
 
-    // MARK: - Pipeline
+    // MARK: - Source list mutation
 
-    private func processImages(_ images: [UIImage]) async {
+    private func addSource(_ source: ProgramImportSource) {
+        sources.append(source)
         errorMessage = nil
-        isProcessing = true
-        processingLabel = "Reading your program…"
-        defer { isProcessing = false }
-        do {
-            let text = try await ProgramTextExtractor.extractText(from: images)
-            await structure(text: text, sourceKind: "photo")
-        } catch {
-            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-        }
+    }
+
+    private func removeSource(_ id: UUID) {
+        sources.removeAll { $0.id == id }
     }
 
     private func loadPhotos(_ items: [PhotosPickerItem]) async {
         errorMessage = nil
-        isProcessing = true
-        processingLabel = "Loading photos…"
-        var images: [UIImage] = []
+        var loaded: [ProgramImportSource] = []
         for item in items {
             if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
-                images.append(image)
+                loaded.append(.init(displayName: "Photo \(sources.count + loaded.count + 1)", payload: .image(image)))
             }
         }
         photosSelection = []
-        guard !images.isEmpty else {
-            isProcessing = false
+        guard !loaded.isEmpty else {
             errorMessage = "Couldn't load those photos."
             return
         }
-        isProcessing = false
-        await processImages(images)
+        sources.append(contentsOf: loaded)
     }
 
-    private func processPDF(at url: URL) async {
-        errorMessage = nil
-        isProcessing = true
-        processingLabel = "Reading your PDF…"
-        defer { isProcessing = false }
+    // MARK: - Quota
+
+    private func loadQuota() async {
         do {
-            let text = try await ProgramTextExtractor.extractText(fromPDFAt: url)
-            await structure(text: text, sourceKind: "pdf")
+            let response: ProgramImportQuotaResponseDTO = try await services.apiClient.request(
+                APIEndpoint<ProgramImportQuotaResponseDTO>.trainerProgramImportQuota()
+            )
+            quota = response
         } catch {
-            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            // Non-fatal — the screen works fine without the quota line; a
+            // signed-out/network hiccup here shouldn't block adding sources.
         }
     }
 
-    private func processPastedText() async {
-        let trimmed = pastedText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            return
+    private var quotaBanner: String? {
+        guard let quota, !quota.isPro, let remaining = quota.remaining else {
+            return nil
         }
-        errorMessage = nil
-        isProcessing = true
-        processingLabel = "Structuring your program…"
-        defer { isProcessing = false }
-        await structure(text: trimmed, sourceKind: "text")
+        return remaining == 1 ? "1 free import left this month" : "\(remaining) free imports left this month"
     }
 
-    /// Sends already-extracted/pasted text to the Sonnet proxy and, on
-    /// success, opens the review sheet. Signed-out users get a plain
-    /// explanation — AI structuring genuinely needs a session.
-    private func structure(text: String, sourceKind: String) async {
+    private var isQuotaExhausted: Bool {
+        guard let quota, !quota.isPro, let remaining = quota.remaining else {
+            return false
+        }
+        return remaining <= 0
+    }
+
+    private var quotaExhaustedMessage: String {
+        let limit = quota?.limit ?? 2
+        return "You've used your \(limit) free trainer-program imports this month. Upgrade to Tempo Pro for unlimited imports."
+    }
+
+    /// Extracts the quota-exceeded fields from whatever wrapper the
+    /// transcribe/structure steps threw it in (`TrainerProgramPageTranscriber
+    /// .TranscribeError.api`, `TrainerProgramImportService.ImportError.api`,
+    /// or a raw `APIError`) — a 402 can arrive mid-import too (e.g. another
+    /// device on the same account used the last slot first).
+    private func quotaExceededDetail(from error: Error) -> APIError? {
+        var candidate: APIError?
+        if let transcribeError = error as? TrainerProgramPageTranscriber.TranscribeError,
+           case let .api(apiError) = transcribeError
+        {
+            candidate = apiError
+        } else if let importError = error as? TrainerProgramImportService.ImportError,
+                  case let .api(apiError) = importError
+        {
+            candidate = apiError
+        } else if let apiError = error as? APIError {
+            candidate = apiError
+        }
+        if let candidate, case .programImportQuotaExceeded = candidate {
+            return candidate
+        }
+        return nil
+    }
+
+    // MARK: - Pipeline
+
+    /// NORMALIZE -> TRANSCRIBE -> STRUCTURE, driven from the current
+    /// `sources` list. Progress narrates the transcription step ("Reading
+    /// pages 6–10 of 12…") since that's the slow, per-batch part. One
+    /// `sessionID` is generated per import and shared by every TRANSCRIBE
+    /// batch + the STRUCTURE call, so the backend counts retries/multiple
+    /// batches as a single quota slot (fix #1/#2).
+    private func readProgram() async {
         guard let importService else {
             errorMessage = "Not ready yet — try again."
             return
         }
+        errorMessage = nil
+        quotaExceededMessage = nil
         isProcessing = true
-        processingLabel = "Structuring your program…"
+        processingLabel = "Reading your sources…"
         defer { isProcessing = false }
+        let sessionID = UUID().uuidString
         do {
-            let parsed = try await importService.structureProgram(from: text)
-            reviewPayload = ReviewPayload(parsed: parsed, sourceKind: sourceKind, sourceText: text)
+            let units = try await TrainerProgramSourceNormalizer.normalize(sources)
+            try Task.checkCancellation()
+            let transcript = try await TrainerProgramPageTranscriber.transcribe(
+                units: units,
+                apiClient: services.apiClient,
+                sessionID: sessionID,
+                onProgress: { startPage, endPage, total in
+                    Task { @MainActor in
+                        processingLabel = startPage == endPage
+                            ? "Reading page \(startPage) of \(total)…"
+                            : "Reading pages \(startPage)–\(endPage) of \(total)…"
+                    }
+                }
+            )
+            try Task.checkCancellation()
+            processingLabel = "Structuring your program…"
+            let parsed = try await importService.structureProgram(from: transcript, sessionID: sessionID)
+            try Task.checkCancellation()
+            reviewPayload = ReviewPayload(parsed: parsed, sourceKind: sourceKindLabel, sourceText: transcript)
+            await loadQuota()
+        } catch is CancellationError {
+            // Cancelled by the user — nothing to report.
         } catch {
-            errorMessage = (error as? LocalizedError)?.errorDescription ?? "Something went wrong reading that program."
+            if quotaExceededDetail(from: error) != nil {
+                quotaExceededMessage = message(for: error)
+                await loadQuota()
+            } else {
+                errorMessage = message(for: error)
+            }
         }
+    }
+
+    private var sourceKindLabel: String {
+        guard sources.count == 1, let only = sources.first else {
+            return "multi"
+        }
+        switch only.payload {
+        case .image:
+            return "photo"
+        case .pastedText:
+            return "text"
+        case let .fileURL(url):
+            switch TrainerProgramSourceNormalizer.routingKind(for: url) {
+            case .pdf,
+                 .officeConvertible:
+                return "pdf"
+            case .image:
+                return "photo"
+            case .text:
+                return "text"
+            }
+        }
+    }
+
+    private func message(for error: Error) -> String {
+        if let error = error as? LocalizedError, let description = error.errorDescription {
+            return description
+        }
+        return "Something went wrong reading that program."
     }
 
     #if DEBUG
         /// DEBUG-only path so the review screen (and the rest of the save flow)
         /// can be exercised in the simulator without a signed-in AI call.
+        /// Mirrors a realistic two-file program: 2 lift sessions with A/A
+        /// supersets, 3 conditioning sessions, all with weekday null (Tempo
+        /// places them) — the same shape as a real coach's PDF pair.
         private func loadSample() {
-            let sample = TrainerProgramParser.ParsedProgram(
-                name: "Coach Marco — Push/Pull/Legs",
-                weeks: [
-                    ProgramWeek(days: [
-                        ProgramDay(
-                            weekday: 1,
-                            title: "Push",
-                            focus: WorkoutType.push.rawValue,
-                            exercises: [
-                                ProgramExercise(
-                                    name: "Bench Press", exerciseID: nil, sets: 4, repsLow: 6, repsHigh: 8,
-                                    weightKg: 80, rpe: 8, percentOf1RM: nil, restSeconds: 120, group: nil, notes: nil
-                                ),
-                                ProgramExercise(
-                                    name: "Overhead Press", exerciseID: nil, sets: 3, repsLow: 8, repsHigh: 10,
-                                    weightKg: nil, rpe: nil, percentOf1RM: 0.7, restSeconds: 90, group: nil, notes: nil
-                                ),
-                            ],
-                            notes: nil
-                        ),
-                        ProgramDay(
-                            weekday: 3,
-                            title: "Pull",
-                            focus: WorkoutType.pull.rawValue,
-                            exercises: [
-                                ProgramExercise(
-                                    name: "Lat Pulldown", exerciseID: nil, sets: 4, repsLow: 10, repsHigh: 12,
-                                    weightKg: nil, rpe: nil, percentOf1RM: nil, restSeconds: 90, group: nil, notes: nil
-                                ),
-                            ],
-                            notes: nil
-                        ),
-                        ProgramDay(
-                            weekday: 5,
-                            title: "Legs",
-                            focus: WorkoutType.legs.rawValue,
-                            exercises: [
-                                ProgramExercise(
-                                    name: "Squat", exerciseID: nil, sets: 5, repsLow: 5, repsHigh: nil,
-                                    weightKg: 100, rpe: nil, percentOf1RM: nil, restSeconds: 180, group: nil, notes: "AMRAP last set"
-                                ),
-                            ],
-                            notes: nil
-                        ),
-                    ]),
-                ],
-                autoAssignedWeekdays: false
-            )
             reviewPayload = ReviewPayload(
-                parsed: sample,
-                sourceKind: "text",
+                parsed: Self.sampleParsedProgram,
+                sourceKind: "multi",
                 sourceText: "DEBUG sample — no real source text."
             )
         }
+
+        static let sampleParsedProgram = TrainerProgramParser.ParsedProgram(
+            name: "Coach — Lift + Conditioning",
+            weeks: [
+                ProgramWeek(days: [
+                    ProgramDay(
+                        weekday: 1,
+                        title: "Hypertrophy Lifting 1",
+                        focus: WorkoutType.fullBody.rawValue,
+                        exercises: [
+                            ProgramExercise(
+                                name: "Leg Press", exerciseID: nil, sets: 3, repsLow: 8, repsHigh: nil,
+                                weightKg: nil, rpe: nil, percentOf1RM: 0.7, restSeconds: nil, group: 1, notes: nil
+                            ),
+                            ProgramExercise(
+                                name: "SA Incline DB Chest Press", exerciseID: nil, sets: 3, repsLow: 8, repsHigh: nil,
+                                weightKg: nil, rpe: nil, percentOf1RM: 0.7, restSeconds: 60, group: 1, notes: nil
+                            ),
+                            ProgramExercise(
+                                name: "KT Lat Step Up", exerciseID: nil, sets: 3, repsLow: 8, repsHigh: nil,
+                                weightKg: nil, rpe: nil, percentOf1RM: 0.7, restSeconds: nil, group: 2, notes: nil,
+                                detail: nil, perSide: true
+                            ),
+                        ],
+                        notes: nil,
+                        weekdayGuessed: true
+                    ),
+                    ProgramDay(
+                        weekday: 3,
+                        title: "Hypertrophy Lifting 2",
+                        focus: WorkoutType.fullBody.rawValue,
+                        exercises: [
+                            ProgramExercise(
+                                name: "Leg Extension", exerciseID: nil, sets: 3, repsLow: 8, repsHigh: nil,
+                                weightKg: nil, rpe: nil, percentOf1RM: 0.7, restSeconds: nil, group: 1, notes: nil
+                            ),
+                            ProgramExercise(
+                                name: "SA DB Row", exerciseID: nil, sets: 3, repsLow: 8, repsHigh: nil,
+                                weightKg: nil, rpe: nil, percentOf1RM: 0.7, restSeconds: 60, group: 1,
+                                notes: "On SL RDL position"
+                            ),
+                        ],
+                        notes: nil,
+                        weekdayGuessed: true
+                    ),
+                    ProgramDay(
+                        weekday: 2,
+                        title: "Aerobic Run",
+                        focus: WorkoutType.run.rawValue,
+                        exercises: [
+                            ProgramExercise(
+                                name: "Warm Up", exerciseID: nil, sets: 1, repsLow: 1, repsHigh: nil,
+                                weightKg: nil, rpe: 6, percentOf1RM: nil, restSeconds: nil, group: nil,
+                                notes: "Without ball", detail: "5'", perSide: nil
+                            ),
+                            ProgramExercise(
+                                name: "Fartleck", exerciseID: nil, sets: 1, repsLow: 1, repsHigh: nil,
+                                weightKg: nil, rpe: 8, percentOf1RM: nil, restSeconds: nil, group: nil,
+                                notes: "With the ball", detail: "35' — 2' slow / 1' fast / 30\" walk + juggling", perSide: nil
+                            ),
+                            ProgramExercise(
+                                name: "Cool Down", exerciseID: nil, sets: 1, repsLow: 1, repsHigh: nil,
+                                weightKg: nil, rpe: 6, percentOf1RM: nil, restSeconds: nil, group: nil,
+                                notes: "Without ball", detail: "10'", perSide: nil
+                            ),
+                        ],
+                        notes: nil,
+                        weekdayGuessed: true
+                    ),
+                    ProgramDay(
+                        weekday: 4,
+                        title: "Anaerobic Run",
+                        focus: WorkoutType.sprint.rawValue,
+                        exercises: [
+                            ProgramExercise(
+                                name: "Shuttle 1", exerciseID: nil, sets: 1, repsLow: 1, repsHigh: nil,
+                                weightKg: nil, rpe: 9, percentOf1RM: nil, restSeconds: 90, group: nil,
+                                notes: "300y total", detail: "4 reps of 25y out and back in < 65\"", perSide: nil
+                            ),
+                            ProgramExercise(
+                                name: "Shuttle 2", exerciseID: nil, sets: 1, repsLow: 1, repsHigh: nil,
+                                weightKg: nil, rpe: 9, percentOf1RM: nil, restSeconds: 90, group: nil,
+                                notes: "320y total", detail: "4 reps 80y out and back in < 55\"", perSide: nil
+                            ),
+                        ],
+                        notes: "Follow the order: S1 - Rest - S2 - Rest - S2 - Rest - S1",
+                        weekdayGuessed: true
+                    ),
+                    ProgramDay(
+                        weekday: 6,
+                        title: "Speed Development Conditioning",
+                        focus: WorkoutType.conditioning.rawValue,
+                        exercises: [
+                            ProgramExercise(
+                                name: "Run", exerciseID: nil, sets: 1, repsLow: 1, repsHigh: nil,
+                                weightKg: nil, rpe: 7, percentOf1RM: nil, restSeconds: nil, group: nil,
+                                notes: nil, detail: "15' easy", perSide: nil
+                            ),
+                            ProgramExercise(
+                                name: "T Drill", exerciseID: nil, sets: 2, repsLow: 10, repsHigh: nil,
+                                weightKg: nil, rpe: nil, percentOf1RM: nil, restSeconds: nil, group: 1,
+                                notes: "When you feel ready, but 2' in between", detail: "10m + 5m", perSide: nil
+                            ),
+                            ProgramExercise(
+                                name: "Arrow Drill", exerciseID: nil, sets: 2, repsLow: 10, repsHigh: nil,
+                                weightKg: nil, rpe: nil, percentOf1RM: nil, restSeconds: nil, group: 1,
+                                notes: "When you feel ready, but 2' in between", detail: "10m + 5m", perSide: nil
+                            ),
+                            ProgramExercise(
+                                name: "Run", exerciseID: nil, sets: 1, repsLow: 1, repsHigh: nil,
+                                weightKg: nil, rpe: 6, percentOf1RM: nil, restSeconds: nil, group: nil,
+                                notes: nil, detail: "10' easy", perSide: nil
+                            ),
+                        ],
+                        notes: nil,
+                        weekdayGuessed: true
+                    ),
+                ]),
+            ],
+            autoAssignedWeekdays: true
+        )
     #endif
 }
 
@@ -398,5 +669,65 @@ private struct TrainerProgramImagePicker: UIViewControllerRepresentable {
         func imagePickerControllerDidCancel(_: UIImagePickerController) {
             onPick(nil)
         }
+    }
+}
+
+// MARK: - PasteTextSheet
+
+/// Small standalone sheet for the "Paste Text" source — kept separate from
+/// the main picker so adding pasted text doesn't require a dedicated
+/// always-visible text box competing with the other three source buttons.
+private struct PasteTextSheet: View {
+    var onAdd: (String) -> Void
+
+    @Environment(\.dismiss)
+    private var dismiss
+    @State
+    private var text = ""
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: TempoSpacing.md) {
+                TextEditor(text: $text)
+                    .font(.tempoBody)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                    .scrollContentBackground(.hidden)
+                    .padding(TempoSpacing.sm)
+                    .background(Color.tempoInputBgDark.opacity(TempoOpacity.o40))
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: TempoRadius.xl)
+                            .stroke(Color.tempoBorder, lineWidth: 1)
+                    )
+                    .padding(.horizontal, TempoSpacing.screenEdge)
+                    .padding(.top, TempoSpacing.lg)
+
+                Button {
+                    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty else {
+                        return
+                    }
+                    onAdd(trimmed)
+                    dismiss()
+                } label: {
+                    Text("Add")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.tempoPrimary)
+                .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .padding(.horizontal, TempoSpacing.screenEdge)
+
+                Spacer()
+            }
+            .background(Color.tempoBgPrimary)
+            .navigationTitle("Paste Text")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
     }
 }

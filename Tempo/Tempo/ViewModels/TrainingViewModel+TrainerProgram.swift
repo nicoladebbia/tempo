@@ -54,11 +54,11 @@ extension TrainingViewModel {
                 plan.type = main.day.workoutType
                 plan.programSessionKey = program.sessionKey(weekIndex: main.weekIndex, dayIndex: main.dayIndex)
                 plan.notes = main.day.title ?? "Trainer session"
-                // A second, conditioning session the same day becomes the
-                // day's second part (two-a-day), e.g. lift then shuttles.
-                if main.day.isStrength,
-                   let second = sessions.first(where: { !$0.day.isStrength })
-                {
+                // A second session the same day becomes the day's second part
+                // (two-a-day): lift then shuttles, or two conditioning blocks.
+                // Prefer a conditioning session after a lift.
+                let others = sessions.filter { $0.dayIndex != main.dayIndex }
+                if let second = others.first(where: { !$0.day.isStrength }) ?? others.first {
                     plan.secondarySessionType = second.day.workoutType
                     plan.programSecondaryKey = program.sessionKey(weekIndex: second.weekIndex, dayIndex: second.dayIndex)
                 } else {
