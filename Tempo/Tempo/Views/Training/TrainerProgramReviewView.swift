@@ -24,11 +24,21 @@ struct TrainerProgramReviewView: View {
     private var modelContext
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(ServiceContainer.self)
+    private var services
     @Query(sort: \Exercise.name)
     private var libraryExercises: [Exercise]
     @Query
     private var userSettings: [UserSettings]
+    /// Fix #11(b) — to offer "starts after the current one ends" / "on a
+    /// date" when importing a NEW program while one is already active.
+    @Query
+    private var allPrograms: [TrainerProgram]
 
+    /// Fix #11(a) — non-nil means this screen is EDITING a saved program in
+    /// place (`TrainerProgramSaver.update`) rather than reviewing a freshly
+    /// parsed one before its first save.
+    let editingProgram: TrainerProgram?
     let sourceKind: String
     let sourceText: String
     var onSaved: () -> Void
@@ -44,6 +54,9 @@ struct TrainerProgramReviewView: View {
     /// warmupsEnabled`'s nil-means-true default for a brand-new program).
     @State
     private var autoWarmups = true
+    /// Fix #6 — chosen here (and editable later on TrainerProgramView).
+    @State
+    private var scheduleMode: TrainerProgramScheduleMode = .fixed
     @State
     private var weeks: [ProgramWeek]
     @State
@@ -51,16 +64,29 @@ struct TrainerProgramReviewView: View {
     @State
     private var saveError: String?
     /// Weekday-less sessions are placed around football once, on appear
-    /// (UserSettings isn't available at init).
+    /// (UserSettings isn't available at init). Skipped entirely when editing
+    /// — an already-saved program's weekdays are deliberate, not a fresh
+    /// auto-placement.
     @State
     private var didPlaceAroundFootball = false
+    /// Fix #11(b) — when creating a NEW program while one is already active.
+    @State
+    private var startTiming: StartTiming = .now
 
+    enum StartTiming: Hashable {
+        case now
+        case afterCurrent
+        case onDate
+    }
+
+    /// Import flow (new program, nothing saved yet).
     init(
         parsed: TrainerProgramParser.ParsedProgram,
         sourceKind: String,
         sourceText: String,
         onSaved: @escaping () -> Void
     ) {
+        editingProgram = nil
         _name = State(initialValue: parsed.name)
         _startDate = State(initialValue: TrainingCalendar.mondayOfWeek(containing: Date()))
         _weeks = State(initialValue: parsed.weeks)
@@ -70,12 +96,37 @@ struct TrainerProgramReviewView: View {
         self.onSaved = onSaved
     }
 
+    /// Fix #11(a) — edit flow for an already-saved program.
+    init(editingProgram program: TrainerProgram, onSaved: @escaping () -> Void) {
+        editingProgram = program
+        _name = State(initialValue: program.name)
+        _startDate = State(initialValue: program.startDate)
+        _repeats = State(initialValue: program.repeats)
+        _autoWarmups = State(initialValue: program.warmupsEnabled)
+        _scheduleMode = State(initialValue: program.scheduleMode)
+        _weeks = State(initialValue: program.weeks)
+        _autoAssignedWeekdays = State(initialValue: false)
+        _didPlaceAroundFootball = State(initialValue: true) // never auto-place an edit
+        sourceKind = program.sourceKind
+        sourceText = program.sourceText ?? ""
+        self.onSaved = onSaved
+    }
+
     private var weightUnit: WeightUnit {
         userSettings.first?.weightUnit ?? .kg
     }
 
     private var isValid: Bool {
         !weeks.isEmpty && weeks.contains { $0.days.contains { !$0.exercises.isEmpty } }
+    }
+
+    /// The program THIS import would replace/queue behind — nil when
+    /// editing (edits never re-queue) or nothing else is active.
+    private var otherActiveProgram: TrainerProgram? {
+        guard editingProgram == nil else {
+            return nil
+        }
+        return allPrograms.first { $0.isActive }
     }
 
     var body: some View {
@@ -121,7 +172,7 @@ struct TrainerProgramReviewView: View {
             }
             .scrollContentBackground(.hidden)
             .background(Color.tempoBgPrimary)
-            .navigationTitle("Review Program")
+            .navigationTitle(editingProgram == nil ? "Review Program" : "Edit Program")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -165,6 +216,7 @@ struct TrainerProgramReviewView: View {
                 ),
                 displayedComponents: .date
             )
+            .disabled(startTiming == .afterCurrent)
 
             if weeks.count > 1 {
                 Toggle("Repeats after last week", isOn: $repeats)
@@ -180,6 +232,66 @@ struct TrainerProgramReviewView: View {
                 }
             }
             .tint(Color.tempoSignal)
+
+            // Fix #6 — schedule mode, editable here and later on
+            // TrainerProgramView.
+            Picker("Schedule", selection: $scheduleMode) {
+                ForEach(TrainerProgramScheduleMode.allCases, id: \.self) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+            Text(scheduleMode.explanation)
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextTertiary)
+
+            // Fix #11(b) — queue behind the current program instead of
+            // replacing it immediately.
+            if let otherActiveProgram {
+                Picker("Starts", selection: $startTiming) {
+                    Text("Now — replaces \"\(otherActiveProgram.name)\"").tag(StartTiming.now)
+                    if !otherActiveProgram.repeats {
+                        Text("After \"\(otherActiveProgram.name)\" ends").tag(StartTiming.afterCurrent)
+                    }
+                    Text("On a date").tag(StartTiming.onDate)
+                }
+                .onChange(of: startTiming) { _, newValue in
+                    switch newValue {
+                    case .now:
+                        break
+                    case .afterCurrent:
+                        if let end = blockEndDate(of: otherActiveProgram) {
+                            startDate = TrainingCalendar.mondayOfWeek(containing: end)
+                        }
+                    case .onDate:
+                        break
+                    }
+                }
+                if startTiming != .now {
+                    Text(queueExplanation)
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                }
+            }
+        }
+    }
+
+    /// Monday of the week right after `program`'s last week — nil for a
+    /// repeating (never-ending) program.
+    private func blockEndDate(of program: TrainerProgram) -> Date? {
+        guard !program.repeats else {
+            return nil
+        }
+        return Calendar.current.date(byAdding: .day, value: program.weeks.count * 7, to: program.startDate)
+    }
+
+    private var queueExplanation: String {
+        switch startTiming {
+        case .now:
+            ""
+        case .afterCurrent:
+            "Starts \(startDate.formatted(date: .abbreviated, time: .omitted)) — auto-activates that day; your current program keeps running until then."
+        case .onDate:
+            "Starts \(startDate.formatted(date: .abbreviated, time: .omitted)) — pick the date above. Your current program keeps running until then."
         }
     }
 
@@ -198,19 +310,37 @@ struct TrainerProgramReviewView: View {
 
     private func save() {
         do {
-            let saved = try TrainerProgramSaver.save(
-                name: name,
-                startDate: startDate,
-                weeks: weeks,
-                repeats: weeks.count > 1 ? repeats : true,
-                sourceKind: sourceKind,
-                sourceText: sourceText,
-                modelContext: modelContext
-            )
-            // §13 — TrainerProgramSaver doesn't take this yet; set it on the
-            // saved program directly rather than widening its signature.
-            saved.autoWarmups = autoWarmups
-            _ = modelContext.saveOrAlert("trainer program warm-ups")
+            if let editingProgram {
+                // Fix #11(a) — edit in place.
+                try TrainerProgramSaver.update(
+                    editingProgram,
+                    name: name,
+                    startDate: startDate,
+                    weeks: weeks,
+                    repeats: weeks.count > 1 ? repeats : true,
+                    autoWarmups: autoWarmups,
+                    scheduleMode: scheduleMode,
+                    modelContext: modelContext,
+                    trainingEngine: services.trainingEngine,
+                    whoop: services.whoop,
+                    healthKit: services.healthKit
+                )
+            } else {
+                let queuedActivationDate: Date? = startTiming == .now ? nil : startDate
+                let saved = try TrainerProgramSaver.save(
+                    name: name,
+                    startDate: startDate,
+                    weeks: weeks,
+                    repeats: weeks.count > 1 ? repeats : true,
+                    sourceKind: sourceKind,
+                    sourceText: sourceText,
+                    modelContext: modelContext,
+                    autoWarmups: autoWarmups,
+                    scheduleMode: scheduleMode,
+                    queuedActivationDate: queuedActivationDate
+                )
+                _ = saved
+            }
             onSaved()
         } catch {
             saveError = error.localizedDescription
