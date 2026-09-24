@@ -205,9 +205,11 @@ struct DietaryProfileSetupView: View {
             }
             // Caption when HK has data we used, including how fresh.
             if let measurementDate = lastMeasurementDate {
-                Text("Last Apple Health measurement: \(Self.relativeTimeFormatter.localizedString(for: measurementDate, relativeTo: Date()))")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                Text(
+                    "Last Apple Health measurement: \(Self.relativeTimeFormatter.localizedString(for: measurementDate, relativeTo: Date()))"
+                )
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextTertiary)
             }
 
             // Weight
@@ -952,18 +954,17 @@ struct DietaryProfileSetupView: View {
             //      so weight + body fat stayed frozen at onboarding values
             //      forever.
             let measurementDate = bodyComp.measurementDate
-            let shouldApply: Bool
-            if existingProfile == nil {
-                shouldApply = true
+            let shouldApply = if existingProfile == nil {
+                true
             } else if force {
-                shouldApply = true
+                true
             } else if let measurementDate,
                       let lastUpdated = existingProfile?.updatedAt,
                       measurementDate > lastUpdated
             {
-                shouldApply = true
+                true
             } else {
-                shouldApply = false
+                false
             }
 
             if shouldApply {
@@ -1047,6 +1048,12 @@ struct DietaryProfileSetupView: View {
         }
 
         try? modelContext.save()
+        // Every save announces itself so the active meal plan regenerates
+        // even when this sheet was opened from a screen that passes no
+        // onSaveAndGenerate (Dashboard Settings). The app-level handler
+        // no-ops when there's no plan yet or the profile didn't change
+        // anything the plan depends on.
+        NotificationCenter.default.post(name: .tempoDietaryProfileChanged, object: nil)
 
         // Get the saved profile for auto-generation
         let savedProfile: DietaryProfile?

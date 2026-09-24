@@ -621,6 +621,9 @@ struct MealDetailView: View {
             // Replace the meal's foods + macros with what was actually eaten.
             // Day/Fuel totals sum PlannedMeal.totalCalories (NOT MealLog), so we
             // set them directly and create NO MealLog (would double-count).
+            // Freeze the plan allocation first so the day's target keeps the
+            // planned amount instead of following the substitute.
+            meal.capturePlanBaselineIfNeeded()
             meal.foods = items.map {
                 PlannedFood(
                     name: $0.name,

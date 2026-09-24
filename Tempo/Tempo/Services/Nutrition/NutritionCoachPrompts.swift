@@ -137,7 +137,9 @@ enum NutritionCoachPrompts {
         mealsPlanned: Int,
         recoveryScore: Double?,
         recoveryZone: String?,
-        tomorrowTraining: String?
+        tomorrowTraining: String?,
+        dayInProgress: Bool = false,
+        trainingToday: String? = nil
     ) -> String {
         var mealLines = ""
         for meal in meals {
@@ -147,8 +149,14 @@ enum NutritionCoachPrompts {
         let calDelta = Int(totalCalories - calorieTarget)
         let protDelta = Int(totalProtein - proteinTarget)
 
+        // The Coach tab's daily briefing runs mid-day, so "end-of-day" framing
+        // would have the model scold a user at 9am for missing dinner.
+        let task = dayInProgress
+            ? "Generate today's nutrition briefing. The day is IN PROGRESS — judge pace, not final totals. 3-5 sentences."
+            : "Generate an end-of-day nutrition summary. 3-5 sentences."
+
         var prompt = """
-        Generate an end-of-day nutrition summary. 3-5 sentences.
+        \(task)
 
         <data>
         <meals>
@@ -167,16 +175,24 @@ enum NutritionCoachPrompts {
             prompt += "\n\n<recovery>Score: \(Int(score))% (\(zone))</recovery>"
         }
 
+        if let training = trainingToday {
+            prompt += "\n\n<today>Day type: \(training)</today>"
+        }
+
         if let training = tomorrowTraining {
             prompt += "\n\n<tomorrow>Training: \(training)</tomorrow>"
         }
+
+        let verdictRule = dayInProgress
+            ? "- 3-5 sentences. Lead with the verdict: on pace for the targets or not? Then the ONE next move (what the next meal must deliver)."
+            : "- 3-5 sentences. Lead with the verdict: did they hit targets or not?"
 
         prompt += """
 
         </data>
 
         Rules:
-        - 3-5 sentences. Lead with the verdict: did they hit targets or not?
+        \(verdictRule)
         - Reference exact calorie and protein deltas.
         - If meals were missed (logged < planned), call it out.
         - If protein target was missed, specify by how much and when the shortfall happened.
@@ -280,7 +296,8 @@ enum NutritionCoachPrompts {
         todayFat: Double,
         calorieTarget: Double,
         proteinTarget: Double,
-        trainingToday: String?
+        trainingToday: String?,
+        withTips: Bool = false
     ) -> String {
         var prompt = """
         Recovery is \(recoveryZone). Provide nutrition guidance for today. 3-4 sentences.
@@ -327,8 +344,19 @@ enum NutritionCoachPrompts {
         - If training is scheduled on a red day, recommend lighter training AND extra pre-workout carbs.
         - Reference exact numbers from the data. "You're at 1,200 kcal with 800 remaining" not "eat more".
         - NEVER suggest skipping meals or reducing intake on low recovery days.
-        - Output ONLY the guidance text.
         """
+
+        prompt += withTips
+            ? """
+
+            - Green zone: fuel for performance — carbs around training, protein on target, hydration.
+            - Also give 3 tips: one line each, max 14 words, imperative, specific to today's numbers.
+            - Output ONLY valid JSON, no markdown: {"message": "the 3-4 sentence guidance", "tips": ["tip", "tip", "tip"]}
+            """
+            : """
+
+            - Output ONLY the guidance text.
+            """
 
         return prompt
     }

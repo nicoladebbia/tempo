@@ -43,6 +43,13 @@ final class WeeklyMealPlan {
 
     var generatedAt: Date
 
+    /// `MealPlanInputsFingerprint` of the training / diet-profile inputs this
+    /// plan was generated from. A mismatch with the current inputs on load
+    /// means the plan is out of date. nil = generated before fingerprints
+    /// existed (adopted as current on first load). Optional so the SwiftData
+    /// field add is a lightweight migration.
+    var inputsFingerprint: String?
+
     // MARK: - Relationships
 
     @Relationship(deleteRule: .cascade, inverse: \PlannedMeal.mealPlan)

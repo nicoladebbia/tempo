@@ -30,7 +30,7 @@ enum UserGoal: String {
 
 // MARK: - AdjustedNutritionTargets
 
-struct AdjustedNutritionTargets {
+struct AdjustedNutritionTargets: Equatable {
     let calorieTarget: Int
     let proteinTarget: Int
     let carbsTarget: Int
@@ -99,6 +99,10 @@ enum NutritionEngine {
             case .yellow where isTrainingDay:
                 // Moderate: slight carb bump, no protein change
                 carbs = Int(Double(baseCarbs) * 1.10)
+                // The extra carbs are extra food — count them in the calorie
+                // target too (same as the green/fuel branch), otherwise the
+                // carb ring and the calorie bar disagree.
+                calories = baseCalories + (carbs - baseCarbs) * 4
                 mode = .standard
                 explanation = "Yellow recovery with training. Slight carb increase."
 

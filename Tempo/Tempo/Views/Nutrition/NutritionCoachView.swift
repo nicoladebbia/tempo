@@ -22,6 +22,12 @@ struct NutritionCoachView: View {
     @Environment(ServiceContainer.self)
     private var services
 
+    /// AI state for the three coach sections (daily briefing, recovery
+    /// guidance, meal feedback). Lives here, not on NutritionTabViewModel —
+    /// the fixed-text templates below remain the offline / AI-off fallback.
+    @State
+    private var insights = NutritionCoachInsightsModel()
+
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: TempoSpacing.md) {
@@ -47,6 +53,127 @@ struct NutritionCoachView: View {
         .task {
             viewModel.loadRecoveryData(whoop: services.whoop)
         }
+        .task(id: insightTrigger) {
+            await loadInsights()
+        }
+    }
+
+    // MARK: - AI insights
+
+    /// Re-runs the insight load when the inputs the AI needs arrive (targets
+    /// computed, Whoop recovery loaded, a new meal eaten). Each section is
+    /// cached per day, so re-runs only hit the network for what's missing.
+    private var insightTrigger: String {
+        let eatenIDs = eatenMeals.map(\.id.uuidString).joined(separator: ",")
+        let recovery = viewModel.recoveryScore.map { "\(Int($0))" } ?? "none"
+        return "\(viewModel.todayCalorieTarget)|\(recovery)|\(eatenIDs)"
+    }
+
+    private var eatenMeals: [PlannedMeal] {
+        viewModel.todayMeals.filter { $0.status == .eaten }
+    }
+
+    private var coachProvider: NutritionCoachService {
+        NutritionCoachService(apiClient: services.apiClient)
+    }
+
+    private var isOnline: Bool {
+        services.networkMonitor.isConnected
+    }
+
+    private func dayContext() -> CoachDayContext {
+        let calendar = Calendar.current
+        let today = Date()
+        let dayTypes = viewModel.weeklyPlan?.dayTypes ?? [:]
+        let todayType = dayTypes[calendar.component(.weekday, from: today)]
+        let tomorrowType = calendar.date(byAdding: .day, value: 1, to: today)
+            .flatMap { dayTypes[calendar.component(.weekday, from: $0)] }
+        return CoachDayContext(
+            eatenMeals: eatenMeals.map(CoachMealSnapshot.init(meal:)),
+            caloriesConsumed: Double(viewModel.todayCaloriesConsumed),
+            proteinConsumed: Double(viewModel.todayProteinConsumed),
+            carbsConsumed: Double(viewModel.todayCarbsConsumed),
+            fatConsumed: Double(viewModel.todayFatConsumed),
+            calorieTarget: Double(viewModel.todayCalorieTarget),
+            proteinTarget: Double(viewModel.todayProteinTarget),
+            carbsTarget: Double(viewModel.todayCarbsTarget),
+            fatTarget: Double(viewModel.todayFatTarget),
+            mealsPlanned: viewModel.todayMeals.count,
+            recovery: viewModel.todayRecovery,
+            sleep: viewModel.todaySleep,
+            trainingToday: todayType?.displayName,
+            tomorrowTraining: tomorrowType?.displayName
+        )
+    }
+
+    private func loadInsights() async {
+        insights.restoreFromCache(eatenMealIDs: eatenMeals.map(\.id))
+        // No targets yet → the tab hasn't loaded today; asking the AI now
+        // would cache a briefing built on zeros for the whole day.
+        guard viewModel.todayCalorieTarget > 0 else { return }
+        let day = dayContext()
+        let provider = coachProvider
+        await insights.loadDailyBriefing(day, provider: provider, isOnline: isOnline)
+        await insights.loadRecoveryGuidance(day, provider: provider, isOnline: isOnline)
+        await insights.loadMealFeedback(for: day.eatenMeals, day: day, provider: provider, isOnline: isOnline)
+    }
+
+    private func refreshDailyBriefing() {
+        Task {
+            await insights.loadDailyBriefing(dayContext(), provider: coachProvider, isOnline: isOnline, force: true)
+        }
+    }
+
+    private func refreshRecoveryGuidance() {
+        Task {
+            await insights.loadRecoveryGuidance(dayContext(), provider: coachProvider, isOnline: isOnline, force: true)
+        }
+    }
+
+    private func retryMealFeedback() {
+        Task {
+            let day = dayContext()
+            await insights.loadMealFeedback(for: day.eatenMeals, day: day, provider: coachProvider, isOnline: isOnline)
+        }
+    }
+
+    /// Spinner row shared by the AI sections (same pattern as the meal-suggestion card).
+    private func insightLoadingRow(_ text: String) -> some View {
+        HStack(spacing: TempoSpacing.sm) {
+            ProgressView()
+                .scaleEffect(0.8)
+            Text(text)
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoTextTertiary)
+        }
+    }
+
+    /// Error line + retry under the fallback template.
+    private func insightErrorRow(_ message: String, retry: @escaping () -> Void) -> some View {
+        HStack(spacing: TempoSpacing.xs) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 12))
+                .foregroundStyle(Color.tempoError)
+            Text(message)
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoError)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: TempoSpacing.xs)
+            Button("Retry", action: retry)
+                .font(.tempoCaption1.weight(.semibold))
+                .foregroundStyle(Color.tempoViolet)
+        }
+    }
+
+    private func refreshButton(isLoading: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: "arrow.clockwise")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.tempoTextTertiary)
+        }
+        .buttonStyle(.plain)
+        .disabled(isLoading || !isOnline)
+        .accessibilityLabel("Refresh")
     }
 
     // MARK: - Daily Coaching Card
@@ -68,12 +195,24 @@ struct NutritionCoachView: View {
                 Text(todayTimeString)
                     .font(.tempoCaption2)
                     .foregroundStyle(Color.tempoTextTertiary)
+
+                if insights.daily.value != nil {
+                    refreshButton(isLoading: insights.daily.isLoading, action: refreshDailyBriefing)
+                }
             }
 
-            Text(dailyMessage)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .fixedSize(horizontal: false, vertical: true)
+            if insights.daily.isLoading {
+                insightLoadingRow("Reading your day…")
+            } else {
+                Text(insights.daily.value ?? dailyMessage)
+                    .font(.tempoBody)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if let error = insights.daily.errorMessage {
+                insightErrorRow(error, retry: refreshDailyBriefing)
+            }
 
             // Today's stats summary
             HStack(spacing: TempoSpacing.lg) {
@@ -240,6 +379,10 @@ struct NutritionCoachView: View {
 
                 Spacer()
 
+                if insights.recovery.value != nil {
+                    refreshButton(isLoading: insights.recovery.isLoading, action: refreshRecoveryGuidance)
+                }
+
                 if let score = viewModel.recoveryScore {
                     Text("\(Int(score))%")
                         .font(.system(size: 12, weight: .bold, design: .monospaced))
@@ -283,16 +426,24 @@ struct NutritionCoachView: View {
                 }
             }
 
-            Text(recoveryNutritionMessage)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .fixedSize(horizontal: false, vertical: true)
+            if insights.recovery.isLoading {
+                insightLoadingRow("Building recovery guidance…")
+            } else {
+                Text(insights.recovery.value?.message ?? recoveryNutritionMessage)
+                    .font(.tempoBody)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-            // Recovery nutrition tips
-            VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                ForEach(recoveryTips, id: \.text) { tip in
-                    recoveryTip(icon: tip.icon, text: tip.text)
+                // Recovery nutrition tips
+                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+                    ForEach(displayedRecoveryTips, id: \.text) { tip in
+                        recoveryTip(icon: tip.icon, text: tip.text)
+                    }
                 }
+            }
+
+            if let error = insights.recovery.errorMessage {
+                insightErrorRow(error, retry: refreshRecoveryGuidance)
             }
         }
         .tempoCard()
@@ -327,7 +478,6 @@ struct NutritionCoachView: View {
                     .foregroundStyle(Color.tempoTextSecondary)
             }
 
-            let eatenMeals = viewModel.todayMeals.filter { $0.status == .eaten }
             if eatenMeals.isEmpty {
                 Text("No meals logged today. Get moving, soldier.")
                     .font(.tempoBody)
@@ -336,6 +486,10 @@ struct NutritionCoachView: View {
             } else {
                 ForEach(eatenMeals, id: \.id) { meal in
                     mealFeedbackRow(meal)
+                }
+
+                if let error = eatenMeals.lazy.compactMap({ insights.feedbackState(for: $0.id).errorMessage }).first {
+                    insightErrorRow(error, retry: retryMealFeedback)
                 }
             }
         }
@@ -353,9 +507,15 @@ struct NutritionCoachView: View {
                     .font(.tempoCallout)
                     .foregroundStyle(Color.tempoTextPrimary)
 
-                Text(mealFeedback(for: meal))
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                let feedback = insights.feedbackState(for: meal.id)
+                if feedback.isLoading {
+                    insightLoadingRow("Reviewing…")
+                } else {
+                    Text(feedback.value ?? mealFeedback(for: meal))
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             Spacer()
@@ -448,6 +608,14 @@ struct NutritionCoachView: View {
     private struct RecoveryTipData: Hashable {
         let icon: String
         let text: String
+    }
+
+    /// AI tips when loaded (uniform icon), otherwise the per-zone template.
+    private var displayedRecoveryTips: [RecoveryTipData] {
+        if let tips = insights.recovery.value?.tips, !tips.isEmpty {
+            return tips.map { RecoveryTipData(icon: "bolt.heart.fill", text: $0) }
+        }
+        return recoveryTips
     }
 
     private var recoveryTips: [RecoveryTipData] {

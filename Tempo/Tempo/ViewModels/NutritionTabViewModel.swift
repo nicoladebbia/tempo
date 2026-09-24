@@ -58,6 +58,7 @@ struct PantryGapAlert: Identifiable, Equatable {
 @MainActor
 final class NutritionTabViewModel {
     // MARK: - Phase 7 (pantry/grocery/recipe/receipt) — stored directly so
+
     // the lifetimes match `self`. Previously these lived in a static
     // `ObjectIdentifier`-keyed dictionary which leaked the state objects
     // and their services for every ViewModel instance.
@@ -83,15 +84,15 @@ final class NutritionTabViewModel {
     /// call doesn't construct a fresh service object with its own logger
     /// and URLSession underneath). `@ObservationIgnored` is required
     /// because @Observable rejects `lazy`; these aren't view-bindable.
-    @ObservationIgnored
     /// Lazily constructed on first use because we need an APIClient (passed
     /// from the View layer) to proxy Claude calls through the backend.
     /// Per INTELLIGENCE_REMEDIATION_PLAN.md §3.
+    @ObservationIgnored
     private var coachService: NutritionCoachService?
-    @ObservationIgnored
     /// Lazily constructed on first use because we need an APIClient (passed
     /// from the View layer) to proxy Claude calls through the backend.
     /// Per INTELLIGENCE_REMEDIATION_PLAN.md §3.
+    @ObservationIgnored
     private var redistributionService: MealRedistributionService?
 
     // MARK: - Task lifecycle
@@ -125,11 +126,22 @@ final class NutritionTabViewModel {
     private(set) var presets: [MealPreset] = []
     private(set) var dietaryProfile: DietaryProfile?
 
-    /// True when a TrainingSettingsChanged notification arrived before
-    /// dietaryProfile had loaded. loadToday() inspects this at the end of
-    /// its fetch and triggers the deferred regenerate. Cleared as soon
-    /// as the regen fires so we don't loop.
-    var pendingTrainingSettingsRegen: Bool = false
+    // MARK: - Plan freshness
+
+    /// True when the active plan was generated from training / diet-profile
+    /// inputs that have since changed (see MealPlanInputsFingerprint).
+    /// Drives the "Plan out of date" banner on Today.
+    private(set) var isPlanOutOfDate: Bool = false
+
+    /// Fingerprint we already auto-regenerated for this session. Caps the
+    /// automatic regen at one attempt per input state so a failing backend
+    /// can't loop on every load; the banner's button is the manual retry.
+    @ObservationIgnored
+    private var autoRegenAttemptedFingerprint: String?
+
+    /// Inputs fingerprint of the generation currently running, if any.
+    @ObservationIgnored
+    private var inFlightFingerprint: String?
 
     // MARK: - Generation
 
@@ -176,26 +188,36 @@ final class NutritionTabViewModel {
             .reduce(0) { $0 + Int($1.totalCalories) }
     }
 
-    /// Single source of truth for today's calorie + macro targets, shared by
-    /// the calorie and the three macro-target properties so they always agree
-    /// and the calculation runs once per access cluster. When today has plan
-    /// meals the numbers ARE the meal sum; otherwise they're the precise
-    /// TDEECalculator estimate, blended with the 7-day Whoop average when
-    /// `cachedWhoopAvgTDEE` is populated (see loadRecoveryData).
-    private var todayBaseTargets: NutritionTargetCalculator.Targets {
-        NutritionTargetCalculator.targetsForToday(
+    /// Today's active carryover refund, fetched in loadToday. Stored so the
+    /// target computeds stay pure (no fetch per access).
+    private(set) var todayCarryover: MacroCarryoverService.DailyAdjustment = .zero
+
+    /// Today's training / rest status, fetched in loadToday.
+    private(set) var todayDayContext: DailyNutritionTargets.DayContext = .unknown
+
+    /// THE canonical daily target (base + carryover + recovery/rest-day
+    /// adjustment) — see DailyNutritionTargets. The rebalancer calls the
+    /// fetching twin `DailyNutritionTargets.today(in:)`, which runs the same
+    /// compute over the same inputs, so the ring and the rebalancer agree.
+    var todayTargets: DailyNutritionTargets {
+        DailyNutritionTargets.compute(
             todayMeals: todayMeals,
             dietaryProfile: dietaryProfile,
-            whoopAvgTDEE: cachedWhoopAvgTDEE
+            whoopAvgTDEE: cachedWhoopAvgTDEE,
+            carryover: todayCarryover,
+            day: todayDayContext,
+            recoveryScore: todayRecovery?.score
         )
     }
 
+    /// Short explanation of why today's target moved off the base ("Rest day
+    /// −15% · +150 kcal from yesterday"). nil on a plain day.
+    var todayTargetNote: String? {
+        todayTargets.note
+    }
+
     var todayCalorieTarget: Int {
-        // Delegates to NutritionTargetCalculator so this VM and the
-        // Dashboard's Fuel quadrant compute the same number from the same
-        // inputs. See NutritionTargetCalculator.swift for the full
-        // primary-vs-fallback logic and why this matters.
-        todayBaseTargets.calories
+        todayTargets.calories
     }
 
     /// True when a generated plan covers today AND today actually has meals
@@ -216,12 +238,16 @@ final class NutritionTabViewModel {
     /// `Calendar.component(.weekday)`, whose 1=Sunday numbering does not match
     /// the plan's Monday=1 convention.
     var todaySupplementDecisions: [SupplementDecision] {
-        guard let plan = weeklyPlan, plan.coversToday else { return [] }
+        guard let plan = weeklyPlan, plan.coversToday else {
+            return []
+        }
         let cal = Calendar.current
         let start = cal.startOfDay(for: plan.startDate)
         let today = cal.startOfDay(for: Date())
         let daysSinceStart = cal.dateComponents([.day], from: start, to: today).day ?? 0
-        guard daysSinceStart >= 0, daysSinceStart < 7 else { return [] }
+        guard daysSinceStart >= 0, daysSinceStart < 7 else {
+            return []
+        }
         let key = daysSinceStart + 1 // Monday=1 … Sunday=7
         return plan.supplementDecisions[key] ?? []
     }
@@ -252,7 +278,9 @@ final class NutritionTabViewModel {
         if existing.isEmpty {
             modelContext.insert(SupplementIntakeLog(supplementName: name, day: today))
         } else {
-            for row in existing { modelContext.delete(row) }
+            for row in existing {
+                modelContext.delete(row)
+            }
         }
         try? modelContext.save()
         HapticManager.lightImpact()
@@ -265,7 +293,7 @@ final class NutritionTabViewModel {
     }
 
     var todayProteinTarget: Int {
-        todayBaseTargets.protein
+        todayTargets.protein
     }
 
     var todayCarbsConsumed: Int {
@@ -275,7 +303,7 @@ final class NutritionTabViewModel {
     }
 
     var todayCarbsTarget: Int {
-        todayBaseTargets.carbs
+        todayTargets.carbs
     }
 
     var todayFatConsumed: Int {
@@ -285,52 +313,7 @@ final class NutritionTabViewModel {
     }
 
     var todayFatTarget: Int {
-        todayBaseTargets.fat
-    }
-
-    // MARK: - Recovery-Adjusted Targets (Phase 4)
-
-    // Whoop strain raises today's energy & carb needs. Recovery-poor days
-    // tighten cals slightly to favour rest-day eating.
-
-    /// Multiplier applied to base calorie target based on recovery + yesterday's strain.
-    /// Range ~0.95 – 1.15. Falls back to 1.0 when no Whoop data is available.
-    var recoveryCalorieMultiplier: Double {
-        // Bias up on high strain (>14 = hard day yesterday → restock).
-        let strainBoost: Double = if let cal = todayRecovery?.score {
-            switch cal {
-            case ..<34: -0.05 // poor recovery → eat less
-            case 67...: 0.05 // good recovery → fuel a touch more
-            default: 0
-            }
-        } else {
-            0
-        }
-        return 1.0 + strainBoost
-    }
-
-    var recoveryAdjustedCalorieTarget: Int {
-        Int(Double(todayCalorieTarget) * recoveryCalorieMultiplier)
-    }
-
-    /// Carbs absorb the bulk of the strain-driven calorie bump.
-    var recoveryAdjustedCarbsTarget: Int {
-        let baseCarbsCal = Double(todayCarbsTarget) * 4.0
-        let extra = Double(recoveryAdjustedCalorieTarget - todayCalorieTarget)
-        return Int((baseCarbsCal + extra) / 4.0)
-    }
-
-    /// Human-readable delta for UI (e.g. "+150 kcal for high strain").
-    var recoveryAdjustmentLabel: String? {
-        let delta = recoveryAdjustedCalorieTarget - todayCalorieTarget
-        guard delta != 0 else {
-            return nil
-        }
-        if delta > 0 {
-            return "+\(delta) kcal for recovery"
-        } else {
-            return "\(delta) kcal for low recovery"
-        }
+        todayTargets.fat
     }
 
     var calorieProgress: Double {
@@ -371,7 +354,9 @@ final class NutritionTabViewModel {
               let minute = Int(parts[1]),
               (0 ..< 24).contains(hour),
               (0 ..< 60).contains(minute)
-        else { return nil }
+        else {
+            return nil
+        }
         return hour * 60 + minute
     }
 
@@ -405,20 +390,9 @@ final class NutritionTabViewModel {
                 }
             )
             let allTodayMeals = try modelContext.fetch(mealDescriptor)
-            todayMeals = allTodayMeals
-                .filter { meal in
-                    // Keep AI-generated meals from the active plan AND
-                    // user-logged meals that aren't tied to any plan.
-                    meal.mealPlan?.isActive == true || meal.mealPlan == nil
-                }
-                .sorted { lhs, rhs in
-                    // Parse "HH:mm" to minutes-of-day for true chronological
-                    // ordering. Anything malformed sorts to the end.
-                    let lhsMinutes = Self.minutesOfDay(from: lhs.scheduledTime) ?? Int.max
-                    let rhsMinutes = Self.minutesOfDay(from: rhs.scheduledTime) ?? Int.max
-                    if lhsMinutes != rhsMinutes { return lhsMinutes < rhsMinutes }
-                    return lhs.mealNumber < rhs.mealNumber
-                }
+            // Keep AI-generated meals from the active plan AND user-logged
+            // meals that aren't tied to any plan, in "HH:mm" order.
+            todayMeals = Self.chronological(allTodayMeals.filter(CanonicalMeals.isCanonical))
             refreshFeedbackPresence(modelContext: modelContext)
 
             // Fetch the active WeeklyMealPlan that ACTUALLY covers today.
@@ -452,10 +426,75 @@ final class NutritionTabViewModel {
             let profiles = try modelContext.fetch(profileDescriptor)
             dietaryProfile = profiles.first
 
+            // Freeze each plan meal's baseline before anything (substitute,
+            // rebalance, redistribution — some in other screens) can rewrite
+            // its totals, so today's target stays the plan's allocation.
+            let capturedCount = todayMeals.filter { $0.capturePlanBaselineIfNeeded() }.count
+            if capturedCount > 0 {
+                try? modelContext.save()
+            }
+            todayCarryover = MacroCarryoverService.activeAdjustmentForToday(in: modelContext)
+            todayDayContext = DailyNutritionTargets.dayContext(in: modelContext)
+            refreshPlanFreshness(modelContext: modelContext)
+
             loadState = .loaded
         } catch {
             loadState = .error("Failed to load nutrition data: \(error.localizedDescription)")
         }
+    }
+
+    // MARK: - Plan Freshness
+
+    /// Compares the active plan's stamped inputs fingerprint with the current
+    /// inputs. A plan from before fingerprints existed is adopted as current
+    /// (we can't know what it was built from) and stamped.
+    func refreshPlanFreshness(modelContext: ModelContext) {
+        guard let plan = weeklyPlan else {
+            isPlanOutOfDate = false
+            return
+        }
+        let current = MealPlanInputsFingerprint.current(in: modelContext)
+        guard let stamped = plan.inputsFingerprint else {
+            plan.inputsFingerprint = current
+            try? modelContext.save()
+            isPlanOutOfDate = false
+            return
+        }
+        isPlanOutOfDate = stamped != current
+    }
+
+    /// Called whenever a plan input may have changed (training settings,
+    /// trainer program, diet profile) and on launch. Reloads, and if the
+    /// active plan is out of date, regenerates it — once per input state per
+    /// session; after a failure the Today banner offers the manual retry.
+    /// No-op when there's no plan (nothing to refresh — the user generates
+    /// their first plan explicitly) or a generation is already running (the
+    /// explicit save-and-generate paths get there first).
+    func regenerateIfOutOfDate(
+        modelContext: ModelContext,
+        whoop: any WhoopServiceProtocol,
+        apiClient: APIClient,
+        notifications: (any NotificationServiceProtocol)? = nil
+    ) {
+        guard !isGeneratingPlan else {
+            return
+        }
+        loadToday(modelContext: modelContext)
+        guard isPlanOutOfDate else {
+            return
+        }
+        let current = MealPlanInputsFingerprint.current(in: modelContext)
+        guard autoRegenAttemptedFingerprint != current else {
+            return
+        }
+        autoRegenAttemptedFingerprint = current
+        Logger.nutrition.info("[Diag.Plan] plan inputs changed — regenerating")
+        generatePlan(
+            modelContext: modelContext,
+            whoop: whoop,
+            apiClient: apiClient,
+            notifications: notifications
+        )
     }
 
     // MARK: - Meal Actions
@@ -467,7 +506,10 @@ final class NutritionTabViewModel {
         notifications: (any NotificationServiceProtocol)? = nil
     ) {
         let mealID = meal.id
-        Logger.nutrition.info("[Diag.Eat] \(meal.mealName, privacy: .public) marked eaten at \(eatenAt.formatted(date: .omitted, time: .shortened), privacy: .public) — \(Int(meal.totalCalories))kcal, decrementedPantry=\(meal.didDecrementPantry)")
+        Logger.nutrition
+            .info(
+                "[Diag.Eat] \(meal.mealName, privacy: .public) marked eaten at \(eatenAt.formatted(date: .omitted, time: .shortened), privacy: .public) — \(Int(meal.totalCalories))kcal, decrementedPantry=\(meal.didDecrementPantry)"
+            )
         meal.status = .eaten
         meal.actualEatenAt = eatenAt
 
@@ -530,7 +572,10 @@ final class NutritionTabViewModel {
         modelContext: ModelContext
     ) {
         let mealID = meal.id
-        Logger.nutrition.info("[Diag.Undo] \(meal.mealName, privacy: .public) was \(meal.status.rawValue, privacy: .public) → reverting to planned (creditPantry=\(meal.didDecrementPantry))")
+        Logger.nutrition
+            .info(
+                "[Diag.Undo] \(meal.mealName, privacy: .public) was \(meal.status.rawValue, privacy: .public) → reverting to planned (creditPantry=\(meal.didDecrementPantry))"
+            )
 
         // Re-credit pantry before flipping state, while didDecrementPantry
         // still tells us whether stock was pulled.
@@ -663,9 +708,17 @@ final class NutritionTabViewModel {
         else {
             return
         }
-        let eaten = freshMeals.filter { $0.status == .eaten }
-        let remaining = freshMeals.filter { $0.status == .planned }
-        guard !remaining.isEmpty else { return }
+        let canonicalMeals = freshMeals.filter(CanonicalMeals.isCanonical)
+        let eaten = canonicalMeals.filter { $0.status == .eaten }
+        let remaining = canonicalMeals.filter { $0.status == .planned }
+        guard !remaining.isEmpty else {
+            return
+        }
+        // The target below sums plan baselines; freeze them before we move
+        // any totals so this rebalance can't feed back into the next one.
+        for meal in canonicalMeals {
+            meal.capturePlanBaselineIfNeeded()
+        }
 
         let consumed = MealRebalancer.Macros(
             calories: eaten.reduce(0.0) { $0 + $1.totalCalories },
@@ -682,7 +735,12 @@ final class NutritionTabViewModel {
                 fat: meal.totalFat
             )
         }
-        let targets = NutritionTargetCalculator.targetsForToday(in: modelContext, whoopAvgTDEE: cachedWhoopAvgTDEE)
+        // The canonical daily target — the exact number the Today ring shows.
+        let targets = DailyNutritionTargets.today(
+            in: modelContext,
+            whoopAvgTDEE: cachedWhoopAvgTDEE,
+            recoveryScore: todayRecovery?.score
+        )
         let dayTargets = MealRebalancer.Targets(
             calories: Double(targets.calories),
             protein: Double(targets.protein),
@@ -695,7 +753,9 @@ final class NutritionTabViewModel {
             remaining: plannedMacros
         )
         for adj in adjustments where !adj.isZero {
-            guard let meal = remaining.first(where: { $0.id == adj.mealID }) else { continue }
+            guard let meal = remaining.first(where: { $0.id == adj.mealID }) else {
+                continue
+            }
             meal.totalCalories = max(0, meal.totalCalories + adj.calories)
             meal.totalProtein = max(0, meal.totalProtein + adj.protein)
             meal.totalCarbs = max(0, meal.totalCarbs + adj.carbs)
@@ -750,7 +810,9 @@ final class NutritionTabViewModel {
         if redistributionService == nil {
             redistributionService = MealRedistributionService(apiClient: apiClient)
         }
-        guard let redistribution = redistributionService else { return }
+        guard let redistribution = redistributionService else {
+            return
+        }
 
         let remaining = todayMeals.filter { $0.id != skipped.id }
         let result = await redistribution.redistribute(
@@ -762,10 +824,16 @@ final class NutritionTabViewModel {
             dayType: dayType
         )
 
-        // Apply per-meal additive deltas.
+        // Apply per-meal additive deltas. Freeze plan baselines first so the
+        // redistribution moves food around without moving the day's target.
+        for meal in todayMeals {
+            meal.capturePlanBaselineIfNeeded()
+        }
         let byNumber = Dictionary(uniqueKeysWithValues: result.perMeal.map { ($0.mealNumber, $0) })
         for meal in todayMeals where meal.status == .planned {
-            guard let delta = byNumber[meal.mealNumber] else { continue }
+            guard let delta = byNumber[meal.mealNumber] else {
+                continue
+            }
             meal.totalCalories += delta.addCalories
             meal.totalProtein += delta.addProtein
             meal.totalCarbs += delta.addCarbs
@@ -816,6 +884,7 @@ final class NutritionTabViewModel {
     func logFromPreset(_ preset: MealPreset, modelContext: ModelContext) {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
+        let now = Date()
         let timeFormatter = DateFormatter()
         timeFormatter.dateFormat = "HH:mm"
 
@@ -823,7 +892,7 @@ final class NutritionTabViewModel {
             dayDate: today,
             mealNumber: todayMeals.count + 1,
             mealName: preset.mealType.displayName,
-            scheduledTime: timeFormatter.string(from: Date()),
+            scheduledTime: timeFormatter.string(from: now),
             foods: preset.foodItems.map { input in
                 PlannedFood(
                     name: input.name,
@@ -839,13 +908,32 @@ final class NutritionTabViewModel {
             totalCarbs: preset.totalCarbs,
             totalFat: preset.totalFat,
             status: .eaten,
+            actualEatenAt: now,
             mealPlan: weeklyPlan
         )
+        // A preset is an extra log, not part of the plan's allocation.
+        meal.markAsUnplannedLog()
         modelContext.insert(meal)
         preset.recordUse()
         try? modelContext.save()
-        todayMeals.append(meal)
+        todayMeals = Self.chronological(todayMeals + [meal])
         HapticManager.notification(.success)
+        // Keep the Dashboard Fuel quadrant in sync, same as every other log path.
+        NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
+    }
+
+    /// Today's meal order: parsed "HH:mm" minutes-of-day, then meal number.
+    /// Malformed times sort to the end. Shared by loadToday, refreshTodayMeals
+    /// and logFromPreset so a new row lands where a reload would put it.
+    static func chronological(_ meals: [PlannedMeal]) -> [PlannedMeal] {
+        meals.sorted { lhs, rhs in
+            let lhsMinutes = minutesOfDay(from: lhs.scheduledTime) ?? Int.max
+            let rhsMinutes = minutesOfDay(from: rhs.scheduledTime) ?? Int.max
+            if lhsMinutes != rhsMinutes {
+                return lhsMinutes < rhsMinutes
+            }
+            return lhs.mealNumber < rhs.mealNumber
+        }
     }
 
     // MARK: - Generate Plan
@@ -872,6 +960,20 @@ final class NutritionTabViewModel {
             return
         }
         dietaryProfile = profile
+        // Snapshot the inputs NOW — the plan is built from these, so this is
+        // what gets stamped even if something changes mid-generation (that
+        // change then correctly reads as out of date).
+        let inputsFingerprint = MealPlanInputsFingerprint.current(in: modelContext)
+        // A profile save fires both its save-and-generate callback and the
+        // app-level `.tempoDietaryProfileChanged` handler. Whichever lands
+        // second is asking for the exact plan already being built — don't
+        // cancel and restart it. (Wizard runs carry a fresh intake and always
+        // proceed.)
+        if isGeneratingPlan, intake == nil, inFlightFingerprint == inputsFingerprint {
+            return
+        }
+        inFlightFingerprint = inputsFingerprint
+        autoRegenAttemptedFingerprint = inputsFingerprint
 
         isGeneratingPlan = true
         planGenerationError = nil
@@ -937,7 +1039,10 @@ final class NutritionTabViewModel {
                 let diagLeftover = enrichedIntake.leftoverTolerance.rawValue
                 let diagWindow = "\(enrichedIntake.eatingWindow.firstMealHour)-\(enrichedIntake.eatingWindow.lastMealHour)"
                 let diagExclusions = enrichedIntake.temporaryExclusions.count
-                Logger.nutrition.info("[Diag.Plan] intake source: \(intakeSource, privacy: .public) — cookDays=\(diagCookDays) leftover=\(diagLeftover, privacy: .public) window=\(diagWindow, privacy: .public) exclusions=\(diagExclusions)")
+                Logger.nutrition
+                    .info(
+                        "[Diag.Plan] intake source: \(intakeSource, privacy: .public) — cookDays=\(diagCookDays) leftover=\(diagLeftover, privacy: .public) window=\(diagWindow, privacy: .public) exclusions=\(diagExclusions)"
+                    )
                 if let settings = settingsForIntake {
                     enrichedIntake.trainingSchedule = WeeklyTrainingSchedule.make(
                         split: settings.trainingSplit,
@@ -995,11 +1100,25 @@ final class NutritionTabViewModel {
                     predicate: #Predicate<WeeklyMealPlan> { $0.id == planID }
                 )
                 guard let freshPlan = (try? modelContext.fetch(planDesc))?.first else {
+                    if Task.isCancelled {
+                        return
+                    }
                     weeklyPlan = nil
                     loadToday(modelContext: modelContext)
                     isGeneratingPlan = false
+                    inFlightFingerprint = nil
                     planGenerationStatusLabel = ""
                     HapticManager.notification(.success)
+                    return
+                }
+                // Stamp what this plan was actually built from, even when
+                // superseded — a late-finishing stale generation must read
+                // as out of date, never be adopted as current.
+                freshPlan.inputsFingerprint = inputsFingerprint
+                try? modelContext.save()
+                // Superseded by a newer generatePlan call — that task owns
+                // the plan, spinner and in-flight state now.
+                if Task.isCancelled {
                     return
                 }
                 weeklyPlan = freshPlan
@@ -1019,10 +1138,17 @@ final class NutritionTabViewModel {
                 // failures surface via groceryState.lastError, not the plan UI.
                 generateGroceryList()
                 isGeneratingPlan = false
+                inFlightFingerprint = nil
                 planGenerationStatusLabel = ""
                 HapticManager.notification(.success)
             } catch {
+                // Superseded by a newer generatePlan call — that task owns
+                // the spinner/error state now.
+                if Task.isCancelled {
+                    return
+                }
                 isGeneratingPlan = false
+                inFlightFingerprint = nil
                 planGenerationStatusLabel = ""
                 planGenerationError = error.localizedDescription
                 HapticManager.notification(.error)
@@ -1074,7 +1200,9 @@ final class NutritionTabViewModel {
         let missing = needed
             .subtracting(pantryNames)
             .filter { name in
-                if name == "water" { return false }
+                if name == "water" {
+                    return false
+                }
                 if let portion = FoodMacroDatabase.naturalPortions[name], portion.isStaple {
                     return false
                 }
@@ -1162,7 +1290,9 @@ final class NutritionTabViewModel {
                 guard let fireDate = calendar.date(byAdding: .hour, value: -defrost.lead, to: item.mealTime) else {
                     continue
                 }
-                guard fireDate > now else { continue }
+                guard fireDate > now else {
+                    continue
+                }
                 notifications.scheduleDefrostReminder(
                     mealID: item.mealID,
                     ingredientID: defrost.id,
@@ -1380,14 +1510,7 @@ final class NutritionTabViewModel {
                 }
             )
             let allTodayMeals = try modelContext.fetch(descriptor)
-            todayMeals = allTodayMeals
-                .filter { $0.mealPlan?.isActive == true || $0.mealPlan == nil }
-                .sorted { lhs, rhs in
-                    let lhsMinutes = Self.minutesOfDay(from: lhs.scheduledTime) ?? Int.max
-                    let rhsMinutes = Self.minutesOfDay(from: rhs.scheduledTime) ?? Int.max
-                    if lhsMinutes != rhsMinutes { return lhsMinutes < rhsMinutes }
-                    return lhs.mealNumber < rhs.mealNumber
-                }
+            todayMeals = Self.chronological(allTodayMeals.filter(CanonicalMeals.isCanonical))
             refreshFeedbackPresence(modelContext: modelContext)
         } catch {
             // Silent refresh failure
@@ -1447,6 +1570,15 @@ final class NutritionTabViewModel {
         /// Test-only setter for the active weekly plan. NOT for production code.
         func _testSetWeeklyPlan(_ plan: WeeklyMealPlan?) {
             weeklyPlan = plan
+        }
+
+        /// Test-only setter for today's carryover + day context. NOT for production code.
+        func _testSetTargetInputs(
+            carryover: MacroCarryoverService.DailyAdjustment,
+            day: DailyNutritionTargets.DayContext
+        ) {
+            todayCarryover = carryover
+            todayDayContext = day
         }
     #endif
 }

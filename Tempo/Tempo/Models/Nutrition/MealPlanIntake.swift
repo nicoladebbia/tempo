@@ -24,6 +24,12 @@ struct MealPlanIntake: Sendable, Equatable {
     /// the real Mon=upper, Tue=lower, Wed=football schedule. nil when the
     /// user hasn't completed Training settings yet.
     var trainingSchedule: WeeklyTrainingSchedule?
+    /// From onboarding (`UserDailyPlanProfile.breakfastSkipped`): the planner
+    /// must not program a breakfast slot. Not editable in the wizard.
+    var breakfastSkipped: Bool = false
+    /// From onboarding (`UserDailyPlanProfile.postWorkoutMandatory`): every
+    /// training day gets a dedicated post-training refuel meal.
+    var postWorkoutMandatory: Bool = false
 
     static let `default` = MealPlanIntake(
         cookableDaysThisWeek: 4,
@@ -34,6 +40,51 @@ struct MealPlanIntake: Sendable, Equatable {
         temporaryExclusions: [],
         trainingSchedule: nil
     )
+
+    // MARK: - Onboarding seed (UserDailyPlanProfile → MealPlanIntake)
+
+    /// True once the wizard or AI Meals settings has saved an eating window.
+    /// Until then the onboarding window is the user's only real answer.
+    static func hasPersistedEatingWindow(_ settings: UserSettings?) -> Bool {
+        settings?.mealIntakeFirstMealHour != nil || settings?.mealIntakeLastMealHour != nil
+    }
+
+    /// Hour-granularity window from onboarding's minute-precision one. The
+    /// start rounds UP and the end rounds DOWN so meals always land inside
+    /// the window (11:30–19:45 → 12–19). nil when the result is unusable.
+    static func eatingWindow(fromOnboarding dailyPlan: UserDailyPlanProfile) -> EatingWindow? {
+        let start = dailyPlan.eatingWindowStartMinutes
+        let end = dailyPlan.eatingWindowEndMinutes
+        guard start >= 0, end > start, end <= 24 * 60 else { return nil }
+        let window = EatingWindow(
+            firstMealHour: Int((Double(start) / 60).rounded(.up)),
+            lastMealHour: min(23, end / 60)
+        )
+        return window.isValid ? window : nil
+    }
+
+    /// Fold the onboarding eating preferences into an intake:
+    ///  - eating window → only when the wizard / AI Meals settings never saved
+    ///    one (those are explicit overrides and win);
+    ///  - breakfastSkipped / postWorkoutMandatory → always (onboarding is
+    ///    their only source).
+    /// Used to pre-fill the wizard and, in the generator, for every plan.
+    func applyingOnboarding(_ dailyPlan: UserDailyPlanProfile?, settings: UserSettings?) -> MealPlanIntake {
+        guard let dailyPlan else { return self }
+        var copy = self
+        if !Self.hasPersistedEatingWindow(settings), let window = Self.eatingWindow(fromOnboarding: dailyPlan) {
+            copy.eatingWindow = window
+        }
+        copy.breakfastSkipped = dailyPlan.breakfastSkipped
+        copy.postWorkoutMandatory = dailyPlan.postWorkoutMandatory
+        return copy
+    }
+
+    /// Wizard pre-fill: persisted prefs (or defaults) + onboarding eating window.
+    static func seeded(settings: UserSettings?, dailyPlan: UserDailyPlanProfile?) -> MealPlanIntake {
+        let base = settings.map { loadPersisted(from: $0) } ?? .default
+        return base.applyingOnboarding(dailyPlan, settings: settings)
+    }
 
     // MARK: - Persistence (UserSettings ↔ MealPlanIntake)
 
@@ -193,6 +244,17 @@ struct EatingWindow: Sendable, Equatable {
             && lastMealHour > firstMealHour && lastMealHour < 24
     }
 
+    /// Clamp an "HH:mm" time into the window (inclusive). Malformed input is
+    /// returned unchanged.
+    func clamp(_ hhmm: String) -> String {
+        let parts = hhmm.split(separator: ":")
+        guard parts.count == 2, let h = Int(parts[0]), let m = Int(parts[1]) else {
+            return hhmm
+        }
+        let minutes = min(max(h * 60 + m, firstMealHour * 60), lastMealHour * 60)
+        return String(format: "%02d:%02d", minutes / 60, minutes % 60)
+    }
+
     var formattedForPrompt: String {
         let firstFormatted = String(format: "%02d:00", firstMealHour)
         let lastFormatted = String(format: "%02d:00", lastMealHour)
@@ -202,8 +264,8 @@ struct EatingWindow: Sendable, Equatable {
         // lastFormatted. Phrasing it as "anchored at 08:00" previously made the
         // AI pin breakfast to 08:00, fighting the wake-derived time.
         return "Eating window bounds: schedule no meal before \(firstFormatted) "
-            + "or after \(lastFormatted). Within those bounds, use the "
-            + "observed_meal_times exactly."
+            + "or after \(lastFormatted). These bounds OVERRIDE the default "
+            + "per-meal time windows. Within them, use the observed_meal_times exactly."
     }
 }
 

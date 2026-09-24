@@ -343,6 +343,36 @@ final class NutritionCoachService: NutritionCoachServiceProtocol, @unchecked Sen
         return parsed.suggestions
     }
 
+    // MARK: - Coach-tab helpers (NutritionCoachInsights.swift)
+
+    /// Send + validate a free-text coach response. Shared by the Coach-tab
+    /// conformance in NutritionCoachInsights.swift (private helpers aren't
+    /// visible across files).
+    func coachText(
+        prompt: String,
+        maxTokens: Int,
+        temperature: Double,
+        feature: String,
+        minWords: Int,
+        maxWords: Int
+    ) async throws -> String {
+        let response = try await coachRaw(prompt: prompt, maxTokens: maxTokens, temperature: temperature, feature: feature)
+        let text = validateTextResponse(response, minWords: minWords, maxWords: maxWords)
+        guard !text.isEmpty else {
+            throw NutritionCoachError.invalidResponse(feature)
+        }
+        return text
+    }
+
+    /// Raw Haiku response (caller parses).
+    func coachRaw(prompt: String, maxTokens: Int, temperature: Double, feature: String) async throws -> String {
+        try await sendWithRetry(model: "haiku", prompt: prompt, maxTokens: maxTokens, temperature: temperature, feature: feature)
+    }
+
+    func trimToWordLimit(_ text: String, maxWords: Int) -> String {
+        validateTextResponse(text, minWords: 0, maxWords: maxWords)
+    }
+
     // MARK: - Private Helpers
 
     /// Send a Claude API request via the backend proxy with retry logic.

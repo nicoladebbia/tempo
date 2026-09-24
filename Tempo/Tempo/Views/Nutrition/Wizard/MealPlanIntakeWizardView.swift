@@ -6,11 +6,16 @@
 //
 //
 
+import SwiftData
 import SwiftUI
 
 struct MealPlanIntakeWizardView: View {
     @State
     private var coordinator: WizardCoordinator
+    @State
+    private var didSeed = false
+    @Environment(\.modelContext)
+    private var modelContext
 
     init(
         snapshot: WizardLaunchSnapshot,
@@ -48,5 +53,19 @@ struct MealPlanIntakeWizardView: View {
             }
         }
         .interactiveDismissDisabled()
+        .onAppear(perform: seedIntakeIfNeeded)
+    }
+
+    /// Pre-fill from the user's saved answers instead of bare defaults:
+    /// persisted wizard prefs, and — when the wizard has never saved an eating
+    /// window — the one from onboarding (UserDailyPlanProfile). The call site
+    /// only hands us a snapshot, so the seed happens here, once, before the
+    /// user touches anything.
+    private func seedIntakeIfNeeded() {
+        guard !didSeed else { return }
+        didSeed = true
+        let settings = try? modelContext.fetch(FetchDescriptor<UserSettings>()).first
+        let dailyPlan = UserDailyPlanProfile.current(in: modelContext)
+        coordinator.seed(MealPlanIntake.seeded(settings: settings, dailyPlan: dailyPlan))
     }
 }

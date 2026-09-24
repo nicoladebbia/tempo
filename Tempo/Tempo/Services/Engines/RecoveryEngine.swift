@@ -64,7 +64,7 @@ final class RecoveryEngine: RecoveryEngineProtocol, @unchecked Sendable {
         }
 
         // Rule 1: High expected strain
-        if hasPlannedTraining(schedule) {
+        if Self.hasPlannedTraining(schedule) {
             nutritionRecs.append("Eat carbs 1-2h before training. Aim for 30-50g carbs and 15-20g protein.")
         }
 
@@ -87,10 +87,13 @@ final class RecoveryEngine: RecoveryEngineProtocol, @unchecked Sendable {
 
         // --- Hydration ---
         // Per MODULE_RECOVERY.md Section 8.5
-        let hydrationMl = generateHydrationTarget(
+        // Same formula as the Dashboard (DailyHydrationTarget). No store here,
+        // so weight + logged activity are unknown → default base; the
+        // RecoveryViewModel re-stamps it with the real weight and activity.
+        let hydrationMl = Self.hydrationTarget(
             recoveryScore: score,
-            plannedTraining: hasPlannedTraining(schedule),
-            bodyWeightKg: 80 // Default; will use UserProfile when available
+            plannedTraining: Self.hasPlannedTraining(schedule),
+            bodyWeightKg: nil
         )
 
         // --- Warnings ---
@@ -371,39 +374,29 @@ final class RecoveryEngine: RecoveryEngineProtocol, @unchecked Sendable {
 
     // Per MODULE_RECOVERY.md Section 8.5
 
-    // NOTE: this produces DailyPrescription.hydrationTargetMl, surfaced via
-    // RecoveryViewModel.formattedHydration — which is currently NOT rendered by
-    // any view. The hydration number the user sees comes from NutritionEngine
-    // (Fuel quadrant). If you ever wire this path into a view, route its
-    // activity bonus through `HydrationMath` too, or the two surfaces will
-    // disagree (the desync bug class Tempo's CLAUDE.md guards against).
-    private func generateHydrationTarget(
+    // Delegates to `DailyHydrationTarget`, which runs the Dashboard's own
+    // NutritionEngine hydration math (recovery-zone multipliers + HydrationMath
+    // sweat bonus) on a 35 ml/kg base — so the two can't drift apart. The old
+    // hardcoded 80 kg + flat +500 ml/session + low-recovery bumps are gone.
+    static func hydrationTarget(
         recoveryScore: Double,
         plannedTraining: Bool,
-        bodyWeightKg: Double
+        bodyWeightKg: Double?,
+        activityCaloriesBurned: Double? = nil,
+        activityDurationMin: Double? = nil
     ) -> Int {
-        // Step 1: Base = 35ml/kg (Sawka et al., 2007 ACSM)
-        var totalMl = bodyWeightKg * 35
-
-        // Step 2: Activity adjustment (+500ml per planned session)
-        if plannedTraining {
-            totalMl += 500
-        }
-
-        // Step 4: Recovery adjustment
-        if recoveryScore < 50 {
-            totalMl += 250
-        }
-        if recoveryScore < 30 {
-            totalMl += 250 // total +500ml for very low recovery
-        }
-
-        return Int(totalMl)
+        DailyHydrationTarget.targetMl(
+            bodyWeightKg: bodyWeightKg,
+            recoveryZone: RecoveryZone(score: recoveryScore),
+            isTrainingDay: plannedTraining,
+            activityCaloriesBurned: activityCaloriesBurned,
+            activityDurationMin: activityDurationMin
+        )
     }
 
     // MARK: - Schedule Helpers
 
-    private func hasPlannedTraining(_ schedule: [CalendarEvent]) -> Bool {
+    static func hasPlannedTraining(_ schedule: [CalendarEvent]) -> Bool {
         let trainingKeywords = ["gym", "training", "workout", "crossfit", "weights", "run", "jog"]
         return schedule.contains { event in
             let title = event.title.lowercased()

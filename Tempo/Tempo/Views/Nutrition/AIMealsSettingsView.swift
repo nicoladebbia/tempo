@@ -28,6 +28,9 @@ struct AIMealsSettingsView: View {
     private var activeProfiles: [DietaryProfile]
     @Query(sort: \KitchenEquipment.kindRaw)
     private var equipment: [KitchenEquipment]
+    /// Newest first — same row `UserDailyPlanProfile.current(in:)` returns.
+    @Query(sort: \UserDailyPlanProfile.updatedAt, order: .reverse)
+    private var dailyPlanProfiles: [UserDailyPlanProfile]
 
     /// Called when the user saves and chooses to regenerate. The parent owns
     /// the generation call (it has the WhoopService / APIClient handles).
@@ -54,6 +57,7 @@ struct AIMealsSettingsView: View {
     @State private var exclusionDraft: String = ""
 
     @State private var recoveryAdjusted: Bool = false
+    @State private var clearSkinFocus: Bool = false
 
     @State private var didLoad = false
     @State private var showRegeneratePrompt = false
@@ -67,6 +71,7 @@ struct AIMealsSettingsView: View {
             tasteSection
             kitchenSection
             recoverySection
+            focusSection
         }
         .scrollContentBackground(.hidden)
         .background(Color.tempoBgPrimary)
@@ -145,14 +150,14 @@ struct AIMealsSettingsView: View {
             .listRowBackground(Color.tempoSurfaceCard)
 
             Picker("First meal", selection: $firstMealHour) {
-                ForEach(4 ... 12, id: \.self) { h in
+                ForEach(EatingWindowStepView.range(4 ... 14, including: firstMealHour), id: \.self) { h in
                     Text(hourLabel(h)).tag(h)
                 }
             }
             .listRowBackground(Color.tempoSurfaceCard)
 
             Picker("Last meal", selection: $lastMealHour) {
-                ForEach(16 ... 23, id: \.self) { h in
+                ForEach(EatingWindowStepView.range(16 ... 23, including: lastMealHour), id: \.self) { h in
                     Text(hourLabel(h)).tag(h)
                 }
             }
@@ -241,6 +246,30 @@ struct AIMealsSettingsView: View {
             .listRowBackground(Color.tempoSurfaceCard)
         } header: {
             Text("Recovery")
+        }
+    }
+
+    // MARK: - Focus
+
+    private var focusSection: some View {
+        Section {
+            Toggle(isOn: $clearSkinFocus) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Clear-skin / low-dairy focus")
+                        .foregroundStyle(Color.tempoTextPrimary)
+                    Text("Low-GI carbs, no added sweeteners, minimal dairy.")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                }
+            }
+            .tint(Color.tempoSignal)
+            .listRowBackground(Color.tempoSurfaceCard)
+        } header: {
+            Text("Focus")
+        } footer: {
+            Text("Changes which foods the AI favors. Macro targets stay the same.")
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoTextTertiary)
         }
     }
 
@@ -354,8 +383,6 @@ struct AIMealsSettingsView: View {
             cookWeekdayMins = settings.cookTimeWeekdayMins ?? cookWeekdayMins
             cookWeekendMins = settings.cookTimeWeekendMins ?? cookWeekendMins
             mealsPerDay = settings.mealsPerDayPreference
-            firstMealHour = settings.mealIntakeFirstMealHour ?? firstMealHour
-            lastMealHour = settings.mealIntakeLastMealHour ?? lastMealHour
             recoveryAdjusted = settings.mealIntakeRecoveryAdjusted
             exclusions = settings.mealIntakeExclusionsRaw
                 .split(separator: ",")
@@ -363,11 +390,20 @@ struct AIMealsSettingsView: View {
                 .filter { !$0.isEmpty }
         }
 
+        // Same window the planner uses: saved override, else onboarding's
+        // window, else the default. Showing 8–20 here while the planner used
+        // the onboarding window made Save silently overwrite onboarding.
+        let window = MealPlanIntake.seeded(settings: allSettings.first, dailyPlan: dailyPlanProfiles.first).eatingWindow
+        firstMealHour = window.firstMealHour
+        lastMealHour = window.lastMealHour
+
         if let profile = activeProfiles.first {
             cookingSkill = profile.cookingSkill
             favoriteFoods = profile.favoriteFoods
             boredOfFoods = profile.boredOfFoods
         }
+
+        clearSkinFocus = ClearSkinFocusSetting.resolve(modelContext: modelContext)
 
         seedEquipmentIfEmpty()
     }
@@ -404,6 +440,8 @@ struct AIMealsSettingsView: View {
             profile.favoriteFoods = favoriteFoods
             profile.boredOfFoods = boredOfFoods
         }
+
+        ClearSkinFocusSetting.setEnabled(clearSkinFocus)
 
         // Kitchen toggles already wrote through their bindings.
         try? modelContext.save()

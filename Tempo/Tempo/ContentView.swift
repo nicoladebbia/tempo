@@ -6,6 +6,7 @@
 //
 //
 
+import Combine
 import Inject
 import SwiftData
 import SwiftUI
@@ -20,15 +21,21 @@ struct ContentView: View {
     private var services
     @Environment(\.modelContext)
     private var modelContext
-    // Hot reload (dev only, no-op in Release). Edit a SwiftUI view body and
-    // save → InjectionIII pushes it into the running sim in ~1s, no rebuild.
+    /// Hot reload (dev only, no-op in Release). Edit a SwiftUI view body and
+    /// save → InjectionIII pushes it into the running sim in ~1s, no rebuild.
     @ObserveInjection var inject
 
-    // Drives the app-wide accent tint. Observing the AppStorage key here (not
-    // reading Color.tempoAccent statically) is what makes the Appearance
-    // accent picker actually re-tint the app live when the choice changes.
+    /// Drives the app-wide accent tint. Observing the AppStorage key here (not
+    /// reading Color.tempoAccent statically) is what makes the Appearance
+    /// accent picker actually re-tint the app live when the choice changes.
     @AppStorage("accentColorChoice")
     private var accentColorChoice: String = "signal_red"
+
+    /// The Nutrition tab's view model, owned here so plan-input changes are
+    /// handled even when the Nutrition tab was never opened (see
+    /// `handlePlanInputsChanged`).
+    @State
+    private var nutritionViewModel = NutritionTabViewModel()
 
     private var accentColor: Color {
         switch accentColorChoice {
@@ -42,7 +49,13 @@ struct ContentView: View {
         Group {
             if services.appState.isOnboardingComplete {
                 mainTabView
-                    .task { ensureUserProfile() }
+                    .task {
+                        ensureUserProfile()
+                        // One-time clear-skin opt-in migration, at launch so it
+                        // sees an existing install's plan before any regen.
+                        _ = ClearSkinFocusSetting.resolve(modelContext: modelContext)
+                        handlePlanInputsChanged()
+                    }
             } else {
                 OnboardingContainerView()
             }
@@ -89,7 +102,8 @@ struct ContentView: View {
             // at onboarding then discarded, so every new user silently got PPL. An
             // explicit pick wins; "I Don't Know" falls back to a days/week inference.
             if let label = data?["preferredSplit"] as? String,
-               let split = TrainingSplit.fromOnboardingLabel(label) {
+               let split = TrainingSplit.fromOnboardingLabel(label)
+            {
                 settings.trainingSplit = split
             } else if let days = data?["daysPerWeek"] as? Int {
                 settings.trainingSplit = TrainingSplit.forDaysPerWeek(days)
@@ -117,7 +131,8 @@ struct ContentView: View {
         for dupe in all where dupe !== survivor {
             survivor.footballDaysRaw |= dupe.footballDaysRaw
             if survivor.trainingSplitRaw == TrainingSplit.pushPullLegs.rawValue,
-               dupe.trainingSplitRaw != TrainingSplit.pushPullLegs.rawValue {
+               dupe.trainingSplitRaw != TrainingSplit.pushPullLegs.rawValue
+            {
                 survivor.trainingSplitRaw = dupe.trainingSplitRaw
             }
             if survivor.experienceLevelRaw == nil {
@@ -156,7 +171,7 @@ struct ContentView: View {
                 }
                 .tag(Tab.training)
 
-            NutritionTabView()
+            NutritionTabView(viewModel: nutritionViewModel)
                 .tabItem {
                     Label(Tab.nutrition.title, systemImage: Tab.nutrition.icon)
                 }
@@ -173,5 +188,30 @@ struct ContentView: View {
         .onChange(of: appState.activeTab) { _, _ in
             HapticManager.selection()
         }
+        // Training settings (split / football days / trainer program) and
+        // diet-profile edits can happen from Training, Dashboard Settings or
+        // Nutrition. Handle them here, app-wide, so the meal plan follows even
+        // if the Nutrition tab was never opened. Debounced because each chip
+        // toggle posts and a user can flip several in a row — one regen at
+        // the end of the burst, not N.
+        .onReceive(
+            NotificationCenter.default.publisher(for: .tempoTrainingSettingsChanged)
+                .merge(with: NotificationCenter.default.publisher(for: .tempoDietaryProfileChanged))
+                .debounce(for: .seconds(0.6), scheduler: DispatchQueue.main)
+        ) { _ in
+            handlePlanInputsChanged()
+        }
+    }
+
+    /// Regenerates the active meal plan when its inputs fingerprint no longer
+    /// matches (no-op when nothing the plan depends on changed, when there's
+    /// no plan, or when a generation is already running).
+    private func handlePlanInputsChanged() {
+        nutritionViewModel.regenerateIfOutOfDate(
+            modelContext: modelContext,
+            whoop: services.whoop,
+            apiClient: services.apiClient,
+            notifications: services.notifications
+        )
     }
 }

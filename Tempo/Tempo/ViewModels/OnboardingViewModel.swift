@@ -6,6 +6,7 @@
 //
 //
 
+import SwiftData
 import SwiftUI
 
 // MARK: - OnboardingViewModel
@@ -268,6 +269,73 @@ final class OnboardingViewModel {
             // free-text examSchedule path no longer applies.
             examScheduleMigratedAt: Date()
         )
+    }
+
+    /// Save the captured daily-plan profile to SwiftData as the ONE local
+    /// row. Upsert: re-entering the complete step (app killed on it, state
+    /// restoration) or re-running onboarding updates the newest existing row
+    /// in place and removes stray duplicates, so readers that take
+    /// `UserDailyPlanProfile.current(in:)` never see a stale eating window.
+    func persistDailyPlanProfile(in context: ModelContext) throws {
+        let existing = (try? context.fetch(FetchDescriptor<UserDailyPlanProfile>(
+            sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
+        ))) ?? []
+        guard let keep = existing.first else {
+            context.insert(buildDailyPlanProfile())
+            try context.save()
+            return
+        }
+        for duplicate in existing.dropFirst() {
+            context.delete(duplicate)
+        }
+        apply(to: keep, in: context)
+        try context.save()
+    }
+
+    /// Overwrite `profile` with the in-memory onboarding state. Class / work
+    /// blocks are replaced with fresh rows (fresh ids — `ClassBlock.id` is
+    /// unique, so reusing the onboarding ids next to the old rows would collide).
+    private func apply(to profile: UserDailyPlanProfile, in context: ModelContext) {
+        profile.wakeTimeMinutes = wakeTimeMinutes
+        profile.sleepTargetHours = sleepTargetHours
+        profile.chronotype = chronotype
+        profile.termStartDate = termStartDate
+        profile.termEndDate = termEndDate
+        profile.trainingTimePreference = trainingTimePreference
+        profile.eatingWindowPreset = eatingWindowPreset
+        profile.eatingWindowStartMinutes = eatingWindowStartMinutes
+        profile.eatingWindowEndMinutes = eatingWindowEndMinutes
+        profile.breakfastSkipped = breakfastSkipped
+        profile.postWorkoutMandatory = postWorkoutMandatory
+        profile.studySessionLengthMinutes = studySessionLengthMinutes
+        profile.weekendDifferential = weekendDifferential
+        profile.examScheduleMigratedAt = Date()
+        profile.updatedAt = Date()
+
+        for block in profile.classBlocks {
+            context.delete(block)
+        }
+        for block in profile.workBlocks {
+            context.delete(block)
+        }
+        profile.classBlocks = classBlocks.map {
+            ClassBlock(
+                weekday: $0.weekday,
+                startMinuteOfDay: $0.startMinuteOfDay,
+                endMinuteOfDay: $0.endMinuteOfDay,
+                courseCode: $0.courseCode,
+                courseName: $0.courseName,
+                location: $0.location
+            )
+        }
+        profile.workBlocks = workBlocks.map {
+            WorkBlock(
+                weekday: $0.weekday,
+                startMinuteOfDay: $0.startMinuteOfDay,
+                endMinuteOfDay: $0.endMinuteOfDay,
+                label: $0.label
+            )
+        }
     }
 
     /// Push the captured daily-plan profile to the backend. Failures don't

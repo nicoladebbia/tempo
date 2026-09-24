@@ -189,6 +189,14 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
 
     // MARK: - Reminders export
 
+    /// "Oats — 1.5kg". Same quantity formatting as GroceryListView: whole
+    /// numbers stay whole, fractions keep one decimal. `Int(quantity)` used to
+    /// truncate 1.5 kg to "1kg" and 0.5 lb to "0lb".
+    static func reminderTitle(name: String, quantity: Double, unit: PantryUnit) -> String {
+        let formatted = quantity == quantity.rounded() ? "\(Int(quantity))" : String(format: "%.1f", quantity)
+        return "\(name) — \(formatted)\(unit.displayName)"
+    }
+
     func exportToReminders(_ list: GroceryList) async throws {
         // Request access. iOS 17+ uses requestFullAccessToReminders.
         let granted: Bool = if #available(iOS 17.0, *) {
@@ -215,7 +223,7 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
         for item in list.orderedItems where !item.isChecked {
             let reminder = EKReminder(eventStore: eventStore)
             reminder.calendar = calendar
-            reminder.title = "\(item.displayName) — \(Int(item.quantity))\(item.unit.displayName)"
+            reminder.title = Self.reminderTitle(name: item.displayName, quantity: item.quantity, unit: item.unit)
             reminder.notes = "\(title)\nCategory: \(item.category)"
             do {
                 try eventStore.save(reminder, commit: false)

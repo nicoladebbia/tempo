@@ -251,7 +251,7 @@ final class DashboardViewModel {
     // MARK: - Dependencies
 
     private let healthKit: any HealthKitServiceProtocol
-    private let whoop: any WhoopServiceProtocol
+    let whoop: any WhoopServiceProtocol
     private let calendar: any CalendarServiceProtocol
     private var userName: String?
 
@@ -297,21 +297,50 @@ final class DashboardViewModel {
     private var lastRefreshAt: Date?
     private static let refreshDebounceInterval: TimeInterval = 2.0
 
-    func refresh() async {
+    /// Set when a forced refresh arrives mid-refresh: the in-flight pass may
+    /// have read SwiftData before the new write, so run once more after it.
+    private var pendingForcedRefresh = false
+    /// Forced callers that arrived mid-refresh, resumed once the coalesced
+    /// re-run has finished — so their follow-ups (refreshTrainingStatus /
+    /// refreshAccountability) see the post-write Fuel numbers.
+    private var forcedRefreshWaiters: [CheckedContinuation<Void, Never>] = []
+
+    /// HealthKit reported a workout today (set by refreshBody). A skipped /
+    /// missing WorkoutPlan still counts as a training day for Fuel targets
+    /// when the user actually trained.
+    private(set) var hasLoggedWorkoutToday = false
+
+    /// - Parameter force: bypass the debounce. Used for data-changed events
+    ///   (a meal just logged) — debouncing those left the Fuel card stale
+    ///   when a meal was saved within 2s of the previous refresh.
+    func refresh(force: Bool = false) async {
         guard !isRefreshing else {
+            if force {
+                pendingForcedRefresh = true
+                await withCheckedContinuation { forcedRefreshWaiters.append($0) }
+            }
             return
         }
-        if let lastRefreshAt,
+        if !force,
+           let lastRefreshAt,
            Date().timeIntervalSince(lastRefreshAt) < Self.refreshDebounceInterval
         {
             return
         }
         isRefreshing = true
-        defer { isRefreshing = false }
-        let started = Date()
-        await DebugTrace.$refreshID.withValue(DebugTrace.newID()) {
-            await refreshBody()
+        defer {
+            isRefreshing = false
+            let waiters = forcedRefreshWaiters
+            forcedRefreshWaiters = []
+            waiters.forEach { $0.resume() }
         }
+        let started = Date()
+        repeat {
+            pendingForcedRefresh = false
+            await DebugTrace.$refreshID.withValue(DebugTrace.newID()) {
+                await refreshBody()
+            }
+        } while pendingForcedRefresh
         lastRefreshAt = Date()
         #if DEBUG
             let elapsedMs = Date().timeIntervalSince(started) * 1000
@@ -324,15 +353,17 @@ final class DashboardViewModel {
     /// Dashboard view detaches mid-fetch. Treated as "no new data" rather
     /// than a real failure.
     private static func isCancellation(_ error: Error) -> Bool {
-        if error is CancellationError { return true }
+        if error is CancellationError {
+            return true
+        }
         let nsError = error as NSError
         return nsError.domain == NSURLErrorDomain
             && nsError.code == NSURLErrorCancelled
     }
 
-    // Body of refresh() lifted into its own method so we can wrap the entire
-    // call chain in a TaskLocal correlation ID. Every downstream log line that
-    // calls DebugTrace.prefix will be tagged with the same [T:abc123] marker.
+    /// Body of refresh() lifted into its own method so we can wrap the entire
+    /// call chain in a TaskLocal correlation ID. Every downstream log line that
+    /// calls DebugTrace.prefix will be tagged with the same [T:abc123] marker.
     private func refreshBody() async {
         loadState = .loading
 
@@ -433,17 +464,17 @@ final class DashboardViewModel {
         async let hkSleep = healthKit.fetchSleepAnalysis(for: today)
         async let hkWorkouts = healthKit.fetchWorkouts(for: today)
 
-        steps = (try? await hkSteps) ?? 0
-        energy = (try? await hkActiveEnergy) ?? 0
-        heartRates = (try? await hkHeartRate) ?? []
+        steps = await (try? hkSteps) ?? 0
+        energy = await (try? hkActiveEnergy) ?? 0
+        heartRates = await (try? hkHeartRate) ?? []
         hrv = try? await hkHRV
         rhr = try? await hkRHR
-        hkSleepData = (try? await hkSleep) ?? SleepData(
+        hkSleepData = await (try? hkSleep) ?? SleepData(
             totalHours: 0, deepSleepMinutes: 0, remSleepMinutes: 0,
             lightSleepMinutes: 0, awakeMinutes: 0, sleepEfficiency: 0,
             bedtime: nil, wakeTime: nil
         )
-        workouts = (try? await hkWorkouts) ?? []
+        workouts = await (try? hkWorkouts) ?? []
 
         #if DEBUG
             // Single-line summary of every HK metric outcome — easier to scan
@@ -541,25 +572,17 @@ final class DashboardViewModel {
         // (INTELLIGENT_TRAINING_SYSTEM §4.3/§17).
         await persistDailySnapshots(recovery: recovery, sleepHours: sleepHours)
 
-        // Build Fuel quadrant with recovery-adjusted targets.
-        // Targets come from NutritionTarget if present; defaults are used otherwise.
-        let baseCalTarget = nutritionTotals.calorieTarget
-        let baseProtTarget = nutritionTotals.proteinTarget
-        let baseCarbTarget = nutritionTotals.carbsTarget
-        let baseFatTarget = nutritionTotals.fatTarget
-        let recoveryZone = recovery.map { RecoveryZone(score: $0.score) }
-        let isRestDay = false // Will be enriched by refreshTrainingStatus
-
-        let adjusted = NutritionEngine.adjustedTargets(
-            baseCalories: baseCalTarget > 0 ? baseCalTarget : 2400,
-            baseProtein: baseProtTarget > 0 ? baseProtTarget : 180,
-            baseCarbs: baseCarbTarget > 0 ? baseCarbTarget : 280,
-            baseFat: baseFatTarget > 0 ? baseFatTarget : 80,
-            recoveryZone: recoveryZone,
-            currentStrain: cycle?.dayStrain,
-            isTrainingDay: true, // Enriched by refreshTrainingStatus
-            isRestDay: isRestDay
-        )
+        // Build Fuel quadrant from THE canonical daily target (base +
+        // carryover + recovery / rest-day adjustment) — the exact number
+        // Nutrition Today shows. Recovery + strain come from the Body
+        // quadrant (just rebuilt above, or preserved on an all-cancelled
+        // Whoop refresh); training / rest day is resolved inside, so any
+        // refresh yields the right target on its own.
+        let recoveryZone = body.recoveryZone
+        hasLoggedWorkoutToday = !workouts.isEmpty
+        HealthKitWorkoutDay.record(hasLoggedWorkoutToday, on: now)
+        let canonical = canonicalFuelTargets(in: fuelContext)
+        let adjusted = canonical.adjusted
 
         let consumedCal = nutritionTotals.calories
         let consumedProt = nutritionTotals.protein
@@ -573,7 +596,7 @@ final class DashboardViewModel {
             carbsCurrent: consumedCarbs, carbsTarget: adjusted.carbsTarget,
             fatCurrent: consumedFat, fatTarget: adjusted.fatTarget,
             caloriesCurrent: consumedCal, calorieTarget: adjusted.calorieTarget,
-            isTrainingDay: true,
+            isTrainingDay: canonical.day.isTrainingDay,
             recoveryZone: recoveryZone,
             mealsLogged: mealsLoggedCount
         )
@@ -603,7 +626,7 @@ final class DashboardViewModel {
         fuelData.estimatedBMR = 1800 // Will use real BMR when UserProfile is available
         fuelData.nextMeal = nutritionTotals.nextMeal
         fuelData.lastEatenAt = nutritionTotals.lastEatenAt
-        fuel = fuelData
+        fuel = carryingTodayState(into: fuelData, now: now)
 
         // Build Mind quadrant — exams from calendar, study data local
         // Per BUILD_PLAN step 13.2 — exam countdown from real calendar data.
@@ -691,12 +714,31 @@ final class DashboardViewModel {
         loadState = .loaded
         updateScoreTrend()
         refreshInsights()
+        pushWidgetSnapshot()
+    }
+
+    /// Carry today's in-memory Fuel state across refreshBody's rebuild:
+    /// hydration taps and meal-timing suggestions (set by
+    /// refreshTrainingStatus) used to reset on every refresh — e.g. logging a
+    /// meal zeroed the water count. A new day starts clean.
+    private func carryingTodayState(into fresh: FuelQuadrantData, now: Date) -> FuelQuadrantData {
+        guard let previousSync = fuel.lastSync,
+              Calendar.current.isDate(previousSync, inSameDayAs: now)
+        else {
+            return fresh
+        }
+        var merged = fresh
+        merged.hydrationMl = fuel.hydrationMl
+        merged.mealTimingSuggestions = fuel.mealTimingSuggestions
+        return merged
     }
 
     /// Daily persistence side effects of a refresh: today's DailyRecovery row
     /// (when Whoop returned one), then the once-a-day body-comp snapshot.
     private func persistDailySnapshots(recovery: WhoopRecoveryData?, sleepHours: Double) async {
-        guard let context = fuelContext else { return }
+        guard let context = fuelContext else {
+            return
+        }
         if let recovery, whoop.providesRealData {
             upsertDailyRecovery(recovery, sleepHours: sleepHours, context: context)
         }
@@ -713,7 +755,9 @@ final class DashboardViewModel {
     ) {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
-        guard let tomorrow = cal.date(byAdding: .day, value: 1, to: today) else { return }
+        guard let tomorrow = cal.date(byAdding: .day, value: 1, to: today) else {
+            return
+        }
         let descriptor = FetchDescriptor<DailyRecovery>(
             predicate: #Predicate<DailyRecovery> { row in
                 row.date >= today && row.date < tomorrow
@@ -725,7 +769,9 @@ final class DashboardViewModel {
             existing.recoveryZoneRaw = RecoveryZone(score: recovery.score).rawValue
             existing.hrvRmssd = recovery.hrvRmssd
             existing.restingHR = recovery.restingHeartRate
-            if sleepHours > 0 { existing.sleepHours = sleepHours }
+            if sleepHours > 0 {
+                existing.sleepHours = sleepHours
+            }
         } else {
             let row = DailyRecovery(
                 date: today,
@@ -748,7 +794,8 @@ final class DashboardViewModel {
         let today = Calendar.current.startOfDay(for: Date())
         let guardKey = "lastBodyCompSnapshotDay"
         if let last = UserDefaults.standard.object(forKey: guardKey) as? Date,
-           Calendar.current.isDate(last, inSameDayAs: today) {
+           Calendar.current.isDate(last, inSameDayAs: today)
+        {
             return // already snapshotted today
         }
 
@@ -770,7 +817,9 @@ final class DashboardViewModel {
             return
         }
 
-        guard let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today) else { return }
+        guard let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today) else {
+            return
+        }
         let descriptor = FetchDescriptor<BodyComposition>(
             predicate: #Predicate<BodyComposition> { $0.date >= today && $0.date < tomorrow }
         )
@@ -792,7 +841,9 @@ final class DashboardViewModel {
         try? context.save()
         UserDefaults.standard.set(today, forKey: guardKey)
         #if DEBUG
-            print("\(DebugTrace.prefix)[Dashboard] body-comp snapshot: weight=\(data.weightKg ?? -1)kg bf=\(data.bodyFatPercent ?? -1)% lean=\(data.leanMassKg ?? -1)kg")
+            print(
+                "\(DebugTrace.prefix)[Dashboard] body-comp snapshot: weight=\(data.weightKg ?? -1)kg bf=\(data.bodyFatPercent ?? -1)% lean=\(data.leanMassKg ?? -1)kg"
+            )
         #endif
     }
 
@@ -802,6 +853,7 @@ final class DashboardViewModel {
     // Shows workout type and completion from SwiftData WorkoutPlan.
 
     func refreshTrainingStatus(modelContext: ModelContext) {
+        defer { pushWidgetSnapshot() }
         #if DEBUG
             let started = Date()
             defer {
@@ -820,50 +872,20 @@ final class DashboardViewModel {
         // Training resolve to the identical canonical plan.
         DailyResetCoordinator.workoutPlanEnsurer?(modelContext)
 
-        let today = Calendar.current.startOfDay(for: Date())
-        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today)!
-
-        let descriptor = FetchDescriptor<WorkoutPlan>(
-            predicate: #Predicate { plan in
-                plan.date >= today && plan.date < tomorrow
-            },
-            sortBy: [SortDescriptor(\.date, order: .reverse)]
-        )
-
         // Pick the SAME survivor the ensurer keeps: an in-progress session
         // wins, else the most recent. After the ensurer call above there
         // should be exactly one row, but the matching selection keeps this
         // robust if a write lands between the ensure and the fetch.
-        let todayPlans = (try? modelContext.fetch(descriptor)) ?? []
-        guard let todayPlan = todayPlans.first(where: { $0.status == .inProgress })
-            ?? todayPlans.first
-        else {
+        guard let todayPlan = Self.todayWorkoutPlan(in: modelContext) else {
             // No plan found — keep existing HealthKit-based move data
             return
         }
 
         // Enrich move quadrant with training plan status
-        let status: DashboardWorkoutStatus
-        let name: String?
-
-        switch todayPlan.status {
-        case .completed:
-            status = .completed
-            name = todayPlan.type.displayName
-        case .inProgress:
-            status = .planned
-            name = todayPlan.type.displayName
-        case .planned:
-            if todayPlan.type == .rest {
-                status = .restDay
-                name = nil
-            } else {
-                status = .planned
-                name = todayPlan.type.displayName
-            }
-        case .skipped:
-            status = .none
-            name = nil
+        let status = Self.dashboardWorkoutStatus(for: todayPlan)
+        let name: String? = switch status {
+        case .completed, .planned: todayPlan.type.displayName
+        case .restDay, .none: nil
         }
 
         // Update move quadrant, preserving HealthKit steps/calories/HR data
@@ -890,34 +912,12 @@ final class DashboardViewModel {
             wakeTimeMinutes: wakeMinutes
         )
 
-        // Re-compute adjusted targets with correct training/rest day status
-        let isTrainingDay = status == .planned || status == .completed
-        let isRestDayNow = status == .restDay
-        if let baseCalTarget = fuel.calorieTarget, baseCalTarget > 0 {
-            // Today's logged non-gym activity (football etc.) feeds the real
-            // sweat-based hydration bonus. Sum across all of today's sessions so
-            // a two-session day isn't undercounted. Nil when nothing logged.
-            let todayStart = Calendar.current.startOfDay(for: Date())
-            let activityDesc = FetchDescriptor<ActivitySession>(
-                predicate: #Predicate<ActivitySession> { $0.date == todayStart }
-            )
-            let todaySessions = (try? modelContext.fetch(activityDesc)) ?? []
-            let activityCal = todaySessions.compactMap(\.caloriesBurned).reduce(0, +)
-            let activityMin = todaySessions.compactMap(\.durationMinutes).reduce(0, +)
-
-            let baseTargets = fuel.adjustedTargets
-            let recomputed = NutritionEngine.adjustedTargets(
-                baseCalories: baseTargets?.baseCalorieTarget ?? baseCalTarget,
-                baseProtein: baseTargets?.baseProteinTarget ?? (fuel.proteinTarget ?? 180),
-                baseCarbs: baseTargets?.baseCarbsTarget ?? (fuel.carbsTarget ?? 280),
-                baseFat: baseTargets?.baseFatTarget ?? (fuel.fatTarget ?? 80),
-                recoveryZone: body.recoveryZone,
-                currentStrain: body.strain,
-                isTrainingDay: isTrainingDay,
-                isRestDay: isRestDayNow,
-                activityCaloriesBurned: activityCal > 0 ? activityCal : nil,
-                activityDurationMin: activityMin > 0 ? activityMin : nil
-            )
+        // Re-compute targets now that the workout ensurer has run — same
+        // canonical function refreshBody uses, so the two can't disagree.
+        if let calTarget = fuel.calorieTarget, calTarget > 0 {
+            let canonical = canonicalFuelTargets(in: modelContext)
+            let isTrainingDay = canonical.day.isTrainingDay
+            let recomputed = canonical.adjusted
             fuel.adjustedTargets = recomputed
             fuel.calorieTarget = recomputed.calorieTarget
             fuel.proteinTarget = recomputed.proteinTarget
@@ -942,6 +942,7 @@ final class DashboardViewModel {
     // Per BUILD_PLAN step 10.8 — Connect accountability data to Dashboard.
 
     func refreshAccountability(modelContext: ModelContext) {
+        defer { pushWidgetSnapshot() }
         let today = Calendar.current.startOfDay(for: Date())
         let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today)!
 
@@ -1773,8 +1774,9 @@ private final class OneShotLocationProvider: NSObject, CLLocationManagerDelegate
     /// resumes exactly once.
     func requestLocationIfAuthorized() async -> CLLocation? {
         switch manager.authorizationStatus {
-        case .authorizedWhenInUse, .authorizedAlways:
-            return await withCheckedContinuation { continuation in
+        case .authorizedWhenInUse,
+             .authorizedAlways:
+            await withCheckedContinuation { continuation in
                 self.continuation = continuation
                 manager.delegate = self
                 manager.desiredAccuracy = kCLLocationAccuracyKilometer
@@ -1782,7 +1784,7 @@ private final class OneShotLocationProvider: NSObject, CLLocationManagerDelegate
             }
         default:
             // Not yet determined, denied, or restricted — do not prompt.
-            return nil
+            nil
         }
     }
 
