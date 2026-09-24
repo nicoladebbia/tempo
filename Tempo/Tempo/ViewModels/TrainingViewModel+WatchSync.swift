@@ -122,7 +122,8 @@ extension TrainingViewModel {
         // phone-logged one does.
         if !set.isWarmup, !set.isDropStep, let exercise = slot.exercise,
            let pr = trainingEngine.detectPersonalRecord(
-               exercise: exercise, weight: resolvedWeight, reps: resolvedReps
+               exercise: exercise, weight: resolvedWeight, reps: resolvedReps,
+               workoutPlanID: plan.id
            )
         {
             modelContext.insert(pr)

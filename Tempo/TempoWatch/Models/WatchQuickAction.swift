@@ -42,4 +42,21 @@ struct WatchActionPayload: Codable {
     /// `WatchActionPayload(action:payload:)` call site needs no change —
     /// each construction still gets its own fresh id.
     var id: String = UUID().uuidString
+
+    init(action: WatchQuickAction, payload: [String: String]) {
+        self.action = action
+        self.payload = payload
+    }
+
+    /// Actions queued by an older watch build carry no `id` — decode them
+    /// with a fresh one (prefer the payload's `actionID` tag) instead of
+    /// dropping them as undecodable.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        action = try container.decode(WatchQuickAction.self, forKey: .action)
+        payload = try container.decode([String: String].self, forKey: .payload)
+        id = try container.decodeIfPresent(String.self, forKey: .id)
+            ?? payload["actionID"]
+            ?? UUID().uuidString
+    }
 }

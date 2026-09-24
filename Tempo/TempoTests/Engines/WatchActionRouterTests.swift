@@ -235,4 +235,11 @@ final class WatchActionRouterTests: XCTestCase {
         // acks true — the watch already earned its success haptic.
         XCTAssertTrue(router.handle(action), "Duplicate delivery acks success without redoing the work")
     }
+
+    func testLegacyPayloadWithoutIDStillDecodes() throws {
+        let json = Data(#"{"action":"logSet","payload":{"exercise":"Bench","actionID":"abc"}}"#.utf8)
+        let decoded = try JSONDecoder().decode(WatchActionPayload.self, from: json)
+        XCTAssertEqual(decoded.action, .logSet)
+        XCTAssertEqual(decoded.id, "abc", "falls back to the payload's actionID tag")
+    }
 }
