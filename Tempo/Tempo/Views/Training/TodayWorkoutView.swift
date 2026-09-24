@@ -108,21 +108,30 @@ struct TodayWorkoutView: View {
         ZStack(alignment: .bottom) {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: TempoSpacing.xl) {
+                    // §16 — branch on `todayDisplayState`, not `isRestDay`
+                    // directly: `isRestDay` reads true for BOTH "no plan yet"
+                    // and "a real rest day", so checking it first made the
+                    // empty state below permanently unreachable.
                     if viewModel.isLoading {
                         loadingState
-                    } else if viewModel.isRestDay {
-                        restDayContent
-                    } else if let plan = viewModel.todayPlan {
-                        if plan.type.isGymWorkout {
-                            workoutContent(plan: plan)
-                        } else {
+                    } else {
+                        switch viewModel.todayDisplayState {
+                        case .noPlan:
+                            emptyState
+                        case .restDay:
+                            restDayContent
+                        case .gym:
+                            if let plan = viewModel.todayPlan {
+                                workoutContent(plan: plan)
+                            }
+                        case .nonGym:
                             // Non-gym training day (football, run, sprint,
                             // conditioning) — no exercises to log, so show a
                             // type-appropriate card instead of empty gym content.
-                            nonGymContent(plan: plan)
+                            if let plan = viewModel.todayPlan {
+                                nonGymContent(plan: plan)
+                            }
                         }
-                    } else {
-                        emptyState
                     }
 
                     // Suggestions and rituals sit BELOW today's work — the
@@ -1791,10 +1800,21 @@ struct TodayWorkoutView: View {
     }
 
     private var nextWorkoutType: String? {
-        // Look at tomorrow's plan in weekPlans if loaded
-        viewModel.weekPlans
-            .first { Calendar.current.isDateInTomorrow($0.date) }
-            .map(\.type.displayName)
+        let cal = Calendar.current
+        guard let tomorrow = cal.date(byAdding: .day, value: 1, to: Date()) else {
+            return nil
+        }
+        // Look at tomorrow's plan in weekPlans (this week, Mon..Sun) if loaded.
+        if let match = viewModel.weekPlans.first(where: { cal.isDate($0.date, inSameDayAs: tomorrow) }) {
+            return match.type.displayName
+        }
+        // §6 Sunday gap — on a Sunday, tomorrow (Monday) falls in NEXT week,
+        // which `weekPlans` never holds (it's this week only). Preview next
+        // week's Monday so "up next" doesn't just go blank one day a week.
+        let nextMonday = TrainingCalendar.mondayOfWeek(containing: tomorrow)
+        return viewModel.previewWeekPlans(startingMonday: nextMonday, modelContext: modelContext)
+            .first { cal.isDate($0.date, inSameDayAs: tomorrow) }?
+            .type.displayName
     }
 
     /// Returns the most recent 3 ExerciseHistory entries for a given exercise (excluding today).
