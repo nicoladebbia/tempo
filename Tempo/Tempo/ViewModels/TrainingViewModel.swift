@@ -1117,6 +1117,15 @@ final class TrainingViewModel {
         set.completed = true
         set.completedAt = Date()
 
+        // §5 — a calibration set just told us the athlete's real number for a
+        // trainer % that had no reliable e1RM to read it against. Derive an
+        // e1RM from what was actually logged and set every remaining,
+        // not-yet-completed set's target from it — the rest of the exercise
+        // no longer prescribes blind.
+        if set.isCalibration, weight > 0, reps > 0 {
+            propagateCalibration(from: set, weight: weight, reps: reps, modelContext: modelContext)
+        }
+
         // Surface the just-completed set so the session view's inline feedback
         // panel edits exactly this set.
         lastCompletedSet = set

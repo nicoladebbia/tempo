@@ -45,6 +45,15 @@ final class PlannedSet {
 
     var isWarmup: Bool
 
+    /// §5 (trainer-program effort prescriptions) — true for the FIRST working
+    /// set of an exercise whose trainer-written % has no reliable e1RM to read
+    /// it against (or is an isolation/machine lift, where % never means
+    /// e1RM × %). No `targetWeight` is pre-filled: the athlete picks a weight
+    /// live, and logging it derives an e1RM that sets every remaining set's
+    /// target (see `TrainingViewModel.logSet` / `propagateCalibration`).
+    /// Defaulted → SwiftData auto-migrates.
+    var isCalibration: Bool = false
+
     /// Signed external load (kg) for bodyweight-loaded lifts (pull-ups, dips):
     /// positive = added weight (belt/vest), negative = assistance (band/machine
     /// help). nil for non-bodyweight lifts and legacy rows. `actualWeight` /
@@ -122,6 +131,7 @@ final class PlannedSet {
         completed: Bool = false,
         restSeconds: Int? = nil,
         isWarmup: Bool = false,
+        isCalibration: Bool = false,
         addedLoadKg: Double? = nil,
         dropStepIndex: Int? = nil,
         plannedExercise: PlannedExercise? = nil
@@ -137,6 +147,7 @@ final class PlannedSet {
         self.completed = completed
         self.restSeconds = restSeconds
         self.isWarmup = isWarmup
+        self.isCalibration = isCalibration
         self.addedLoadKg = addedLoadKg
         self.dropStepIndex = dropStepIndex
         self.plannedExercise = plannedExercise

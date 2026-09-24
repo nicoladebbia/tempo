@@ -633,7 +633,9 @@ struct WorkoutHistoryView: View {
                                 .padding(.vertical, 2)
                                 .background(Color.tempoBgSecondary.opacity(0.5))
                                 .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xs, style: .continuous))
-                            Text("Warm-up")
+                            // §13 — every warmup on a trainer day is one
+                            // Tempo added; the trainer never wrote it.
+                            Text(plannedEx.workoutPlan?.programSessionKey != nil ? "Tempo warm-up" : "Warm-up")
                                 .font(.tempoCaption2)
                                 .foregroundStyle(Color.tempoTextTertiary)
                         } else if set.completed, let weight = set.actualWeight, let reps = set.actualReps {

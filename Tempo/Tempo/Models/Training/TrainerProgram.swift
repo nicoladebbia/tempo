@@ -112,6 +112,13 @@ final class TrainerProgram {
     /// The text read from the source, kept for reference / re-parsing.
     var sourceText: String?
 
+    /// §13 — whether Tempo adds its own 50%/75% ramp warm-up sets on this
+    /// program's lifting days. nil defaults to true (existing behavior);
+    /// off = trainer days get exactly the sets the trainer wrote, nothing
+    /// more. Editable on the review screen and on `TrainerProgramView`.
+    /// Optional → lightweight SwiftData migration.
+    var autoWarmups: Bool?
+
     init(
         id: UUID = UUID(),
         name: String,
@@ -121,6 +128,7 @@ final class TrainerProgram {
         isActive: Bool = true,
         sourceKind: String,
         sourceText: String? = nil,
+        autoWarmups: Bool? = nil,
         createdAt: Date = Date()
     ) {
         self.id = id
@@ -131,6 +139,7 @@ final class TrainerProgram {
         self.isActive = isActive
         self.sourceKind = sourceKind
         self.sourceText = sourceText
+        self.autoWarmups = autoWarmups
         self.createdAt = createdAt
     }
 
@@ -197,6 +206,11 @@ final class TrainerProgram {
             return nil
         }
         return weeks[week].days[dayIndex]
+    }
+
+    /// `autoWarmups` read with its nil-means-true default (§13).
+    var warmupsEnabled: Bool {
+        autoWarmups ?? true
     }
 
     static func isoWeekday(of date: Date) -> Int {

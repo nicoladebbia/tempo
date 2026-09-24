@@ -176,6 +176,25 @@ struct TrainerProgramView: View {
                 .tint(Color.tempoSignal)
             }
 
+            // §13 — off = trainer days get exactly the sets the trainer
+            // wrote, no Tempo-added ramp.
+            Toggle(isOn: Binding(
+                get: { program.warmupsEnabled },
+                set: { newValue in
+                    program.autoWarmups = newValue
+                    _ = modelContext.saveOrAlert("trainer program warm-ups")
+                    NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
+                }
+            )) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Tempo Warm-Up Sets").font(.tempoBodyBold).foregroundStyle(Color.tempoTextPrimary)
+                    Text("A 50%/75% ramp before each lift. Off — exactly what your trainer wrote.")
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                }
+            }
+            .tint(Color.tempoSignal)
+
             DatePicker(
                 "Start date (Monday)",
                 selection: Binding(

@@ -39,6 +39,11 @@ struct TrainerProgramReviewView: View {
     private var startDate: Date
     @State
     private var repeats = true
+    /// §13 — whether Tempo adds its own 50%/75% ramp warm-ups on this
+    /// program's lifting days. Defaults on (matches `TrainerProgram.
+    /// warmupsEnabled`'s nil-means-true default for a brand-new program).
+    @State
+    private var autoWarmups = true
     @State
     private var weeks: [ProgramWeek]
     @State
@@ -165,6 +170,16 @@ struct TrainerProgramReviewView: View {
                 Toggle("Repeats after last week", isOn: $repeats)
                     .tint(Color.tempoSignal)
             }
+
+            Toggle(isOn: $autoWarmups) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Tempo warm-up sets")
+                    Text("Add a 50%/75% ramp before each lift. Off — exactly what your trainer wrote.")
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                }
+            }
+            .tint(Color.tempoSignal)
         }
     }
 
@@ -183,7 +198,7 @@ struct TrainerProgramReviewView: View {
 
     private func save() {
         do {
-            _ = try TrainerProgramSaver.save(
+            let saved = try TrainerProgramSaver.save(
                 name: name,
                 startDate: startDate,
                 weeks: weeks,
@@ -192,6 +207,10 @@ struct TrainerProgramReviewView: View {
                 sourceText: sourceText,
                 modelContext: modelContext
             )
+            // §13 — TrainerProgramSaver doesn't take this yet; set it on the
+            // saved program directly rather than widening its signature.
+            saved.autoWarmups = autoWarmups
+            _ = modelContext.saveOrAlert("trainer program warm-ups")
             onSaved()
         } catch {
             saveError = error.localizedDescription
@@ -533,6 +552,10 @@ private struct ExerciseRowEditor: View {
                     labeledField("% 1RM") { TextField("pct", text: percentBinding($exercise.percentOf1RM)).keyboardType(.numberPad) }
                 }
 
+                // §5 — show how the % will actually be read BEFORE saving, so
+                // "70%" never silently becomes a guessed weight.
+                percentReadingHint
+
                 HStack(spacing: TempoSpacing.md) {
                     labeledField("Rest (sec)") {
                         TextField("rest", text: stringBinding(for: $exercise.restSeconds)).keyboardType(.numberPad)
@@ -595,6 +618,30 @@ private struct ExerciseRowEditor: View {
             Spacer()
             Button("Change") { showPicker = true }
                 .font(.tempoCaption2)
+        }
+    }
+
+    /// §5 — "70% → effort, calibrate first set" vs "70% of your 100 kg max =
+    /// 70 kg", read against the MATCHED library exercise (unmatched → always
+    /// effort, since there's no exercise to hold history against).
+    @ViewBuilder
+    private var percentReadingHint: some View {
+        if let pct = exercise.percentOf1RM, pct > 0, (exercise.weightKg ?? 0) <= 0 {
+            let percentLabel = "\(Int((pct * 100).rounded()))%"
+            if let matched = matchedExercise,
+               !TrainingViewModel.isIsolationOrMachine(matched),
+               let e1RM = TrainingViewModel.reliableEstimated1RM(for: matched), e1RM > 0
+            {
+                let maxDisplay = Int(WeightUnit.kg.convert(e1RM, to: weightUnit).rounded())
+                let weightDisplay = Int(WeightUnit.kg.convert(e1RM * min(pct, 1.1), to: weightUnit).rounded())
+                Text("\(percentLabel) of your \(maxDisplay) \(weightUnit.abbreviation) max = \(weightDisplay) \(weightUnit.abbreviation)")
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextTertiary)
+            } else {
+                Text("\(percentLabel) → effort, calibrate first set")
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoAmber)
+            }
         }
     }
 
