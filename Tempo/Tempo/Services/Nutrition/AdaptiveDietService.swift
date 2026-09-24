@@ -41,6 +41,7 @@ struct MacroAdjustment {
 ///
 /// Analyzes the last 3 days of actual-vs-planned intake, applies Whoop recovery/strain/sleep
 /// modifiers, and returns capped deltas to apply on top of base TDEE targets.
+@MainActor
 enum AdaptiveDietService {
     private static let logger = Logger.nutrition
 
@@ -62,7 +63,7 @@ enum AdaptiveDietService {
     /// Calculate today's macro adjustment based on the last 3 days of adherence and Whoop data.
     ///
     /// - Parameters:
-    ///   - modelContext: SwiftData context for querying MealLog and PlannedMeal
+    ///   - modelContext: SwiftData context for querying canonical PlannedMeals
     ///   - whoopRecovery: Today's Whoop recovery score (0-100), nil if unavailable
     ///   - whoopStrain: Today's Whoop strain (0-21), nil if unavailable
     ///   - sleepHours: Last night's sleep duration in hours, nil if unavailable
@@ -197,37 +198,26 @@ enum AdaptiveDietService {
         for dayDate: Date,
         modelContext: ModelContext
     ) -> (calDelta: Double, protDelta: Double, carbsDelta: Double, fatDelta: Double) {
-        let calendar = Calendar.current
-        let startOfDay = calendar.startOfDay(for: dayDate)
-        let nextDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
+        let startOfDay = Calendar.current.startOfDay(for: dayDate)
 
-        // Fetch actual meals logged for this day
-        let mealDescriptor = FetchDescriptor<MealLog>(
-            predicate: #Predicate<MealLog> { meal in
-                meal.dayDate >= startOfDay && meal.dayDate < nextDay
-            }
-        )
-        let meals = (try? modelContext.fetch(mealDescriptor)) ?? []
+        // Canonical meals for the day (active plan or unbound manual logs).
+        // Actual = the `.eaten` ones (not MealLog, which Mark Eaten never
+        // writes); planned = the plan's baseline allocation, so ad-hoc logs
+        // don't count as "planned" and a logged substitute doesn't rewrite
+        // what the plan asked for.
+        let dayMeals = CanonicalMeals.meals(on: startOfDay, in: modelContext)
+        let actual = CanonicalMeals.totals(of: dayMeals.filter { $0.status == .eaten })
+        let plannedTotals = CanonicalMeals.planBaseline(of: dayMeals)
 
-        // Fetch planned meals for this day
-        let plannedDescriptor = FetchDescriptor<PlannedMeal>(
-            predicate: #Predicate<PlannedMeal> { meal in
-                meal.dayDate >= startOfDay && meal.dayDate < nextDay
-            }
-        )
-        let planned = (try? modelContext.fetch(plannedDescriptor)) ?? []
+        let actualCal = actual.calories
+        let actualProt = actual.protein
+        let actualCarbs = actual.carbs
+        let actualFat = actual.fat
 
-        // Sum actuals
-        let actualCal = meals.reduce(0.0) { $0 + $1.totalCalories }
-        let actualProt = meals.reduce(0.0) { $0 + $1.totalProtein }
-        let actualCarbs = meals.reduce(0.0) { $0 + $1.totalCarbs }
-        let actualFat = meals.reduce(0.0) { $0 + $1.totalFat }
-
-        // Sum planned
-        let plannedCal = planned.reduce(0.0) { $0 + $1.totalCalories }
-        let plannedProt = planned.reduce(0.0) { $0 + $1.totalProtein }
-        let plannedCarbs = planned.reduce(0.0) { $0 + $1.totalCarbs }
-        let plannedFat = planned.reduce(0.0) { $0 + $1.totalFat }
+        let plannedCal = plannedTotals.calories
+        let plannedProt = plannedTotals.protein
+        let plannedCarbs = plannedTotals.carbs
+        let plannedFat = plannedTotals.fat
 
         // If no planned meals, cannot compute meaningful delta
         guard plannedCal > 0 else {

@@ -8,7 +8,7 @@
 //   - DailyResetCoordinator finalizes yesterday → calls
 //     `captureCarryoverIfNeeded(for:in:onMissedLog:)` to create a row
 //     when yesterday ended in a real, small DEFICIT.
-//   - NutritionTargetCalculator.targetsForToday reads
+//   - NutritionTargetCalculator / DailyNutritionTargets read
 //     `activeAdjustmentForToday(in:)` to bump today's targets by the
 //     single active refund.
 //
@@ -108,42 +108,35 @@ enum MacroCarryoverService {
             return
         }
 
-        // Compute yesterday's actual macros from MealLog.
-        guard let dayEnd = cal.date(byAdding: .day, value: 1, to: dayStart) else {
-            tickActiveCarryovers(in: context)
-            return
-        }
-        let mealDesc = FetchDescriptor<MealLog>(
-            predicate: #Predicate<MealLog> { log in
-                log.dayDate >= dayStart && log.dayDate < dayEnd
-            }
-        )
-        let logs = (try? context.fetch(mealDesc)) ?? []
+        // The closed-out day's meals — canonical PlannedMeals (active plan
+        // or unbound manual logs), the same set every nutrition surface
+        // reads. Actual intake = the `.eaten` ones, which covers Mark Eaten,
+        // Quick Log, presets and Log Meal alike. (This used to sum MealLog,
+        // which Mark Eaten never writes — so carryover never fired for the
+        // most common way of logging.)
+        let dayMeals = CanonicalMeals.meals(on: dayStart, in: context)
+        let eaten = dayMeals.filter { $0.status == .eaten }
         // Skip when the day had nothing logged — that's a "missed
         // tracking" day, not a real deficit. Pulling 2000 kcal forward
         // from a Sunday the user simply didn't track would corrupt
         // the next day's target. (Preserved from the original guard.)
-        guard !logs.isEmpty else {
+        guard !eaten.isEmpty else {
             tickActiveCarryovers(in: context)
             return
         }
+        let eatenTotals = CanonicalMeals.totals(of: eaten)
         let actual = MacroSnapshot(
-            calories: logs.reduce(0.0) { $0 + $1.totalCalories },
-            protein: logs.reduce(0.0) { $0 + $1.totalProtein },
-            carbs: logs.reduce(0.0) { $0 + $1.totalCarbs },
-            fat: logs.reduce(0.0) { $0 + $1.totalFat }
+            calories: eatenTotals.calories,
+            protein: eatenTotals.protein,
+            carbs: eatenTotals.carbs,
+            fat: eatenTotals.fat
         )
 
-        // Read the day's target by re-running the calculator on the
-        // plan that existed yesterday. (PlannedMeals stay around, so
-        // their summed macros are a faithful reproduction.)
-        let plannedDesc = FetchDescriptor<PlannedMeal>(
-            predicate: #Predicate<PlannedMeal> { meal in
-                meal.dayDate >= dayStart && meal.dayDate < dayEnd
-            }
-        )
-        let plannedMeals = (try? context.fetch(plannedDesc)) ?? []
-        guard !plannedMeals.isEmpty else {
+        // The day's target = the plan's baseline allocation for that day
+        // (NutritionTargetCalculator's plan branch). Ad-hoc logs carry a zero
+        // baseline, so they never inflate the target they're measured against.
+        let plannedMeals = dayMeals
+        guard CanonicalMeals.planBaseline(of: plannedMeals).calories > 0 else {
             // No plan = no target to compare against. Same as no-log.
             tickActiveCarryovers(in: context)
             return
@@ -254,7 +247,9 @@ enum MacroCarryoverService {
                 !row.isExpired
             }
         )
-        guard let rows = try? context.fetch(desc) else { return }
+        guard let rows = try? context.fetch(desc) else {
+            return
+        }
         for row in rows {
             row.daysApplied += 1
             if row.daysApplied >= row.spreadDays {
