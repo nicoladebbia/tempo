@@ -20,6 +20,14 @@ final class PlannedExercise {
 
     var supersetGroup: Int?
 
+    /// Exercise name captured when this slot was created. `Exercise.
+    /// plannedExercises` is `.nullify` (§10.6) — deleting a custom exercise
+    /// detaches `exercise` instead of deleting this row, so a past session's
+    /// slot must keep SOME name to show. nil while `exercise` is still set
+    /// (read `exercise.name` — see `displayName`) or on legacy rows written
+    /// before this field existed.
+    var exerciseNameSnapshot: String?
+
     // MARK: - Relationships
 
     @Relationship(deleteRule: .nullify)
@@ -32,6 +40,27 @@ final class PlannedExercise {
     var sets: [PlannedSet]?
 
     // MARK: - Computed
+
+    /// The exercise's name — live if it still exists, else the snapshot taken
+    /// at creation, else "Removed exercise" (deleted with no snapshot, e.g. a
+    /// legacy row). Readers should use this instead of `exercise?.name`.
+    ///
+    /// Self-healing: while `exercise` is live, this also refreshes the
+    /// snapshot to match it. A slot's `exercise` can be repointed after
+    /// creation (an exercise SWAP, elsewhere), which the init-time capture
+    /// alone wouldn't see — reading `displayName` even once after a swap
+    /// (any session/history view does) re-syncs the snapshot before the new
+    /// exercise could ever be deleted and need it.
+    @Transient
+    var displayName: String {
+        if let name = exercise?.name {
+            if exerciseNameSnapshot != name {
+                exerciseNameSnapshot = name
+            }
+            return name
+        }
+        return exerciseNameSnapshot ?? "Removed exercise"
+    }
 
     @Transient
     var orderedSets: [PlannedSet] {
@@ -95,6 +124,7 @@ final class PlannedExercise {
         self.supersetGroup = supersetGroup
         self.workoutPlan = workoutPlan
         self.exercise = exercise
+        exerciseNameSnapshot = exercise?.name
     }
 }
 

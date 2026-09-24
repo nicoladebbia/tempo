@@ -30,6 +30,11 @@ struct ExerciseDetailView: View {
     /// §10.6 — delete confirmation for custom exercises.
     @State
     private var showDeleteConfirm = false
+    /// §10.6/§1 — blocks the delete when the exercise is in today's
+    /// unfinished plan (deleting it mid-plan would nullify a slot the active
+    /// session is about to read).
+    @State
+    private var showActivePlanBlock = false
 
     private var settings: UserSettings? {
         allSettings.first
@@ -109,7 +114,11 @@ struct ExerciseDetailView: View {
             if exercise.isCustom {
                 ToolbarItem(placement: .primaryAction) {
                     Button(role: .destructive) {
-                        showDeleteConfirm = true
+                        if isInTodaysActivePlan {
+                            showActivePlanBlock = true
+                        } else {
+                            showDeleteConfirm = true
+                        }
                     } label: {
                         Image(systemName: "trash")
                     }
@@ -130,10 +139,30 @@ struct ExerciseDetailView: View {
                 "It disappears from the library and pickers. Past sessions that used it keep their logged sets, but lose the exercise name."
             )
         }
+        .alert("Can't Delete Yet", isPresented: $showActivePlanBlock) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("This exercise is in today's workout. Finish or swap it out of today's plan first, then delete it.")
+        }
+    }
+
+    /// §1 — an Exercise deletion nullifies (not cascades onto) today's
+    /// PlannedExercise slots, so deleting an exercise mid-plan would leave the
+    /// live session pointing at a nil exercise. Refuse until today's plan is
+    /// no longer active.
+    private var isInTodaysActivePlan: Bool {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: .now)
+        return (exercise.plannedExercises ?? []).contains { planned in
+            guard let plan = planned.workoutPlan else {
+                return false
+            }
+            return cal.isDate(plan.date, inSameDayAs: today) && !plan.status.isTerminal
+        }
     }
 
     private func deleteCustomExercise() {
-        guard exercise.isCustom else {
+        guard exercise.isCustom, !isInTodaysActivePlan else {
             return
         }
         modelContext.delete(exercise)

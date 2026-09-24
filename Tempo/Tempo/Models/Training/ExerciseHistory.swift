@@ -59,10 +59,36 @@ final class ExerciseHistory {
     /// SwiftData migration (nil on legacy rows written before this field).
     var workoutPlanID: UUID?
 
+    /// Exercise name captured at write time. `Exercise.history` is `.nullify`
+    /// (§10.6) — deleting a custom exercise detaches `exercise` here rather
+    /// than deleting the row, so this permanent record needs its own name to
+    /// keep showing once that happens. nil while `exercise` is still set
+    /// (read `exercise.name` — see `displayName`) or on legacy rows.
+    var exerciseNameSnapshot: String?
+
     // MARK: - Relationships
 
     @Relationship(deleteRule: .nullify)
     var exercise: Exercise?
+
+    // MARK: - Computed
+
+    /// The exercise's name — live if it still exists, else the snapshot taken
+    /// at write time, else "Removed exercise". Readers should use this instead
+    /// of `exercise?.name`. Self-healing: refreshes the snapshot whenever
+    /// `exercise` is live and its name has changed since (defensive; nothing
+    /// mutates this row's `exercise` today, but keeps it correct if that ever
+    /// changes without every writer remembering to re-stamp the snapshot).
+    @Transient
+    var displayName: String {
+        if let name = exercise?.name {
+            if exerciseNameSnapshot != name {
+                exerciseNameSnapshot = name
+            }
+            return name
+        }
+        return exerciseNameSnapshot ?? "Removed exercise"
+    }
 
     // MARK: - Init
 
@@ -94,6 +120,7 @@ final class ExerciseHistory {
         self.gassedFraction = gassedFraction
         self.workoutPlanID = workoutPlanID
         self.exercise = exercise
+        exerciseNameSnapshot = exercise?.name
     }
 }
 

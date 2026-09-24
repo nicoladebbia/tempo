@@ -40,13 +40,22 @@ final class Exercise {
 
     // MARK: - Relationships
 
-    @Relationship(deleteRule: .cascade, inverse: \PlannedExercise.exercise)
+    /// §10.6 — deleting a custom Exercise must NOT erase the training record it
+    /// produced. `.cascade` here used to delete every past PlannedExercise/
+    /// PlannedSet, ExerciseHistory and PersonalRecord that ever referenced this
+    /// exercise the moment it was removed from the library — directly
+    /// contradicting ExerciseDetailView's own delete confirmation ("Past
+    /// sessions that used it keep their logged sets, but lose the exercise
+    /// name"). `.nullify` detaches the pointer instead: the row survives, only
+    /// `exercise` goes nil. Readers fall back to `exerciseNameSnapshot` (or
+    /// "Removed exercise") — see PlannedExercise/ExerciseHistory/PersonalRecord.
+    @Relationship(deleteRule: .nullify, inverse: \PlannedExercise.exercise)
     var plannedExercises: [PlannedExercise]?
 
-    @Relationship(deleteRule: .cascade, inverse: \ExerciseHistory.exercise)
+    @Relationship(deleteRule: .nullify, inverse: \ExerciseHistory.exercise)
     var history: [ExerciseHistory]?
 
-    @Relationship(deleteRule: .cascade, inverse: \PersonalRecord.exercise)
+    @Relationship(deleteRule: .nullify, inverse: \PersonalRecord.exercise)
     var personalRecords: [PersonalRecord]?
 
     // MARK: - Computed
