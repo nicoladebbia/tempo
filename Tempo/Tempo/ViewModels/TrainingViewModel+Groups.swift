@@ -239,6 +239,8 @@ extension TrainingViewModel {
         next.supersetGroup = groupID
         saveGuarded(modelContext, operation: "superset")
         HapticManager.selection()
+        // Watch + Dashboard read the plan's grouping directly.
+        NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
     }
 
     /// Remove `exercise` from whatever superset/circuit it's currently in.
@@ -252,5 +254,7 @@ extension TrainingViewModel {
         exercise.supersetGroup = nil
         saveGuarded(modelContext, operation: "superset change")
         HapticManager.selection()
+        // Watch + Dashboard read the plan's grouping directly.
+        NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
     }
 }

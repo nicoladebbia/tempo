@@ -52,6 +52,58 @@ extension TrainingViewModel {
         }
     }
 
+    /// Pure merge for the Week Plan / Today / Dashboard identity problem:
+    /// `assembleWeekPlans` (loadWeekPlan, hydrateWeekWithAI) always returns
+    /// FRESH transient WorkoutPlan objects, while today's (and any completed/
+    /// in-progress day's) real state lives on a PERSISTED row. Substitutes the
+    /// persisted object for any transient slot that is either dated `today` or
+    /// backed by a sacred (completed/in-progress) persisted row — every other
+    /// slot passes through untouched, so an AI-hydrated in-place adjustment
+    /// (`hydrateWeekWithAI`) to a non-sacred future day is never silently lost.
+    /// When two persisted rows exist for the same day (a transient duplicate
+    /// left over before `ensureTodayPlanPersisted` cleans it up), the more
+    /// sacred one wins: in-progress > completed > planned.
+    nonisolated static func mergePersistedIntoWeek(
+        _ transient: [WorkoutPlan],
+        persisted: [WorkoutPlan],
+        today: Date,
+        calendar: Calendar = .current
+    ) -> [WorkoutPlan] {
+        guard !persisted.isEmpty else {
+            return transient
+        }
+        func sacrednessRank(_ status: WorkoutStatus) -> Int {
+            switch status {
+            case .inProgress: 2
+            case .completed: 1
+            case .planned,
+                 .skipped: 0
+            }
+        }
+        var byDay: [Date: WorkoutPlan] = [:]
+        for plan in persisted {
+            let day = calendar.startOfDay(for: plan.date)
+            if let existing = byDay[day] {
+                if sacrednessRank(plan.status) > sacrednessRank(existing.status) {
+                    byDay[day] = plan
+                }
+            } else {
+                byDay[day] = plan
+            }
+        }
+        let todayKey = calendar.startOfDay(for: today)
+        return transient.map { slot in
+            let day = calendar.startOfDay(for: slot.date)
+            guard let match = byDay[day] else {
+                return slot
+            }
+            guard match.status == .completed || match.status == .inProgress || day == todayKey else {
+                return slot
+            }
+            return match
+        }
+    }
+
     /// Ensures today's WorkoutPlan exists and is PERSISTED, returning it.
     /// Extracted from loadToday so DailyResetCoordinator can call the exact
     /// same path — the Dashboard's Move quadrant only reads the persisted

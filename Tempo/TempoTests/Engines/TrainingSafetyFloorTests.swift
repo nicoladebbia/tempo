@@ -12,7 +12,6 @@
 import XCTest
 
 final class TrainingSafetyFloorTests: XCTestCase {
-
     private typealias F = TrainingSafetyFloor
 
     // MARK: - Fixtures
@@ -169,5 +168,72 @@ final class TrainingSafetyFloorTests: XCTestCase {
         let green = picture(recovery: 80, daysUntilMatch: nil)
         let decision = F.apply(goHardLegs(), picture: green)
         XCTAssertFalse(decision.wasDowngraded)
+    }
+
+    // MARK: - Composite-day rules (§21.4) — all-legs two-a-day on match day (T-0)
+
+    private func legsGymBlock(label: String, scheduledMin: Int, split: String = "legs") -> SessionBlockDTO {
+        SessionBlockDTO(
+            kind: .gym, label: label, notes: nil, cue: nil,
+            scheduledMin: scheduledMin,
+            split: split, reps: nil, distanceM: nil, restSec: nil,
+            intensityPct: nil, durationSec: nil, stroke: nil,
+            runType: nil, paceSecPerKm: nil, sets: nil
+        )
+    }
+
+    func testMatchDayZero_allLegsCompositeIsForcedToRecoveryNotPassedThrough() {
+        // Two-a-day, BOTH parts leg-loading (e.g. squat AM, RDL PM) on match day.
+        // Stripping "legs" from every part leaves nothing to keep — the fix must
+        // force the whole day to the deterministic primer/recovery session
+        // instead of skipping the strip and letting all-legs work through.
+        let session = DailySessionDTO(
+            modality: "legs", intensity: .hard, durationMin: 90,
+            blocks: [
+                legsGymBlock(label: "Back Squat", scheduledMin: 8 * 60),
+                legsGymBlock(label: "RDL", scheduledMin: 18 * 60, split: "lower"),
+            ],
+            shortWhy: "Two-a-day legs.", fullWhy: nil,
+            expectedStrain: 16, expectedSessionRPE: 8
+        )
+        let matchToday = picture(recovery: 80, daysUntilMatch: 0)
+
+        let result = F.applyCompositeDayRules(session, picture: matchToday)
+
+        XCTAssertTrue(result.changed, "An all-legs match-day composite must be downgraded")
+        XCTAssertEqual(result.session.modality, "rest", "Forced to the deterministic recovery/primer session")
+        XCTAssertEqual(result.session.intensity, .recovery)
+        XCTAssertFalse(
+            result.session.blocks.contains { $0.kind == .gym },
+            "No leg-loading gym block may survive match day"
+        )
+        XCTAssertTrue(result.reason.lowercased().contains("match"), "Reason names the match-day rule")
+    }
+
+    func testMatchDayZero_mixedCompositeStripsOnlyLegsPart() {
+        // Baseline contrast: only ONE part is leg-loading — the other (a field
+        // block) survives untouched, proving the all-legs case above isn't
+        // vacuously hitting some unrelated rule.
+        let session = DailySessionDTO(
+            modality: "legs", intensity: .hard, durationMin: 90,
+            blocks: [
+                legsGymBlock(label: "Back Squat", scheduledMin: 8 * 60),
+                SessionBlockDTO(
+                    kind: .field, label: "Football", notes: nil, cue: nil,
+                    scheduledMin: 18 * 60, split: nil, reps: nil, distanceM: nil,
+                    restSec: nil, intensityPct: nil, durationSec: nil, stroke: nil,
+                    runType: nil, paceSecPerKm: nil, sets: nil
+                ),
+            ],
+            shortWhy: "Legs AM, football PM.", fullWhy: nil,
+            expectedStrain: 16, expectedSessionRPE: 8
+        )
+        let matchToday = picture(recovery: 80, daysUntilMatch: 0)
+
+        let result = F.applyCompositeDayRules(session, picture: matchToday)
+
+        XCTAssertTrue(result.changed)
+        XCTAssertFalse(result.session.blocks.contains { $0.kind == .gym }, "Legs part dropped")
+        XCTAssertTrue(result.session.blocks.contains { $0.kind == .field }, "Football part kept — not nuked wholesale")
     }
 }

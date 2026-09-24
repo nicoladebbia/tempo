@@ -723,9 +723,16 @@ extension TrainingViewModel {
             return []
         }
         let inPlan = Set(plan.orderedExercises.compactMap { $0.exercise?.id })
+        // Safety wins over choice — never offer a swap TO a movement the user
+        // recently flagged as painful (mirrors applyPreferredSwaps' rule for the
+        // auto-substitution path).
+        let painFlagged = painFlaggedExerciseIDs(modelContext: modelContext)
         let all = (try? modelContext.fetch(FetchDescriptor<Exercise>())) ?? []
         return all
-            .filter { $0.muscleGroup == current.muscleGroup && !inPlan.contains($0.id) }
+            .filter {
+                $0.muscleGroup == current.muscleGroup && !inPlan.contains($0.id)
+                    && !painFlagged.contains($0.id)
+            }
             .sorted { a, b in
                 let aPattern = a.movementPatternRaw == current.movementPatternRaw
                 let bPattern = b.movementPatternRaw == current.movementPatternRaw
@@ -781,6 +788,8 @@ extension TrainingViewModel {
         }
         saveGuarded(modelContext, operation: "exercise swap")
         HapticManager.selection()
+        // Watch + Dashboard read the plan's exercises directly.
+        NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
     }
 
     /// §2.14 — append a chosen movement to today's plan with a full
@@ -805,6 +814,8 @@ extension TrainingViewModel {
         )
         saveGuarded(modelContext, operation: "added exercise")
         HapticManager.selection()
+        // Watch + Dashboard read the plan's exercises directly.
+        NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
     }
 
     /// Shared prescription builder for swap/add — mirrors the per-exercise body
@@ -828,7 +839,7 @@ extension TrainingViewModel {
             learnedIncrement: learnedIncrements[exercise.id]
         )
         let allExercises = (try? modelContext.fetch(FetchDescriptor<Exercise>())) ?? []
-        let weight = overload.weight > 0
+        var weight = overload.weight > 0
             ? overload.weight
             : coldStartWeight(
                 for: exercise,
@@ -836,6 +847,21 @@ extension TrainingViewModel {
                 allExercises: allExercises,
                 modelContext: modelContext
             )
+
+        // Note-driven adjustment — mirrors populateExercises: pain / too-hard /
+        // form-breakdown notes cap the weight at last session's; swap/add/apply-
+        // routine used to skip this entirely (§8 pain notes ignored on swap/add),
+        // so a flagged exercise could come BACK in heavier than before it hurt.
+        let sig = noteSignals(modelContext: modelContext)[exercise.id]
+        if sig?.isConservative == true {
+            if let lastWeight = history.sorted(by: { $0.date > $1.date }).first?.bestSetWeight,
+               lastWeight > 0
+            {
+                weight = min(weight, lastWeight)
+            }
+        } else if sig?.tooEasy == true {
+            weight += StrengthStandards.increment(for: exercise.equipment)
+        }
 
         // §19.3 — same style split as populateExercises: intensity-cut drops
         // weight, volume-cut halves the requested working sets.

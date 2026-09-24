@@ -186,6 +186,31 @@ extension TrainingViewModel {
         return plan.type == .rest || plan.type == .mobility
     }
 
+    /// The Today screen's coarse day state — the single source the view
+    /// branches on. `isRestDay` reads TRUE for both "no plan generated yet"
+    /// and "a real rest/mobility day"; branching directly on it (as
+    /// TodayWorkoutView used to) checked it BEFORE `todayPlan == nil`, which
+    /// made the empty state ("Generate Today's Workout") permanently
+    /// unreachable — first launch / no data silently rendered as a rest day
+    /// instead of offering a way out. `noPlan` must be distinguished and
+    /// checked first.
+    enum TodayDisplayState: Equatable {
+        case noPlan
+        case restDay
+        case gym
+        case nonGym
+    }
+
+    var todayDisplayState: TodayDisplayState {
+        guard let plan = todayPlan else {
+            return .noPlan
+        }
+        if plan.type == .rest || plan.type == .mobility {
+            return .restDay
+        }
+        return plan.type.isGymWorkout ? .gym : .nonGym
+    }
+
     /// Whether today's plan is a loggable gym session — the ONLY case where a
     /// "Start Workout" button makes sense. Non-gym days (football, run, sprint,
     /// conditioning, mobility, rest) have no exercises to log, so the button is
