@@ -717,8 +717,14 @@ final class TrainingViewModel {
 
         // The athlete's own trainer program replaces the generated gym days
         // (recovery + match days still adjust it — see +TrainerProgram).
+        // Fix #6 — sequence mode needs real progress as of `monday` to
+        // resolve "today's session"; see TrainingViewModel+TrainerProgram.
         if let program = activeTrainerProgram(modelContext: modelContext) {
-            Self.applyTrainerProgram(program, to: plans, matchDayKeys: matchDayKeys)
+            Self.applyTrainerProgram(
+                program, to: plans, matchDayKeys: matchDayKeys,
+                completedSequenceCount: completedTrainerSessionCount(for: program, modelContext: modelContext),
+                priorDayWasLift: trainerProgramPriorDayWasLift(before: monday, program: program, modelContext: modelContext)
+            )
         }
         return plans
     }

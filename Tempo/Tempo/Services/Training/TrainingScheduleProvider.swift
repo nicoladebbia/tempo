@@ -38,6 +38,29 @@ struct DayTrainingSchedule: Sendable, Equatable {
     let mainType: WorkoutType
     let secondaryType: WorkoutType?
     let isTrainerSession: Bool
+    /// Fix #6 — the resolved trainer session's own key, when `isTrainerSession`.
+    /// `TrainerProgram.sessionKey`/`day(forSessionKey:)` are mode-agnostic (a
+    /// key is just `id#week#dN`), so this is how a caller gets back to the
+    /// EXACT `ProgramDay` this schedule resolved to — in sequence mode that's
+    /// NOT the same as calling `program.session(on: date)` again, which only
+    /// knows the fixed-weekday rule. See `TrainerSessionReminderScheduler`.
+    let programSessionKey: String?
+
+    init(
+        weekday: Int,
+        date: Date,
+        mainType: WorkoutType,
+        secondaryType: WorkoutType?,
+        isTrainerSession: Bool,
+        programSessionKey: String? = nil
+    ) {
+        self.weekday = weekday
+        self.date = date
+        self.mainType = mainType
+        self.secondaryType = secondaryType
+        self.isTrainerSession = isTrainerSession
+        self.programSessionKey = programSessionKey
+    }
 }
 
 // MARK: - TrainingScheduleProvider
@@ -70,7 +93,8 @@ enum TrainingScheduleProvider {
                 date: plan.date,
                 mainType: plan.type,
                 secondaryType: plan.secondarySessionType,
-                isTrainerSession: plan.programSessionKey != nil
+                isTrainerSession: plan.programSessionKey != nil,
+                programSessionKey: plan.programSessionKey
             )
         }
     }

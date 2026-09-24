@@ -26,6 +26,8 @@ struct TrainerProgramView: View {
     @State
     private var showImport = false
     @State
+    private var showEdit = false
+    @State
     private var pendingDelete: TrainerProgram?
     @State
     private var pendingActivate: TrainerProgram?
@@ -37,8 +39,16 @@ struct TrainerProgramView: View {
         programs.first { $0.isActive }
     }
 
+    /// Fix #11(b) — queued to auto-activate later; not "past" (history) and
+    /// not the running program.
+    private var queuedPrograms: [TrainerProgram] {
+        programs.filter { !$0.isActive && $0.queuedActivationDate != nil }
+    }
+
+    /// Fix #11(c) — archived (finished/replaced) programs live in
+    /// `TrainerProgramHistoryView`; a queued one isn't history yet.
     private var pastPrograms: [TrainerProgram] {
-        programs.filter { !$0.isActive }
+        programs.filter { !$0.isActive && $0.queuedActivationDate == nil }
     }
 
     var body: some View {
@@ -57,8 +67,31 @@ struct TrainerProgramView: View {
                     .padding(.top, TempoSpacing.xxxl)
                 }
 
+                if !queuedPrograms.isEmpty {
+                    queuedSection
+                }
+
                 if !pastPrograms.isEmpty {
                     pastSection
+
+                    // Fix #11(c) — same programs, read-only, with basic
+                    // completion stats (sessions done / scheduled).
+                    NavigationLink {
+                        TrainerProgramHistoryView()
+                    } label: {
+                        HStack {
+                            Label("Completion Stats", systemImage: "chart.bar.fill")
+                                .font(.tempoBodyBold)
+                                .foregroundStyle(Color.tempoTextPrimary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.tempoCaption2)
+                                .foregroundStyle(Color.tempoTextTertiary)
+                        }
+                        .padding(TempoSpacing.cardPaddingCompact)
+                        .background(Color.tempoSurfaceCard)
+                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl))
+                    }
                 }
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
@@ -85,6 +118,11 @@ struct TrainerProgramView: View {
         }
         .sheet(item: $reportProgram) { program in
             TrainerReportSheet(program: program)
+        }
+        .sheet(isPresented: $showEdit) {
+            if let activeProgram {
+                TrainerProgramReviewView(editingProgram: activeProgram, onSaved: { showEdit = false })
+            }
         }
         .confirmationDialog(
             "Delete this program?",
@@ -170,6 +208,11 @@ struct TrainerProgramView: View {
                     set: { newValue in
                         program.repeats = newValue
                         _ = modelContext.saveOrAlert("trainer program repeats")
+                        // Fix #11 — Repeats changes which week (and, in
+                        // sequence mode, whether the program ever finishes)
+                        // applies to every future day, so the plan must
+                        // regenerate — this was silently missing before.
+                        NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
                     }
                 )) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -208,12 +251,33 @@ struct TrainerProgramView: View {
                     set: { newValue in
                         program.startDate = TrainingCalendar.mondayOfWeek(containing: newValue)
                         _ = modelContext.saveOrAlert("trainer program start date")
+                        // Fix #11 — moving the start date shifts which week
+                        // every future day maps to; the plan must regenerate
+                        // (previously missing — a known gap).
+                        NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
                     }
                 ),
                 displayedComponents: .date
             )
             .font(.tempoBody)
             .tint(Color.tempoSignal)
+
+            // Fix #6 — editable here too (chosen first on the review screen).
+            Picker("Schedule", selection: Binding(
+                get: { program.scheduleMode },
+                set: { newValue in
+                    program.scheduleMode = newValue
+                    _ = modelContext.saveOrAlert("trainer program schedule mode")
+                    NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
+                }
+            )) {
+                ForEach(TrainerProgramScheduleMode.allCases, id: \.self) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+            Text(program.scheduleMode.explanation)
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextTertiary)
 
             // Fix #8 — report the athlete's logged sessions back to the trainer.
             Button {
@@ -226,6 +290,14 @@ struct TrainerProgramView: View {
             .padding(.top, TempoSpacing.xs)
 
             HStack(spacing: TempoSpacing.sm) {
+                Button {
+                    showEdit = true
+                } label: {
+                    Label("Edit", systemImage: "pencil")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.tempoSecondary)
+
                 Button {
                     TrainerProgramSaver.deactivate(program, modelContext: modelContext)
                 } label: {
@@ -290,6 +362,43 @@ struct TrainerProgramView: View {
             return "?"
         }
         return names[weekday - 1]
+    }
+
+    // MARK: - Queued programs (fix #11(b))
+
+    private var queuedSection: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.md) {
+            Text("UP NEXT")
+                .font(.tempoCaption2.weight(.bold))
+                .foregroundStyle(Color.tempoTextTertiary)
+                .padding(.top, TempoSpacing.sectionHeaderTop)
+
+            ForEach(queuedPrograms) { program in
+                HStack(spacing: TempoSpacing.sm) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(program.name)
+                            .font(.tempoHeadline)
+                            .foregroundStyle(Color.tempoTextPrimary)
+                        if let date = program.queuedActivationDate {
+                            Text("Starts \(date.formatted(date: .abbreviated, time: .omitted)) — auto-activates that day")
+                                .font(.tempoCaption2)
+                                .foregroundStyle(Color.tempoTextTertiary)
+                        }
+                    }
+                    Spacer()
+                    Button {
+                        pendingDelete = program
+                    } label: {
+                        Image(systemName: "trash")
+                            .foregroundStyle(Color.tempoError)
+                    }
+                    .accessibilityLabel("Delete \(program.name)")
+                }
+                .padding(TempoSpacing.cardPaddingCompact)
+                .background(Color.tempoSurfaceCard)
+                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl))
+            }
+        }
     }
 
     // MARK: - Past programs

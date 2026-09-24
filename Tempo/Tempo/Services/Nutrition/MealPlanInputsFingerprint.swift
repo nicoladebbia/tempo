@@ -115,6 +115,33 @@ enum MealPlanInputsFingerprint {
             .map { "\(formatter.string(from: $0.startDate))=\($0.emphasisRaw)" }
             .sorted()
             .joined(separator: ",")
-        return ["custom=\(custom)", "matches=\(matches)", "blocks=\(blocks)"]
+        // Fix #6 — a program's schedule mode (fixed vs. sequence) changes
+        // which day type `TrainingScheduleProvider` resolves for a given
+        // date just as much as the custom map or a dated match does.
+        let activeProgram = (try? context.fetch(FetchDescriptor<TrainerProgram>(
+            predicate: #Predicate { $0.isActive }
+        )))?.first
+        let mode = activeProgram?.scheduleMode.rawValue ?? "-"
+        // In `.sequence` mode, completing (or missing) a session advances
+        // the cursor (`TrainingViewModel.completedTrainerSessionCount`),
+        // which can shift which of THIS WEEK'S remaining days are training
+        // days — with nothing else about the program having changed. That
+        // needs to invalidate the cached plan too, so it's hashed here
+        // directly (kept free of TrainingViewModel's service dependencies
+        // rather than reusing that instance method).
+        let sequenceCursor: String
+        if let activeProgram, activeProgram.scheduleMode == .sequence {
+            let prefix = "\(activeProgram.id.uuidString)#"
+            let completedDescriptor = FetchDescriptor<WorkoutPlan>(
+                predicate: #Predicate<WorkoutPlan> { $0.statusRaw == "completed" }
+            )
+            let completedCount = ((try? context.fetch(completedDescriptor)) ?? [])
+                .filter { ($0.programSessionKey?.hasPrefix(prefix)) ?? false }
+                .count
+            sequenceCursor = String(completedCount)
+        } else {
+            sequenceCursor = "-"
+        }
+        return ["custom=\(custom)", "matches=\(matches)", "blocks=\(blocks)", "mode=\(mode)", "cursor=\(sequenceCursor)"]
     }
 }

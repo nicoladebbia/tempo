@@ -275,4 +275,70 @@ final class TrainerSessionReminderSchedulerTests: XCTestCase {
         XCTAssertEqual(reminders.count, 1, "the stale one was cancelled before the rebuild, not accumulated")
         XCTAssertEqual(reminders.first?.category, firstCategory)
     }
+
+    // MARK: - Fix #6 — sequence mode must resolve the SAME session Today would
+
+    /// Regression for a real bug this fix introduces the risk of: this
+    /// scheduler used to re-derive each day's session with
+    /// `program.session(on: date)` — a FIXED-weekday-only lookup. Under
+    /// sequence mode that disagrees with what `weekSchedule` (Today/
+    /// Nutrition's own real week) actually resolved once the athlete falls
+    /// behind — here, one stale completed session shifts the cursor so
+    /// TODAY plays the SECOND step even though the first step is the one
+    /// authored on today's own weekday. The reminder's content must follow
+    /// the resolved key, not the naive weekday guess.
+    func testSequenceModeReminderContentMatchesTheResolvedSessionNotTheAuthoredWeekday() throws {
+        let container = try TempoModelContainer.create(inMemory: true)
+        let context = container.mainContext
+        context.insert(UserSettings())
+
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let todayWeekday = TrainerProgram.isoWeekday(of: today)
+        let tomorrowWeekday = todayWeekday == 7 ? 1 : todayWeekday + 1
+
+        let program = TrainerProgram(
+            name: "PT",
+            startDate: TrainingCalendar.mondayOfWeek(containing: today),
+            weeks: [ProgramWeek(days: [
+                strengthDay(weekday: todayWeekday, title: "Lifting A"),
+                ProgramDay(
+                    weekday: tomorrowWeekday, title: "Aerobic Run", focus: "run",
+                    exercises: [ProgramExercise(name: "Run", sets: 1, repsLow: 1, detail: "30' easy")]
+                ),
+            ])],
+            repeats: true,
+            sourceKind: "text",
+            scheduleMode: .sequence
+        )
+        context.insert(program)
+        // One session already completed, long before this week — pushes the
+        // sequence cursor to step 1 for EVERY week, including this one.
+        let stale = try XCTUnwrap(cal.date(byAdding: .day, value: -21, to: today))
+        let staleCompleted = WorkoutPlan(date: stale, type: .push, status: .completed)
+        staleCompleted.programSessionKey = program.sessionKey(weekIndex: 0, dayIndex: 0)
+        context.insert(staleCompleted)
+        try context.save()
+
+        let mock = MockNotificationService()
+        TrainerSessionReminderScheduler.reschedule(
+            notifications: mock,
+            trainingEngine: TrainingEngine(),
+            whoop: MockWhoopService(),
+            healthKit: MockHealthKitService(),
+            modelContext: context
+        )
+
+        let reminders = scheduledTrainerReminders(mock)
+        let todayReminder = try XCTUnwrap(reminders.first { cal.isDate($0.triggerDate, inSameDayAs: today) })
+        XCTAssertEqual(
+            todayReminder.title, "Aerobic Run today",
+            "cursor is at step 1 — today runs the conditioning step, not step 0's own authored weekday"
+        )
+
+        let tomorrow = try XCTUnwrap(cal.date(byAdding: .day, value: 1, to: today))
+        if let tomorrowReminder = reminders.first(where: { cal.isDate($0.triggerDate, inSameDayAs: tomorrow) }) {
+            XCTAssertEqual(tomorrowReminder.title, "Lifting A at 17:00", "cursor wraps back to step 0")
+        }
+    }
 }

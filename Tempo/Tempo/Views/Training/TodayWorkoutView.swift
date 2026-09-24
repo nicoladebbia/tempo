@@ -136,6 +136,11 @@ struct TodayWorkoutView: View {
                         }
                     }
 
+                    // Fix #6 — "Missed <session> — do it today?" (fixed-mode
+                    // only; renders nothing when there's nothing missed).
+                    // See MissedTrainerSessionCard.swift.
+                    MissedTrainerSessionCard(viewModel: viewModel)
+
                     // Suggestions and rituals sit BELOW today's work — the
                     // exercise list is what this screen is for.
                     // §18.4 — calendar-detected football, confirm-gated.

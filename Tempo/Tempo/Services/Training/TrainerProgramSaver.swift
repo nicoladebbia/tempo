@@ -41,8 +41,104 @@ enum TrainerProgramSaver {
         repeats: Bool,
         sourceKind: String,
         sourceText: String?,
-        modelContext: ModelContext
+        modelContext: ModelContext,
+        autoWarmups: Bool? = nil,
+        scheduleMode: TrainerProgramScheduleMode = .fixed,
+        // Fix #11(b) — queue the next block: non-nil means "don't activate
+        // now" (isActive stays false, no other program is deactivated). The
+        // caller passes either `startDate` itself (starting later, on that
+        // date) or `startDate` computed as "the day after the current
+        // program's last week" — either way this program's own `startDate`
+        // already matches, so `queuedActivationDate` only needs to gate WHEN
+        // `activeTrainerProgram` promotes it.
+        queuedActivationDate: Date? = nil
     ) throws -> TrainerProgram {
+        let resolvedWeeks = try resolveExerciseIDs(weeks: weeks, modelContext: modelContext)
+
+        // Only one program runs at a time — but a QUEUED program doesn't
+        // touch the current one; it activates itself later
+        // (`activeTrainerProgram`'s promotion check).
+        let existingPrograms = (try? modelContext.fetch(FetchDescriptor<TrainerProgram>())) ?? []
+        if queuedActivationDate == nil {
+            for program in existingPrograms where program.isActive {
+                program.isActive = false
+            }
+        } else {
+            // At most ONE program is ever queued at a time — a second queue
+            // replaces the first rather than leaving two due dates for
+            // `activeTrainerProgram`'s promotion check to arbitrate between.
+            for program in existingPrograms where !program.isActive && program.queuedActivationDate != nil {
+                program.queuedActivationDate = nil
+            }
+        }
+
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let program = TrainerProgram(
+            name: trimmedName.isEmpty ? "Trainer Program" : trimmedName,
+            startDate: startDate,
+            weeks: resolvedWeeks,
+            repeats: repeats,
+            isActive: queuedActivationDate == nil,
+            sourceKind: sourceKind,
+            sourceText: sourceText,
+            autoWarmups: autoWarmups,
+            scheduleMode: scheduleMode,
+            queuedActivationDate: queuedActivationDate
+        )
+        modelContext.insert(program)
+        try modelContext.save()
+
+        NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
+        return program
+    }
+
+    /// Fix #11(a) — edits a saved program IN PLACE (sets/reps/load/notes/day
+    /// order, add/remove an exercise, plus name/start date/repeats/warm-ups/
+    /// schedule mode) instead of creating a new `TrainerProgram`. Keeps
+    /// `weekIndex`/`dayIndex` — and therefore every still-valid
+    /// `sessionKey` — pointing at the SAME program object, so it doesn't
+    /// disturb which other program is active. When `program` is the active
+    /// one, also force-refreshes TODAY's already-persisted plan (see
+    /// `TrainingViewModel.reapplyEditedProgramToday`) so the edit can't
+    /// orphan what's already showing.
+    @MainActor
+    static func update(
+        _ program: TrainerProgram,
+        name: String,
+        startDate: Date,
+        weeks: [ProgramWeek],
+        repeats: Bool,
+        autoWarmups: Bool?,
+        scheduleMode: TrainerProgramScheduleMode,
+        modelContext: ModelContext,
+        trainingEngine: any TrainingEngineProtocol,
+        whoop: any WhoopServiceProtocol,
+        healthKit: any HealthKitServiceProtocol
+    ) throws {
+        let resolvedWeeks = try resolveExerciseIDs(weeks: weeks, modelContext: modelContext)
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        program.name = trimmedName.isEmpty ? "Trainer Program" : trimmedName
+        program.startDate = TrainingCalendar.mondayOfWeek(containing: startDate)
+        program.weeks = resolvedWeeks
+        program.repeats = repeats
+        program.autoWarmups = autoWarmups
+        program.scheduleMode = scheduleMode
+        try modelContext.save()
+
+        let vm = TrainingViewModel(trainingEngine: trainingEngine, whoop: whoop, healthKit: healthKit)
+        vm.reapplyEditedProgramToday(program: program, modelContext: modelContext)
+
+        NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
+    }
+
+    /// Shared by `save`/`update` — resolves (or creates) a library `Exercise`
+    /// for every `ProgramExercise` with no `exerciseID` set (the review
+    /// screen sets one for anything the user matched or the live matcher
+    /// already resolved); if still no match, a custom Exercise is created —
+    /// exactly once per distinct name, even if it appears on several
+    /// days/weeks.
+    @MainActor
+    private static func resolveExerciseIDs(weeks: [ProgramWeek], modelContext: ModelContext) throws -> [ProgramWeek] {
         let library = (try? modelContext.fetch(FetchDescriptor<Exercise>())) ?? []
         var candidates = library.map { ExerciseMatcher.Candidate(id: $0.id, name: $0.name) }
         var knownExerciseIDs = Set(library.map(\.id))
@@ -133,28 +229,7 @@ enum TrainerProgramSaver {
             updatedWeek.days = days
             resolvedWeeks.append(updatedWeek)
         }
-
-        // Only one program runs at a time.
-        let existingPrograms = (try? modelContext.fetch(FetchDescriptor<TrainerProgram>())) ?? []
-        for program in existingPrograms where program.isActive {
-            program.isActive = false
-        }
-
-        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let program = TrainerProgram(
-            name: trimmedName.isEmpty ? "Trainer Program" : trimmedName,
-            startDate: startDate,
-            weeks: resolvedWeeks,
-            repeats: repeats,
-            isActive: true,
-            sourceKind: sourceKind,
-            sourceText: sourceText
-        )
-        modelContext.insert(program)
-        try modelContext.save()
-
-        NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
-        return program
+        return resolvedWeeks
     }
 
     /// Activates `program` (deactivating every other one) and posts the
