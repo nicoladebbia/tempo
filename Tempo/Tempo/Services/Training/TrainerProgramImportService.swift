@@ -54,7 +54,10 @@ final class TrainerProgramImportService: @unchecked Sendable {
                     model: "sonnet",
                     system: TrainerProgramParser.systemPrompt,
                     userMessage: TrainerProgramParser.userMessage(sourceText: sourceText),
-                    maxTokens: 3000,
+                    // A multi-source import's combined transcript (several
+                    // lift + conditioning sessions across files) structures
+                    // into a bigger JSON payload than a single-page program.
+                    maxTokens: 4096,
                     temperature: 0,
                     caller: "trainer_program_import"
                 )
