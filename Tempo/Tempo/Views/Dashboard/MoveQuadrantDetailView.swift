@@ -133,7 +133,11 @@ struct MoveQuadrantDetailView: View {
             "Save failed",
             isPresented: Binding(
                 get: { trainingVM?.saveErrorMessage != nil },
-                set: { if !$0 { trainingVM?.saveErrorMessage = nil } }
+                set: {
+                    if !$0 {
+                        trainingVM?.saveErrorMessage = nil
+                    }
+                }
             )
         ) {
             Button("OK", role: .cancel) {}
@@ -156,7 +160,7 @@ struct MoveQuadrantDetailView: View {
             return
         }
         let sessionDate = last.finishedAt ?? last.date
-        let samples = (try? await services.healthKit.fetchWorkouts(for: sessionDate)) ?? []
+        let samples = await (try? services.healthKit.fetchWorkouts(for: sessionDate)) ?? []
         // Match the HK workout that overlaps this session's finish time;
         // fall back to the highest-HR sample for the day.
         let avg = samples
@@ -179,13 +183,13 @@ struct MoveQuadrantDetailView: View {
         }
         return window.map { day in
             let plansThatDay = byDay[day] ?? []
+            // Fix #9 — `PlannedSet.volume` already covers a per-side set's
+            // both-sides tonnage (or sums a logged L/R split); delegating
+            // keeps this trend in step with every other volume reader.
             let volumeKg = plansThatDay.reduce(0.0) { acc, plan in
                 acc + plan.orderedExercises.reduce(0.0) { exAcc, ex in
                     exAcc + (ex.sets ?? []).reduce(0.0) { setAcc, set in
-                        guard set.completed,
-                              let w = set.actualWeight,
-                              let r = set.actualReps else { return setAcc }
-                        return setAcc + (w * Double(r))
+                        setAcc + (set.volume ?? 0)
                     }
                 }
             }
@@ -378,7 +382,7 @@ struct MoveQuadrantDetailView: View {
                 Text("—")
                     .font(.tempoTitle3)
                     .foregroundStyle(Color.tempoTextTertiary)
-            case .some(.some(let avg)):
+            case let .some(.some(avg)):
                 Text("Last session avg: \(Int(avg.rounded())) bpm")
                     .font(.tempoTitle3)
                     .foregroundStyle(Color.tempoTextPrimary)
