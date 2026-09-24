@@ -342,7 +342,16 @@ enum TrainingSafetyFloor {
             let cleaned = parts.map { part in
                 (part.scheduledMin, part.blocks.filter { !isLegsGymBlock($0) })
             }.filter { !$0.1.isEmpty }
-            if !cleaned.isEmpty, cleaned.flatMap(\.1).count != parts.flatMap(\.blocks).count {
+            if cleaned.isEmpty {
+                // Every block in the composite was leg-loading — stripping legs
+                // leaves NOTHING to keep. Skipping the strip here (the old
+                // behavior) let an all-legs two-a-day pass through untouched on
+                // match day; force the whole day down to the deterministic
+                // primer/recovery session instead.
+                reason = "Match today — leg loading before kickoff dropped; primer only."
+                return (recoverySession(reason: reason), true, reason)
+            }
+            if cleaned.flatMap(\.1).count != parts.flatMap(\.blocks).count {
                 reason = "Match today — leg loading before kickoff dropped."
                 parts = cleaned
                 if parts.count < 2 {
