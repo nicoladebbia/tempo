@@ -27,6 +27,9 @@ struct WorkoutSummaryView: View {
     private var ringProgress: Double = 0
     @State
     private var checkScale: Double = 0.3
+    /// Fix #8 — "send report to trainer" entry point (TrainerReportSheet.swift, new file).
+    @State
+    private var showTrainerReport = false
 
     /// Completed working sets over planned working sets (warmups excluded).
     /// No sets at all → 1.0 (nothing was cut short).
@@ -96,6 +99,26 @@ struct WorkoutSummaryView: View {
         }
         .background(Color.tempoBgPrimary)
         .navigationBarBackButtonHidden()
+        .toolbar {
+            if viewModel.todayPlan?.programSessionKey != nil {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        showTrainerReport = true
+                    } label: {
+                        Image(systemName: "paperplane")
+                    }
+                    .accessibilityLabel("Send report to trainer")
+                }
+            }
+        }
+        .sheet(isPresented: $showTrainerReport) {
+            if let program = TrainerReportSheet.program(
+                forSessionKey: viewModel.todayPlan?.programSessionKey,
+                modelContext: modelContext
+            ) {
+                TrainerReportSheet(program: program)
+            }
+        }
     }
 
     // MARK: - Header

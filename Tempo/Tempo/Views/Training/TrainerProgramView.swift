@@ -29,6 +29,9 @@ struct TrainerProgramView: View {
     private var pendingDelete: TrainerProgram?
     @State
     private var pendingActivate: TrainerProgram?
+    /// Fix #8 — "send report to trainer" (TrainerReportSheet.swift, new file).
+    @State
+    private var reportProgram: TrainerProgram?
 
     private var activeProgram: TrainerProgram? {
         programs.first { $0.isActive }
@@ -79,6 +82,9 @@ struct TrainerProgramView: View {
         }
         .sheet(isPresented: $showImport) {
             TrainerProgramImportView()
+        }
+        .sheet(item: $reportProgram) { program in
+            TrainerReportSheet(program: program)
         }
         .confirmationDialog(
             "Delete this program?",
@@ -208,6 +214,16 @@ struct TrainerProgramView: View {
             )
             .font(.tempoBody)
             .tint(Color.tempoSignal)
+
+            // Fix #8 — report the athlete's logged sessions back to the trainer.
+            Button {
+                reportProgram = program
+            } label: {
+                Label("Send Report to Trainer", systemImage: "paperplane")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.tempoSecondary)
+            .padding(.top, TempoSpacing.xs)
 
             HStack(spacing: TempoSpacing.sm) {
                 Button {
