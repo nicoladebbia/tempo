@@ -38,6 +38,24 @@ final class MealPlanInputsFingerprintTests: XCTestCase {
         XCTAssertNotEqual(base, MealPlanInputsFingerprint.fingerprint(inputs(football: 2)))
     }
 
+    func testChangesWhenAMatchIsAddedOrTheCustomSplitChanges() throws {
+        let container = try TempoModelContainer.create(inMemory: true)
+        let context = container.mainContext
+        let settings = UserSettings()
+        context.insert(settings)
+        try context.save()
+        let before = MealPlanInputsFingerprint.current(in: context)
+
+        context.insert(Match(kickoff: Date().addingTimeInterval(3 * 24 * 3600), isCompetitive: true))
+        try context.save()
+        let withMatch = MealPlanInputsFingerprint.current(in: context)
+        XCTAssertNotEqual(before, withMatch, "a new match reshapes the training week")
+
+        settings.customWeekdayPlan = [.push, .rest, .pull, .rest, .legs, .rest, .rest]
+        try context.save()
+        XCTAssertNotEqual(withMatch, MealPlanInputsFingerprint.current(in: context))
+    }
+
     func testChangesWithDietProfileEdits() {
         let profile = DietaryProfile()
         let before = MealPlanInputsFingerprint.fingerprint(inputs(profile: profile))

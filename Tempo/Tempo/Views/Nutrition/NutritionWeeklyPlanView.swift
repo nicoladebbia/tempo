@@ -141,7 +141,9 @@ struct NutritionWeeklyPlanView: View {
                         whoop: services.whoop,
                         apiClient: services.apiClient,
                         notifications: services.notifications,
-                        intake: intake
+                        intake: intake,
+                        trainingEngine: services.trainingEngine,
+                        healthKit: services.healthKit
                     )
                 },
                 onCancel: {
@@ -436,7 +438,9 @@ struct NutritionWeeklyPlanView: View {
                     whoop: services.whoop,
                     apiClient: services.apiClient,
                     notifications: services.notifications,
-                    intake: nil
+                    intake: nil,
+                    trainingEngine: services.trainingEngine,
+                    healthKit: services.healthKit
                 )
             })
         } label: {

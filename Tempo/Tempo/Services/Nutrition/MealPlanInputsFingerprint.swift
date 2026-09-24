@@ -25,6 +25,10 @@ enum MealPlanInputsFingerprint {
         var footballDays: Int?
         var activeTrainerProgramIDs: [UUID]
         var profile: [String]
+        /// Other inputs of Training's real week (TrainingScheduleProvider):
+        /// custom weekday split, upcoming matches, training-block emphasis.
+        /// Canonical strings; empty for callers that don't track them.
+        var schedule: [String] = []
     }
 
     static func fingerprint(_ inputs: Inputs) -> String {
@@ -33,6 +37,7 @@ enum MealPlanInputsFingerprint {
         lines.append("football=\(inputs.footballDays.map(String.init) ?? "-")")
         lines.append("program=\(inputs.activeTrainerProgramIDs.map(\.uuidString).sorted().joined(separator: ","))")
         lines.append(contentsOf: inputs.profile)
+        lines.append(contentsOf: inputs.schedule)
         let digest = SHA256.hash(data: Data(lines.joined(separator: "\n").utf8))
         return digest.map { String(format: "%02x", $0) }.joined()
     }
@@ -85,7 +90,31 @@ enum MealPlanInputsFingerprint {
             trainingSplit: settings?.trainingSplitRaw,
             footballDays: settings?.footballDaysRaw,
             activeTrainerProgramIDs: programs.filter(\.isActive).map(\.id),
-            profile: profileFields(profile)
+            profile: profileFields(profile),
+            schedule: scheduleFields(settings: settings, in: context)
         ))
+    }
+
+    /// The meal plan's training days come from Training's real week
+    /// (TrainingScheduleProvider), which also reads the custom weekday split,
+    /// dated matches and the training block — a change to any of them must
+    /// mark the plan stale too.
+    @MainActor
+    static func scheduleFields(settings: UserSettings?, in context: ModelContext) -> [String] {
+        let custom = settings?.customWeekdayPlan?.map(\.rawValue).joined(separator: ",") ?? "-"
+        let now = Date()
+        let horizon = now.addingTimeInterval(14 * 24 * 3600)
+        let matchDescriptor = FetchDescriptor<Match>(predicate: #Predicate { $0.kickoff >= now && $0.kickoff < horizon })
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withFullDate]
+        let matches = ((try? context.fetch(matchDescriptor)) ?? [])
+            .map { "\(formatter.string(from: $0.kickoff))\($0.isCompetitive ? "c" : "f")" }
+            .sorted()
+            .joined(separator: ",")
+        let blocks = ((try? context.fetch(FetchDescriptor<TrainingBlock>())) ?? [])
+            .map { "\(formatter.string(from: $0.startDate))=\($0.emphasisRaw)" }
+            .sorted()
+            .joined(separator: ",")
+        return ["custom=\(custom)", "matches=\(matches)", "blocks=\(blocks)"]
     }
 }
