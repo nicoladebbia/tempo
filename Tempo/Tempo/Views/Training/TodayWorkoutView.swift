@@ -23,7 +23,7 @@ struct TodayWorkoutView: View {
     @Binding
     var showSummary: Bool
     @Environment(\.modelContext)
-    private var modelContext
+    var modelContext
     @Query
     private var allSettings: [UserSettings]
     @State
@@ -100,7 +100,9 @@ struct TodayWorkoutView: View {
         return savedEventID
     }
 
-    private var settings: UserSettings? {
+    /// Internal (not private) — TodayWorkoutView+TrainerAdjustment.swift reads
+    /// this from an extension in a separate file (§4 file-length split).
+    var settings: UserSettings? {
         allSettings.first
     }
 
@@ -1176,11 +1178,22 @@ struct TodayWorkoutView: View {
             }
 
             // Row 2: Sets x Reps @ Weight
-            if let sets = plannedExercise.sets, let firstSet = sets.first {
+            // §5 fix — `.orderedSets` (setNumber-sorted), NOT the raw `.sets`
+            // relationship array: SwiftData doesn't guarantee that array's
+            // order matches setNumber, and prescriptionText's "first working
+            // set" must be the ACTUAL first (the calibration set, when this
+            // exercise has one) — an arbitrary working set showing "(BW)"
+            // instead of the calibration copy is exactly this bug.
+            let orderedSets = plannedExercise.orderedSets
+            if let firstSet = orderedSets.first {
                 HStack(spacing: TempoSpacing.xxs) {
-                    Text(prescriptionText(sets: sets, firstSet: firstSet))
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                    Text(prescriptionText(
+                        sets: orderedSets,
+                        firstSet: firstSet,
+                        isTrainerDay: plannedExercise.workoutPlan?.programSessionKey != nil
+                    ))
+                    .font(.tempoBody)
+                    .foregroundStyle(Color.tempoTextSecondary)
 
                     // Progressive overload indicator
                     if let notes = plannedExercise.workoutPlan?.notes,
@@ -1203,6 +1216,11 @@ struct TodayWorkoutView: View {
                     .foregroundStyle(Color.tempoSignal)
                     .fixedSize(horizontal: false, vertical: true)
             }
+
+            // §4 — the trainer's own target when Tempo adjusted it (recovery
+            // multiplier / pain-note cap), plus a one-tap way to use theirs
+            // instead for the sets still to come today.
+            trainerAdjustmentRow(plannedExercise)
 
             // Row 3: Last 3 sessions' performance with trend indicator
             if let exercise = plannedExercise.exercise {
@@ -1246,6 +1264,9 @@ struct TodayWorkoutView: View {
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
         .tempoShadow(.card)
     }
+
+    // trainerAdjustmentRow (§4) moved to TodayWorkoutView+TrainerAdjustment.swift
+    // to keep this file under the SwiftLint file/type-body length caps.
 
     private func equipmentHint(_ equipment: Equipment) -> String {
         switch equipment {
@@ -1803,29 +1824,36 @@ struct TodayWorkoutView: View {
         return max(20, Int(totalMinutes.rounded()))
     }
 
-    private func prescriptionText(sets: [PlannedSet], firstSet: PlannedSet) -> String {
+    private func prescriptionText(sets: [PlannedSet], firstSet: PlannedSet, isTrainerDay: Bool = false) -> String {
         let workingSets = sets.filter { !$0.isWarmup }
         let warmupSets = sets.filter(\.isWarmup)
         let setCount = workingSets.count
-        let reps = (workingSets.first ?? firstSet).targetReps
+        let leadSet = workingSets.first ?? firstSet
+        let reps = leadSet.targetReps
         let unit = settings?.weightUnit ?? .kg
 
         var text: String
-        if let weight = (workingSets.first ?? firstSet).targetWeight, weight > 0 {
+        if let weight = leadSet.targetWeight, weight > 0 {
             let displayWeight = WeightUnit.kg.convert(weight, to: unit)
             text = "\(setCount) x \(reps) @ \(Int(displayWeight))\(unit.abbreviation)"
+        } else if leadSet.isCalibration {
+            // §5 — a trainer % with no reliable max: no weight to show yet,
+            // the first set calibrates it live.
+            text = "\(setCount) x \(reps) · calibrate first set"
         } else {
             text = "\(setCount) x \(reps) (BW)"
         }
 
         // §11.12 — effort target rides the prescription line when the
         // e1RM-anchored path set one.
-        if let rir = (workingSets.first ?? firstSet).targetRIR {
+        if let rir = leadSet.targetRIR, !leadSet.isCalibration {
             text += " · RIR \(rir)"
         }
 
         if !warmupSets.isEmpty {
-            text += " + \(warmupSets.count) warmup"
+            // §13 — every warmup on a trainer day is one Tempo added; the
+            // trainer never wrote it.
+            text += " + \(warmupSets.count) \(isTrainerDay ? "Tempo warm-up" : "warmup")"
         }
 
         return text

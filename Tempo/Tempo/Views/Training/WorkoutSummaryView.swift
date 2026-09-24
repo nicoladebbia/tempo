@@ -76,6 +76,10 @@ struct WorkoutSummaryView: View {
                     .frame(maxWidth: .infinity)
                 }
 
+                // §4 — trainer-program exercises Tempo adjusted (recovery/pain
+                // note) or that the athlete overrode back to the trainer's number.
+                trainerAdjustmentsSection
+
                 // Per-exercise summary
                 exerciseSummary
 
@@ -237,6 +241,51 @@ struct WorkoutSummaryView: View {
         .padding(.vertical, TempoSpacing.lg)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+    }
+
+    // MARK: - Trainer Adjustments (§4)
+
+    /// Exercises with a recorded `loadAdjustmentNote` (Tempo changed the
+    /// trainer's number) or an applied override (the athlete used the
+    /// trainer's own number instead). Empty on a generated day.
+    private var trainerAdjustedExercises: [PlannedExercise] {
+        (viewModel.todayPlan?.orderedExercises ?? []).filter {
+            $0.loadAdjustmentNote != nil || $0.trainerOverrideApplied
+        }
+    }
+
+    @ViewBuilder
+    private var trainerAdjustmentsSection: some View {
+        if !trainerAdjustedExercises.isEmpty {
+            VStack(alignment: .leading, spacing: TempoSpacing.md) {
+                Text("Trainer Adjustments")
+                    .font(.tempoTitle3)
+                    .foregroundStyle(Color.tempoTextPrimary)
+
+                ForEach(trainerAdjustedExercises, id: \.id) { plannedEx in
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(plannedEx.displayName)
+                                .font(.tempoBody)
+                                .foregroundStyle(Color.tempoTextPrimary)
+                            Text(
+                                plannedEx.trainerOverrideApplied
+                                    ? "Used the trainer's own weight"
+                                    : (plannedEx.loadAdjustmentNote ?? "Adjusted")
+                            )
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                        }
+                        Spacer()
+                        Image(systemName: plannedEx.trainerOverrideApplied ? "arrow.uturn.backward.circle" : "slider.horizontal.3")
+                            .foregroundStyle(Color.tempoWarning)
+                    }
+                    .padding(TempoSpacing.md)
+                    .background(Color.tempoSurfaceCard)
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+                }
+            }
+        }
     }
 
     // MARK: - Per-Exercise Summary

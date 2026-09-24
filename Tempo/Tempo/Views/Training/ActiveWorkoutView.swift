@@ -473,9 +473,17 @@ struct ActiveWorkoutView: View {
                 // bar. For bar-loaded lifts we show a per-side plate hint so
                 // there's no ambiguity about what to actually put on.
                 VStack(spacing: TempoSpacing.sm) {
-                    Text("WEIGHT — total incl. bar")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                    if currentSetIsCalibration {
+                        // §5 — no pre-filled weight; the athlete picks one.
+                        Text(calibrationPromptText)
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoAmber)
+                            .multilineTextAlignment(.center)
+                    } else {
+                        Text("WEIGHT — total incl. bar")
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                    }
                     NumberStepperView(
                         value: $inputWeight,
                         range: 0 ... weightRangeMax,
@@ -542,11 +550,22 @@ struct ActiveWorkoutView: View {
         let exerciseID: UUID? = viewModel.currentExercise?.exercise?.id
         let painFlagged = exerciseID.map { viewModel.painFlaggedExercises.contains($0) } ?? false
         let dropIndex = viewModel.currentSet?.dropStepIndex
-        if currentSetIsWarmup || painFlagged || viewModel.currentSupersetPartnerName != nil || dropIndex != nil {
+        if currentSetIsWarmup || currentSetIsCalibration || painFlagged
+            || viewModel.currentSupersetPartnerName != nil || dropIndex != nil
+        {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: TempoSpacing.xs) {
                     if currentSetIsWarmup {
-                        chip("flame", "RAMP-UP — doesn't count", Color.tempoSignal)
+                        // §13 — a trainer day's ramp is one Tempo added.
+                        let isTrainerDay = viewModel.currentExercise?.workoutPlan?.programSessionKey != nil
+                        chip(
+                            "flame",
+                            isTrainerDay ? "TEMPO WARM-UP — doesn't count" : "RAMP-UP — doesn't count",
+                            Color.tempoSignal
+                        )
+                    }
+                    if currentSetIsCalibration {
+                        chip("ruler", "CALIBRATION SET", Color.tempoAmber)
                     }
                     if painFlagged {
                         chip("exclamationmark.triangle.fill", "Pain flagged — weight held, go easy", Color.tempoWarning)
@@ -740,6 +759,21 @@ struct ActiveWorkoutView: View {
     /// Whether the set currently being entered is a warm-up (ramp) set.
     private var currentSetIsWarmup: Bool {
         viewModel.currentSet?.isWarmup ?? false
+    }
+
+    /// §5 — whether the current set is a calibration set: a trainer % with no
+    /// reliable e1RM to read it against. No weight is pre-filled; logging it
+    /// derives the working weights for the rest of the exercise.
+    private var currentSetIsCalibration: Bool {
+        viewModel.currentSet?.isCalibration ?? false
+    }
+
+    /// §5 — "Calibration — pick a weight you could do ~N more reps with".
+    private var calibrationPromptText: String {
+        guard let rir = viewModel.currentSet?.targetRIR, rir > 0 else {
+            return "Calibration — pick a weight for this exercise"
+        }
+        return "Calibration — pick a weight you could do ~\(rir) more rep\(rir == 1 ? "" : "s") with"
     }
 
     /// §6.4 — names the drop step explicitly ("Finish Drop 2") so the
@@ -1375,6 +1409,17 @@ struct ActiveWorkoutView: View {
             let addedKg = viewModel.currentSet?.addedLoadKg ?? 0
             let display = WeightUnit.kg.convert(addedKg, to: weightUnit)
             inputAddedLoad = (display / weightStep).rounded() * weightStep
+            if let targetReps = viewModel.currentSet?.targetReps {
+                inputReps = Double(targetReps)
+            }
+            return
+        }
+
+        // §5 — a calibration set has no target to pre-fill by design (the
+        // athlete picks live); reset to 0 so a heavier weight left over from
+        // the PREVIOUS exercise/set can't carry in and look pre-filled.
+        if currentSetIsCalibration {
+            inputWeight = 0
             if let targetReps = viewModel.currentSet?.targetReps {
                 inputReps = Double(targetReps)
             }
