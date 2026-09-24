@@ -132,6 +132,7 @@
 		2399410CE4FFE1FFC342D4DD /* cue_ex_jump_squat.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 388CFB171F4DC2FDAE59C22C /* cue_ex_jump_squat.mp3 */; };
 		23D3FDA2F34C1FEA7DDE7754 /* NutritionTabViewModel+Phase7.swift in Sources */ = {isa = PBXBuildFile; fileRef = F56136E3F6418EA68B56A8B2 /* NutritionTabViewModel+Phase7.swift */; };
 		2406709301E45DA98C95299D /* DailyNutritionSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4539B2940363761D247FF8E /* DailyNutritionSummaryView.swift */; };
+		24AA496A6296C542C8113E2D /* ProgramSchedulerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDF626C57965E4B75D8709F1 /* ProgramSchedulerTests.swift */; };
 		24F4B89D96F39C27454763DD /* CoachMessageRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26A97ED2FC0116E49F3562EE /* CoachMessageRendererTests.swift */; };
 		252FBE90CB7D1D856C2D14CB /* GroceryListServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE2361DA19C816C8DF688E80 /* GroceryListServiceProtocol.swift */; };
 		25AC0784F339B4579AA193F5 /* TrainerProgramImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0ACB4B35D2E6014F2ECDA44 /* TrainerProgramImportView.swift */; };
@@ -298,6 +299,7 @@
 		554CFEECDFDD91732C28DCAF /* cue_ex_barbell_row.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 68F4768A07CB80464021C670 /* cue_ex_barbell_row.mp3 */; };
 		5558C6B738A04FDD3E692342 /* EmphasisPeriodizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B747C916EE1444BE5584D9 /* EmphasisPeriodizationTests.swift */; };
 		55A17AD70DB0B92BC0AB7220 /* MealPlanGeneratorService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B8B7FCFCF4322BA2DE412B4 /* MealPlanGeneratorService.swift */; };
+		55C410239140FEAB69F98CB0 /* ProgramScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A88BE628D61894754E918AC /* ProgramScheduler.swift */; };
 		55DF8142F5C47320F5739100 /* Double+Formatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCA19F6669555D8B7B7E201F /* Double+Formatting.swift */; };
 		55F70911DA2E8237F98B0199 /* ExerciseLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8094D8380452850D0E377C20 /* ExerciseLibraryView.swift */; };
 		563F4DB1B83C9BA5F7CC9B8B /* GroceryReapplyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0577FF35A58CE2AD48423C5A /* GroceryReapplyTests.swift */; };
@@ -1131,6 +1133,7 @@
 		496CF146E908D191F82FD2D4 /* AccountabilityViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountabilityViewModel.swift; sourceTree = "<group>"; };
 		49ACE819EC67B27E98797001 /* XPEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XPEvent.swift; sourceTree = "<group>"; };
 		49E0108B5E3B7188A38DD9E2 /* MonthlyReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyReview.swift; sourceTree = "<group>"; };
+		4A88BE628D61894754E918AC /* ProgramScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramScheduler.swift; sourceTree = "<group>"; };
 		4AC1C8DE6FF1AE4C7E1BAFFE /* ProgramTextExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramTextExtractor.swift; sourceTree = "<group>"; };
 		4B159B33F931B316671DFF6E /* cue_ex_incline_hammer_curl.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_incline_hammer_curl.mp3; sourceTree = "<group>"; };
 		4B386A3D49497363D09C36A8 /* TwoADaySessionShapeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwoADaySessionShapeTests.swift; sourceTree = "<group>"; };
@@ -1513,6 +1516,7 @@
 		BD05895FDC912C2B6F050B21 /* cue_ex_inverted_row.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_inverted_row.mp3; sourceTree = "<group>"; };
 		BD05C6F05CA67865B45F8636 /* cue_move_light_biceps_tendon_glides.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_move_light_biceps_tendon_glides.mp3; sourceTree = "<group>"; };
 		BDC8E015BB46594942034849 /* XCTestCase+SwiftData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "XCTestCase+SwiftData.swift"; sourceTree = "<group>"; };
+		BDF626C57965E4B75D8709F1 /* ProgramSchedulerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramSchedulerTests.swift; sourceTree = "<group>"; };
 		BE31636DB3A566593228F39C /* PredictionAccuracyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PredictionAccuracyTests.swift; sourceTree = "<group>"; };
 		BE3ADD80A9394596AE901BA3 /* MatchScheduleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MatchScheduleTests.swift; sourceTree = "<group>"; };
 		BEDA29D2A659169A4BA72678 /* HealthKitConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitConstants.swift; sourceTree = "<group>"; };
@@ -3051,6 +3055,7 @@
 			isa = PBXGroup;
 			children = (
 				8080A9FFA0632ED3C2B55238 /* ExerciseMatcher.swift */,
+				4A88BE628D61894754E918AC /* ProgramScheduler.swift */,
 				4AC1C8DE6FF1AE4C7E1BAFFE /* ProgramTextExtractor.swift */,
 				C54AD9D9D1B5780DF76F9833 /* TrainerProgramImportService.swift */,
 				9D1D23F083DD0EB26B2BEBDC /* TrainerProgramParser.swift */,
@@ -3314,6 +3319,7 @@
 			isa = PBXGroup;
 			children = (
 				855C4CCE5A03A9DD43819560 /* ExerciseMatcherTests.swift */,
+				BDF626C57965E4B75D8709F1 /* ProgramSchedulerTests.swift */,
 				B8B5CA4DB5192DD144A811DF /* ProgramTextExtractorTests.swift */,
 				0448B2F8E394583257AE0FE8 /* TrainerProgramParserTests.swift */,
 				0AB36D6C18E7461CBE5DF794 /* TrainerProgramSaverTests.swift */,
@@ -3976,6 +3982,7 @@
 				61006E0A8EC7708B70FC2401 /* PreferenceHealthCheckTests.swift in Sources */,
 				E3F88E766668B49CDE016ADA /* PreferenceRetrieverTests.swift in Sources */,
 				601D05E6B7E9C1901152145C /* PrescriptionMathTests.swift in Sources */,
+				24AA496A6296C542C8113E2D /* ProgramSchedulerTests.swift in Sources */,
 				B407E585E8C3E64E1579EB2A /* ProgramTextExtractorTests.swift in Sources */,
 				EE4E28528885E9B6F88A03D1 /* ProgressLabMathTests.swift in Sources */,
 				146EC62DCE3E4AA9C42AC64B /* ProgressiveOverloadFeedbackTests.swift in Sources */,
@@ -4369,6 +4376,7 @@
 				EA7982F02BA3A6E7A51C5869 /* PrescriptionMath.swift in Sources */,
 				F13B62DD20C49D6C44359583 /* PrivacyInfoView.swift in Sources */,
 				ED7D0C6DD064812098D230DE /* ProfileSetupView.swift in Sources */,
+				55C410239140FEAB69F98CB0 /* ProgramScheduler.swift in Sources */,
 				4A4A80B819D8EEE3968521F7 /* ProgramTextExtractor.swift in Sources */,
 				6AE52F84E29E047672EE963F /* ProgressChartsView.swift in Sources */,
 				8E39D350B8EC2300898CA97D /* ProgressLabMath.swift in Sources */,
