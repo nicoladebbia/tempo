@@ -82,17 +82,22 @@ enum TrainerSessionReminderScheduler {
             }
             scheduleByWeekStart[weekStart] = weekSchedule
 
+            // Fix #6 — resolve the session from the key `weekSchedule` already
+            // picked (`day(forSessionKey:)` is mode-agnostic), NOT by calling
+            // `program.session(on: date)` again: that only knows the FIXED
+            // weekday rule, so under sequence mode it could name a different
+            // day than the one Today/Nutrition actually resolved for `date`.
             guard let day = weekSchedule.first(where: { calendar.isDate($0.date, inSameDayAs: date) }),
                   day.isTrainerSession,
-                  let session = program.session(on: date),
+                  let sessionKey = day.programSessionKey,
+                  let sessionDay = program.day(forSessionKey: sessionKey),
                   let fireDate = Self.fireDate(on: date, timeOfDay: timeOfDay, calendar: calendar),
                   fireDate > now
             else {
                 continue
             }
 
-            let sessionKey = program.sessionKey(weekIndex: session.weekIndex, dayIndex: session.dayIndex)
-            let (title, body) = Self.content(for: session.day, timeOfDay: timeOfDay)
+            let (title, body) = Self.content(for: sessionDay, timeOfDay: timeOfDay)
             notifications.scheduleTrainerSessionReminder(
                 sessionKey: sessionKey,
                 date: date,

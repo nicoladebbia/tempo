@@ -91,6 +91,40 @@ struct ProgramWeek: Codable, Hashable, Identifiable {
     var days: [ProgramDay]
 }
 
+// MARK: - TrainerProgramScheduleMode
+
+/// Fix #6 — how the program maps its sessions onto calendar days.
+enum TrainerProgramScheduleMode: String, Codable, CaseIterable {
+    /// Today's session is whatever's pinned to today's ISO weekday
+    /// (`sessions(on:)`). A missed day is simply gone — the trainer's own
+    /// weekday layout is the source of truth. Default, for backward
+    /// compatibility with every program saved before this mode existed.
+    case fixed
+    /// Sessions run in program order, decoupled from any specific weekday.
+    /// "Today's session" is the next not-yet-done one in that order — a
+    /// missed session is never skipped, it carries forward until it's
+    /// actually done (`sequenceSession(completedCount:)`). See
+    /// `TrainerProgram.sequenceSteps`/`sequenceSession` and
+    /// `TrainingViewModel.applyTrainerProgram`'s `.sequence` branch for the
+    /// full resolution rule, including the cadence (which calendar days can
+    /// even carry a session) and the never-two-lifts-in-a-row guard.
+    case sequence
+
+    var displayName: String {
+        switch self {
+        case .fixed: "Fixed weekdays"
+        case .sequence: "Sequence (program order)"
+        }
+    }
+
+    var explanation: String {
+        switch self {
+        case .fixed: "Each session stays pinned to the weekday your trainer wrote it on. A missed day is skipped."
+        case .sequence: "Sessions run in order. A missed one carries forward to the next training day instead of being skipped."
+        }
+    }
+}
+
 // MARK: - TrainerProgram
 
 @Model
@@ -119,6 +153,21 @@ final class TrainerProgram {
     /// Optional → lightweight SwiftData migration.
     var autoWarmups: Bool?
 
+    /// Fix #6 — nil means `.fixed` (the pre-existing behavior, and the
+    /// default for every program saved before this shipped — lightweight
+    /// SwiftData migration). Editable on the review screen and on
+    /// `TrainerProgramView`.
+    var scheduleModeRaw: String?
+
+    /// Fix #11(b) — queue the next block: set on import when the athlete
+    /// chose "starts after the current one ends" or a specific future date
+    /// instead of starting now. While non-nil, this program is NOT active
+    /// (`isActive` stays false) even though it's saved — `activeTrainerProgram`
+    /// promotes it (flips `isActive`, archives the outgoing program, clears
+    /// this field) once `Date()` reaches it. Optional → lightweight
+    /// SwiftData migration.
+    var queuedActivationDate: Date?
+
     init(
         id: UUID = UUID(),
         name: String,
@@ -129,6 +178,8 @@ final class TrainerProgram {
         sourceKind: String,
         sourceText: String? = nil,
         autoWarmups: Bool? = nil,
+        scheduleMode: TrainerProgramScheduleMode? = nil,
+        queuedActivationDate: Date? = nil,
         createdAt: Date = Date()
     ) {
         self.id = id
@@ -140,7 +191,15 @@ final class TrainerProgram {
         self.sourceKind = sourceKind
         self.sourceText = sourceText
         self.autoWarmups = autoWarmups
+        self.scheduleModeRaw = scheduleMode?.rawValue
+        self.queuedActivationDate = queuedActivationDate
         self.createdAt = createdAt
+    }
+
+    /// `scheduleModeRaw` read with its nil-means-`.fixed` default.
+    var scheduleMode: TrainerProgramScheduleMode {
+        get { scheduleModeRaw.flatMap(TrainerProgramScheduleMode.init(rawValue:)) ?? .fixed }
+        set { scheduleModeRaw = newValue.rawValue }
     }
 
     /// Which program week applies to `date` (0-based), or nil before the
@@ -187,9 +246,77 @@ final class TrainerProgram {
         weekIndex(on: date) == nil && TrainingCalendar.mondayOfWeek(containing: date) >= startDate
     }
 
+    // MARK: - Sequence mode (fix #6)
+
+    /// One step of sequence-mode program order — a single athlete session.
+    /// Same-weekday entries within a week are paired exactly like
+    /// `sessions(on:)`/`session(on:)` pair them (a lift + its conditioning
+    /// partner count as ONE step, main = the strength day).
+    struct SequenceStep: Hashable {
+        let weekIndex: Int
+        let dayIndex: Int
+        let secondaryDayIndex: Int?
+    }
+
+    /// Every session the program will ever run, in program order: weeks in
+    /// array order, and within a week, in the order each NEW weekday is
+    /// first encountered (i.e. the order the trainer's sheet listed the
+    /// days in — sequence mode never reads the weekday itself as an
+    /// ordering signal, only as the same-day pairing signal it already was).
+    var sequenceSteps: [SequenceStep] {
+        var steps: [SequenceStep] = []
+        for (weekIndex, week) in weeks.enumerated() {
+            var handledWeekdays = Set<Int>()
+            for (dayIndex, day) in week.days.enumerated() {
+                guard !day.exercises.isEmpty, !handledWeekdays.contains(day.weekday) else {
+                    continue
+                }
+                handledWeekdays.insert(day.weekday)
+                let sameWeekday = week.days.indices.filter {
+                    week.days[$0].weekday == day.weekday && !week.days[$0].exercises.isEmpty
+                }
+                let mainIndex = sameWeekday.first { week.days[$0].isStrength } ?? dayIndex
+                let secondaryIndex = sameWeekday.first { $0 != mainIndex }
+                steps.append(SequenceStep(weekIndex: weekIndex, dayIndex: mainIndex, secondaryDayIndex: secondaryIndex))
+            }
+        }
+        return steps
+    }
+
+    /// Sequence mode's session resolution: `completedCount` is how many
+    /// sessions this program has ACTUALLY had marked complete so far
+    /// (counted across all time, not deduped by session key — a repeating
+    /// program reuses the same keys every loop, so only a raw count tells
+    /// loop 2 apart from loop 1). The step at `completedCount` (wrapped by
+    /// `repeats`) is next-due — a step is never skipped just because its
+    /// calendar day passed, so a missed session simply stays "next" until
+    /// something increments the count past it (carry-forward). nil when the
+    /// program has no sessions, or every one has run and it doesn't repeat.
+    func sequenceSession(completedCount: Int) -> (weekIndex: Int, dayIndex: Int, day: ProgramDay, secondaryDayIndex: Int?)? {
+        let steps = sequenceSteps
+        guard !steps.isEmpty else {
+            return nil
+        }
+        // A 1-week program always repeats, exactly like `weekIndex(on:)`'s
+        // own special case (see its doc comment) — `repeats` only means
+        // something for a multi-week block.
+        let effectiveRepeats = repeats || weeks.count == 1
+        if !effectiveRepeats, completedCount >= steps.count {
+            return nil
+        }
+        let cursor = effectiveRepeats ? completedCount % steps.count : min(completedCount, steps.count - 1)
+        let step = steps[cursor]
+        return (step.weekIndex, step.dayIndex, weeks[step.weekIndex].days[step.dayIndex], step.secondaryDayIndex)
+    }
+
     /// Stable key stored on the generated WorkoutPlan so the day can be traced
     /// back to its program session. Index-based: a weekday may hold two
-    /// sessions. (Programs are immutable once saved — edits import anew.)
+    /// sessions. Fix #11(a) — a saved program can now be edited in place
+    /// (`TrainerProgramSaver.update`); a sets/reps/notes edit keeps the same
+    /// weekIndex/dayIndex so existing keys still resolve, but reordering or
+    /// removing a day shifts indices — `day(forSessionKey:)` already returns
+    /// nil for a key that no longer resolves, and every caller already
+    /// treats nil as "fall back to the generated workout" (never a crash).
     func sessionKey(weekIndex: Int, dayIndex: Int) -> String {
         "\(id.uuidString)#\(weekIndex)#d\(dayIndex)"
     }
