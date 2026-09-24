@@ -179,11 +179,12 @@ struct WeekPlanView: View {
         }
     }
 
-    /// Monday of the DISPLAYED week.
+    /// Monday of the DISPLAYED week. Uses the locale-independent
+    /// `TrainingCalendar` (not `calendar`/`Calendar.current`) — the old
+    /// dateComponents+weekday=2 math resolved "this Monday" to TOMORROW on an
+    /// en_US Sunday, since en_US's own week starts that Sunday.
     private var displayedMonday: Date {
-        var comps = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())
-        comps.weekday = 2
-        let thisMonday = calendar.date(from: comps) ?? Date()
+        let thisMonday = TrainingCalendar.mondayOfWeek(containing: Date())
         return calendar.date(byAdding: .day, value: weekOffset * 7, to: thisMonday) ?? thisMonday
     }
 

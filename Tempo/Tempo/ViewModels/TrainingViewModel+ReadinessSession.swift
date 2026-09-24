@@ -28,11 +28,18 @@ extension TrainingViewModel {
     /// matches the session's modality, drop the stale session and release the
     /// day key so the next coach pass speaks for the day as it now is.
     /// Returns true when a resync is needed. Never touches a decided day
-    /// (completed/inProgress/skipped) or an unmappable modality.
+    /// (completed/inProgress/skipped), an unmappable modality, or a session the
+    /// USER overrode (`keepPlannedWorkout`): declining the brain's move
+    /// restores the plan's original type, which then again mismatches the
+    /// session's (now-stale) modality — the very mismatch this function exists
+    /// to fix. Without this guard that "mismatch" reads as stale, the override
+    /// gets deleted, the day-key is released, and the next coach pass silently
+    /// re-applies the exact move the user just declined.
     @discardableResult
     func invalidateStaleDailySession(for plan: WorkoutPlan, modelContext: ModelContext) -> Bool {
         guard plan.status == .planned,
               let session = fetchTodayDailySession(modelContext: modelContext),
+              !session.userOverrode,
               let mapped = WorkoutType.fromModality(session.modality),
               mapped != plan.type
         else {
@@ -135,7 +142,14 @@ extension TrainingViewModel {
         //    failed save below leaves today's pending row in the context with
         //    the day-key unconsumed, so the next loadToday re-enters here and
         //    must not stack a second row for the same day.
-        if let stale = fetchTodayDailySession(modelContext: modelContext) {
+        //    §8 connect (user override) — this normally never runs on an
+        //    overridden day (invalidateStaleDailySession no longer treats it as
+        //    stale, so the once-daily guard above keeps holding), but a DEBUG
+        //    force-rerun can reach here regardless; remember the flag so the
+        //    fresh session/plan below can't silently re-apply the declined move.
+        let priorSession = fetchTodayDailySession(modelContext: modelContext)
+        let wasUserOverridden = priorSession?.userOverrode ?? false
+        if let stale = priorSession {
             modelContext.delete(stale)
         }
         let session = DailySession.from(
@@ -144,6 +158,7 @@ extension TrainingViewModel {
             source: result.source,
             workoutPlan: plan
         )
+        session.userOverrode = wasUserOverridden
         modelContext.insert(session)
 
         // 6. Resolve the WorkoutPlan state. SEVERE → the planned day is superseded:
@@ -153,6 +168,7 @@ extension TrainingViewModel {
             plan.status = .skipped
             plan.skipReason = .floorForced
         } else if plan.status == .planned,
+                  !wasUserOverridden,
                   let mapped = WorkoutType.fromModality(result.decision.session.modality),
                   mapped != plan.type
         {

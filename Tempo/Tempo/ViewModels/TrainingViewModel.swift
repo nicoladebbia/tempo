@@ -436,9 +436,12 @@ final class TrainingViewModel {
     /// against the persisted profile.
     func runWeeklyOutcomeReview(modelContext: ModelContext) {
         let cal = Calendar.current
-        var comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())
-        comps.weekday = 2
-        let thisMonday = cal.date(from: comps) ?? Date()
+        // §6 — Monday-of-week via the locale-INDEPENDENT ISO 8601 calendar, not
+        // `Calendar.current`. On an en_US device, `Calendar.current`'s own
+        // dateComponents+weekday=2 math resolves "this Monday" to TOMORROW on a
+        // Sunday (en_US's own week starts that Sunday, so weekday=2 is the day
+        // after it) — which graded the wrong week and re-keyed on the wrong day.
+        let thisMonday = TrainingCalendar.mondayOfWeek(containing: Date())
         let weekKey = AIProgramPlanner.isoDay(thisMonday)
 
         let profile = fetchOrCreateAdaptiveProfile(modelContext: modelContext)
@@ -517,10 +520,8 @@ final class TrainingViewModel {
             return
         }
 
-        let cal = Calendar.current
-        var comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())
-        comps.weekday = 2 // Monday
-        let monday = cal.date(from: comps) ?? Date()
+        // §6 — locale-independent Monday (see runWeeklyOutcomeReview).
+        let monday = TrainingCalendar.mondayOfWeek(containing: Date())
         let weekKey = AIProgramPlanner.isoDay(monday)
 
         // Once per ISO week (the Sonnet cost cap) — PERSISTED guard so a cold
@@ -564,7 +565,18 @@ final class TrainingViewModel {
 
         // Only mutate state if AI actually produced a reconciled plan.
         if result.rationale != nil {
-            weekPlans = result.plans
+            // §5 — `result.plans` are ALL fresh transient objects (the AI's
+            // reconciled skeleton), so a wholesale reassignment here would undo
+            // the persisted-row substitution `loadWeekPlan` just made for today
+            // and any completed/in-progress day, silently un-checking them again.
+            // Re-substitute on top of the AI's plans — every OTHER day keeps the
+            // AI's in-place adjustment; only the sacred/live-today days are
+            // swapped back to their persisted object.
+            weekPlans = Self.mergePersistedIntoWeek(
+                result.plans,
+                persisted: persistedPlans(forWeekOf: monday, modelContext: modelContext),
+                today: Date()
+            )
             aiWeekRationale = result.rationale
         }
     }
@@ -691,18 +703,30 @@ final class TrainingViewModel {
     }
 
     func loadWeekPlan(modelContext: ModelContext) {
-        let cal = Calendar.current
         let today = Date()
+        // §6 — locale-independent Monday (see runWeeklyOutcomeReview): a
+        // `Calendar.current` computation here mis-anchored the whole week on an
+        // en_US Sunday.
+        let monday = TrainingCalendar.mondayOfWeek(containing: today)
 
-        // Find Monday of this week
-        var comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: today)
-        comps.weekday = 2 // Monday
-        let monday = cal.date(from: comps) ?? today
-
-        weekPlans = assembleWeekPlans(
+        let generated = assembleWeekPlans(
             startingMonday: monday,
             modelContext: modelContext,
             referenceDate: today
+        )
+
+        // §5 — `assembleWeekPlans` always builds FRESH transient WorkoutPlan
+        // objects, while `todayPlan` (and any completed/in-progress day) is the
+        // PERSISTED row (ensureTodayPlanPersisted). Substitute the persisted
+        // object in wherever one exists for today or a sacred (completed/
+        // in-progress) day, so Week Plan, Today and the Dashboard Move quadrant
+        // all read the exact same object/state — without this, every reload
+        // re-rolled today's exercises back to .planned and a completed day lost
+        // its checkmark.
+        weekPlans = Self.mergePersistedIntoWeek(
+            generated,
+            persisted: persistedPlans(forWeekOf: monday, modelContext: modelContext),
+            today: today
         )
 
         // Check deload week status (Phase 3: fatigue trend can trigger early).
@@ -716,10 +740,26 @@ final class TrainingViewModel {
             fatigueEWMA: adaptiveSignals(modelContext: modelContext).fatigueEWMA
         )
 
-        // Populate exercises for each gym workout
+        // Populate exercises for each gym workout. No-ops for a substituted
+        // persisted plan that already carries its exercises (populateExercises
+        // guards on `orderedExercises.isEmpty`).
         for plan in weekPlans {
             populateExercises(for: plan, modelContext: modelContext)
         }
+    }
+
+    /// Persisted WorkoutPlan rows already on disk for the week starting
+    /// `monday` — the input `mergePersistedIntoWeek` substitutes into the
+    /// freshly generated (transient) week template. See `loadWeekPlan`.
+    private func persistedPlans(forWeekOf monday: Date, modelContext: ModelContext) -> [WorkoutPlan] {
+        let cal = Calendar.current
+        guard let weekEnd = cal.date(byAdding: .day, value: 7, to: monday) else {
+            return []
+        }
+        let descriptor = FetchDescriptor<WorkoutPlan>(
+            predicate: #Predicate<WorkoutPlan> { $0.date >= monday && $0.date < weekEnd }
+        )
+        return (try? modelContext.fetch(descriptor)) ?? []
     }
 
     /// Re-personalize the week after a schedule-input edit (football days /
@@ -1861,6 +1901,9 @@ final class TrainingViewModel {
         plan.plannedTypeRaw = nil
         dailySession?.userOverrode = true
         saveGuarded(modelContext, operation: "workout choice")
+        // Watch + Dashboard read the persisted plan directly — without this
+        // they keep showing the coach's move until their next unrelated reload.
+        NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
         #if DEBUG
             print("\(DebugTrace.prefix)[daily_coach] user kept planned workout → \(stashed)")
         #endif
@@ -1940,6 +1983,8 @@ final class TrainingViewModel {
         for (index, exercise) in exercises.enumerated() {
             exercise.order = index
         }
+        // Watch + Dashboard read the plan's exercise order too.
+        NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
     }
 
     // MARK: - Add / Remove Sets
