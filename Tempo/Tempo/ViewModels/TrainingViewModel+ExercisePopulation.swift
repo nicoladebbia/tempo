@@ -75,6 +75,11 @@ extension TrainingViewModel {
             return
         } // already populated
 
+        // Trainer program day — the trainer's exercises, not generated ones.
+        if plan.programSessionKey != nil, populateFromTrainerProgram(plan, modelContext: modelContext) {
+            return
+        }
+
         let targetGroups = muscleGroups(for: plan.type)
         guard !targetGroups.isEmpty else {
             return
@@ -823,14 +828,22 @@ extension TrainingViewModel {
     /// overload falling back to cold-start, the plan's recovery + deload
     /// multipliers, 50%/75% warmup ramp for loadable compounds, bodyweight
     /// added-load hint. Also records the PredictionLog row (measurement spine).
+    /// Trainer-program sessions pass the trainer's `targetReps`,
+    /// `fixedWeightKg` (explicit or %1RM-derived) and `targetRIR`, and skip
+    /// Tempo's scheduled deload (`applyDeload: false`) — the trainer owns the
+    /// periodization. Recovery, pain notes and loadable snapping still apply.
     func prescribedSets(
         for exercise: Exercise,
         workingSets: Int,
         plan: WorkoutPlan,
         plannedExercise: PlannedExercise,
-        modelContext: ModelContext
+        modelContext: ModelContext,
+        targetReps: Int? = nil,
+        fixedWeightKg: Double? = nil,
+        targetRIR: Int? = nil,
+        applyDeload: Bool = true
     ) -> [PlannedSet] {
-        let reps = exercise.isCompound ? 8 : 12
+        let reps = targetReps ?? (exercise.isCompound ? 8 : 12)
         let learnedIncrements = adaptiveSignals(modelContext: modelContext).learnedIncrements
         let history = exercise.history ?? []
         let overload = trainingEngine.calculateProgressiveOverload(
@@ -839,14 +852,14 @@ extension TrainingViewModel {
             learnedIncrement: learnedIncrements[exercise.id]
         )
         let allExercises = (try? modelContext.fetch(FetchDescriptor<Exercise>())) ?? []
-        var weight = overload.weight > 0
+        var weight = fixedWeightKg ?? (overload.weight > 0
             ? overload.weight
             : coldStartWeight(
                 for: exercise,
                 targetReps: reps,
                 allExercises: allExercises,
                 modelContext: modelContext
-            )
+            ))
 
         // Note-driven adjustment — mirrors populateExercises: pain / too-hard /
         // form-breakdown notes cap the weight at last session's; swap/add/apply-
@@ -866,9 +879,10 @@ extension TrainingViewModel {
         // §19.3 — same style split as populateExercises: intensity-cut drops
         // weight, volume-cut halves the requested working sets.
         let deloadStyle = loadDeloadSettings(modelContext: modelContext).style
-        let deloadMultiplier = (isDeloadWeek && deloadStyle == .intensityCut)
+        let deloading = applyDeload && isDeloadWeek
+        let deloadMultiplier = (deloading && deloadStyle == .intensityCut)
             ? trainingEngine.deloadWeightMultiplier() : 1.0
-        let effectiveWorkingSets = (isDeloadWeek && deloadStyle == .volumeCut)
+        let effectiveWorkingSets = (deloading && deloadStyle == .volumeCut)
             ? max(1, (workingSets + 1) / 2) : workingSets
         let adjusted = weight * plan.recoveryAdjustment * deloadMultiplier
         let unit = currentWeightUnit(modelContext: modelContext)
@@ -907,13 +921,17 @@ extension TrainingViewModel {
             }
         }
         for _ in 1 ... max(1, effectiveWorkingSets) {
-            sets.append(PlannedSet(
+            let set = PlannedSet(
                 setNumber: setNum,
                 targetReps: reps,
                 targetWeight: rounded,
                 addedLoadKg: addedLoad,
                 plannedExercise: plannedExercise
-            ))
+            )
+            if let targetRIR {
+                set.targetRIR = targetRIR
+            }
+            sets.append(set)
             setNum += 1
         }
 

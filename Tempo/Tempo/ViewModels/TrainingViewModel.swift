@@ -705,6 +705,12 @@ final class TrainingViewModel {
                 plan.notes = "Deload — full rest week. Move, stretch, recover."
             }
         }
+
+        // The athlete's own trainer program replaces the generated gym days
+        // (recovery + match days still adjust it — see +TrainerProgram).
+        if let program = activeTrainerProgram(modelContext: modelContext) {
+            Self.applyTrainerProgram(program, to: plans, matchDayKeys: matchDayKeys)
+        }
         return plans
     }
 

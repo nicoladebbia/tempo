@@ -397,6 +397,13 @@ struct TodayWorkoutView: View {
             Text(plan.type.displayName.uppercased() + " DAY")
                 .font(.tempoTitle1)
                 .foregroundStyle(Color.tempoTextPrimary)
+
+            if plan.programSessionKey != nil {
+                Label(plan.notes ?? "Trainer session", systemImage: "person.fill.checkmark")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoSignal)
+                    .accessibilityLabel("From your trainer's program: \(plan.notes ?? "session")")
+            }
         }
         .padding(.top, TempoSpacing.md)
     }
@@ -1176,6 +1183,17 @@ struct TodayWorkoutView: View {
                             .foregroundStyle(Color.tempoSignal)
                     }
                 }
+            }
+
+            // Trainer program: their cue / rest for this exercise.
+            if plannedExercise.programNote != nil || plannedExercise.restSecondsOverride != nil {
+                Text([
+                    plannedExercise.programNote,
+                    plannedExercise.restSecondsOverride.map { "Rest \($0)s" },
+                ].compactMap(\.self).joined(separator: " · "))
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoSignal)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             // Row 3: Last 3 sessions' performance with trend indicator

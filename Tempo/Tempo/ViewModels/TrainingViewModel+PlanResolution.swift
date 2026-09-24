@@ -168,6 +168,11 @@ extension TrainingViewModel {
                    existingPlannedTypeRaw: existing.plannedTypeRaw,
                    templateType: canonical.type
                ) == .replace
+               // A trainer program was started/changed/stopped: a still-
+               // planned row from a different (or no) program session is
+               // stale even when the day's type happens to match.
+               || (existing.status == .planned
+                   && existing.programSessionKey != canonical.programSessionKey)
             {
                 // Only a still-PLANNED row whose type differs may be replaced
                 // (e.g. user changed Football Days). A completed/in-progress plan
@@ -262,6 +267,12 @@ extension TrainingViewModel {
         {
             plan.type = .mobility
             plan.notes = "Deload — full rest week. Move, stretch, recover."
+        }
+        // Same trainer-program overlay as the weekly path.
+        if let program = activeTrainerProgram(modelContext: modelContext) {
+            let cal = Calendar.current
+            let matchDays = Set(fetchUpcomingMatches(modelContext: modelContext).map { cal.startOfDay(for: $0.kickoff) })
+            Self.applyTrainerProgram(program, to: [plan], matchDayKeys: matchDays)
         }
         populateExercises(for: plan, modelContext: modelContext)
         modelContext.insert(plan)
