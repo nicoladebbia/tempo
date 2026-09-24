@@ -38,6 +38,12 @@ struct WorkoutHistoryView: View {
     @Query
     private var allPRs: [PersonalRecord]
 
+    /// §13 — measurement-spine prediction ledger; a deleted workout's rows
+    /// must go with it or they're orphaned forever (Step 2's accuracy metric
+    /// would keep scoring a session that no longer exists).
+    @Query
+    private var allPredictionLogs: [PredictionLog]
+
     @Query
     private var allActivitySessions: [ActivitySession]
 
@@ -246,8 +252,9 @@ struct WorkoutHistoryView: View {
     }
 
     /// Honest confirmation copy — states exactly what is and is NOT removed.
-    /// Volume reads completed plans live, so it updates. ExerciseHistory /
-    /// PRs are separate Exercise-linked records and are NOT rolled back.
+    /// Volume reads completed plans live, so it updates. ExerciseHistory / PRs
+    /// this session produced ARE deleted with it (§13) — matched by
+    /// `workoutPlanID`, not merely nulled elsewhere.
     private func deleteConfirmationMessage(_ workout: WorkoutPlan) -> String {
         let setCount = workout.orderedExercises.reduce(0) { $0 + ($1.sets?.count ?? 0) }
         let name = workout.type.displayName
@@ -256,6 +263,30 @@ struct WorkoutHistoryView: View {
         set feedback, and the progress-chart history & PRs it created. Weekly volume and charts \
         will update. This can't be undone.
         """
+    }
+
+    /// Which `ExerciseHistory` rows deleting `workout` should also remove.
+    /// Matched by `workoutPlanID` FIRST — the exact key `saveWorkout` stamps
+    /// on every row it writes. A row with no `workoutPlanID` (legacy, written
+    /// before that field existed) falls back to the day+exercise heuristic —
+    /// which, used alone, could delete the OTHER same-day workout's row for a
+    /// shared exercise (e.g. two push sessions logged the same day). Static
+    /// and pure so this exact-vs-heuristic split is unit-testable without a
+    /// live view/query (§13).
+    static func historyRowsToDelete(
+        for workout: WorkoutPlan,
+        allHistory: [ExerciseHistory],
+        calendar: Calendar = .current
+    ) -> [ExerciseHistory] {
+        let sessionDay = calendar.startOfDay(for: workout.finishedAt ?? workout.date)
+        let exerciseIDs = Set(workout.orderedExercises.compactMap { $0.exercise?.id })
+        return allHistory.filter { h in
+            if let hPlanID = h.workoutPlanID {
+                return hPlanID == workout.id
+            }
+            return calendar.isDate(h.date, inSameDayAs: sessionDay)
+                && (h.exercise?.id).map(exerciseIDs.contains) == true
+        }
     }
 
     /// Hard delete. WorkoutPlan cascades to PlannedExercise → PlannedSet.
@@ -268,9 +299,6 @@ struct WorkoutHistoryView: View {
         // charts and PRs alike.
         let cal = Calendar.current
         let sessionDay = cal.startOfDay(for: workout.finishedAt ?? workout.date)
-        let exerciseIDs = Set(
-            workout.orderedExercises.compactMap { $0.exercise?.id }
-        )
         let setIDs = Set(
             workout.orderedExercises.flatMap { ($0.sets ?? []).map(\.id) }
         )
@@ -279,17 +307,20 @@ struct WorkoutHistoryView: View {
         for fb in allFeedback where setIDs.contains(fb.setID) {
             modelContext.delete(fb)
         }
-        // 2. ExerciseHistory rows this session created (same day + one of
-        //    this workout's exercises — saveWorkout stamps finishedAt).
-        for h in allHistory
-            where cal.isDate(h.date, inSameDayAs: sessionDay)
-            && (h.exercise?.id).map(exerciseIDs.contains) == true
-        {
+        // 2. ExerciseHistory rows this session created.
+        for h in Self.historyRowsToDelete(for: workout, allHistory: allHistory) {
             modelContext.delete(h)
         }
-        // 3. PRs attributed to this exact plan.
+        // 3. PRs attributed to this exact plan. `logSet` now stamps
+        //    `workoutPlanID` at PR-creation time (was never set before, so
+        //    this match never fired and PRs silently outlived their workout).
         for pr in allPRs where pr.workoutPlanID == workout.id {
             modelContext.delete(pr)
+        }
+        // 3z. PredictionLog rows this plan produced — never cleaned before,
+        //     so they accumulated forever after a deleted workout.
+        for log in allPredictionLogs where log.workoutPlanID == workout.id {
+            modelContext.delete(log)
         }
         // 3b. Non-gym ActivitySession produced by this plan (football etc.).
         //     Keyed by exact workoutPlanID — without this, deleting a football
@@ -569,7 +600,7 @@ struct WorkoutHistoryView: View {
     private func exerciseDetailRow(_ plannedEx: PlannedExercise) -> some View {
         VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
             HStack {
-                Text(plannedEx.exercise?.name ?? "Exercise")
+                Text(plannedEx.displayName)
                     .font(.tempoBody)
                     .fontWeight(.medium)
                     .foregroundStyle(Color.tempoTextPrimary)
