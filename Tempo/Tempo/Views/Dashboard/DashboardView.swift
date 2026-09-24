@@ -197,10 +197,19 @@ struct DashboardView: View {
                 return
             }
             #if DEBUG
-                print("[Dashboard] .tempoNutritionLogged received → refresh()")
+                print("[Dashboard] .tempoNutritionLogged received → refresh(force:)")
             #endif
             Task {
-                await viewModel?.refresh()
+                // Forced: a meal saved <2s after the last refresh used to be
+                // debounced away, leaving the Fuel card stale.
+                await viewModel?.refresh(force: true)
+                // Same follow-ups as every other refresh path: training
+                // status keeps the rest/training-day target + meal-timing
+                // suggestions, accountability auto-ticks the Meals
+                // non-negotiable from the new eaten count. Both also push
+                // the widget snapshot.
+                viewModel?.refreshTrainingStatus(modelContext: modelContext)
+                viewModel?.refreshAccountability(modelContext: modelContext)
                 // §22 — a meal eaten (Nutrition tab OR a watch
                 // .markMealEaten routed through WatchActionRouter) changed
                 // the next-meal name/id the wrist shows.

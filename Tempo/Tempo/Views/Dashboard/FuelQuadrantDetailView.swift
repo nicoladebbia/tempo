@@ -24,21 +24,14 @@ struct FuelQuadrantDetailView: View {
     /// Minutes by which the day's meals have been shifted forward due to a
     /// late actual wake. Zero means no shift was applied.
     var shiftMinutes: Int = 0
+
+    /// Last 7 days of eaten-meal totals (oldest first), from
+    /// `EatenNutritionHistory`. Empty in previews / before the container loads.
+    var calorieTrend: [DailyEatenTotals] = []
     var onRefreshNeeded: (() -> Void)?
 
     @State
     private var showNativeNutrition = false
-
-    /// Stub 7-day calorie trend
-    private let calorieTrend: [CalorieTrendPoint] = {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        let values = [2250, 2100, 2500, 1980, 2350, 2150, 2100]
-        return (-6 ... 0).map { offset in
-            let date = calendar.date(byAdding: .day, value: offset, to: today)!
-            return CalorieTrendPoint(date: date, calories: values[offset + 6])
-        }
-    }()
 
     // Macro bar colors per MODULE_DASHBOARD.md Section 3.4.2
     private let proteinColor = Color.tempoMacroProtein
@@ -437,7 +430,25 @@ struct FuelQuadrantDetailView: View {
                 .tracking(TempoTracking.drillLabel)
                 .foregroundStyle(Color.tempoTextSecondary)
 
-            Chart(calorieTrend) { point in
+            if calorieTrend.contains(where: \.hasData) {
+                trendChart
+            } else {
+                Text("Nothing logged this week. Log a meal and the chart starts.")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextTertiary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(TempoSpacing.buttonPaddingV)
+        .background(Color.tempoSurfaceCard)
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tempoShadow(.card)
+    }
+
+    /// Days with no eaten meal get no bar (a gap), never a fake value.
+    private var trendChart: some View {
+        Chart {
+            ForEach(calorieTrend.filter(\.hasData)) { point in
                 BarMark(
                     x: .value("Day", point.date, unit: .day),
                     y: .value("Calories", point.calories)
@@ -447,30 +458,36 @@ struct FuelQuadrantDetailView: View {
                         ? Color.tempoError : Color.tempoViolet
                 )
                 .cornerRadius(4)
-
-                if let target = data.calorieTarget {
-                    RuleMark(y: .value("Target", target))
-                        .foregroundStyle(Color.tempoTextTertiary)
-                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
-                }
             }
-            .chartXAxis {
-                AxisMarks(values: .stride(by: .day)) { value in
-                    AxisValueLabel {
-                        if let date = value.as(Date.self) {
-                            Text(TempoDateFormatters.shortDayOfWeek.string(from: date))
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
-                        }
+
+            if let target = data.calorieTarget {
+                RuleMark(y: .value("Target", target))
+                    .foregroundStyle(Color.tempoTextTertiary)
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+            }
+        }
+        .chartXScale(domain: trendDomain)
+        .chartXAxis {
+            AxisMarks(values: .stride(by: .day)) { value in
+                AxisValueLabel {
+                    if let date = value.as(Date.self) {
+                        Text(TempoDateFormatters.shortDayOfWeek.string(from: date))
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextTertiary)
                     }
                 }
             }
-            .frame(height: 160)
         }
-        .padding(TempoSpacing.buttonPaddingV)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
+        .frame(height: 160)
+    }
+
+    /// Full 7-day window so empty days keep their slot on the axis.
+    private var trendDomain: ClosedRange<Date> {
+        let cal = Calendar.current
+        let first = calorieTrend.first?.date ?? cal.startOfDay(for: Date())
+        let last = calorieTrend.last?.date ?? first
+        let end = cal.date(byAdding: .day, value: 1, to: last) ?? last
+        return first ... end
     }
 
     // MARK: - Weekly Average
@@ -484,21 +501,24 @@ struct FuelQuadrantDetailView: View {
                 .tracking(TempoTracking.drillLabel)
                 .foregroundStyle(Color.tempoTextSecondary)
 
-            Text("Calories: 2,250/day (target \(data.formattedCalorieTarget))")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
-
-            Text("Protein: 172g/day")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
-
-            HStack(spacing: 4) {
-                Text("Compliance:")
+            // Averaged over the days that have eaten meals — an unlogged
+            // day isn't a 0 kcal day. (Replaces hardcoded 2,250 / 172g / 82%.)
+            if let avg = EatenNutritionHistory.averages(of: calorieTrend) {
+                Text("Calories: \(avg.calories.formatted())/day (target \(data.formattedCalorieTarget))")
                     .font(.tempoBody)
                     .foregroundStyle(Color.tempoTextPrimary)
-                Text("82%")
+
+                Text("Protein: \(avg.protein)g/day")
                     .font(.tempoBody)
-                    .foregroundStyle(Color.tempoSuccess) // >= 80% = green
+                    .foregroundStyle(Color.tempoTextPrimary)
+
+                Text("Based on \(avg.daysWithData) of the last 7 days")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextTertiary)
+            } else {
+                Text("No meals logged in the last 7 days.")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextTertiary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -542,14 +562,6 @@ struct FuelQuadrantDetailView: View {
         }
         return Int(round(Double(grams * calPerGram) / Double(totalCal) * 100))
     }
-}
-
-// MARK: - CalorieTrendPoint
-
-struct CalorieTrendPoint: Identifiable {
-    let id = UUID()
-    let date: Date
-    let calories: Int
 }
 
 // MARK: - Preview
