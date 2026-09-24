@@ -732,6 +732,29 @@ final class TrainingViewModel {
         )
     }
 
+    /// Read-only snapshot of the real ISO week containing `date`, built from
+    /// the EXACT SAME generation path `loadWeekPlan` uses (assembleWeekPlans:
+    /// split, custom weekday map, recovery, matches, emphasis, deload, and the
+    /// TrainerProgram overlay) with the persisted-row substitution for today
+    /// and any sacred (completed/in-progress) day, so it can never disagree
+    /// with what the Training tab actually shows. Unlike `loadWeekPlan`, this
+    /// does NOT mutate instance state (`weekPlans`, `todayTemplate`, deload
+    /// flags) and does NOT populate exercises — callers that only need "what
+    /// TYPE of training happens on each day" (e.g. `TrainingScheduleProvider`
+    /// for Nutrition) can call this on a throwaway TrainingViewModel without
+    /// disturbing a live session, exactly like `DailyResetCoordinator
+    /// .workoutPlanEnsurer` already does for `ensureTodayPlanPersisted`.
+    func weekPlanSnapshot(containing date: Date, modelContext: ModelContext) -> [WorkoutPlan] {
+        let monday = TrainingCalendar.mondayOfWeek(containing: date)
+        let generated = assembleWeekPlans(
+            startingMonday: monday,
+            modelContext: modelContext,
+            referenceDate: date
+        )
+        let persisted = persistedPlans(forWeekOf: monday, modelContext: modelContext)
+        return Self.mergePersistedIntoWeek(generated, persisted: persisted, today: date)
+    }
+
     func loadWeekPlan(modelContext: ModelContext) {
         let today = Date()
         // §6 — locale-independent Monday (see runWeeklyOutcomeReview): a
