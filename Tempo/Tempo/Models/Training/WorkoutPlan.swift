@@ -165,18 +165,11 @@ final class WorkoutPlan {
         // warmup ramp sets are not volume (this used to count them, inflating
         // every workout's tonnage), but drop steps DO count — they're reduced-
         // weight work, still real work performed (§6.4 drop-set design).
-        (exercises ?? []).reduce(0) { total, ex in
-            total + (ex.sets ?? []).reduce(0) { setTotal, set in
-                guard !set.isWarmup,
-                      set.completed,
-                      let weight = set.actualWeight,
-                      let reps = set.actualReps
-                else {
-                    return setTotal
-                }
-                return setTotal + (weight * Double(reps))
-            }
-        }
+        // Fix #9 — now literally delegates instead of re-deriving the same
+        // rule a second time, so it also inherits per-side tonnage (a per-
+        // side set's true volume covers both sides — see PlannedSet.volume)
+        // and the two can never drift apart again.
+        (exercises ?? []).reduce(0) { $0 + $1.totalVolume }
     }
 
     @Transient
