@@ -356,6 +356,12 @@ struct TodayWorkoutView: View {
             // Per MODULE_TRAINING.md Section 2.7
             exerciseList(plan: plan)
 
+            // Trainer program: the day's second session (conditioning after
+            // the lift), block by block.
+            if let second = viewModel.trainerDay(forKey: plan.programSecondaryKey, modelContext: modelContext) {
+                trainerSessionCard(second, heading: "SECOND SESSION")
+            }
+
             // §14 #3 — one-tap session RPE, only after completion.
             sessionRPESection(plan: plan)
 
@@ -1375,6 +1381,72 @@ struct TodayWorkoutView: View {
     /// Shown for training days that aren't loggable gym sessions — football,
     /// run, sprint, conditioning. These have no exercises/sets to log, so there
     /// is no "Start Workout" button; this card just tells the user what today is.
+    // MARK: - Trainer Session (trainer program blocks)
+
+    /// A trainer's session as written: blocks in order, each with its
+    /// prescription (free-text detail for conditioning, sets × reps for
+    /// lifts), effort, rest and notes.
+    private func trainerSessionCard(_ day: ProgramDay, heading: String) -> some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            Text(heading)
+                .font(.tempoCaption2)
+                .fontWeight(.bold)
+                .foregroundStyle(Color.tempoTextTertiary)
+            Text((day.title ?? day.workoutType.displayName).uppercased())
+                .font(.tempoHeadline)
+                .foregroundStyle(Color.tempoTextPrimary)
+            ForEach(day.exercises) { block in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(block.name)
+                        .font(.tempoBody)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                    Text(trainerPrescription(block))
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let notes = block.notes {
+                        Text(notes)
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoSignal)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+            }
+            if let notes = day.notes {
+                Text(notes)
+                    .font(.tempoCaption1)
+                    .italic()
+                    .foregroundStyle(Color.tempoTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(TempoSpacing.cardPadding)
+        .background(Color.tempoSurfaceCard)
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+    }
+
+    private func trainerPrescription(_ block: ProgramExercise) -> String {
+        var parts: [String] = []
+        if let detail = block.detail, !detail.isEmpty {
+            parts.append(detail)
+        } else {
+            let reps = block.repsHigh.map { "\(block.repsLow)-\($0)" } ?? "\(block.repsLow)"
+            parts.append("\(block.sets) × \(reps)\(block.perSide == true ? " per side" : "")")
+            if let pct = block.percentOf1RM {
+                parts.append("\(Int((pct * 100).rounded()))%")
+            }
+        }
+        if let rpe = block.rpe {
+            parts.append("RPE \(rpe.formatted(.number.precision(.fractionLength(0 ... 1))))")
+        }
+        if let rest = block.restSeconds {
+            parts.append(rest >= 60 && rest % 60 == 0 ? "rest \(rest / 60)'" : "rest \(rest)\"")
+        }
+        return parts.joined(separator: " · ")
+    }
+
     private func nonGymContent(plan: WorkoutPlan) -> some View {
         // §11.7 — compact: the old xxl spacing + top spacer + 60pt icon pushed
         // half the content below the fold; one screen, no dead air.
@@ -1415,6 +1487,12 @@ struct TodayWorkoutView: View {
                 .foregroundStyle(Color.tempoTextSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, TempoSpacing.lg)
+
+            // Trainer program: the coach's own conditioning session, block by block.
+            if let day = viewModel.trainerDay(forKey: plan.programSessionKey, modelContext: modelContext) {
+                trainerSessionCard(day, heading: "YOUR TRAINER'S SESSION")
+                    .padding(.horizontal, TempoSpacing.lg)
+            }
 
             // §16 — venue propose-confirm, same placement as the gym path.
             VenueProposalCard()
