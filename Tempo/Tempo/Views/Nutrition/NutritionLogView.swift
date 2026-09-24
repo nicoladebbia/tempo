@@ -9,7 +9,7 @@
 import SwiftData
 import SwiftUI
 
-// MARK: - Nutrition Log View
+// MARK: - NutritionLogView
 
 // Quick logging section with natural language input, photo, presets, and full search.
 // Per DESIGN_SYSTEM.md — all tokens, drill-sergeant voice.
@@ -28,11 +28,13 @@ struct NutritionLogView: View {
     private var naturalLanguageInput: String = ""
     @State
     private var showPhotoAnalysis = false
-    /// Foods confirmed in the photo-analysis sheet, stashed here so we can
-    /// present the review sheet AFTER the photo sheet finishes dismissing
+    @State
+    private var showBarcodeScanner = false
+    /// Foods confirmed in the photo-analysis or barcode sheet, stashed here so
+    /// we can present the review sheet AFTER that sheet finishes dismissing
     /// (presenting synchronously inside the callback glitches sheet-over-sheet).
     @State
-    private var photoFoodsPendingReview: [ParsedFoodItem]?
+    private var foodsPendingReview: [ParsedFoodItem]?
     @State
     private var toast: ToastData?
 
@@ -80,11 +82,6 @@ struct NutritionLogView: View {
         let duplicateNames: [String]
     }
 
-    private enum DuplicateResolution {
-        case add // sum quantities — "another glass"
-        case edit // replace the matching food entry — "fix the first one"
-    }
-
     private let columns = [
         GridItem(.flexible(), spacing: TempoSpacing.md),
         GridItem(.flexible(), spacing: TempoSpacing.md),
@@ -103,47 +100,41 @@ struct NutritionLogView: View {
         }
         .sheet(isPresented: $showPhotoAnalysis) {
             PhotoAnalysisView { items in
-                // Convert the confirmed photo foods to ParsedFoodItem and
-                // stash them. quantityGrams is best-effort (vision portions
-                // like "1 cup" / "diced" aren't reliably grams) — it only
-                // drives the serving-size display; calories + macros are the
-                // payload and carry through exactly.
-                photoFoodsPendingReview = items.map { food in
-                    ParsedFoodItem(
-                        id: food.id.uuidString,
-                        name: food.name,
-                        quantityGrams: Self.gramsFromServingSize(food.servingSize),
-                        calories: Double(food.calories),
-                        proteinG: food.protein,
-                        carbsG: food.carbs,
-                        fatG: food.fat,
-                        isVerified: false
-                    )
-                }
+                // Stash the confirmed photo foods. quantityGrams is best-effort
+                // (vision portions like "1 cup" / "diced" aren't reliably
+                // grams) — it only drives the serving-size display; calories +
+                // macros are the payload and carry through exactly.
+                foodsPendingReview = items.map(Self.parsedFood(from:))
             }
             .onDisappear {
-                // Hand off across the dismiss boundary: present the review
-                // sheet (meal-type picker + commitParsed) only once the photo
-                // sheet has fully dismissed, avoiding sheet-over-sheet glitches.
-                if let pending = photoFoodsPendingReview, !pending.isEmpty {
-                    parsedFoodsForReview = pending
-                    parsedMealTypeHint = nil
-                    parsedEatenAtHint = nil
-                    photoFoodsPendingReview = nil
-                }
+                presentPendingReview()
                 viewModel.loadToday(modelContext: modelContext)
+            }
+        }
+        .sheet(isPresented: $showBarcodeScanner) {
+            // Scan goes straight to the camera (it used to open the full Log
+            // Meal sheet first). The scanned product lands in the same review
+            // sheet as Quick Log / Photo, so the user picks the meal type and
+            // it's saved through the same path.
+            BarcodeScannerView { item in
+                foodsPendingReview = [Self.parsedFood(from: item)]
+            }
+            .onDisappear {
+                presentPendingReview()
             }
         }
         .sheet(item: Binding<ParsedFoodReviewPayload?>(
             get: { parsedFoodsForReview.map { ParsedFoodReviewPayload(items: $0) } },
             set: { newValue in
-                if newValue == nil { parsedFoodsForReview = nil }
+                if newValue == nil {
+                    parsedFoodsForReview = nil
+                }
             }
         )) { payload in
             ParsedFoodReviewSheet(
                 items: payload.items,
                 defaultMealType: parsedMealTypeHint
-                    ?? Self.defaultMealTypeForNow(parsedEatenAtHint ?? Date()),
+                    ?? EatenMealRecorder.defaultMealType(for: parsedEatenAtHint ?? Date()),
                 onConfirm: { mealType in
                     persistParsedItems(
                         payload.items,
@@ -159,7 +150,11 @@ struct NutritionLogView: View {
             "Already logged",
             isPresented: Binding(
                 get: { duplicatePrompt != nil },
-                set: { if !$0 { duplicatePrompt = nil } }
+                set: {
+                    if !$0 {
+                        duplicatePrompt = nil
+                    }
+                }
             ),
             presenting: duplicatePrompt
         ) { prompt in
@@ -247,7 +242,7 @@ struct NutritionLogView: View {
             }
 
             quickActionButton(icon: "barcode.viewfinder", label: "Scan") {
-                showMealLogging = true
+                showBarcodeScanner = true
             }
         }
     }
@@ -440,24 +435,6 @@ struct NutritionLogView: View {
         }
     }
 
-    /// Defaults the meal-type chooser in the review sheet based on the
-    /// user's local time-of-day. Breakfast, lunch, and dinner windows
-    /// match the prompt anchor times used in MealPlanPrompts.
-    private static func defaultMealTypeForNow(_ date: Date = Date()) -> MealType {
-        // Tighter breakfast window (was < 11) — at 10:30 most people are
-        // logging lunch, not breakfast. Late-evening (after 22) defaults
-        // to snack because the user is more likely doing a late bite than
-        // a full dinner. The user can always change it in the review
-        // sheet's segmented picker.
-        let hour = Calendar.current.component(.hour, from: date)
-        switch hour {
-        case 5 ..< 10: return .breakfast
-        case 10 ..< 16: return .lunch
-        case 18 ..< 22: return .dinner
-        default: return .snack
-        }
-    }
-
     /// Maps NL parser's canonical lowercase string ("breakfast" / "lunch"
     /// / "dinner" / "snack") to a typed MealType. Returns nil for
     /// unrecognised strings so the caller falls back to time-of-day.
@@ -471,82 +448,68 @@ struct NutritionLogView: View {
         }
     }
 
-    /// Persist the user-confirmed parsed items to MealLog. Done inline
-    /// (instead of routing through MealLoggingService.logMeal) because
-    /// the service's `async` signature would require sending ModelContext
-    /// across actor boundaries under Swift 6 strict concurrency, and
-    /// ModelContext isn't Sendable. The DB insert + save are synchronous
-    /// anyway; only the HealthKit sync needs async, and that can fire
-    /// from a follow-on Task with the saved MealLog (which IS Sendable).
+    /// Hands foods stashed by the photo / barcode sheet to the review sheet
+    /// once that sheet has fully dismissed.
+    private func presentPendingReview() {
+        guard let pending = foodsPendingReview, !pending.isEmpty else {
+            return
+        }
+        parsedFoodsForReview = pending
+        parsedMealTypeHint = nil
+        parsedEatenAtHint = nil
+        foodsPendingReview = nil
+    }
+
+    private static func parsedFood(from food: FoodItem) -> ParsedFoodItem {
+        ParsedFoodItem(
+            id: food.id.uuidString,
+            name: food.name,
+            quantityGrams: gramsFromServingSize(food.servingSize) * food.servingQuantity,
+            calories: Double(food.calories),
+            proteinG: food.protein,
+            carbsG: food.carbs,
+            fatG: food.fat,
+            isVerified: false
+        )
+    }
+
+    /// Entry point after the user confirms the review sheet. If the matched
+    /// meal is already eaten AND the new log repeats one of its foods, ask
+    /// whether it's another portion or a fix; otherwise commit straight
+    /// through (.add appends to an eaten meal; a still-planned slot is
+    /// replaced inside EatenMealRecorder).
     @MainActor
     private func persistParsedItems(
         _ items: [ParsedFoodItem],
         type: MealType,
         eatenAt: Date = Date()
     ) {
-        // Duplicate detection: if the matched meal is already eaten AND
-        // the new log contains a food whose name already exists in that
-        // meal, ask the user whether they're adding another portion or
-        // editing the existing one. Otherwise commit straight through.
-        let targetMealNumber = type.sortOrder + 1
-        let candidates = viewModel.todayMeals.filter { $0.mealNumber == targetMealNumber }
-        let matched = candidates.count == 1
-            ? candidates.first
-            : PlannedMealTimingMatcher.bestMatch(
-                for: candidates,
-                mealType: type.displayName,
+        let dupes = EatenMealRecorder.duplicateNames(
+            of: Self.inputs(from: items),
+            type: type,
+            eatenAt: eatenAt,
+            in: viewModel.todayMeals
+        )
+        if !dupes.isEmpty {
+            duplicatePrompt = DuplicateFoodPrompt(
+                items: items,
+                type: type,
                 eatenAt: eatenAt,
-                now: Date()
+                duplicateNames: dupes
             )
-
-        if let existing = matched, existing.status == .eaten {
-            let existingNames = Set(existing.foods.map { $0.name.lowercased() })
-            let dupes = items
-                .map { $0.name.lowercased() }
-                .filter { existingNames.contains($0) }
-            if !dupes.isEmpty {
-                duplicatePrompt = DuplicateFoodPrompt(
-                    items: items,
-                    type: type,
-                    eatenAt: eatenAt,
-                    duplicateNames: Array(Set(dupes))
-                )
-                return
-            }
+            return
         }
-
-        // No duplicate → default behaviour. .add for an already-eaten
-        // meal (append new distinct foods), implicit replace for a
-        // still-planned slot is handled inside commitParsed.
         commitParsed(items, type: type, eatenAt: eatenAt, resolution: .add)
     }
 
-    /// Best-effort grams from a vision serving-size string. Returns the
-    /// leading number only when the unit is grams ("250g", "250 g"); anything
-    /// else ("1 cup", "diced", "medium") yields 0 — quantityGrams is cosmetic
-    /// here (drives serving-size display only), so a 0 doesn't affect the
-    /// logged calories or macros.
+    /// Best-effort grams from a vision serving-size string. See
+    /// `EatenMealRecorder.gramsFromServingSize`.
     static func gramsFromServingSize(_ serving: String) -> Double {
-        let lower = serving.lowercased()
-        guard lower.contains("g") else { return 0 }
-        let number = lower.prefix { $0.isNumber || $0 == "." }
-        return Double(number) ?? 0
+        EatenMealRecorder.gramsFromServingSize(serving)
     }
 
-    /// Performs the actual MealLog + PlannedMeal write. `resolution`
-    /// only matters when the matched meal is already eaten and the new
-    /// log duplicates an existing food:
-    ///   - .add  → append/sum (a second portion)
-    ///   - .edit → replace the matching food entry in place, leaving
-    ///             other foods untouched
-    @MainActor
-    private func commitParsed(
-        _ items: [ParsedFoodItem],
-        type: MealType,
-        eatenAt: Date,
-        resolution: DuplicateResolution
-    ) {
-        let inputs = items.map { item in
+    private static func inputs(from items: [ParsedFoodItem]) -> [MealFoodItemInput] {
+        items.map { item in
             MealFoodItemInput(
                 foodId: item.id,
                 name: item.name,
@@ -561,106 +524,31 @@ struct NutritionLogView: View {
                 source: item.isVerified ? .cached : .claude
             )
         }
-        let foodItems = inputs.map { MealFoodItem(from: $0) }
+    }
 
-        let totalCals = items.reduce(into: 0.0) { $0 += $1.calories }
-        let totalProt = items.reduce(into: 0.0) { $0 += $1.proteinG }
-        let totalCarbs = items.reduce(into: 0.0) { $0 += $1.carbsG }
-        let totalFat = items.reduce(into: 0.0) { $0 += $1.fatG }
-
-        let mealLog = MealLog(
-            type: type,
-            dayDate: Date(),
-            source: .naturalLanguage,
-            photo: nil,
-            items: foodItems
-        )
-        mealLog.loggedAt = eatenAt
-        modelContext.insert(mealLog)
-
-        let plannedFoods = items.map { item in
-            PlannedFood(
-                name: item.name,
-                quantityGrams: item.quantityGrams,
-                calories: item.calories,
-                proteinG: item.proteinG,
-                carbsG: item.carbsG,
-                fatG: item.fatG
-            )
-        }
-        let targetMealNumber = type.sortOrder + 1
-        let candidates = viewModel.todayMeals.filter { $0.mealNumber == targetMealNumber }
-        let matched = candidates.count == 1
-            ? candidates.first
-            : PlannedMealTimingMatcher.bestMatch(
-                for: candidates,
-                mealType: type.displayName,
-                eatenAt: eatenAt,
-                now: Date()
-            )
-
-        if let existing = matched {
-            if existing.status == .eaten {
-                let newNames = Set(plannedFoods.map { $0.name.lowercased() })
-                switch resolution {
-                case .edit:
-                    // Replace any existing food whose name matches one in
-                    // the new log; keep all other foods. Then recompute
-                    // totals from the merged set so calories stay honest.
-                    let kept = existing.foods.filter {
-                        !newNames.contains($0.name.lowercased())
-                    }
-                    let merged = kept + plannedFoods
-                    existing.foodsJSON = try? JSONEncoder().encode(merged)
-                    recomputeTotals(on: existing, from: merged)
-                case .add:
-                    // Append everything — a second portion / new item.
-                    let merged = existing.foods + plannedFoods
-                    existing.foodsJSON = try? JSONEncoder().encode(merged)
-                    existing.totalCalories += totalCals
-                    existing.totalProtein += totalProt
-                    existing.totalCarbs += totalCarbs
-                    existing.totalFat += totalFat
-                }
-                if let prior = existing.actualEatenAt {
-                    existing.actualEatenAt = min(prior, eatenAt)
-                } else {
-                    existing.actualEatenAt = eatenAt
-                }
-            } else {
-                // First log of the day — replace the AI-planned dish.
-                existing.foodsJSON = try? JSONEncoder().encode(plannedFoods)
-                existing.totalCalories = totalCals
-                existing.totalProtein = totalProt
-                existing.totalCarbs = totalCarbs
-                existing.totalFat = totalFat
-                existing.statusRaw = MealStatus.eaten.rawValue
-                existing.linkedMealLogID = mealLog.id
-                existing.actualEatenAt = eatenAt
-            }
-        } else {
-            let timeFormatter = DateFormatter()
-            timeFormatter.dateFormat = "HH:mm"
-            let plannedMeal = PlannedMeal(
-                dayDate: Date(),
-                mealNumber: targetMealNumber,
-                mealName: type.displayName,
-                scheduledTime: timeFormatter.string(from: eatenAt),
-                foods: plannedFoods,
-                totalCalories: totalCals,
-                totalProtein: totalProt,
-                totalCarbs: totalCarbs,
-                totalFat: totalFat,
-                status: .eaten,
-                linkedMealLogID: mealLog.id,
-                actualEatenAt: eatenAt,
-                mealPlan: viewModel.weeklyPlan
-            )
-            modelContext.insert(plannedMeal)
-        }
-
+    /// Saves the confirmed foods through EatenMealRecorder (the same path the
+    /// full Log Meal sheet uses). `resolution` only matters when the matched
+    /// meal is already eaten and the log repeats one of its foods:
+    ///   - .add  → append (a second portion)
+    ///   - .edit → replace the matching food entry, keep the others
+    @MainActor
+    private func commitParsed(
+        _ items: [ParsedFoodItem],
+        type: MealType,
+        eatenAt: Date,
+        resolution: EatenMealRecorder.DuplicateResolution
+    ) {
+        let result: EatenMealRecorder.Result
         do {
-            try modelContext.save()
+            result = try EatenMealRecorder.record(
+                Self.inputs(from: items),
+                type: type,
+                eatenAt: eatenAt,
+                source: .naturalLanguage,
+                resolution: resolution,
+                modelContext: modelContext,
+                notifications: services.notifications
+            )
         } catch {
             toast = ToastData(
                 message: "Couldn't save: \(error.localizedDescription)",
@@ -669,26 +557,12 @@ struct NutritionLogView: View {
             return
         }
         toast = ToastData(
-            message: "\(type.displayName) logged. \(Int(totalCals)) kcal.",
+            message: "\(type.displayName) logged. \(Int(result.logged.calories)) kcal.",
             style: .success
         )
         naturalLanguageInput = ""
         parsedFoodsForReview = nil
         viewModel.loadToday(modelContext: modelContext)
-        // Tell the Dashboard (separate VM) to re-pull its Fuel quadrant
-        // so its calories + eat-times match the Nutrition tab immediately.
-        NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
-    }
-
-    /// Recomputes a PlannedMeal's macro totals from a foods array. Used
-    /// by the .edit resolution where summing deltas wouldn't be correct
-    /// (we removed the old entry and added a new one).
-    @MainActor
-    private func recomputeTotals(on meal: PlannedMeal, from foods: [PlannedFood]) {
-        meal.totalCalories = foods.reduce(0) { $0 + $1.calories }
-        meal.totalProtein = foods.reduce(0) { $0 + $1.proteinG }
-        meal.totalCarbs = foods.reduce(0) { $0 + $1.carbsG }
-        meal.totalFat = foods.reduce(0) { $0 + $1.fatG }
     }
 }
 
@@ -716,6 +590,10 @@ private struct ParsedFoodReviewSheet: View {
 
     @State
     private var selectedMealType: MealType
+
+    /// Set on the first Log tap so a double-tap can't log the meal twice.
+    @State
+    private var didConfirm = false
 
     @Environment(\.dismiss)
     private var dismiss
@@ -760,10 +638,15 @@ private struct ParsedFoodReviewSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Log") {
+                        guard !didConfirm else {
+                            return
+                        }
+                        didConfirm = true
                         onConfirm(selectedMealType)
                         dismiss()
                     }
                     .fontWeight(.semibold)
+                    .disabled(didConfirm)
                 }
             }
         }
