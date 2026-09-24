@@ -91,8 +91,12 @@ struct TrainerProgramView: View {
             presenting: pendingDelete
         ) { program in
             Button("Delete \"\(program.name)\"", role: .destructive) {
+                let wasActive = program.isActive
                 modelContext.delete(program)
                 _ = modelContext.saveOrAlert("trainer program delete")
+                if wasActive {
+                    NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
+                }
             }
         } message: { _ in
             Text("This can't be undone. Your workout history stays either way.")
