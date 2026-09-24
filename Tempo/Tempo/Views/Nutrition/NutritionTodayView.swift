@@ -487,7 +487,9 @@ struct NutritionTodayView: View {
                     modelContext: modelContext,
                     whoop: services.whoop,
                     apiClient: services.apiClient,
-                    notifications: services.notifications
+                    notifications: services.notifications,
+                    trainingEngine: services.trainingEngine,
+                    healthKit: services.healthKit
                 )
             } label: {
                 Text(viewModel.isGeneratingPlan ? "Regenerating…" : "Regenerate for Today")
@@ -546,7 +548,9 @@ struct NutritionTodayView: View {
         let nl = NaturalLanguageLoggingService(apiClient: services.apiClient)
         do {
             let items = try await nl.parseNaturalLanguage(note)
-            guard !items.isEmpty else { return }
+            guard !items.isEmpty else {
+                return
+            }
             meal.foods = items.map {
                 PlannedFood(
                     name: $0.name, quantityGrams: $0.quantityGrams,
@@ -578,7 +582,6 @@ struct NutritionTodayView: View {
             // the user can retry. The Today row keeps its planned state.
         }
     }
-
 }
 
 // MARK: - Preview

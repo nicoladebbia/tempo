@@ -95,7 +95,9 @@ struct NutritionTabView: View {
                         modelContext: modelContext,
                         whoop: services.whoop,
                         apiClient: services.apiClient,
-                        notifications: services.notifications
+                        notifications: services.notifications,
+                        trainingEngine: services.trainingEngine,
+                        healthKit: services.healthKit
                     )
                 } else {
                     viewModel.pendingTrainingSettingsRegen = true
@@ -105,13 +107,17 @@ struct NutritionTabView: View {
             // dietary profile finishes loading. Without this, a notification
             // that arrives during the cold-launch race window is lost forever.
             .onChange(of: viewModel.dietaryProfile?.id) { _, newID in
-                guard newID != nil, viewModel.pendingTrainingSettingsRegen else { return }
+                guard newID != nil, viewModel.pendingTrainingSettingsRegen else {
+                    return
+                }
                 viewModel.pendingTrainingSettingsRegen = false
                 viewModel.generatePlan(
                     modelContext: modelContext,
                     whoop: services.whoop,
                     apiClient: services.apiClient,
-                    notifications: services.notifications
+                    notifications: services.notifications,
+                    trainingEngine: services.trainingEngine,
+                    healthKit: services.healthKit
                 )
             }
             // Surface plan-generation failures (timeout / 5xx / decode) as
@@ -119,7 +125,9 @@ struct NutritionTabView: View {
             // on the Plan sub-tab, so a silent failure on auto-regen would
             // leave the user wondering why nothing happened.
             .onChange(of: viewModel.planGenerationError) { _, newError in
-                guard let newError, !newError.isEmpty else { return }
+                guard let newError, !newError.isEmpty else {
+                    return
+                }
                 planErrorToast = ToastData(
                     message: "Couldn't generate plan: \(newError). Tap Generate on the Plan tab to retry.",
                     style: .error
@@ -136,7 +144,9 @@ struct NutritionTabView: View {
                             modelContext: modelContext,
                             whoop: services.whoop,
                             apiClient: services.apiClient,
-                            notifications: services.notifications
+                            notifications: services.notifications,
+                            trainingEngine: services.trainingEngine,
+                            healthKit: services.healthKit
                         )
                     }
                 })

@@ -58,6 +58,7 @@ struct PantryGapAlert: Identifiable, Equatable {
 @MainActor
 final class NutritionTabViewModel {
     // MARK: - Phase 7 (pantry/grocery/recipe/receipt) — stored directly so
+
     // the lifetimes match `self`. Previously these lived in a static
     // `ObjectIdentifier`-keyed dictionary which leaked the state objects
     // and their services for every ViewModel instance.
@@ -83,15 +84,15 @@ final class NutritionTabViewModel {
     /// call doesn't construct a fresh service object with its own logger
     /// and URLSession underneath). `@ObservationIgnored` is required
     /// because @Observable rejects `lazy`; these aren't view-bindable.
-    @ObservationIgnored
     /// Lazily constructed on first use because we need an APIClient (passed
     /// from the View layer) to proxy Claude calls through the backend.
     /// Per INTELLIGENCE_REMEDIATION_PLAN.md §3.
+    @ObservationIgnored
     private var coachService: NutritionCoachService?
-    @ObservationIgnored
     /// Lazily constructed on first use because we need an APIClient (passed
     /// from the View layer) to proxy Claude calls through the backend.
     /// Per INTELLIGENCE_REMEDIATION_PLAN.md §3.
+    @ObservationIgnored
     private var redistributionService: MealRedistributionService?
 
     // MARK: - Task lifecycle
@@ -216,12 +217,16 @@ final class NutritionTabViewModel {
     /// `Calendar.component(.weekday)`, whose 1=Sunday numbering does not match
     /// the plan's Monday=1 convention.
     var todaySupplementDecisions: [SupplementDecision] {
-        guard let plan = weeklyPlan, plan.coversToday else { return [] }
+        guard let plan = weeklyPlan, plan.coversToday else {
+            return []
+        }
         let cal = Calendar.current
         let start = cal.startOfDay(for: plan.startDate)
         let today = cal.startOfDay(for: Date())
         let daysSinceStart = cal.dateComponents([.day], from: start, to: today).day ?? 0
-        guard daysSinceStart >= 0, daysSinceStart < 7 else { return [] }
+        guard daysSinceStart >= 0, daysSinceStart < 7 else {
+            return []
+        }
         let key = daysSinceStart + 1 // Monday=1 … Sunday=7
         return plan.supplementDecisions[key] ?? []
     }
@@ -252,7 +257,9 @@ final class NutritionTabViewModel {
         if existing.isEmpty {
             modelContext.insert(SupplementIntakeLog(supplementName: name, day: today))
         } else {
-            for row in existing { modelContext.delete(row) }
+            for row in existing {
+                modelContext.delete(row)
+            }
         }
         try? modelContext.save()
         HapticManager.lightImpact()
@@ -371,7 +378,9 @@ final class NutritionTabViewModel {
               let minute = Int(parts[1]),
               (0 ..< 24).contains(hour),
               (0 ..< 60).contains(minute)
-        else { return nil }
+        else {
+            return nil
+        }
         return hour * 60 + minute
     }
 
@@ -416,7 +425,9 @@ final class NutritionTabViewModel {
                     // ordering. Anything malformed sorts to the end.
                     let lhsMinutes = Self.minutesOfDay(from: lhs.scheduledTime) ?? Int.max
                     let rhsMinutes = Self.minutesOfDay(from: rhs.scheduledTime) ?? Int.max
-                    if lhsMinutes != rhsMinutes { return lhsMinutes < rhsMinutes }
+                    if lhsMinutes != rhsMinutes {
+                        return lhsMinutes < rhsMinutes
+                    }
                     return lhs.mealNumber < rhs.mealNumber
                 }
             refreshFeedbackPresence(modelContext: modelContext)
@@ -467,7 +478,10 @@ final class NutritionTabViewModel {
         notifications: (any NotificationServiceProtocol)? = nil
     ) {
         let mealID = meal.id
-        Logger.nutrition.info("[Diag.Eat] \(meal.mealName, privacy: .public) marked eaten at \(eatenAt.formatted(date: .omitted, time: .shortened), privacy: .public) — \(Int(meal.totalCalories))kcal, decrementedPantry=\(meal.didDecrementPantry)")
+        Logger.nutrition
+            .info(
+                "[Diag.Eat] \(meal.mealName, privacy: .public) marked eaten at \(eatenAt.formatted(date: .omitted, time: .shortened), privacy: .public) — \(Int(meal.totalCalories))kcal, decrementedPantry=\(meal.didDecrementPantry)"
+            )
         meal.status = .eaten
         meal.actualEatenAt = eatenAt
 
@@ -530,7 +544,10 @@ final class NutritionTabViewModel {
         modelContext: ModelContext
     ) {
         let mealID = meal.id
-        Logger.nutrition.info("[Diag.Undo] \(meal.mealName, privacy: .public) was \(meal.status.rawValue, privacy: .public) → reverting to planned (creditPantry=\(meal.didDecrementPantry))")
+        Logger.nutrition
+            .info(
+                "[Diag.Undo] \(meal.mealName, privacy: .public) was \(meal.status.rawValue, privacy: .public) → reverting to planned (creditPantry=\(meal.didDecrementPantry))"
+            )
 
         // Re-credit pantry before flipping state, while didDecrementPantry
         // still tells us whether stock was pulled.
@@ -665,7 +682,9 @@ final class NutritionTabViewModel {
         }
         let eaten = freshMeals.filter { $0.status == .eaten }
         let remaining = freshMeals.filter { $0.status == .planned }
-        guard !remaining.isEmpty else { return }
+        guard !remaining.isEmpty else {
+            return
+        }
 
         let consumed = MealRebalancer.Macros(
             calories: eaten.reduce(0.0) { $0 + $1.totalCalories },
@@ -695,7 +714,9 @@ final class NutritionTabViewModel {
             remaining: plannedMacros
         )
         for adj in adjustments where !adj.isZero {
-            guard let meal = remaining.first(where: { $0.id == adj.mealID }) else { continue }
+            guard let meal = remaining.first(where: { $0.id == adj.mealID }) else {
+                continue
+            }
             meal.totalCalories = max(0, meal.totalCalories + adj.calories)
             meal.totalProtein = max(0, meal.totalProtein + adj.protein)
             meal.totalCarbs = max(0, meal.totalCarbs + adj.carbs)
@@ -750,7 +771,9 @@ final class NutritionTabViewModel {
         if redistributionService == nil {
             redistributionService = MealRedistributionService(apiClient: apiClient)
         }
-        guard let redistribution = redistributionService else { return }
+        guard let redistribution = redistributionService else {
+            return
+        }
 
         let remaining = todayMeals.filter { $0.id != skipped.id }
         let result = await redistribution.redistribute(
@@ -765,7 +788,9 @@ final class NutritionTabViewModel {
         // Apply per-meal additive deltas.
         let byNumber = Dictionary(uniqueKeysWithValues: result.perMeal.map { ($0.mealNumber, $0) })
         for meal in todayMeals where meal.status == .planned {
-            guard let delta = byNumber[meal.mealNumber] else { continue }
+            guard let delta = byNumber[meal.mealNumber] else {
+                continue
+            }
             meal.totalCalories += delta.addCalories
             meal.totalProtein += delta.addProtein
             meal.totalCarbs += delta.addCarbs
@@ -855,7 +880,13 @@ final class NutritionTabViewModel {
         whoop: any WhoopServiceProtocol,
         apiClient: APIClient,
         notifications: (any NotificationServiceProtocol)? = nil,
-        intake: MealPlanIntake? = nil
+        intake: MealPlanIntake? = nil,
+        // Real source of the week's training schedule (TrainingScheduleProvider) —
+        // the same engine/HealthKit instances the live Training tab uses, so a
+        // throwaway TrainingViewModel built from them reads identical settings/
+        // persisted state. See the `trainingSchedule` enrichment below.
+        trainingEngine: any TrainingEngineProtocol,
+        healthKit: any HealthKitServiceProtocol
     ) {
         // CRITICAL: re-fetch the DietaryProfile from SwiftData rather than
         // trusting the VM's cached `dietaryProfile`. When the user edits
@@ -937,12 +968,24 @@ final class NutritionTabViewModel {
                 let diagLeftover = enrichedIntake.leftoverTolerance.rawValue
                 let diagWindow = "\(enrichedIntake.eatingWindow.firstMealHour)-\(enrichedIntake.eatingWindow.lastMealHour)"
                 let diagExclusions = enrichedIntake.temporaryExclusions.count
-                Logger.nutrition.info("[Diag.Plan] intake source: \(intakeSource, privacy: .public) — cookDays=\(diagCookDays) leftover=\(diagLeftover, privacy: .public) window=\(diagWindow, privacy: .public) exclusions=\(diagExclusions)")
-                if let settings = settingsForIntake {
-                    enrichedIntake.trainingSchedule = WeeklyTrainingSchedule.make(
-                        split: settings.trainingSplit,
-                        footballDays: settings.footballDays
+                Logger.nutrition
+                    .info(
+                        "[Diag.Plan] intake source: \(intakeSource, privacy: .public) — cookDays=\(diagCookDays) leftover=\(diagLeftover, privacy: .public) window=\(diagWindow, privacy: .public) exclusions=\(diagExclusions)"
                     )
+                if let settings = settingsForIntake {
+                    // Fix #3 — the settings-only guess (split + footballDays)
+                    // agreed with Training only in the simplest case. Pull the
+                    // REAL week (trainer program, matches, custom map, recovery
+                    // swaps included) from the same generation path the
+                    // Training tab uses, via TrainingScheduleProvider.
+                    let realWeek = TrainingScheduleProvider.weekSchedule(
+                        containing: Date(),
+                        trainingEngine: trainingEngine,
+                        whoop: whoop,
+                        healthKit: healthKit,
+                        modelContext: modelContext
+                    )
+                    enrichedIntake.trainingSchedule = WeeklyTrainingSchedule.build(from: realWeek)
                     // Hydrate the persisted grocery preferences when the
                     // caller didn't supply them (non-wizard regen) so the
                     // Sonnet prompt always sees the latest budget cap +
@@ -1074,7 +1117,9 @@ final class NutritionTabViewModel {
         let missing = needed
             .subtracting(pantryNames)
             .filter { name in
-                if name == "water" { return false }
+                if name == "water" {
+                    return false
+                }
                 if let portion = FoodMacroDatabase.naturalPortions[name], portion.isStaple {
                     return false
                 }
@@ -1162,7 +1207,9 @@ final class NutritionTabViewModel {
                 guard let fireDate = calendar.date(byAdding: .hour, value: -defrost.lead, to: item.mealTime) else {
                     continue
                 }
-                guard fireDate > now else { continue }
+                guard fireDate > now else {
+                    continue
+                }
                 notifications.scheduleDefrostReminder(
                     mealID: item.mealID,
                     ingredientID: defrost.id,
@@ -1385,7 +1432,9 @@ final class NutritionTabViewModel {
                 .sorted { lhs, rhs in
                     let lhsMinutes = Self.minutesOfDay(from: lhs.scheduledTime) ?? Int.max
                     let rhsMinutes = Self.minutesOfDay(from: rhs.scheduledTime) ?? Int.max
-                    if lhsMinutes != rhsMinutes { return lhsMinutes < rhsMinutes }
+                    if lhsMinutes != rhsMinutes {
+                        return lhsMinutes < rhsMinutes
+                    }
                     return lhs.mealNumber < rhs.mealNumber
                 }
             refreshFeedbackPresence(modelContext: modelContext)
