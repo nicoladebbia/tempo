@@ -211,7 +211,11 @@ struct TrainerReportSheet: View {
             plans: plans,
             personalRecords: personalRecords,
             recoveryScores: recoveryScores,
-            painFlaggedExerciseIDs: painFlaggedExerciseIDs
+            painFlaggedExerciseIDs: painFlaggedExerciseIDs,
+            conditioningProvider: StoredConditioningResults(
+                results: Self.fetchConditioningResults(forPlans: planIDs, modelContext: modelContext),
+                program: program
+            )
         )
         document = TrainerReportBuilder.build(input: input, language: language)
     }
@@ -223,6 +227,14 @@ struct TrainerReportSheet: View {
             predicate: #Predicate<WorkoutPlan> { $0.date >= lower && $0.date < upper }
         )
         return (try? modelContext.fetch(descriptor)) ?? []
+    }
+
+    private static func fetchConditioningResults(forPlans planIDs: Set<UUID>, modelContext: ModelContext) -> [ConditioningBlockResult] {
+        guard !planIDs.isEmpty else {
+            return []
+        }
+        let all = (try? modelContext.fetch(FetchDescriptor<ConditioningBlockResult>())) ?? []
+        return all.filter { $0.workoutPlanID.map(planIDs.contains) ?? false }
     }
 
     private static func fetchPersonalRecords(matching planIDs: Set<UUID>, modelContext: ModelContext) -> [PersonalRecord] {

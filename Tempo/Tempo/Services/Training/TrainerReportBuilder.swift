@@ -277,7 +277,7 @@ enum TrainerReportBuilder {
             }
         }
 
-        let conditioning = input.conditioningProvider.conditioningLines(forSessionKey: sessionKey)
+        let conditioning = input.conditioningProvider.conditioningLines(forSessionKey: sessionKey, workoutPlanID: matchedPlan?.id)
             .map { TrainerReportConditioningRow(text: formatConditioningLine($0, strings: strings)) }
 
         // PRs are lift-based — attribute them to the strength row only, so a

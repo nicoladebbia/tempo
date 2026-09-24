@@ -373,4 +373,39 @@ final class TrainerReportBuilderTests: XCTestCase {
         XCTAssertEqual(range.lowerBound, monday)
         XCTAssertEqual(range.upperBound, today)
     }
+
+    // MARK: - Stored conditioning results
+
+    /// A repeating program reuses the same session key every cycle — the
+    /// provider must only return the results logged on THIS occurrence's
+    /// plan, labelled with the trainer's block name, in block order.
+    func testStoredConditioningResultsArePinnedToTheOccurrencesPlan() {
+        let shuttle = ProgramExercise(name: "Shuttle 25y", sets: 1, repsLow: 4)
+        let tempo = ProgramExercise(name: "Tempo run", sets: 1, repsLow: 1)
+        let program = TrainerProgram(
+            name: "Plan",
+            startDate: monday,
+            weeks: [ProgramWeek(days: [ProgramDay(weekday: 4, title: "Run", focus: "sprint", exercises: [shuttle, tempo])])],
+            sourceKind: "text"
+        )
+        let thisWeek = UUID()
+        let lastWeek = UUID()
+        let results = [
+            ConditioningBlockResult(workoutPlanID: thisWeek, programSessionKey: "k", blockID: tempo.id, durationSeconds: 900),
+            ConditioningBlockResult(
+                workoutPlanID: thisWeek, programSessionKey: "k", blockID: shuttle.id,
+                repTimesSeconds: [60, 62], rpe: 7.6, targetMet: true
+            ),
+            ConditioningBlockResult(workoutPlanID: lastWeek, programSessionKey: "k", blockID: shuttle.id, repTimesSeconds: [70]),
+        ]
+        let provider = StoredConditioningResults(results: results, program: program)
+
+        let lines = provider.conditioningLines(forSessionKey: "k", workoutPlanID: thisWeek)
+        XCTAssertEqual(lines.map(\.blockLabel), ["Shuttle 25y", "Tempo run"])
+        XCTAssertEqual(lines.first?.repTimesSeconds, [60, 62])
+        XCTAssertEqual(lines.first?.rpe, 8)
+        XCTAssertEqual(lines.first?.targetMet, true)
+        XCTAssertTrue(provider.conditioningLines(forSessionKey: "k", workoutPlanID: nil).isEmpty, "not done → nothing")
+        XCTAssertTrue(provider.conditioningLines(forSessionKey: "other", workoutPlanID: thisWeek).isEmpty)
+    }
 }

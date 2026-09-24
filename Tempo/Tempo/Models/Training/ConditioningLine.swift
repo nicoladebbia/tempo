@@ -3,18 +3,10 @@
 // Tempo
 //
 // Fix #8 (trainer report) — display-ready line for one logged conditioning
-// block/result, independent of how it's actually stored. The real model,
-// `ConditioningBlockResult` (workoutPlanID, programSessionKey, blockID,
-// repTimesSeconds, durationSeconds, distanceMeters, roundsCompleted, rpe,
-// notes, targetMet), is being added by another agent in parallel and is NOT
-// part of this build.
-//
-// Once it lands: add ONE mapping function `ConditioningBlockResult ->
-// ConditioningLine` and a `ConditioningResultProviding` conformance that
-// fetches results by `programSessionKey` (the trainer's stable session
-// identity — see `TrainerProgram.sessionKey`). Nothing else in the report
+// block/result, independent of how it's stored. `StoredConditioningResults`
+// maps the persisted `ConditioningBlockResult` rows into these; the report
 // pipeline (`TrainerReportBuilder`, `TrainerReportTextFormatter`,
-// `TrainerReportPDFRenderer`) needs to change.
+// `TrainerReportPDFRenderer`) only ever sees `ConditioningLine`.
 //
 
 import Foundation
@@ -42,21 +34,57 @@ struct ConditioningLine: Identifiable, Hashable, Sendable {
 
 // MARK: - ConditioningResultProviding
 
-/// Supplies logged conditioning results for a trainer-program session, keyed
-/// by `TrainerProgram.sessionKey`. Let the report builder depend on this
-/// protocol rather than a concrete model — the concrete `ConditioningBlockResult`
-/// model can be wired in later without touching the builder.
+/// Supplies logged conditioning results for one occurrence of a
+/// trainer-program session: `TrainerProgram.sessionKey` plus the WorkoutPlan
+/// it was done on. The key alone isn't enough — a repeating program reuses
+/// the same key every cycle, so the plan pins the occurrence.
 protocol ConditioningResultProviding {
-    func conditioningLines(forSessionKey sessionKey: String) -> [ConditioningLine]
+    func conditioningLines(forSessionKey sessionKey: String, workoutPlanID: UUID?) -> [ConditioningLine]
 }
 
 // MARK: - EmptyConditioningResultProvider
 
-/// Default provider used until `ConditioningBlockResult` is wired in — no
-/// conditioning results available, which the report handles gracefully
-/// (sessions simply show no conditioning block).
+/// No conditioning results — the report handles it gracefully (sessions
+/// simply show no conditioning block).
 struct EmptyConditioningResultProvider: ConditioningResultProviding {
-    func conditioningLines(forSessionKey sessionKey: String) -> [ConditioningLine] {
+    func conditioningLines(forSessionKey sessionKey: String, workoutPlanID: UUID?) -> [ConditioningLine] {
         []
+    }
+}
+
+// MARK: - StoredConditioningResults
+
+/// Maps logged `ConditioningBlockResult` rows to report lines, labelled with
+/// the trainer's block name and kept in the program's block order.
+struct StoredConditioningResults: ConditioningResultProviding {
+    let results: [ConditioningBlockResult]
+    let program: TrainerProgram
+
+    func conditioningLines(forSessionKey sessionKey: String, workoutPlanID: UUID?) -> [ConditioningLine] {
+        guard let workoutPlanID else {
+            return []
+        }
+        let blocks = program.weeks.flatMap(\.days).flatMap(\.exercises)
+        let order = Dictionary(blocks.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let names = Dictionary(blocks.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
+        return results
+            .filter { $0.programSessionKey == sessionKey && $0.workoutPlanID == workoutPlanID }
+            .sorted { lhs, rhs in
+                (lhs.blockID.flatMap { order[$0] } ?? .max) < (rhs.blockID.flatMap { order[$0] } ?? .max)
+            }
+            .enumerated()
+            .map { index, result in
+                ConditioningLine(
+                    id: result.id,
+                    blockLabel: result.blockID.flatMap { names[$0] } ?? "Block \(index + 1)",
+                    repTimesSeconds: result.repTimesSeconds ?? [],
+                    durationSeconds: result.durationSeconds,
+                    distanceMeters: result.distanceMeters,
+                    roundsCompleted: result.roundsCompleted,
+                    rpe: result.rpe.map { Int($0.rounded()) },
+                    notes: result.notes,
+                    targetMet: result.targetMet
+                )
+            }
     }
 }
