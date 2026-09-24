@@ -64,6 +64,12 @@ struct TrainingTabView: View {
                         }
 
                         NavigationLink {
+                            TrainerProgramView()
+                        } label: {
+                            Label("Trainer Program", systemImage: "person.crop.circle.badge.checkmark")
+                        }
+
+                        NavigationLink {
                             ExerciseLibraryView()
                         } label: {
                             Label("Exercise Library", systemImage: "books.vertical")
