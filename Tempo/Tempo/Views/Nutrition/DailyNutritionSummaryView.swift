@@ -7,6 +7,7 @@
 //
 
 import Charts
+import SwiftData
 import SwiftUI
 
 // MARK: - DailyNutritionSummaryView
@@ -23,9 +24,16 @@ struct DailyNutritionSummaryView: View {
     @State
     private var showMealLogging = false
     @State
-    private var isRefreshing = false
-    @State
     private var localHydrationBonus: Int = 0
+    /// Today's real PlannedMeals (active plan or unbound) as display rows.
+    @State
+    private var meals: [NutritionMealEntry] = []
+    /// Last 7 days of eaten-meal totals (oldest first).
+    @State
+    private var calorieTrend: [DailyEatenTotals] = []
+
+    @Environment(\.modelContext)
+    private var modelContext
 
     /// Real data from FuelQuadrantData when connected, fallback to empty state
     private var caloriesConsumed: Int {
@@ -68,41 +76,6 @@ struct DailyNutritionSummaryView: View {
     private let proteinColor = Color.tempoMacroProtein
     private let carbsColor = Color.tempoMacroCarbs
     private let fatColor = Color.tempoMacroFat
-
-    /// Meal display based on connection status
-    private var meals: [NutritionMealEntry] {
-        guard isConnected else {
-            return []
-        }
-        let logged = fuelData?.mealsLogged ?? 0
-        let planned = fuelData?.mealsPlanned ?? 4
-        let mealTypes = ["Breakfast", "Lunch", "Snack", "Dinner"]
-        return (0 ..< planned).map { index in
-            let type = index < mealTypes.count ? mealTypes[index] : "Meal \(index + 1)"
-            let isLogged = index < logged
-            return NutritionMealEntry(
-                id: UUID(),
-                type: type,
-                time: isLogged ? "--" : "--",
-                calories: isLogged ? caloriesConsumed / max(logged, 1) : nil,
-                items: [],
-                status: isLogged ? .logged : .planned
-            )
-        }
-    }
-
-    /// 7-day calorie trend — synthetic from current data when connected
-    private var calorieTrend: [CalorieTrendPoint] {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        let todayCal = caloriesConsumed > 0 ? caloriesConsumed : calorieTarget
-        return (-6 ... 0).map { offset in
-            let date = calendar.date(byAdding: .day, value: offset, to: today)!
-            let variance = Int.random(in: -200 ... 200)
-            let value = offset == 0 ? caloriesConsumed : max(0, todayCal + variance)
-            return CalorieTrendPoint(date: date, calories: value)
-        }
-    }
 
     // MARK: - Computed
 
@@ -163,9 +136,13 @@ struct DailyNutritionSummaryView: View {
         .navigationTitle("Fuel")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable {
-            isRefreshing = true
-            try? await Task.sleep(for: .seconds(1))
-            isRefreshing = false
+            loadMealData()
+        }
+        .task {
+            loadMealData()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .tempoNutritionLogged)) { _ in
+            loadMealData()
         }
         .sheet(isPresented: $showMealLogging) {
             MealLoggingView()
@@ -641,6 +618,13 @@ struct DailyNutritionSummaryView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.bottom, TempoSpacing.md)
 
+            if meals.isEmpty {
+                Text("No meals on the board today.")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextTertiary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
             ForEach(Array(meals.enumerated()), id: \.element.id) { index, meal in
                 mealRow(meal)
                 if index < meals.count - 1 {
@@ -717,7 +701,26 @@ struct DailyNutritionSummaryView: View {
                 .tracking(TempoTracking.drillLabel)
                 .foregroundStyle(Color.tempoTextSecondary)
 
-            Chart(calorieTrend) { point in
+            if calorieTrend.contains(where: \.hasData) {
+                trendChart
+            } else {
+                Text("Nothing logged this week. Log a meal and the chart starts.")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextTertiary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(TempoSpacing.cardPadding)
+        .background(Color.tempoSurfaceCard)
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tempoShadow(.card)
+    }
+
+    /// Only days with eaten meals get a bar; empty days leave a gap on the
+    /// full 7-day axis instead of a fake 0 or a made-up value.
+    private var trendChart: some View {
+        Chart {
+            ForEach(calorieTrend.filter(\.hasData)) { point in
                 BarMark(
                     x: .value("Day", point.date, unit: .day),
                     y: .value("Calories", point.calories)
@@ -727,11 +730,13 @@ struct DailyNutritionSummaryView: View {
                         ? Color.tempoError : Color.tempoViolet
                 )
                 .cornerRadius(4)
-
-                RuleMark(y: .value("Target", calorieTarget))
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
             }
+
+            RuleMark(y: .value("Target", calorieTarget))
+                .foregroundStyle(Color.tempoTextTertiary)
+                .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+        }
+        .chartXScale(domain: trendDomain)
             .chartXAxis {
                 AxisMarks(values: .stride(by: .day)) { value in
                     AxisValueLabel {
@@ -753,11 +758,39 @@ struct DailyNutritionSummaryView: View {
                 }
             }
             .frame(height: 160)
-        }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
+    }
+
+    /// Full 7-day window (start of first day → end of today) so empty days
+    /// still occupy their slot on the axis.
+    private var trendDomain: ClosedRange<Date> {
+        let cal = Calendar.current
+        let first = calorieTrend.first?.date ?? cal.startOfDay(for: Date())
+        let last = calorieTrend.last?.date ?? first
+        let end = cal.date(byAdding: .day, value: 1, to: last) ?? last
+        return first ... end
+    }
+
+    // MARK: - Data
+
+    private func loadMealData() {
+        meals = NutritionMealEntry.entries(from: Self.todayMeals(in: modelContext))
+        calorieTrend = EatenNutritionHistory.dailyTotals(in: modelContext)
+    }
+
+    /// Today's PlannedMeals — active plan or unbound manual logs, the same
+    /// filter the Dashboard Fuel card and Nutrition Today use.
+    private static func todayMeals(in context: ModelContext) -> [PlannedMeal] {
+        let cal = Calendar.current
+        let todayStart = cal.startOfDay(for: Date())
+        let tomorrowStart = cal.date(byAdding: .day, value: 1, to: todayStart) ?? todayStart
+        let descriptor = FetchDescriptor<PlannedMeal>(
+            predicate: #Predicate<PlannedMeal> { meal in
+                meal.dayDate >= todayStart && meal.dayDate < tomorrowStart
+            },
+            sortBy: [SortDescriptor(\.mealNumber)]
+        )
+        return ((try? context.fetch(descriptor)) ?? [])
+            .filter { $0.mealPlan?.isActive == true || $0.mealPlan == nil }
     }
 
     // MARK: - AI Coaching Card (Task 6)
@@ -838,6 +871,40 @@ struct NutritionMealEntry: Identifiable {
         case .planned: .tempoTextTertiary
         case .skipped: .tempoError
         }
+    }
+}
+
+extension NutritionMealEntry {
+    /// Display rows for today's real PlannedMeals, in eating order
+    /// (scheduled time, then meal number). Eaten meals show the actual eat
+    /// time; skipped meals show no kcal.
+    static func entries(from meals: [PlannedMeal]) -> [NutritionMealEntry] {
+        meals
+            .sorted { lhs, rhs in
+                lhs.scheduledTime != rhs.scheduledTime
+                    ? lhs.scheduledTime < rhs.scheduledTime
+                    : lhs.mealNumber < rhs.mealNumber
+            }
+            .map { meal in
+                let status: NutritionMealStatus = switch meal.status {
+                case .eaten: .logged
+                case .skipped: .skipped
+                case .planned, .modified: .planned
+                }
+                let time = if status == .logged, let eatenAt = meal.actualEatenAt {
+                    TempoDateFormatters.timeOnly.string(from: eatenAt)
+                } else {
+                    meal.scheduledTime
+                }
+                return NutritionMealEntry(
+                    id: meal.id,
+                    type: meal.mealName,
+                    time: time,
+                    calories: status == .skipped ? nil : Int(meal.totalCalories.rounded()),
+                    items: meal.foods.map(\.name),
+                    status: status
+                )
+            }
     }
 }
 

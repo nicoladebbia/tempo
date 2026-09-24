@@ -21,12 +21,15 @@ struct FuelQuadrantDetailContainer: View {
 
     @State
     private var scheduleVM: FuelDayScheduleViewModel?
+    @State
+    private var calorieTrend: [DailyEatenTotals] = []
 
     var body: some View {
         FuelQuadrantDetailView(
             data: fuelData,
             mealRows: scheduleVM?.rows ?? [],
-            shiftMinutes: scheduleVM?.shiftMinutes ?? 0
+            shiftMinutes: scheduleVM?.shiftMinutes ?? 0,
+            calorieTrend: calorieTrend
         )
         .task {
             if scheduleVM == nil {
@@ -35,12 +38,14 @@ struct FuelQuadrantDetailContainer: View {
                     calendar: services.calendar
                 )
             }
+            calorieTrend = EatenNutritionHistory.dailyTotals(in: modelContext)
             await scheduleVM?.refresh(modelContext: modelContext)
         }
         .onReceive(NotificationCenter.default.publisher(for: .tempoNutritionLogged)) { _ in
             // Re-pull the annotated rows when a meal is logged elsewhere
             // so this detail sheet's calories + eat-times stay live while
             // it's open.
+            calorieTrend = EatenNutritionHistory.dailyTotals(in: modelContext)
             Task { await scheduleVM?.refresh(modelContext: modelContext) }
         }
     }
