@@ -26,8 +26,16 @@ struct ActiveWorkoutView: View {
 
     @State
     private var inputWeight: Double = 0
+    /// Fix #9 — not `private` below: read from ActiveWorkoutView+PerSide.swift
+    /// (split out to stay under the file_length cap). `logRepsSeparately`/
+    /// `inputRepsRight` back an optional L/R split log; never sticky (reset
+    /// in `loadCurrentSetInputs`).
     @State
-    private var inputReps: Double = 8
+    var inputReps: Double = 8
+    @State
+    var logRepsSeparately = false
+    @State
+    var inputRepsRight: Double = 8
     /// Signed added load (display unit) for bodyweight-loaded lifts: positive =
     /// weight belt/vest, negative = assistance (band/machine). Only used when the
     /// current exercise is bodyweight-loaded; effective load = bodyweight ± this.
@@ -502,7 +510,7 @@ struct ActiveWorkoutView: View {
 
             // Reps input
             VStack(spacing: TempoSpacing.sm) {
-                Text("REPS")
+                Text(isPerSideExercise ? "REPS — LEFT" : "REPS")
                     .font(.tempoCaption2)
                     .foregroundStyle(Color.tempoTextTertiary)
                 NumberStepperView(
@@ -510,9 +518,13 @@ struct ActiveWorkoutView: View {
                     range: 1 ... 100,
                     step: 1,
                     format: "%.0f",
-                    unit: "reps",
+                    unit: isPerSideExercise ? "reps / side" : "reps",
                     onTapValue: { activeEntryField = .reps }
                 )
+                // Fix #9 — optional L/R split (e.g. L 8 / R 7).
+                if isPerSideExercise, !currentSetIsWarmup {
+                    PerSideRepsControl(left: $inputReps, right: $inputRepsRight, splitEnabled: $logRepsSeparately)
+                }
                 // §11.12 — the effort target that makes the weight make
                 // sense: the load is computed FOR this rep count at this
                 // proximity to failure.
@@ -625,7 +637,8 @@ struct ActiveWorkoutView: View {
         guard let set = viewModel.currentSet, let w = set.targetWeight else {
             return nil
         }
-        return "\(displayWeight(w)) × \(set.targetReps)"
+        let reps = SideRepsFormat.reps(set.targetReps, perSide: viewModel.currentExercise?.perSide == true)
+        return "\(displayWeight(w)) × \(reps)"
     }
 
     /// All-time best estimated 1RM for this lift.
@@ -733,6 +746,8 @@ struct ActiveWorkoutView: View {
                         weight: bodyweightEffectiveKg,
                         reps: Int(inputReps),
                         addedLoadKg: weightUnit.convert(inputAddedLoad, to: .kg),
+                        leftReps: splitLeftReps,
+                        rightReps: splitRightReps,
                         modelContext: modelContext
                     )
                 } else {
@@ -740,6 +755,8 @@ struct ActiveWorkoutView: View {
                     viewModel.logSet(
                         weight: weightKg,
                         reps: Int(inputReps),
+                        leftReps: splitLeftReps,
+                        rightReps: splitRightReps,
                         modelContext: modelContext
                     )
                 }
@@ -757,7 +774,7 @@ struct ActiveWorkoutView: View {
     }
 
     /// Whether the set currently being entered is a warm-up (ramp) set.
-    private var currentSetIsWarmup: Bool {
+    var currentSetIsWarmup: Bool { // Fix #9 — not `private`: read from +PerSide.swift
         viewModel.currentSet?.isWarmup ?? false
     }
 
@@ -952,11 +969,12 @@ struct ActiveWorkoutView: View {
     }
 
     private func warmupTargetLabel(_ set: PlannedSet) -> String {
+        let reps = SideRepsFormat.reps(set.targetReps, perSide: set.plannedExercise?.perSide == true)
         if let w = set.targetWeight, w > 0 {
             let display = WeightUnit.kg.convert(w, to: weightUnit)
-            return "\(Int(display)) \(weightUnit.abbreviation) × \(set.targetReps)"
+            return "\(Int(display)) \(weightUnit.abbreviation) × \(reps)"
         }
-        return "Bodyweight × \(set.targetReps)"
+        return "Bodyweight × \(reps)"
     }
 
     // MARK: - Exercise Header
@@ -1396,6 +1414,7 @@ struct ActiveWorkoutView: View {
     }
 
     private func loadCurrentSetInputs() {
+        logRepsSeparately = false // Fix #9 — never sticky across sets
         // §15 — seed the inline bodyweight prompt with a sane default the
         // first time it's needed this session (only matters while
         // bodyweightKg <= 0; otherwise the prompt never renders).

@@ -626,7 +626,8 @@ struct WorkoutHistoryView: View {
                             let w = set.actualWeight ?? set.targetWeight ?? 0
                             let r = set.actualReps ?? set.targetReps
                             let dispW = WeightUnit.kg.convert(w, to: weightUnit)
-                            Text("\(Int(dispW))x\(r)")
+                            // Fix #9 — a per-side ramp target reads "x8/side".
+                            Text("\(Int(dispW))x\(SideRepsFormat.reps(r, perSide: plannedEx.perSide))")
                                 .font(.system(size: 11, design: .monospaced))
                                 .foregroundStyle(Color.tempoTextTertiary)
                                 .padding(.horizontal, 4)
@@ -640,7 +641,13 @@ struct WorkoutHistoryView: View {
                                 .foregroundStyle(Color.tempoTextTertiary)
                         } else if set.completed, let weight = set.actualWeight, let reps = set.actualReps {
                             let dispW = WeightUnit.kg.convert(weight, to: weightUnit)
-                            Text("\(Int(dispW))x\(reps)")
+                            // Fix #9 — "x8/side", or "xL8/R7" when the
+                            // athlete logged an uneven L/R split.
+                            let repsText = SideRepsFormat.loggedReps(
+                                actual: reps, left: set.actualRepsLeft, right: set.actualRepsRight,
+                                perSide: plannedEx.perSide
+                            )
+                            Text("\(Int(dispW))x\(repsText)")
                                 .font(.system(size: 11, design: .monospaced))
                                 .foregroundStyle(Color.tempoTextSecondary)
                                 .padding(.horizontal, 4)

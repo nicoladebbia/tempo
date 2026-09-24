@@ -316,7 +316,12 @@ struct WorkoutSummaryView: View {
                    let weight = best.actualWeight,
                    let reps = best.actualReps
                 {
-                    Text("Best: \(formattedWeight(weight)) x \(reps)")
+                    // Fix #9 — "x 8 / side", or "x L8 / R7" for a logged split.
+                    let repsText = SideRepsFormat.loggedReps(
+                        actual: reps, left: best.actualRepsLeft, right: best.actualRepsRight,
+                        perSide: plannedEx.perSide
+                    )
+                    Text("Best: \(formattedWeight(weight)) x \(repsText)")
                         .font(.tempoCaption1)
                         .foregroundStyle(Color.tempoTextSecondary)
                 }
