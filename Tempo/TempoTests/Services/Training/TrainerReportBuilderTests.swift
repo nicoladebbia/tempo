@@ -408,4 +408,37 @@ final class TrainerReportBuilderTests: XCTestCase {
         XCTAssertTrue(provider.conditioningLines(forSessionKey: "k", workoutPlanID: nil).isEmpty, "not done → nothing")
         XCTAssertTrue(provider.conditioningLines(forSessionKey: "other", workoutPlanID: thisWeek).isEmpty)
     }
+
+    // MARK: - Sequence mode
+
+    /// Sequence mode: a session is dated by when the athlete actually did it,
+    /// not by its weekday. A session skipped Monday and done Tuesday shows
+    /// once, as done on Tuesday; a later lapsed one nobody completed is missed.
+    func testSequenceModeReportsCarriedForwardSessionOnceAsDone() throws {
+        let context = try makeContext()
+        let program = makeProgram()
+        program.scheduleMode = .sequence
+        let exercise = makeExercise(context)
+        let tuesday = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: 1, to: monday))
+        let wednesday = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: 2, to: monday))
+
+        let skipped = WorkoutPlan(id: UUID(), date: monday, type: .upper, status: .planned)
+        skipped.programSessionKey = program.sessionKey(weekIndex: 0, dayIndex: 0)
+        context.insert(skipped)
+        let done = makeLoggedPlan(
+            context: context, program: program, date: tuesday, exercise: exercise, sets: [(80, 8, nil)]
+        )
+        let lapsed = WorkoutPlan(id: UUID(), date: wednesday, type: .upper, status: .planned)
+        lapsed.programSessionKey = program.sessionKey(weekIndex: 0, dayIndex: 0)
+        context.insert(lapsed)
+
+        var reportInput = input(program: program, plans: [skipped, done, lapsed])
+        reportInput.scopeRange = monday ... wednesday
+        let document = TrainerReportBuilder.build(input: reportInput, language: .english)
+
+        XCTAssertEqual(document.sessions.map(\.status), [.done, .missed])
+        XCTAssertTrue(Calendar.current.isDate(document.sessions[0].scheduledDate, inSameDayAs: tuesday))
+        XCTAssertEqual(document.sessions[0].exercises.first?.prescriptionText, "3×8 reps @ 80kg")
+        XCTAssertTrue(Calendar.current.isDate(document.sessions[1].scheduledDate, inSameDayAs: wednesday))
+    }
 }

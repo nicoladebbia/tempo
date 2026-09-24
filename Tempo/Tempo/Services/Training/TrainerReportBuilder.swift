@@ -155,6 +155,15 @@ enum TrainerReportBuilder {
             }
         }
 
+        // Sequence mode: a session's date comes from the completion cursor,
+        // not its weekday, so the weekday walk above would pair the wrong
+        // ProgramDay with each date. Report the occurrences the athlete's
+        // plans actually carried instead.
+        if program.scheduleMode == .sequence {
+            let rows = sequenceRows(input: input, strings: strings, language: language)
+            return document(rows: rows, input: input, strings: strings, language: language)
+        }
+
         let rows = scheduled.map { item -> TrainerReportSessionRow in
             let candidates = plansByKey[item.sessionKey] ?? []
             let exactMatch = candidates.first { cal.isDate($0.date, inSameDayAs: item.date) }
@@ -181,6 +190,16 @@ enum TrainerReportBuilder {
             )
         }
 
+        return document(rows: rows, input: input, strings: strings, language: language)
+    }
+
+    private static func document(
+        rows: [TrainerReportSessionRow],
+        input: TrainerReportInput,
+        strings: TrainerReportStrings,
+        language: TrainerReportLanguage
+    ) -> TrainerReportDocument {
+        let program = input.program
         let summary = buildSummary(rows: rows, input: input, strings: strings)
         let summaryLines = buildSummaryLines(summary: summary, strings: strings)
 
@@ -196,6 +215,63 @@ enum TrainerReportBuilder {
             summaryLines: summaryLines,
             sessions: rows
         )
+    }
+
+    // MARK: Sequence mode
+
+    /// One row per trainer session a plan in scope carried: done when the
+    /// plan completed it; missed when it lapsed and no later plan in the
+    /// window completed the same session (a carried-forward session shows
+    /// once, on the day it was actually done). Not-yet-due sessions are left
+    /// out.
+    private static func sequenceRows(
+        input: TrainerReportInput,
+        strings: TrainerReportStrings,
+        language: TrainerReportLanguage
+    ) -> [TrainerReportSessionRow] {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let upper = cal.date(byAdding: .day, value: 1, to: input.scopeRange.upperBound) ?? input.scopeRange.upperBound
+        let inScope = input.plans
+            .filter { $0.date >= input.scopeRange.lowerBound && $0.date < upper }
+            .sorted { $0.date < $1.date }
+
+        var occurrences: [(plan: WorkoutPlan, key: String, done: Bool)] = []
+        for plan in inScope {
+            if let key = plan.programSessionKey {
+                occurrences.append((plan, key, plan.status == .completed))
+            }
+            if let key = plan.programSecondaryKey {
+                occurrences.append((plan, key, plan.secondaryCompleted))
+            }
+        }
+
+        return occurrences.enumerated().compactMap { index, item -> TrainerReportSessionRow? in
+            guard let day = input.program.day(forSessionKey: item.key) else {
+                return nil
+            }
+            let status: TrainerReportSessionStatus
+            if item.done {
+                status = .done
+            } else {
+                let lapsed = cal.startOfDay(for: item.plan.date) < today
+                let doneLater = occurrences[(index + 1)...].contains { $0.key == item.key && $0.done }
+                guard lapsed, !doneLater else {
+                    return nil
+                }
+                status = .missed
+            }
+            return buildRow(
+                scheduledDate: item.plan.date,
+                day: day,
+                sessionKey: item.key,
+                status: status,
+                matchedPlan: item.done ? item.plan : nil,
+                input: input,
+                strings: strings,
+                language: language
+            )
+        }
     }
 
     // MARK: Row building
