@@ -129,8 +129,8 @@ targets:
         UILaunchScreen:
           UIColorName: tempo-bg-primary
         NSSupportsLiveActivities: true
-        NSCameraUsageDescription: Tempo uses the camera to scan grocery receipts so it can fill your pantry and price-track items automatically.
-        NSPhotoLibraryUsageDescription: Tempo reads receipts from your photo library to import them into your pantry.
+        NSCameraUsageDescription: Tempo uses the camera to scan grocery receipts for your pantry and to photograph your trainer's workout program so you can follow it in the app.
+        NSPhotoLibraryUsageDescription: Tempo reads receipts and your trainer's workout programs from your photo library to import them.
         NSRemindersFullAccessUsageDescription: Tempo can save your weekly grocery list to Reminders so you can check items off while shopping.
         NSRemindersUsageDescription: Tempo can save your weekly grocery list to Reminders so you can check items off while shopping.
     preBuildScripts:

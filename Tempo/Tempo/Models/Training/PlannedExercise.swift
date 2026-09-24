@@ -20,6 +20,13 @@ final class PlannedExercise {
 
     var supersetGroup: Int?
 
+    /// Trainer-program rest between sets (seconds). Wins over the exercise's
+    /// own preference and the global default. Optional → lightweight migration.
+    var restSecondsOverride: Int?
+
+    /// The trainer's note for this exercise ("pause at the bottom").
+    var programNote: String?
+
     /// Exercise name captured when this slot was created. `Exercise.
     /// plannedExercises` is `.nullify` (§10.6) — deleting a custom exercise
     /// detaches `exercise` instead of deleting this row, so a past session's

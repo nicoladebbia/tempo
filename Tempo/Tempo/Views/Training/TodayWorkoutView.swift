@@ -356,6 +356,12 @@ struct TodayWorkoutView: View {
             // Per MODULE_TRAINING.md Section 2.7
             exerciseList(plan: plan)
 
+            // Trainer program: the day's second session (conditioning after
+            // the lift), block by block.
+            if let second = viewModel.trainerDay(forKey: plan.programSecondaryKey, modelContext: modelContext) {
+                TrainerSessionCard(day: second, heading: "SECOND SESSION")
+            }
+
             // §14 #3 — one-tap session RPE, only after completion.
             sessionRPESection(plan: plan)
 
@@ -397,6 +403,15 @@ struct TodayWorkoutView: View {
             Text(plan.type.displayName.uppercased() + " DAY")
                 .font(.tempoTitle1)
                 .foregroundStyle(Color.tempoTextPrimary)
+
+            // Only while it's still a lifting day — if recovery eased it to
+            // rest/mobility, the session card explains; no trainer badge.
+            if plan.programSessionKey != nil, plan.type.isGymWorkout {
+                Label(plan.notes ?? "Trainer session", systemImage: "person.fill.checkmark")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoSignal)
+                    .accessibilityLabel("From your trainer's program: \(plan.notes ?? "session")")
+            }
         }
         .padding(.top, TempoSpacing.md)
     }
@@ -1178,6 +1193,17 @@ struct TodayWorkoutView: View {
                 }
             }
 
+            // Trainer program: their cue / rest for this exercise.
+            if plannedExercise.programNote != nil || plannedExercise.restSecondsOverride != nil {
+                Text([
+                    plannedExercise.programNote,
+                    plannedExercise.restSecondsOverride.map { "Rest \($0)s" },
+                ].compactMap(\.self).joined(separator: " · "))
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoSignal)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             // Row 3: Last 3 sessions' performance with trend indicator
             if let exercise = plannedExercise.exercise {
                 let recentSessions = lastThreePerformances(for: exercise)
@@ -1395,6 +1421,12 @@ struct TodayWorkoutView: View {
                 .foregroundStyle(Color.tempoTextSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, TempoSpacing.lg)
+
+            // Trainer program: the coach's own conditioning session, block by block.
+            if let day = viewModel.trainerDay(forKey: plan.programSessionKey, modelContext: modelContext) {
+                TrainerSessionCard(day: day, heading: "YOUR TRAINER'S SESSION")
+                    .padding(.horizontal, TempoSpacing.lg)
+            }
 
             // §16 — venue propose-confirm, same placement as the gym path.
             VenueProposalCard()

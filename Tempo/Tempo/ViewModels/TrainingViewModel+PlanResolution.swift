@@ -122,7 +122,10 @@ extension TrainingViewModel {
             // Pathological calendar — fall through to a fresh generate.
             return generateAndPersist(for: today, modelContext: modelContext)
         }
-        let weekPlanForToday = weekPlans.first { Calendar.current.isDate($0.date, inSameDayAs: today) }
+        // Compare against the fresh template, not the merged week (which
+        // already holds the persisted row for today — see `todayTemplate`).
+        let weekPlanForToday = todayTemplate
+            ?? weekPlans.first { Calendar.current.isDate($0.date, inSameDayAs: today) }
 
         // RANGE predicate (not `== today`) so we also catch any legacy row
         // persisted with a non-midnight date. The Dashboard's Move quadrant
@@ -168,6 +171,11 @@ extension TrainingViewModel {
                    existingPlannedTypeRaw: existing.plannedTypeRaw,
                    templateType: canonical.type
                ) == .replace
+               // A trainer program was started/changed/stopped: a still-
+               // planned row from a different (or no) program session is
+               // stale even when the day's type happens to match.
+               || (existing.status == .planned
+                   && existing.programSessionKey != canonical.programSessionKey)
             {
                 // Only a still-PLANNED row whose type differs may be replaced
                 // (e.g. user changed Football Days). A completed/in-progress plan
@@ -179,6 +187,7 @@ extension TrainingViewModel {
                 populateExercises(for: canonical, modelContext: modelContext)
                 modelContext.insert(canonical)
                 try? modelContext.save()
+                spliceTodayIntoWeek(canonical)
                 return ResolvedTodayPlan(plan: canonical, isCrashedInProgress: false)
             }
             // Keep it — matches the Week Plan type, OR holds real training
@@ -228,10 +237,19 @@ extension TrainingViewModel {
             populateExercises(for: canonical, modelContext: modelContext)
             modelContext.insert(canonical)
             try? modelContext.save()
+            spliceTodayIntoWeek(canonical)
             return ResolvedTodayPlan(plan: canonical, isCrashedInProgress: false)
         }
 
         return generateAndPersist(for: today, modelContext: modelContext)
+    }
+
+    /// Keep Week Plan on the same object as Today after today's row is
+    /// (re)created from the template.
+    private func spliceTodayIntoWeek(_ plan: WorkoutPlan) {
+        if let index = weekPlans.firstIndex(where: { Calendar.current.isDate($0.date, inSameDayAs: plan.date) }) {
+            weekPlans[index] = plan
+        }
     }
 
     /// Single-day generate-and-persist fallback used when the Week Plan
@@ -262,6 +280,12 @@ extension TrainingViewModel {
         {
             plan.type = .mobility
             plan.notes = "Deload — full rest week. Move, stretch, recover."
+        }
+        // Same trainer-program overlay as the weekly path.
+        if let program = activeTrainerProgram(modelContext: modelContext) {
+            let cal = Calendar.current
+            let matchDays = Set(fetchUpcomingMatches(modelContext: modelContext).map { cal.startOfDay(for: $0.kickoff) })
+            Self.applyTrainerProgram(program, to: [plan], matchDayKeys: matchDays)
         }
         populateExercises(for: plan, modelContext: modelContext)
         modelContext.insert(plan)

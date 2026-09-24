@@ -170,7 +170,11 @@ extension TrainingViewModel {
         } else if plan.status == .planned,
                   !wasUserOverridden,
                   let mapped = WorkoutType.fromModality(result.decision.session.modality),
-                  mapped != plan.type
+                  mapped != plan.type,
+                  // A trainer-program day may be eased to recovery (rest /
+                  // mobility / easy cardio) but never re-written into a
+                  // different lift — the trainer's session stays the session.
+                  plan.programSessionKey == nil || !mapped.isGymWorkout
         {
             // §8 connect — the brain kept the planned modality unless readiness
             // forced a move; when it DID move (planned pool → prescribed rest at

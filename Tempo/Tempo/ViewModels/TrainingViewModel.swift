@@ -165,6 +165,12 @@ final class TrainingViewModel {
 
     var todayPlan: WorkoutPlan?
     var weekPlans: [WorkoutPlan] = []
+    /// Today's FRESHLY generated template (before `mergePersistedIntoWeek`
+    /// swaps in the persisted row). `ensureTodayPlanPersisted` compares the
+    /// persisted row against THIS — comparing against the merged week meant
+    /// comparing the row with itself, so a settings or trainer-program change
+    /// could never replace a stale planned today.
+    var todayTemplate: WorkoutPlan?
     var isLoading = true
     var isDeloadWeek = false
     /// §19.3 — the active deload style (drives banner copy + how the
@@ -705,6 +711,12 @@ final class TrainingViewModel {
                 plan.notes = "Deload — full rest week. Move, stretch, recover."
             }
         }
+
+        // The athlete's own trainer program replaces the generated gym days
+        // (recovery + match days still adjust it — see +TrainerProgram).
+        if let program = activeTrainerProgram(modelContext: modelContext) {
+            Self.applyTrainerProgram(program, to: plans, matchDayKeys: matchDayKeys)
+        }
         return plans
     }
 
@@ -741,6 +753,7 @@ final class TrainingViewModel {
         // all read the exact same object/state — without this, every reload
         // re-rolled today's exercises back to .planned and a completed day lost
         // its checkmark.
+        todayTemplate = generated.first { Calendar.current.isDate($0.date, inSameDayAs: today) }
         weekPlans = Self.mergePersistedIntoWeek(
             generated,
             persisted: persistedPlans(forWeekOf: monday, modelContext: modelContext),

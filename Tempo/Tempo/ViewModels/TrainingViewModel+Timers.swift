@@ -393,6 +393,10 @@ extension TrainingViewModel {
 
     func restDuration(for exercise: PlannedExercise) -> TimeInterval {
         // Per MODULE_TRAINING.md Section 15.6 — Rest between sets.
+        // The trainer's prescribed rest (trainer program) wins, verbatim.
+        if let override = exercise.restSecondsOverride, override > 0 {
+            return TimeInterval(override)
+        }
         guard let ex = exercise.exercise else {
             return TimeInterval(defaultRestSeconds)
         }
