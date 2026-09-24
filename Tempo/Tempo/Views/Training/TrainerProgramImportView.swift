@@ -60,6 +60,21 @@ struct TrainerProgramImportView: View {
     @State
     private var reviewPayload: ReviewPayload?
 
+    /// Fetched on appear (fix #1's quota UI). Nil while loading/unknown —
+    /// the screen doesn't block on it, it just doesn't show the "N free
+    /// imports left" line until it lands.
+    @State
+    private var quota: ProgramImportQuotaResponseDTO?
+    @State
+    private var showPaywall = false
+    /// Set when the free-tier monthly quota is exhausted, either up front
+    /// (button tap, before starting the pipeline) or from a 402 the
+    /// transcribe/structure calls return mid-import (e.g. a second device
+    /// on the same account used the last slot). Shown instead of the plain
+    /// `errorMessage` because it needs the "Upgrade" CTA.
+    @State
+    private var quotaExceededMessage: String?
+
     /// Bundles what TrainerProgramReviewView needs — a single Identifiable
     /// item keeps the sheet presentation simple.
     struct ReviewPayload: Identifiable {
@@ -100,6 +115,10 @@ struct TrainerProgramImportView: View {
             if importService == nil {
                 importService = TrainerProgramImportService(apiClient: services.apiClient)
             }
+            Task { await loadQuota() }
+        }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
         }
         .sheet(isPresented: $showCameraPicker) {
             TrainerProgramImagePicker(sourceType: .camera) { image in
@@ -167,6 +186,28 @@ struct TrainerProgramImportView: View {
                 .padding(.top, TempoSpacing.xl)
                 .padding(.horizontal, TempoSpacing.xl)
 
+                if let quotaBanner {
+                    Text(quotaBanner)
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, TempoSpacing.xl)
+                }
+
+                if let quotaExceededMessage {
+                    VStack(spacing: TempoSpacing.sm) {
+                        Text(quotaExceededMessage)
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoError)
+                            .multilineTextAlignment(.center)
+                        Button("Upgrade to Tempo Pro") {
+                            showPaywall = true
+                        }
+                        .buttonStyle(.tempoSecondary)
+                    }
+                    .padding(.horizontal, TempoSpacing.xl)
+                }
+
                 if let errorMessage {
                     Text(errorMessage)
                         .font(.tempoCaption1)
@@ -183,6 +224,11 @@ struct TrainerProgramImportView: View {
 
                 if !sources.isEmpty {
                     Button {
+                        guard !isQuotaExhausted else {
+                            quotaExceededMessage = quotaExhaustedMessage
+                            return
+                        }
+                        quotaExceededMessage = nil
                         importTask?.cancel()
                         importTask = Task { await readProgram() }
                     } label: {
@@ -315,41 +361,112 @@ struct TrainerProgramImportView: View {
         sources.append(contentsOf: loaded)
     }
 
+    // MARK: - Quota
+
+    private func loadQuota() async {
+        do {
+            let response: ProgramImportQuotaResponseDTO = try await services.apiClient.request(
+                APIEndpoint<ProgramImportQuotaResponseDTO>.trainerProgramImportQuota()
+            )
+            quota = response
+        } catch {
+            // Non-fatal — the screen works fine without the quota line; a
+            // signed-out/network hiccup here shouldn't block adding sources.
+        }
+    }
+
+    private var quotaBanner: String? {
+        guard let quota, !quota.isPro, let remaining = quota.remaining else {
+            return nil
+        }
+        return remaining == 1 ? "1 free import left this month" : "\(remaining) free imports left this month"
+    }
+
+    private var isQuotaExhausted: Bool {
+        guard let quota, !quota.isPro, let remaining = quota.remaining else {
+            return false
+        }
+        return remaining <= 0
+    }
+
+    private var quotaExhaustedMessage: String {
+        let limit = quota?.limit ?? 2
+        return "You've used your \(limit) free trainer-program imports this month. Upgrade to Tempo Pro for unlimited imports."
+    }
+
+    /// Extracts the quota-exceeded fields from whatever wrapper the
+    /// transcribe/structure steps threw it in (`TrainerProgramPageTranscriber
+    /// .TranscribeError.api`, `TrainerProgramImportService.ImportError.api`,
+    /// or a raw `APIError`) — a 402 can arrive mid-import too (e.g. another
+    /// device on the same account used the last slot first).
+    private func quotaExceededDetail(from error: Error) -> APIError? {
+        var candidate: APIError?
+        if let transcribeError = error as? TrainerProgramPageTranscriber.TranscribeError,
+           case let .api(apiError) = transcribeError
+        {
+            candidate = apiError
+        } else if let importError = error as? TrainerProgramImportService.ImportError,
+                  case let .api(apiError) = importError
+        {
+            candidate = apiError
+        } else if let apiError = error as? APIError {
+            candidate = apiError
+        }
+        if let candidate, case .programImportQuotaExceeded = candidate {
+            return candidate
+        }
+        return nil
+    }
+
     // MARK: - Pipeline
 
     /// NORMALIZE -> TRANSCRIBE -> STRUCTURE, driven from the current
     /// `sources` list. Progress narrates the transcription step ("Reading
-    /// page 2 of 5…") since that's the slow, per-page part.
+    /// pages 6–10 of 12…") since that's the slow, per-batch part. One
+    /// `sessionID` is generated per import and shared by every TRANSCRIBE
+    /// batch + the STRUCTURE call, so the backend counts retries/multiple
+    /// batches as a single quota slot (fix #1/#2).
     private func readProgram() async {
         guard let importService else {
             errorMessage = "Not ready yet — try again."
             return
         }
         errorMessage = nil
+        quotaExceededMessage = nil
         isProcessing = true
         processingLabel = "Reading your sources…"
         defer { isProcessing = false }
+        let sessionID = UUID().uuidString
         do {
             let units = try await TrainerProgramSourceNormalizer.normalize(sources)
             try Task.checkCancellation()
             let transcript = try await TrainerProgramPageTranscriber.transcribe(
                 units: units,
                 apiClient: services.apiClient,
-                onProgress: { completed, total in
+                sessionID: sessionID,
+                onProgress: { startPage, endPage, total in
                     Task { @MainActor in
-                        processingLabel = "Reading page \(completed) of \(total)…"
+                        processingLabel = startPage == endPage
+                            ? "Reading page \(startPage) of \(total)…"
+                            : "Reading pages \(startPage)–\(endPage) of \(total)…"
                     }
                 }
             )
             try Task.checkCancellation()
             processingLabel = "Structuring your program…"
-            let parsed = try await importService.structureProgram(from: transcript)
+            let parsed = try await importService.structureProgram(from: transcript, sessionID: sessionID)
             try Task.checkCancellation()
             reviewPayload = ReviewPayload(parsed: parsed, sourceKind: sourceKindLabel, sourceText: transcript)
+            await loadQuota()
         } catch is CancellationError {
             // Cancelled by the user — nothing to report.
         } catch {
-            errorMessage = message(for: error)
+            if quotaExceededDetail(from: error) != nil {
+                quotaExceededMessage = message(for: error)
+                await loadQuota()
+            } else {
+                errorMessage = message(for: error)
+            }
         }
     }
 

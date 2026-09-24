@@ -183,7 +183,10 @@ actor APIClient {
                 #if DEBUG
                     let serverReason = String(data: data, encoding: .utf8) ?? "<non-utf8 body>"
                     let hadAuthHeader = request.value(forHTTPHeaderField: "Authorization") != nil
-                    logger.error("← 401 \(endpoint.path) authHeaderPresent=\(hadAuthHeader) didRefresh=\(didRefreshToken) body=\(serverReason)")
+                    logger
+                        .error(
+                            "← 401 \(endpoint.path) authHeaderPresent=\(hadAuthHeader) didRefresh=\(didRefreshToken) body=\(serverReason)"
+                        )
                 #endif
                 // Token expired — refresh and retry once (does not consume a retry attempt)
                 if endpoint.requiresAuth, let interceptor = authInterceptor, !didRefreshToken {
@@ -204,11 +207,7 @@ actor APIClient {
                 // Map `code` to the typed APIError so calling views can branch
                 // on subscription vs consent without parsing free text.
                 // Per INTELLIGENCE_REMEDIATION_PLAN.md §4.
-                let errBody = try? self.decoder.decode(APIError.TempoErrorBody.self, from: data)
-                if errBody?.code == "ai_consent_required" {
-                    throw APIError.aiConsentRequired
-                }
-                throw APIError.subscriptionRequired
+                throw paymentRequiredError(from: data)
 
             case 403:
                 throw APIError.forbidden
@@ -256,6 +255,29 @@ actor APIClient {
                 return try await executeWithRetry(request, endpoint: endpoint, attempt: attempt + 1)
             }
             throw apiError
+        }
+    }
+
+    // MARK: - 402 mapping
+
+    /// Maps a 402 response body to its typed `APIError`. Split out of
+    /// `executeWithRetry` to keep that function's cyclomatic complexity
+    /// under the lint cap — this is its own well-scoped decision, not part
+    /// of the retry state machine.
+    private func paymentRequiredError(from data: Data) -> APIError {
+        let errBody = try? decoder.decode(APIError.TempoErrorBody.self, from: data)
+        switch errBody?.code {
+        case "ai_consent_required":
+            return .aiConsentRequired
+        case "program_import_quota":
+            let quotaBody = try? decoder.decode(APIError.ProgramImportQuotaErrorBody.self, from: data)
+            return .programImportQuotaExceeded(
+                limit: quotaBody?.limit ?? 2,
+                used: quotaBody?.used ?? (quotaBody?.limit ?? 2),
+                resetsAt: quotaBody?.resetsAt ?? Date()
+            )
+        default:
+            return .subscriptionRequired
         }
     }
 

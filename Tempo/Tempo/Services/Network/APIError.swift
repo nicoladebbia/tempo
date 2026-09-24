@@ -35,6 +35,11 @@ enum APIError: Error {
     /// but hasn't enabled AI data sharing in onboarding/settings.
     /// Per AI_INTELLIGENCE_ENGINE.md §11.3.
     case aiConsentRequired
+    /// Backend returned 402 with `code: "program_import_quota"` — a free
+    /// user has used their monthly Trainer Program import allowance.
+    /// Carries the structured quota fields so the import screen can show
+    /// "X of Y used, resets on Z" without a second round-trip.
+    case programImportQuotaExceeded(limit: Int, used: Int, resetsAt: Date)
 
     var userMessage: String {
         switch self {
@@ -72,6 +77,8 @@ enum APIError: Error {
             "Pro subscription required to use AI features."
         case .aiConsentRequired:
             "Enable AI features in Settings to use this."
+        case let .programImportQuotaExceeded(limit, _, _):
+            "You've used your \(limit) free trainer-program imports this month."
         }
     }
 
@@ -82,6 +89,23 @@ enum APIError: Error {
         let error: Bool?
         let reason: String?
         let code: String?
+    }
+
+    /// Decodable wire shape for the Trainer Program import quota 402
+    /// (`code: "program_import_quota"`) — a superset of `TempoErrorBody`
+    /// with the extra fields `TrainingProgramImportController` sends.
+    struct ProgramImportQuotaErrorBody: Decodable {
+        let code: String?
+        let limit: Int?
+        let used: Int?
+        let resetsAt: Date?
+
+        enum CodingKeys: String, CodingKey {
+            case code
+            case limit
+            case used
+            case resetsAt = "resets_at"
+        }
     }
 
     var isRetryable: Bool {

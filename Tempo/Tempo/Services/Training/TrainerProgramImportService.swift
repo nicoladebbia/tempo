@@ -43,14 +43,17 @@ final class TrainerProgramImportService: @unchecked Sendable {
     }
 
     /// Structures `sourceText` (already OCR'd/extracted, or pasted) into a
-    /// program via the Sonnet proxy. A signed-out user gets `.signedOut`
-    /// immediately (the proxy answers 401) — there's no local fallback, this
-    /// genuinely needs the model.
-    func structureProgram(from sourceText: String) async throws -> TrainerProgramParser.ParsedProgram {
+    /// program via the Sonnet proxy. `sessionID` must be the SAME id used
+    /// for this import's TRANSCRIBE batches (TrainerProgramPageTranscriber)
+    /// so the backend counts the whole import as one quota slot. A
+    /// signed-out user gets `.signedOut` immediately (the route answers
+    /// 401) — there's no local fallback, this genuinely needs the model.
+    func structureProgram(from sourceText: String, sessionID: String) async throws -> TrainerProgramParser.ParsedProgram {
         var lastError: APIError?
         for attempt in 0 ... maxRetries {
             do {
-                let body = NutritionProxyTextRequest(
+                let body = ProgramImportStructureRequestDTO(
+                    sessionID: sessionID,
                     model: "sonnet",
                     system: TrainerProgramParser.systemPrompt,
                     userMessage: TrainerProgramParser.userMessage(sourceText: sourceText),
@@ -61,8 +64,8 @@ final class TrainerProgramImportService: @unchecked Sendable {
                     temperature: 0,
                     caller: "trainer_program_import"
                 )
-                let response: NutritionProxyTextResponse = try await apiClient.request(
-                    APIEndpoint<NutritionProxyTextResponse>.nutritionProxyText(),
+                let response: ProgramImportStructureResponseDTO = try await apiClient.request(
+                    APIEndpoint<ProgramImportStructureResponseDTO>.trainerProgramImportStructure(),
                     body: body
                 )
                 return try TrainerProgramParser.parse(response.text)
