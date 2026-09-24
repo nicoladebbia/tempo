@@ -183,16 +183,9 @@ struct MoveQuadrantDetailView: View {
         }
         return window.map { day in
             let plansThatDay = byDay[day] ?? []
-            // Fix #9 — `PlannedSet.volume` already covers a per-side set's
-            // both-sides tonnage (or sums a logged L/R split); delegating
-            // keeps this trend in step with every other volume reader.
-            let volumeKg = plansThatDay.reduce(0.0) { acc, plan in
-                acc + plan.orderedExercises.reduce(0.0) { exAcc, ex in
-                    exAcc + (ex.sets ?? []).reduce(0.0) { setAcc, set in
-                        setAcc + (set.volume ?? 0)
-                    }
-                }
-            }
+            // Fix #9 — same source as every other volume reader:
+            // `WorkoutPlan.totalVolume` (working sets only, per-side aware).
+            let volumeKg = plansThatDay.reduce(0.0) { $0 + $1.totalVolume }
             let displayVolume = WeightUnit.kg.convert(volumeKg, to: weightUnit)
             return TrainingVolumePoint(date: day, volume: displayVolume)
         }

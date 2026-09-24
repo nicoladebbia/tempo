@@ -289,7 +289,7 @@ final class TrainingViewModelActiveSessionTests: XCTestCase {
         vm.logSet(weight: 20, reps: 8, leftReps: 8, rightReps: 7, modelContext: context)
 
         let set = plan.orderedExercises[0].orderedSets[0]
-        XCTAssertEqual(set.actualReps, 8, "the shared/canonical reps entry is unaffected by the split")
+        XCTAssertEqual(set.actualReps, 7, "an uneven split records the weaker side for e1RM/PR")
         XCTAssertEqual(set.actualRepsLeft, 8)
         XCTAssertEqual(set.actualRepsRight, 7)
         XCTAssertEqual(set.volume, 300, "20kg x (8+7) — the split sum, not 20 x 8 x 2")

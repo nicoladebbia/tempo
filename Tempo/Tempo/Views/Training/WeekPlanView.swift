@@ -316,6 +316,9 @@ struct WeekPlanView: View {
                     return setTotal
                 }
                 let weight = set.actualWeight ?? set.targetWeight ?? 0
+                if let left = set.actualRepsLeft, let right = set.actualRepsRight {
+                    return setTotal + weight * Double(left + right)
+                }
                 let reps = set.actualReps ?? set.targetReps
                 return setTotal + (weight * Double(reps) * sideMultiplier)
             }

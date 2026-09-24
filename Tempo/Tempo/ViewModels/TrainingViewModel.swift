@@ -1126,6 +1126,10 @@ final class TrainingViewModel {
         // `weight` is the EFFECTIVE load in kg (for bodyweight lifts the caller
         // passes bodyweight ± addedLoadKg); addedLoadKg records the signed input.
         set.actualWeight = weight
+        // Fix #9 — with an uneven L/R split the weaker side is the lift's
+        // real single-limb number: it's what e1RM, PR detection and
+        // calibration read (volume still sums both sides).
+        let reps = if let leftReps, let rightReps { min(leftReps, rightReps) } else { reps }
         set.actualReps = reps
         set.actualRepsLeft = leftReps
         set.actualRepsRight = rightReps
