@@ -33,6 +33,11 @@ final class WorkoutPlan {
     /// SwiftData migration.
     var userNotes: String?
 
+    /// Set when this day comes from the athlete's trainer program
+    /// (TrainerProgram.sessionKey) — exercises are built from that session
+    /// instead of generated. Optional → lightweight SwiftData migration.
+    var programSessionKey: String?
+
     /// Whether the user completed (or worked through) the guided general
     /// warm-up + mobility block for this session. The block logs no sets — this
     /// flag is the only record that it happened, shown in the summary/history.

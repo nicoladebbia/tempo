@@ -23,6 +23,7 @@ enum TempoSchemaV1: VersionedSchema {
             DailySnapshot.self,
             WorkoutPlan.self,
             WorkoutRoutine.self,
+            TrainerProgram.self,
             PlannedExercise.self,
             PlannedSet.self,
             Exercise.self,
