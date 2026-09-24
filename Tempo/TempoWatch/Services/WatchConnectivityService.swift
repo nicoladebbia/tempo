@@ -63,7 +63,17 @@ final class WatchConnectivityService: NSObject, @unchecked Sendable {
         payload: [String: String] = [:],
         onAck: (@Sendable (WatchActionAckState) -> Void)? = nil
     ) {
-        let actionPayload = WatchActionPayload(action: action, payload: payload)
+        // §10 fix — stable id so the phone can dedupe redelivery: a message
+        // that errors below now ALSO goes out via transferUserInfo, so a
+        // caller that retries after `.queued` could otherwise land twice.
+        // Key name "actionID" is the one PhoneWatchConnectivityService/
+        // WatchActionRouter dedupe on.
+        var taggedPayload = payload
+        if taggedPayload["actionID"] == nil {
+            taggedPayload["actionID"] = UUID().uuidString
+        }
+
+        let actionPayload = WatchActionPayload(action: action, payload: taggedPayload)
         guard let data = try? JSONEncoder().encode(actionPayload),
               let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else {
@@ -78,6 +88,12 @@ final class WatchConnectivityService: NSObject, @unchecked Sendable {
                     onAck?(confirmed ? .confirmed : .queued)
                 }
             }, errorHandler: { _ in
+                // §10 fix — `sendMessage` failing (a real race: reachable
+                // flipped false between the check and the send, or the phone
+                // dropped it) used to report `.queued` with NOTHING actually
+                // queued, silently losing the set. Fall back to the
+                // GUARANTEED-delivery transport before reporting `.queued`.
+                WCSession.default.transferUserInfo(dict)
                 DispatchQueue.main.async {
                     onAck?(.queued)
                 }
