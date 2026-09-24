@@ -93,6 +93,21 @@ final class TrainerProgramTests: XCTestCase {
         XCTAssertNotNil(thu.programSessionKey)
     }
 
+    func testTwoConditioningSessionsSameDayBothShow() {
+        let a = ProgramDay(weekday: 3, title: "Aerobic", focus: "run",
+                           exercises: [ProgramExercise(name: "Run", sets: 1, repsLow: 1, detail: "15'")])
+        let b = ProgramDay(weekday: 3, title: "Speed", focus: "sprint",
+                           exercises: [ProgramExercise(name: "T Drill", sets: 1, repsLow: 1, detail: "2 × 10")])
+        let p = program(weeks: [ProgramWeek(days: [a, b])])
+        let wed = WorkoutPlan(date: date("2026-09-23"), type: .push)
+
+        TrainingViewModel.applyTrainerProgram(p, to: [wed], matchDayKeys: [])
+
+        XCTAssertEqual(wed.type, .run)
+        XCTAssertEqual(wed.secondarySessionType, .sprint, "second conditioning session isn't dropped")
+        XCTAssertEqual(p.day(forSessionKey: wed.programSecondaryKey ?? "")?.title, "Speed")
+    }
+
     // MARK: - Overlay
 
     func testOverlayReplacesGymDaysKeepsFootballMatchesAndRedRecovery() {

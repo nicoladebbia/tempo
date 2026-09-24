@@ -287,6 +287,10 @@ private struct DayEditorView: View {
                     Text(TrainerProgramView.shortWeekdayName(weekday)).tag(weekday)
                 }
             }
+            // The user chose this day — it's no longer an auto-placement.
+            .onChange(of: day.weekday) { _, _ in
+                day.weekdayGuessed = false
+            }
 
             TextField("Day title (optional)", text: stringBinding(for: $day.title))
 

@@ -42,6 +42,8 @@ struct TrainerProgramImportView: View {
     @State
     private var isProcessing = false
     @State
+    private var importTask: Task<Void, Never>?
+    @State
     private var processingLabel = "Reading your program…"
     @State
     private var errorMessage: String?
@@ -81,7 +83,13 @@ struct TrainerProgramImportView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        // Stop any in-flight reading (page transcriptions and the
+                        // structure call are network requests — don't let them
+                        // run on, and bill, after the sheet is gone).
+                        importTask?.cancel()
+                        dismiss()
+                    }
                 }
             }
         }
@@ -175,7 +183,8 @@ struct TrainerProgramImportView: View {
 
                 if !sources.isEmpty {
                     Button {
-                        Task { await readProgram() }
+                        importTask?.cancel()
+                        importTask = Task { await readProgram() }
                     } label: {
                         Text("Read Program")
                             .frame(maxWidth: .infinity)
@@ -322,6 +331,7 @@ struct TrainerProgramImportView: View {
         defer { isProcessing = false }
         do {
             let units = try await TrainerProgramSourceNormalizer.normalize(sources)
+            try Task.checkCancellation()
             let transcript = try await TrainerProgramPageTranscriber.transcribe(
                 units: units,
                 apiClient: services.apiClient,
@@ -331,9 +341,13 @@ struct TrainerProgramImportView: View {
                     }
                 }
             )
+            try Task.checkCancellation()
             processingLabel = "Structuring your program…"
             let parsed = try await importService.structureProgram(from: transcript)
+            try Task.checkCancellation()
             reviewPayload = ReviewPayload(parsed: parsed, sourceKind: sourceKindLabel, sourceText: transcript)
+        } catch is CancellationError {
+            // Cancelled by the user — nothing to report.
         } catch {
             errorMessage = message(for: error)
         }

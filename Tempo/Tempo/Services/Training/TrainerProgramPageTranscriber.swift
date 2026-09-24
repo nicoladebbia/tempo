@@ -71,7 +71,9 @@ enum TrainerProgramPageTranscriber {
         training content, say so in one line.
         """
         if let hintText {
-            let trimmed = hintText.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmed = hintText
+                .replacingOccurrences(of: "</hint>", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty {
                 message += """
 
@@ -120,6 +122,8 @@ enum TrainerProgramPageTranscriber {
                     return
                 }
                 group.addTask {
+                    // Import cancelled (sheet closed) — don't start new pages.
+                    try Task.checkCancellation()
                     let text = try await Self.transcribeUnit(unit, apiClient: apiClient)
                     return (index, text)
                 }
