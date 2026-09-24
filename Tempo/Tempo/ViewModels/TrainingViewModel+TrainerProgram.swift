@@ -43,23 +43,31 @@ extension TrainingViewModel {
             // Red recovery: the engine already moved the day to mobility with
             // a zero multiplier — Tempo adjusts automatically, so keep it.
             let isRedRecoveryDay = plan.type == .mobility && plan.recoveryAdjustment == 0
-            if let session = program.session(on: plan.date) {
+            let sessions = program.sessions(on: plan.date)
+            plan.programSecondaryKey = nil
+            if let main = program.session(on: plan.date) {
                 if isRedRecoveryDay {
-                    plan.notes = "Recovery is low — your trainer's \(session.day.title ?? "session") is paused today."
+                    plan.notes = "Recovery is low — your trainer's \(main.day.title ?? "session") is paused today."
+                    plan.programSessionKey = nil
                     continue
                 }
-                plan.type = session.day.workoutType
-                plan.programSessionKey = program.sessionKey(
-                    weekIndex: session.weekIndex,
-                    weekday: session.day.weekday
-                )
-                plan.notes = session.day.title ?? "Trainer session"
-                plan.secondarySessionType = nil
+                plan.type = main.day.workoutType
+                plan.programSessionKey = program.sessionKey(weekIndex: main.weekIndex, dayIndex: main.dayIndex)
+                plan.notes = main.day.title ?? "Trainer session"
+                // A second, conditioning session the same day becomes the
+                // day's second part (two-a-day), e.g. lift then shuttles.
+                if main.day.isStrength,
+                   let second = sessions.first(where: { !$0.day.isStrength })
+                {
+                    plan.secondarySessionType = second.day.workoutType
+                    plan.programSecondaryKey = program.sessionKey(weekIndex: second.weekIndex, dayIndex: second.dayIndex)
+                } else {
+                    plan.secondarySessionType = nil
+                }
             } else if !isRedRecoveryDay {
+                plan.programSessionKey = nil
                 switch plan.type {
-                case .football,
-                     .mobility,
-                     .rest:
+                case .football, .mobility, .rest:
                     break // your sport / recovery stay as planned
                 default:
                     plan.type = .rest
@@ -68,6 +76,18 @@ extension TrainingViewModel {
                 plan.secondarySessionType = nil
             }
         }
+    }
+
+    /// The trainer's session behind a plan's key (main or second part), for
+    /// display — e.g. a conditioning session's blocks on Today.
+    func trainerDay(forKey key: String?, modelContext: ModelContext) -> ProgramDay? {
+        guard let key,
+              let programID = key.split(separator: "#").first.flatMap({ UUID(uuidString: String($0)) })
+        else {
+            return nil
+        }
+        let descriptor = FetchDescriptor<TrainerProgram>(predicate: #Predicate { $0.id == programID })
+        return (try? modelContext.fetch(descriptor).first)?.day(forSessionKey: key)
     }
 
     /// Build a trainer-program day's exercises. Returns false when the session
@@ -116,7 +136,8 @@ extension TrainingViewModel {
             let slot = PlannedExercise(order: order, workoutPlan: plan, exercise: exercise)
             slot.supersetGroup = item.group
             slot.restSecondsOverride = item.restSeconds
-            slot.programNote = item.notes
+            slot.programNote = [item.perSide == true ? "\(item.targetReps) per side" : nil, item.notes]
+                .compactMap(\.self).joined(separator: " · ").nilIfEmpty
             slot.sets = prescribedSets(
                 for: exercise,
                 workingSets: max(1, item.sets),
@@ -148,5 +169,11 @@ extension TrainingViewModel {
     nonisolated static func normalizedName(_ name: String) -> String {
         name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
     }
 }

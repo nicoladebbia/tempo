@@ -38,6 +38,10 @@ final class WorkoutPlan {
     /// instead of generated. Optional → lightweight SwiftData migration.
     var programSessionKey: String?
 
+    /// The trainer's second session that day (conditioning after a lift) —
+    /// shown as the day's second part (`secondarySessionType`).
+    var programSecondaryKey: String?
+
     /// Whether the user completed (or worked through) the guided general
     /// warm-up + mobility block for this session. The block logs no sets — this
     /// flag is the only record that it happened, shown in the summary/history.

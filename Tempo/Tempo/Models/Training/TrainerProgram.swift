@@ -11,6 +11,11 @@
 // program repeats every week; a multi-week block runs week by week from
 // `startDate` and then either repeats or ends (`repeats`).
 //
+// A weekday may hold more than one session (lift + conditioning): the
+// strength session becomes the day, a conditioning session its second part.
+// Conditioning sessions (runs, intervals, drills) carry their prescription
+// as free text in `ProgramExercise.detail` rather than sets × reps.
+//
 
 import Foundation
 import SwiftData
@@ -36,6 +41,12 @@ struct ProgramExercise: Codable, Hashable, Identifiable {
     /// Exercises sharing a group run as a superset/circuit.
     var group: Int?
     var notes: String?
+    /// Free-text prescription for anything that isn't sets × reps — a
+    /// conditioning block ("35' — 2' slow / 1' fast / 30\" walk"), a timed
+    /// hold, a distance. Shown verbatim.
+    var detail: String?
+    /// "8+8" style reps: `repsLow` is per side.
+    var perSide: Bool?
 
     /// Rep target for a prescribed set: the low end of a range.
     var targetReps: Int {
@@ -50,17 +61,26 @@ struct ProgramDay: Codable, Hashable, Identifiable {
     /// ISO weekday: 1 = Monday … 7 = Sunday.
     var weekday: Int
     var title: String?
-    /// WorkoutType raw value (push/pull/legs/upper/lower/full_body) — the
-    /// day's label in Tempo. Unknown → full body.
+    /// WorkoutType raw value — strength (push/pull/legs/upper/lower/
+    /// full_body) or conditioning (run/sprint/conditioning/pool/mobility).
+    /// Unknown → full body.
     var focus: String?
     var exercises: [ProgramExercise]
     var notes: String?
+    /// True when the source gave no weekday ("Day 1", "Lifting 2") and Tempo
+    /// picked one — ProgramScheduler may move it around football days.
+    var weekdayGuessed: Bool?
 
     var workoutType: WorkoutType {
-        if let focus, let type = WorkoutType(rawValue: focus), type.isGymWorkout {
+        if let focus, let type = WorkoutType(rawValue: focus), type != .rest, type != .football {
             return type
         }
         return .fullBody
+    }
+
+    /// Lifting session (built as sets in the gym) vs conditioning (blocks).
+    var isStrength: Bool {
+        workoutType.isGymWorkout
     }
 }
 
@@ -135,18 +155,22 @@ final class TrainerProgram {
         return repeats ? index % weeks.count : nil
     }
 
-    /// The trainer's session for `date`, if the program schedules one.
-    func session(on date: Date) -> (weekIndex: Int, day: ProgramDay)? {
+    /// Every session the program schedules on `date`, in program order.
+    func sessions(on date: Date) -> [(weekIndex: Int, dayIndex: Int, day: ProgramDay)] {
         guard let index = weekIndex(on: date) else {
-            return nil
+            return []
         }
         let weekday = Self.isoWeekday(of: date)
-        guard let day = weeks[index].days.first(where: { $0.weekday == weekday }),
-              !day.exercises.isEmpty
-        else {
-            return nil
+        return weeks[index].days.enumerated().compactMap { dayIndex, day in
+            day.weekday == weekday && !day.exercises.isEmpty ? (index, dayIndex, day) : nil
         }
-        return (index, day)
+    }
+
+    /// The day's main session: its strength session if it has one, else the
+    /// first session.
+    func session(on date: Date) -> (weekIndex: Int, dayIndex: Int, day: ProgramDay)? {
+        let all = sessions(on: date)
+        return all.first { $0.day.isStrength } ?? all.first
     }
 
     /// True once a non-repeating block has run out of weeks.
@@ -155,22 +179,24 @@ final class TrainerProgram {
     }
 
     /// Stable key stored on the generated WorkoutPlan so the day can be traced
-    /// back to its program session.
-    func sessionKey(weekIndex: Int, weekday: Int) -> String {
-        "\(id.uuidString)#\(weekIndex)#\(weekday)"
+    /// back to its program session. Index-based: a weekday may hold two
+    /// sessions. (Programs are immutable once saved — edits import anew.)
+    func sessionKey(weekIndex: Int, dayIndex: Int) -> String {
+        "\(id.uuidString)#\(weekIndex)#d\(dayIndex)"
     }
 
     /// Resolve a `sessionKey` back to its day (nil if this program didn't
-    /// produce it or the program was edited since).
+    /// produce it).
     func day(forSessionKey key: String) -> ProgramDay? {
         let parts = key.split(separator: "#")
         guard parts.count == 3, parts[0] == id.uuidString,
-              let week = Int(parts[1]), let weekday = Int(parts[2]),
-              weeks.indices.contains(week)
+              let week = Int(parts[1]), weeks.indices.contains(week),
+              parts[2].hasPrefix("d"), let dayIndex = Int(parts[2].dropFirst()),
+              weeks[week].days.indices.contains(dayIndex)
         else {
             return nil
         }
-        return weeks[week].days.first { $0.weekday == weekday }
+        return weeks[week].days[dayIndex]
     }
 
     static func isoWeekday(of date: Date) -> Int {

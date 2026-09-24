@@ -67,9 +67,30 @@ final class TrainerProgramTests: XCTestCase {
 
     func testSessionKeyRoundTrips() {
         let p = program(weeks: [ProgramWeek(days: [day(5, "pull")])])
-        let key = p.sessionKey(weekIndex: 0, weekday: 5)
+        let key = p.sessionKey(weekIndex: 0, dayIndex: 0)
         XCTAssertEqual(p.day(forSessionKey: key)?.workoutType, .pull)
         XCTAssertNil(p.day(forSessionKey: "bogus#0#5"))
+    }
+
+    func testLiftAndConditioningSameDayBecomeATwoPartDay() {
+        let run = ProgramDay(
+            weekday: 2, title: "Anaerobic run", focus: "sprint",
+            exercises: [ProgramExercise(name: "Shuttle 1", sets: 1, repsLow: 1, detail: "4 × 25y out and back < 65\"")]
+        )
+        let p = program(weeks: [ProgramWeek(days: [day(2, "legs"), run, ProgramDay(
+            weekday: 4, title: "Aerobic run", focus: "run",
+            exercises: [ProgramExercise(name: "Fartlek", sets: 1, repsLow: 1, detail: "35'")]
+        )])])
+        let tue = WorkoutPlan(date: date("2026-09-22"), type: .pull)
+        let thu = WorkoutPlan(date: date("2026-09-24"), type: .push)
+
+        TrainingViewModel.applyTrainerProgram(p, to: [tue, thu], matchDayKeys: [])
+
+        XCTAssertEqual(tue.type, .legs)
+        XCTAssertEqual(tue.secondarySessionType, .sprint)
+        XCTAssertEqual(p.day(forSessionKey: tue.programSecondaryKey ?? "")?.title, "Anaerobic run")
+        XCTAssertEqual(thu.type, .run, "conditioning-only day becomes a run day")
+        XCTAssertNotNil(thu.programSessionKey)
     }
 
     // MARK: - Overlay
@@ -117,7 +138,7 @@ final class TrainerProgramTests: XCTestCase {
         let p = program(weeks: [ProgramWeek(days: [day(1, "push", exercises: items)])])
         context.insert(p)
         let plan = WorkoutPlan(date: date("2026-09-21"), type: .push)
-        plan.programSessionKey = p.sessionKey(weekIndex: 0, weekday: 1)
+        plan.programSessionKey = p.sessionKey(weekIndex: 0, dayIndex: 0)
         context.insert(plan)
         try context.save()
 
