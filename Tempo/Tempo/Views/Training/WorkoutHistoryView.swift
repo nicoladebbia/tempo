@@ -50,6 +50,14 @@ struct WorkoutHistoryView: View {
     @Query
     private var allDailySessions: [DailySession]
 
+    /// Fix #7 — conditioning block results (shuttle times, duration/distance,
+    /// rounds, RPE), grouped under the day's entry by `programSessionKey`.
+    @Query
+    private var allConditioningResults: [ConditioningBlockResult]
+
+    @Query
+    private var allTrainerPrograms: [TrainerProgram]
+
     @Environment(\.modelContext)
     private var modelContext
 
@@ -328,6 +336,13 @@ struct WorkoutHistoryView: View {
         for session in allActivitySessions where session.workoutPlanID == workout.id {
             modelContext.delete(session)
         }
+        // 3d. Fix #7 — conditioning block results this plan's session(s)
+        //     produced. Same exact-workoutPlanID match as ActivitySession
+        //     above, so History doesn't keep showing logged blocks for a
+        //     deleted day.
+        for result in allConditioningResults where result.workoutPlanID == workout.id {
+            modelContext.delete(result)
+        }
         // 3c. The brain's DailySession for this day. Its `workoutPlan` link is a
         //     one-way `.nullify` with NO inverse, so deleting the plan (step 4)
         //     would leave this session pointing at dangling backing — later read
@@ -531,6 +546,14 @@ struct WorkoutHistoryView: View {
                 .padding(.horizontal, TempoSpacing.cardPadding)
                 .padding(.vertical, TempoSpacing.sm)
                 .transition(.opacity.combined(with: .move(edge: .top)))
+
+                // Fix #7 — trainer-program conditioning blocks logged for this
+                // day (grouped by session — a two-a-day can carry both a lift
+                // and a conditioning second session).
+                conditioningResultsSection(workout)
+                    .padding(.horizontal, TempoSpacing.cardPadding)
+                    .padding(.bottom, TempoSpacing.sm)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .background(Color.tempoSurfaceCard)
@@ -593,6 +616,122 @@ struct WorkoutHistoryView: View {
                 .font(.tempoCaption2)
                 .foregroundStyle(Color.tempoTextTertiary)
         }
+    }
+
+    // MARK: - Conditioning Block Results (Fix #7)
+
+    private func conditioningResults(for workout: WorkoutPlan) -> [ConditioningBlockResult] {
+        allConditioningResults.filter { $0.workoutPlanID == workout.id }
+    }
+
+    /// Resolve a `programSessionKey` back to its `ProgramDay` (title, blocks)
+    /// so the grouping can show a heading and block names, not just raw
+    /// numbers. nil when the program was since deleted/re-imported — the
+    /// results still render, just without a heading/block name.
+    private func programDay(forSessionKey key: String) -> ProgramDay? {
+        guard let programID = key.split(separator: "#").first.flatMap({ UUID(uuidString: String($0)) }),
+              let program = allTrainerPrograms.first(where: { $0.id == programID })
+        else {
+            return nil
+        }
+        return program.day(forSessionKey: key)
+    }
+
+    @ViewBuilder
+    private func conditioningResultsSection(_ workout: WorkoutPlan) -> some View {
+        let results = conditioningResults(for: workout)
+        if !results.isEmpty {
+            let grouped = Dictionary(grouping: results) { $0.programSessionKey ?? "" }
+            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+                Divider()
+                    .background(Color.tempoTextTertiary.opacity(0.2))
+                ForEach(grouped.keys.sorted(), id: \.self) { key in
+                    let day = programDay(forSessionKey: key)
+                    VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+                        Text((day?.title ?? day?.workoutType.displayName ?? "Conditioning").uppercased())
+                            .font(.tempoCaption2)
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                        ForEach((grouped[key] ?? []).sorted { $0.createdAt < $1.createdAt }, id: \.id) { result in
+                            conditioningResultRow(result, day: day)
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, TempoSpacing.sm)
+        }
+    }
+
+    private func conditioningResultRow(_ result: ConditioningBlockResult, day: ProgramDay?) -> some View {
+        let block = day?.exercises.first { $0.id == result.blockID }
+        return HStack(alignment: .top, spacing: TempoSpacing.xs) {
+            Image(systemName: conditioningResultIcon(result))
+                .font(.system(size: 12))
+                .foregroundStyle(conditioningResultColor(result))
+                .padding(.top, 2)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(block?.name ?? "Block")
+                    .font(.tempoCaption1)
+                    .fontWeight(.medium)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                Text(conditioningResultSummary(result))
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                if let notes = result.notes, !notes.isEmpty {
+                    Text(notes)
+                        .font(.tempoCaption2)
+                        .italic()
+                        .foregroundStyle(Color.tempoTextTertiary)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func conditioningResultIcon(_ result: ConditioningBlockResult) -> String {
+        switch result.targetMet {
+        case true: "checkmark.circle.fill"
+        case false: "xmark.circle.fill"
+        case nil: "checkmark.seal.fill"
+        }
+    }
+
+    private func conditioningResultColor(_ result: ConditioningBlockResult) -> Color {
+        switch result.targetMet {
+        case true: Color.tempoRecoveryGreen
+        case false: Color.tempoError
+        case nil: Color.tempoTextTertiary
+        }
+    }
+
+    private func conditioningResultSummary(_ result: ConditioningBlockResult) -> String {
+        var parts: [String] = []
+        if let times = result.repTimesSeconds, !times.isEmpty {
+            parts.append("\(times.count) rep\(times.count == 1 ? "" : "s")")
+            if let best = ConditioningTargetEvaluator.bestTime(times) {
+                parts.append("best \(formatConditioningSeconds(best))")
+            }
+        }
+        if let duration = result.durationSeconds {
+            parts.append("\(Int((duration / 60).rounded()))'")
+        }
+        if let distance = result.distanceMeters {
+            parts.append(String(format: "%.1f km", distance / 1000))
+        }
+        if let rounds = result.roundsCompleted {
+            parts.append("\(rounds) rounds")
+        }
+        if let rpe = result.rpe {
+            parts.append("RPE \(rpe.formatted(.number.precision(.fractionLength(0 ... 1))))")
+        }
+        return parts.isEmpty ? "Logged" : parts.joined(separator: " · ")
+    }
+
+    private func formatConditioningSeconds(_ seconds: Double) -> String {
+        seconds >= 60
+            ? String(format: "%d:%02d\"", Int(seconds) / 60, Int(seconds) % 60)
+            : "\(Int(seconds))\""
     }
 
     // MARK: - Exercise Detail Row
