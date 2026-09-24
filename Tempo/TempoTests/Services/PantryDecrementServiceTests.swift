@@ -130,6 +130,62 @@ final class PantryDecrementServiceTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(quantity(of: "rice")), 847, accuracy: 0.001,
                        "Idempotency: the guard must prevent a second decrement")
     }
+
+    // MARK: - Imperial + servings units
+
+    func testDecrement_poundUnit_convertsGramsToPounds() throws {
+        insert("rice", quantity: 2, unit: .pounds)
+
+        PantryDecrementService.decrement(
+            foods: [food("rice", grams: 453.59237)], label: "Lunch", modelContext: context
+        )
+
+        XCTAssertEqual(try XCTUnwrap(quantity(of: "rice")), 1, accuracy: 0.0001,
+                       "2 lb − 453.6 g (1 lb) should leave 1 lb")
+    }
+
+    func testDecrement_ounceUnit_convertsGramsToOunces() throws {
+        insert("rice", quantity: 16, unit: .ounces)
+
+        PantryDecrementService.decrement(
+            foods: [food("rice", grams: 56.69904625)], label: "Lunch", modelContext: context
+        )
+
+        XCTAssertEqual(try XCTUnwrap(quantity(of: "rice")), 14, accuracy: 0.0001,
+                       "16 oz − 56.7 g (2 oz) should leave 14 oz")
+    }
+
+    func testDecrement_servingsUnit_usesNaturalPortion() throws {
+        // egg natural portion = 50 g → 100 g is 2 servings.
+        insert("egg", quantity: 12, unit: .servings)
+
+        PantryDecrementService.decrement(
+            foods: [food("egg", grams: 100)], label: "Breakfast", modelContext: context
+        )
+
+        XCTAssertEqual(try XCTUnwrap(quantity(of: "egg")), 10, accuracy: 0.0001)
+    }
+
+    func testDecrement_servingsUnit_withoutNaturalPortion_isSkipped() {
+        insert("dragonfruit", quantity: 3, unit: .servings)
+
+        let results = PantryDecrementService.decrement(
+            foods: [food("dragonfruit", grams: 200)], label: "Snack", modelContext: context
+        )
+
+        XCTAssertEqual(quantity(of: "dragonfruit"), 3, "No portion size → can't convert → untouched")
+        XCTAssertEqual(results.first?.outcome.isSkippedNoUnitMatch, true)
+    }
+
+    func testCredit_poundUnit_isInverseOfDecrement() throws {
+        insert("rice", quantity: 1, unit: .pounds)
+
+        PantryDecrementService.credit(
+            foods: [food("rice", grams: 226.796185)], label: "Undo", modelContext: context
+        )
+
+        XCTAssertEqual(try XCTUnwrap(quantity(of: "rice")), 1.5, accuracy: 0.0001)
+    }
 }
 
 // MARK: - Outcome test helpers
@@ -141,6 +197,10 @@ private extension PantryDecrementResult.Outcome {
     }
     var isNotFound: Bool {
         if case .notFound = self { return true }
+        return false
+    }
+    var isSkippedNoUnitMatch: Bool {
+        if case .skippedNoUnitMatch = self { return true }
         return false
     }
 }
