@@ -26,6 +26,8 @@ extension TrainingViewModel {
             return nil
         }
         let exercises = plan.orderedExercises.compactMap { slot -> WatchWorkoutPayload.Exercise? in
+            // An exercise deleted from the library mid-plan can't be logged
+            // from the wrist (logs match by library exercise) — leave it off.
             guard let exercise = slot.exercise else {
                 return nil
             }

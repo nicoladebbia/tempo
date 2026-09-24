@@ -154,7 +154,12 @@ struct TrainingTabView: View {
             Text(viewModel?.saveErrorMessage ?? "")
         }
         .onChange(of: viewModel?.sessionState) { _, newState in
-            if case .summary = newState {
+            if newState?.needsWorkoutScreen == true, !showActiveWorkout {
+                // A session that went live without the Start button (watch-
+                // started and adopted on load, or crash recovery) still needs
+                // its screen — otherwise timers run behind the Today view.
+                showActiveWorkout = true
+            } else if case .summary = newState {
                 // Persist completion the moment the session reaches summary —
                 // NOT on the SAVE button. Previously history was written only
                 // if the user tapped "SAVE & CLOSE"; swiping the summary away

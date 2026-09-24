@@ -352,4 +352,12 @@ final class TrainingViewModelActiveSessionTests: XCTestCase {
             "Once anything is logged this must read as a REAL crash, not a watch start"
         )
     }
+
+    func testNeedsWorkoutScreenCoversLiveAndCrashStatesOnly() {
+        XCTAssertTrue(WorkoutSessionState.warmup(exerciseIndex: 0, warmupSetIndex: 0).needsWorkoutScreen)
+        XCTAssertTrue(WorkoutSessionState.crashedRecovery.needsWorkoutScreen)
+        XCTAssertFalse(WorkoutSessionState.idle.needsWorkoutScreen)
+        XCTAssertFalse(WorkoutSessionState.summary.needsWorkoutScreen)
+        XCTAssertFalse(WorkoutSessionState.discarded.needsWorkoutScreen)
+    }
 }

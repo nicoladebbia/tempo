@@ -49,6 +49,12 @@ enum WorkoutSessionState: Codable, Equatable {
         default: false
         }
     }
+
+    /// A session the user must be looking at: a live one (possibly started
+    /// from the watch and adopted on load) or one awaiting resume/discard.
+    var needsWorkoutScreen: Bool {
+        isActive || self == .crashedRecovery
+    }
 }
 
 // MARK: - TrainingViewModel
@@ -367,7 +373,9 @@ final class TrainingViewModel {
         // the user opens the Dashboard before ever opening Training.
         let resolved = ensureTodayPlanPersisted(modelContext: modelContext)
         todayPlan = resolved.plan
-        if resolved.isCrashedInProgress {
+        // Already running (e.g. adopted on an earlier load / pull-to-refresh
+        // mid-warmup) — don't re-adopt and reset the cursor and timers.
+        if resolved.isCrashedInProgress, !sessionState.isActive {
             // §11 fix — WatchActionRouter.startWorkout() flips a plan to
             // `.inProgress` directly (it has no live TrainingViewModel to run
             // the real startWorkout() through), which looks identical here to

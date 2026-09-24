@@ -106,7 +106,12 @@ struct MoveQuadrantDetailView: View {
             }
         }
         .onChange(of: trainingVM?.sessionState) { _, newState in
-            if case .summary = newState {
+            if newState?.needsWorkoutScreen == true, !showActiveWorkout {
+                // A session that went live without the Start button (watch-
+                // started and adopted on load, or crash recovery) still needs
+                // its screen — otherwise timers run behind the Today view.
+                showActiveWorkout = true
+            } else if case .summary = newState {
                 showActiveWorkout = false
                 showSummary = true
             } else if case .discarded = newState {
