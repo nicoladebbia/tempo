@@ -221,12 +221,17 @@ final class DropSetTests: XCTestCase {
             1.0
         }
 
-        func detectPersonalRecord(exercise: Exercise, weight: Double, reps: Int) -> PersonalRecord? {
+        func detectPersonalRecord(
+            exercise: Exercise, weight: Double, reps: Int, workoutPlanID: UUID?
+        ) -> PersonalRecord? {
             recordedWeights.append(weight)
             guard weight > 0 else {
                 return nil
             }
-            return PersonalRecord(type: .oneRepMax, value: weight, date: Date(), context: "", exercise: exercise)
+            return PersonalRecord(
+                type: .oneRepMax, value: weight, date: Date(), workoutPlanID: workoutPlanID,
+                context: "", exercise: exercise
+            )
         }
 
         func generateWeekPlan(

@@ -992,7 +992,8 @@ final class TrainingViewModel {
             if let pr = trainingEngine.detectPersonalRecord(
                 exercise: exercise,
                 weight: weight,
-                reps: reps
+                reps: reps,
+                workoutPlanID: plan.id // §13 fix — stamp so history-delete can match this PR exactly
             ) {
                 modelContext.insert(pr)
                 saveGuarded(modelContext, operation: "PR")

@@ -260,32 +260,47 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
 
     // Per MODULE_TRAINING.md Section 12 — Compare to historical bests
 
+    /// Only sets at or below this rep count count toward an e1RM PR. Epley
+    /// (like every rep-max formula) gets less reliable the higher the rep
+    /// count climbs — a 30-rep set at a light weight is not a trustworthy 1RM
+    /// estimate, so it must never mint a "PR" off that math. Matches the cap
+    /// used nowhere else in-repo today; picked as the conventional strength-
+    /// training rule of thumb (MODULE_TRAINING.md names no cap of its own).
+    static let e1RMPersonalRecordRepCap = 12
+
     func detectPersonalRecord(
         exercise: Exercise,
         weight: Double,
-        reps: Int
+        reps: Int,
+        workoutPlanID: UUID? = nil
     ) -> PersonalRecord? {
         guard weight > 0, reps > 0 else {
             return nil
         }
 
-        // Calculate estimated 1RM using Brzycki formula
-        let estimated1RM: Double = if reps == 1 {
-            weight
-        } else {
-            weight * (36.0 / (37.0 - Double(reps)))
-        }
+        // §12 fix — was a hand-rolled Brzycki (`weight*36/(37-reps)`), which is
+        // undefined at 37 reps and goes NEGATIVE above it, and disagreed with
+        // the Epley formula every other e1RM in the app uses (PlannedSet.
+        // estimated1RM, StrengthStandards.epleyE1RM). Now the single shared
+        // formula, so a PR and the progress chart never silently disagree.
+        let estimated1RM = StrengthStandards.epleyE1RM(weight: weight, reps: reps)
 
-        // Compare to all-time PR
-        let currentPR = exercise.allTimePR ?? 0
-        if estimated1RM > currentPR {
-            return PersonalRecord(
-                type: .oneRepMax,
-                value: estimated1RM,
-                date: Date(),
-                context: "\(Int(weight))kg x \(reps) reps",
-                exercise: exercise
-            )
+        // Compare to all-time PR — only reps within the rep cap are trusted to
+        // estimate a 1RM at all (see e1RMPersonalRecordRepCap).
+        if reps <= Self.e1RMPersonalRecordRepCap {
+            let currentPR = exercise.allTimePR ?? 0
+            if estimated1RM > currentPR {
+                return PersonalRecord(
+                    type: .oneRepMax,
+                    value: estimated1RM,
+                    date: Date(),
+                    workoutPlanID: workoutPlanID,
+                    context: "\(Int(weight)) x \(reps) reps",
+                    contextWeightKg: weight,
+                    contextReps: reps,
+                    exercise: exercise
+                )
+            }
         }
 
         // Check rep max PR — highest weight at this rep count or above
@@ -298,7 +313,10 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                 type: .repMax,
                 value: weight,
                 date: Date(),
-                context: "\(Int(weight))kg x \(reps) reps",
+                workoutPlanID: workoutPlanID,
+                context: "\(Int(weight)) x \(reps) reps",
+                contextWeightKg: weight,
+                contextReps: reps,
                 exercise: exercise
             )
         }

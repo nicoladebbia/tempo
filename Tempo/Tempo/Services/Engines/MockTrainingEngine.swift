@@ -40,7 +40,8 @@ final class MockTrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
     func detectPersonalRecord(
         exercise: Exercise,
         weight: Double,
-        reps: Int
+        reps: Int,
+        workoutPlanID: UUID? = nil
     ) -> PersonalRecord? {
         nil
     }
