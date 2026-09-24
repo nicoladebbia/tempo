@@ -441,4 +441,28 @@ final class TrainerReportBuilderTests: XCTestCase {
         XCTAssertEqual(document.sessions[0].exercises.first?.prescriptionText, "3×8 reps @ 80kg")
         XCTAssertTrue(Calendar.current.isDate(document.sessions[1].scheduledDate, inSameDayAs: wednesday))
     }
+
+    /// A per-side lift logged with an L/R split shows both sides — in the
+    /// report's language (S/D in Italian).
+    func testPerSideSplitShowsBothSides() throws {
+        let context = try makeContext()
+        let program = makeProgram(exercises: [
+            ProgramExercise(name: "SA DB Row", sets: 1, repsLow: 8, weightKg: 24, perSide: true),
+        ])
+        let exercise = makeExercise(context, name: "Single-Arm Dumbbell Row")
+        let plan = makeLoggedPlan(context: context, program: program, date: monday, exercise: exercise, sets: [(24, 8, nil)])
+        let set = try XCTUnwrap(plan.orderedExercises.first?.orderedSets.first)
+        set.actualRepsLeft = 8
+        set.actualRepsRight = 7
+
+        let english = TrainerReportBuilder.build(input: input(program: program, plans: [plan]), language: .english)
+        let italian = TrainerReportBuilder.build(input: input(program: program, plans: [plan]), language: .italian)
+
+        let englishLine = try XCTUnwrap(english.sessions.first?.exercises.first)
+        XCTAssertEqual(englishLine.prescriptionText, "1×8 per side reps @ 24kg")
+        XCTAssertTrue(englishLine.actualText.hasPrefix("24kg×L8/R7"), englishLine.actualText)
+        XCTAssertTrue(
+            try XCTUnwrap(italian.sessions.first?.exercises.first).actualText.hasPrefix("24kg×S8/D7")
+        )
+    }
 }
