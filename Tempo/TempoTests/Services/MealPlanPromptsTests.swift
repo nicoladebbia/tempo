@@ -215,7 +215,7 @@ final class MealPlanPromptsTests: XCTestCase {
     // MARK: - Functional nutrition layer (v2)
 
     func testFunctionalNutritionBlock_leadsWithLowGLAndSkin() {
-        let block = MealPlanPrompts.functionalNutritionBlock()
+        let block = MealPlanPrompts.functionalNutritionBlock(clearSkinFocus: true)
         XCTAssertTrue(block.contains("<functional_nutrition>"))
         XCTAssertTrue(block.contains("</functional_nutrition>"))
         // Low-GL is the headline lever, and must be tied to skin.
@@ -224,7 +224,7 @@ final class MealPlanPromptsTests: XCTestCase {
     }
 
     func testFunctionalNutritionBlock_minimizesDairyForAcne() {
-        let block = MealPlanPrompts.functionalNutritionBlock()
+        let block = MealPlanPrompts.functionalNutritionBlock(clearSkinFocus: true)
         XCTAssertTrue(block.uppercased().contains("MINIMIZE DAIRY"))
         // Must offer non-dairy protein routes so it can actually comply.
         XCTAssertTrue(block.lowercased().contains("non-dairy"))
@@ -265,7 +265,7 @@ final class MealPlanPromptsTests: XCTestCase {
     }
 
     func testFunctionalNutritionBlock_bansAddedSweeteners() {
-        let block = MealPlanPrompts.functionalNutritionBlock()
+        let block = MealPlanPrompts.functionalNutritionBlock(clearSkinFocus: true)
         XCTAssertTrue(block.uppercased().contains("NO ADDED SUGARS"))
         XCTAssertTrue(block.lowercased().contains("honey"))
         // Applies even if the sweetener is in the pantry.
@@ -273,7 +273,7 @@ final class MealPlanPromptsTests: XCTestCase {
     }
 
     func testFunctionalNutritionBlock_doesNotPromiseToCureSkin() {
-        let block = MealPlanPrompts.functionalNutritionBlock()
+        let block = MealPlanPrompts.functionalNutritionBlock(clearSkinFocus: true)
         // Must NOT over-promise — no "cure" / "fix" claims about the condition.
         XCTAssertTrue(block.lowercased().contains("never claim to cure"))
     }

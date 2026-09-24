@@ -86,9 +86,34 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         whoopTDEE: Double?,
         wakeMinutesOverride: Int? = nil,
         modelContext: ModelContext,
-        intake: MealPlanIntake? = nil,
+        intake callerIntake: MealPlanIntake? = nil,
         onStatus: ((GenerationState) -> Void)? = nil
     ) async throws -> WeeklyMealPlan {
+        // Onboarding eating preferences (UserDailyPlanProfile) — the eating
+        // window until the wizard / AI Meals settings saves one, plus
+        // breakfastSkipped + postWorkoutMandatory always. Read here (not in
+        // the callers) so every generate path honors them.
+        let onboardingSettings = Self.fetchUserSettings(modelContext: modelContext)
+        let dailyPlanProfile = try? modelContext.fetch(FetchDescriptor<UserDailyPlanProfile>()).first
+        let intake: MealPlanIntake? = if let callerIntake {
+            callerIntake.applyingOnboarding(dailyPlanProfile, settings: onboardingSettings)
+        } else if dailyPlanProfile != nil {
+            MealPlanIntake.seeded(settings: onboardingSettings, dailyPlan: dailyPlanProfile)
+        } else {
+            nil
+        }
+        if let intake {
+            let window = "\(intake.eatingWindow.firstMealHour)-\(intake.eatingWindow.lastMealHour)"
+            let skip = intake.breakfastSkipped
+            let postWorkout = intake.postWorkoutMandatory
+            logger.info(
+                "[Diag.Plan] eating pattern: window=\(window, privacy: .public) breakfastSkipped=\(skip) postWorkoutMandatory=\(postWorkout)"
+            )
+        }
+        // Resolve BEFORE persistPlan replaces the old plan — the one-time
+        // migration keys off "a plan already exists".
+        let clearSkinFocus = ClearSkinFocusSetting.resolve(modelContext: modelContext)
+
         let setState: (GenerationState) -> Void = { newState in
             self.state = newState
             onStatus?(newState)
@@ -122,7 +147,12 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         // Pull the user's rolling 14-day actual eat-times per mealNumber so
         // the AI anchors the new plan to their real rhythm rather than the
         // 07:30/12:30/19:30/16:00 schema defaults.
-        let observed = observedMealTimes(modelContext: modelContext, wakeMinutesOverride: wakeMinutesOverride)
+        let observed = observedMealTimes(
+            modelContext: modelContext,
+            wakeMinutesOverride: wakeMinutesOverride,
+            eatingWindow: intake?.eatingWindow,
+            breakfastSkipped: intake?.breakfastSkipped ?? false
+        )
         let feedback = recentFeedbackDigest(modelContext: modelContext)
         let expiringSoon = expiringPantryItems(modelContext: modelContext)
         if !expiringSoon.isEmpty {
@@ -181,7 +211,8 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             mealsPerDay: mealsPerDay,
             cookTimeWeekdayMins: cookWeekday,
             cookTimeWeekendMins: cookWeekend,
-            equipment: equipment
+            equipment: equipment,
+            clearSkinFocus: clearSkinFocus
         )
 
         let response = try await sendWithRetry(
@@ -193,7 +224,10 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         // Step 4: Parse JSON response
         setState(.validating)
 
-        let parsedPlan = try parseWeeklyPlanJSON(response)
+        var parsedPlan = try parseWeeklyPlanJSON(response)
+        if let intake {
+            parsedPlan = enforceEatingPattern(parsedPlan, intake: intake)
+        }
 
         // Step 5: Validate and scale macros
         let validatedPlan = validateAndScaleMeals(
@@ -544,7 +578,9 @@ final class MealPlanGeneratorService: @unchecked Sendable {
     func observedMealTimes(
         modelContext: ModelContext,
         windowDays: Int = 14,
-        wakeMinutesOverride: Int? = nil
+        wakeMinutesOverride: Int? = nil,
+        eatingWindow: EatingWindow? = nil,
+        breakfastSkipped: Bool = false
     ) -> MealPlanPrompts.ObservedMealTimes? {
         let calendar = Calendar.current
 
@@ -612,10 +648,21 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             4: clampToCeiling(wakeMinutes + 420, ceiling: 17 * 60), // Snack (afternoon) ≤17:00
         ]
 
+        // Onboarding eating window: every anchor must sit inside it, otherwise
+        // the prompt gets "use observed times verbatim" AND "no meal before
+        // 12:00" for a 09:00 breakfast and the model picks one at random.
+        // Breakfast-skippers get no slot 1 at all.
+        let window = eatingWindow.flatMap { $0.isValid ? $0 : nil }
         var result: [Int: String] = [:]
         for number in 1 ... 4 {
+            if breakfastSkipped, number == 1 {
+                continue
+            }
             let minutes = learned[number] ?? defaults[number] ?? (wakeMinutes + 60)
-            let clamped = max(0, min(minutes, 23 * 60 + 59))
+            var clamped = max(0, min(minutes, 23 * 60 + 59))
+            if let window {
+                clamped = min(max(clamped, window.firstMealHour * 60), window.lastMealHour * 60)
+            }
             result[number] = String(format: "%02d:%02d", clamped / 60, clamped % 60)
         }
         return result
@@ -907,6 +954,35 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         logger.error("[meal_plan_generation] Response suffix: \(response.suffix(300))")
         state = .failed("Could not parse meal plan response")
         throw MealPlanGeneratorError.parsingFailed("Could not parse meal plan JSON")
+    }
+
+    // MARK: - Eating pattern
+
+    /// Drop breakfast for breakfast-skippers and clamp meal times into the
+    /// eating window. Runs before scaling so a dropped breakfast's calories
+    /// are re-spread by `scaleMealsToTarget`. See MealPlanScheduleEnforcer.
+    private func enforceEatingPattern(_ plan: ParsedWeeklyPlan, intake: MealPlanIntake) -> ParsedWeeklyPlan {
+        let days = plan.days.map { day in
+            let kept = MealPlanScheduleEnforcer.enforce(
+                day.meals.map { .init(mealNumber: $0.mealNumber, scheduledTime: $0.scheduledTime) },
+                window: intake.eatingWindow,
+                breakfastSkipped: intake.breakfastSkipped
+            )
+            if kept.count != day.meals.count {
+                logger.info("[Diag.Plan] day \(day.dayIndex): dropped \(day.meals.count - kept.count) breakfast slot(s) (breakfastSkipped)")
+            }
+            let meals = kept.map { entry in
+                let meal = day.meals[entry.index]
+                return ParsedMealData(
+                    mealNumber: meal.mealNumber,
+                    mealName: meal.mealName,
+                    scheduledTime: entry.scheduledTime,
+                    foods: meal.foods
+                )
+            }
+            return ParsedDay(dayIndex: day.dayIndex, dayType: day.dayType, meals: meals, supplements: day.supplements)
+        }
+        return ParsedWeeklyPlan(days: days)
     }
 
     // MARK: - Validation & Scaling

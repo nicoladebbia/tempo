@@ -38,9 +38,9 @@ struct PantryDecrementResult: Sendable {
 ///   - Pantry items stored in `.pieces` are decremented using the
 ///     natural-portion grams-per-piece (180g carrots ÷ 65g/medium = 3
 ///     pieces).
-///   - Other units (`.servings`, `.ounces`, `.pounds`) are left alone
-///     for now — they'd need their own conversion table and a stronger
-///     "user intent" signal.
+///   - `.ounces` / `.pounds` are converted by mass (28.35 g / 453.59 g).
+///   - `.servings` use the natural-portion grams as one serving; foods
+///     without a natural portion are skipped (`skippedNoUnitMatch`).
 ///
 /// Callers should NOT invoke this when the user logged a substitute
 /// ("ate something else") — in that case the planned ingredients weren't
@@ -233,7 +233,10 @@ enum PantryDecrementService {
     ///   carries the per-container weight) and round up. For `.pieces`
     ///   we fall back to the per-item `grams` field so legacy entries
     ///   that meant "1 banana ≈ 120g" still work.
-    private static func convertGramsToPantryUnit(
+    static let gramsPerOunce = 28.349523125
+    static let gramsPerPound = 453.59237
+
+    static func convertGramsToPantryUnit(
         grams: Double,
         canonicalName: String,
         unit: PantryUnit
@@ -262,8 +265,17 @@ enum PantryDecrementService {
             }()
             guard perUnit > 0 else { return nil }
             return (grams / perUnit).rounded(.up)
-        case .servings, .ounces, .pounds:
-            return nil
+        case .ounces:
+            return grams / gramsPerOunce
+        case .pounds:
+            return grams / gramsPerPound
+        case .servings:
+            // One serving ≈ one natural portion (1 egg, 40 g oats…). Rounded
+            // up like .pieces — a partial serving still opens a new one.
+            guard let portion = FoodMacroDatabase.naturalPortions[canonicalName], portion.grams > 0 else {
+                return nil
+            }
+            return (grams / portion.grams).rounded(.up)
         }
     }
 }

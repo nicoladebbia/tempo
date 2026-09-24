@@ -102,6 +102,14 @@ final class WizardCoordinator {
         visibleSteps = updated
     }
 
+    /// Replace the starting answers (wizard pre-fill). Only valid before the
+    /// user has moved past the first step — later it would clobber edits.
+    func seed(_ seededIntake: MealPlanIntake) {
+        guard currentStep == visibleSteps.first else { return }
+        intake = seededIntake
+        refreshVisibility()
+    }
+
     // MARK: - Navigation
 
     var progress: Double {

@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 // MARK: - ReceiptReviewView
 
@@ -65,9 +66,26 @@ struct ReceiptReviewView: View {
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.vertical, TempoSpacing.lg)
         }
+        .scrollDismissesKeyboard(.interactively)
         .background(Color.tempoBgPrimary)
         .navigationTitle("Review Receipt")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // .decimalPad has no Return key — without this there's no way to
+            // close the keyboard except scrolling.
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    UIApplication.shared.sendAction(
+                        #selector(UIResponder.resignFirstResponder),
+                        to: nil,
+                        from: nil,
+                        for: nil
+                    )
+                }
+                .fontWeight(.semibold)
+            }
+        }
     }
 
     private var receiptHeader: some View {
@@ -113,6 +131,9 @@ struct ReceiptReviewView: View {
     }
 
     private func ingest() {
+        // Belt and braces: close the keyboard so no field is mid-edit. Edits
+        // already write through per keystroke (ReceiptLineCard).
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         ingestError = nil
         isIngesting = true
         defer { isIngesting = false }
@@ -141,7 +162,7 @@ private struct ReceiptLineCard: View {
         self.line = line
         self.onConfirmToggle = onConfirmToggle
         _displayName = State(initialValue: line.displayName)
-        _quantityText = State(initialValue: String(line.quantity))
+        _quantityText = State(initialValue: ReceiptQuantityParser.format(line.quantity))
     }
 
     var body: some View {
@@ -150,7 +171,12 @@ private struct ReceiptLineCard: View {
                 TextField("Item name", text: $displayName)
                     .font(.tempoBody)
                     .foregroundStyle(Color.tempoTextPrimary)
-                    .onSubmit { line.displayName = displayName }
+                    .onChange(of: displayName) { _, newValue in
+                        let trimmed = newValue.trimmingCharacters(in: .whitespaces)
+                        if !trimmed.isEmpty {
+                            line.displayName = trimmed
+                        }
+                    }
                 Spacer()
                 Toggle("", isOn: Binding(
                     get: { line.userConfirmed },
@@ -165,9 +191,12 @@ private struct ReceiptLineCard: View {
                     .font(.tempoCaption1)
                     .frame(maxWidth: 70)
                     .keyboardType(.decimalPad)
-                    .onSubmit {
-                        if let v = Double(quantityText) {
-                            line.quantity = v
+                    // Write through on every keystroke (like VoicePantryView):
+                    // .decimalPad has no Return key, so the old .onSubmit
+                    // never fired and every qty edit was silently dropped.
+                    .onChange(of: quantityText) { _, newValue in
+                        if let value = ReceiptQuantityParser.parse(newValue) {
+                            line.quantity = value
                         }
                     }
                 Text(line.unit.rawValue.uppercased())
@@ -218,5 +247,37 @@ private struct ReceiptLineCard: View {
             .background(color.opacity(0.15))
             .foregroundStyle(color)
             .clipShape(Capsule())
+    }
+}
+
+// MARK: - ReceiptQuantityParser
+
+/// Parses the receipt qty field. `.decimalPad` types the locale's separator —
+/// "1,5" on an Italian iPhone — which `Double("1,5")` rejects, so both
+/// separators are accepted. Rejects empty, negative and non-numeric input
+/// (caller keeps the previous value).
+enum ReceiptQuantityParser {
+    static func parse(_ text: String) -> Double? {
+        let normalized = text
+            .trimmingCharacters(in: .whitespaces)
+            .replacingOccurrences(of: ",", with: ".")
+        guard !normalized.isEmpty, let value = Double(normalized), value.isFinite, value >= 0 else {
+            return nil
+        }
+        return value
+    }
+
+    /// "2" not "2.0"; up to two decimals otherwise ("0.25", "1.5").
+    static func format(_ value: Double) -> String {
+        // Round to 2 dp first so 2.995 → "3", never "3." after zero-stripping.
+        let rounded = (value * 100).rounded() / 100
+        if rounded == rounded.rounded() {
+            return "\(Int(rounded))"
+        }
+        var text = String(format: "%.2f", rounded)
+        while text.hasSuffix("0") {
+            text.removeLast()
+        }
+        return text
     }
 }

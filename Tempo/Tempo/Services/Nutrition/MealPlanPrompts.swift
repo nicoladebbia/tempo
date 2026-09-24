@@ -203,6 +203,12 @@ enum MealPlanPrompts {
         if let grocery = intake.groceryIntent {
             lines.append("- Grocery context: \(grocery.formattedForPrompt)")
         }
+        if intake.breakfastSkipped {
+            lines.append("- User SKIPS BREAKFAST (onboarding answer). See <meal_structure>.")
+        }
+        if intake.postWorkoutMandatory {
+            lines.append("- Post-training meal is MANDATORY on training days (onboarding answer). See <meal_structure>.")
+        }
         if intake.recoveryAdjusted {
             lines.append("- Adjust calorie distribution to skew toward training-day fuel and lighter rest-day intake. User opted in.")
         }
@@ -338,13 +344,15 @@ enum MealPlanPrompts {
     /// Evidence-based functional-nutrition layer. This sits ON TOP of the
     /// macro targets (it never changes them) and tells the model WHICH whole
     /// foods to thread into the meals it is already building, and why — chosen
-    /// for clear skin, lean recomposition, brain/focus, eyes, and athletic
-    /// recovery. The guidance is graded by the strength of human evidence so
-    /// the model leans hardest on the foods that actually move the needle and
-    /// doesn't over-promise. Static (no per-user args yet) so it's cheap to
-    /// test; user-specific gating (dairy, goals) is already carried by the
-    /// dietary-restrictions + preferences blocks above.
-    static func functionalNutritionBlock() -> String {
+    /// for lean recomposition, brain/focus, eyes, and athletic recovery (plus
+    /// clear skin when opted in). The guidance is graded by the strength of
+    /// human evidence so the model leans hardest on the foods that actually
+    /// move the needle and doesn't over-promise.
+    ///
+    /// `clearSkinFocus` gates the clear-skin / low-dairy / no-added-sugar
+    /// section. It used to ship to every user unconditionally; it's now an
+    /// opt-in toggle in AI Meals settings (`ClearSkinFocusSetting`).
+    static func functionalNutritionBlock(clearSkinFocus: Bool = false) -> String {
         """
         <functional_nutrition>
         Layer evidence-based functional foods INTO the meals you build. This is
@@ -357,7 +365,7 @@ enum MealPlanPrompts {
         - ROTATE proteins across the week. Do NOT make chicken (or any single
           protein) the base of most meals. Spread across: eggs, oily fish
           (salmon, sardines, mackerel), white fish, lean beef, turkey, chicken,
-          tofu/tempeh, legumes, Greek-yogurt-free options. No protein should
+          tofu/tempeh, legumes. No protein should
           appear as the main of more than ~3 of the week's dinners.
         - ROTATE the dish family. "Chicken penne pomodoro" and "chicken
           spaghetti pomodoro" are the SAME meal — do not pass these off as
@@ -365,34 +373,10 @@ enum MealPlanPrompts {
           (rice, potato, quinoa, oats, bread, pasta) across days.
         - These functional foods MUST ACTUALLY APPEAR, not just be "allowed":
           every day includes at least one vegetable and at least one of the
-          skin/brain/eye foods below (leafy greens, berries, oily fish, eggs,
+          functional foods below (leafy greens, berries, oily fish, eggs,
           cooked tomato, etc.). A week with almost no vegetables or fruit is a
           FAILED plan regardless of macros.
-
-        PRIORITY GOAL — clear, soft skin (and supporting gradual skin renewal):
-        - LOW GLYCEMIC LOAD is the single biggest dietary lever for clear skin.
-          Default every day to low-GI carbs (oats, whole grains, legumes,
-          berries, sweet potato) over refined sugar, white bread, and sugary
-          drinks. Spiking blood sugar drives breakouts. This also serves the
-          lean-recomposition goal — keep it the default unless a training day
-          genuinely needs fast carbs around the session.
-        - NO ADDED SUGARS OR SWEETENERS in the meals: do NOT add honey, maple
-          syrup, agave, table sugar, or sweetened/flavored yogurts. This applies
-          even if such an item is in the pantry. Sweetness should come from whole
-          fruit and berries. "Honey-sweetened oats" is exactly what to AVOID —
-          use oats with berries or cinnamon instead.
-        - MINIMIZE DAIRY. Dairy (milk, cheese, yogurt, whey in food) is the most
-          common dietary acne aggravator. Hit protein from non-dairy sources
-          where you can: eggs, fish, poultry, lean meat, tofu, legumes, edamame.
-          Only use dairy when no clean non-dairy option fits the meal.
-        - Skin-supporting nutrients to work in regularly: omega-3 (oily fish —
-          salmon, sardines, mackerel — 2-3x/week) for lower inflammation;
-          vitamin C (kiwi, bell pepper, citrus, berries) and adequate protein
-          and zinc (shellfish, pumpkin seeds, legumes) as the raw materials skin
-          uses to renew and stay firm and soft over time; green tea as a drink.
-        - Frame this as nourishing skin to be clearer, softer, and to renew over
-          time — never claim to cure or instantly fix any skin condition.
-
+        \(clearSkinFocus ? clearSkinSection : "")
         BRAIN / FOCUS (student): eggs (choline) at breakfast; blueberries and
         other berries; natural NON-ALKALIZED cocoa (alkalized/"Dutch" cocoa
         loses the active flavanols) for processing speed; oily fish (DHA).
@@ -424,6 +408,57 @@ enum MealPlanPrompts {
         sugar and juice — whole fruit and berries over fruit juice.
         </functional_nutrition>
         """
+    }
+
+    /// Clear-skin / low-dairy layer — only injected when the user opted in.
+    static let clearSkinSection = """
+
+    PRIORITY GOAL — clear, soft skin (and supporting gradual skin renewal):
+    - LOW GLYCEMIC LOAD is the single biggest dietary lever for clear skin.
+      Default every day to low-GI carbs (oats, whole grains, legumes,
+      berries, sweet potato) over refined sugar, white bread, and sugary
+      drinks. Spiking blood sugar drives breakouts. This also serves the
+      lean-recomposition goal — keep it the default unless a training day
+      genuinely needs fast carbs around the session.
+    - NO ADDED SUGARS OR SWEETENERS in the meals: do NOT add honey, maple
+      syrup, agave, table sugar, or sweetened/flavored yogurts. This applies
+      even if such an item is in the pantry. Sweetness should come from whole
+      fruit and berries. "Honey-sweetened oats" is exactly what to AVOID —
+      use oats with berries or cinnamon instead.
+    - MINIMIZE DAIRY. Dairy (milk, cheese, yogurt, whey in food) is the most
+      common dietary acne aggravator. Hit protein from non-dairy sources
+      where you can: eggs, fish, poultry, lean meat, tofu, legumes, edamame.
+      Only use dairy when no clean non-dairy option fits the meal.
+    - Skin-supporting nutrients to work in regularly: omega-3 (oily fish —
+      salmon, sardines, mackerel — 2-3x/week) for lower inflammation;
+      vitamin C (kiwi, bell pepper, citrus, berries) and adequate protein
+      and zinc (shellfish, pumpkin seeds, legumes) as the raw materials skin
+      uses to renew and stay firm and soft over time; green tea as a drink.
+    - Frame this as nourishing skin to be clearer, softer, and to renew over
+      time — never claim to cure or instantly fix any skin condition.
+
+    """
+
+    /// Onboarding eating-pattern overrides for <meal_structure>. Empty when the
+    /// user eats breakfast and has no post-workout requirement.
+    static func eatingPatternDirective(_ intake: MealPlanIntake?) -> String {
+        guard let intake else { return "" }
+        var lines: [String] = []
+        if intake.breakfastSkipped {
+            lines.append(
+                "- NO BREAKFAST (user preference, OVERRIDES the default below): do NOT emit mealNumber 1. "
+                    + "The first meal of each day is Lunch (mealNumber 2) at or after the eating-window start. "
+                    + "Redistribute breakfast's ~25% across the remaining meals — the day's macro targets are unchanged."
+            )
+        }
+        if intake.postWorkoutMandatory {
+            lines.append(
+                "- POST-TRAINING MEAL REQUIRED (user preference, OVERRIDES the default below): on every training day "
+                    + "(strength / cardio / soccer / double) include mealNumber 5 as a post-training refuel "
+                    + "(protein + carbs, ~45–60 min after the session). It is NOT optional on those days."
+            )
+        }
+        return lines.joined(separator: "\n")
     }
 
     /// Directive overriding the default 4-5 meal structure when the user has a
@@ -607,7 +642,7 @@ enum MealPlanPrompts {
     /// `expiringSoonBlock` (urgency/FIFO) — this is the "build meals around
     /// what's on hand" signal so the grocery list is genuinely just the gap.
     /// `stock` is pre-formatted "name — qty unit [location]" lines.
-    static func pantryStockBlock(_ stock: [String]) -> String {
+    static func pantryStockBlock(_ stock: [String], clearSkinFocus: Bool = false) -> String {
         guard !stock.isEmpty else {
             return ""
         }
@@ -628,9 +663,9 @@ enum MealPlanPrompts {
         grocery list means you over-relied on the pantry and under-delivered \
         variety. Respect quantities when you DO use a pantry item: do not plan to \
         use more than is listed (e.g. 9 eggs on hand → don't schedule 12). Ignore \
-        any item that conflicts with the user's dietary restrictions or the \
-        clear-skin goals in <functional_nutrition> (e.g. don't build meals around \
-        a pantry sweetener).
+        any item that conflicts with the user's dietary restrictions\(clearSkinFocus
+            ? " or the clear-skin goals in <functional_nutrition> (e.g. don't build meals around a pantry sweetener)"
+            : "").
         </pantry_on_hand>
         """
     }
@@ -699,7 +734,8 @@ enum MealPlanPrompts {
         mealsPerDay: Int? = nil,
         cookTimeWeekdayMins: Int? = nil,
         cookTimeWeekendMins: Int? = nil,
-        equipment: [String] = []
+        equipment: [String] = [],
+        clearSkinFocus: Bool = false
     ) -> (system: String, user: String) {
         let system = """
         You are the nutrition arm of Tempo, a drill-sergeant life operating system for student-athletes. \
@@ -752,15 +788,16 @@ enum MealPlanPrompts {
         \(restrictions.tastePreferencesBlock)
         \(weeklyIntakeBlock(intake))
         \(observedTimesBlock(observedMealTimes))
-        \(pantryStockBlock(pantryStock))
+        \(pantryStockBlock(pantryStock, clearSkinFocus: clearSkinFocus))
         \(expiringSoonBlock(expiringSoon))
         \(feedbackBlock(feedbackDigest))
-        \(functionalNutritionBlock())
+        \(functionalNutritionBlock(clearSkinFocus: clearSkinFocus))
         \(equipmentBlock(equipment))
         \(supplementShelfBlock(supplements))
 
         <meal_structure>
         \(mealCountDirective(mealsPerDay))
+        \(eatingPatternDirective(intake))
         \(cookTimeDirective(weekday: cookTimeWeekdayMins, weekend: cookTimeWeekendMins))
         - 4-5 meals per day: Breakfast, Lunch, Dinner, and 1-2 Snacks.
         - Breakfast: ~25% of daily calories

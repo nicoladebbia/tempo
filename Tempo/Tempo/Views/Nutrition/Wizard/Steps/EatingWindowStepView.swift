@@ -30,7 +30,7 @@ struct EatingWindowStepView: View {
                         get: { coordinator.intake.eatingWindow.firstMealHour },
                         set: { coordinator.intake.eatingWindow.firstMealHour = $0 }
                     ),
-                    range: 4 ... 14
+                    range: Self.range(4 ... 14, including: coordinator.intake.eatingWindow.firstMealHour)
                 )
                 row(
                     label: "Last meal",
@@ -38,10 +38,24 @@ struct EatingWindowStepView: View {
                         get: { coordinator.intake.eatingWindow.lastMealHour },
                         set: { coordinator.intake.eatingWindow.lastMealHour = $0 }
                     ),
-                    range: 16 ... 23
+                    range: Self.range(16 ... 23, including: coordinator.intake.eatingWindow.lastMealHour)
                 )
+
+                if coordinator.intake.breakfastSkipped {
+                    Label("You skip breakfast. The plan opens with lunch.", systemImage: "sunrise")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
         }
+    }
+
+    /// Widen the picker range so a window pre-filled from onboarding (e.g. a
+    /// 15:00 first meal) is always selectable instead of rendering blank.
+    static func range(_ base: ClosedRange<Int>, including value: Int) -> ClosedRange<Int> {
+        let clamped = min(max(value, 0), 23)
+        return min(base.lowerBound, clamped) ... max(base.upperBound, clamped)
     }
 
     private func row(label: String, selection: Binding<Int>, range: ClosedRange<Int>) -> some View {
