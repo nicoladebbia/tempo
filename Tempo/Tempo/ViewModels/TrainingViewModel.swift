@@ -320,7 +320,10 @@ final class TrainingViewModel {
 
     let trainingEngine: any TrainingEngineProtocol
     let whoop: any WhoopServiceProtocol
-    private let healthKit: any HealthKitServiceProtocol
+    /// Fix #7 — "Fill from Whoop/Health" reads this from
+    /// TrainingViewModel+ConditioningLogging.swift, hence internal (was
+    /// private) rather than a duplicated dependency.
+    let healthKit: any HealthKitServiceProtocol
     /// §5 calendar awareness — exams + day load into the daily prompt.
     /// Optional: paths that only ensure the plan (DailyResetCoordinator)
     /// don't need it; the picture just omits the calendar lines.

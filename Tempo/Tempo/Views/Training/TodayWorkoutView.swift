@@ -361,7 +361,7 @@ struct TodayWorkoutView: View {
             // Trainer program: the day's second session (conditioning after
             // the lift), block by block.
             if let second = viewModel.trainerDay(forKey: plan.programSecondaryKey, modelContext: modelContext) {
-                TrainerSessionCard(day: second, heading: "SECOND SESSION")
+                trainerSessionCard(second, heading: "SECOND SESSION", plan: plan, key: plan.programSecondaryKey)
             }
 
             // §14 #3 — one-tap session RPE, only after completion.
@@ -1445,7 +1445,7 @@ struct TodayWorkoutView: View {
 
             // Trainer program: the coach's own conditioning session, block by block.
             if let day = viewModel.trainerDay(forKey: plan.programSessionKey, modelContext: modelContext) {
-                TrainerSessionCard(day: day, heading: "YOUR TRAINER'S SESSION")
+                trainerSessionCard(day, heading: "YOUR TRAINER'S SESSION", plan: plan, key: plan.programSessionKey)
                     .padding(.horizontal, TempoSpacing.lg)
             }
 
@@ -1647,6 +1647,12 @@ struct TodayWorkoutView: View {
                 .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
         }
         .padding(.top, TempoSpacing.sm)
+    }
+
+    /// Fix #7 — shared by both TrainerSessionCard call sites (main session +
+    /// two-a-day second session) so each stays a one-line call.
+    private func trainerSessionCard(_ day: ProgramDay, heading: String, plan: WorkoutPlan, key: String?) -> some View {
+        TrainerSessionCard(day: day, heading: heading, workoutPlanID: plan.id, programSessionKey: key, viewModel: viewModel)
     }
 
     private func nonGymIcon(for type: WorkoutType) -> String {
