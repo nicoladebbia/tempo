@@ -27,6 +27,25 @@ final class PlannedExercise {
     /// The trainer's note for this exercise ("pause at the bottom").
     var programNote: String?
 
+    /// §4 — the trainer's OWN target weight (kg) for this exercise, before
+    /// Tempo's recovery/pain-note adjustments. Set only on a trainer-program
+    /// exercise with a known number (explicit weight, or % of a reliable
+    /// e1RM — see `TrainingViewModel.programWeightKg`); nil for generated
+    /// days and for an effort-only % (no reliable max — see `PlannedSet.
+    /// isCalibration`). Optional → lightweight SwiftData migration.
+    var trainerTargetKg: Double?
+
+    /// §4 — why today's prescribed weight differs from `trainerTargetKg`,
+    /// e.g. "Recovery yellow −20%" or "Pain note — capped at last session".
+    /// nil when Tempo didn't change the trainer's number. Optional →
+    /// lightweight SwiftData migration.
+    var loadAdjustmentNote: String?
+
+    /// §4 — true once the athlete tapped "Use trainer's weight" to restore
+    /// `trainerTargetKg` for this exercise's remaining sets today, overriding
+    /// Tempo's automatic adjustment. Defaulted → SwiftData auto-migrates.
+    var trainerOverrideApplied: Bool = false
+
     /// Exercise name captured when this slot was created. `Exercise.
     /// plannedExercises` is `.nullify` (§10.6) — deleting a custom exercise
     /// detaches `exercise` instead of deleting this row, so a past session's
