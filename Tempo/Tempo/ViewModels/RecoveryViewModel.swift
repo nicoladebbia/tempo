@@ -178,6 +178,18 @@ final class RecoveryViewModel {
             schedule: events
         )
 
+        // Re-stamp hydration with the user's real weight, today's logged
+        // activity and today's WorkoutPlan — the engine has no store access.
+        // Same DailyHydrationTarget math as the Dashboard's Fuel target.
+        let score = recovery.recoveryScore > 0 ? recovery.recoveryScore : RecoveryEngine.unknownRecoveryScore
+        let isTrainingDay = DailyHydrationTarget.todayIsTrainingDay(in: modelContext)
+            ?? RecoveryEngine.hasPlannedTraining(events)
+        prescription.hydrationTargetMl = DailyHydrationTarget.targetMl(
+            in: modelContext,
+            recoveryZone: RecoveryZone(score: score),
+            isTrainingDay: isTrainingDay
+        )
+
         // Insert prescription, then link relationship
         modelContext.insert(prescription)
         prescription.dailyRecovery = recovery
