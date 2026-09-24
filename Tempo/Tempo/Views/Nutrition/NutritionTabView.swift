@@ -6,7 +6,6 @@
 //
 //
 
-import Combine
 import SwiftData
 import SwiftUI
 
@@ -20,8 +19,10 @@ struct NutritionTabView: View {
     private var modelContext
     @Environment(ServiceContainer.self)
     private var services
-    @State
-    private var viewModel = NutritionTabViewModel()
+    /// Owned by ContentView so the app-level plan-freshness handler and this
+    /// tab share one instance (one generation in flight, one spinner).
+    @Bindable
+    var viewModel: NutritionTabViewModel
     @State
     private var showDietaryProfileSetup = false
     @State
@@ -73,41 +74,12 @@ struct NutritionTabView: View {
             .navigationBarTitleDisplayMode(.inline)
             .tempoSettingsToolbar()
             .task {
-                viewModel.loadToday(modelContext: modelContext)
-            }
-            // When the user changes a Training setting (split / football days)
-            // we regenerate the active WeeklyMealPlan so the Plan tab reflects
-            // the new schedule. Debounced 0.6s because each chip toggle posts a
-            // notification and a user can flip several in a row — we want one
-            // regen at the end of the burst, not N.
-            .onReceive(
-                NotificationCenter.default.publisher(for: .tempoTrainingSettingsChanged)
-                    .debounce(for: .seconds(0.6), scheduler: DispatchQueue.main)
-            ) { _ in
-                // If the dietary profile has already loaded, regen now.
-                // Otherwise latch the request so loadToday() can fire it
-                // the moment the profile becomes available — previously
-                // the notification was silently dropped if it arrived
-                // before loadToday() populated dietaryProfile, which is a
-                // tight race during cold-launch-into-Settings.
-                if viewModel.dietaryProfile != nil {
-                    viewModel.generatePlan(
-                        modelContext: modelContext,
-                        whoop: services.whoop,
-                        apiClient: services.apiClient,
-                        notifications: services.notifications
-                    )
-                } else {
-                    viewModel.pendingTrainingSettingsRegen = true
-                }
-            }
-            // Drain a pending TrainingSettingsChanged regen the moment the
-            // dietary profile finishes loading. Without this, a notification
-            // that arrives during the cold-launch race window is lost forever.
-            .onChange(of: viewModel.dietaryProfile?.id) { _, newID in
-                guard newID != nil, viewModel.pendingTrainingSettingsRegen else { return }
-                viewModel.pendingTrainingSettingsRegen = false
-                viewModel.generatePlan(
+                // Loads today, then regenerates the plan if its training /
+                // diet-profile inputs changed since it was built. The change
+                // notifications themselves are handled app-wide in
+                // ContentView, so they aren't lost when this tab was never
+                // opened.
+                viewModel.regenerateIfOutOfDate(
                     modelContext: modelContext,
                     whoop: services.whoop,
                     apiClient: services.apiClient,
@@ -119,7 +91,9 @@ struct NutritionTabView: View {
             // on the Plan sub-tab, so a silent failure on auto-regen would
             // leave the user wondering why nothing happened.
             .onChange(of: viewModel.planGenerationError) { _, newError in
-                guard let newError, !newError.isEmpty else { return }
+                guard let newError, !newError.isEmpty else {
+                    return
+                }
                 planErrorToast = ToastData(
                     message: "Couldn't generate plan: \(newError). Tap Generate on the Plan tab to retry.",
                     style: .error
@@ -308,6 +282,6 @@ struct NutritionTabView: View {
 // MARK: - Preview
 
 #Preview {
-    NutritionTabView()
+    NutritionTabView(viewModel: NutritionTabViewModel())
         .modelContainer(for: [PlannedMeal.self, WeeklyMealPlan.self, MealPreset.self, DietaryProfile.self], inMemory: true)
 }

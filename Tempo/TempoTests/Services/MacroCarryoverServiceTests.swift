@@ -15,10 +15,12 @@
 //   3. SURPLUS — over-ate → never carried (only nudge up, never down).
 //   4. ZERO LOGS — preserved original behavior: skip, no row.
 //
-// The target for the closed-out day is the sum of that day's
-// PlannedMeal macros (NutritionTargetCalculator's plan branch), so the
-// tests set the target directly via planned-meal macros and keep the
-// arithmetic deterministic regardless of any DietaryProfile.
+// The target for the closed-out day is the sum of that day's plan
+// baselines (NutritionTargetCalculator's plan branch) and intake is the
+// canonical `.eaten` PlannedMeals — MealLog is no longer read. Each helper
+// meal is bound to an active plan with a planned allocation (`calories`)
+// and what was actually eaten (`ate`, defaults to the plan), so the
+// arithmetic stays deterministic regardless of any DietaryProfile.
 //
 
 import SwiftData
@@ -29,6 +31,7 @@ import XCTest
 final class MacroCarryoverServiceTests: XCTestCase {
     private var container: ModelContainer!
     private var context: ModelContext!
+    private var activePlan: WeeklyMealPlan!
 
     private let cal = Calendar.current
 
@@ -41,11 +44,18 @@ final class MacroCarryoverServiceTests: XCTestCase {
             configurations: config
         )
         context = container.mainContext
+        let today = cal.startOfDay(for: Date())
+        activePlan = WeeklyMealPlan(
+            startDate: cal.date(byAdding: .day, value: -3, to: today)!,
+            endDate: cal.date(byAdding: .day, value: 3, to: today)!
+        )
+        context.insert(activePlan)
     }
 
     override func tearDown() async throws {
         container = nil
         context = nil
+        activePlan = nil
         try await super.tearDown()
     }
 
@@ -55,7 +65,9 @@ final class MacroCarryoverServiceTests: XCTestCase {
         cal.date(byAdding: .day, value: -1, to: cal.startOfDay(for: Date()))!
     }
 
-    /// Insert a planned meal for `day` with the given macros + status.
+    /// Insert a plan-bound meal for `day`: the plan allocated `calories`
+    /// / `protein`; the user actually ate `ate` / `ateProtein` (default: as
+    /// planned) when `status == .eaten`.
     @discardableResult
     private func plan(
         day: Date,
@@ -63,9 +75,10 @@ final class MacroCarryoverServiceTests: XCTestCase {
         name: String,
         calories: Double,
         protein: Double = 0,
-        carbs: Double = 0,
-        fat: Double = 0,
-        status: MealStatus = .eaten
+        ate: Double? = nil,
+        ateProtein: Double? = nil,
+        status: MealStatus = .eaten,
+        in mealPlan: WeeklyMealPlan? = nil
     ) -> PlannedMeal {
         let meal = PlannedMeal(
             dayDate: day,
@@ -74,31 +87,20 @@ final class MacroCarryoverServiceTests: XCTestCase {
             scheduledTime: "08:00",
             totalCalories: calories,
             totalProtein: protein,
-            totalCarbs: carbs,
-            totalFat: fat
+            totalCarbs: 0,
+            totalFat: 0,
+            mealPlan: mealPlan ?? activePlan
         )
+        meal.capturePlanBaselineIfNeeded()
         meal.status = status
+        if let ate {
+            meal.totalCalories = ate
+        }
+        if let ateProtein {
+            meal.totalProtein = ateProtein
+        }
         context.insert(meal)
         return meal
-    }
-
-    /// Insert a MealLog for `day` with the given macros.
-    private func log(
-        day: Date,
-        calories: Double,
-        protein: Double = 0,
-        carbs: Double = 0,
-        fat: Double = 0
-    ) {
-        let entry = MealLog(
-            mealType: .lunch,
-            totalCalories: calories,
-            totalProtein: protein,
-            totalCarbs: carbs,
-            totalFat: fat,
-            dayDate: cal.startOfDay(for: day)
-        )
-        context.insert(entry)
     }
 
     private func activeRows() -> [MacroCarryover] {
@@ -107,14 +109,13 @@ final class MacroCarryoverServiceTests: XCTestCase {
 
     // MARK: - 1. Partial missed log → notify, carry nothing
 
-    func testPartialMissedLogFiresNotifierAndCarriesNothing() throws {
+    func testPartialMissedLogFiresNotifierAndCarriesNothing() {
         // Target = 2000 kcal across three meals. User "logged" only
         // breakfast (600), forgot lunch + dinner → intake 600 < 0.5×2000
         // = 1000, and lunch/dinner remain .planned.
         plan(day: yesterday, number: 1, name: "Breakfast", calories: 600, status: .eaten)
         plan(day: yesterday, number: 2, name: "Lunch", calories: 700, status: .planned)
         plan(day: yesterday, number: 3, name: "Dinner", calories: 700, status: .planned)
-        log(day: yesterday, calories: 600)
 
         var fired = false
         MacroCarryoverService.captureCarryoverIfNeeded(
@@ -122,8 +123,10 @@ final class MacroCarryoverServiceTests: XCTestCase {
         )
 
         XCTAssertTrue(fired, "Partial implausible log must fire the missed-log notifier")
-        XCTAssertTrue(activeRows().isEmpty,
-                      "A probable missed log must NOT create a refund row (no fake deficit)")
+        XCTAssertTrue(
+            activeRows().isEmpty,
+            "A probable missed log must NOT create a refund row (no fake deficit)"
+        )
     }
 
     // MARK: - 2. Real small deficit → capped single-day refund
@@ -132,9 +135,8 @@ final class MacroCarryoverServiceTests: XCTestCase {
         // Target 2000; all meals marked; logged 1700 → real 300 deficit.
         // No unmarked meal, intake 1700 > 1000 → not a missed log.
         plan(day: yesterday, number: 1, name: "Breakfast", calories: 700, status: .eaten)
-        plan(day: yesterday, number: 2, name: "Lunch", calories: 700, status: .eaten)
+        plan(day: yesterday, number: 2, name: "Lunch", calories: 700, ate: 400, status: .eaten)
         plan(day: yesterday, number: 3, name: "Dinner", calories: 600, status: .eaten)
-        log(day: yesterday, calories: 1700)
 
         var fired = false
         MacroCarryoverService.captureCarryoverIfNeeded(
@@ -146,8 +148,12 @@ final class MacroCarryoverServiceTests: XCTestCase {
         XCTAssertEqual(rows.count, 1, "A real deficit over threshold creates exactly one row")
         let row = try XCTUnwrap(rows.first)
         // 300 deficit > 150 cap → refund capped to 150.
-        XCTAssertEqual(row.calories, MacroCarryoverService.maxRefundCalories, accuracy: 0.5,
-                       "Refund must be capped at maxRefundCalories")
+        XCTAssertEqual(
+            row.calories,
+            MacroCarryoverService.maxRefundCalories,
+            accuracy: 0.5,
+            "Refund must be capped at maxRefundCalories"
+        )
         XCTAssertEqual(row.spreadDays, 1, "Refund lands on a single day")
         // perDay share == full delta at spreadDays 1.
         XCTAssertEqual(row.perDayCalories, row.calories, accuracy: 0.001)
@@ -161,55 +167,59 @@ final class MacroCarryoverServiceTests: XCTestCase {
         // SCALED path (the only calorie path that exists): a 300-kcal /
         // 30-g deficit caps calories to 150 (scale 0.5) and protein to 15.
         plan(day: yesterday, number: 1, name: "Breakfast", calories: 1000, protein: 60, status: .eaten)
-        plan(day: yesterday, number: 2, name: "Dinner", calories: 1000, protein: 60, status: .eaten)
+        plan(day: yesterday, number: 2, name: "Dinner", calories: 1000, protein: 60, ate: 700, ateProtein: 30, status: .eaten)
         // Target 2000 kcal / 120 P. Logged 1700 / 90 → deficit 300 / 30.
-        log(day: yesterday, calories: 1700, protein: 90)
 
         MacroCarryoverService.captureCarryoverIfNeeded(for: yesterday, in: context)
         let row = try XCTUnwrap(activeRows().first)
         // calorie deficit 300 capped to 150 → scale 0.5 → protein 30→15.
         let scale = MacroCarryoverService.maxRefundCalories / 300.0
         XCTAssertEqual(row.calories, 150, accuracy: 0.5)
-        XCTAssertEqual(row.protein, 30 * scale, accuracy: 0.5,
-                       "Macros scale by the same ratio as the capped calories")
+        XCTAssertEqual(
+            row.protein,
+            30 * scale,
+            accuracy: 0.5,
+            "Macros scale by the same ratio as the capped calories"
+        )
     }
 
     // MARK: - 3. Surplus → never carried
 
-    func testSurplusIsNeverCarried() throws {
+    func testSurplusIsNeverCarried() {
         // Target 2000; logged 2400 → 400 surplus. Must NOT create a row.
-        plan(day: yesterday, number: 1, name: "Breakfast", calories: 1000, status: .eaten)
-        plan(day: yesterday, number: 2, name: "Dinner", calories: 1000, status: .eaten)
-        log(day: yesterday, calories: 2400)
+        plan(day: yesterday, number: 1, name: "Breakfast", calories: 1000, ate: 1200, status: .eaten)
+        plan(day: yesterday, number: 2, name: "Dinner", calories: 1000, ate: 1200, status: .eaten)
 
         MacroCarryoverService.captureCarryoverIfNeeded(for: yesterday, in: context)
-        XCTAssertTrue(activeRows().isEmpty,
-                      "Over-eating is never subtracted from tomorrow (only nudge up)")
+        XCTAssertTrue(
+            activeRows().isEmpty,
+            "Over-eating is never subtracted from tomorrow (only nudge up)"
+        )
     }
 
     // MARK: - 4. Zero logs → preserved skip
 
-    func testZeroLogsSkipsAsBefore() throws {
+    func testZeroLogsSkipsAsBefore() {
         plan(day: yesterday, number: 1, name: "Breakfast", calories: 1000, status: .planned)
         plan(day: yesterday, number: 2, name: "Dinner", calories: 1000, status: .planned)
-        // No MealLog inserted.
 
         var fired = false
         MacroCarryoverService.captureCarryoverIfNeeded(
             for: yesterday, in: context, onMissedLog: { fired = true }
         )
         XCTAssertTrue(activeRows().isEmpty, "Zero-log day creates no row (preserved)")
-        XCTAssertFalse(fired,
-                       "Zero-log day is handled by the pre-existing empty-logs guard, not the missed-log notifier")
+        XCTAssertFalse(
+            fired,
+            "Zero-log day is handled by the pre-existing empty-logs guard, not the missed-log notifier"
+        )
     }
 
     // MARK: - 5. Sub-threshold deficit → no row
 
-    func testSubThresholdDeficitCreatesNoRow() throws {
+    func testSubThresholdDeficitCreatesNoRow() {
         // Target 2000; logged 1900 → 100 deficit < 200 threshold.
         plan(day: yesterday, number: 1, name: "Breakfast", calories: 1000, status: .eaten)
-        plan(day: yesterday, number: 2, name: "Dinner", calories: 1000, status: .eaten)
-        log(day: yesterday, calories: 1900)
+        plan(day: yesterday, number: 2, name: "Dinner", calories: 1000, ate: 900, status: .eaten)
 
         MacroCarryoverService.captureCarryoverIfNeeded(for: yesterday, in: context)
         XCTAssertTrue(activeRows().isEmpty, "A deficit below threshold is noise — no row")
@@ -217,10 +227,9 @@ final class MacroCarryoverServiceTests: XCTestCase {
 
     // MARK: - 6. Refund applies once then expires
 
-    func testRefundExpiresAfterOneTick() throws {
+    func testRefundExpiresAfterOneTick() {
         plan(day: yesterday, number: 1, name: "Breakfast", calories: 1000, status: .eaten)
-        plan(day: yesterday, number: 2, name: "Dinner", calories: 1000, status: .eaten)
-        log(day: yesterday, calories: 1700) // 300 deficit → capped row
+        plan(day: yesterday, number: 2, name: "Dinner", calories: 1000, ate: 700, status: .eaten)
 
         MacroCarryoverService.captureCarryoverIfNeeded(for: yesterday, in: context)
         // Today the refund is active.
@@ -234,27 +243,83 @@ final class MacroCarryoverServiceTests: XCTestCase {
         let today = cal.startOfDay(for: Date())
         MacroCarryoverService.captureCarryoverIfNeeded(for: today, in: context)
         let adjAfter = MacroCarryoverService.activeAdjustmentForToday(in: context)
-        XCTAssertFalse(adjAfter.hasActiveCarryover,
-                       "A single-day refund must expire after exactly one tick")
+        XCTAssertFalse(
+            adjAfter.hasActiveCarryover,
+            "A single-day refund must expire after exactly one tick"
+        )
     }
 
     // MARK: - 7. Not a missed log when intake is plausible despite unmarked meal
 
-    func testPlausibleIntakeWithUnmarkedMealIsNotMissedLog() throws {
+    func testPlausibleIntakeWithUnmarkedMealIsNotMissedLog() {
         // Target 2000; logged 1700 (> 1000 = 0.5×target) but dinner still
         // .planned. Plausible intake → NOT a missed log; treat as real
         // deficit and carry the capped refund.
         plan(day: yesterday, number: 1, name: "Breakfast", calories: 700, status: .eaten)
-        plan(day: yesterday, number: 2, name: "Lunch", calories: 700, status: .eaten)
+        plan(day: yesterday, number: 2, name: "Lunch", calories: 700, ate: 1000, status: .eaten)
         plan(day: yesterday, number: 3, name: "Dinner", calories: 600, status: .planned)
-        log(day: yesterday, calories: 1700)
 
         var fired = false
         MacroCarryoverService.captureCarryoverIfNeeded(
             for: yesterday, in: context, onMissedLog: { fired = true }
         )
-        XCTAssertFalse(fired,
-                       "Intake above the missed-log fraction is not a missed log even with an unmarked meal")
+        XCTAssertFalse(
+            fired,
+            "Intake above the missed-log fraction is not a missed log even with an unmarked meal"
+        )
         XCTAssertEqual(activeRows().count, 1, "Plausible real deficit still carries a capped refund")
+    }
+
+    // MARK: - 8. Mark-Eaten-only day (no MealLog at all) still carries
+
+    func testMarkEatenOnlyDayWithSkippedMealCarriesRefund() throws {
+        // The common path: Mark Eaten on breakfast, dinner skipped. Mark
+        // Eaten writes no MealLog — the old MealLog-summing capture saw
+        // "zero logs" and never carried. Canonical intake = 1000 of 2000.
+        plan(day: yesterday, number: 1, name: "Breakfast", calories: 1000, status: .eaten)
+        plan(day: yesterday, number: 2, name: "Dinner", calories: 1000, status: .skipped)
+
+        MacroCarryoverService.captureCarryoverIfNeeded(for: yesterday, in: context)
+        XCTAssertTrue((try? context.fetch(FetchDescriptor<MealLog>()))?.isEmpty ?? false)
+        let row = try XCTUnwrap(activeRows().first, "Canonical eaten PlannedMeals drive carryover")
+        XCTAssertEqual(row.calories, MacroCarryoverService.maxRefundCalories, accuracy: 0.5)
+    }
+
+    // MARK: - 9. Ad-hoc logs never raise the target they're measured against
+
+    func testUnplannedLogCountsAsIntakeNotTarget() {
+        // Plan 2000; ate breakfast as planned + a 300 kcal ad-hoc snack,
+        // skipped dinner → intake 1300, target stays 2000 → deficit 700.
+        plan(day: yesterday, number: 1, name: "Breakfast", calories: 1000, status: .eaten)
+        plan(day: yesterday, number: 2, name: "Dinner", calories: 1000, status: .skipped)
+        let snack = plan(day: yesterday, number: 4, name: "Snack", calories: 300, status: .eaten)
+        snack.markAsUnplannedLog()
+
+        MacroCarryoverService.captureCarryoverIfNeeded(for: yesterday, in: context)
+        XCTAssertEqual(activeRows().count, 1)
+    }
+
+    func testDayWithOnlyUnboundLogsHasNoTarget() {
+        // No plan covered the day — only manual logs. Nothing to compare to.
+        let meal = PlannedMeal(
+            dayDate: yesterday, mealNumber: 1, mealName: "Lunch", scheduledTime: "12:00",
+            totalCalories: 400, totalProtein: 20, totalCarbs: 40, totalFat: 10, status: .eaten
+        )
+        context.insert(meal)
+
+        MacroCarryoverService.captureCarryoverIfNeeded(for: yesterday, in: context)
+        XCTAssertTrue(activeRows().isEmpty)
+    }
+
+    func testInactivePlanMealsAreIgnored() {
+        // A superseded plan's rows for the same day must not count.
+        let oldPlan = WeeklyMealPlan(startDate: yesterday, endDate: yesterday, isActive: false)
+        context.insert(oldPlan)
+        plan(day: yesterday, number: 1, name: "Breakfast", calories: 1000, status: .eaten)
+        plan(day: yesterday, number: 2, name: "Dinner", calories: 1000, status: .eaten)
+        plan(day: yesterday, number: 3, name: "Old", calories: 2000, status: .planned, in: oldPlan)
+
+        MacroCarryoverService.captureCarryoverIfNeeded(for: yesterday, in: context)
+        XCTAssertTrue(activeRows().isEmpty, "Old-plan allocation must not inflate the target")
     }
 }

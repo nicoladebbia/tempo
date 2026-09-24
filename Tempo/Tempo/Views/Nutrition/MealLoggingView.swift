@@ -6,19 +6,31 @@
 //
 //
 
+import SwiftData
 import SwiftUI
 
 // MARK: - MealLoggingView
 
-// Full-screen modal for logging a meal.
+// Full-screen modal for logging a meal. Saves by itself through
+// EatenMealRecorder (the same write path as Quick Log), so every presenter —
+// Nutrition, Dashboard, Daily Summary, Lockdown — gets a real log without
+// wiring anything.
 // Per DESIGN_SYSTEM.md — all tokens, drill-sergeant voice, haptic feedback.
 
 struct MealLoggingView: View {
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.modelContext)
+    private var modelContext
+    @Environment(ServiceContainer.self)
+    private var services
 
     @State
-    private var selectedMealType: MealType = .breakfast
+    private var selectedMealType: MealType = .init(EatenMealRecorder.defaultMealType())
+    /// True between a successful save and the delayed dismiss, so a second
+    /// tap can't log the same meal twice.
+    @State
+    private var didLog = false
     @State
     var foodItems: [FoodItem] = []
     @State
@@ -48,6 +60,25 @@ struct MealLoggingView: View {
 
         var id: String {
             rawValue
+        }
+
+        init(_ type: Tempo.MealType) {
+            switch type {
+            case .breakfast: self = .breakfast
+            case .lunch: self = .lunch
+            case .dinner: self = .dinner
+            case .snack: self = .snack
+            }
+        }
+
+        /// The app-wide meal type this picker value logs as.
+        var appMealType: Tempo.MealType {
+            switch self {
+            case .breakfast: .breakfast
+            case .lunch: .lunch
+            case .dinner: .dinner
+            case .snack: .snack
+            }
         }
     }
 
@@ -329,7 +360,7 @@ struct MealLoggingView: View {
                 Text("Log Meal")
             }
             .buttonStyle(.tempoPrimary)
-            .disabled(foodItems.isEmpty)
+            .disabled(foodItems.isEmpty || didLog)
         }
         .padding(.horizontal, TempoSpacing.screenEdge)
         .padding(.top, TempoSpacing.md)
@@ -365,13 +396,32 @@ struct MealLoggingView: View {
     }
 
     private func logMeal() {
-        guard !foodItems.isEmpty else {
+        guard !foodItems.isEmpty, !didLog else {
             return
         }
+        let loggedCalories = totalCalories
+        do {
+            try EatenMealRecorder.record(
+                foodItems.map(\.mealFoodInput),
+                type: selectedMealType.appMealType,
+                eatenAt: Date(),
+                source: .manual,
+                modelContext: modelContext,
+                notifications: services.notifications
+            )
+        } catch {
+            HapticManager.notification(.error)
+            toast = ToastData(
+                message: "Couldn't save: \(error.localizedDescription)",
+                style: .error
+            )
+            return
+        }
+        didLog = true
         HapticManager.notification(.success)
         onMealLogged?(foodItems, selectedMealType)
         toast = ToastData(
-            message: "\(selectedMealType.rawValue) logged. \(totalCalories) kcal.",
+            message: "\(selectedMealType.rawValue) logged. \(loggedCalories) kcal.",
             style: .success
         )
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
@@ -405,6 +455,25 @@ struct FoodItem: Identifiable, Equatable {
 
     static func == (lhs: FoodItem, rhs: FoodItem) -> Bool {
         lhs.id == rhs.id
+    }
+
+    /// This item as one logged serving. `calories` and the macros already
+    /// cover the whole portion (servingQuantity × servingSize), so it's a
+    /// single serving of that portion; grams are best-effort for display.
+    var mealFoodInput: MealFoodItemInput {
+        MealFoodItemInput(
+            foodId: id.uuidString,
+            name: name,
+            brand: brand,
+            servings: 1,
+            servingSize: EatenMealRecorder.gramsFromServingSize(servingSize) * servingQuantity,
+            servingUnit: "g",
+            calories: Double(calories),
+            proteinGrams: protein,
+            carbsGrams: carbs,
+            fatGrams: fat,
+            source: .manual
+        )
     }
 }
 
@@ -444,6 +513,8 @@ enum ConfidenceLevel {
 
 #Preview {
     MealLoggingView()
+        .environment(ServiceContainer.mock())
+        .modelContainer(for: [PlannedMeal.self, WeeklyMealPlan.self, MealLog.self], inMemory: true)
 }
 
 #Preview("With Items") {
@@ -466,4 +537,6 @@ enum ConfidenceLevel {
             ),
         ]
     )
+    .environment(ServiceContainer.mock())
+    .modelContainer(for: [PlannedMeal.self, WeeklyMealPlan.self, MealLog.self], inMemory: true)
 }

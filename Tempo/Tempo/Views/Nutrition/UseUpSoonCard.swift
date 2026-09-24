@@ -4,7 +4,8 @@
 //
 // Pantry FIFO surface — shows up to 3 recipes that consume soon-to-expire
 // pantry items. Hidden when no items are within the 7-day urgency window
-// or no candidate recipes are available. Tapping a row opens the recipe.
+// or no candidate recipes are available. Tapping a row opens the recipe
+// (RecipeDetailLoader, same as the Recipes tab).
 //
 
 import SwiftData
@@ -27,8 +28,12 @@ struct UseUpSoonCard: View {
     private var expiryByName: [String: Int] {
         var map: [String: Int] = [:]
         for item in viewModel.pantryState.items where item.quantity > 0 {
-            guard let days = item.daysUntilUseBy, (0...7).contains(days) else { continue }
-            if let existing = map[item.canonicalName], existing <= days { continue }
+            guard let days = item.daysUntilUseBy, (0 ... 7).contains(days) else {
+                continue
+            }
+            if let existing = map[item.canonicalName], existing <= days {
+                continue
+            }
             map[item.canonicalName] = days
         }
         return map
@@ -59,7 +64,16 @@ struct UseUpSoonCard: View {
 
             VStack(spacing: TempoSpacing.sm) {
                 ForEach(urgentSuggestions, id: \.id) { suggestion in
-                    row(for: suggestion)
+                    // Opens the suggested recipe — the same detail screen the
+                    // Recipes tab pushes. Today is hosted in the Nutrition
+                    // tab's NavigationStack, so a plain link works here.
+                    NavigationLink {
+                        RecipeDetailLoader(recipeID: suggestion.recipeID, viewModel: viewModel)
+                    } label: {
+                        row(for: suggestion)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Opens the recipe")
                 }
             }
         }
@@ -79,7 +93,9 @@ struct UseUpSoonCard: View {
         // appears in the expiry map. Show up to 2 in the subtitle.
         let urgentIngredients: [(name: String, days: Int)] = suggestion.presentIngredients
             .compactMap { name -> (String, Int)? in
-                guard let d = expiryByName[name] else { return nil }
+                guard let d = expiryByName[name] else {
+                    return nil
+                }
                 return (name, d)
             }
             .sorted { $0.1 < $1.1 }
@@ -89,6 +105,7 @@ struct UseUpSoonCard: View {
                 Text(suggestion.recipeName)
                     .font(.tempoBody)
                     .foregroundStyle(Color.tempoTextPrimary)
+                    .multilineTextAlignment(.leading)
                 Spacer()
                 if let first = urgentIngredients.first {
                     Text(urgencyLabel(days: first.days))
@@ -101,32 +118,35 @@ struct UseUpSoonCard: View {
                         .foregroundStyle(urgencyChipColor(days: first.days))
                 }
             }
-            if !urgentIngredients.isEmpty {
-                Text("uses: \(urgentIngredients.prefix(2).map(\.name).joined(separator: ", "))")
-                    .font(.tempoCaption2)
+            HStack {
+                if !urgentIngredients.isEmpty {
+                    Text("uses: \(urgentIngredients.prefix(2).map(\.name).joined(separator: ", "))")
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Color.tempoTextTertiary)
             }
         }
         .padding(.vertical, 6)
         .contentShape(Rectangle())
-        // Note: tap action wires up to recipe detail once a navigation hook is wired
-        // from this view's host. v1 of the card is read-only — surfaces what's urgent
-        // so the user can act from Pantry or Recipes.
     }
 
     private func urgencyLabel(days: Int) -> String {
         switch days {
-        case 0: return "today"
-        case 1: return "1 day"
-        default: return "\(days) days"
+        case 0: "today"
+        case 1: "1 day"
+        default: "\(days) days"
         }
     }
 
     private func urgencyChipColor(days: Int) -> Color {
         switch days {
-        case 0...1: return Color.tempoError
-        case 2...3: return Color.tempoAmber
-        default: return Color.tempoTextSecondary
+        case 0 ... 1: Color.tempoError
+        case 2 ... 3: Color.tempoAmber
+        default: Color.tempoTextSecondary
         }
     }
 }
