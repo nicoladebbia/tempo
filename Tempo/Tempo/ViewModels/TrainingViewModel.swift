@@ -1082,6 +1082,11 @@ final class TrainingViewModel {
         weight: Double,
         reps: Int,
         addedLoadKg: Double? = nil,
+        // Fix #9 — non-nil only when the athlete opted into logging a
+        // per-side set's two sides separately (e.g. L 8 / R 7); nil (the
+        // default) means `reps` alone applies to both sides, unchanged.
+        leftReps: Int? = nil,
+        rightReps: Int? = nil,
         modelContext: ModelContext
     ) {
         guard let plan = todayPlan else {
@@ -1122,6 +1127,8 @@ final class TrainingViewModel {
         // passes bodyweight ± addedLoadKg); addedLoadKg records the signed input.
         set.actualWeight = weight
         set.actualReps = reps
+        set.actualRepsLeft = leftReps
+        set.actualRepsRight = rightReps
         set.addedLoadKg = addedLoadKg
         set.completed = true
         set.completedAt = Date()
@@ -1771,12 +1778,11 @@ final class TrainingViewModel {
             guard !completedSets.isEmpty else {
                 return nil
             }
-            let totalVolume = completedSets.reduce(0.0) { acc, set in
-                guard let w = set.actualWeight, let r = set.actualReps else {
-                    return acc
-                }
-                return acc + (w * Double(r))
-            }
+            // Fix #9 — `PlannedSet.volume` covers a per-side set's both-sides
+            // tonnage (or sums a logged L/R split); this is the single write
+            // path for `ExerciseHistory.totalVolume`, which every progress
+            // chart/dashboard/monthly-review tonnage reader sums from.
+            let totalVolume = completedSets.reduce(0.0) { $0 + ($1.volume ?? 0) }
             // §6.4 — a drop step is a reduced-weight backoff, never the
             // session's "best" set; volume/set-count above still count it
             // (the work was performed), but the history's headline

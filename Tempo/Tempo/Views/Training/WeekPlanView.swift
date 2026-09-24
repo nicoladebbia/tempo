@@ -307,13 +307,17 @@ struct WeekPlanView: View {
             return plan.totalVolume
         }
         return (plan.exercises ?? []).reduce(0) { total, ex in
-            total + (ex.sets ?? []).reduce(0) { setTotal, set in
+            // Fix #9 — a per-side exercise's prescribed reps are single-side;
+            // the previewed tonnage must cover both sides, same as a logged
+            // per-side set's real `volume` does.
+            let sideMultiplier: Double = ex.perSide ? 2 : 1
+            return total + (ex.sets ?? []).reduce(0) { setTotal, set in
                 guard !set.isWarmup else {
                     return setTotal
                 }
                 let weight = set.actualWeight ?? set.targetWeight ?? 0
                 let reps = set.actualReps ?? set.targetReps
-                return setTotal + (weight * Double(reps))
+                return setTotal + (weight * Double(reps) * sideMultiplier)
             }
         }
     }

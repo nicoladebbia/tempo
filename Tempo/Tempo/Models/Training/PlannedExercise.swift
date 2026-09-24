@@ -46,6 +46,16 @@ final class PlannedExercise {
     /// Tempo's automatic adjustment. Defaulted → SwiftData auto-migrates.
     var trainerOverrideApplied: Bool = false
 
+    /// Fix #9 — true when every set is worked ONE SIDE AT A TIME (e.g. "SA DB
+    /// Row 3x8 each", "SL RDL 3x6/side"): `PlannedSet.actualReps`/`targetReps`
+    /// are the SINGLE-side rep count, and true tonnage covers both sides (see
+    /// `PlannedSet.volume`). Set from `ProgramExercise.perSide` on import
+    /// (`TrainingViewModel.populateFromTrainerProgram`); false for every
+    /// generated/routine/CSV-imported slot — Tempo has no unilateral-only
+    /// metadata on `Exercise` itself to infer it from otherwise. Defaulted →
+    /// SwiftData auto-migrates.
+    var perSide: Bool = false
+
     /// Exercise name captured when this slot was created. `Exercise.
     /// plannedExercises` is `.nullify` (§10.6) — deleting a custom exercise
     /// detaches `exercise` instead of deleting this row, so a past session's
@@ -124,16 +134,13 @@ final class PlannedExercise {
         // Working sets only — warmup ramp sets are not "volume". (Without this
         // filter, every compound after the first inflates its volume, since
         // its warmup sets flow through logSet as completed sets.)
-        (sets ?? []).reduce(0) { total, set in
-            guard !set.isWarmup,
-                  set.completed,
-                  let w = set.actualWeight,
-                  let r = set.actualReps
-            else {
-                return total
-            }
-            return total + (w * Double(r))
-        }
+        // Fix #9 — delegates to `PlannedSet.volume`, which already doubles a
+        // per-side set's tonnage (or sums a logged L/R split) via this same
+        // exercise's `perSide` flag, so this and `WorkoutPlan.totalVolume`
+        // (which sums this property) can never drift out of sync with it.
+        (sets ?? [])
+            .filter { !$0.isWarmup }
+            .reduce(0) { $0 + ($1.volume ?? 0) }
     }
 
     // MARK: - Init

@@ -73,6 +73,16 @@ final class PlannedSet {
     /// Optional → lightweight SwiftData migration (nil on existing rows).
     var dropStepIndex: Int?
 
+    /// Fix #9 — optional per-side split: when the athlete logs left and right
+    /// reps separately on a `PlannedExercise.perSide` set (e.g. L 8 / R 7),
+    /// these hold each side's actual reps and `volume` sums them instead of
+    /// assuming both sides matched `actualReps`. nil/nil (the default) means
+    /// one entry applies to both sides — `actualReps` alone still drives
+    /// display, e1RM and PR detection either way. Optional → lightweight
+    /// SwiftData migration (nil on existing rows and every non-split set).
+    var actualRepsLeft: Int?
+    var actualRepsRight: Int?
+
     // MARK: - Relationships
 
     @Relationship(deleteRule: .nullify)
@@ -80,14 +90,34 @@ final class PlannedSet {
 
     // MARK: - Computed
 
+    /// Fix #9 — a per-side set's tonnage covers BOTH sides: `actualReps` is
+    /// the single-side rep count the athlete logged, so the true volume is
+    /// double it, unless a L/R split (`actualRepsLeft`/`actualRepsRight`) was
+    /// logged, in which case their sum is exact (no assumption both sides
+    /// matched). Every volume/tonnage reader (weekly volume, WorkoutPlan/
+    /// PlannedExercise.totalVolume, Dashboard Move quadrant, MonthlyReview
+    /// tonnage) reads this one property, so the doubling lives in exactly one
+    /// place.
     @Transient
     var volume: Double? {
         guard completed, let w = actualWeight, let r = actualReps else {
             return nil
         }
-        return w * Double(r)
+        guard plannedExercise?.perSide == true else {
+            return w * Double(r)
+        }
+        if let left = actualRepsLeft, let right = actualRepsRight {
+            return w * Double(left + right)
+        }
+        return w * Double(r) * 2
     }
 
+    /// Fix #9 — deliberately NOT doubled for a per-side set: `actualReps` is
+    /// already the single-side rep count the trainer prescribed and the
+    /// athlete logged (`programWeightKg`/`prescribedSets` never double it),
+    /// so the Epley e1RM/PR math below is correct as-is. Only `volume` (both
+    /// sides worked) needs the ×2 — a per-side lift's e1RM is a single-arm/
+    /// leg max, not a two-limbs-at-once one.
     @Transient
     var estimated1RM: Double? {
         // A drop step is a reduced-weight backoff, never a max-effort signal —
@@ -134,6 +164,8 @@ final class PlannedSet {
         isCalibration: Bool = false,
         addedLoadKg: Double? = nil,
         dropStepIndex: Int? = nil,
+        actualRepsLeft: Int? = nil,
+        actualRepsRight: Int? = nil,
         plannedExercise: PlannedExercise? = nil
     ) {
         self.id = id
@@ -142,6 +174,8 @@ final class PlannedSet {
         self.targetWeight = targetWeight
         self.targetRIR = targetRIR
         self.actualReps = actualReps
+        self.actualRepsLeft = actualRepsLeft
+        self.actualRepsRight = actualRepsRight
         self.actualWeight = actualWeight
         self.rpe = rpe
         self.completed = completed
@@ -171,6 +205,8 @@ extension PlannedSet {
         let is_warmup: Bool
         let added_load_kg: Double?
         let drop_step_index: Int?
+        let actual_reps_left: Int?
+        let actual_reps_right: Int?
     }
 
     func toDTO() -> DTO {
@@ -187,7 +223,9 @@ extension PlannedSet {
             completed_at: completedAt,
             is_warmup: isWarmup,
             added_load_kg: addedLoadKg,
-            drop_step_index: dropStepIndex
+            drop_step_index: dropStepIndex,
+            actual_reps_left: actualRepsLeft,
+            actual_reps_right: actualRepsRight
         )
     }
 }

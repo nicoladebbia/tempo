@@ -272,6 +272,49 @@ final class TrainingViewModelActiveSessionTests: XCTestCase {
         XCTAssertEqual(vm.sessionState, .exercise(.setActive(exerciseIndex: 0, setIndex: 0)), "Cursor must not advance on a no-op")
     }
 
+    // MARK: - Fix #9 — logSet records an optional L/R split
+
+    func testLogSetRecordsOptionalLeftRightSplit() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedSingleExercisePlan(context: context, workingSetCount: 1)
+        plan.orderedExercises[0].perSide = true
+        try context.save()
+
+        vm.todayPlan = plan
+        vm.currentExerciseIndex = 0
+        vm.currentSetIndex = 0
+        vm.sessionState = .exercise(.setActive(exerciseIndex: 0, setIndex: 0))
+
+        vm.logSet(weight: 20, reps: 8, leftReps: 8, rightReps: 7, modelContext: context)
+
+        let set = plan.orderedExercises[0].orderedSets[0]
+        XCTAssertEqual(set.actualReps, 8, "the shared/canonical reps entry is unaffected by the split")
+        XCTAssertEqual(set.actualRepsLeft, 8)
+        XCTAssertEqual(set.actualRepsRight, 7)
+        XCTAssertEqual(set.volume, 300, "20kg x (8+7) — the split sum, not 20 x 8 x 2")
+    }
+
+    func testLogSetWithoutASplitLeavesLeftRightNil() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedSingleExercisePlan(context: context, workingSetCount: 1)
+        plan.orderedExercises[0].perSide = true
+        try context.save()
+
+        vm.todayPlan = plan
+        vm.currentExerciseIndex = 0
+        vm.currentSetIndex = 0
+        vm.sessionState = .exercise(.setActive(exerciseIndex: 0, setIndex: 0))
+
+        vm.logSet(weight: 20, reps: 8, modelContext: context)
+
+        let set = plan.orderedExercises[0].orderedSets[0]
+        XCTAssertNil(set.actualRepsLeft)
+        XCTAssertNil(set.actualRepsRight)
+        XCTAssertEqual(set.volume, 320, "no split logged — both sides assumed to match actualReps")
+    }
+
     // MARK: - §11 — applyWatchSetLog routes through logSet on a live match
 
     func testApplyWatchSetLogRoutesThroughLogSetWhenPhoneIsLiveOnTheExactSet() throws {

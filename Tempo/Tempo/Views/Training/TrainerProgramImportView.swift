@@ -528,7 +528,9 @@ struct TrainerProgramImportView: View {
                             ),
                             ProgramExercise(
                                 name: "SA Incline DB Chest Press", exerciseID: nil, sets: 3, repsLow: 8, repsHigh: nil,
-                                weightKg: nil, rpe: nil, percentOf1RM: 0.7, restSeconds: 60, group: 1, notes: nil
+                                weightKg: nil, rpe: nil, percentOf1RM: 0.7, restSeconds: 60, group: 1, notes: nil,
+                                // Fix #9 — single-arm, same as the sample's SA DB Row.
+                                detail: nil, perSide: true
                             ),
                             ProgramExercise(
                                 name: "KT Lat Step Up", exerciseID: nil, sets: 3, repsLow: 8, repsHigh: nil,
@@ -551,7 +553,9 @@ struct TrainerProgramImportView: View {
                             ProgramExercise(
                                 name: "SA DB Row", exerciseID: nil, sets: 3, repsLow: 8, repsHigh: nil,
                                 weightKg: nil, rpe: nil, percentOf1RM: 0.7, restSeconds: 60, group: 1,
-                                notes: "On SL RDL position"
+                                notes: "On SL RDL position",
+                                // Fix #9 — single-arm row, per side (the sample's demo case).
+                                detail: nil, perSide: true
                             ),
                         ],
                         notes: nil,

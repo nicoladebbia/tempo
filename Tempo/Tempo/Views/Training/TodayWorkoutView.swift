@@ -1193,9 +1193,8 @@ struct TodayWorkoutView: View {
             if let firstSet = orderedSets.first {
                 HStack(spacing: TempoSpacing.xxs) {
                     Text(prescriptionText(
-                        sets: orderedSets,
-                        firstSet: firstSet,
-                        isTrainerDay: plannedExercise.workoutPlan?.programSessionKey != nil
+                        sets: orderedSets, firstSet: firstSet,
+                        isTrainerDay: plannedExercise.workoutPlan?.programSessionKey != nil, perSide: plannedExercise.perSide
                     ))
                     .font(.tempoBody)
                     .foregroundStyle(Color.tempoTextSecondary)
@@ -1810,12 +1809,13 @@ struct TodayWorkoutView: View {
         return max(20, Int(totalMinutes.rounded()))
     }
 
-    private func prescriptionText(sets: [PlannedSet], firstSet: PlannedSet, isTrainerDay: Bool = false) -> String {
+    private func prescriptionText(sets: [PlannedSet], firstSet: PlannedSet, isTrainerDay: Bool = false, perSide: Bool = false) -> String {
         let workingSets = sets.filter { !$0.isWarmup }
         let warmupSets = sets.filter(\.isWarmup)
         let setCount = workingSets.count
         let leadSet = workingSets.first ?? firstSet
-        let reps = leadSet.targetReps
+        // Fix #9 — "8" vs "8 / side" for a unilateral trainer prescription.
+        let reps = SideRepsFormat.reps(leadSet.targetReps, perSide: perSide)
         let unit = settings?.weightUnit ?? .kg
 
         var text: String
