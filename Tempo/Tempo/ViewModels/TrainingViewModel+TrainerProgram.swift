@@ -144,8 +144,11 @@ extension TrainingViewModel {
             let slot = PlannedExercise(order: order, workoutPlan: plan, exercise: exercise)
             slot.supersetGroup = item.group
             slot.restSecondsOverride = item.restSeconds
-            slot.programNote = [item.perSide == true ? "\(item.targetReps) per side" : nil, item.notes]
-                .compactMap(\.self).joined(separator: " · ").nilIfEmpty
+            // Fix #9 — a real flag, not just baked-in note text: drives the
+            // "/ side" reps copy and the ×2 volume rule everywhere a set's
+            // tonnage is read (see PlannedSet.volume).
+            slot.perSide = item.perSide == true
+            slot.programNote = item.notes?.nilIfEmpty
 
             // §5 — a % with no reliable e1RM (or an isolation/machine lift) is
             // read as EFFORT, not a weight guess: no fixed weight, a
