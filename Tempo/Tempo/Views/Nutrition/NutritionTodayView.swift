@@ -49,6 +49,9 @@ struct NutritionTodayView: View {
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: TempoSpacing.xl) {
+                if viewModel.isPlanOutOfDate {
+                    planOutOfDateBanner
+                }
                 if let banner = viewModel.lastRedistributionBanner {
                     redistributionBanner(banner)
                 }
@@ -298,6 +301,15 @@ struct NutritionTodayView: View {
                     .font(.tempoCaption1)
                     .foregroundStyle(Color.tempoError)
             }
+
+            // Why today's target isn't the plain plan number — rest day,
+            // recovery, or yesterday's refund. Same target the Dashboard shows.
+            if let note = viewModel.todayTargetNote {
+                Label(note, systemImage: "slider.horizontal.3")
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                    .accessibilityLabel("Target adjusted: \(note)")
+            }
         }
         .tempoCard()
     }
@@ -434,6 +446,46 @@ struct NutritionTodayView: View {
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
     }
 
+    /// Shown when the plan was built from training / diet-profile settings
+    /// that have since changed and the automatic regenerate didn't land
+    /// (offline, backend error) — or while it's running.
+    private var planOutOfDateBanner: some View {
+        HStack(alignment: .center, spacing: TempoSpacing.sm) {
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Color.tempoAmber)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Plan out of date")
+                    .font(.tempoCaption1)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                Text("Your training or diet settings changed.")
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextSecondary)
+            }
+            Spacer()
+            Button {
+                HapticManager.lightImpact()
+                viewModel.generatePlan(
+                    modelContext: modelContext,
+                    whoop: services.whoop,
+                    apiClient: services.apiClient,
+                    notifications: services.notifications
+                )
+            } label: {
+                Text(viewModel.isGeneratingPlan ? "Regenerating…" : "Regenerate")
+                    .font(.tempoCaption1)
+                    .fontWeight(.semibold)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Color.tempoSignal)
+            .disabled(viewModel.isGeneratingPlan)
+        }
+        .padding(TempoSpacing.md)
+        .background(Color.tempoAmber.opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+    }
+
     private var emptyMealsState: some View {
         VStack(spacing: TempoSpacing.md) {
             Image(systemName: "tray")
@@ -546,7 +598,12 @@ struct NutritionTodayView: View {
         let nl = NaturalLanguageLoggingService(apiClient: services.apiClient)
         do {
             let items = try await nl.parseNaturalLanguage(note)
-            guard !items.isEmpty else { return }
+            guard !items.isEmpty else {
+                return
+            }
+            // The substitute replaces what was eaten, not what the plan asked
+            // for — keep the plan's allocation for the daily target.
+            meal.capturePlanBaselineIfNeeded()
             meal.foods = items.map {
                 PlannedFood(
                     name: $0.name, quantityGrams: $0.quantityGrams,
@@ -578,7 +635,6 @@ struct NutritionTodayView: View {
             // the user can retry. The Today row keeps its planned state.
         }
     }
-
 }
 
 // MARK: - Preview
