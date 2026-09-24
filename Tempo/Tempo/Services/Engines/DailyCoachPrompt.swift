@@ -25,10 +25,14 @@ enum DailyCoachPrompt {
     static let exemplarGreen = #"{"modality":"push","intensity":"hard","durationMin":65,"blocks":[{"kind":"gym","label":"Push — chest/shoulders/triceps","split":"push","cue":"Full range, control the eccentric."}],"shortWhy":"Green. Physique block — earn the volume.","expectedSessionRPE":8}"#
 
     /// Recovery day, red recovery — picks rest UNAIDED.
-    static let exemplarRecovery = #"{"modality":"rest","intensity":"recovery","durationMin":20,"blocks":[{"kind":"mobility","label":"Mobility + walk","cue":"Easy. Nasal breathing only."}],"shortWhy":"Recovery red. You recover today — non-negotiable.","fullWhy":"HRV suppressed, RHR up, recovery in the red. Loading now buys injury, not progress.","expectedSessionRPE":2}"#
+    static let exemplarRecovery =
+        #"{"modality":"rest","intensity":"recovery","durationMin":20,"blocks":[{"kind":"mobility","label":"Mobility + walk","cue":"Easy. Nasal breathing only."}],"#
+            + #""shortWhy":"Recovery red. You recover today — non-negotiable.","fullWhy":"HRV suppressed, RHR up, recovery in the red. Loading now buys injury, not progress.","expectedSessionRPE":2}"#
 
     /// Pre-match day (match tomorrow), soccer-emphasis — sharp but NOT heavy legs.
-    static let exemplarPreMatch = #"{"modality":"field","intensity":"easy","durationMin":35,"blocks":[{"kind":"field","label":"Activation + short sprints","reps":6,"distanceM":20,"restSec":90,"intensityPct":70,"cue":"Crisp, not maximal. Stay fresh for tomorrow."}],"shortWhy":"Match tomorrow. Prime the legs, don't drain them.","expectedSessionRPE":4}"#
+    static let exemplarPreMatch =
+        #"{"modality":"field","intensity":"easy","durationMin":35,"blocks":[{"kind":"field","label":"Activation + short sprints","reps":6,"distanceM":20,"restSec":90,"#
+            + #""intensityPct":70,"cue":"Crisp, not maximal. Stay fresh for tomorrow."}],"shortWhy":"Match tomorrow. Prime the legs, don't drain them.","expectedSessionRPE":4}"#
 
     // MARK: - System prompt
 
@@ -135,6 +139,24 @@ enum DailyCoachPrompt {
 
     // MARK: - User message (the serialized picture)
 
+    /// HRV / RHR / resp / skin-temp / SpO2 / ACWR lines — only once the
+    /// baseline is mature; before that, an explicit "trends building" line.
+    private static func baselineTrendLines(for p: ReadinessPicture) -> [String] {
+        guard p.hasBaselineForBrain else {
+            return ["- TRENDS BUILDING (day \(p.historyDayCount)/\(ReadinessPicture.minBrainHistoryDays)) — do NOT claim trend-based reasoning yet; use recovery score + sleep only."]
+        }
+        var lines: [String] = []
+        if let z = p.hrvZScore {
+            lines.append("- HRV: z=\(fmt(z)) vs 30d baseline (\(p.hrvTrend7d.rawValue) over 7d)")
+        }
+        if let d = p.rhrDeltaBpm { lines.append("- Resting HR: \(fmt(d)) bpm vs baseline") }
+        if let rd = p.respDeltaBrMin { lines.append("- Respiratory rate: \(fmt(rd)) br/min vs baseline") }
+        if let td = p.skinTempDeltaC, abs(td) >= 0.5 { lines.append("- Skin temp: \(fmt(td))°C vs baseline\(td >= 1.0 ? " — illness watch" : "")") }
+        if let ox = p.spo2, ox < 95 { lines.append("- Blood oxygen: \(Int(ox))% — below normal") }
+        if let acwr = p.acuteChronicStrainRatio { lines.append("- Acute:chronic strain: \(fmt(acwr))") }
+        return lines
+    }
+
     /// - Parameters:
     ///   - plannedModality: today's WorkoutPlan modality (the weekly planner's
     ///     choice — §8: weekly OWNS the modality-default). The brain KEEPS this
@@ -153,20 +175,11 @@ enum DailyCoachPrompt {
                             secondaryWindows: (Int, Int)? = nil) -> String {
         var lines: [String] = []
         lines.append("TODAY'S BODY DATA:")
-        lines.append("- Recovery score: \(Int(p.recoveryScore))/100")
+        lines.append(p.hasRecoveryScore
+            ? "- Recovery score: \(Int(p.recoveryScore))/100"
+            : "- Recovery score: not synced today — judge from the other signals, don't assume red.")
 
-        if p.hasBaselineForBrain {
-            if let z = p.hrvZScore {
-                lines.append("- HRV: z=\(fmt(z)) vs 30d baseline (\(p.hrvTrend7d.rawValue) over 7d)")
-            }
-            if let d = p.rhrDeltaBpm { lines.append("- Resting HR: \(fmt(d)) bpm vs baseline") }
-            if let rd = p.respDeltaBrMin { lines.append("- Respiratory rate: \(fmt(rd)) br/min vs baseline") }
-            if let td = p.skinTempDeltaC, abs(td) >= 0.5 { lines.append("- Skin temp: \(fmt(td))°C vs baseline\(td >= 1.0 ? " — illness watch" : "")") }
-            if let ox = p.spo2, ox < 95 { lines.append("- Blood oxygen: \(Int(ox))% — below normal") }
-            if let acwr = p.acuteChronicStrainRatio { lines.append("- Acute:chronic strain: \(fmt(acwr))") }
-        } else {
-            lines.append("- TRENDS BUILDING (day \(p.historyDayCount)/\(ReadinessPicture.minBrainHistoryDays)) — do NOT claim trend-based reasoning yet; use recovery score + sleep only.")
-        }
+        lines += baselineTrendLines(for: p)
 
         if let debt = p.sleepDebt { lines.append("- Sleep debt: \(fmt(debt))h") }
         if let sh = p.sleepHours { lines.append("- Slept: \(fmt(sh))h") }
@@ -189,7 +202,6 @@ enum DailyCoachPrompt {
             // No Whoop activity row, but the user still rated the session.
             lines.append("- Yesterday: session felt RPE \(rpe)/10 (user-reported).")
         }
-
 
         if let ci = p.checkIn {
             var parts: [String] = []

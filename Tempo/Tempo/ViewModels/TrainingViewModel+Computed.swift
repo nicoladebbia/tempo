@@ -186,6 +186,31 @@ extension TrainingViewModel {
         return plan.type == .rest || plan.type == .mobility
     }
 
+    /// The Today screen's coarse day state — the single source the view
+    /// branches on. `isRestDay` reads TRUE for both "no plan generated yet"
+    /// and "a real rest/mobility day"; branching directly on it (as
+    /// TodayWorkoutView used to) checked it BEFORE `todayPlan == nil`, which
+    /// made the empty state ("Generate Today's Workout") permanently
+    /// unreachable — first launch / no data silently rendered as a rest day
+    /// instead of offering a way out. `noPlan` must be distinguished and
+    /// checked first.
+    enum TodayDisplayState: Equatable {
+        case noPlan
+        case restDay
+        case gym
+        case nonGym
+    }
+
+    var todayDisplayState: TodayDisplayState {
+        guard let plan = todayPlan else {
+            return .noPlan
+        }
+        if plan.type == .rest || plan.type == .mobility {
+            return .restDay
+        }
+        return plan.type.isGymWorkout ? .gym : .nonGym
+    }
+
     /// Whether today's plan is a loggable gym session — the ONLY case where a
     /// "Start Workout" button makes sense. Non-gym days (football, run, sprint,
     /// conditioning, mobility, rest) have no exercises to log, so the button is
@@ -223,12 +248,13 @@ extension TrainingViewModel {
         guard currentSetIndex < sets.count else {
             return sets.last?.targetWeight
         }
-        // Carry from the most recent WORKING set (skip ramps) so the first
-        // working set pre-fills the working weight, not the 75% ramp. Fall back
-        // to the current set's own target if no prior working set exists.
+        // Carry from the most recent WORKING set (skip ramps and drop steps) so
+        // the next working set pre-fills the working weight, not the 75% ramp
+        // or a ~80% drop. Fall back to the current set's own target if no
+        // prior working set exists.
         for i in stride(from: currentSetIndex - 1, through: 0, by: -1) {
             let prev = sets[i]
-            if !prev.isWarmup {
+            if !prev.isWarmup, !prev.isDropStep {
                 return prev.actualWeight ?? prev.targetWeight
             }
         }

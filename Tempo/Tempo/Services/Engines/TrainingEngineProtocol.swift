@@ -25,6 +25,8 @@ struct ProgressionDecision: Equatable, Sendable {
     let rationale: ProgressionReason
 }
 
+// MARK: - ProgressionReason
+
 /// Why the progression engine made its call. Drives the user-facing "why"
 /// copy and is the assertion surface for the Phase-1 tests.
 enum ProgressionReason: String, Equatable, Sendable, Codable {
@@ -47,6 +49,8 @@ enum ProgressionReason: String, Equatable, Sendable, Codable {
     /// waved down 8% to rebuild.
     case plateauReset
 }
+
+// MARK: - TrainingEngineProtocol
 
 protocol TrainingEngineProtocol: Sendable {
     /// Single-day fallback generator (used only when the week plan produced
@@ -75,7 +79,8 @@ protocol TrainingEngineProtocol: Sendable {
     func detectPersonalRecord(
         exercise: Exercise,
         weight: Double,
-        reps: Int
+        reps: Int,
+        workoutPlanID: UUID?
     ) -> PersonalRecord?
 
     /// Generates a week's worth of WorkoutPlans starting Monday.

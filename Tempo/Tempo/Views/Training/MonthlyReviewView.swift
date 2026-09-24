@@ -19,18 +19,29 @@ import SwiftUI
 struct MonthlyReviewView: View {
     let monthKey: String
     var viewModel: TrainingViewModel
-    @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext)
+    private var modelContext
+    @Environment(\.dismiss)
+    private var dismiss
 
-    @State private var wentWell = ""
-    @State private var struggles = ""
-    @State private var niggles = ""
-    @State private var subjectiveProgress = ""
-    @State private var goalsNextMonth = ""
-    @State private var chosenEmphasis: BlockEmphasis?
-    @State private var isGenerating = false
-    @State private var summaryText: String?
-    @State private var generationFailed = false
+    @State
+    private var wentWell = ""
+    @State
+    private var struggles = ""
+    @State
+    private var niggles = ""
+    @State
+    private var subjectiveProgress = ""
+    @State
+    private var goalsNextMonth = ""
+    @State
+    private var chosenEmphasis: BlockEmphasis?
+    @State
+    private var isGenerating = false
+    @State
+    private var summaryText: String?
+    @State
+    private var generationFailed = false
 
     var body: some View {
         NavigationStack {
@@ -67,16 +78,31 @@ struct MonthlyReviewView: View {
                 .font(.tempoCaption2)
                 .foregroundStyle(Color.tempoTextTertiary)
 
-            question("What went well?", text: $wentWell,
-                     placeholder: "Streaks, sessions that clicked, habits that held…")
-            question("What did you skip — and why?", text: $struggles,
-                     placeholder: "The honest version. PS5 nights count.")
-            question("Injuries or niggles?", text: $niggles,
-                     placeholder: "Anything next month's plan should route around.")
-            question("Feel different?", text: $subjectiveProgress,
-                     placeholder: "Faster, stronger, leaner — what no sensor sees.")
-            question("Goals for next month?", text: $goalsNextMonth,
-                     placeholder: "Concrete beats vague.")
+            question(
+                "What went well?",
+                text: $wentWell,
+                placeholder: "Streaks, sessions that clicked, habits that held…"
+            )
+            question(
+                "What did you skip — and why?",
+                text: $struggles,
+                placeholder: "The honest version. PS5 nights count."
+            )
+            question(
+                "Injuries or niggles?",
+                text: $niggles,
+                placeholder: "Anything next month's plan should route around."
+            )
+            question(
+                "Feel different?",
+                text: $subjectiveProgress,
+                placeholder: "Faster, stronger, leaner — what no sensor sees."
+            )
+            question(
+                "Goals for next month?",
+                text: $goalsNextMonth,
+                placeholder: "Concrete beats vague."
+            )
 
             VStack(alignment: .leading, spacing: TempoSpacing.sm) {
                 Text("Next month's emphasis")
@@ -164,7 +190,9 @@ struct MonthlyReviewView: View {
     // MARK: - Actions
 
     private func seedFromExisting() {
-        guard let review = viewModel.fetchMonthlyReview(monthKey: monthKey, modelContext: modelContext) else { return }
+        guard let review = viewModel.fetchMonthlyReview(monthKey: monthKey, modelContext: modelContext) else {
+            return
+        }
         wentWell = review.wentWell ?? ""
         struggles = review.struggles ?? ""
         niggles = review.niggles ?? ""
@@ -186,7 +214,7 @@ struct MonthlyReviewView: View {
         review.subjectiveProgress = blankToNil(subjectiveProgress)
         review.goalsNextMonth = blankToNil(goalsNextMonth)
         review.chosenEmphasis = chosenEmphasis
-        try? modelContext.save()
+        modelContext.saveOrAlert("monthly review")
 
         viewModel.applyMonthlyEmphasisChoice(review, modelContext: modelContext)
 
@@ -203,7 +231,9 @@ struct MonthlyReviewView: View {
     }
 
     private var monthDisplayName: String {
-        guard let interval = MonthlyReviewSchedule.monthInterval(forKey: monthKey) else { return monthKey }
+        guard let interval = MonthlyReviewSchedule.monthInterval(forKey: monthKey) else {
+            return monthKey
+        }
         return interval.start.formatted(.dateTime.month(.wide).year())
     }
 }

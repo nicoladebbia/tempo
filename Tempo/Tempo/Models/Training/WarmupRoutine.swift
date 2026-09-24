@@ -145,7 +145,8 @@ struct WarmupRoutine {
                     cue: "Ribs down, don't let your lower back arch off the wall."
                 ),
             ]
-        case .legs, .lower:
+        case .legs,
+             .lower:
             title = "Leg Warm-Up"
             specific = [
                 WarmupMove(
@@ -279,7 +280,7 @@ struct WarmupRoutine {
     ]
 }
 
-// MARK: - MobilityFlow (§10 mobility / rest-day flows)
+// MARK: - MobilityFlow
 
 /// A standalone guided mobility flow for rest and mobility days. Reuses
 /// `WarmupMove` (same player mechanics: timed moves auto-advance, rep-based

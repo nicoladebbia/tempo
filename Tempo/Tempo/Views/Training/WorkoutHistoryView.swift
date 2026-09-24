@@ -38,6 +38,12 @@ struct WorkoutHistoryView: View {
     @Query
     private var allPRs: [PersonalRecord]
 
+    /// §13 — measurement-spine prediction ledger; a deleted workout's rows
+    /// must go with it or they're orphaned forever (Step 2's accuracy metric
+    /// would keep scoring a session that no longer exists).
+    @Query
+    private var allPredictionLogs: [PredictionLog]
+
     @Query
     private var allActivitySessions: [ActivitySession]
 
@@ -58,7 +64,7 @@ struct WorkoutHistoryView: View {
     @State
     private var pendingDelete: WorkoutPlan?
 
-    // §20 — CSV import/export.
+    /// §20 — CSV import/export.
     @State
     private var showCSVImporter = false
     @State
@@ -131,7 +137,11 @@ struct WorkoutHistoryView: View {
         .sheet(
             isPresented: Binding(
                 get: { exportFileURL != nil },
-                set: { if !$0 { exportFileURL = nil } }
+                set: {
+                    if !$0 {
+                        exportFileURL = nil
+                    }
+                }
             )
         ) {
             if let url = exportFileURL {
@@ -142,7 +152,11 @@ struct WorkoutHistoryView: View {
             "Workout Import",
             isPresented: Binding(
                 get: { csvResultMessage != nil },
-                set: { if !$0 { csvResultMessage = nil } }
+                set: {
+                    if !$0 {
+                        csvResultMessage = nil
+                    }
+                }
             )
         ) {
             Button("OK") { csvResultMessage = nil }
@@ -153,7 +167,11 @@ struct WorkoutHistoryView: View {
             "Delete this workout?",
             isPresented: Binding(
                 get: { pendingDelete != nil },
-                set: { if !$0 { pendingDelete = nil } }
+                set: {
+                    if !$0 {
+                        pendingDelete = nil
+                    }
+                }
             ),
             presenting: pendingDelete
         ) { workout in
@@ -234,8 +252,9 @@ struct WorkoutHistoryView: View {
     }
 
     /// Honest confirmation copy — states exactly what is and is NOT removed.
-    /// Volume reads completed plans live, so it updates. ExerciseHistory /
-    /// PRs are separate Exercise-linked records and are NOT rolled back.
+    /// Volume reads completed plans live, so it updates. ExerciseHistory / PRs
+    /// this session produced ARE deleted with it (§13) — matched by
+    /// `workoutPlanID`, not merely nulled elsewhere.
     private func deleteConfirmationMessage(_ workout: WorkoutPlan) -> String {
         let setCount = workout.orderedExercises.reduce(0) { $0 + ($1.sets?.count ?? 0) }
         let name = workout.type.displayName
@@ -244,6 +263,30 @@ struct WorkoutHistoryView: View {
         set feedback, and the progress-chart history & PRs it created. Weekly volume and charts \
         will update. This can't be undone.
         """
+    }
+
+    /// Which `ExerciseHistory` rows deleting `workout` should also remove.
+    /// Matched by `workoutPlanID` FIRST — the exact key `saveWorkout` stamps
+    /// on every row it writes. A row with no `workoutPlanID` (legacy, written
+    /// before that field existed) falls back to the day+exercise heuristic —
+    /// which, used alone, could delete the OTHER same-day workout's row for a
+    /// shared exercise (e.g. two push sessions logged the same day). Static
+    /// and pure so this exact-vs-heuristic split is unit-testable without a
+    /// live view/query (§13).
+    static func historyRowsToDelete(
+        for workout: WorkoutPlan,
+        allHistory: [ExerciseHistory],
+        calendar: Calendar = .current
+    ) -> [ExerciseHistory] {
+        let sessionDay = calendar.startOfDay(for: workout.finishedAt ?? workout.date)
+        let exerciseIDs = Set(workout.orderedExercises.compactMap { $0.exercise?.id })
+        return allHistory.filter { h in
+            if let hPlanID = h.workoutPlanID {
+                return hPlanID == workout.id
+            }
+            return calendar.isDate(h.date, inSameDayAs: sessionDay)
+                && (h.exercise?.id).map(exerciseIDs.contains) == true
+        }
     }
 
     /// Hard delete. WorkoutPlan cascades to PlannedExercise → PlannedSet.
@@ -256,9 +299,6 @@ struct WorkoutHistoryView: View {
         // charts and PRs alike.
         let cal = Calendar.current
         let sessionDay = cal.startOfDay(for: workout.finishedAt ?? workout.date)
-        let exerciseIDs = Set(
-            workout.orderedExercises.compactMap { $0.exercise?.id }
-        )
         let setIDs = Set(
             workout.orderedExercises.flatMap { ($0.sets ?? []).map(\.id) }
         )
@@ -267,16 +307,20 @@ struct WorkoutHistoryView: View {
         for fb in allFeedback where setIDs.contains(fb.setID) {
             modelContext.delete(fb)
         }
-        // 2. ExerciseHistory rows this session created (same day + one of
-        //    this workout's exercises — saveWorkout stamps finishedAt).
-        for h in allHistory
-            where cal.isDate(h.date, inSameDayAs: sessionDay)
-            && (h.exercise?.id).map(exerciseIDs.contains) == true {
+        // 2. ExerciseHistory rows this session created.
+        for h in Self.historyRowsToDelete(for: workout, allHistory: allHistory) {
             modelContext.delete(h)
         }
-        // 3. PRs attributed to this exact plan.
+        // 3. PRs attributed to this exact plan. `logSet` now stamps
+        //    `workoutPlanID` at PR-creation time (was never set before, so
+        //    this match never fired and PRs silently outlived their workout).
         for pr in allPRs where pr.workoutPlanID == workout.id {
             modelContext.delete(pr)
+        }
+        // 3z. PredictionLog rows this plan produced — never cleaned before,
+        //     so they accumulated forever after a deleted workout.
+        for log in allPredictionLogs where log.workoutPlanID == workout.id {
+            modelContext.delete(log)
         }
         // 3b. Non-gym ActivitySession produced by this plan (football etc.).
         //     Keyed by exact workoutPlanID — without this, deleting a football
@@ -295,7 +339,7 @@ struct WorkoutHistoryView: View {
         }
         // 4. The plan itself (cascades to PlannedExercise → PlannedSet).
         modelContext.delete(workout)
-        try? modelContext.save()
+        modelContext.saveOrAlert("history change")
 
         swipedWorkoutID = nil
         pendingDelete = nil
@@ -309,7 +353,9 @@ struct WorkoutHistoryView: View {
         case let .success(url):
             let scoped = url.startAccessingSecurityScopedResource()
             defer {
-                if scoped { url.stopAccessingSecurityScopedResource() }
+                if scoped {
+                    url.stopAccessingSecurityScopedResource()
+                }
             }
             guard let text = try? String(contentsOf: url, encoding: .utf8) else {
                 csvResultMessage = "Couldn't read that file."
@@ -457,9 +503,20 @@ struct WorkoutHistoryView: View {
                 Divider()
                     .background(Color.tempoTextTertiary.opacity(0.2))
 
+                if let notes = workout.userNotes {
+                    Text(notes)
+                        .font(.tempoCaption1)
+                        .italic()
+                        .foregroundStyle(Color.tempoTextSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, TempoSpacing.cardPadding)
+                        .padding(.top, TempoSpacing.sm)
+                }
+
                 Group {
                     if workout.orderedExercises.isEmpty,
-                       let session = activitySession(for: workout) {
+                       let session = activitySession(for: workout)
+                    {
                         // Non-gym session (football etc.) — no exercises to
                         // list; show the Whoop activity detail instead.
                         activityDetail(session)
@@ -487,7 +544,6 @@ struct WorkoutHistoryView: View {
         allActivitySessions.first { $0.workoutPlanID == workout.id }
     }
 
-    @ViewBuilder
     private func activityDetail(_ session: ActivitySession) -> some View {
         VStack(alignment: .leading, spacing: TempoSpacing.sm) {
             HStack(spacing: TempoSpacing.lg) {
@@ -544,7 +600,7 @@ struct WorkoutHistoryView: View {
     private func exerciseDetailRow(_ plannedEx: PlannedExercise) -> some View {
         VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
             HStack {
-                Text(plannedEx.exercise?.name ?? "Exercise")
+                Text(plannedEx.displayName)
                     .font(.tempoBody)
                     .fontWeight(.medium)
                     .foregroundStyle(Color.tempoTextPrimary)

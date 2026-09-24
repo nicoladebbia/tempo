@@ -184,6 +184,9 @@ struct OnboardingCardModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .padding(TempoSpacing.lg)
+            // Full-width: without this a card hugs its content, so cards with
+            // short chip rows render narrower than their siblings.
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.white.opacity(0.1))
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(

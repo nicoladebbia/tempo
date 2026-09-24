@@ -20,6 +20,10 @@ struct NumberStepperView: View {
     let step: Double
     let format: String
     let unit: String
+    /// §4.3 — tap the value to type/wheel it instead of stepping. nil (the
+    /// default) keeps the value display plain, matching every pre-existing
+    /// call site.
+    var onTapValue: (() -> Void)?
 
     @Environment(\.colorScheme)
     private var colorScheme
@@ -33,13 +37,15 @@ struct NumberStepperView: View {
         range: ClosedRange<Double> = 0 ... 999,
         step: Double = 2.5,
         format: String = "%.1f",
-        unit: String = "kg"
+        unit: String = "kg",
+        onTapValue: (() -> Void)? = nil
     ) {
         _value = value
         self.range = range
         self.step = step
         self.format = format
         self.unit = unit
+        self.onTapValue = onTapValue
     }
 
     private var buttonBackground: Color {
@@ -54,15 +60,16 @@ struct NumberStepperView: View {
             stepButton(icon: "minus", action: decrement)
                 .simultaneousGesture(longPressGesture(action: decrement))
 
-            // Value display
-            HStack(spacing: TempoSpacing.xxs) {
-                Text(String(format: format, value))
-                    .font(.tempoDataMedium)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                if !unit.isEmpty {
-                    Text(unit)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
+            // Value display — tappable to type/wheel it when a handler is
+            // supplied (§4.3); otherwise plain, unchanged text.
+            Group {
+                if let onTapValue {
+                    Button(action: onTapValue) {
+                        valueLabel
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    valueLabel
                 }
             }
             .frame(minWidth: 60)
@@ -79,6 +86,22 @@ struct NumberStepperView: View {
             case .increment: increment()
             case .decrement: decrement()
             @unknown default: break
+            }
+        }
+    }
+
+    /// The number + unit text — pulled out so the tappable Button and the
+    /// plain fallback render identically.
+    private var valueLabel: some View {
+        HStack(spacing: TempoSpacing.xxs) {
+            Text(String(format: format, value))
+                .font(.tempoDataMedium)
+                .foregroundStyle(Color.tempoTextPrimary)
+                .underline(onTapValue != nil, color: Color.tempoTextTertiary.opacity(0.5))
+            if !unit.isEmpty {
+                Text(unit)
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextTertiary)
             }
         }
     }

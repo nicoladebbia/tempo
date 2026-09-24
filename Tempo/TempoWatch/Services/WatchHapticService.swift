@@ -40,4 +40,15 @@ enum WatchHapticService {
     static func playError() {
         WKInterfaceDevice.current().play(.failure)
     }
+
+    static func playMealLogged() {
+        WKInterfaceDevice.current().play(.success)
+    }
+
+    /// Action sent while unreachable (queued via `transferUserInfo`, not yet
+    /// confirmed by the phone) or acknowledged-but-not-applied. Distinct
+    /// from `playError` — nothing failed, it just isn't confirmed yet.
+    static func playQueued() {
+        WKInterfaceDevice.current().play(.click)
+    }
 }

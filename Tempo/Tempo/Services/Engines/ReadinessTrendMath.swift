@@ -114,6 +114,19 @@ enum ReadinessTrendMath {
         return a / c
     }
 
+    /// Daily ACWR for the trailing `days` days — each point is exactly what the
+    /// brain/floor would have seen that day (`acuteChronicRatio` over the
+    /// `window` days ending there). `strainByDay` is chronological, one entry
+    /// per calendar day (nil = no data). Output aligns with its last `days`.
+    static func acuteChronicSeries(strainByDay: [Double?], days: Int, window: Int = 30) -> [Double?] {
+        guard days > 0 else { return [] }
+        let start = max(0, strainByDay.count - days)
+        return (start ..< strainByDay.count).map { end in
+            let slice = strainByDay[max(0, end - window + 1) ... end]
+            return acuteChronicRatio(strainSeries: Array(slice))
+        }
+    }
+
     // MARK: - Primitive math (pure, testable)
 
     static func mean(_ xs: [Double]) -> Double {

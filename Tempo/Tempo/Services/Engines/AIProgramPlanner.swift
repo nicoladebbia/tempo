@@ -48,7 +48,7 @@ final class AIProgramPlanner {
         recentSessions: [String],
         footballDays: [String],
         goal: String
-    ) async -> (plans: [WorkoutPlan], rationale: String?) {
+    ) async -> (plans: [WorkoutPlan], rationale: String?, failed: Bool) {
         let request = DayPlanTrainingProgramRequest(
             weekStart: Self.isoDay(weekStart),
             footballDays: footballDays,
@@ -67,20 +67,25 @@ final class AIProgramPlanner {
             #if DEBUG
                 print("\(DebugTrace.prefix)[training_ai] program fetch failed — using deterministic floor: \(error)")
             #endif
-            return (deterministicPlans, nil)
+            // Not Pro / no AI consent is a normal "AI off" state, not a failure.
+            let entitlementGate: Bool = switch error as? APIError {
+            case .subscriptionRequired, .aiConsentRequired: true
+            default: false
+            }
+            return (deterministicPlans, nil, !entitlementGate)
         }
 
         guard let days = response.days, !days.isEmpty else {
             // Backend produced rationale only (or hydration-shaped response).
             // Nothing to reconcile against → floor stands.
-            return (deterministicPlans, nil)
+            return (deterministicPlans, nil, false)
         }
 
         let reconciled = Self.reconcile(ai: days, floor: deterministicPlans)
         #if DEBUG
             print("\(DebugTrace.prefix)[training_ai] program reconciled \(reconciled.count) days against floor")
         #endif
-        return (reconciled, response.rationale)
+        return (reconciled, response.rationale, false)
     }
 
     // MARK: - Reconcile (pure, unit-tested — the safety core)

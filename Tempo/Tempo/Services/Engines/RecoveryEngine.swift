@@ -22,11 +22,17 @@ final class RecoveryEngine: RecoveryEngineProtocol, @unchecked Sendable {
 
     // Per MODULE_RECOVERY.md Section 8.1–8.5
 
+    /// Neutral stand-in when today's recovery isn't synced (upper-yellow zone).
+    static let unknownRecoveryScore: Double = 60
+
     func generatePrescription(
         recovery: DailyRecovery,
         schedule: [CalendarEvent]
     ) -> DailyPrescription {
-        let score = recovery.recoveryScore
+        // 0 = no recovery synced (the row exists for HealthKit/sleep data).
+        // Plan from a neutral mid score instead of reading it as red — no
+        // low-recovery rules fire on missing data.
+        let score = recovery.recoveryScore > 0 ? recovery.recoveryScore : Self.unknownRecoveryScore
         let sleepDebt = recovery.sleepDebt ?? 0
         let sleepHours = recovery.sleepHours ?? 7.5
         let sleepEfficiency = recovery.sleepEfficiency ?? 85
@@ -470,7 +476,10 @@ final class RecoveryEngine: RecoveryEngineProtocol, @unchecked Sendable {
             return nil
         }
 
-        let scores = recoveries.map(\.recoveryScore)
+        let scores = recoveries.map(\.recoveryScore).filter { $0 > 0 }
+        guard scores.count >= 7 else {
+            return nil
+        }
         let firstHalf = Array(scores.prefix(scores.count / 2))
         let secondHalf = Array(scores.suffix(scores.count / 2))
 
@@ -518,7 +527,7 @@ final class RecoveryEngine: RecoveryEngineProtocol, @unchecked Sendable {
 
     private func detectHighStrainPattern(_ recoveries: [DailyRecovery]) -> RecoveryInsight? {
         let paired = recoveries.compactMap { r -> (strain: Double, recovery: Double)? in
-            guard let strain = r.strain else {
+            guard let strain = r.strain, r.recoveryScore > 0 else {
                 return nil
             }
             return (strain: strain, recovery: r.recoveryScore)

@@ -260,32 +260,47 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
 
     // Per MODULE_TRAINING.md Section 12 — Compare to historical bests
 
+    /// Only sets at or below this rep count count toward an e1RM PR. Epley
+    /// (like every rep-max formula) gets less reliable the higher the rep
+    /// count climbs — a 30-rep set at a light weight is not a trustworthy 1RM
+    /// estimate, so it must never mint a "PR" off that math. Matches the cap
+    /// used nowhere else in-repo today; picked as the conventional strength-
+    /// training rule of thumb (MODULE_TRAINING.md names no cap of its own).
+    static let e1RMPersonalRecordRepCap = 12
+
     func detectPersonalRecord(
         exercise: Exercise,
         weight: Double,
-        reps: Int
+        reps: Int,
+        workoutPlanID: UUID? = nil
     ) -> PersonalRecord? {
         guard weight > 0, reps > 0 else {
             return nil
         }
 
-        // Calculate estimated 1RM using Brzycki formula
-        let estimated1RM: Double = if reps == 1 {
-            weight
-        } else {
-            weight * (36.0 / (37.0 - Double(reps)))
-        }
+        // §12 fix — was a hand-rolled Brzycki (`weight*36/(37-reps)`), which is
+        // undefined at 37 reps and goes NEGATIVE above it, and disagreed with
+        // the Epley formula every other e1RM in the app uses (PlannedSet.
+        // estimated1RM, StrengthStandards.epleyE1RM). Now the single shared
+        // formula, so a PR and the progress chart never silently disagree.
+        let estimated1RM = StrengthStandards.epleyE1RM(weight: weight, reps: reps)
 
-        // Compare to all-time PR
-        let currentPR = exercise.allTimePR ?? 0
-        if estimated1RM > currentPR {
-            return PersonalRecord(
-                type: .oneRepMax,
-                value: estimated1RM,
-                date: Date(),
-                context: "\(Int(weight))kg x \(reps) reps",
-                exercise: exercise
-            )
+        // Compare to all-time PR — only reps within the rep cap are trusted to
+        // estimate a 1RM at all (see e1RMPersonalRecordRepCap).
+        if reps <= Self.e1RMPersonalRecordRepCap {
+            let currentPR = exercise.allTimePR ?? 0
+            if estimated1RM > currentPR {
+                return PersonalRecord(
+                    type: .oneRepMax,
+                    value: estimated1RM,
+                    date: Date(),
+                    workoutPlanID: workoutPlanID,
+                    context: "\(Int(weight)) x \(reps) reps",
+                    contextWeightKg: weight,
+                    contextReps: reps,
+                    exercise: exercise
+                )
+            }
         }
 
         // Check rep max PR — highest weight at this rep count or above
@@ -298,7 +313,10 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                 type: .repMax,
                 value: weight,
                 date: Date(),
-                context: "\(Int(weight))kg x \(reps) reps",
+                workoutPlanID: workoutPlanID,
+                context: "\(Int(weight)) x \(reps) reps",
+                contextWeightKg: weight,
+                contextReps: reps,
                 exercise: exercise
             )
         }
@@ -440,7 +458,9 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                     cal: cal
                 )
                 plans.append(t1.plan)
-                if t1.advancesRotation { splitIndex += 1 }
+                if t1.advancesRotation {
+                    splitIndex += 1
+                }
                 continue
             }
 
@@ -533,7 +553,8 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                 // `.upper` counts too: an Upper/Lower week reclaims a `.lower`
                 // onto a clean `.upper` day, just as PPL reclaims onto push/pull.
                 if !meta.isTMinus1,
-                   workoutType == .push || workoutType == .pull || workoutType == .upper {
+                   workoutType == .push || workoutType == .pull || workoutType == .upper
+                {
                     cleanLegsCandidates.append(plans.count - 1)
                 }
                 splitIndex += 1
@@ -554,7 +575,8 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                 if weekday == 1 { // Sunday — protected full rest
                     plans.append(WorkoutPlan(date: meta.date, type: .rest))
                 } else if zone == .green, !meta.isTMinus1, !afterLegs,
-                          conditioningDaysAssigned < conditioningCap {
+                          conditioningDaysAssigned < conditioningCap
+                {
                     conditioningDaysAssigned += 1
                     plans.append(WorkoutPlan(
                         date: meta.date,
@@ -604,7 +626,8 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         // `cleanLegsCandidates.last` is nil there and its map stays untouched.
         if let legType = legDayType(for: split),
            !plans.contains(where: { isLegLoading($0.type) }),
-           let idx = cleanLegsCandidates.last {
+           let idx = cleanLegsCandidates.last
+        {
             plans[idx].type = legType
             if plans[idx].secondarySessionType != nil {
                 plans[idx].secondarySessionType = nil
@@ -624,7 +647,9 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
     /// safe pick when history is thin or balanced). Pure — the caller supplies the
     /// counts from an `ActivitySession` history fetch.
     static func easyModalityOrder(poolLogged: Int, runLogged: Int) -> [WorkoutType] {
-        if runLogged >= 3, runLogged >= poolLogged * 2 { return [.run, .pool] }
+        if runLogged >= 3, runLogged >= poolLogged * 2 {
+            return [.run, .pool]
+        }
         return [.pool, .run]
     }
 
@@ -676,13 +701,21 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
     /// the running counter. Shared by the standard-split AND custom-split paths so
     /// the eligibility rule cannot diverge between them (the custom path used to
     /// omit it entirely, so a custom split never got two-a-days).
-    private func twoADaySecondary(workoutType: WorkoutType, zone: RecoveryZone, isTMinus1: Bool,
-                                  isPast: Bool, assignedSoFar: Int, max: Int,
-                                  preference: [WorkoutType]) -> WorkoutType? {
+    private func twoADaySecondary(
+        workoutType: WorkoutType,
+        zone: RecoveryZone,
+        isTMinus1: Bool,
+        isPast: Bool,
+        assignedSoFar: Int,
+        max: Int,
+        preference: [WorkoutType]
+    ) -> WorkoutType? {
         let upperLift = workoutType == .push || workoutType == .pull || workoutType == .upper
         // isPast: never spend the (capped) weekly slot on a day already gone — it
         // can't be trained, so it slides to the next eligible upper day.
-        guard !isPast, zone == .green, upperLift, !isTMinus1, assignedSoFar < max else { return nil }
+        guard !isPast, zone == .green, upperLift, !isTMinus1, assignedSoFar < max else {
+            return nil
+        }
         let order = preference.isEmpty ? [.pool, .run] : preference
         return order[0] == .run ? .run : .pool
     }
@@ -810,8 +843,12 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         if split == .custom, let customMap = customWeekdayMap, customMap.count == 7 {
             let idx = (cal.component(.weekday, from: date) + 5) % 7
             switch customMap[idx] {
-            case .push, .pull, .upper: customUpperT1 = customMap[idx]
-            case .rest, .mobility, .pool: customEasyT1 = customMap[idx]
+            case .push,
+                 .pull,
+                 .upper: customUpperT1 = customMap[idx]
+            case .rest,
+                 .mobility,
+                 .pool: customEasyT1 = customMap[idx]
             default: break
             }
         }

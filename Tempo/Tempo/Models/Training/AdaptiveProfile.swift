@@ -54,6 +54,7 @@ final class AdaptiveProfile {
     var preferredSwaps: [UUID: UUID] = [:]
 
     // MARK: - Persisted run-once guards
+
     //
     // These MUST be persisted, not in-memory on the VM: the VM is rebuilt on
     // every cold start, so an in-memory guard would let the once-per-week /

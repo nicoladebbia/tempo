@@ -107,9 +107,17 @@ actor APIClient {
 
         // Auth
         if endpoint.requiresAuth, let interceptor = authInterceptor {
-            if let token = try await interceptor.validToken() {
-                request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            // No access token → one refresh attempt, else fail locally as
+            // .unauthorized (not retryable). Sending the request bare only
+            // earned a guaranteed 401 plus retries while signed out.
+            var token = try await interceptor.validToken()
+            if token == nil {
+                token = try? await interceptor.refreshAndGetToken()
             }
+            guard let token else {
+                throw APIError.unauthorized
+            }
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
 
         // Body
@@ -179,7 +187,11 @@ actor APIClient {
                 #endif
                 // Token expired — refresh and retry once (does not consume a retry attempt)
                 if endpoint.requiresAuth, let interceptor = authInterceptor, !didRefreshToken {
-                    let newToken = try await interceptor.refreshAndGetToken()
+                    // A failed refresh means signed out — surface .unauthorized
+                    // (non-retryable), not a retryable networkError.
+                    guard let newToken = try? await interceptor.refreshAndGetToken() else {
+                        throw APIError.unauthorized
+                    }
                     var retryRequest = request
                     retryRequest.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
                     return try await executeWithRetry(retryRequest, endpoint: endpoint, attempt: 0, didRefreshToken: true)

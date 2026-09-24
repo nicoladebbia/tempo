@@ -9,7 +9,7 @@
 import SwiftData
 import SwiftUI
 
-// MARK: - Exercise Library View
+// MARK: - ExerciseLibraryView
 
 // Per MODULE_TRAINING.md Section 10 — Exercise library with search and filters.
 // Per WIREFRAMES.md Screen 19 — Search + filter chips + grouped list.
@@ -419,7 +419,7 @@ struct ExerciseLibraryView: View {
     }
 }
 
-// MARK: - CustomExerciseFormView (§10.6)
+// MARK: - CustomExerciseFormView
 
 /// Create a custom exercise. Once saved it's a first-class library citizen:
 /// it appears in search/filters (CUSTOM badge), the add-exercise and swap
@@ -532,7 +532,7 @@ struct CustomExerciseFormView: View {
                 ? [] : [cue.trimmingCharacters(in: .whitespacesAndNewlines)]
         )
         modelContext.insert(exercise)
-        try? modelContext.save()
+        modelContext.saveOrAlert("custom exercise")
         HapticManager.notification(.success)
         dismiss()
     }

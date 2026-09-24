@@ -10,7 +10,7 @@ import Charts
 import SwiftData
 import SwiftUI
 
-// MARK: - Exercise Detail View
+// MARK: - ExerciseDetailView
 
 // Per MODULE_TRAINING.md Section 10 — Exercise detail with stats and progress.
 // Per WIREFRAMES.md Screen 20 — Name, info pills, stats card, progress chart, instructions.
@@ -30,6 +30,11 @@ struct ExerciseDetailView: View {
     /// §10.6 — delete confirmation for custom exercises.
     @State
     private var showDeleteConfirm = false
+    /// §10.6/§1 — blocks the delete when the exercise is in today's
+    /// unfinished plan (deleting it mid-plan would nullify a slot the active
+    /// session is about to read).
+    @State
+    private var showActivePlanBlock = false
 
     private var settings: UserSettings? {
         allSettings.first
@@ -109,7 +114,11 @@ struct ExerciseDetailView: View {
             if exercise.isCustom {
                 ToolbarItem(placement: .primaryAction) {
                     Button(role: .destructive) {
-                        showDeleteConfirm = true
+                        if isInTodaysActivePlan {
+                            showActivePlanBlock = true
+                        } else {
+                            showDeleteConfirm = true
+                        }
                     } label: {
                         Image(systemName: "trash")
                     }
@@ -126,16 +135,38 @@ struct ExerciseDetailView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("It disappears from the library and pickers. Past sessions that used it keep their logged sets, but lose the exercise name.")
+            Text(
+                "It disappears from the library and pickers. Past sessions that used it keep their logged sets, but lose the exercise name."
+            )
+        }
+        .alert("Can't Delete Yet", isPresented: $showActivePlanBlock) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("This exercise is in today's workout. Finish or swap it out of today's plan first, then delete it.")
+        }
+    }
+
+    /// §1 — an Exercise deletion nullifies (not cascades onto) today's
+    /// PlannedExercise slots, so deleting an exercise mid-plan would leave the
+    /// live session pointing at a nil exercise. Refuse until today's plan is
+    /// no longer active.
+    private var isInTodaysActivePlan: Bool {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: .now)
+        return (exercise.plannedExercises ?? []).contains { planned in
+            guard let plan = planned.workoutPlan else {
+                return false
+            }
+            return cal.isDate(plan.date, inSameDayAs: today) && !plan.status.isTerminal
         }
     }
 
     private func deleteCustomExercise() {
-        guard exercise.isCustom else {
+        guard exercise.isCustom, !isInTodaysActivePlan else {
             return
         }
         modelContext.delete(exercise)
-        try? modelContext.save()
+        modelContext.saveOrAlert("exercise")
         HapticManager.notification(.success)
         dismiss()
     }
@@ -439,7 +470,7 @@ struct ExerciseDetailView: View {
                     get: { exercise.preferredRestSeconds ?? 90 },
                     set: { newValue in
                         exercise.preferredRestSeconds = newValue
-                        try? modelContext.save()
+                        modelContext.saveOrAlert("exercise")
                     }
                 ),
                 in: 30 ... 300,
@@ -455,7 +486,7 @@ struct ExerciseDetailView: View {
             if exercise.preferredRestSeconds != nil {
                 Button {
                     exercise.preferredRestSeconds = nil
-                    try? modelContext.save()
+                    modelContext.saveOrAlert("exercise")
                 } label: {
                     Text("Reset to Default")
                         .font(.tempoCaption1)
@@ -527,10 +558,9 @@ struct ExerciseDetailView: View {
         case .none: "None"
         }
     }
-
 }
 
-// MARK: - Exercise Demo Image
+// MARK: - ExerciseDemoImage
 
 /// Reference photo for an exercise, loaded remotely from the bundled free-exercise-db
 /// map. `demoAsset` is a relative path (e.g. "Barbell_Bench_Press_-_Medium_Grip/0.jpg")
@@ -542,11 +572,13 @@ struct ExerciseDemoImage: View {
     let muscleGroup: MuscleGroup
     var symbolSize: CGFloat = 48
 
-    // jsDelivr CDN — rate-limit-friendly for repeated in-app fetches vs raw.githubusercontent.
+    /// jsDelivr CDN — rate-limit-friendly for repeated in-app fetches vs raw.githubusercontent.
     private static let cdnBase = "https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/exercises/"
 
     private var url: URL? {
-        guard let demoAsset, !demoAsset.isEmpty else { return nil }
+        guard let demoAsset, !demoAsset.isEmpty else {
+            return nil
+        }
         return URL(string: Self.cdnBase + demoAsset)
     }
 

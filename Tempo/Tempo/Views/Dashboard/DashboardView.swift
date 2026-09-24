@@ -16,6 +16,8 @@ struct DashboardView: View {
     private var services
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(\.scenePhase)
+    private var scenePhase
     @State
     private var viewModel: DashboardViewModel?
     @State
@@ -121,6 +123,12 @@ struct DashboardView: View {
                 vm.persistDailyScore(modelContext: modelContext)
                 vm.loadScoreHistory(modelContext: modelContext)
 
+                // §22 — app launch / Dashboard first-load is a "sensible
+                // moment" to sync the watch: pushes the real daily score,
+                // recovery, non-negotiables, streak, XP and next meal so
+                // the wrist never shows the fake placeholder.
+                vm.pushWatchSnapshot()
+
                 // Fetch weather (non-blocking)
                 await vm.fetchWeather()
 
@@ -170,7 +178,9 @@ struct DashboardView: View {
             // to .connected) AND calls vm.refresh() explicitly — without the guard
             // this observer fires a redundant refresh in between, racing the AI
             // insight task(id:) and getting it cancelled mid-flight.
-            guard hasAppeared else { return }
+            guard hasAppeared else {
+                return
+            }
             if case .connected = newState, oldState != .connected {
                 Task {
                     await viewModel?.refresh()
@@ -183,25 +193,67 @@ struct DashboardView: View {
             // separate VM). Re-pull the Fuel quadrant so the Dashboard's
             // calories + eat-times match immediately instead of waiting
             // for the next cold refresh.
-            guard hasAppeared else { return }
+            guard hasAppeared else {
+                return
+            }
             #if DEBUG
                 print("[Dashboard] .tempoNutritionLogged received → refresh()")
             #endif
-            Task { await viewModel?.refresh() }
+            Task {
+                await viewModel?.refresh()
+                // §22 — a meal eaten (Nutrition tab OR a watch
+                // .markMealEaten routed through WatchActionRouter) changed
+                // the next-meal name/id the wrist shows.
+                viewModel?.pushWatchSnapshot()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .tempoWorkoutChanged)) { _ in
             // A workout was started / completed / discarded in the Training
             // tab. Re-pull the Move quadrant so its workout status matches
             // the Training tab without waiting for a cold refresh.
-            guard hasAppeared else { return }
+            guard hasAppeared else {
+                return
+            }
             #if DEBUG
                 print("[Dashboard] .tempoWorkoutChanged received → refreshTrainingStatus")
             #endif
             viewModel?.refreshTrainingStatus(modelContext: modelContext)
+            viewModel?.pushWatchSnapshot()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            // §22 — foreground is one of the "sensible moments" to re-sync
+            // the watch, so a snapshot that went stale while the app was
+            // backgrounded (e.g. a non-negotiable's deadline passed) is
+            // refreshed without the user having to background/foreground
+            // Dashboard specifically to trigger a cold refresh.
+            guard hasAppeared, newPhase == .active else {
+                return
+            }
+            Task {
+                await viewModel?.refresh()
+                viewModel?.refreshTrainingStatus(modelContext: modelContext)
+                viewModel?.refreshAccountability(modelContext: modelContext)
+                viewModel?.pushWatchSnapshot()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .tempoNonNegotiableChanged)) { _ in
+            // A non-negotiable was checked off / skipped in Lockdown OR from
+            // the watch itself (WatchActionRouter.markNonNegotiableDone).
+            // Re-pull the Accountability quadrant + repush so the wrist
+            // reflects the SAME completion state, not a stale one.
+            guard hasAppeared else {
+                return
+            }
+            #if DEBUG
+                print("[Dashboard] .tempoNonNegotiableChanged received → refreshAccountability")
+            #endif
+            viewModel?.refreshAccountability(modelContext: modelContext)
+            viewModel?.pushWatchSnapshot()
         }
         .sheet(isPresented: $showNonNegotiableSetup, onDismiss: {
             // Refresh accountability data so banner detects new non-negotiables
             viewModel?.refreshAccountability(modelContext: modelContext)
+            viewModel?.pushWatchSnapshot()
         }) {
             NavigationStack {
                 NonNegotiableSetupView()

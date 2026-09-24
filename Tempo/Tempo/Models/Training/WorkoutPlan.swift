@@ -28,6 +28,11 @@ final class WorkoutPlan {
 
     var notes: String?
 
+    /// The athlete's own session notes ("gym packed", "left shoulder off").
+    /// Separate from `notes`, which the planner writes. Optional → lightweight
+    /// SwiftData migration.
+    var userNotes: String?
+
     /// Whether the user completed (or worked through) the guided general
     /// warm-up + mobility block for this session. The block logs no sets — this
     /// flag is the only record that it happened, shown in the summary/history.
@@ -112,7 +117,9 @@ final class WorkoutPlan {
 
     /// True when this day carries a gym lift AND an easy cardio second session.
     @Transient
-    var isTwoADay: Bool { secondarySessionTypeRaw != nil }
+    var isTwoADay: Bool {
+        secondarySessionTypeRaw != nil
+    }
 
     @Transient
     var orderedExercises: [PlannedExercise] {
@@ -145,9 +152,14 @@ final class WorkoutPlan {
 
     @Transient
     var totalVolume: Double {
+        // §14 fix — must match PlannedExercise.totalVolume's rule exactly:
+        // warmup ramp sets are not volume (this used to count them, inflating
+        // every workout's tonnage), but drop steps DO count — they're reduced-
+        // weight work, still real work performed (§6.4 drop-set design).
         (exercises ?? []).reduce(0) { total, ex in
             total + (ex.sets ?? []).reduce(0) { setTotal, set in
-                guard set.completed,
+                guard !set.isWarmup,
+                      set.completed,
                       let weight = set.actualWeight,
                       let reps = set.actualReps
                 else {

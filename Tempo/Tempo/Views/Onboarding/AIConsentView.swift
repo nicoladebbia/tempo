@@ -59,7 +59,11 @@ struct AIConsentView: View {
             OnboardingPrimaryButton(title: "ENABLE AI FEATURES", enabled: !isSubmitting) {
                 Task {
                     isSubmitting = true
-                    await viewModel.setAIConsent(true, apiClient: services.apiClient)
+                    await viewModel.setAIConsent(
+                        true,
+                        apiClient: services.apiClient,
+                        isSignedIn: services.authService.accessToken != nil
+                    )
                     isSubmitting = false
                 }
             }
@@ -67,7 +71,11 @@ struct AIConsentView: View {
             Button {
                 Task {
                     isSubmitting = true
-                    await viewModel.setAIConsent(false, apiClient: services.apiClient)
+                    await viewModel.setAIConsent(
+                        false,
+                        apiClient: services.apiClient,
+                        isSignedIn: services.authService.accessToken != nil
+                    )
                     isSubmitting = false
                 }
             } label: {

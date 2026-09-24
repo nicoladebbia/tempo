@@ -51,8 +51,15 @@ extension WorkoutType {
     /// explicit VenueConfirmation answers accrue (the §16 bootstrap decision).
     var inferredVenue: TrainingVenue? {
         switch self {
-        case .push, .pull, .legs, .upper, .lower, .fullBody: .gym
-        case .football, .sprint, .conditioning: .field
+        case .push,
+             .pull,
+             .legs,
+             .upper,
+             .lower,
+             .fullBody: .gym
+        case .football,
+             .sprint,
+             .conditioning: .field
         case .run: .outdoor
         case .pool: .pool
         case .mobility: .home
@@ -61,7 +68,7 @@ extension WorkoutType {
     }
 }
 
-// MARK: - VenuePattern (learned, one row per weekday)
+// MARK: - VenuePattern
 
 /// The learned pattern for one weekday. Recomputed (not incrementally mutated)
 /// from the trailing window on every session save — rows are derived data and
@@ -115,7 +122,7 @@ final class VenuePattern {
     }
 }
 
-// MARK: - VenueConfirmation (one per day — the propose-confirm answer)
+// MARK: - VenueConfirmation
 
 /// The user's answer to the morning venue proposal ("usual 4PM?" → Yes/Change).
 /// Feeds today's prescription (DailyCoachPrompt venue line) AND becomes the
@@ -149,7 +156,7 @@ final class VenueConfirmation {
     }
 }
 
-// MARK: - Pure pattern math (testable, no SwiftData / no Date.now in core)
+// MARK: - VenueSample
 
 /// One unit of evidence for the learner. Built from WorkoutPlans (prescribed),
 /// unlinked ActivitySessions (Whoop-detected, not prescribed) and
@@ -167,6 +174,8 @@ struct VenueSample: Equatable, Sendable {
     let prescribed: Bool
 }
 
+// MARK: - VenuePatternSnapshot
+
 /// The learned summary for one weekday — what VenuePattern rows persist and
 /// the proposal card / prompt read.
 struct VenuePatternSnapshot: Equatable, Sendable {
@@ -179,8 +188,12 @@ struct VenuePatternSnapshot: Equatable, Sendable {
 
     /// §16.3 — only an established pattern (≥5 samples) asserts the time
     /// ("your usual 4PM?"); below that the proposal phrases soft ("Gym today?").
-    var assertsTime: Bool { sampleCount >= 5 && medianStartMin != nil }
+    var assertsTime: Bool {
+        sampleCount >= 5 && medianStartMin != nil
+    }
 }
+
+// MARK: - VenuePatternMath
 
 enum VenuePatternMath {
     /// §16.2 cold-start: no proposal until this many completed samples accrue.
@@ -196,7 +209,9 @@ enum VenuePatternMath {
     ) -> VenuePatternSnapshot? {
         let dayDated = samples.filter { calendar.component(.weekday, from: $0.date) == weekday }
         let done = dayDated.filter(\.completed)
-        guard done.count >= minSamplesForProposal else { return nil }
+        guard done.count >= minSamplesForProposal else {
+            return nil
+        }
 
         let prescribed = dayDated.filter(\.prescribed)
         let rate = prescribed.isEmpty
@@ -217,9 +232,13 @@ enum VenuePatternMath {
     /// among the tied candidates (habit drift should win, not enum order).
     static func modalVenue(of samples: [VenueSample]) -> TrainingVenue? {
         let dated = samples.compactMap { s in s.venue.map { (venue: $0, date: s.date) } }
-        guard !dated.isEmpty else { return nil }
+        guard !dated.isEmpty else {
+            return nil
+        }
         var counts: [TrainingVenue: Int] = [:]
-        for entry in dated { counts[entry.venue, default: 0] += 1 }
+        for entry in dated {
+            counts[entry.venue, default: 0] += 1
+        }
         let top = counts.values.max() ?? 0
         let tied = Set(counts.filter { $0.value == top }.map(\.key))
         return dated.filter { tied.contains($0.venue) }.max { $0.date < $1.date }?.venue
@@ -228,7 +247,9 @@ enum VenuePatternMath {
     /// Standard median (lower-middle for even counts — a real observed value
     /// beats an interpolated 16:32½ that never happened).
     static func median(_ values: [Int]) -> Int? {
-        guard !values.isEmpty else { return nil }
+        guard !values.isEmpty else {
+            return nil
+        }
         let sorted = values.sorted()
         return sorted[(sorted.count - 1) / 2]
     }

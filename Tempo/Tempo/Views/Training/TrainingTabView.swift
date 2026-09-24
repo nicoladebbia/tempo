@@ -55,6 +55,14 @@ struct TrainingTabView: View {
                             }
                         }
 
+                        if let viewModel {
+                            NavigationLink {
+                                RoutinesView(viewModel: viewModel)
+                            } label: {
+                                Label("My Routines", systemImage: "list.bullet.rectangle")
+                            }
+                        }
+
                         NavigationLink {
                             ExerciseLibraryView()
                         } label: {
@@ -84,7 +92,7 @@ struct TrainingTabView: View {
                             .foregroundStyle(Color.tempoTextSecondary)
                     }
                     .accessibilityLabel("More")
-                    .accessibilityHint("Open week plan, exercise library, progress, or history.")
+                    .accessibilityHint("Open week plan, routines, exercise library, progress, or history.")
                 }
             }
             .fullScreenCover(isPresented: $showActiveWorkout) {
@@ -117,21 +125,28 @@ struct TrainingTabView: View {
         }
         .onReceive(
             // Tier 3.3 — re-personalize the training week when the schedule
-            // inputs change (football days / split edited in ScheduleEditorView).
+            // inputs change (football days / split edited in TrainingSettingsDetailView).
             // Debounced 0.6s so a burst of chip toggles regenerates once, matching
             // the Nutrition observer. Skips while a workout is active so an edit
             // can't disturb an in-progress session (the guard also protects this).
             NotificationCenter.default.publisher(for: .tempoTrainingSettingsChanged)
                 .debounce(for: .seconds(0.6), scheduler: DispatchQueue.main)
         ) { _ in
-            guard let viewModel, !(viewModel.sessionState.isActive) else { return }
+            guard let viewModel, !(viewModel.sessionState.isActive) else {
+                return
+            }
             viewModel.repersonalizeSchedule(modelContext: modelContext)
         }
+        .persistenceAlert()
         .alert(
             "Save failed",
             isPresented: Binding(
                 get: { viewModel?.saveErrorMessage != nil },
-                set: { if !$0 { viewModel?.saveErrorMessage = nil } }
+                set: {
+                    if !$0 {
+                        viewModel?.saveErrorMessage = nil
+                    }
+                }
             )
         ) {
             Button("OK", role: .cancel) {}
@@ -139,7 +154,12 @@ struct TrainingTabView: View {
             Text(viewModel?.saveErrorMessage ?? "")
         }
         .onChange(of: viewModel?.sessionState) { _, newState in
-            if case .summary = newState {
+            if newState?.needsWorkoutScreen == true, !showActiveWorkout {
+                // A session that went live without the Start button (watch-
+                // started and adopted on load, or crash recovery) still needs
+                // its screen — otherwise timers run behind the Today view.
+                showActiveWorkout = true
+            } else if case .summary = newState {
                 // Persist completion the moment the session reaches summary —
                 // NOT on the SAVE button. Previously history was written only
                 // if the user tapped "SAVE & CLOSE"; swiping the summary away

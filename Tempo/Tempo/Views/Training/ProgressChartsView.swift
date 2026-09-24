@@ -16,10 +16,10 @@ import SwiftUI
 // Per WIREFRAMES.md Screen 21 — Progress chart per exercise.
 
 struct ProgressChartsView: View {
-    // modelContext intentionally removed — this view is now read-only. The
-    // only writer was the deleted purge; reintroducing context access here
-    // would invite another on-appearance mutation of history. Deletions
-    // happen in WorkoutHistoryView.
+    /// modelContext intentionally removed — this view is now read-only. The
+    /// only writer was the deleted purge; reintroducing context access here
+    /// would invite another on-appearance mutation of history. Deletions
+    /// happen in WorkoutHistoryView.
     @Query(sort: \ExerciseHistory.date, order: .reverse)
     private var allHistory: [ExerciseHistory]
     @Query(sort: \Exercise.name)
@@ -59,7 +59,6 @@ struct ProgressChartsView: View {
                     message: "Complete your first workout to start tracking progress."
                 )
             } else {
-
                 // Segmented picker
                 // Per MODULE_TRAINING.md Section 11.1 — segmented control at top
                 Picker("View", selection: $selectedTab) {
@@ -112,6 +111,9 @@ struct ProgressChartsView: View {
             // last week, 8-week trend, streak + fresh PRs.
             thisWeekHero
 
+            // Acute:chronic load vs the safety floor's limit.
+            TrainingLoadCard()
+
             // All-time stats
             allTimeStats
 
@@ -130,9 +132,11 @@ struct ProgressChartsView: View {
     /// Trailing 8 ISO weeks of logged volume, oldest first (current week last).
     private var weeklyVolumes: [(weekStart: Date, volume: Double)] {
         let cal = Calendar.current
-        guard let thisMonday = cal.dateInterval(of: .weekOfYear, for: Date())?.start else {
-            return []
-        }
+        // §6 — locale-independent Monday: `Calendar.current`'s own
+        // `dateInterval(of: .weekOfYear, for:)` starts the week on whatever the
+        // device region calls the first day (Sunday for en_US), which shifted
+        // this whole chart by a day on Sundays.
+        let thisMonday = TrainingCalendar.mondayOfWeek(containing: Date())
         return (0 ..< 8).reversed().compactMap { back in
             guard let start = cal.date(byAdding: .weekOfYear, value: -back, to: thisMonday),
                   let end = cal.date(byAdding: .weekOfYear, value: 1, to: start)
@@ -154,10 +158,14 @@ struct ProgressChartsView: View {
             let rows = (exercise.history ?? []).sorted { $0.date < $1.date }
             var runningMax = 0.0
             for row in rows {
-                guard let e1RM = row.estimated1RM else { continue }
+                guard let e1RM = row.estimated1RM else {
+                    continue
+                }
                 if e1RM > runningMax {
                     runningMax = e1RM
-                    if row.date >= cutoff { count += 1 }
+                    if row.date >= cutoff {
+                        count += 1
+                    }
                 }
             }
         }
@@ -168,9 +176,8 @@ struct ProgressChartsView: View {
     /// counts when trained but never BREAKS the run while still in progress.
     private var weekStreak: Int {
         let cal = Calendar.current
-        guard let thisMonday = cal.dateInterval(of: .weekOfYear, for: Date())?.start else {
-            return 0
-        }
+        // §6 — locale-independent Monday (see weeklyVolumes above).
+        let thisMonday = TrainingCalendar.mondayOfWeek(containing: Date())
         let completedDates = workoutPlans.filter { $0.status == .completed }.map(\.date)
         func trained(weekStarting cursor: Date) -> Bool {
             guard let end = cal.date(byAdding: .weekOfYear, value: 1, to: cursor) else {
@@ -675,7 +682,11 @@ struct ProgressChartsView: View {
 
     private func weeklyWorkoutCounts(weeks: Int) -> [WeekCount] {
         let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
+        // §6 — anchor to Monday (not just "today"), consistent with
+        // weeklyVolumes/weekStreak above — a rolling today-anchored window
+        // otherwise split a Mon-Sun training week across two bars depending on
+        // which weekday the chart happened to render on.
+        let today = TrainingCalendar.mondayOfWeek(containing: Date())
         return (0 ..< weeks).reversed().map { weekOffset in
             let weekStart = cal.date(byAdding: .weekOfYear, value: -weekOffset, to: today)!
             let weekEnd = cal.date(byAdding: .day, value: 7, to: weekStart)!

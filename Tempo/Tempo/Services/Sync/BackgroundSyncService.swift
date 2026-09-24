@@ -77,6 +77,10 @@ final class BackgroundSyncService: @unchecked Sendable {
         do {
             try BGTaskScheduler.shared.submit(request)
             logger.debug("Scheduled daily reset for \(runAfter, privacy: .public)")
+        } catch BGTaskScheduler.Error.unavailable {
+            // Simulator (and devices with Background App Refresh off) — the
+            // foreground daily-reset check still runs, so this isn't a fault.
+            logger.info("Daily reset not scheduled: background tasks unavailable here")
         } catch {
             logger.error("Failed to schedule daily reset: \(error)")
         }

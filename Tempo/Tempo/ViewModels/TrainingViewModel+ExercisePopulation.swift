@@ -120,7 +120,7 @@ extension TrainingViewModel {
         // up. Pain subset is cached for the session UI. Scanned fresh each build
         // (no stored flag, no migration).
         let signals = noteSignals(modelContext: modelContext)
-        let painFlagged = Set(signals.filter { $0.value.pain }.map(\.key))
+        let painFlagged = Set(signals.filter(\.value.pain).map(\.key))
         painFlaggedExercises = painFlagged
 
         // Build PlannedExercise + PlannedSet objects with target weights
@@ -236,7 +236,8 @@ extension TrainingViewModel {
                 // conservative) estimate as-is. Must NOT fall through to the
                 // "too easy" bump even if the note also mentioned it (pain wins).
                 if let lastWeight = history.sorted(by: { $0.date > $1.date }).first?.bestSetWeight,
-                   lastWeight > 0 {
+                   lastWeight > 0
+                {
                     weight = min(weight, lastWeight)
                 }
             } else if sig?.tooEasy == true {
@@ -645,7 +646,8 @@ extension TrainingViewModel {
     /// exists → `StrengthStandards` falls back to a conservative absolute seed.
     private func currentBodyweightKg(modelContext: ModelContext) -> Double? {
         if let profile = try? modelContext.fetch(FetchDescriptor<UserProfile>()).first,
-           let w = profile.weightKg, w > 0 {
+           let w = profile.weightKg, w > 0
+        {
             return w
         }
         var descriptor = FetchDescriptor<BodyComposition>(
@@ -653,7 +655,8 @@ extension TrainingViewModel {
         )
         descriptor.fetchLimit = 1
         if let snap = try? modelContext.fetch(descriptor).first,
-           let w = snap.weightKg, w > 0 {
+           let w = snap.weightKg, w > 0
+        {
             return w
         }
         return nil
@@ -720,9 +723,16 @@ extension TrainingViewModel {
             return []
         }
         let inPlan = Set(plan.orderedExercises.compactMap { $0.exercise?.id })
+        // Safety wins over choice — never offer a swap TO a movement the user
+        // recently flagged as painful (mirrors applyPreferredSwaps' rule for the
+        // auto-substitution path).
+        let painFlagged = painFlaggedExerciseIDs(modelContext: modelContext)
         let all = (try? modelContext.fetch(FetchDescriptor<Exercise>())) ?? []
         return all
-            .filter { $0.muscleGroup == current.muscleGroup && !inPlan.contains($0.id) }
+            .filter {
+                $0.muscleGroup == current.muscleGroup && !inPlan.contains($0.id)
+                    && !painFlagged.contains($0.id)
+            }
             .sorted { a, b in
                 let aPattern = a.movementPatternRaw == current.movementPatternRaw
                 let bPattern = b.movementPatternRaw == current.movementPatternRaw
@@ -776,8 +786,10 @@ extension TrainingViewModel {
             // Learn the substitution — future plans prescribe this pick.
             rememberSwapPreference(from: oldID, to: newExercise.id, modelContext: modelContext)
         }
-        try? modelContext.save()
+        saveGuarded(modelContext, operation: "exercise swap")
         HapticManager.selection()
+        // Watch + Dashboard read the plan's exercises directly.
+        NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
     }
 
     /// §2.14 — append a chosen movement to today's plan with a full
@@ -800,8 +812,10 @@ extension TrainingViewModel {
             plannedExercise: planned,
             modelContext: modelContext
         )
-        try? modelContext.save()
+        saveGuarded(modelContext, operation: "added exercise")
         HapticManager.selection()
+        // Watch + Dashboard read the plan's exercises directly.
+        NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
     }
 
     /// Shared prescription builder for swap/add — mirrors the per-exercise body
@@ -809,7 +823,7 @@ extension TrainingViewModel {
     /// overload falling back to cold-start, the plan's recovery + deload
     /// multipliers, 50%/75% warmup ramp for loadable compounds, bodyweight
     /// added-load hint. Also records the PredictionLog row (measurement spine).
-    private func prescribedSets(
+    func prescribedSets(
         for exercise: Exercise,
         workingSets: Int,
         plan: WorkoutPlan,
@@ -825,7 +839,7 @@ extension TrainingViewModel {
             learnedIncrement: learnedIncrements[exercise.id]
         )
         let allExercises = (try? modelContext.fetch(FetchDescriptor<Exercise>())) ?? []
-        let weight = overload.weight > 0
+        var weight = overload.weight > 0
             ? overload.weight
             : coldStartWeight(
                 for: exercise,
@@ -833,6 +847,21 @@ extension TrainingViewModel {
                 allExercises: allExercises,
                 modelContext: modelContext
             )
+
+        // Note-driven adjustment — mirrors populateExercises: pain / too-hard /
+        // form-breakdown notes cap the weight at last session's; swap/add/apply-
+        // routine used to skip this entirely (§8 pain notes ignored on swap/add),
+        // so a flagged exercise could come BACK in heavier than before it hurt.
+        let sig = noteSignals(modelContext: modelContext)[exercise.id]
+        if sig?.isConservative == true {
+            if let lastWeight = history.sorted(by: { $0.date > $1.date }).first?.bestSetWeight,
+               lastWeight > 0
+            {
+                weight = min(weight, lastWeight)
+            }
+        } else if sig?.tooEasy == true {
+            weight += StrengthStandards.increment(for: exercise.equipment)
+        }
 
         // §19.3 — same style split as populateExercises: intensity-cut drops
         // weight, volume-cut halves the requested working sets.
@@ -904,7 +933,7 @@ extension TrainingViewModel {
 
     /// Drop the unresolved PredictionLog row for a plan+exercise pairing that
     /// no longer exists (the movement was swapped out before any outcome).
-    private func deleteUnresolvedPrediction(planID: UUID, exerciseID: UUID, modelContext: ModelContext) {
+    func deleteUnresolvedPrediction(planID: UUID, exerciseID: UUID, modelContext: ModelContext) {
         let descriptor = FetchDescriptor<PredictionLog>(
             predicate: #Predicate { $0.workoutPlanID == planID && $0.exerciseID == exerciseID }
         )
@@ -921,7 +950,8 @@ extension TrainingViewModel {
         // deleted at completion, so it's only a fallback for the brief in-session
         // window before materialization — never rely on it post-onboarding.
         if let settings = try? modelContext.fetch(FetchDescriptor<UserSettings>()).first,
-           let raw = settings.experienceLevelRaw, !raw.isEmpty {
+           let raw = settings.experienceLevelRaw, !raw.isEmpty
+        {
             return raw
         }
         let data = UserDefaults.standard.dictionary(forKey: "tempo.onboarding.data")

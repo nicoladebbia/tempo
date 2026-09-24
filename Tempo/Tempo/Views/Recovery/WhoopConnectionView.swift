@@ -302,17 +302,21 @@ struct WhoopConnectionView: View {
             }
             .disabled(!canSave)
 
-            // Demo mode fallback
-            Button {
-                Task {
-                    await whoop.connectDemo()
-                    dismiss()
+            // Demo mode fallback — DEBUG only: demo numbers are mock data and
+            // must never reach App Store users (display-only; see
+            // WhoopServiceProtocol.providesRealData).
+            #if DEBUG
+                Button {
+                    Task {
+                        await whoop.connectDemo()
+                        dismiss()
+                    }
+                } label: {
+                    Text("Skip — Use Demo Data")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.tempoTextSecondary)
                 }
-            } label: {
-                Text("Skip — Use Demo Data")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color.tempoTextSecondary)
-            }
+            #endif
         }
         .padding(.top, TempoSpacing.lg)
     }
@@ -397,17 +401,21 @@ struct WhoopConnectionView: View {
                     .foregroundStyle(Color.tempoTextSecondary)
             }
 
-            // Demo mode fallback
-            Button {
-                Task {
-                    await whoop.connectDemo()
-                    dismiss()
+            // Demo mode fallback — DEBUG only: demo numbers are mock data and
+            // must never reach App Store users (display-only; see
+            // WhoopServiceProtocol.providesRealData).
+            #if DEBUG
+                Button {
+                    Task {
+                        await whoop.connectDemo()
+                        dismiss()
+                    }
+                } label: {
+                    Text("Use Demo Data Instead")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.tempoTextTertiary)
                 }
-            } label: {
-                Text("Use Demo Data Instead")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color.tempoTextTertiary)
-            }
+            #endif
         }
         .padding(.top, TempoSpacing.xxxl)
     }

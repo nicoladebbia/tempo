@@ -95,97 +95,120 @@ enum SyntheticPictures {
     static var all: [SyntheticFixture] {
         [
             // — Green / normal days: should train, sensible intensity, gym = pointer —
-            SyntheticFixture("green-fresh", pic(recovery: 82),
+            SyntheticFixture(
+                "green-fresh", pic(recovery: 82),
                 rawIsSensible: { $0.intensity != .recovery && noGymWeights($0) }),
-            SyntheticFixture("green-rested-physique", pic(recovery: 90, hrvZ: 0.5, sleepDebt: 0),
+            SyntheticFixture(
+                "green-rested-physique", pic(recovery: 90, hrvZ: 0.5, sleepDebt: 0),
                 rawIsSensible: { ($0.intensity == .hard || $0.intensity == .moderate || $0.intensity == .max) && noGymWeights($0) }),
-            SyntheticFixture("green-after-hard-yesterday",
+            SyntheticFixture(
+                "green-after-hard-yesterday",
                 pic(recovery: 70, yesterday: [YesterdaySession(type: "legs", strain: 16, durationMin: 70, avgHR: 140)]),
                 rawIsSensible: { $0.intensity != .max && noGymWeights($0) }),
 
             // — Yellow / moderate: train but not max —
-            SyntheticFixture("yellow-mild", pic(recovery: 55, hrvZ: -0.6),
+            SyntheticFixture(
+                "yellow-mild", pic(recovery: 55, hrvZ: -0.6),
                 rawIsSensible: { $0.intensity != .max }),
-            SyntheticFixture("yellow-hrv-down", pic(recovery: 50, hrvZ: -1.1, rhrDelta: 3),
+            SyntheticFixture(
+                "yellow-hrv-down", pic(recovery: 50, hrvZ: -1.1, rhrDelta: 3),
                 rawIsSensible: { $0.intensity == .moderate || $0.intensity == .easy || $0.intensity == .recovery }),
-            SyntheticFixture("yellow-sleep-debt", pic(recovery: 58, sleepDebt: 2.5),
+            SyntheticFixture(
+                "yellow-sleep-debt", pic(recovery: 58, sleepDebt: 2.5),
                 rawIsSensible: { $0.intensity != .max }),
 
             // — RED / SEVERE: the prompt must pick recovery UNAIDED (anti-pattern) —
-            SyntheticFixture("red-crashed", pic(recovery: 28, hrvZ: -1.8, rhrDelta: 6),
+            SyntheticFixture(
+                "red-crashed", pic(recovery: 28, hrvZ: -1.8, rhrDelta: 6),
                 rawIsSensible: { isRecoveryish($0) },
                 antiPattern: { isRecoveryish($0) },
                 diagnose: { "RED day but Haiku prescribed \($0.intensity.rawValue) \($0.modality)" }),
-            SyntheticFixture("red-deep", pic(recovery: 20, hrvZ: -2.2, rhrDelta: 8, sleepDebt: 5),
+            SyntheticFixture(
+                "red-deep", pic(recovery: 20, hrvZ: -2.2, rhrDelta: 8, sleepDebt: 5),
                 rawIsSensible: { isRecoveryish($0) },
                 antiPattern: { isRecoveryish($0) }),
-            SyntheticFixture("severe-illness-resp", pic(recovery: 55, respDelta: 2.5),
+            SyntheticFixture(
+                "severe-illness-resp", pic(recovery: 55, respDelta: 2.5),
                 rawIsSensible: { isRecoveryish($0) },
                 antiPattern: { isRecoveryish($0) },
                 diagnose: { "Illness signal but Haiku prescribed \($0.intensity.rawValue)" }),
-            SyntheticFixture("severe-sleep-debt-yellow", pic(recovery: 50, sleepDebt: 4.5),
+            SyntheticFixture(
+                "severe-sleep-debt-yellow", pic(recovery: 50, sleepDebt: 4.5),
                 rawIsSensible: { isRecoveryish($0) },
                 antiPattern: { isRecoveryish($0) }),
 
             // — Pre-match (T-1): sharp but NOT heavy legs (anti-pattern) —
-            SyntheticFixture("prematch-green", pic(recovery: 78, match: 1),
+            SyntheticFixture(
+                "prematch-green", pic(recovery: 78, match: 1),
                 rawIsSensible: { notHardLegs($0) },
                 antiPattern: { notHardLegs($0) },
                 diagnose: { "Match tomorrow but Haiku prescribed \($0.intensity.rawValue) \($0.modality)" }),
-            SyntheticFixture("prematch-yellow", pic(recovery: 58, hrvZ: -0.8, match: 1),
+            SyntheticFixture(
+                "prematch-yellow", pic(recovery: 58, hrvZ: -0.8, match: 1),
                 rawIsSensible: { notHardLegs($0) && $0.intensity != .max },
                 antiPattern: { notHardLegs($0) }),
-            SyntheticFixture("match-today", pic(recovery: 75, match: 0),
+            SyntheticFixture(
+                "match-today", pic(recovery: 75, match: 0),
                 rawIsSensible: { $0.intensity != .max },
                 antiPattern: { notHardLegs($0) }),
 
             // — Subjective conflict: green Whoop but pain flag → route away —
-            SyntheticFixture("green-but-knee-pain",
+            SyntheticFixture(
+                "green-but-knee-pain",
                 pic(recovery: 80, checkIn: MorningCheckInSnapshot(mood: 3, stress: 4, soreness: ["knee": 9])),
                 rawIsSensible: { s in
                     // Should not load legs hard with a knee pain flag.
                     let loadsLegs = s.blocks.contains { ($0.split?.lowercased().contains("leg") ?? false) }
                     return !loadsLegs || s.intensity == .easy || s.intensity == .recovery
                 }),
-            SyntheticFixture("green-high-stress",
+            SyntheticFixture(
+                "green-high-stress",
                 pic(recovery: 72, checkIn: MorningCheckInSnapshot(mood: 2, stress: 9, soreness: [:])),
                 rawIsSensible: { $0.intensity != .max }),
 
             // — Overreach: ACWR spiking → back off —
-            SyntheticFixture("overreach-acwr", pic(recovery: 62, acwr: 1.6),
+            SyntheticFixture(
+                "overreach-acwr", pic(recovery: 62, acwr: 1.6),
                 rawIsSensible: { $0.intensity != .max }),
 
             // — Cold-start: trends building (<30 days) → no trend claims, simple —
-            SyntheticFixture("coldstart-day5", pic(recovery: 70, hrvZ: nil, rhrDelta: nil, validSamples: 5, historyDays: 5),
+            SyntheticFixture(
+                "coldstart-day5", pic(recovery: 70, hrvZ: nil, rhrDelta: nil, validSamples: 5, historyDays: 5),
                 rawIsSensible: { noGymWeights($0) }),
-            SyntheticFixture("coldstart-day20-redrecovery", pic(recovery: 30, hrvZ: nil, validSamples: 10, historyDays: 20),
+            SyntheticFixture(
+                "coldstart-day20-redrecovery", pic(recovery: 30, hrvZ: nil, validSamples: 10, historyDays: 20),
                 rawIsSensible: { isRecoveryish($0) },
                 antiPattern: { isRecoveryish($0) }),
 
             // — Gym-pointer discipline: a clear gym day must NOT emit weights —
-            SyntheticFixture("gym-pointer-check", pic(recovery: 76),
+            SyntheticFixture(
+                "gym-pointer-check", pic(recovery: 76),
                 rawIsSensible: { noGymWeights($0) },
                 diagnose: { _ in "gym block leaked sets/weights (must be a pointer)" }),
 
             // — Recovery-trending-up, green: a quality session is right —
-            SyntheticFixture("fit-improving", pic(recovery: 85, hrvZ: 1.2, rhrDelta: -3),
+            SyntheticFixture(
+                "fit-improving", pic(recovery: 85, hrvZ: 1.2, rhrDelta: -3),
                 rawIsSensible: { $0.intensity != .recovery && noGymWeights($0) }),
 
             // ─── §8 cadence contract: weekly OWNS the modality-default ───
             // Normal day + planned legs → brain KEEPS legs, moves only intensity.
             // This is a FLOOR-CAN'T-CATCH check (the floor doesn't enforce
             // modality on a green day) → a real prompt-only gate.
-            SyntheticFixture("planned-legs-normal", pic(recovery: 76), plannedModality: "legs",
+            SyntheticFixture(
+                "planned-legs-normal", pic(recovery: 76), plannedModality: "legs",
                 rawIsSensible: { keepsPlanned($0, "legs") && noGymWeights($0) },
                 antiPattern: { keepsPlanned($0, "legs") },
                 diagnose: { "Planned legs on a normal day but Haiku prescribed \($0.modality)" }),
             // Severe + planned legs → recovery STILL wins (readiness overrides the plan).
-            SyntheticFixture("planned-legs-severe", pic(recovery: 28, hrvZ: -1.8, rhrDelta: 6), plannedModality: "legs",
+            SyntheticFixture(
+                "planned-legs-severe", pic(recovery: 28, hrvZ: -1.8, rhrDelta: 6), plannedModality: "legs",
                 rawIsSensible: { isRecoveryish($0) },
                 antiPattern: { isRecoveryish($0) },
                 diagnose: { "Planned legs but red recovery — Haiku should recover, prescribed \($0.modality)" }),
             // Pre-match + planned legs → keep light / swap away from heavy legs (T-1).
-            SyntheticFixture("planned-legs-prematch", pic(recovery: 72, match: 1), plannedModality: "legs",
+            SyntheticFixture(
+                "planned-legs-prematch", pic(recovery: 72, match: 1), plannedModality: "legs",
                 rawIsSensible: { notHardLegs($0) },
                 antiPattern: { notHardLegs($0) }),
 
@@ -194,7 +217,8 @@ enum SyntheticPictures {
             // trends. This conflicted input is exactly what makes Haiku write a
             // longer rationale (→ the >120-char shortWhy that nuked the live
             // session). Now that overflow is COERCED, this must parse + keep pull.
-            SyntheticFixture("planned-pull-knee-pain",
+            SyntheticFixture(
+                "planned-pull-knee-pain",
                 pic(recovery: 74, hrvZ: 0.2, rhrDelta: 0,
                     checkIn: MorningCheckInSnapshot(mood: 3, stress: 5, soreness: ["knees": 9])),
                 plannedModality: "pull",
@@ -207,14 +231,17 @@ enum SyntheticPictures {
             // and passes the floor's own composite gate unchanged (one rulebook,
             // not a duplicate). The floor-can't-catch part is the untimed-
             // composite error and the no-second-part-when-loaded discipline.
-            SyntheticFixture("two-a-day-green-planned-pull", pic(recovery: 84), plannedModality: "pull",
+            SyntheticFixture(
+                "two-a-day-green-planned-pull", pic(recovery: 84), plannedModality: "pull",
                 rawIsSensible: { legalTwoADay($0, pic(recovery: 84)) && noGymWeights($0) },
                 diagnose: { "Composite emitted but illegal (untimed parts or floor-stripped): \($0.blocks.compactMap(\.scheduledMin))" }),
-            SyntheticFixture("two-a-day-match-T0-primer", pic(recovery: 75, match: 0),
+            SyntheticFixture(
+                "two-a-day-match-T0-primer", pic(recovery: 75, match: 0),
                 rawIsSensible: { legalTwoADay($0, pic(recovery: 75, match: 0)) && notHardLegs($0) },
                 antiPattern: { notHardLegs($0) },
                 diagnose: { "Match TODAY — primer must not load legs; got \($0.modality) \($0.intensity.rawValue)" }),
-            SyntheticFixture("two-a-day-overreached-single-only", pic(recovery: 62, acwr: 1.6), plannedModality: "pull",
+            SyntheticFixture(
+                "two-a-day-overreached-single-only", pic(recovery: 62, acwr: 1.6), plannedModality: "pull",
                 rawIsSensible: { !$0.isComposite && $0.intensity != .max },
                 antiPattern: { !$0.isComposite },
                 diagnose: { _ in "ACWR 1.6 — no second part allowed, but Haiku emitted a composite day" }),

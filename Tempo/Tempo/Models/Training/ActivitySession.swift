@@ -103,7 +103,9 @@ final class ActivitySession {
     /// really" signal, sharper than whole-session strain. nil = no zone data.
     @Transient
     var hardMinutes: Double? {
-        guard let z4 = zone4Min, let z5 = zone5Min else { return nil }
+        guard let z4 = zone4Min, let z5 = zone5Min else {
+            return nil
+        }
         return z4 + z5
     }
 }

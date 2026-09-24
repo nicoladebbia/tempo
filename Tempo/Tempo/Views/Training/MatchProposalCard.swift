@@ -36,7 +36,9 @@ struct MatchProposalCard: View {
     @State
     private var proposals: [CalendarEvent] = []
 
-    private var cal: Calendar { Calendar.current }
+    private var cal: Calendar {
+        Calendar.current
+    }
 
     var body: some View {
         VStack(spacing: TempoSpacing.sm) {
@@ -51,7 +53,6 @@ struct MatchProposalCard: View {
 
     // MARK: - Row
 
-    @ViewBuilder
     private func proposalRow(_ event: CalendarEvent) -> some View {
         VStack(alignment: .leading, spacing: TempoSpacing.sm) {
             HStack(spacing: TempoSpacing.xxs) {
@@ -107,7 +108,9 @@ struct MatchProposalCard: View {
 
     private func loadProposals() async {
         let today = cal.startOfDay(for: Date())
-        guard let end = cal.date(byAdding: .day, value: 7, to: today) else { return }
+        guard let end = cal.date(byAdding: .day, value: 7, to: today) else {
+            return
+        }
         let range = DateInterval(start: today, end: end)
 
         // Warm the calendar cache (detect* reads the sync cache).
@@ -120,10 +123,16 @@ struct MatchProposalCard: View {
         proposals = services.calendar.detectFootballEvents(in: range).filter { event in
             let day = cal.startOfDay(for: event.startDate)
             // Already covered by the recurring weekday cadence → nothing to add.
-            if footballDays.isActive(on: cal.component(.weekday, from: day)) { return false }
+            if footballDays.isActive(on: cal.component(.weekday, from: day)) {
+                return false
+            }
             // Already an explicit dated Match → nothing to add.
-            if knownMatchDays.contains(day) { return false }
-            if dismissed.contains(proposalKey(event)) { return false }
+            if knownMatchDays.contains(day) {
+                return false
+            }
+            if dismissed.contains(proposalKey(event)) {
+                return false
+            }
             return day >= today
         }
     }
@@ -138,7 +147,7 @@ struct MatchProposalCard: View {
             isCompetitive: true // protect by default — same as the model's default
         )
         modelContext.insert(match)
-        try? modelContext.save()
+        modelContext.saveOrAlert("match")
         // Same fan-out MatchScheduleView posts on add — replans the week.
         NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
         HapticManager.notification(.success)
@@ -165,8 +174,12 @@ struct MatchProposalCard: View {
     }
 
     private func dayLabel(_ date: Date) -> String {
-        if cal.isDateInToday(date) { return "today" }
-        if cal.isDateInTomorrow(date) { return "tomorrow" }
+        if cal.isDateInToday(date) {
+            return "today"
+        }
+        if cal.isDateInTomorrow(date) {
+            return "tomorrow"
+        }
         let f = DateFormatter()
         f.dateFormat = "EEEE"
         return f.string(from: date)

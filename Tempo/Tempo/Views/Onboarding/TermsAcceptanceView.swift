@@ -99,7 +99,10 @@ struct TermsAcceptanceView: View {
             ) {
                 Task {
                     isSubmitting = true
-                    await viewModel.submitToSAcceptance(apiClient: services.apiClient)
+                    await viewModel.submitToSAcceptance(
+                        apiClient: services.apiClient,
+                        isSignedIn: services.authService.accessToken != nil
+                    )
                     isSubmitting = false
                 }
             }

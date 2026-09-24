@@ -115,6 +115,10 @@ struct LockdownTabView: View {
                     viewModel.loadToday(modelContext: modelContext)
                     hasAppeared = true
                 }
+                // A non-negotiable completed elsewhere (e.g. from the watch).
+                .onReceive(NotificationCenter.default.publisher(for: .tempoNonNegotiableChanged)) { _ in
+                    viewModel.loadToday(modelContext: modelContext)
+                }
         }
     }
 

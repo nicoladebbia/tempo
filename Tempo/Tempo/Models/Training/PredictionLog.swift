@@ -90,6 +90,7 @@ final class PredictionLog {
     var outcomeResolved: Bool = false
 
     // MARK: - Shadow baseline (Step 4 hold-out)
+
     //
     // What the DUMB generic engine (last weight + fixed increment, no learning,
     // no recovery adjustment) would have prescribed for the same exercise/
@@ -112,7 +113,9 @@ final class PredictionLog {
     /// negative = easier (under-prescribed). The core Step-2 signal.
     @Transient
     var rpeError: Double? {
-        guard outcomeResolved, let actualRPE else { return nil }
+        guard outcomeResolved, let actualRPE else {
+            return nil
+        }
         return actualRPE - predictedRPE
     }
 
@@ -126,7 +129,10 @@ final class PredictionLog {
     @Transient
     var baselineRPEErrorEstimate: Double? {
         guard outcomeResolved, let actualRPE, let baselineWeight,
-              let actualWeight, actualWeight > 0 else { return nil }
+              let actualWeight, actualWeight > 0
+        else {
+            return nil
+        }
         // Weight the baseline would have used vs. what was actually lifted,
         // expressed in increments, then in RPE: each increment heavier ≈
         // rpePerIncrementForEstimate harder.

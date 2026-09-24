@@ -9,7 +9,7 @@
 import SwiftData
 import SwiftUI
 
-// MARK: - Active Workout View
+// MARK: - ActiveWorkoutView
 
 // Per MODULE_TRAINING.md Section 3 — Exercise-by-exercise set logging.
 // Per STATE_MACHINES.md Section 1 — Workout session states.
@@ -38,6 +38,10 @@ struct ActiveWorkoutView: View {
     /// §11.13 — "How to" sheet: full exercise detail from the set screen.
     @State
     private var showHowTo = false
+    /// §4.2-4.4 — which numeric field the tap-to-type/wheel sheet is
+    /// currently editing. nil = no sheet presented.
+    @State
+    private var activeEntryField: EntryField?
     @Query
     private var allSettings: [UserSettings]
     @Query
@@ -112,16 +116,29 @@ struct ActiveWorkoutView: View {
         return StrengthStandards.isBodyweightLoaded(eq)
     }
 
-    /// User bodyweight (kg) for effective-load math. 0 when unknown → the
-    /// effective load degrades to just the added load.
+    /// User bodyweight (kg) for effective-load math. 0 when unknown — §15:
+    /// that used to fall straight through to `bodyweightEffectiveKg` and log
+    /// a bodyweight lift at 0 kg. `bodyweightPromptDisplayValue` below is the
+    /// inline session prompt that now covers this gap.
     private var bodyweightKg: Double {
         profiles.first?.weightKg ?? 0
     }
 
+    /// §15 fix — inline prompt value (display unit) for a session where the
+    /// profile has no bodyweight on file. Seeded to a sane default in
+    /// `loadCurrentSetInputs`; only shown/used while `bodyweightKg <= 0`.
+    @State
+    private var bodyweightPromptDisplayValue: Double = 70
+
     /// Effective logged load (kg) for a bodyweight lift = bodyweight ± added,
-    /// never negative. `inputAddedLoad` is in the display unit.
+    /// never negative. `inputAddedLoad` is in the display unit. Falls back to
+    /// the inline prompt (never to 0) when the profile has no weight on file.
     private var bodyweightEffectiveKg: Double {
-        max(0, bodyweightKg + weightUnit.convert(inputAddedLoad, to: .kg))
+        BodyweightLiftMath.effectiveLoadKg(
+            profileBodyweightKg: bodyweightKg,
+            promptBodyweightKg: weightUnit.convert(bodyweightPromptDisplayValue, to: .kg),
+            addedLoadKg: weightUnit.convert(inputAddedLoad, to: .kg)
+        )
     }
 
     /// Human hint under the added-load stepper: "= 77.7 kg effective · assisted".
@@ -129,7 +146,7 @@ struct ActiveWorkoutView: View {
         let unit = weightUnit.abbreviation
         let effDisplay = WeightUnit.kg.convert(bodyweightEffectiveKg, to: weightUnit)
         let effStr = String(format: weightUnit == .kg ? "%.1f" : "%.0f", effDisplay)
-        let tag: String = if inputAddedLoad > 0 {
+        let tag = if inputAddedLoad > 0 {
             "weighted"
         } else if inputAddedLoad < 0 {
             "assisted"
@@ -137,6 +154,48 @@ struct ActiveWorkoutView: View {
             "bodyweight"
         }
         return "= \(effStr) \(unit) effective · \(tag)"
+    }
+
+    @State
+    private var prToast: PersonalRecord?
+    @State
+    private var showNotes = false
+
+    /// §3 — see the toolbar Finish button's own comment: only a live or
+    /// paused session offers the generic Finish action.
+    private var showFinishButtonInToolbar: Bool {
+        switch viewModel.sessionState {
+        case .warmup,
+             .exercise,
+             .paused:
+            true
+        default:
+            false
+        }
+    }
+
+    private func prToastView(_ pr: PersonalRecord) -> some View {
+        HStack(spacing: TempoSpacing.sm) {
+            Image(systemName: "trophy.fill")
+                .foregroundStyle(Color.tempoPRGold)
+            VStack(alignment: .leading, spacing: 0) {
+                Text("NEW PR")
+                    .font(.tempoHeadline)
+                    .foregroundStyle(Color.tempoPRGold)
+                // §15 fix — the weight shown here comes from `pr.value`
+                // converted to the user's unit (PRDisplay), never from the
+                // engine's kg-only, unit-unaware `context` string.
+                Text("\(pr.exercise?.name ?? "Exercise") · \(PRDisplay.weightLabel(pr, unit: weightUnit))")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextPrimary)
+            }
+        }
+        .padding(.horizontal, TempoSpacing.lg)
+        .padding(.vertical, TempoSpacing.sm)
+        .background(Color.tempoSurfaceCard)
+        .clipShape(Capsule())
+        .overlay(Capsule().stroke(Color.tempoPRGold.opacity(0.6), lineWidth: 1))
+        .accessibilityElement(children: .combine)
     }
 
     var body: some View {
@@ -178,6 +237,65 @@ struct ActiveWorkoutView: View {
                 }
             }
         }
+        // §12 — the PR moment lands on the set that earned it, not later on
+        // the summary. logSet appends to detectedPRs when one fires.
+        .overlay(alignment: .top) {
+            if let pr = prToast {
+                prToastView(pr)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .padding(.top, TempoSpacing.xxl)
+            }
+        }
+        .onChange(of: viewModel.detectedPRs.count) { old, new in
+            guard new > old, let pr = viewModel.detectedPRs.last else {
+                return
+            }
+            HapticManager.success()
+            withAnimation(.spring(duration: 0.35)) { prToast = pr }
+            Task {
+                try? await Task.sleep(for: .seconds(2.5))
+                if prToast?.id == pr.id {
+                    withAnimation(.easeOut(duration: 0.25)) { prToast = nil }
+                }
+            }
+        }
+        .sheet(isPresented: $showNotes) {
+            if let plan = viewModel.todayPlan {
+                NavigationStack {
+                    SessionNotesField(plan: plan)
+                        .padding(TempoSpacing.screenEdge)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                        .background(Color.tempoBgPrimary)
+                        .toolbar {
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("Done") {
+                                    modelContext.saveOrAlert("session notes")
+                                    showNotes = false
+                                }
+                            }
+                        }
+                }
+                .presentationDetents([.medium])
+            }
+        }
+        // Save failures while the full-screen cover is up (the Training tab's
+        // alerts can't present over it).
+        .alert(
+            "Save failed",
+            isPresented: Binding(
+                get: { viewModel.saveErrorMessage != nil },
+                set: {
+                    if !$0 {
+                        viewModel.saveErrorMessage = nil
+                    }
+                }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(viewModel.saveErrorMessage ?? "")
+        }
+        .persistenceAlert()
         .navigationBarBackButtonHidden()
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -189,20 +307,39 @@ struct ActiveWorkoutView: View {
                         .foregroundStyle(Color.tempoTextSecondary)
                 }
             }
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .topBarLeading) {
                 Button {
-                    showFinishConfirmation = true
+                    showNotes = true
                 } label: {
-                    Text("Finish")
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoSignal)
+                    Image(systemName: viewModel.todayPlan?.userNotes == nil ? "note.text.badge.plus" : "note.text")
+                        .font(.tempoBody)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                }
+                .accessibilityLabel("Session notes")
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                // §3 fix — Finish only makes sense while a session is
+                // actually live or paused. `.crashedRecovery` has its own
+                // Resume/Discard pair (finishing there skipped the timing
+                // restore entirely) and `.interruptedCall` auto-resumes with
+                // its own "Resume now" escape hatch — offering a second,
+                // generic Finish in either duplicated (or for crashedRecovery,
+                // silently bypassed) their real flows.
+                if showFinishButtonInToolbar {
+                    Button {
+                        showFinishConfirmation = true
+                    } label: {
+                        Text("Finish")
+                            .font(.tempoHeadline)
+                            .foregroundStyle(Color.tempoSignal)
+                    }
                 }
             }
         }
         // Centered alert (not a popover/action sheet) for the finish choice.
         .alert("Finish Workout?", isPresented: $showFinishConfirmation) {
             Button("Save what I did") {
-                viewModel.finishWorkout()
+                viewModel.finishWorkout(modelContext: modelContext)
             }
             Button("Discard workout", role: .destructive) {
                 // Discard rolls back + resets; TrainingTabView observes
@@ -220,6 +357,11 @@ struct ActiveWorkoutView: View {
                     ExerciseDetailView(exercise: exercise)
                 }
             }
+        }
+        // §4.2-4.4 — tap-to-type / scroll-wheel entry for weight, added load,
+        // and reps. One sheet type, driven by which field was tapped.
+        .sheet(item: $activeEntryField) { field in
+            entrySheet(for: field)
         }
         .onAppear { loadCurrentSetInputs() }
         // NOTE: cover teardown on .discarded is owned SOLELY by TrainingTabView
@@ -272,9 +414,9 @@ struct ActiveWorkoutView: View {
 
     // Per MODULE_TRAINING.md Section 3 — Weight/reps inputs, DONE button
 
-    // §11.7 rework — a single-screen cockpit: compact header, one-line alert
-    // chips, LAST/TARGET/BEST context from real history, steppers, dots, and
-    // a Skip+Finish action row. No ScrollView: everything fits one page.
+    /// §11.7 rework — a single-screen cockpit: compact header, one-line alert
+    /// chips, LAST/TARGET/BEST context from real history, steppers, dots, and
+    /// a Skip+Finish action row. No ScrollView: everything fits one page.
     private var setActiveContent: some View {
         VStack(spacing: TempoSpacing.md) {
             exerciseHeader
@@ -284,73 +426,101 @@ struct ActiveWorkoutView: View {
             contextStrip
 
             if isBodyweightLift {
-                    // Bodyweight-loaded lift (pull-up/dip): log a SIGNED added
-                    // load — negative = assistance (band/machine), positive =
-                    // weight belt/vest. Effective load = bodyweight ± this.
+                // §15 fix — no bodyweight on file yet: prompt for it inline,
+                // once, right here (not a separate screen), so the FIRST
+                // bodyweight-lift log of the session never has to fall back
+                // to 0 kg. Persisted to UserProfile.weightKg on Finish Set —
+                // see `persistBodyweightIfNeeded()`.
+                if bodyweightKg <= 0 {
                     VStack(spacing: TempoSpacing.sm) {
-                        Text("ADDED LOAD — − assisted / + weighted")
+                        Text("YOUR BODYWEIGHT — needed to log this lift")
                             .font(.tempoCaption2)
                             .foregroundStyle(Color.tempoTextTertiary)
                         NumberStepperView(
-                            value: $inputAddedLoad,
-                            range: -weightRangeMax ... weightRangeMax,
+                            value: $bodyweightPromptDisplayValue,
+                            range: WeightUnit.kg.convert(30, to: weightUnit) ... WeightUnit.kg.convert(300, to: weightUnit),
                             step: weightStep,
-                            format: weightUnit == .kg ? "%+.1f" : "%+.0f",
-                            unit: weightUnit.abbreviation
+                            format: weightUnit == .kg ? "%.1f" : "%.0f",
+                            unit: weightUnit.abbreviation,
+                            onTapValue: { activeEntryField = .bodyweight }
                         )
-                        Text(bodyweightEffectiveHint)
+                        Text("Saved to your profile — used for pull-ups, dips, and similar lifts.")
                             .font(.tempoCaption2)
                             .foregroundStyle(Color.tempoTextSecondary)
                     }
-                } else {
-                    // Weight input — the logged number is TOTAL load including the
-                    // bar. For bar-loaded lifts we show a per-side plate hint so
-                    // there's no ambiguity about what to actually put on.
-                    VStack(spacing: TempoSpacing.sm) {
-                        Text("WEIGHT — total incl. bar")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                        NumberStepperView(
-                            value: $inputWeight,
-                            range: 0 ... weightRangeMax,
-                            step: weightStep,
-                            format: weightUnit == .kg ? "%.1f" : "%.0f",
-                            unit: weightUnit.abbreviation
-                        )
-                        if let hint = perSideHint {
-                            Text(hint)
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextSecondary)
-                        }
-                    }
                 }
-
-                // Reps input
+                // Bodyweight-loaded lift (pull-up/dip): log a SIGNED added
+                // load — negative = assistance (band/machine), positive =
+                // weight belt/vest. Effective load = bodyweight ± this.
                 VStack(spacing: TempoSpacing.sm) {
-                    Text("REPS")
+                    Text("ADDED LOAD — − assisted / + weighted")
                         .font(.tempoCaption2)
                         .foregroundStyle(Color.tempoTextTertiary)
                     NumberStepperView(
-                        value: $inputReps,
-                        range: 1 ... 100,
-                        step: 1,
-                        format: "%.0f",
-                        unit: "reps"
+                        value: $inputAddedLoad,
+                        range: -weightRangeMax ... weightRangeMax,
+                        step: weightStep,
+                        format: weightUnit == .kg ? "%+.1f" : "%+.0f",
+                        unit: weightUnit.abbreviation,
+                        onTapValue: { activeEntryField = .addedLoad }
                     )
-                    // §11.12 — the effort target that makes the weight make
-                    // sense: the load is computed FOR this rep count at this
-                    // proximity to failure.
-                    if !currentSetIsWarmup, let rir = viewModel.currentSet?.targetRIR {
-                        Text(rir == 0
-                            ? "All out — nothing left in the tank"
-                            : "Effort: leave \(rir) rep\(rir == 1 ? "" : "s") in the tank")
+                    Text(bodyweightEffectiveHint)
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                }
+            } else {
+                // Weight input — the logged number is TOTAL load including the
+                // bar. For bar-loaded lifts we show a per-side plate hint so
+                // there's no ambiguity about what to actually put on.
+                VStack(spacing: TempoSpacing.sm) {
+                    Text("WEIGHT — total incl. bar")
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                    NumberStepperView(
+                        value: $inputWeight,
+                        range: 0 ... weightRangeMax,
+                        step: weightStep,
+                        format: weightUnit == .kg ? "%.1f" : "%.0f",
+                        unit: weightUnit.abbreviation,
+                        onTapValue: { activeEntryField = .weight }
+                    )
+                    if let hint = perSideHint {
+                        Text(hint)
                             .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoAmber)
+                            .foregroundStyle(Color.tempoTextSecondary)
                     }
                 }
+            }
+
+            // Reps input
+            VStack(spacing: TempoSpacing.sm) {
+                Text("REPS")
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextTertiary)
+                NumberStepperView(
+                    value: $inputReps,
+                    range: 1 ... 100,
+                    step: 1,
+                    format: "%.0f",
+                    unit: "reps",
+                    onTapValue: { activeEntryField = .reps }
+                )
+                // §11.12 — the effort target that makes the weight make
+                // sense: the load is computed FOR this rep count at this
+                // proximity to failure.
+                if !currentSetIsWarmup, let rir = viewModel.currentSet?.targetRIR {
+                    Text(rir == 0
+                        ? "All out — nothing left in the tank"
+                        : "Effort: leave \(rir) rep\(rir == 1 ? "" : "s") in the tank")
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoAmber)
+                }
+            }
 
             // RPE is collected end-of-set in the inline feedback panel
             // (under the rest timer), not here — one prompt, not two.
+
+            dropSetControl
 
             Spacer(minLength: 0)
 
@@ -364,13 +534,15 @@ struct ActiveWorkoutView: View {
         .padding(.vertical, TempoSpacing.md)
     }
 
-    /// One-line condition chips (ramp / pain / superset) — the old full-width
-    /// banners each ate a screen row; these say the same thing in 28pt.
+    /// One-line condition chips (ramp / pain / superset / drop) — the old
+    /// full-width banners each ate a screen row; these say the same thing in
+    /// 28pt.
     @ViewBuilder
     private var alertChips: some View {
         let exerciseID: UUID? = viewModel.currentExercise?.exercise?.id
         let painFlagged = exerciseID.map { viewModel.painFlaggedExercises.contains($0) } ?? false
-        if currentSetIsWarmup || painFlagged || viewModel.currentSupersetPartnerName != nil {
+        let dropIndex = viewModel.currentSet?.dropStepIndex
+        if currentSetIsWarmup || painFlagged || viewModel.currentSupersetPartnerName != nil || dropIndex != nil {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: TempoSpacing.xs) {
                     if currentSetIsWarmup {
@@ -380,7 +552,12 @@ struct ActiveWorkoutView: View {
                         chip("exclamationmark.triangle.fill", "Pain flagged — weight held, go easy", Color.tempoWarning)
                     }
                     if let partner = viewModel.currentSupersetPartnerName {
-                        chip("arrow.triangle.2.circlepath", "Superset: \(partner)", Color.tempoSignal)
+                        let label = viewModel.currentGroupIsCircuit ? "Circuit" : "Superset"
+                        chip("arrow.triangle.2.circlepath", "\(label): \(partner)", Color.tempoSignal)
+                    }
+                    // §6.4/§7.7 — a drop step: no rest, reduced weight, to failure.
+                    if let dropIndex {
+                        chip("arrow.down.circle.fill", "DROP \(dropIndex) — no rest, to failure", Color.tempoAmber)
                     }
                 }
             }
@@ -473,6 +650,34 @@ struct ActiveWorkoutView: View {
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
     }
 
+    // MARK: - Drop Set Control (§6.4 / §6.5)
+
+    /// "+ Drop Set" queues a reduced-weight, no-rest continuation right after
+    /// this set (chainable — tap again for a second drop); once queued it
+    /// becomes "Remove Drop" so an accidental tap is a one-tap undo. Hidden
+    /// on warmups (a ramp set is never dropped).
+    @ViewBuilder
+    private var dropSetControl: some View {
+        if !currentSetIsWarmup {
+            Button {
+                if viewModel.currentSetHasPendingDrop {
+                    viewModel.removeTrailingDropSet(modelContext: modelContext)
+                } else {
+                    viewModel.addDropSet(modelContext: modelContext)
+                }
+                HapticManager.selection()
+            } label: {
+                Label(
+                    viewModel.currentSetHasPendingDrop ? "Remove Drop" : "+ Drop Set",
+                    systemImage: viewModel.currentSetHasPendingDrop ? "minus.circle" : "arrow.down.circle"
+                )
+                .font(.tempoCaption1)
+                .foregroundStyle(viewModel.currentSetHasPendingDrop ? Color.tempoTextTertiary : Color.tempoAmber)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
     // MARK: - Action Row
 
     /// Skip + Finish side by side — skip always visible, never the hero.
@@ -501,6 +706,10 @@ struct ActiveWorkoutView: View {
                 // bodyweight lift the logged weight is the EFFECTIVE load
                 // (bodyweight ± added) and we also record the signed added load.
                 if isBodyweightLift {
+                    // §15 — commit the inline prompt to the profile BEFORE
+                    // logging, so this and every later bodyweight lift this
+                    // session (and beyond) reads a real weight, not 0.
+                    persistBodyweightIfNeeded()
                     viewModel.logSet(
                         weight: bodyweightEffectiveKg,
                         reps: Int(inputReps),
@@ -517,7 +726,7 @@ struct ActiveWorkoutView: View {
                 }
                 HapticManager.notification(.success)
             } label: {
-                Text(currentSetIsWarmup ? "Finish Warm-Up" : "Finish Set")
+                Text(finishButtonLabel)
                     .font(.tempoHeadline)
                     .frame(maxWidth: .infinity)
                     .frame(height: 56)
@@ -533,6 +742,18 @@ struct ActiveWorkoutView: View {
         viewModel.currentSet?.isWarmup ?? false
     }
 
+    /// §6.4 — names the drop step explicitly ("Finish Drop 2") so the
+    /// no-rest continuation reads as deliberate, not a UI glitch.
+    private var finishButtonLabel: String {
+        if currentSetIsWarmup {
+            return "Finish Warm-Up"
+        }
+        if let dropIndex = viewModel.currentSet?.dropStepIndex {
+            return "Finish Drop \(dropIndex)"
+        }
+        return "Finish Set"
+    }
+
     // MARK: - Warmup Content
 
     // A guided, workout-SPECIFIC 10–15 min warm-up + mobility block shown before
@@ -542,13 +763,12 @@ struct ActiveWorkoutView: View {
     // targets are previewed, then "Start Working Sets" enters the lift.
     // This block logs nothing — it is deliberately not part of WorkoutSessionState.
 
+    @ViewBuilder
     private var warmupContent: some View {
-        Group {
-            if let move = viewModel.currentWarmupMove {
-                warmupMovePlayer(move)
-            } else {
-                warmupRampPreview
-            }
+        if let move = viewModel.currentWarmupMove {
+            warmupMovePlayer(move)
+        } else {
+            warmupRampPreview
         }
     }
 
@@ -707,10 +927,10 @@ struct ActiveWorkoutView: View {
 
     // MARK: - Exercise Header
 
-    // §11.13 rework — the demo picture is the hero again: full-width 150pt
-    // card, name + muscle/set line on a bottom gradient, session ring
-    // top-right, and a "How to" button opening the full exercise detail
-    // (instructions + cues) without spending page height on them.
+    /// §11.13 rework — the demo picture is the hero again: full-width 150pt
+    /// card, name + muscle/set line on a bottom gradient, session ring
+    /// top-right, and a "How to" button opening the full exercise detail
+    /// (instructions + cues) without spending page height on them.
     private var exerciseHeader: some View {
         Group {
             if let exercise = viewModel.currentExercise?.exercise {
@@ -1044,9 +1264,110 @@ struct ActiveWorkoutView: View {
         }
     }
 
+    // MARK: - Numeric Entry (§4.2-4.4)
+
+    /// Which numeric field the tap-to-type/wheel sheet is editing.
+    private enum EntryField: String, Identifiable {
+        case weight
+        case addedLoad
+        case reps
+        case bodyweight
+        var id: String {
+            rawValue
+        }
+    }
+
+    /// Equipment-aware weight increment for both the wheel and the keypad
+    /// snap — same rule the +/- stepper already uses.
+    private var currentEquipment: Equipment {
+        viewModel.currentExercise?.exercise?.equipment ?? .none
+    }
+
+    @ViewBuilder
+    private func entrySheet(for field: EntryField) -> some View {
+        switch field {
+        case .weight:
+            NumericEntrySheet(
+                title: "Weight",
+                unit: weightUnit.abbreviation,
+                initialValue: inputWeight,
+                range: 0 ... weightRangeMax,
+                wheelValues: NumericEntrySheet.weightWheelValues(step: weightStep, upperBound: weightRangeMax),
+                displayFormat: weightUnit == .kg ? "%.1f" : "%.0f",
+                snap: { displayValue in
+                    let kg = WeightConverter.loadableKg(
+                        weightUnit.convert(displayValue, to: .kg), equipment: currentEquipment, unit: weightUnit
+                    )
+                    return WeightUnit.kg.convert(kg, to: weightUnit)
+                },
+                onSave: { inputWeight = $0 }
+            )
+        case .addedLoad:
+            NumericEntrySheet(
+                title: "Added Load",
+                unit: weightUnit.abbreviation,
+                initialValue: inputAddedLoad,
+                range: -weightRangeMax ... weightRangeMax,
+                wheelValues: NumericEntrySheet.weightWheelValues(
+                    step: weightStep, lowerBound: -weightRangeMax, upperBound: weightRangeMax
+                ),
+                displayFormat: weightUnit == .kg ? "%+.1f" : "%+.0f",
+                snap: { (($0 / weightStep).rounded()) * weightStep },
+                onSave: { inputAddedLoad = $0 }
+            )
+        case .reps:
+            NumericEntrySheet(
+                title: "Reps",
+                unit: "reps",
+                initialValue: inputReps,
+                range: 1 ... 100,
+                wheelValues: NumericEntrySheet.intWheelValues(1 ... 100),
+                displayFormat: "%.0f",
+                snap: { $0.rounded() },
+                onSave: { inputReps = $0 }
+            )
+        case .bodyweight:
+            let lower = WeightUnit.kg.convert(30, to: weightUnit)
+            let upper = WeightUnit.kg.convert(300, to: weightUnit)
+            NumericEntrySheet(
+                title: "Bodyweight",
+                unit: weightUnit.abbreviation,
+                initialValue: bodyweightPromptDisplayValue,
+                range: lower ... upper,
+                wheelValues: NumericEntrySheet.weightWheelValues(
+                    step: weightStep, lowerBound: lower, upperBound: upper
+                ),
+                displayFormat: weightUnit == .kg ? "%.1f" : "%.0f",
+                snap: { (($0 / weightStep).rounded()) * weightStep },
+                onSave: { bodyweightPromptDisplayValue = $0 }
+            )
+        }
+    }
+
     // MARK: - Helpers
 
+    /// §15 fix — commit the inline bodyweight prompt to the SAME place the
+    /// rest of the app reads bodyweight (`UserProfile.weightKg`) the first
+    /// time a bodyweight lift is about to be logged without one on file.
+    /// No-op once a real profile weight exists, or if there's no profile row
+    /// to write to.
+    private func persistBodyweightIfNeeded() {
+        guard isBodyweightLift, bodyweightKg <= 0, bodyweightPromptDisplayValue > 0,
+              let profile = profiles.first
+        else {
+            return
+        }
+        profile.weightKg = weightUnit.convert(bodyweightPromptDisplayValue, to: .kg)
+        modelContext.saveOrAlert("bodyweight")
+    }
+
     private func loadCurrentSetInputs() {
+        // §15 — seed the inline bodyweight prompt with a sane default the
+        // first time it's needed this session (only matters while
+        // bodyweightKg <= 0; otherwise the prompt never renders).
+        if isBodyweightLift, bodyweightKg <= 0 {
+            bodyweightPromptDisplayValue = WeightUnit.kg.convert(70, to: weightUnit)
+        }
         // Bodyweight-loaded lift: seed the SIGNED added-load stepper from the
         // set's planned suggestion (bodyweight ± this = effective target) rather
         // than a total weight.
@@ -1060,13 +1381,14 @@ struct ActiveWorkoutView: View {
             return
         }
 
-        // Warm-up (ramp) sets pre-fill their OWN target (the 50%/75% ramp
-        // weight) — NOT the sticky/previous weight, which would carry the
-        // working weight onto the ramps and make them identical. Working sets
-        // use sticky (carry the weight you actually lifted forward).
+        // Warm-up (ramp) sets AND drop steps (§6.4) pre-fill their OWN target
+        // — a ramp's 50%/75% weight, or a drop's already-reduced/snapped
+        // weight — NOT the sticky/previous weight, which would carry the
+        // parent set's heavier weight onto the drop. Plain working sets use
+        // sticky (carry the weight you actually lifted forward).
         // stickyWeight/target is kg-stored; convert to the display unit and snap
         // to the stepper grid so the first +/- tap lands on a clean increment.
-        let sourceKg: Double? = if viewModel.currentSet?.isWarmup == true {
+        let sourceKg: Double? = if viewModel.currentSet?.isWarmup == true || viewModel.currentSet?.isDropStep == true {
             viewModel.currentSet?.targetWeight
         } else {
             viewModel.stickyWeight
@@ -1081,7 +1403,7 @@ struct ActiveWorkoutView: View {
     }
 }
 
-// MARK: - PlateMath (§5 — pure, unit-tested)
+// MARK: - PlateMath
 
 /// Greedy per-side plate breakdown over a standard kg plate set. Pure and
 /// Date-free so it unit-tests cleanly. Greedy is exact for this plate set

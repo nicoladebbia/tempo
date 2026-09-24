@@ -4,7 +4,7 @@
 //
 // Add + delete DATED matches (docs/INTELLIGENT_TRAINING_SYSTEM.md §9 D3,
 // §14 mid-week-match trigger). Distinct from the recurring football-weekday
-// chips in ScheduleEditorView: that sets "I usually play Tue/Thu"; this logs
+// chips in TrainingSettingsDetailView: that sets "I usually play Tue/Thu"; this logs
 // "there's a game on Saturday the 14th vs Inter."
 //
 // On any change (add/delete) it posts `.tempoTrainingSettingsChanged` — the SAME
@@ -21,6 +21,8 @@
 import SwiftData
 import SwiftUI
 
+// MARK: - MatchScheduleView
+
 struct MatchScheduleView: View {
     @Environment(\.modelContext)
     private var modelContext
@@ -32,7 +34,8 @@ struct MatchScheduleView: View {
     @Query(sort: \Match.kickoff, order: .forward)
     private var allMatches: [Match]
 
-    @State private var showingAdd = false
+    @State
+    private var showingAdd = false
 
     private var upcoming: [Match] {
         let cutoff = Calendar.current.startOfDay(for: Date())
@@ -43,9 +46,11 @@ struct MatchScheduleView: View {
         NavigationStack {
             List {
                 Section {
-                    Text("Log your fixtures. Tempo periodizes the surrounding days — no heavy legs the day before, and the daily coach knows a match is coming.")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                    Text(
+                        "Log your fixtures. Tempo periodizes the surrounding days — no heavy legs the day before, and the daily coach knows a match is coming."
+                    )
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextSecondary)
                 }
                 .listRowBackground(Color.clear)
 
@@ -130,7 +135,7 @@ struct MatchScheduleView: View {
     }
 
     private func persistAndReplan() {
-        try? modelContext.save()
+        modelContext.saveOrAlert("match schedule")
         HapticManager.selection()
         // Deterministic re-periodization only (see COST NOTE in the file header):
         // re-shapes T-0/T-1 around the new fixture without a paid AI call.
@@ -138,7 +143,7 @@ struct MatchScheduleView: View {
     }
 }
 
-// MARK: - Add-a-match sheet
+// MARK: - MatchEntrySheet
 
 private struct MatchEntrySheet: View {
     @Environment(\.dismiss)
@@ -146,9 +151,12 @@ private struct MatchEntrySheet: View {
 
     let onSave: (_ kickoff: Date, _ opponent: String?, _ competitive: Bool) -> Void
 
-    @State private var kickoff = MatchEntrySheet.defaultKickoff()
-    @State private var opponent = ""
-    @State private var competitive = true
+    @State
+    private var kickoff = MatchEntrySheet.defaultKickoff()
+    @State
+    private var opponent = ""
+    @State
+    private var competitive = true
 
     /// Tomorrow at 7PM — the common case (an evening fixture), still editable.
     private static func defaultKickoff() -> Date {

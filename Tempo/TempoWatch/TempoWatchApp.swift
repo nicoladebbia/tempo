@@ -15,7 +15,8 @@ import SwiftUI
 
 @main
 struct TempoWatchApp: App {
-    @State private var connectivityService = WatchConnectivityService.shared
+    @State
+    private var connectivityService = WatchConnectivityService.shared
 
     var body: some Scene {
         WindowGroup {

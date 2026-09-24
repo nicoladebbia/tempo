@@ -15,7 +15,7 @@
 import SwiftData
 import SwiftUI
 
-// MARK: - Picker
+// MARK: - MobilityFlowPickerView
 
 struct MobilityFlowPickerView: View {
     @Bindable
@@ -88,7 +88,7 @@ struct MobilityFlowPickerView: View {
     }
 }
 
-// MARK: - Player
+// MARK: - MobilityFlowPlayerView
 
 struct MobilityFlowPlayerView: View {
     let flow: MobilityFlow
@@ -275,7 +275,8 @@ struct MobilityFlowPlayerView: View {
             // through the same guarded path as the manual mark-done. Rest
             // days write nothing.
             if viewModel.todayPlan?.type == .mobility,
-               viewModel.todayPlan?.status != .completed {
+               viewModel.todayPlan?.status != .completed
+            {
                 dayMarkedDone = viewModel.persistNonGymCompletion(
                     whoop: nil, modelContext: modelContext
                 )

@@ -65,8 +65,13 @@ struct TodayWorkoutView: View {
     /// §2.14 — add-exercise picker sheet.
     @State
     private var showAddExercise = false
-
-    private let countdownTick = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
+    /// My routines — picker sheet and "save as routine" name prompt.
+    @State
+    private var showRoutines = false
+    @State
+    private var showSaveRoutine = false
+    @State
+    private var routineName = ""
 
     /// Reminder is scheduled at most once per saved-event start.
     private static let workoutReminderID = "tempo.workout.reminder"
@@ -103,32 +108,42 @@ struct TodayWorkoutView: View {
         ZStack(alignment: .bottom) {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: TempoSpacing.xl) {
-                    // D4 §17 — month-boundary review card. Above the day branch
-                    // on purpose: the month ends whether today is gym, field,
-                    // or rest.
-                    if let dueKey = viewModel.monthlyReviewDueKey {
-                        monthlyReviewCard(dueKey)
+                    // §16 — branch on `todayDisplayState`, not `isRestDay`
+                    // directly: `isRestDay` reads true for BOTH "no plan yet"
+                    // and "a real rest day", so checking it first made the
+                    // empty state below permanently unreachable.
+                    if viewModel.isLoading {
+                        loadingState
+                    } else {
+                        switch viewModel.todayDisplayState {
+                        case .noPlan:
+                            emptyState
+                        case .restDay:
+                            restDayContent
+                        case .gym:
+                            if let plan = viewModel.todayPlan {
+                                workoutContent(plan: plan)
+                            }
+                        case .nonGym:
+                            // Non-gym training day (football, run, sprint,
+                            // conditioning) — no exercises to log, so show a
+                            // type-appropriate card instead of empty gym content.
+                            if let plan = viewModel.todayPlan {
+                                nonGymContent(plan: plan)
+                            }
+                        }
                     }
 
+                    // Suggestions and rituals sit BELOW today's work — the
+                    // exercise list is what this screen is for.
                     // §18.4 — calendar-detected football, confirm-gated.
                     // Renders nothing when there's nothing to propose.
                     MatchProposalCard()
 
-                    if viewModel.isLoading {
-                        loadingState
-                    } else if viewModel.isRestDay {
-                        restDayContent
-                    } else if let plan = viewModel.todayPlan {
-                        if plan.type.isGymWorkout {
-                            workoutContent(plan: plan)
-                        } else {
-                            // Non-gym training day (football, run, sprint,
-                            // conditioning) — no exercises to log, so show a
-                            // type-appropriate card instead of empty gym content.
-                            nonGymContent(plan: plan)
-                        }
-                    } else {
-                        emptyState
+                    // D4 §17 — month-boundary review card, on every day type
+                    // (the month ends whether today is gym, field, or rest).
+                    if let dueKey = viewModel.monthlyReviewDueKey {
+                        monthlyReviewCard(dueKey)
                     }
                 }
                 .padding(.horizontal, TempoSpacing.screenEdge)
@@ -150,9 +165,30 @@ struct TodayWorkoutView: View {
         }
         .sheet(isPresented: $showReorderSheet) {
             ExerciseReorderSheet(viewModel: viewModel)
+                .persistenceAlert()
         }
         .sheet(item: $swapTarget) { target in
             SwapExerciseSheet(viewModel: viewModel, target: target)
+        }
+        .sheet(isPresented: $showRoutines) {
+            NavigationStack {
+                RoutinesView(viewModel: viewModel)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Close") { showRoutines = false }
+                        }
+                    }
+            }
+            .persistenceAlert()
+        }
+        .alert("Save as routine", isPresented: $showSaveRoutine) {
+            TextField("Name (e.g. Upper A)", text: $routineName)
+            Button("Save") {
+                viewModel.saveTodayAsRoutine(named: routineName, modelContext: modelContext)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Keeps these exercises, sets and supersets. Tempo sets the loads each time you run it.")
         }
         .sheet(isPresented: $showAddExercise) {
             AddExerciseSheet(viewModel: viewModel)
@@ -167,14 +203,18 @@ struct TodayWorkoutView: View {
         }
         .task {
             await viewModel.loadToday(modelContext: modelContext)
-            // §21 — hand the watch today's real queue, and route wrist-logged
-            // sets (including ones queued while the app was closed) onto the
-            // plan. Registration replays any buffered actions immediately.
-            services.watchConnectivity.setQuickActionHandler { [weak viewModel] action in
-                guard action.action == .logSet, let viewModel else {
-                    return
+            // §21/§22 — hand the watch today's real queue, and route wrist-
+            // logged sets (including ones queued while the app was closed)
+            // onto the plan. Registered on the app-level router (not
+            // PhoneWatchConnectivityService directly) so every OTHER watch
+            // action still reaches its own handler — see WatchActionRouter.
+            // Registration replays any buffered actions immediately.
+            let watchHandlerViewModel = viewModel
+            services.watchActionRouter.setLogSetHandler { [weak watchHandlerViewModel] action in
+                guard let viewModel = watchHandlerViewModel else {
+                    return false
                 }
-                viewModel.applyWatchSetLog(
+                return viewModel.applyWatchSetLog(
                     exerciseName: action.payload["exercise"] ?? "",
                     reps: action.payload["reps"].flatMap(Int.init),
                     weightKg: action.payload["weight"].flatMap(Double.init),
@@ -190,11 +230,17 @@ struct TodayWorkoutView: View {
             // Any surface that mutates the workout re-syncs the wrist.
             viewModel.pushWorkoutToWatch()
         }
-        .onReceive(countdownTick) { tick in
-            now = tick
-            // Saved event has started — drop the banner.
-            if let ev = savedWorkoutEvent, ev.start <= tick {
-                savedWorkoutEvent = nil
+        .task {
+            // Once-a-minute countdown refresh (was a Combine Timer.publish
+            // tick; replaced to keep this file Combine-free per project
+            // convention).
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(60))
+                now = Date()
+                // Saved event has started — drop the banner.
+                if let ev = savedWorkoutEvent, ev.start <= now {
+                    savedWorkoutEvent = nil
+                }
             }
         }
         .sheet(isPresented: $showAddToCalendar, onDismiss: {
@@ -281,36 +327,37 @@ struct TodayWorkoutView: View {
     // MARK: - Workout Content
 
     private func workoutContent(plan: WorkoutPlan) -> some View {
+        // Order: what today IS → what you'll do → the list. Planning banners
+        // and suggestions follow the work instead of stacking above it.
         VStack(spacing: TempoSpacing.lg) {
             // Workout type header
             workoutHeader(plan: plan)
 
-            // Deload week banner
-            if viewModel.isDeloadWeek {
-                deloadBanner
-            }
-
-            // §16 — venue propose-confirm (renders only with a learned pattern
-            // for today's weekday; collapses once answered or dismissed).
-            VenueProposalCard()
-
             // D2 — the daily readiness prescription (supersedes the legacy
-            // pendingAdjustment card). Modality + intensity + why + blocks/cues.
-            // Reads WHY/intensity from DailySession, sets from the linked plan.
-            if let session = viewModel.dailySession {
-                dailySessionCard(session)
+            // pendingAdjustment card). Modality + intensity + why + blocks/cues,
+            // with recovery zone + deload folded in as its status line.
+            if let session = viewModel.dailySession, !session.userOverrode {
+                dailySessionCard(session, statusPlan: plan)
+            } else {
+                if let session = viewModel.dailySession {
+                    dailySessionCard(session)
+                }
+                recoveryStatusLine(plan: plan)
+                    .padding(TempoSpacing.cardPadding)
+                    .background(Color.tempoSurfaceCard)
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
             }
 
-            #if DEBUG
-            // Force a fresh coach run in-place (no .task / relaunch dependency —
-            // the flag + direct call run in one stack). Verifies the daily loop.
-            Button("⟳ Run coach now (force, DEBUG)") {
-                UserDefaults.standard.set(true, forKey: "tempo.debug.forceDailyRerun")
-                Task { await viewModel.runDailyReadinessSession(modelContext: modelContext) }
-            }
-            .font(.tempoCaption1)
-            .foregroundStyle(Color.tempoSignal)
-            #endif
+            // Workout meta bar
+            // Per MODULE_TRAINING.md Section 2.6
+            workoutMeta(plan: plan)
+
+            // Exercise list
+            // Per MODULE_TRAINING.md Section 2.7
+            exerciseList(plan: plan)
+
+            // §14 #3 — one-tap session RPE, only after completion.
+            sessionRPESection(plan: plan)
 
             // Saved-event countdown takes precedence over the suggestion;
             // both are non-blocking (Phase 4 + follow-up).
@@ -320,20 +367,20 @@ struct TodayWorkoutView: View {
                 workoutWindowBanner(window)
             }
 
-            // Recovery badge bar
-            // Per MODULE_TRAINING.md Section 2.5
-            recoveryBadge(plan: plan)
+            // §16 — venue propose-confirm (renders only with a learned pattern
+            // for today's weekday; collapses once answered or dismissed).
+            VenueProposalCard()
 
-            // Workout meta bar
-            // Per MODULE_TRAINING.md Section 2.6
-            workoutMeta(plan: plan)
-
-            // §14 #3 — one-tap session RPE, only after completion.
-            sessionRPESection(plan: plan)
-
-            // Exercise list
-            // Per MODULE_TRAINING.md Section 2.7
-            exerciseList(plan: plan)
+            #if DEBUG
+                // Force a fresh coach run in-place (no .task / relaunch dependency —
+                // the flag + direct call run in one stack). Verifies the daily loop.
+                Button("⟳ Run coach now (force, DEBUG)") {
+                    UserDefaults.standard.set(true, forKey: "tempo.debug.forceDailyRerun")
+                    Task { await viewModel.runDailyReadinessSession(modelContext: modelContext) }
+                }
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoSignal)
+            #endif
         }
     }
 
@@ -354,66 +401,82 @@ struct TodayWorkoutView: View {
         .padding(.top, TempoSpacing.md)
     }
 
-    // MARK: - Deload Banner
+    // MARK: - Recovery / Deload Status Line
 
-    private var deloadBanner: some View {
-        HStack(spacing: TempoSpacing.sm) {
-            Image(systemName: "arrow.down.circle.fill")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(Color.tempoRecoveryYellow)
+    // Per MODULE_TRAINING.md Section 2.5 — recovery zone + volume change, and
+    // the deload week, as one line inside the session card (was a separate
+    // recovery badge + deload banner restating what the card says).
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text("DELOAD WEEK")
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoRecoveryYellow)
+    private func recoveryStatusLine(plan: WorkoutPlan) -> some View {
+        // No synced recovery today → say so instead of implying green.
+        let hasRecovery = (viewModel.loadRecoveryScore(modelContext: modelContext) ?? 0) > 0
+        return VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: TempoSpacing.xs) {
+                Circle()
+                    .fill(hasRecovery ? recoveryDotColor(plan: plan) : Color.tempoTextTertiary)
+                    .frame(width: 8, height: 8)
+                Text(hasRecovery ? recoveryText(plan: plan) : "No recovery data today")
+                    .foregroundStyle(Color.tempoTextPrimary)
+                Text("·")
+                    .foregroundStyle(Color.tempoTextTertiary)
+                Text(adjustmentLabel(plan: plan))
+                    .foregroundStyle(recoveryDotColor(plan: plan))
+                if viewModel.isDeloadWeek {
+                    Text("·")
+                        .foregroundStyle(Color.tempoTextTertiary)
+                    Text("DELOAD WEEK")
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.tempoRecoveryYellow)
+                }
+                Spacer(minLength: 0)
+            }
+            .font(.tempoCaption1)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
 
+            if viewModel.isDeloadWeek {
                 Text(viewModel.deloadStyle.blurb)
-                    .font(.tempoCaption1)
+                    .font(.tempoCaption2)
                     .foregroundStyle(Color.tempoTextSecondary)
             }
-
-            Spacer()
         }
-        .padding(.horizontal, TempoSpacing.md)
-        .padding(.vertical, TempoSpacing.sm)
-        .background(Color.tempoRecoveryYellow.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous)
-                .stroke(Color.tempoRecoveryYellow.opacity(0.3), lineWidth: 1)
-        )
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
-
-    // MARK: - Live Recovery Adjustment Card (Phase 2 Fix 2.4)
-
-    
-
 
     // MARK: - Daily Session Card (D2 — the readiness prescription)
 
+    /// `statusPlan` — gym days pass today's plan to show the recovery/deload
+    /// status line at the top of the card.
     @ViewBuilder
-    private func dailySessionCard(_ session: DailySession) -> some View {
+    private func dailySessionCard(_ session: DailySession, statusPlan: WorkoutPlan? = nil) -> some View {
         if session.userOverrode {
             // §8 connect — he declined the brain's move. One honest line; the
             // plan row (restored) is the day again.
             HStack(spacing: TempoSpacing.sm) {
                 Image(systemName: "exclamationmark.triangle")
                     .foregroundStyle(Color.tempoWarning)
-                Text("Coach called \(session.modality.uppercased()). You kept \(viewModel.todayPlan?.type.displayName.uppercased() ?? "THE PLAN"). Your call.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                Text(
+                    "Coach called \(session.modality.uppercased()). You kept \(viewModel.todayPlan?.type.displayName.uppercased() ?? "THE PLAN"). Your call."
+                )
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoTextSecondary)
                 Spacer()
             }
             .padding(TempoSpacing.cardPadding)
             .background(Color.tempoSurfaceCard)
             .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
         } else {
-            dailySessionCardBody(session)
+            dailySessionCardBody(session, statusPlan: statusPlan)
         }
     }
 
-    private func dailySessionCardBody(_ session: DailySession) -> some View {
+    private func dailySessionCardBody(_ session: DailySession, statusPlan: WorkoutPlan?) -> some View {
         VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            if let statusPlan {
+                recoveryStatusLine(plan: statusPlan)
+            }
+
             HStack {
                 Text(session.modality.uppercased())
                     .font(.tempoHeadline)
@@ -486,7 +549,8 @@ struct TodayWorkoutView: View {
             if session.blocks.parts.count >= 2,
                let plan = viewModel.todayPlan,
                plan.isTwoADay,
-               let second = plan.secondarySessionType {
+               let second = plan.secondarySessionType
+            {
                 Divider().overlay(Color.tempoTextTertiary.opacity(0.3))
                 HStack(spacing: TempoSpacing.sm) {
                     Image(systemName: plan.secondaryCompleted ? "checkmark.circle.fill" : "circle")
@@ -513,7 +577,8 @@ struct TodayWorkoutView: View {
             if let plan = viewModel.todayPlan,
                plan.status == .planned,
                let plannedRaw = plan.plannedTypeRaw,
-               let plannedType = WorkoutType(rawValue: plannedRaw) {
+               let plannedType = WorkoutType(rawValue: plannedRaw)
+            {
                 Divider().overlay(Color.tempoTextTertiary.opacity(0.3))
                 HStack {
                     Text("Plan said \(plannedType.displayName.uppercased()).")
@@ -542,7 +607,6 @@ struct TodayWorkoutView: View {
         scheduledMin.map { "AT \(VenuePatternMath.clockLabel($0))" } ?? "ANYTIME"
     }
 
-    @ViewBuilder
     private func blockRow(_ block: SessionBlockDTO) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(block.label)
@@ -560,9 +624,11 @@ struct TodayWorkoutView: View {
 
     private func intensityColor(_ intensity: SessionIntensity) -> Color {
         switch intensity {
-        case .recovery, .easy: return Color.tempoRecoveryGreen
-        case .moderate: return Color.tempoRecoveryYellow
-        case .hard, .max: return Color.tempoRecoveryRed
+        case .recovery,
+             .easy: Color.tempoRecoveryGreen
+        case .moderate: Color.tempoRecoveryYellow
+        case .hard,
+             .max: Color.tempoRecoveryRed
         }
     }
 
@@ -627,8 +693,8 @@ struct TodayWorkoutView: View {
     // MARK: - Workout Countdown Banner
 
     // Shown once an event is saved to the calendar: live "Gym in Xh Ym"
-    // counting down to the saved start, refreshed each minute by
-    // `countdownTick`. Clears itself when the start passes.
+    // counting down to the saved start, refreshed each minute by the
+    // once-a-minute countdown `.task`. Clears itself when the start passes.
 
     private func workoutCountdownBanner(_ event: DateInterval) -> some View {
         HStack(spacing: TempoSpacing.sm) {
@@ -660,7 +726,7 @@ struct TodayWorkoutView: View {
     }
 
     /// "3h 32m" / "47m" / "soon" — derived from `now` so it re-renders on
-    /// each `countdownTick`.
+    /// each once-a-minute countdown tick.
     private func countdownString(to start: Date) -> String {
         let remaining = Int(start.timeIntervalSince(now))
         guard remaining > 0 else {
@@ -676,36 +742,6 @@ struct TodayWorkoutView: View {
 
     private func timeString(_ date: Date) -> String {
         date.formatted(.dateTime.hour().minute())
-    }
-
-    // MARK: - Recovery Badge
-
-    // Per MODULE_TRAINING.md Section 2.5
-
-    private func recoveryBadge(plan: WorkoutPlan) -> some View {
-        HStack(spacing: TempoSpacing.sm) {
-            Circle()
-                .fill(recoveryDotColor(plan: plan))
-                .frame(width: 10, height: 10)
-
-            Text(recoveryText(plan: plan))
-                .font(.tempoBody)
-                .fontWeight(.medium)
-                .foregroundStyle(Color.tempoTextPrimary)
-
-            Text("·")
-                .foregroundStyle(Color.tempoTextTertiary)
-
-            Text(adjustmentLabel(plan: plan))
-                .font(.tempoBody)
-                .foregroundStyle(recoveryDotColor(plan: plan))
-
-            Spacer()
-        }
-        .padding(.horizontal, TempoSpacing.md)
-        .padding(.vertical, TempoSpacing.sm)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
     }
 
     // MARK: - Workout Meta
@@ -859,11 +895,15 @@ struct TodayWorkoutView: View {
         return VStack(spacing: TempoSpacing.sm) {
             ForEach(Array(groups.enumerated()), id: \.offset) { _, group in
                 if group.count > 1 {
-                    // Superset group: shared card with connecting indicator
-                    supersetCard(exercises: group, startIndex: exercises.firstIndex(where: { $0.id == group[0].id }) ?? 0)
+                    // Superset/circuit group: shared card with connecting indicator
+                    supersetCard(
+                        exercises: group,
+                        startIndex: exercises.firstIndex(where: { $0.id == group[0].id }) ?? 0,
+                        allExercises: exercises
+                    )
                 } else if let single = group.first {
                     let idx = (exercises.firstIndex(where: { $0.id == single.id }) ?? 0)
-                    exerciseCard(index: idx + 1, plannedExercise: single)
+                    exerciseCard(index: idx + 1, plannedExercise: single, allExercises: exercises)
                 }
             }
 
@@ -871,7 +911,33 @@ struct TodayWorkoutView: View {
             if plan.status == .planned || plan.status == .inProgress {
                 addExerciseButton
             }
+
+            // My routines — run your own program today, or keep this one.
+            if plan.status == .planned {
+                routineButtons
+            }
         }
+    }
+
+    private var routineButtons: some View {
+        HStack(spacing: TempoSpacing.lg) {
+            Button {
+                showRoutines = true
+            } label: {
+                Label("Use a routine", systemImage: "list.bullet.rectangle")
+            }
+            Spacer()
+            Button {
+                routineName = ""
+                showSaveRoutine = true
+            } label: {
+                Label("Save as routine", systemImage: "square.and.arrow.down")
+            }
+        }
+        .font(.tempoCaption1)
+        .foregroundStyle(Color.tempoTextSecondary)
+        .buttonStyle(.plain)
+        .padding(.horizontal, TempoSpacing.xs)
     }
 
     private var addExerciseButton: some View {
@@ -941,13 +1007,16 @@ struct TodayWorkoutView: View {
         return groups
     }
 
-    private func supersetCard(exercises: [PlannedExercise], startIndex: Int) -> some View {
-        VStack(spacing: 0) {
-            // Superset header badge
+    private func supersetCard(exercises: [PlannedExercise], startIndex: Int, allExercises: [PlannedExercise]) -> some View {
+        // §6.3 — a group of 2 is a superset, 3+ is a circuit. Same shared
+        // card either way; only the badge word changes.
+        let isCircuit = exercises.count > 2
+        return VStack(spacing: 0) {
+            // Superset/circuit header badge
             HStack(spacing: TempoSpacing.xxs) {
                 Image(systemName: "arrow.triangle.2.circlepath")
                     .font(.system(size: 10, weight: .semibold))
-                Text("SUPERSET")
+                Text(isCircuit ? "CIRCUIT" : "SUPERSET")
                     .font(.tempoCaption2)
                     .fontWeight(.bold)
             }
@@ -975,7 +1044,7 @@ struct TodayWorkoutView: View {
                     .frame(width: 8)
 
                     // Exercise card content
-                    exerciseCard(index: startIndex + idx + 1, plannedExercise: plannedEx)
+                    exerciseCard(index: startIndex + idx + 1, plannedExercise: plannedEx, allExercises: allExercises)
                 }
             }
         }
@@ -988,7 +1057,7 @@ struct TodayWorkoutView: View {
         )
     }
 
-    private func exerciseCard(index: Int, plannedExercise: PlannedExercise) -> some View {
+    private func exerciseCard(index: Int, plannedExercise: PlannedExercise, allExercises: [PlannedExercise]) -> some View {
         Group {
             if let exercise = plannedExercise.exercise {
                 NavigationLink(destination: ExerciseDetailView(exercise: exercise)) {
@@ -1000,6 +1069,10 @@ struct TodayWorkoutView: View {
             }
         }
         // §2.13 — long-press swap (TESTING_STRATEGY UT-005 / M-T-008).
+        // §6.5 — long-press group control: manually group with the next
+        // exercise (grows a superset into a circuit) or break out of the
+        // current group. Auto-assignment still runs by default; this is the
+        // manual override.
         .contextMenu {
             if canSwap(plannedExercise) {
                 Button {
@@ -1008,7 +1081,34 @@ struct TodayWorkoutView: View {
                     Label("Swap Exercise", systemImage: "arrow.triangle.2.circlepath")
                 }
             }
+            if canSwap(plannedExercise), let next = nextExercise(after: plannedExercise, in: allExercises), canSwap(next),
+               plannedExercise.supersetGroup == nil || plannedExercise.supersetGroup != next.supersetGroup
+            {
+                Button {
+                    viewModel.groupWithNext(plannedExercise, modelContext: modelContext)
+                } label: {
+                    Label("Group with Next", systemImage: "link")
+                }
+            }
+            if canSwap(plannedExercise), plannedExercise.supersetGroup != nil {
+                Button(role: .destructive) {
+                    viewModel.breakGroup(plannedExercise, modelContext: modelContext)
+                } label: {
+                    Label("Break Group", systemImage: "link.badge.minus")
+                }
+            }
         }
+    }
+
+    /// The exercise immediately after `plannedExercise` in plan order, or nil
+    /// at the end of the list. Used only by the manual group-control menu.
+    private func nextExercise(after plannedExercise: PlannedExercise, in allExercises: [PlannedExercise]) -> PlannedExercise? {
+        guard let idx = allExercises.firstIndex(where: { $0.id == plannedExercise.id }),
+              idx + 1 < allExercises.count
+        else {
+            return nil
+        }
+        return allExercises[idx + 1]
     }
 
     private func exerciseCardContent(index: Int, plannedExercise: PlannedExercise) -> some View {
@@ -1032,7 +1132,8 @@ struct TodayWorkoutView: View {
                 // the rep target; only e1RM-anchored prescriptions carry RIR,
                 // so gate on that to avoid mislabeling legacy 8/12 fallbacks.
                 if let firstWorking = plannedExercise.orderedSets.first(where: { !$0.isWarmup }),
-                   firstWorking.targetRIR != nil {
+                   firstWorking.targetRIR != nil
+                {
                     let zone = PrescriptionMath.zoneLabel(forReps: firstWorking.targetReps)
                     Text(zone)
                         .font(.tempoCaption2)
@@ -1251,9 +1352,9 @@ struct TodayWorkoutView: View {
 
     // MARK: - Non-Gym Training Day Content
 
-    // Shown for training days that aren't loggable gym sessions — football,
-    // run, sprint, conditioning. These have no exercises/sets to log, so there
-    // is no "Start Workout" button; this card just tells the user what today is.
+    /// Shown for training days that aren't loggable gym sessions — football,
+    /// run, sprint, conditioning. These have no exercises/sets to log, so there
+    /// is no "Start Workout" button; this card just tells the user what today is.
     private func nonGymContent(plan: WorkoutPlan) -> some View {
         // §11.7 — compact: the old xxl spacing + top spacer + 60pt icon pushed
         // half the content below the fold; one screen, no dead air.
@@ -1361,7 +1462,7 @@ struct TodayWorkoutView: View {
         }
     }
 
-    // The strain/HR confirm-and-save block beneath the non-gym card.
+    /// The strain/HR confirm-and-save block beneath the non-gym card.
     @ViewBuilder
     private func nonGymActivitySection(plan: WorkoutPlan) -> some View {
         switch viewModel.nonGymActivityState {
@@ -1396,7 +1497,8 @@ struct TodayWorkoutView: View {
                 }
             }
 
-        case .none, .dismissed:
+        case .none,
+             .dismissed:
             confirmButton(
                 title: "LOG THAT I PLAYED",
                 summary: nil
@@ -1435,9 +1537,9 @@ struct TodayWorkoutView: View {
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
     }
 
-    // Estimated sweat loss + hydration guidance from the same HydrationMath
-    // the daily target uses. Shown as a range (rough estimate), with an
-    // electrolyte nudge for larger losses.
+    /// Estimated sweat loss + hydration guidance from the same HydrationMath
+    /// the daily target uses. Shown as a range (rough estimate), with an
+    /// electrolyte nudge for larger losses.
     @ViewBuilder
     private func sweatHydrationNote(_ s: TrainingViewModel.WhoopActivitySummary) -> some View {
         if let range = HydrationMath.sweatLossLitres(
@@ -1527,23 +1629,35 @@ struct TodayWorkoutView: View {
         switch plan.type {
         case .pool:
             if plan.notes?.localizedCaseInsensitiveContains("pre-match") == true {
-                return ("Pool flush · \(mins) min",
-                        "Very easy continuous swim. Loosen the legs and keep breathing smooth — nothing hard the day before a match.")
+                return (
+                    "Pool flush · \(mins) min",
+                    "Very easy continuous swim. Loosen the legs and keep breathing smooth — nothing hard the day before a match."
+                )
             }
-            return ("Continuous swim · \(mins) min",
-                    "Steady, relaxed pace the whole way — one continuous effort, no intervals. Active recovery: you should finish looser, not tired.")
+            return (
+                "Continuous swim · \(mins) min",
+                "Steady, relaxed pace the whole way — one continuous effort, no intervals. Active recovery: you should finish looser, not tired."
+            )
         case .run:
-            return ("Zone 2 easy run · \(mins) min",
-                    "Conversational pace — you should be able to talk in full sentences the whole way. Keep the heart rate easy; this builds the aerobic base without adding fatigue.")
+            return (
+                "Zone 2 easy run · \(mins) min",
+                "Conversational pace — you should be able to talk in full sentences the whole way. Keep the heart rate easy; this builds the aerobic base without adding fatigue."
+            )
         case .conditioning:
-            return ("Conditioning · \(mins) min",
-                    "5 min easy warm-up, then 6 × (1 min hard / 90 sec easy), 5 min cool-down. Bike, row, or run the intervals — push the engine, not the barbell.")
+            return (
+                "Conditioning · \(mins) min",
+                "5 min easy warm-up, then 6 × (1 min hard / 90 sec easy), 5 min cool-down. Bike, row, or run the intervals — push the engine, not the barbell."
+            )
         case .sprint:
-            return ("Sprint work",
-                    "Warm up thoroughly first. 10–12 × 20–30 m at 90–95%, walk back for full recovery between reps. Stop if form breaks — quality over quantity.")
+            return (
+                "Sprint work",
+                "Warm up thoroughly first. 10–12 × 20–30 m at 90–95%, walk back for full recovery between reps. Stop if form breaks — quality over quantity."
+            )
         case .mobility:
-            return ("Mobility flow · \(mins) min",
-                    "Slow, controlled full-body flow — hips, shoulders, thoracic spine. This is recovery, not a session to grind.")
+            return (
+                "Mobility flow · \(mins) min",
+                "Slow, controlled full-body flow — hips, shoulders, thoracic spine. This is recovery, not a session to grind."
+            )
         default:
             return nil
         }
@@ -1686,10 +1800,21 @@ struct TodayWorkoutView: View {
     }
 
     private var nextWorkoutType: String? {
-        // Look at tomorrow's plan in weekPlans if loaded
-        viewModel.weekPlans
-            .first { Calendar.current.isDateInTomorrow($0.date) }
-            .map(\.type.displayName)
+        let cal = Calendar.current
+        guard let tomorrow = cal.date(byAdding: .day, value: 1, to: Date()) else {
+            return nil
+        }
+        // Look at tomorrow's plan in weekPlans (this week, Mon..Sun) if loaded.
+        if let match = viewModel.weekPlans.first(where: { cal.isDate($0.date, inSameDayAs: tomorrow) }) {
+            return match.type.displayName
+        }
+        // §6 Sunday gap — on a Sunday, tomorrow (Monday) falls in NEXT week,
+        // which `weekPlans` never holds (it's this week only). Preview next
+        // week's Monday so "up next" doesn't just go blank one day a week.
+        let nextMonday = TrainingCalendar.mondayOfWeek(containing: tomorrow)
+        return viewModel.previewWeekPlans(startingMonday: nextMonday, modelContext: modelContext)
+            .first { cal.isDate($0.date, inSameDayAs: tomorrow) }?
+            .type.displayName
     }
 
     /// Returns the most recent 3 ExerciseHistory entries for a given exercise (excluding today).
@@ -1739,212 +1864,6 @@ struct TodayWorkoutView: View {
             return PerformanceTrend(symbol: "\u{2193}", color: Color.tempoRecoveryRed) // down arrow
         } else {
             return PerformanceTrend(symbol: "\u{2192}", color: Color.tempoTextTertiary) // right arrow
-        }
-    }
-}
-
-// MARK: - ExerciseReorderSheet (§2.15)
-
-/// Drag-to-reorder for today's planned exercises. A dedicated List because
-/// `.onMove` is List-only — the styled card stack in TodayWorkoutView can't
-/// host it. Order writes through `moveExercises` (which renumbers
-/// `PlannedExercise.order`) and persists immediately; moving one member of a
-/// superset out of adjacency deliberately splits that superset (grouping is
-/// consecutive-run based).
-private struct ExerciseReorderSheet: View {
-    @Bindable
-    var viewModel: TrainingViewModel
-    @Environment(\.modelContext)
-    private var modelContext
-    @Environment(\.dismiss)
-    private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            List {
-                ForEach(viewModel.todayPlan?.orderedExercises ?? [], id: \.id) { ex in
-                    HStack(spacing: TempoSpacing.sm) {
-                        Text(ex.exercise?.name ?? "Exercise")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                        Spacer()
-                        if ex.supersetGroup != nil {
-                            Image(systemName: "arrow.triangle.2.circlepath")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(Color.tempoSignal)
-                        }
-                    }
-                    .listRowBackground(Color.tempoSurfaceCard)
-                }
-                .onMove { source, destination in
-                    viewModel.moveExercises(from: source, to: destination)
-                    try? modelContext.save()
-                    HapticManager.selection()
-                }
-            }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .background(Color.tempoBgPrimary)
-            .environment(\.editMode, .constant(.active))
-            .navigationTitle("Reorder")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
-        }
-    }
-}
-
-// MARK: - SwapExerciseSheet (§2.13)
-
-/// Alternatives for one planned slot — same muscle group, closest movement
-/// pattern first. Selecting one swaps the movement in place (order and
-/// superset pairing kept, prescription rebuilt for the new lift).
-private struct SwapExerciseSheet: View {
-    @Bindable
-    var viewModel: TrainingViewModel
-    let target: PlannedExercise
-    @Environment(\.modelContext)
-    private var modelContext
-    @Environment(\.dismiss)
-    private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            List {
-                let alternatives = viewModel.swapAlternatives(for: target, modelContext: modelContext)
-                if alternatives.isEmpty {
-                    Text("No alternatives for this muscle group.")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .listRowBackground(Color.tempoSurfaceCard)
-                } else {
-                    ForEach(alternatives, id: \.id) { exercise in
-                        Button {
-                            viewModel.swapExercise(target, with: exercise, modelContext: modelContext)
-                            dismiss()
-                        } label: {
-                            ExercisePickRow(exercise: exercise)
-                        }
-                        .listRowBackground(Color.tempoSurfaceCard)
-                    }
-                    // §2.13b — swaps teach the planner.
-                    Text("Tempo remembers your pick — future days prescribe it instead. Swap back anytime to undo.")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                        .listRowBackground(Color.clear)
-                }
-            }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .background(Color.tempoBgPrimary)
-            .navigationTitle("Swap \(target.exercise?.name ?? "Exercise")")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-            }
-        }
-    }
-}
-
-// MARK: - AddExerciseSheet (§2.14)
-
-/// Full-library picker for appending an exercise to today's plan. Searchable,
-/// sectioned by muscle group; movements already in the plan are excluded.
-private struct AddExerciseSheet: View {
-    @Bindable
-    var viewModel: TrainingViewModel
-    @Environment(\.modelContext)
-    private var modelContext
-    @Environment(\.dismiss)
-    private var dismiss
-    @Query(sort: \Exercise.name)
-    private var allExercises: [Exercise]
-    @State
-    private var searchText = ""
-
-    private var candidates: [Exercise] {
-        let inPlan = Set(
-            (viewModel.todayPlan?.orderedExercises ?? []).compactMap { $0.exercise?.id }
-        )
-        return allExercises.filter { exercise in
-            guard !inPlan.contains(exercise.id) else {
-                return false
-            }
-            guard !searchText.isEmpty else {
-                return true
-            }
-            return exercise.name.localizedCaseInsensitiveContains(searchText)
-        }
-    }
-
-    /// Muscle-group sections, ordered by group display name.
-    private var sections: [(group: MuscleGroup, exercises: [Exercise])] {
-        Dictionary(grouping: candidates, by: \.muscleGroup)
-            .map { (group: $0.key, exercises: $0.value) }
-            .sorted { $0.group.displayName < $1.group.displayName }
-    }
-
-    var body: some View {
-        NavigationStack {
-            List {
-                ForEach(sections, id: \.group) { section in
-                    Section(section.group.displayName.uppercased()) {
-                        ForEach(section.exercises, id: \.id) { exercise in
-                            Button {
-                                viewModel.addExercise(exercise, modelContext: modelContext)
-                                dismiss()
-                            } label: {
-                                ExercisePickRow(exercise: exercise)
-                            }
-                            .listRowBackground(Color.tempoSurfaceCard)
-                        }
-                    }
-                }
-            }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .background(Color.tempoBgPrimary)
-            .searchable(text: $searchText, prompt: "Search exercises")
-            .navigationTitle("Add Exercise")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-            }
-        }
-    }
-}
-
-/// Shared row for the swap/add pickers: name + equipment, compound badge.
-private struct ExercisePickRow: View {
-    let exercise: Exercise
-
-    var body: some View {
-        HStack(spacing: TempoSpacing.sm) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(exercise.name)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Text(exercise.equipment.rawValue.capitalized)
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
-            }
-            Spacer()
-            if exercise.isCompound {
-                Text("COMPOUND")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .padding(.horizontal, TempoSpacing.xs)
-                    .padding(.vertical, 2)
-                    .background(Color.tempoBgSecondary)
-                    .clipShape(Capsule())
-            }
         }
     }
 }

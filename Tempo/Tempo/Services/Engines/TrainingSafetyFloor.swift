@@ -42,7 +42,6 @@ struct FloorDecision: Sendable, Equatable {
 // MARK: - TrainingSafetyFloor
 
 enum TrainingSafetyFloor {
-
     // MARK: Thresholds (§6.1/§6.2 — [L] literature-locked, [D] defensible default)
 
     /// Recovery band cutoffs (canonical Whoop / in-code RecoveryZone). [L]
@@ -76,24 +75,33 @@ enum TrainingSafetyFloor {
 
     /// Ordered-gate tier classification. Pure function of the picture (§6.2).
     static func classifyFloorTier(_ p: ReadinessPicture) -> FloorTier {
-        if isSevere(p) { return .severe }
-        if isModerate(p) { return .moderate }
+        if isSevere(p) {
+            return .severe
+        }
+        if isModerate(p) {
+            return .moderate
+        }
         return .normal
     }
 
     /// SEVERE = ANY of the routes (logical OR). The raw routes (B / resp / RHR)
     /// only fire when the baseline is established (§6.3 cold-start gate).
     static func isSevere(_ p: ReadinessPicture) -> Bool {
-        // Route A — composite. Always available; trust Whoop's fused score. [L]
-        if p.recoveryScore < recoveryRed { return true }
+        // Route A — composite. Trust Whoop's fused score — when there is one
+        // (no sync today ≠ red). [L]
+        if p.hasRecoveryScore, p.recoveryScore < recoveryRed {
+            return true
+        }
 
         // Sleep route — high debt on an already-suppressed (non-green) recovery. [D]
-        if let debt = p.sleepDebt, debt >= sleepDebtSevere, p.recoveryScore < recoveryGreen {
+        if let debt = p.sleepDebt, debt >= sleepDebtSevere, isKnownNonGreen(p) {
             return true
         }
 
         // The raw multi-signal routes require an established baseline.
-        guard p.hasBaselineForFloor else { return false }
+        guard p.hasBaselineForFloor else {
+            return false
+        }
 
         // Route B — raw AND-gate: HRV crash AND RHR spike. [D] cutoffs.
         if let z = p.hrvZScore, z <= hrvSevereZ, rhrFlag(p) {
@@ -101,7 +109,7 @@ enum TrainingSafetyFloor {
         }
 
         // Illness route — elevated resp rate AND recovery not green. [D] cutoff.
-        if let rd = p.respDeltaBrMin, rd >= respSevereBrMin, p.recoveryScore < recoveryGreen {
+        if let rd = p.respDeltaBrMin, rd >= respSevereBrMin, isKnownNonGreen(p) {
             return true
         }
 
@@ -109,23 +117,41 @@ enum TrainingSafetyFloor {
         // skin-temp deviation, and low SpO2 on a non-green day. Catches the
         // incubating-illness day the resp-only route misses (e.g. fever-warm
         // skin + low oxygen with normal breathing).
-        if p.recoveryScore < recoveryGreen {
+        if isKnownNonGreen(p) {
             var illnessSignals = 0
-            if let rd = p.respDeltaBrMin, rd >= respSevereBrMin { illnessSignals += 1 }
-            if let td = p.skinTempDeltaC, td >= skinTempSevereDeltaC { illnessSignals += 1 }
-            if let ox = p.spo2, ox < spo2SevereFloor { illnessSignals += 1 }
-            if illnessSignals >= 2 { return true }
+            if let rd = p.respDeltaBrMin, rd >= respSevereBrMin {
+                illnessSignals += 1
+            }
+            if let td = p.skinTempDeltaC, td >= skinTempSevereDeltaC {
+                illnessSignals += 1
+            }
+            if let ox = p.spo2, ox < spo2SevereFloor {
+                illnessSignals += 1
+            }
+            if illnessSignals >= 2 {
+                return true
+            }
         }
 
         return false
     }
 
+    /// A synced recovery score below green. Unsynced (0 sentinel) is unknown,
+    /// never "non-green" — the recovery-conjunct routes must not fire on it.
+    private static func isKnownNonGreen(_ p: ReadinessPicture) -> Bool {
+        p.hasRecoveryScore && p.recoveryScore < recoveryGreen
+    }
+
     /// MODERATE = NOT severe, recovery yellow, with ≥1 moderate flag.
     static func isModerate(_ p: ReadinessPicture) -> Bool {
-        guard p.recoveryScore >= recoveryRed, p.recoveryScore < recoveryGreen else { return false }
+        guard p.recoveryScore >= recoveryRed, p.recoveryScore < recoveryGreen else {
+            return false
+        }
 
         // Sleep-debt moderate flag is available without a baseline.
-        if let debt = p.sleepDebt, debt >= sleepDebtModerateLow, debt < sleepDebtSevere { return true }
+        if let debt = p.sleepDebt, debt >= sleepDebtModerateLow, debt < sleepDebtSevere {
+            return true
+        }
 
         guard p.hasBaselineForFloor else {
             // Cold-start: only Route A (yellow) + sleep. Yellow alone is moderate
@@ -134,16 +160,26 @@ enum TrainingSafetyFloor {
             return true
         }
 
-        if let z = p.hrvZScore, z <= hrvModerateZ { return true }
-        if let d = p.rhrDeltaBpm, d >= rhrModerateBpmLow, d < rhrSevereBpm { return true }
-        if let rd = p.respDeltaBrMin, rd >= respModerateBrMin { return true }
+        if let z = p.hrvZScore, z <= hrvModerateZ {
+            return true
+        }
+        if let d = p.rhrDeltaBpm, d >= rhrModerateBpmLow, d < rhrSevereBpm {
+            return true
+        }
+        if let rd = p.respDeltaBrMin, rd >= respModerateBrMin {
+            return true
+        }
         return true // yellow recovery itself warrants a clamp (conservative)
     }
 
     /// RHR is elevated past the severe bpm cutoff OR its z backstop fires.
     private static func rhrFlag(_ p: ReadinessPicture) -> Bool {
-        if let d = p.rhrDeltaBpm, d >= rhrSevereBpm { return true }
-        if let z = p.rhrZScore, z >= rhrZBackstop { return true }
+        if let d = p.rhrDeltaBpm, d >= rhrSevereBpm {
+            return true
+        }
+        if let z = p.rhrZScore, z >= rhrZBackstop {
+            return true
+        }
         return false
     }
 
@@ -242,11 +278,23 @@ enum TrainingSafetyFloor {
     }
 
     private static func severeReason(_ p: ReadinessPicture) -> String {
-        if p.recoveryScore < recoveryRed { return "Recovery red (\(Int(p.recoveryScore))). Recover today." }
-        if let debt = p.sleepDebt, debt >= sleepDebtSevere { return "Sleep debt \(String(format: "%.1f", debt))h. Recover today." }
-        if let rd = p.respDeltaBrMin, rd >= respSevereBrMin { return "Respiratory rate elevated — possible illness. Recover." }
-        if let td = p.skinTempDeltaC, td >= skinTempSevereDeltaC { return "Skin temp +\(String(format: "%.1f", td))°C vs baseline — possible illness. Recover." }
-        if let ox = p.spo2, ox < spo2SevereFloor { return "Blood oxygen \(Int(ox))% — below your normal. Recover." }
+        if p.hasRecoveryScore, p.recoveryScore < recoveryRed {
+            return "Recovery red (\(Int(p.recoveryScore))). Recover today."
+        }
+        if let debt = p.sleepDebt, debt >= sleepDebtSevere {
+            return "Sleep debt \(String(format: "%.1f", debt))h. Recover today."
+        }
+        if let rd = p.respDeltaBrMin, rd >= respSevereBrMin {
+            return "Respiratory rate elevated — possible illness. Recover."
+        }
+        if let td = p.skinTempDeltaC,
+           td >= skinTempSevereDeltaC
+        {
+            return "Skin temp +\(String(format: "%.1f", td))°C vs baseline — possible illness. Recover."
+        }
+        if let ox = p.spo2, ox < spo2SevereFloor {
+            return "Blood oxygen \(Int(ox))% — below your normal. Recover."
+        }
         return "Body markers crashed. Recover today."
     }
 
@@ -266,7 +314,9 @@ enum TrainingSafetyFloor {
                 || (block.split?.lowercased().contains("lower") ?? false)
         }
         let isHard = (intensityRank[s.intensity] ?? 0) >= (intensityRank[.hard] ?? 3)
-        guard loadsLegs, isHard else { return (s, false, "") }
+        guard loadsLegs, isHard else {
+            return (s, false, "")
+        }
         let clamped = clampIntensity(s, to: .easy)
         return (clamped, true, "Match tomorrow — legs kept light (T-1 protection).")
     }
@@ -281,7 +331,9 @@ enum TrainingSafetyFloor {
         picture p: ReadinessPicture
     ) -> (session: DailySessionDTO, changed: Bool, reason: String) {
         var parts = s.parts
-        guard parts.count >= 2 else { return (s, false, "") }
+        guard parts.count >= 2 else {
+            return (s, false, "")
+        }
         var reason = ""
 
         // Match T-0: gym work today is a PRIMER only — no leg loading before
@@ -290,7 +342,16 @@ enum TrainingSafetyFloor {
             let cleaned = parts.map { part in
                 (part.scheduledMin, part.blocks.filter { !isLegsGymBlock($0) })
             }.filter { !$0.1.isEmpty }
-            if !cleaned.isEmpty, cleaned.flatMap(\.1).count != parts.flatMap(\.blocks).count {
+            if cleaned.isEmpty {
+                // Every block in the composite was leg-loading — stripping legs
+                // leaves NOTHING to keep. Skipping the strip here (the old
+                // behavior) let an all-legs two-a-day pass through untouched on
+                // match day; force the whole day down to the deterministic
+                // primer/recovery session instead.
+                reason = "Match today — leg loading before kickoff dropped; primer only."
+                return (recoverySession(reason: reason), true, reason)
+            }
+            if cleaned.flatMap(\.1).count != parts.flatMap(\.blocks).count {
                 reason = "Match today — leg loading before kickoff dropped."
                 parts = cleaned
                 if parts.count < 2 {
@@ -303,14 +364,18 @@ enum TrainingSafetyFloor {
         var kept = [parts[0]]
         for part in parts.dropFirst() {
             if let violation = compositeViolation(of: part, against: kept, session: s, picture: p) {
-                if reason.isEmpty { reason = violation }
+                if reason.isEmpty {
+                    reason = violation
+                }
                 continue
             }
             kept.append(part)
         }
 
         let changed = kept.flatMap(\.blocks).count != s.blocks.count
-        guard changed else { return (s, false, "") }
+        guard changed else {
+            return (s, false, "")
+        }
         return (rebuild(s, parts: kept), true, reason)
     }
 
@@ -329,7 +394,8 @@ enum TrainingSafetyFloor {
         // §12 spacing: parts < 6h apart. Only verifiable when both are timed.
         if let start = part.scheduledMin,
            let prev = kept.compactMap(\.scheduledMin).max(),
-           start - prev < compositeMinGapMin {
+           start - prev < compositeMinGapMin
+        {
             return "Sessions \(String(format: "%.1f", Double(start - prev) / 60))h apart — need ≥6h between parts. Second dropped."
         }
 
@@ -353,7 +419,9 @@ enum TrainingSafetyFloor {
     }
 
     private static func isLegsGymBlock(_ block: SessionBlockDTO) -> Bool {
-        guard block.kind == .gym, let split = block.split?.lowercased() else { return false }
+        guard block.kind == .gym, let split = block.split?.lowercased() else {
+            return false
+        }
         return split.contains("leg") || split.contains("lower")
     }
 

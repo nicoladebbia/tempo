@@ -535,15 +535,11 @@ final class DashboardViewModel {
         // default (green) zone → "Pull" on a 47%-recovery day that
         // should be "Mobility". One persisted score → every recovery-
         // dependent surface (Week Plan, Recovery tab, Move) agrees.
-        if let recovery, let context = fuelContext {
-            upsertDailyRecovery(recovery, sleepHours: sleepHours, context: context)
-        }
-
-        // Snapshot body composition once/day (Withings → HealthKit) so a 30-day
-        // trend exists for the monthly summary (INTELLIGENT_TRAINING_SYSTEM §4.3/§17).
-        if let context = fuelContext {
-            await snapshotBodyCompositionIfNeeded(context: context)
-        }
+        //
+        // Also snapshots body composition once/day (Withings → HealthKit) so a
+        // 30-day trend exists for the monthly summary
+        // (INTELLIGENT_TRAINING_SYSTEM §4.3/§17).
+        await persistDailySnapshots(recovery: recovery, sleepHours: sleepHours)
 
         // Build Fuel quadrant with recovery-adjusted targets.
         // Targets come from NutritionTarget if present; defaults are used otherwise.
@@ -695,6 +691,16 @@ final class DashboardViewModel {
         loadState = .loaded
         updateScoreTrend()
         refreshInsights()
+    }
+
+    /// Daily persistence side effects of a refresh: today's DailyRecovery row
+    /// (when Whoop returned one), then the once-a-day body-comp snapshot.
+    private func persistDailySnapshots(recovery: WhoopRecoveryData?, sleepHours: Double) async {
+        guard let context = fuelContext else { return }
+        if let recovery, whoop.providesRealData {
+            upsertDailyRecovery(recovery, sleepHours: sleepHours, context: context)
+        }
+        await snapshotBodyCompositionIfNeeded(context: context)
     }
 
     /// Upserts today's DailyRecovery row from the live Whoop fetch so the

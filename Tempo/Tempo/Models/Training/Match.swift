@@ -25,6 +25,8 @@
 import Foundation
 import SwiftData
 
+// MARK: - Match
+
 @Model
 final class Match {
     @Attribute(.unique)
@@ -63,10 +65,12 @@ final class Match {
 
     /// Start-of-day of the kickoff — the unit all periodization math uses.
     @Transient
-    var dayKey: Date { Calendar.current.startOfDay(for: kickoff) }
+    var dayKey: Date {
+        Calendar.current.startOfDay(for: kickoff)
+    }
 }
 
-// MARK: - Pure match-schedule math (testable, no SwiftData / no Date.now in core)
+// MARK: - MatchSchedule
 
 /// Pure helpers over a set of match day-keys. Kept free of @Model and of an
 /// implicit "today" so they unit-test cleanly; the ViewModel passes `now`.
@@ -80,7 +84,9 @@ enum MatchSchedule {
             .map { calendar.startOfDay(for: $0) }
             .filter { $0 >= today }
             .sorted()
-        guard let next = upcoming.first else { return nil }
+        guard let next = upcoming.first else {
+            return nil
+        }
         return calendar.dateComponents([.day], from: today, to: next).day
     }
 
@@ -89,7 +95,9 @@ enum MatchSchedule {
     /// dated matches (not just recurring football weekdays).
     static func isTMinus1(date: Date, matchDayKeys: Set<Date>, calendar: Calendar = .current) -> Bool {
         let day = calendar.startOfDay(for: date)
-        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: day) else { return false }
+        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: day) else {
+            return false
+        }
         return matchDayKeys.contains(tomorrow)
     }
 

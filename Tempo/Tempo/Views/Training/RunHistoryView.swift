@@ -12,6 +12,8 @@
 import SwiftData
 import SwiftUI
 
+// MARK: - RunHistoryView
+
 struct RunHistoryView: View {
     @Environment(\.modelContext)
     private var modelContext
