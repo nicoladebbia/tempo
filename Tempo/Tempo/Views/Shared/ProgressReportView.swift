@@ -172,11 +172,16 @@ struct ProgressReportView: View {
     private func loadStats() {
         let thirtyDaysAgo = Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? Date()
 
-        // Meals logged in last 30 days
-        let mealDescriptor = FetchDescriptor<MealLog>(
-            predicate: #Predicate<MealLog> { $0.loggedAt >= thirtyDaysAgo }
-        )
-        stats.mealsLogged = (try? modelContext.fetch(mealDescriptor).count) ?? 0
+        // Meals eaten in last 30 days — canonical eaten PlannedMeals (Mark
+        // Eaten + Quick Log), not legacy MealLog. Day-aligned window so it
+        // counts whole days, like the Dashboard's day boundary.
+        let windowStart = Calendar.current.startOfDay(for: thirtyDaysAgo)
+        let windowEnd = Calendar.current.date(
+            byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: Date())
+        ) ?? Date()
+        stats.mealsLogged = EatenMealHistory.fetch(
+            from: windowStart, to: windowEnd, in: modelContext
+        ).count
 
         // Best streak (all time)
         let streakDescriptor = FetchDescriptor<Streak>()

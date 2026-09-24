@@ -165,6 +165,22 @@ final class UserDailyPlanProfile {
     }
 }
 
+// MARK: - Lookup
+
+extension UserDailyPlanProfile {
+    /// The user's profile — the most recently updated row. Onboarding upserts
+    /// a single row, but older builds could insert duplicates, so readers
+    /// should use this instead of an unordered `fetch(...).first`.
+    /// Nil when onboarding predates the daily-plan steps.
+    static func current(in context: ModelContext) -> UserDailyPlanProfile? {
+        var descriptor = FetchDescriptor<UserDailyPlanProfile>(
+            sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
+        )
+        descriptor.fetchLimit = 1
+        return (try? context.fetch(descriptor))?.first
+    }
+}
+
 // MARK: - ClassBlock
 
 /// A weekly-recurring class. Recurrence is bounded by the parent profile's

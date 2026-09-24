@@ -263,11 +263,10 @@ final class RecoveryAIInsightService: @unchecked Sendable {
         tipDesc.fetchLimit = 1
         ctx.tipGiven = (try? modelContext.fetch(tipDesc).first)?.body
 
-        // Nutrition — MealLog.dayDate is day-normalized (== match).
-        let mealDesc = FetchDescriptor<MealLog>(
-            predicate: #Predicate { $0.dayDate == yStart }
-        )
-        if let meals = try? modelContext.fetch(mealDesc), !meals.isEmpty {
+        // Nutrition — canonical eaten PlannedMeals (Mark Eaten + Quick Log),
+        // not legacy MealLog.
+        let meals = EatenMealHistory.fetch(from: yStart, to: yEnd, in: modelContext)
+        if !meals.isEmpty {
             ctx.mealCount = meals.count
             ctx.mealCalories = meals.reduce(0) { $0 + $1.totalCalories }
             ctx.mealProtein = meals.reduce(0) { $0 + $1.totalProtein }
@@ -371,10 +370,7 @@ final class RecoveryAIInsightService: @unchecked Sendable {
             return nil
         }
 
-        let mealDesc = FetchDescriptor<MealLog>(
-            predicate: #Predicate { $0.dayDate >= windowStart && $0.dayDate < windowEnd }
-        )
-        let meals = (try? modelContext.fetch(mealDesc)) ?? []
+        let meals = EatenMealHistory.fetch(from: windowStart, to: windowEnd, in: modelContext)
 
         let exDesc = FetchDescriptor<ExerciseHistory>(
             predicate: #Predicate { $0.date >= windowStart && $0.date < windowEnd }
@@ -440,7 +436,7 @@ final class RecoveryAIInsightService: @unchecked Sendable {
     /// Aggregates the trailing-7-day window into a compact fact sheet.
     static func buildWeeklyPrompt(
         recoveries: [DailyRecovery],
-        meals: [MealLog],
+        meals: [PlannedMeal],
         exercises: [ExerciseHistory],
         runs: [RunSession],
         accountability: [DailyAccountability]
