@@ -558,9 +558,30 @@ private struct ExerciseRowEditor: View {
         }
     }
 
+    /// The equipment the trainer wrote for this row, when it conflicts with
+    /// `matchedExercise`'s own equipment — fix #10. Non-nil here means Save
+    /// will clone an equipment variant (TrainerProgramSaver) instead of
+    /// linking straight to the match; this previews that before saving.
+    private var conflictingWrittenEquipment: Equipment? {
+        guard let matchedExercise else {
+            return nil
+        }
+        guard let written = ExerciseMatcher.writtenEquipment(in: exercise.name), written != matchedExercise.equipment else {
+            return nil
+        }
+        return written
+    }
+
     private var matchIndicator: some View {
         HStack(spacing: TempoSpacing.xs) {
-            if let matchedExercise {
+            if let matchedExercise, let conflictingWrittenEquipment {
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.tempoSuccess)
+                Text(
+                    "→ \(TrainerProgramSaver.variantName(rawName: exercise.name, matchedName: matchedExercise.name, equipment: conflictingWrittenEquipment)) (new variant of \(matchedExercise.name))"
+                )
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextSecondary)
+            } else if let matchedExercise {
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.tempoSuccess)
                 Text("Matches \(matchedExercise.name)")
                     .font(.tempoCaption2)
