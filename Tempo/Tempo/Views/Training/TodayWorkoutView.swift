@@ -1273,31 +1273,6 @@ struct TodayWorkoutView: View {
     // trainerAdjustmentRow (§4) moved to TodayWorkoutView+TrainerAdjustment.swift
     // to keep this file under the SwiftLint file/type-body length caps.
 
-    private func equipmentHint(_ equipment: Equipment) -> String {
-        switch equipment {
-        case .barbell: "Barbell"
-        case .dumbbell: "Dumbbell"
-        case .cable: "Cable Machine"
-        case .machine: "Machine"
-        case .bodyweight: "Bodyweight"
-        case .kettlebell: "Kettlebell"
-        default: equipment.rawValue.capitalized
-        }
-    }
-
-    /// SF Symbol for equipment type — used in place of emoji.
-    private func equipmentIcon(_ equipment: Equipment) -> String {
-        switch equipment {
-        case .barbell: "figure.strengthtraining.traditional"
-        case .dumbbell: "dumbbell.fill"
-        case .cable: "cable.connector"
-        case .machine: "gearshape.fill"
-        case .bodyweight: "figure.flexibility"
-        case .kettlebell: "figure.strengthtraining.functional"
-        default: "figure.mixed.cardio"
-        }
-    }
-
     // MARK: - Start Workout Button
 
     // Per MODULE_TRAINING.md Section 2.9

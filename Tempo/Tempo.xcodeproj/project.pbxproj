@@ -825,6 +825,7 @@
 		E64BD1E857F470A7EB0B491B /* CoachInlinePill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 919B8576C47C1F97BBE49CE7 /* CoachInlinePill.swift */; };
 		E71CAE9588413BACEA38711C /* cue_ex_lateral_raise.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = A1A0954E801FD3877CDE6AAE /* cue_ex_lateral_raise.mp3 */; };
 		E73D08C363C805DFC9A25440 /* ClearSkinFocusSetting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F71DD55093E1D549FF5200A /* ClearSkinFocusSetting.swift */; };
+		E76F01809A473873EAEDE103 /* TodayWorkoutView+Equipment.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE7A879A000EA8DAA0CA9BD7 /* TodayWorkoutView+Equipment.swift */; };
 		E822524191A602119CB45CCB /* WizardCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1FB2D6E704B1FDCCC7FF51 /* WizardCoordinator.swift */; };
 		E83225D21A9DD622D2814483 /* BodyQuadrantDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C0667B0502956239D73A789 /* BodyQuadrantDetailView.swift */; };
 		E881DA3BC7004A4BA4B7D79A /* SupplementIntakeLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A384B3FD9B35B16FA93FC71F /* SupplementIntakeLog.swift */; };
@@ -1576,6 +1577,7 @@
 		ADFECB175E6DE25E2E0EAC8B /* VoicePantryParseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoicePantryParseTests.swift; sourceTree = "<group>"; };
 		AE3A2335BEAF9420CA3826BB /* SyncEnums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEnums.swift; sourceTree = "<group>"; };
 		AE6263597B3354C508BBC7D4 /* Tempo.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Tempo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AE7A879A000EA8DAA0CA9BD7 /* TodayWorkoutView+Equipment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TodayWorkoutView+Equipment.swift"; sourceTree = "<group>"; };
 		AE92B41E1E04D830094100FB /* OnboardingDailyPlanProfilePersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingDailyPlanProfilePersistenceTests.swift; sourceTree = "<group>"; };
 		AF94240FFEB657EBD81947D5 /* LockdownMainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockdownMainView.swift; sourceTree = "<group>"; };
 		AFDC3D23F92296D5D80DC7C1 /* MonthlyReviewAggregator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyReviewAggregator.swift; sourceTree = "<group>"; };
@@ -2479,6 +2481,7 @@
 				978BE071A3FFBE6D6B6FBCB2 /* StrengthProgressLabView.swift */,
 				F9A1021803B15D6FA4B4FB64 /* TodayWorkoutSheets.swift */,
 				2ED0527B188D9FBA91B55BD7 /* TodayWorkoutView.swift */,
+				AE7A879A000EA8DAA0CA9BD7 /* TodayWorkoutView+Equipment.swift */,
 				04D0906A0FCF4303D1ECB16F /* TodayWorkoutView+TrainerAdjustment.swift */,
 				8D8648D6DC9465F328344F56 /* TrainerProgramHistoryView.swift */,
 				C0ACB4B35D2E6014F2ECDA44 /* TrainerProgramImportView.swift */,
@@ -4710,6 +4713,7 @@
 				F39C73E19E14AA4302EC3903 /* TemporaryExclusionsStepView.swift in Sources */,
 				7C1028AFDD1D96B68005C350 /* TermsAcceptanceView.swift in Sources */,
 				5C061852D3172A37D89D629F /* TodayWorkoutSheets.swift in Sources */,
+				E76F01809A473873EAEDE103 /* TodayWorkoutView+Equipment.swift in Sources */,
 				0A79D51AA3FD57D123E478FA /* TodayWorkoutView+TrainerAdjustment.swift in Sources */,
 				B64747F90F180C2D63374ADC /* TodayWorkoutView.swift in Sources */,
 				BA30C3A3FCB4DD2F6B16AED5 /* TrainerProgram.swift in Sources */,
