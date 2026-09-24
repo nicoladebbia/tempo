@@ -116,16 +116,29 @@ struct ActiveWorkoutView: View {
         return StrengthStandards.isBodyweightLoaded(eq)
     }
 
-    /// User bodyweight (kg) for effective-load math. 0 when unknown → the
-    /// effective load degrades to just the added load.
+    /// User bodyweight (kg) for effective-load math. 0 when unknown — §15:
+    /// that used to fall straight through to `bodyweightEffectiveKg` and log
+    /// a bodyweight lift at 0 kg. `bodyweightPromptDisplayValue` below is the
+    /// inline session prompt that now covers this gap.
     private var bodyweightKg: Double {
         profiles.first?.weightKg ?? 0
     }
 
+    /// §15 fix — inline prompt value (display unit) for a session where the
+    /// profile has no bodyweight on file. Seeded to a sane default in
+    /// `loadCurrentSetInputs`; only shown/used while `bodyweightKg <= 0`.
+    @State
+    private var bodyweightPromptDisplayValue: Double = 70
+
     /// Effective logged load (kg) for a bodyweight lift = bodyweight ± added,
-    /// never negative. `inputAddedLoad` is in the display unit.
+    /// never negative. `inputAddedLoad` is in the display unit. Falls back to
+    /// the inline prompt (never to 0) when the profile has no weight on file.
     private var bodyweightEffectiveKg: Double {
-        max(0, bodyweightKg + weightUnit.convert(inputAddedLoad, to: .kg))
+        BodyweightLiftMath.effectiveLoadKg(
+            profileBodyweightKg: bodyweightKg,
+            promptBodyweightKg: weightUnit.convert(bodyweightPromptDisplayValue, to: .kg),
+            addedLoadKg: weightUnit.convert(inputAddedLoad, to: .kg)
+        )
     }
 
     /// Human hint under the added-load stepper: "= 77.7 kg effective · assisted".
@@ -148,6 +161,19 @@ struct ActiveWorkoutView: View {
     @State
     private var showNotes = false
 
+    /// §3 — see the toolbar Finish button's own comment: only a live or
+    /// paused session offers the generic Finish action.
+    private var showFinishButtonInToolbar: Bool {
+        switch viewModel.sessionState {
+        case .warmup,
+             .exercise,
+             .paused:
+            true
+        default:
+            false
+        }
+    }
+
     private func prToastView(_ pr: PersonalRecord) -> some View {
         HStack(spacing: TempoSpacing.sm) {
             Image(systemName: "trophy.fill")
@@ -156,7 +182,10 @@ struct ActiveWorkoutView: View {
                 Text("NEW PR")
                     .font(.tempoHeadline)
                     .foregroundStyle(Color.tempoPRGold)
-                Text(pr.exercise?.name ?? "Exercise")
+                // §15 fix — the weight shown here comes from `pr.value`
+                // converted to the user's unit (PRDisplay), never from the
+                // engine's kg-only, unit-unaware `context` string.
+                Text("\(pr.exercise?.name ?? "Exercise") · \(PRDisplay.weightLabel(pr, unit: weightUnit))")
                     .font(.tempoCaption1)
                     .foregroundStyle(Color.tempoTextPrimary)
             }
@@ -289,19 +318,28 @@ struct ActiveWorkoutView: View {
                 .accessibilityLabel("Session notes")
             }
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showFinishConfirmation = true
-                } label: {
-                    Text("Finish")
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoSignal)
+                // §3 fix — Finish only makes sense while a session is
+                // actually live or paused. `.crashedRecovery` has its own
+                // Resume/Discard pair (finishing there skipped the timing
+                // restore entirely) and `.interruptedCall` auto-resumes with
+                // its own "Resume now" escape hatch — offering a second,
+                // generic Finish in either duplicated (or for crashedRecovery,
+                // silently bypassed) their real flows.
+                if showFinishButtonInToolbar {
+                    Button {
+                        showFinishConfirmation = true
+                    } label: {
+                        Text("Finish")
+                            .font(.tempoHeadline)
+                            .foregroundStyle(Color.tempoSignal)
+                    }
                 }
             }
         }
         // Centered alert (not a popover/action sheet) for the finish choice.
         .alert("Finish Workout?", isPresented: $showFinishConfirmation) {
             Button("Save what I did") {
-                viewModel.finishWorkout()
+                viewModel.finishWorkout(modelContext: modelContext)
             }
             Button("Discard workout", role: .destructive) {
                 // Discard rolls back + resets; TrainingTabView observes
@@ -388,6 +426,29 @@ struct ActiveWorkoutView: View {
             contextStrip
 
             if isBodyweightLift {
+                // §15 fix — no bodyweight on file yet: prompt for it inline,
+                // once, right here (not a separate screen), so the FIRST
+                // bodyweight-lift log of the session never has to fall back
+                // to 0 kg. Persisted to UserProfile.weightKg on Finish Set —
+                // see `persistBodyweightIfNeeded()`.
+                if bodyweightKg <= 0 {
+                    VStack(spacing: TempoSpacing.sm) {
+                        Text("YOUR BODYWEIGHT — needed to log this lift")
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                        NumberStepperView(
+                            value: $bodyweightPromptDisplayValue,
+                            range: WeightUnit.kg.convert(30, to: weightUnit) ... WeightUnit.kg.convert(300, to: weightUnit),
+                            step: weightStep,
+                            format: weightUnit == .kg ? "%.1f" : "%.0f",
+                            unit: weightUnit.abbreviation,
+                            onTapValue: { activeEntryField = .bodyweight }
+                        )
+                        Text("Saved to your profile — used for pull-ups, dips, and similar lifts.")
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                    }
+                }
                 // Bodyweight-loaded lift (pull-up/dip): log a SIGNED added
                 // load — negative = assistance (band/machine), positive =
                 // weight belt/vest. Effective load = bodyweight ± this.
@@ -645,6 +706,10 @@ struct ActiveWorkoutView: View {
                 // bodyweight lift the logged weight is the EFFECTIVE load
                 // (bodyweight ± added) and we also record the signed added load.
                 if isBodyweightLift {
+                    // §15 — commit the inline prompt to the profile BEFORE
+                    // logging, so this and every later bodyweight lift this
+                    // session (and beyond) reads a real weight, not 0.
+                    persistBodyweightIfNeeded()
                     viewModel.logSet(
                         weight: bodyweightEffectiveKg,
                         reps: Int(inputReps),
@@ -1206,6 +1271,7 @@ struct ActiveWorkoutView: View {
         case weight
         case addedLoad
         case reps
+        case bodyweight
         var id: String {
             rawValue
         }
@@ -1260,12 +1326,48 @@ struct ActiveWorkoutView: View {
                 snap: { $0.rounded() },
                 onSave: { inputReps = $0 }
             )
+        case .bodyweight:
+            let lower = WeightUnit.kg.convert(30, to: weightUnit)
+            let upper = WeightUnit.kg.convert(300, to: weightUnit)
+            NumericEntrySheet(
+                title: "Bodyweight",
+                unit: weightUnit.abbreviation,
+                initialValue: bodyweightPromptDisplayValue,
+                range: lower ... upper,
+                wheelValues: NumericEntrySheet.weightWheelValues(
+                    step: weightStep, lowerBound: lower, upperBound: upper
+                ),
+                displayFormat: weightUnit == .kg ? "%.1f" : "%.0f",
+                snap: { (($0 / weightStep).rounded()) * weightStep },
+                onSave: { bodyweightPromptDisplayValue = $0 }
+            )
         }
     }
 
     // MARK: - Helpers
 
+    /// §15 fix — commit the inline bodyweight prompt to the SAME place the
+    /// rest of the app reads bodyweight (`UserProfile.weightKg`) the first
+    /// time a bodyweight lift is about to be logged without one on file.
+    /// No-op once a real profile weight exists, or if there's no profile row
+    /// to write to.
+    private func persistBodyweightIfNeeded() {
+        guard isBodyweightLift, bodyweightKg <= 0, bodyweightPromptDisplayValue > 0,
+              let profile = profiles.first
+        else {
+            return
+        }
+        profile.weightKg = weightUnit.convert(bodyweightPromptDisplayValue, to: .kg)
+        modelContext.saveOrAlert("bodyweight")
+    }
+
     private func loadCurrentSetInputs() {
+        // §15 — seed the inline bodyweight prompt with a sane default the
+        // first time it's needed this session (only matters while
+        // bodyweightKg <= 0; otherwise the prompt never renders).
+        if isBodyweightLift, bodyweightKg <= 0 {
+            bodyweightPromptDisplayValue = WeightUnit.kg.convert(70, to: weightUnit)
+        }
         // Bodyweight-loaded lift: seed the SIGNED added-load stepper from the
         // set's planned suggestion (bodyweight ± this = effective target) rather
         // than a total weight.

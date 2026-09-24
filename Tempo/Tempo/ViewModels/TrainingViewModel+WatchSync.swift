@@ -70,6 +70,16 @@ extension TrainingViewModel {
     /// guarded save, refresh cross-surfaces, and push the updated queue back
     /// (the bidirectional half). Unknown exercise or no open plan → no-op;
     /// the watch's local advance is cosmetic and re-syncs on next push.
+    ///
+    /// §11 fix — when the PHONE's own session is live and sitting on exactly
+    /// this (exercise, set), route through `logSet` (the same function the
+    /// phone's Finish Set button calls) instead of a thinner parallel path.
+    /// That's what keeps PR detection, the eager SetFeedback row, the rest
+    /// timer, and the exercise/set cursor all in sync — the old direct-mutate
+    /// path never advanced the phone's cursor, so a phone tap right after a
+    /// watch log re-completed (and overwrote) the SAME set with stale phone
+    /// input values. Off the phone's exact cursor (no live session, or it has
+    /// moved elsewhere), fall back to the simple direct completion.
     @discardableResult
     func applyWatchSetLog(
         exerciseName: String,
@@ -79,19 +89,52 @@ extension TrainingViewModel {
     ) -> Bool {
         guard let plan = todayPlan,
               plan.status == .planned || plan.status == .inProgress,
-              let slot = plan.orderedExercises.first(where: { $0.exercise?.name == exerciseName }),
-              let set = slot.orderedSets.first(where: { !$0.isWarmup && !$0.completed })
+              let exerciseIndex = plan.orderedExercises.firstIndex(where: { $0.exercise?.name == exerciseName })
         else {
             return false
         }
+        let slot = plan.orderedExercises[exerciseIndex]
+        guard let setIndex = slot.orderedSets.firstIndex(where: { !$0.isWarmup && !$0.completed }) else {
+            return false
+        }
+        let set = slot.orderedSets[setIndex]
+        let resolvedWeight = weightKg ?? set.targetWeight ?? 0
+        let resolvedReps = reps ?? set.targetReps
+
+        if sessionState.isActive, currentExerciseIndex == exerciseIndex, currentSetIndex == setIndex {
+            logSet(weight: resolvedWeight, reps: resolvedReps, modelContext: modelContext)
+            NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
+            pushWorkoutToWatch()
+            return true
+        }
+
         if plan.status == .planned {
             plan.status = .inProgress
             plan.startedAt = plan.startedAt ?? Date()
         }
-        set.actualReps = reps ?? set.targetReps
-        set.actualWeight = weightKg ?? set.targetWeight
+        set.actualReps = resolvedReps
+        set.actualWeight = resolvedWeight
         set.completed = true
         set.completedAt = Date()
+
+        // Mirror logSet's PR detection + eager feedback row so a watch-only
+        // log (phone not looking at this session) carries the same signal a
+        // phone-logged one does.
+        if !set.isWarmup, !set.isDropStep, let exercise = slot.exercise,
+           let pr = trainingEngine.detectPersonalRecord(
+               exercise: exercise, weight: resolvedWeight, reps: resolvedReps
+           )
+        {
+            modelContext.insert(pr)
+            detectedPRs.append(pr)
+            HapticManager.notification(.success)
+        }
+        if !set.isWarmup {
+            let feedback = SetFeedback(plannedSet: set, rpe: 7)
+            modelContext.insert(feedback)
+            set.rpe = feedback.rpe
+        }
+
         guard saveGuarded(modelContext, operation: "watch set") else {
             set.completed = false
             set.completedAt = nil
