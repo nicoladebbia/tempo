@@ -184,6 +184,39 @@ final class TrainerProgramTests: XCTestCase {
         XCTAssertEqual(slots[1].exercise?.isCustom, true, "unknown name becomes a custom exercise")
     }
 
+    /// Fix #9 — `ProgramExercise.perSide` must survive import onto the
+    /// `PlannedExercise` the athlete actually trains from, with reps carried
+    /// through UN-doubled (the trainer's "8 per side" stays targetReps: 8).
+    func testPopulateCarriesPerSideFlagWithoutDoublingReps() throws {
+        let container = try TempoModelContainer.create(inMemory: true)
+        let context = container.mainContext
+        let row = Exercise(
+            name: "SA DB Row", muscleGroup: .back, equipment: .dumbbell,
+            movementPattern: .horizontalPull, isCompound: true
+        )
+        context.insert(row)
+        let items = [
+            ProgramExercise(name: "SA DB Row", sets: 3, repsLow: 8, weightKg: 20, perSide: true),
+            ProgramExercise(name: "Bench Press", sets: 3, repsLow: 8, weightKg: 60),
+        ]
+        let p = program(weeks: [ProgramWeek(days: [day(1, "pull", exercises: items)])])
+        context.insert(p)
+        let plan = WorkoutPlan(date: date("2026-09-21"), type: .pull)
+        plan.programSessionKey = p.sessionKey(weekIndex: 0, dayIndex: 0)
+        context.insert(plan)
+        try context.save()
+
+        let vm = TrainingViewModel(
+            trainingEngine: MockTrainingEngine(), whoop: MockWhoopService(), healthKit: MockHealthKitService()
+        )
+        vm.populateExercises(for: plan, modelContext: context)
+
+        let slots = plan.orderedExercises
+        XCTAssertTrue(slots[0].perSide, "trainer wrote per-side reps for this exercise")
+        XCTAssertFalse(slots[1].perSide, "a normal bilateral exercise stays false")
+        XCTAssertEqual(slots[0].orderedSets.first(where: { !$0.isWarmup })?.targetReps, 8, "never doubled")
+    }
+
     func testPercentOf1RMUsesEstimatedMax() {
         let item = ProgramExercise(name: "Squat", sets: 5, repsLow: 5, percentOf1RM: 0.8)
         let squat = Exercise(name: "Squat", muscleGroup: .quads, equipment: .barbell, movementPattern: .squat, isCompound: true)
