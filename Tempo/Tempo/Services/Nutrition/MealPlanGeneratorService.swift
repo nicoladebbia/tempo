@@ -94,7 +94,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         // breakfastSkipped + postWorkoutMandatory always. Read here (not in
         // the callers) so every generate path honors them.
         let onboardingSettings = Self.fetchUserSettings(modelContext: modelContext)
-        let dailyPlanProfile = try? modelContext.fetch(FetchDescriptor<UserDailyPlanProfile>()).first
+        let dailyPlanProfile = UserDailyPlanProfile.current(in: modelContext)
         let intake: MealPlanIntake? = if let callerIntake {
             callerIntake.applyingOnboarding(dailyPlanProfile, settings: onboardingSettings)
         } else if dailyPlanProfile != nil {

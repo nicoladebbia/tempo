@@ -30,7 +30,7 @@ enum UserGoal: String {
 
 // MARK: - AdjustedNutritionTargets
 
-struct AdjustedNutritionTargets {
+struct AdjustedNutritionTargets: Equatable {
     let calorieTarget: Int
     let proteinTarget: Int
     let carbsTarget: Int

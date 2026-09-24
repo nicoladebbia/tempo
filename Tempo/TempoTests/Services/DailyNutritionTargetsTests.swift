@@ -18,6 +18,19 @@ final class DailyNutritionTargetsTests: XCTestCase {
     private let rest = DailyNutritionTargets.DayContext(isTrainingDay: false, isRestDay: true)
     private let training = DailyNutritionTargets.DayContext(isTrainingDay: true, isRestDay: false)
 
+    /// Dashboard tests record the shared HealthKit-workout signal in
+    /// UserDefaults.standard (the mock HealthKit returns a workout) — clear it
+    /// so day-context expectations don't depend on test order.
+    override func setUp() {
+        super.setUp()
+        UserDefaults.standard.removeObject(forKey: HealthKitWorkoutDay.key)
+    }
+
+    override func tearDown() {
+        UserDefaults.standard.removeObject(forKey: HealthKitWorkoutDay.key)
+        super.tearDown()
+    }
+
     // MARK: - Pure compute + note
 
     func testPlainDayEqualsBase() {
@@ -99,6 +112,32 @@ final class DailyNutritionTargetsTests: XCTestCase {
         XCTAssertFalse(day.isRestDay, "Played football → not a rest-day cut")
         XCTAssertEqual(day.activityCaloriesBurned, 600)
         XCTAssertEqual(day.activityDurationMin, 90)
+    }
+
+    func testHealthKitWorkoutMakesUnplannedDayTraining() throws {
+        HealthKitWorkoutDay.record(true)
+        let day = try DailyNutritionTargets.dayContext(in: makeContext())
+        XCTAssertTrue(day.isTrainingDay, "Apple Watch run with no plan → training day")
+        XCTAssertFalse(day.isRestDay)
+    }
+
+    func testHealthKitWorkoutDoesNotOverridePlannedRest() throws {
+        HealthKitWorkoutDay.record(true)
+        let ctx = try makeContext()
+        ctx.insert(WorkoutPlan(date: Date(), type: .rest))
+        let day = DailyNutritionTargets.dayContext(in: ctx)
+        XCTAssertTrue(day.isRestDay)
+        XCTAssertFalse(day.isTrainingDay)
+    }
+
+    func testHealthKitWorkoutSignalIsPerDay() throws {
+        let yesterday = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -1, to: Date()))
+        HealthKitWorkoutDay.record(true, on: yesterday)
+        XCTAssertFalse(HealthKitWorkoutDay.hasWorkout(on: Date()), "Yesterday's workout doesn't carry over")
+        HealthKitWorkoutDay.record(true)
+        XCTAssertTrue(HealthKitWorkoutDay.hasWorkout(on: Date()))
+        HealthKitWorkoutDay.record(false)
+        XCTAssertFalse(HealthKitWorkoutDay.hasWorkout(on: Date()), "Deleted workout clears today's signal")
     }
 
     func testDayContextPlannedGymSessionIsTraining() throws {

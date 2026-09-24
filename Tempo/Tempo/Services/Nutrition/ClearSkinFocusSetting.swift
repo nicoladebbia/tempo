@@ -11,8 +11,8 @@
 // one-time migration: key unset + an existing DietaryProfile + an already
 // generated meal plan → ON. The plan check is what separates an existing
 // install from a brand-new user whose FIRST generate happens right after they
-// create their profile (the migration can't run at app launch — it runs
-// lazily on first read, from the generator and the settings screen).
+// create their profile. It runs at app launch (ContentView) and again lazily
+// on first read, from the generator and the settings screen.
 //
 
 import Foundation

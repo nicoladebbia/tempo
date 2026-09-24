@@ -13,8 +13,8 @@
 // The zone + sweat terms are computed BY NutritionEngine.adjustedTargets
 // (hydration there depends only on base, zone, training flag and activity —
 // never on the macro inputs), so this can't drift from the Dashboard formula.
-// The Dashboard still passes NutritionEngine's fixed 2500 ml base; it should
-// pass `baseMl(bodyWeightKg:)` so both surfaces also share the weight term.
+// The Dashboard and Nutrition Today get the weight term through
+// DailyNutritionTargets (DayContext.bodyWeightKg → `baseMl(bodyWeightKg:)`).
 //
 
 import Foundation

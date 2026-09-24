@@ -39,6 +39,11 @@ struct DailyNutritionTargets: Equatable {
     let mode: NutritionMode
     /// Why today's target differs from the base. nil when it doesn't.
     let note: String?
+    /// The day context the adjustment ran on (training / rest, activity, weight).
+    let day: DayContext
+    /// Full engine output — the Dashboard's Fuel quadrant keeps it for its
+    /// mode badge and base-vs-adjusted comparison.
+    let adjusted: AdjustedNutritionTargets
 
     var targets: NutritionTargetCalculator.Targets {
         NutritionTargetCalculator.Targets(calories: calories, protein: protein, carbs: carbs, fat: fat)
@@ -55,6 +60,9 @@ struct DailyNutritionTargets: Equatable {
         /// (football etc.) — feeds the sweat-based hydration bonus.
         var activityCaloriesBurned: Double?
         var activityDurationMin: Double?
+        /// Real body weight (DailyHydrationTarget.bodyWeightKg) — sets the
+        /// 35 ml/kg hydration base. nil → 2500 ml fallback.
+        var bodyWeightKg: Double? = nil
 
         /// No workout plan and no logged activity: neither a training day
         /// nor a rest day → no rest cut, no training carb bump.
@@ -100,6 +108,7 @@ struct DailyNutritionTargets: Equatable {
             currentStrain: strain,
             isTrainingDay: day.isTrainingDay,
             isRestDay: day.isRestDay,
+            baseHydrationMl: DailyHydrationTarget.baseMl(bodyWeightKg: day.bodyWeightKg),
             activityCaloriesBurned: day.activityCaloriesBurned,
             activityDurationMin: day.activityDurationMin
         )
@@ -117,7 +126,9 @@ struct DailyNutritionTargets: Equatable {
                 beforeAdjustment: withCarryover,
                 adjusted: adjusted,
                 carryover: carryover
-            )
+            ),
+            day: day,
+            adjusted: adjusted
         )
     }
 
@@ -159,7 +170,11 @@ struct DailyNutritionTargets: Equatable {
     /// activity makes it a training day even without a gym plan. Read-only —
     /// does not run the workout-plan ensurer.
     @MainActor
-    static func dayContext(in context: ModelContext, now: Date = Date()) -> DayContext {
+    static func dayContext(
+        in context: ModelContext,
+        now: Date = Date(),
+        workoutSignal: UserDefaults = .standard
+    ) -> DayContext {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: now)
         guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) else {
@@ -198,11 +213,19 @@ struct DailyNutritionTargets: Equatable {
                 break
             }
         }
+        // A HealthKit-only workout (Apple Watch run…) makes an unplanned or
+        // skipped day a training day. A planned rest stays a rest day.
+        if plan == nil || plan?.status == .skipped,
+           HealthKitWorkoutDay.hasWorkout(on: now, defaults: workoutSignal)
+        {
+            isTraining = true
+        }
         return DayContext(
             isTrainingDay: isTraining,
             isRestDay: isRest,
             activityCaloriesBurned: activityCal > 0 ? activityCal : nil,
-            activityDurationMin: activityMin > 0 ? activityMin : nil
+            activityDurationMin: activityMin > 0 ? activityMin : nil,
+            bodyWeightKg: DailyHydrationTarget.bodyWeightKg(in: context)
         )
     }
 
@@ -232,5 +255,29 @@ struct DailyNutritionTargets: Equatable {
             parts.append("+\(refund) kcal from yesterday")
         }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+}
+
+// MARK: - HealthKitWorkoutDay
+
+/// "HealthKit recorded a workout today." HealthKit-only workouts create no
+/// WorkoutPlan or ActivitySession row, and only the Dashboard queries
+/// HealthKit workouts — it records the day here so `dayContext` (and so
+/// Nutrition Today, which has no HealthKit access) sees the same signal.
+enum HealthKitWorkoutDay {
+    static let key = "nutrition.healthKitWorkoutDay"
+
+    static func record(_ hasWorkout: Bool, on date: Date = Date(), defaults: UserDefaults = .standard) {
+        let day = Calendar.current.startOfDay(for: date).timeIntervalSince1970
+        if hasWorkout {
+            defaults.set(day, forKey: key)
+        } else if defaults.double(forKey: key) == day {
+            defaults.removeObject(forKey: key)
+        }
+    }
+
+    static func hasWorkout(on date: Date = Date(), defaults: UserDefaults = .standard) -> Bool {
+        let day = Calendar.current.startOfDay(for: date).timeIntervalSince1970
+        return defaults.object(forKey: key) != nil && defaults.double(forKey: key) == day
     }
 }

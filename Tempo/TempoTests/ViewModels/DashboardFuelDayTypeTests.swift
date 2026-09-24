@@ -6,7 +6,8 @@
 // and only a follow-up refreshTrainingStatus() fixed it, which the
 // .tempoNutritionLogged handler never called. So logging a meal on a rest
 // day flipped the Dashboard back to a training-day target. These pin:
-//   - the plan → flags mapping,
+//   - the plan → Move status mapping,
+//   - the Fuel target IS the canonical DailyNutritionTargets number,
 //   - refresh() ALONE produces the rest-day target on a rest day,
 //   - refresh() and refreshTrainingStatus() agree (same number twice),
 //   - the widget snapshot mirrors the Dashboard quadrants.
@@ -30,48 +31,20 @@ final class DashboardFuelDayTypeTests: XCTestCase {
         container = try ModelContainer(for: Schema(TempoSchemaV1.models), configurations: [config])
         context = container.mainContext
         WidgetSyncService.resetDedupe()
+        UserDefaults.standard.removeObject(forKey: HealthKitWorkoutDay.key)
         savedEnsurer = DailyResetCoordinator.workoutPlanEnsurer
         DailyResetCoordinator.workoutPlanEnsurer = nil
     }
 
     override func tearDown() async throws {
         DailyResetCoordinator.workoutPlanEnsurer = savedEnsurer
+        UserDefaults.standard.removeObject(forKey: HealthKitWorkoutDay.key)
         container = nil
         context = nil
         try await super.tearDown()
     }
 
     // MARK: - Pure mapping
-
-    func testDayFlagsMapping() {
-        XCTAssertEqual(
-            DashboardViewModel.dayFlags(planStatus: .planned, hasLoggedWorkout: false),
-            FuelDayFlags(isTrainingDay: true, isRestDay: false)
-        )
-        XCTAssertEqual(
-            DashboardViewModel.dayFlags(planStatus: .completed, hasLoggedWorkout: false),
-            FuelDayFlags(isTrainingDay: true, isRestDay: false)
-        )
-        XCTAssertEqual(
-            DashboardViewModel.dayFlags(planStatus: .restDay, hasLoggedWorkout: true),
-            FuelDayFlags(isTrainingDay: false, isRestDay: true),
-            "A planned rest day stays a rest day"
-        )
-        XCTAssertEqual(
-            DashboardViewModel.dayFlags(planStatus: DashboardWorkoutStatus.none, hasLoggedWorkout: false),
-            FuelDayFlags(isTrainingDay: false, isRestDay: false),
-            "Skipped with no logged workout → standard targets"
-        )
-        XCTAssertEqual(
-            DashboardViewModel.dayFlags(planStatus: nil, hasLoggedWorkout: true),
-            FuelDayFlags(isTrainingDay: true, isRestDay: false),
-            "No plan but a HealthKit workout → training"
-        )
-        XCTAssertEqual(
-            DashboardViewModel.dayFlags(planStatus: nil, hasLoggedWorkout: false),
-            FuelDayFlags(isTrainingDay: false, isRestDay: false)
-        )
-    }
 
     func testWorkoutStatusMapping() {
         let today = Date()
@@ -91,13 +64,53 @@ final class DashboardFuelDayTypeTests: XCTestCase {
         )
     }
 
-    func testResolveDayFlagsReadsTodaysPlan() throws {
+    // MARK: - Cross-surface: Dashboard == Nutrition Today
+
+    /// The Fuel quadrant must show THE canonical target — the same
+    /// `DailyNutritionTargets.today` Nutrition Today renders — including
+    /// carryover, the rest-day cut and the weight-based hydration base.
+    func testFuelTargetsEqualCanonicalDailyTarget() async throws {
         context.insert(WorkoutPlan(date: Date(), type: .rest))
+        context.insert(DietaryProfile(currentWeightKg: 70))
         try context.save()
-        XCTAssertEqual(
-            DashboardViewModel.resolveDayFlags(in: context, hasLoggedWorkout: false),
-            FuelDayFlags(isTrainingDay: false, isRestDay: true)
+
+        let vm = DashboardViewModel(services: .mock())
+        vm.setFuelContext(context)
+        await vm.refresh(force: true)
+
+        let canonical = DailyNutritionTargets.today(
+            in: context,
+            whoopAvgTDEE: vm.whoop.weeklyTDEEAverage,
+            recoveryScore: vm.body.recoveryScore,
+            strain: vm.body.strain
         )
+        XCTAssertEqual(vm.fuel.calorieTarget, canonical.calories)
+        XCTAssertEqual(vm.fuel.proteinTarget, canonical.protein)
+        XCTAssertEqual(vm.fuel.carbsTarget, canonical.carbs)
+        XCTAssertEqual(vm.fuel.fatTarget, canonical.fat)
+        XCTAssertEqual(vm.fuel.adjustedTargets?.hydrationTargetMl, canonical.hydrationMl)
+        XCTAssertTrue(canonical.day.isRestDay)
+        XCTAssertEqual(canonical.day.bodyWeightKg, 70)
+    }
+
+    /// A HealthKit-only workout (mock HealthKit returns one) with no plan
+    /// still makes today a training day — on the Dashboard AND in the
+    /// canonical context Nutrition Today reads.
+    func testHealthKitOnlyWorkoutCountsAsTrainingOnBothSurfaces() async throws {
+        let vm = DashboardViewModel(services: .mock())
+        vm.setFuelContext(context)
+        await vm.refresh(force: true)
+
+        XCTAssertTrue(vm.hasLoggedWorkoutToday)
+        XCTAssertTrue(DailyNutritionTargets.dayContext(in: context).isTrainingDay)
+        let canonical = DailyNutritionTargets.today(
+            in: context,
+            whoopAvgTDEE: vm.whoop.weeklyTDEEAverage,
+            recoveryScore: vm.body.recoveryScore,
+            strain: vm.body.strain
+        )
+        XCTAssertEqual(vm.fuel.calorieTarget, canonical.calories)
+        XCTAssertEqual(vm.fuel.carbsTarget, canonical.carbs)
     }
 
     // MARK: - Refresh paths

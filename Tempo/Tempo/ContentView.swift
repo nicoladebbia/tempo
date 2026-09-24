@@ -51,6 +51,9 @@ struct ContentView: View {
                 mainTabView
                     .task {
                         ensureUserProfile()
+                        // One-time clear-skin opt-in migration, at launch so it
+                        // sees an existing install's plan before any regen.
+                        _ = ClearSkinFocusSetting.resolve(modelContext: modelContext)
                         handlePlanInputsChanged()
                     }
             } else {

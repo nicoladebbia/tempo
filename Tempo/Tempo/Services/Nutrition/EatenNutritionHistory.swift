@@ -39,11 +39,10 @@ enum EatenNutritionHistory {
     /// One entry per calendar day for the `days` days ending on `today`
     /// (oldest first). Days with no eaten meals come back with `hasData == false`.
     ///
-    /// Today uses the canonical filter (active plan or unbound) so today's
-    /// bar is the exact number the Dashboard Fuel card shows. PAST days also
-    /// count archived plans: a weekly regen archives the previous plan, so
-    /// last week's eaten meals live there. Regeneration never copies eaten
-    /// statuses into the new plan, so this can't double-count.
+    /// Meals are filtered by `EatenMealHistory.canonical`: today uses the
+    /// canonical filter (active plan or unbound) so today's bar is the exact
+    /// number the Dashboard Fuel card shows; past days also count archived
+    /// plans (a weekly regen archives the previous plan), one row per slot.
     @MainActor
     static func dailyTotals(
         in context: ModelContext,
@@ -80,12 +79,10 @@ enum EatenNutritionHistory {
     ) -> [DailyEatenTotals] {
         let todayStart = calendar.startOfDay(for: today)
         var byDay: [Date: [PlannedMeal]] = [:]
-        for meal in meals where meal.status == .eaten {
-            let day = calendar.startOfDay(for: meal.dayDate)
-            if day == todayStart, !(meal.mealPlan?.isActive == true || meal.mealPlan == nil) {
-                continue
-            }
-            byDay[day, default: []].append(meal)
+        // Same history rule as the Progress Report / RecoverIQ: today =
+        // active plan or unbound; past days = any plan, one row per slot.
+        for meal in EatenMealHistory.canonical(meals, now: todayStart, calendar: calendar) {
+            byDay[calendar.startOfDay(for: meal.dayDate), default: []].append(meal)
         }
         return (0 ..< max(days, 0)).reversed().compactMap { offset -> DailyEatenTotals? in
             guard let day = calendar.date(byAdding: .day, value: -offset, to: todayStart) else {

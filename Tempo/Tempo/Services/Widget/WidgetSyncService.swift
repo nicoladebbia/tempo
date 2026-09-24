@@ -10,6 +10,7 @@
 //
 
 import Foundation
+import OSLog
 import WidgetKit
 
 // MARK: - WidgetSnapshot
@@ -59,9 +60,7 @@ enum WidgetSyncService {
         reload: () -> Void = { WidgetCenter.shared.reloadAllTimelines() }
     ) {
         guard let defaults else {
-            #if DEBUG
-                print("[Widget] app group \(appGroupID) unavailable — widget not updated")
-            #endif
+            Logger.sync.error("Widget app group \(appGroupID, privacy: .public) unavailable — widget not updated")
             return
         }
         guard snapshot != lastPublished else {

@@ -251,7 +251,7 @@ final class DashboardViewModel {
     // MARK: - Dependencies
 
     private let healthKit: any HealthKitServiceProtocol
-    private let whoop: any WhoopServiceProtocol
+    let whoop: any WhoopServiceProtocol
     private let calendar: any CalendarServiceProtocol
     private var userName: String?
 
@@ -572,33 +572,17 @@ final class DashboardViewModel {
         // (INTELLIGENT_TRAINING_SYSTEM §4.3/§17).
         await persistDailySnapshots(recovery: recovery, sleepHours: sleepHours)
 
-        // Build Fuel quadrant with recovery-adjusted targets.
-        // Targets come from NutritionTarget if present; defaults are used otherwise.
-        let baseCalTarget = nutritionTotals.calorieTarget
-        let baseProtTarget = nutritionTotals.proteinTarget
-        let baseCarbTarget = nutritionTotals.carbsTarget
-        let baseFatTarget = nutritionTotals.fatTarget
-        // Recovery + strain from the Body quadrant (just rebuilt above, or
-        // preserved on an all-cancelled Whoop refresh) so a cancelled fetch
-        // doesn't silently drop the recovery adjustment.
+        // Build Fuel quadrant from THE canonical daily target (base +
+        // carryover + recovery / rest-day adjustment) — the exact number
+        // Nutrition Today shows. Recovery + strain come from the Body
+        // quadrant (just rebuilt above, or preserved on an all-cancelled
+        // Whoop refresh); training / rest day is resolved inside, so any
+        // refresh yields the right target on its own.
         let recoveryZone = body.recoveryZone
-        // Training / rest day resolved HERE (today's WorkoutPlan), not left
-        // to a follow-up refreshTrainingStatus — any refresh yields the
-        // right target on its own.
         hasLoggedWorkoutToday = !workouts.isEmpty
-        let dayFlags = Self.resolveDayFlags(in: fuelContext, hasLoggedWorkout: hasLoggedWorkoutToday)
-        let activity = fuelContext.map { Self.todayActivityTotals(in: $0) } ?? (nil, nil)
-
-        let adjusted = Self.fuelTargets(
-            baseCalories: baseCalTarget > 0 ? baseCalTarget : 2400,
-            baseProtein: baseProtTarget > 0 ? baseProtTarget : 180,
-            baseCarbs: baseCarbTarget > 0 ? baseCarbTarget : 280,
-            baseFat: baseFatTarget > 0 ? baseFatTarget : 80,
-            recoveryZone: recoveryZone,
-            strain: body.strain,
-            flags: dayFlags,
-            activity: activity
-        )
+        HealthKitWorkoutDay.record(hasLoggedWorkoutToday, on: now)
+        let canonical = canonicalFuelTargets(in: fuelContext)
+        let adjusted = canonical.adjusted
 
         let consumedCal = nutritionTotals.calories
         let consumedProt = nutritionTotals.protein
@@ -612,7 +596,7 @@ final class DashboardViewModel {
             carbsCurrent: consumedCarbs, carbsTarget: adjusted.carbsTarget,
             fatCurrent: consumedFat, fatTarget: adjusted.fatTarget,
             caloriesCurrent: consumedCal, calorieTarget: adjusted.calorieTarget,
-            isTrainingDay: dayFlags.isTrainingDay,
+            isTrainingDay: canonical.day.isTrainingDay,
             recoveryZone: recoveryZone,
             mealsLogged: mealsLoggedCount
         )
@@ -928,22 +912,12 @@ final class DashboardViewModel {
             wakeTimeMinutes: wakeMinutes
         )
 
-        // Re-compute adjusted targets with correct training/rest day status
-        // (same flags + formula refreshBody uses — see DashboardViewModel+DayType).
-        let flags = Self.dayFlags(planStatus: status, hasLoggedWorkout: hasLoggedWorkoutToday)
-        let isTrainingDay = flags.isTrainingDay
-        if let baseCalTarget = fuel.calorieTarget, baseCalTarget > 0 {
-            let baseTargets = fuel.adjustedTargets
-            let recomputed = Self.fuelTargets(
-                baseCalories: baseTargets?.baseCalorieTarget ?? baseCalTarget,
-                baseProtein: baseTargets?.baseProteinTarget ?? (fuel.proteinTarget ?? 180),
-                baseCarbs: baseTargets?.baseCarbsTarget ?? (fuel.carbsTarget ?? 280),
-                baseFat: baseTargets?.baseFatTarget ?? (fuel.fatTarget ?? 80),
-                recoveryZone: body.recoveryZone,
-                strain: body.strain,
-                flags: flags,
-                activity: Self.todayActivityTotals(in: modelContext)
-            )
+        // Re-compute targets now that the workout ensurer has run — same
+        // canonical function refreshBody uses, so the two can't disagree.
+        if let calTarget = fuel.calorieTarget, calTarget > 0 {
+            let canonical = canonicalFuelTargets(in: modelContext)
+            let isTrainingDay = canonical.day.isTrainingDay
+            let recomputed = canonical.adjusted
             fuel.adjustedTargets = recomputed
             fuel.calorieTarget = recomputed.calorieTarget
             fuel.proteinTarget = recomputed.proteinTarget

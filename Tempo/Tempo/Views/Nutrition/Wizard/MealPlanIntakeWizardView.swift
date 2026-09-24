@@ -65,7 +65,7 @@ struct MealPlanIntakeWizardView: View {
         guard !didSeed else { return }
         didSeed = true
         let settings = try? modelContext.fetch(FetchDescriptor<UserSettings>()).first
-        let dailyPlan = try? modelContext.fetch(FetchDescriptor<UserDailyPlanProfile>()).first
+        let dailyPlan = UserDailyPlanProfile.current(in: modelContext)
         coordinator.seed(MealPlanIntake.seeded(settings: settings, dailyPlan: dailyPlan))
     }
 }

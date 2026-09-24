@@ -28,7 +28,8 @@ struct AIMealsSettingsView: View {
     private var activeProfiles: [DietaryProfile]
     @Query(sort: \KitchenEquipment.kindRaw)
     private var equipment: [KitchenEquipment]
-    @Query
+    /// Newest first — same row `UserDailyPlanProfile.current(in:)` returns.
+    @Query(sort: \UserDailyPlanProfile.updatedAt, order: .reverse)
     private var dailyPlanProfiles: [UserDailyPlanProfile]
 
     /// Called when the user saves and chooses to regenerate. The parent owns
