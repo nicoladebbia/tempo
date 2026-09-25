@@ -163,7 +163,7 @@ final class MealFoodItem {
         id = UUID()
         name = input.name
         brand = input.brand
-        barcode = nil
+        barcode = input.barcode
         servingSizeGrams = input.servingSize
         servingSizeLabel = input.servingUnit
         quantity = input.servings
@@ -176,7 +176,7 @@ final class MealFoodItem {
         sodiumPerServing = nil
         dataSourceRaw = input.source.rawValue
         usdaFdcId = nil
-        offProductCode = nil
+        offProductCode = input.source == .openFoodFacts ? input.barcode : nil
     }
 }
 

@@ -6,12 +6,16 @@
 //
 //
 
+import SwiftData
 import SwiftUI
 import VisionKit
 
 // MARK: - BarcodeScannerView
 
-// VisionKit DataScannerViewController wrapper for food product barcode scanning.
+// VisionKit DataScannerViewController → FoodCatalog lookup (your own added
+// products, then Open Food Facts) → the product screen with its Tempo score.
+// With `onFoodScanned` it's part of meal logging ("Add to meal"); without it
+// it's scan-to-check — nothing is logged. Unknown barcodes can be added.
 // Per DESIGN_SYSTEM.md — all tokens, drill-sergeant voice.
 
 struct BarcodeScannerView: View {
@@ -19,19 +23,30 @@ struct BarcodeScannerView: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.modelContext)
+    private var modelContext
+    @Environment(ServiceContainer.self)
+    private var services
 
     @State
     private var scanState: ScanState = .scanning
     @State
-    private var scannedProduct: ScannedProduct?
+    private var showManualEntry = false
     @State
-    private var portionQuantity: Double = 1.0
+    private var manualBarcode = ""
+    @State
+    private var showAddProduct = false
+    @State
+    private var showSearch = false
+    @State
+    private var catalog: FoodCatalog?
 
-    private enum ScanState {
+    private enum ScanState: Equatable {
         case scanning
-        case loading
-        case found
-        case notFound
+        case loading(String)
+        case found(FoodProduct)
+        case notFound(String)
+        case failed(barcode: String, message: String)
         case unavailable
     }
 
@@ -46,36 +61,104 @@ struct BarcodeScannerView: View {
                 switch scanState {
                 case .scanning:
                     scannerContent
-
                 case .loading:
                     loadingContent
-
-                case .found:
-                    if let product = scannedProduct {
-                        productFoundContent(product)
+                case let .found(product):
+                    if let catalog {
+                        FoodProductView(product: product, mode: productMode, catalog: catalog, recordsView: false)
+                            .id(product.id)
                     }
-
-                case .notFound:
-                    notFoundContent
-
+                case let .notFound(barcode):
+                    notFoundContent(barcode)
+                case let .failed(barcode, message):
+                    failedContent(barcode: barcode, message: message)
                 case .unavailable:
                     scannerUnavailableContent
                 }
             }
-            .navigationTitle("Scan Barcode")
+            .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") {
+                    Button(onFoodScanned == nil ? "Done" : "Cancel") {
                         dismiss()
                     }
                     .font(.tempoCallout)
                     .foregroundStyle(Color.tempoTextSecondary)
                 }
+                if case .found = scanState {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            resetScanner()
+                        } label: {
+                            Image(systemName: "barcode.viewfinder")
+                        }
+                        .accessibilityLabel("Scan another")
+                        .accessibilityIdentifier("scanAnother")
+                    }
+                }
+            }
+            .navigationDestination(isPresented: $showAddProduct) {
+                if let catalog {
+                    AddProductView(barcode: currentBarcode, catalog: catalog) { product in
+                        showAddProduct = false
+                        scanState = .found(product)
+                    }
+                }
+            }
+            .alert("Type the barcode", isPresented: $showManualEntry) {
+                TextField("e.g. 8000500310427", text: $manualBarcode)
+                    .keyboardType(.numberPad)
+                Button("Look up") {
+                    let code = manualBarcode
+                    manualBarcode = ""
+                    lookUp(code)
+                }
+                Button("Cancel", role: .cancel) {
+                    manualBarcode = ""
+                }
+            } message: {
+                Text("The numbers under the barcode.")
+            }
+            .sheet(isPresented: $showSearch) {
+                FoodSearchView(onFoodSelected: onFoodScanned.map { handler in
+                    { item in
+                        handler(item)
+                        dismiss()
+                    }
+                })
             }
             .onAppear {
+                if catalog == nil {
+                    catalog = FoodCatalog(services: services)
+                }
                 checkScannerAvailability()
             }
+        }
+    }
+
+    private var productMode: FoodProductView.Mode {
+        guard let onFoodScanned else {
+            return .check
+        }
+        return .log { item in
+            onFoodScanned(item)
+            dismiss()
+        }
+    }
+
+    private var navigationTitle: String {
+        if case .found = scanState {
+            return ""
+        }
+        return onFoodScanned == nil ? "Check a Product" : "Scan Barcode"
+    }
+
+    private var currentBarcode: String? {
+        switch scanState {
+        case let .notFound(code), let .loading(code), let .failed(code, _): code
+        case let .found(product): product.barcode
+        default: nil
         }
     }
 
@@ -83,13 +166,11 @@ struct BarcodeScannerView: View {
 
     private var scannerContent: some View {
         ZStack {
-            // Scanner view
             BarcodeScannerRepresentable { barcode in
-                handleScannedBarcode(barcode)
+                lookUp(barcode)
             }
             .ignoresSafeArea()
 
-            // Scanning overlay
             scanningOverlay
         }
     }
@@ -98,52 +179,47 @@ struct BarcodeScannerView: View {
         VStack {
             Spacer()
 
-            // Scanning frame
             ZStack {
-                // Semi-transparent background with cutout
                 RoundedRectangle(cornerRadius: TempoRadius.xxxxl, style: .continuous)
                     .strokeBorder(Color.tempoSignal, lineWidth: 3)
                     .frame(width: 280, height: 180)
-
-                // Corner accents
                 scannerCornerAccents
             }
 
             Spacer()
 
-            // Instruction label
             VStack(spacing: TempoSpacing.sm) {
                 Text("Point at a barcode")
                     .font(.tempoHeadline)
                     .foregroundStyle(Color.tempoBone)
-
-                Text("EAN-8, EAN-13, UPC-E, Code 128")
+                Text("Instant score: nutrition, additives, what it means for you today.")
                     .font(.tempoCaption1)
                     .foregroundStyle(Color.tempoBone.opacity(0.7))
+                    .multilineTextAlignment(.center)
+                Button("Type the barcode instead") {
+                    showManualEntry = true
+                }
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoSignal)
+                .padding(.top, TempoSpacing.xs)
             }
             .padding(.horizontal, TempoSpacing.xxl)
             .padding(.vertical, TempoSpacing.lg)
             .background(Color.tempoInk.opacity(0.8))
             .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+            .padding(.horizontal, TempoSpacing.lg)
             .padding(.bottom, TempoSpacing.xxxxl)
         }
     }
 
     private var scannerCornerAccents: some View {
         ZStack {
-            // Top-left
             cornerAccent(rotation: 0)
                 .offset(x: -130, y: -80)
-
-            // Top-right
             cornerAccent(rotation: 90)
                 .offset(x: 130, y: -80)
-
-            // Bottom-right
             cornerAccent(rotation: 180)
                 .offset(x: 130, y: 80)
-
-            // Bottom-left
             cornerAccent(rotation: 270)
                 .offset(x: -130, y: 80)
         }
@@ -160,197 +236,55 @@ struct BarcodeScannerView: View {
         .rotationEffect(.degrees(rotation))
     }
 
-    // MARK: - Loading Content
+    // MARK: - Loading
 
     private var loadingContent: some View {
-        VStack(spacing: TempoSpacing.xxl) {
-            Spacer()
-
+        VStack(spacing: TempoSpacing.lg) {
             ProgressView()
                 .controlSize(.large)
-                .tint(Color.tempoSignal)
-
-            Text("Looking up product...")
+            Text("Looking up product…")
                 .font(.tempoBody)
                 .foregroundStyle(Color.tempoTextSecondary)
-
-            Spacer()
         }
     }
 
-    // MARK: - Product Found Content
+    // MARK: - Not found
 
-    private func productFoundContent(_ product: ScannedProduct) -> some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.xl) {
-                // Product card
-                productCard(product)
-
-                // Serving picker
-                servingPicker
-
-                // Macro breakdown
-                macroBreakdownCard(product)
-
-                // Add button
-                Button {
-                    addToMeal(product: product)
-                } label: {
-                    Text("Add to Meal")
-                }
-                .buttonStyle(.tempoPrimary)
-                .padding(.horizontal, TempoSpacing.screenEdge)
-
-                // Scan another
-                Button("Scan Another") {
-                    resetScanner()
-                }
-                .buttonStyle(.tempoGhost)
-                .padding(.horizontal, TempoSpacing.screenEdge)
-            }
-            .padding(.top, TempoSpacing.lg)
-            .padding(.bottom, TempoSpacing.bottomSafe)
-        }
-    }
-
-    private func productCard(_ product: ScannedProduct) -> some View {
-        VStack(spacing: TempoSpacing.md) {
-            // Product image placeholder
-            if let imageName = product.imageName {
-                Image(systemName: imageName)
-                    .font(.system(size: 56))
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .frame(width: 120, height: 120)
-                    .background(Color.tempoBgSecondary)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
-            }
-
-            Text(product.name)
-                .font(.tempoTitle2)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .multilineTextAlignment(.center)
-
-            if let brand = product.brand {
-                Text(brand)
-                    .font(.tempoCallout)
-                    .foregroundStyle(Color.tempoTextSecondary)
-            }
-
-            Text("\(product.caloriesPerServing) kcal per \(product.servingSize)")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
-        .padding(.horizontal, TempoSpacing.screenEdge)
-    }
-
-    private var servingPicker: some View {
-        VStack(spacing: TempoSpacing.sm) {
-            Text("SERVINGS")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.moduleTag)
-                .foregroundStyle(Color.tempoTextSecondary)
-
-            NumberStepperView(
-                value: $portionQuantity,
-                range: 0.5 ... 10,
-                step: 0.5,
-                format: "%.1f",
-                unit: "x"
-            )
-        }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-    }
-
-    private func macroBreakdownCard(_ product: ScannedProduct) -> some View {
-        let multiplier = portionQuantity
-
-        return VStack(spacing: TempoSpacing.md) {
-            HStack {
-                Text("Calories")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Spacer()
-                Text("\(Int(Double(product.caloriesPerServing) * multiplier)) kcal")
-                    .font(.tempoDataMedium)
-                    .foregroundStyle(Color.tempoViolet)
-            }
-
-            Divider().background(Color.tempoDivider)
-
-            macroRow(
-                label: "Protein",
-                value: product.proteinPerServing * multiplier,
-                color: Color.tempoMacroProtein
-            )
-            macroRow(
-                label: "Carbs",
-                value: product.carbsPerServing * multiplier,
-                color: Color.tempoMacroCarbs
-            )
-            macroRow(
-                label: "Fat",
-                value: product.fatPerServing * multiplier,
-                color: Color.tempoMacroFat
-            )
-        }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
-        .padding(.horizontal, TempoSpacing.screenEdge)
-    }
-
-    private func macroRow(label: String, value: Double, color: Color) -> some View {
-        HStack {
-            Circle()
-                .fill(color)
-                .frame(width: 8, height: 8)
-            Text(label)
-                .font(.tempoCallout)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Spacer()
-            Text("\(Int(value))g")
-                .font(.tempoCallout)
-                .foregroundStyle(Color.tempoTextSecondary)
-        }
-    }
-
-    // MARK: - Not Found Content
-
-    private var notFoundContent: some View {
+    private func notFoundContent(_ barcode: String) -> some View {
         VStack(spacing: 0) {
             Spacer()
 
             Image(systemName: "barcode.viewfinder")
-                .font(.system(size: 48, weight: .ultraLight))
+                .font(.tempoScoreDisplay)
                 .foregroundStyle(Color.tempoAsh)
 
-            Text("Product not found")
+            Text("Not in the database yet")
                 .font(.tempoTitle3)
                 .foregroundStyle(Color.tempoTextPrimary)
                 .padding(.top, TempoSpacing.lg)
 
-            Text("Try manual search.")
+            Text("Barcode \(barcode). Add it once with two photos — every scan after that is instant.")
                 .font(.tempoBody)
                 .foregroundStyle(Color.tempoTextSecondary)
+                .multilineTextAlignment(.center)
                 .padding(.top, TempoSpacing.sm)
 
             VStack(spacing: TempoSpacing.buttonStackVertical) {
-                Button("Search Manually") {
-                    // In production, would present FoodSearchView
-                    dismiss()
+                Button("Add this product") {
+                    showAddProduct = true
                 }
                 .buttonStyle(.tempoPrimary)
+                .accessibilityIdentifier("addMissingProduct")
 
-                Button("Scan Again") {
-                    resetScanner()
+                Button("Search by name") {
+                    showSearch = true
                 }
                 .buttonStyle(.tempoSecondary)
+
+                Button("Scan again") {
+                    resetScanner()
+                }
+                .buttonStyle(.tempoGhost)
             }
             .padding(.horizontal, TempoSpacing.xxxxl)
             .padding(.top, TempoSpacing.xxl)
@@ -361,97 +295,93 @@ struct BarcodeScannerView: View {
         .padding(.horizontal, TempoSpacing.screenEdge)
     }
 
+    // MARK: - Failed
+
+    private func failedContent(barcode: String, message: String) -> some View {
+        VStack(spacing: TempoSpacing.lg) {
+            Spacer()
+            Image(systemName: "wifi.exclamationmark")
+                .font(.tempoScoreDisplay)
+                .foregroundStyle(Color.tempoAsh)
+            Text(message)
+                .font(.tempoBody)
+                .foregroundStyle(Color.tempoTextPrimary)
+                .multilineTextAlignment(.center)
+            VStack(spacing: TempoSpacing.buttonStackVertical) {
+                Button("Try again") {
+                    lookUp(barcode)
+                }
+                .buttonStyle(.tempoPrimary)
+                Button("Scan again") {
+                    resetScanner()
+                }
+                .buttonStyle(.tempoSecondary)
+            }
+            .padding(.horizontal, TempoSpacing.xxxxl)
+            Spacer()
+        }
+        .padding(.horizontal, TempoSpacing.screenEdge)
+    }
+
     // MARK: - Scanner Unavailable
 
     private var scannerUnavailableContent: some View {
-        EmptyStateView(
-            icon: "camera.fill",
-            title: "Scanner unavailable",
-            message: "This device does not support barcode scanning. Use manual search instead.",
-            actionTitle: "Search Manually"
-        ) {
-            dismiss()
+        VStack(spacing: TempoSpacing.lg) {
+            EmptyStateView(
+                icon: "camera.fill",
+                title: "Camera scanning unavailable",
+                message: "Type the numbers under the barcode, or search by name.",
+                actionTitle: "Type the barcode"
+            ) {
+                showManualEntry = true
+            }
+            Button("Search by name") {
+                showSearch = true
+            }
+            .buttonStyle(.tempoGhost)
         }
     }
 
     // MARK: - Actions
 
     private func checkScannerAvailability() {
+        guard scanState == .scanning else {
+            return
+        }
         if !DataScannerViewController.isSupported || !DataScannerViewController.isAvailable {
             scanState = .unavailable
         }
     }
 
-    private func handleScannedBarcode(_ barcode: String) {
-        guard scanState == .scanning else {
+    private func lookUp(_ barcode: String) {
+        let code = barcode.filter(\.isNumber)
+        guard !code.isEmpty, let catalog else {
             return
         }
-        scanState = .loading
+        if case .loading = scanState {
+            return
+        }
+        scanState = .loading(code)
         HapticManager.mediumImpact()
-
-        // Simulated OpenFoodFacts lookup
         Task {
-            try? await Task.sleep(for: .seconds(1.5))
-
-            // Mock: 70% chance of finding a product
-            if Int.random(in: 0 ... 9) < 7 {
-                scannedProduct = ScannedProduct(
-                    barcode: barcode,
-                    name: "Skyr High Protein",
-                    brand: "Arla",
-                    servingSize: "150g",
-                    caloriesPerServing: 95,
-                    proteinPerServing: 15,
-                    carbsPerServing: 6,
-                    fatPerServing: 0.2,
-                    imageName: "takeoutbag.and.cup.and.straw"
-                )
-                scanState = .found
-                HapticManager.notification(.success)
-            } else {
-                scanState = .notFound
-                HapticManager.notification(.warning)
+            switch await catalog.lookUp(barcode: code, in: modelContext) {
+            case let .found(product):
+                HapticManager.success()
+                scanState = .found(product)
+            case let .notFound(code):
+                HapticManager.warning()
+                scanState = .notFound(code)
+            case let .failed(message):
+                HapticManager.error()
+                scanState = .failed(barcode: code, message: message)
             }
         }
     }
 
-    private func addToMeal(product: ScannedProduct) {
-        let multiplier = portionQuantity
-        let item = FoodItem(
-            id: UUID(),
-            name: product.name,
-            brand: product.brand,
-            servingSize: product.servingSize,
-            servingQuantity: portionQuantity,
-            calories: Int(Double(product.caloriesPerServing) * multiplier),
-            protein: product.proteinPerServing * multiplier,
-            carbs: product.carbsPerServing * multiplier,
-            fat: product.fatPerServing * multiplier
-        )
-        HapticManager.notification(.success)
-        onFoodScanned?(item)
-        dismiss()
-    }
-
     private func resetScanner() {
         scanState = .scanning
-        scannedProduct = nil
-        portionQuantity = 1.0
+        checkScannerAvailability()
     }
-}
-
-// MARK: - ScannedProduct
-
-struct ScannedProduct {
-    let barcode: String
-    let name: String
-    let brand: String?
-    let servingSize: String
-    let caloriesPerServing: Int
-    let proteinPerServing: Double
-    let carbsPerServing: Double
-    let fatPerServing: Double
-    let imageName: String?
 }
 
 // MARK: - BarcodeScannerRepresentable
@@ -474,7 +404,6 @@ struct BarcodeScannerRepresentable: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ uiViewController: DataScannerViewController, context: Context) {
-        // Start scanning if not already
         if !uiViewController.isScanning {
             try? uiViewController.startScanning()
         }
@@ -522,4 +451,6 @@ struct BarcodeScannerRepresentable: UIViewControllerRepresentable {
 
 #Preview {
     BarcodeScannerView()
+        .environment(ServiceContainer.mock())
+        .modelContainer(for: [ScannedFood.self], inMemory: true)
 }

@@ -62,6 +62,8 @@ struct MealFoodItemInput: Codable {
     let carbsGrams: Double
     let fatGrams: Double
     let source: FoodDataSource
+    /// Packaged products from the scanner / food search keep their barcode.
+    var barcode: String? = nil
 
     /// Scaled values based on serving count.
     var totalCalories: Double {
