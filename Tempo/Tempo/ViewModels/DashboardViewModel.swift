@@ -296,6 +296,8 @@ final class DashboardViewModel {
     /// the log; skipping them is cheaper than firing-then-cancelling.
     private var lastRefreshAt: Date?
     private static let refreshDebounceInterval: TimeInterval = 2.0
+    /// How often the Dashboard re-syncs on its own while it's on screen.
+    static let autoRefreshInterval: Duration = .seconds(5 * 60)
 
     /// Set when a forced refresh arrives mid-refresh: the in-flight pass may
     /// have read SwiftData before the new write, so run once more after it.
@@ -1077,24 +1079,6 @@ final class DashboardViewModel {
             workoutStatus: move.workoutStatus,
             wakeTimeMinutes: wakeTimeMinutes
         )
-    }
-
-    // MARK: - Last Sync Display
-
-    var formattedLastSync: String {
-        guard let lastRefresh else {
-            return ""
-        }
-        let interval = Date().timeIntervalSince(lastRefresh)
-        if interval < 60 {
-            return "Last sync: Just now"
-        }
-        let minutes = Int(interval / 60)
-        if minutes < 60 {
-            return "Last sync: \(minutes)m ago"
-        }
-        let hours = minutes / 60
-        return "Last sync: \(hours)h ago"
     }
 
     // MARK: - Insight Engine
