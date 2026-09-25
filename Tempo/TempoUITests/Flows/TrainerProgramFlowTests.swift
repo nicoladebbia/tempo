@@ -57,4 +57,39 @@ final class TrainerProgramFlowTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Review Program"].waitForExistence(timeout: 10))
         attach("03-review-program")
     }
+
+    /// An exercise the library doesn't have shows as NEW with a look-up
+    /// action (the DEBUG sample has no import session, so lookups are manual;
+    /// signed out in the simulator, the lookup reports "Sign in…").
+    func testUnknownExerciseShowsNewBadgeAndLookUp() {
+        app.launchForTesting()
+        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 30))
+        app.tabBars.buttons["Training"].tap()
+        app.buttons["More"].tap()
+        app.buttons["Trainer Program"].tap()
+        app.buttons["Import from Trainer"].tap()
+        app.buttons["Load Sample Program (DEBUG)"].tap()
+        XCTAssertTrue(app.navigationBars["Review Program"].waitForExistence(timeout: 10))
+
+        let day = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Mon — Hypertrophy Lifting 1")).firstMatch
+        XCTAssertTrue(day.waitForExistence(timeout: 5))
+        day.tap()
+        let add = app.buttons["Add Exercise"].firstMatch
+        for _ in 0 ..< 6 where !add.isHittable {
+            app.swipeUp()
+        }
+        add.tap()
+        let nameField = app.textFields.matching(NSPredicate(format: "placeholderValue == %@ AND (value == nil OR value == '')", "Exercise name")).firstMatch
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5))
+        nameField.tap()
+        nameField.typeText("Hip Airplane")
+
+        let lookUp = app.buttons["Look it up with AI"].firstMatch
+        XCTAssertTrue(lookUp.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["exerciseResearch.new"].exists || app.staticTexts["NEW"].exists)
+        attach("04-new-exercise")
+        lookUp.tap()
+        XCTAssertTrue(app.staticTexts["Sign in to look up new exercises"].waitForExistence(timeout: 15))
+        attach("05-lookup-signed-out")
+    }
 }

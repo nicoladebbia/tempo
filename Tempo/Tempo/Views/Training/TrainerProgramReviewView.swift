@@ -43,6 +43,10 @@ struct TrainerProgramReviewView: View {
     let sourceText: String
     var onSaved: () -> Void
 
+    /// Researched details for exercises the library doesn't have.
+    @State
+    private var research: ExerciseResearchStore
+
     @State
     private var name: String
     @State
@@ -84,9 +88,11 @@ struct TrainerProgramReviewView: View {
         parsed: TrainerProgramParser.ParsedProgram,
         sourceKind: String,
         sourceText: String,
+        researchSessionID: String? = nil,
         onSaved: @escaping () -> Void
     ) {
         editingProgram = nil
+        _research = State(initialValue: ExerciseResearchStore(importSessionID: researchSessionID))
         _name = State(initialValue: parsed.name)
         _startDate = State(initialValue: TrainingCalendar.mondayOfWeek(containing: Date()))
         _weeks = State(initialValue: parsed.weeks)
@@ -99,6 +105,7 @@ struct TrainerProgramReviewView: View {
     /// Fix #11(a) — edit flow for an already-saved program.
     init(editingProgram program: TrainerProgram, onSaved: @escaping () -> Void) {
         editingProgram = program
+        _research = State(initialValue: ExerciseResearchStore(importSessionID: nil))
         _name = State(initialValue: program.name)
         _startDate = State(initialValue: program.startDate)
         _repeats = State(initialValue: program.repeats)
@@ -131,6 +138,19 @@ struct TrainerProgramReviewView: View {
 
     var body: some View {
         reviewContent
+            .environment(research)
+            .task(id: unmatchedNames) {
+                research.configure(provider: ExerciseResearchService(apiClient: services.apiClient))
+                guard research.isAutomatic, let sessionID = research.sessionID, !unmatchedNames.isEmpty else {
+                    return
+                }
+                // Debounce: the name fields re-fire this on every keystroke.
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled else {
+                    return
+                }
+                await research.research(names: unmatchedNames, sessionID: sessionID)
+            }
             .task {
                 guard !didPlaceAroundFootball else {
                     return
@@ -308,6 +328,30 @@ struct TrainerProgramReviewView: View {
         weeks.removeAll { $0.id == id }
     }
 
+    /// Strength-day exercise names with no library match (and not linked by
+    /// hand) — the ones Save would create as new exercises.
+    private var unmatchedNames: [String] {
+        let known = Set(libraryExercises.map(\.id))
+        let candidates = libraryExercises.map { ExerciseMatcher.Candidate(id: $0.id, name: $0.name) }
+        var seen = Set<String>()
+        var names: [String] = []
+        for day in weeks.flatMap(\.days) where day.isStrength {
+            for exercise in day.exercises {
+                let name = exercise.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !name.isEmpty, seen.insert(ExerciseMatcher.normalize(name)).inserted else {
+                    continue
+                }
+                if let id = exercise.exerciseID, known.contains(id) {
+                    continue
+                }
+                if ExerciseMatcher.match(name, in: candidates) == nil {
+                    names.append(name)
+                }
+            }
+        }
+        return names
+    }
+
     private func save() {
         do {
             if let editingProgram {
@@ -323,7 +367,8 @@ struct TrainerProgramReviewView: View {
                     modelContext: modelContext,
                     trainingEngine: services.trainingEngine,
                     whoop: services.whoop,
-                    healthKit: services.healthKit
+                    healthKit: services.healthKit,
+                    research: research.results
                 )
             } else {
                 let queuedActivationDate: Date? = startTiming == .now ? nil : startDate
@@ -337,6 +382,7 @@ struct TrainerProgramReviewView: View {
                     modelContext: modelContext,
                     autoWarmups: autoWarmups,
                     scheduleMode: scheduleMode,
+                    research: research.results,
                     queuedActivationDate: queuedActivationDate
                 )
                 _ = saved
@@ -558,6 +604,10 @@ private struct ExerciseRowEditor: View {
 
     @State
     private var showPicker = false
+    @State
+    private var showResearchEditor = false
+    @Environment(ExerciseResearchStore.self)
+    private var research
 
     /// `sets`/`repsLow` are non-optional Ints, but the text field needs to
     /// tolerate a transient empty string while the user backspaces to retype
@@ -701,6 +751,13 @@ private struct ExerciseRowEditor: View {
         .task(id: exercise.name) {
             autoMatchIfNeeded()
         }
+        .sheet(isPresented: $showResearchEditor) {
+            if case let .done(found) = research.state(for: exercise.name) {
+                ExerciseResearchEditor(name: exercise.name, research: found) { edited in
+                    research.update(edited, for: exercise.name)
+                }
+            }
+        }
         .sheet(isPresented: $showPicker) {
             ExercisePickerSheet(
                 library: libraryExercises,
@@ -739,15 +796,62 @@ private struct ExerciseRowEditor: View {
                 Text("Matches \(matchedExercise.name)")
                     .font(.tempoCaption2)
                     .foregroundStyle(Color.tempoTextSecondary)
-            } else {
-                Image(systemName: "exclamationmark.circle.fill").foregroundStyle(Color.tempoWarning)
-                Text("New exercise — will be added to your library")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextSecondary)
+            } else if !exercise.name.trimmingCharacters(in: .whitespaces).isEmpty {
+                newExerciseStatus
             }
             Spacer()
             Button("Change") { showPicker = true }
                 .font(.tempoCaption2)
+        }
+    }
+
+    /// Not in the library: a NEW badge plus what research found — Save adds
+    /// it to the library with these details (TrainerProgramSaver).
+    @ViewBuilder
+    private var newExerciseStatus: some View {
+        Text("NEW")
+            .font(.tempoCaption2.weight(.bold))
+            .foregroundStyle(Color.tempoTextInverse)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.tempoSignal, in: Capsule())
+            .accessibilityIdentifier("exerciseResearch.new")
+        switch research.state(for: exercise.name) {
+        case .loading:
+            ProgressView()
+                .controlSize(.mini)
+            Text("Looking it up…")
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextSecondary)
+        case let .done(found):
+            Button {
+                showResearchEditor = true
+            } label: {
+                Text("\(found.summary) · Details")
+                    .font(.tempoCaption2)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityIdentifier("exerciseResearch.details")
+        case let .failed(message):
+            Text(message)
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoWarning)
+                .lineLimit(1)
+            Button("Retry") { Task { await research.lookUp(exercise.name) } }
+                .font(.tempoCaption2)
+                .buttonStyle(.borderless)
+        case nil:
+            if research.isAutomatic {
+                Text("Will be added to your library")
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextSecondary)
+            } else {
+                Button("Look it up with AI") { Task { await research.lookUp(exercise.name) } }
+                    .font(.tempoCaption2)
+                    .buttonStyle(.borderless)
+            }
         }
     }
 
