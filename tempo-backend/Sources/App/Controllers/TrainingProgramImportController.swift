@@ -248,6 +248,14 @@ struct ProgramImportTranscribeRequest: Content {
     let hintTexts: [String?]
     let system: String
     let userMessage: String
+
+    // The global decoder's `.convertFromSnakeCase` turns `session_id` into
+    // `sessionId`, which never matches a property spelled `sessionID` —
+    // every request failed to decode (400). Map it explicitly.
+    enum CodingKeys: String, CodingKey {
+        case sessionID = "sessionId"
+        case images, hintTexts, system, userMessage
+    }
 }
 
 struct ProgramImportTranscribeResponse: Content {
@@ -265,6 +273,12 @@ struct ProgramImportStructureRequest: Content {
     let maxTokens: Int
     let temperature: Double
     let caller: String
+
+    /// See `ProgramImportTranscribeRequest.CodingKeys`.
+    enum CodingKeys: String, CodingKey {
+        case sessionID = "sessionId"
+        case model, system, userMessage, maxTokens, temperature, caller
+    }
 }
 
 struct ProgramImportStructureResponse: Content {

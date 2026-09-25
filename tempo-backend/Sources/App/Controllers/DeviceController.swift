@@ -117,11 +117,13 @@ struct DeviceTokenRegisterDTO: Content {
     let deviceName: String?
     let appVersion: String?
 
+    // The global decoder already converts snake_case (`device_id` →
+    // `deviceId`), so keys here are the CONVERTED names — a literal
+    // "device_id" never matches and every registration failed to decode.
     enum CodingKeys: String, CodingKey {
         case token
-        case deviceID = "device_id"
-        case deviceName = "device_name"
-        case appVersion = "app_version"
+        case deviceID = "deviceId"
+        case deviceName, appVersion
     }
 }
 
