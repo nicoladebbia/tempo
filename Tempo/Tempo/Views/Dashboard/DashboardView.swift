@@ -653,16 +653,16 @@ struct DashboardView: View {
         cardShell(label: "MOVE") {
             if data.isConnected || healthKitAuthorized {
                 VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    cardHero(data.formattedSteps, color: stepsColor(data.steps, target: data.stepsTarget))
-                    cardCaption("Steps")
+                    cardHero(data.workoutHeadline, color: workoutColor(data.workoutStatus))
+                    cardCaption(data.workoutCaption, color: workoutCaptionColor(data.workoutStatus))
 
                     Divider().opacity(0.3)
 
                     VStack(alignment: .leading, spacing: 6) {
-                        miniMetric(
-                            label: "Workout",
-                            value: data.workoutSummary,
-                            valueColor: workoutSummaryColor(data.workoutStatus)
+                        miniMetricAnimated(
+                            label: "Steps",
+                            value: data.formattedSteps,
+                            valueColor: stepsColor(data.steps, target: data.stepsTarget)
                         )
                         miniMetricAnimated(label: "Active", value: data.formattedActiveCalories)
                         miniMetricAnimated(label: "Strain", value: data.formattedStrain)
@@ -689,13 +689,17 @@ struct DashboardView: View {
         }
     }
 
-    private func workoutSummaryColor(_ status: DashboardWorkoutStatus) -> Color {
+    private func workoutColor(_ status: DashboardWorkoutStatus) -> Color {
         switch status {
         case .completed: .tempoSuccess
-        case .planned: .tempoAmber
+        case .planned: .tempoTextPrimary
         case .restDay: .tempoTextSecondary
         case .none: .tempoTextTertiary
         }
+    }
+
+    private func workoutCaptionColor(_ status: DashboardWorkoutStatus) -> Color {
+        status == .planned ? .tempoAmber : .tempoTextTertiary
     }
 
     // MARK: - Non-Negotiables

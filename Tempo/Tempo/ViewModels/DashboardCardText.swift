@@ -44,13 +44,24 @@ extension FuelQuadrantData {
 // MARK: - Move
 
 extension MoveQuadrantData {
-    /// One-word workout state for the "Workout" row.
-    var workoutSummary: String {
+    /// Hero line: today's session name, or the day's state when there's none.
+    var workoutHeadline: String {
         switch workoutStatus {
-        case .completed: "Done"
-        case .planned: workoutName ?? "Planned"
-        case .restDay: "Rest"
-        case .none: "--"
+        case .completed, .planned: workoutName ?? "Workout"
+        case .restDay: "Rest Day"
+        case .none: "No workout"
+        }
+    }
+
+    /// Caption under the workout hero: "Done · 48m", "Planned · ~52 min"…
+    var workoutCaption: String {
+        switch workoutStatus {
+        case .completed:
+            workoutDurationMinutes == nil ? "Done" : "Done · \(formattedWorkoutDuration)"
+        case .planned:
+            workoutDurationMinutes.map { "Planned · ~\($0) min" } ?? "Planned for today"
+        case .restDay: "Recovery is training."
+        case .none: "Add one or skip."
         }
     }
 

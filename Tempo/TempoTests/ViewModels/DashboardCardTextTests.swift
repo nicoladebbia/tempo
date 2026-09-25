@@ -48,17 +48,29 @@ final class DashboardCardTextTests: XCTestCase {
 
     // MARK: - Move
 
-    func testWorkoutSummary() {
+    func testWorkoutHeadlineAndCaption() {
         var data = MoveQuadrantData.empty
-        XCTAssertEqual(data.workoutSummary, "--")
+        XCTAssertEqual(data.workoutHeadline, "No workout")
+        XCTAssertEqual(data.workoutCaption, "Add one or skip.")
+
         data.workoutStatus = .restDay
-        XCTAssertEqual(data.workoutSummary, "Rest")
+        XCTAssertEqual(data.workoutHeadline, "Rest Day")
+        XCTAssertEqual(data.workoutCaption, "Recovery is training.")
+
         data.workoutStatus = .planned
-        XCTAssertEqual(data.workoutSummary, "Planned")
-        data.workoutName = "Push"
-        XCTAssertEqual(data.workoutSummary, "Push")
+        XCTAssertEqual(data.workoutHeadline, "Workout")
+        XCTAssertEqual(data.workoutCaption, "Planned for today")
+        data.workoutName = "Push Day"
+        data.workoutDurationMinutes = 52
+        XCTAssertEqual(data.workoutHeadline, "Push Day")
+        XCTAssertEqual(data.workoutCaption, "Planned · ~52 min")
+
         data.workoutStatus = .completed
-        XCTAssertEqual(data.workoutSummary, "Done")
+        data.workoutDurationMinutes = 48
+        XCTAssertEqual(data.workoutHeadline, "Push Day")
+        XCTAssertEqual(data.workoutCaption, "Done · 48m")
+        data.workoutDurationMinutes = nil
+        XCTAssertEqual(data.workoutCaption, "Done")
     }
 
     func testStepsGoalText() {
