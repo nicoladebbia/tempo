@@ -793,6 +793,7 @@
 		E71CAE9588413BACEA38711C /* cue_ex_lateral_raise.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = A1A0954E801FD3877CDE6AAE /* cue_ex_lateral_raise.mp3 */; };
 		E73D08C363C805DFC9A25440 /* ClearSkinFocusSetting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F71DD55093E1D549FF5200A /* ClearSkinFocusSetting.swift */; };
 		E822524191A602119CB45CCB /* WizardCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1FB2D6E704B1FDCCC7FF51 /* WizardCoordinator.swift */; };
+		E8302040658D9B51ECEBEB7D /* NutritionCoachLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 352149C3A0E4144E1BA04407 /* NutritionCoachLayoutTests.swift */; };
 		E83225D21A9DD622D2814483 /* BodyQuadrantDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C0667B0502956239D73A789 /* BodyQuadrantDetailView.swift */; };
 		E881DA3BC7004A4BA4B7D79A /* SupplementIntakeLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A384B3FD9B35B16FA93FC71F /* SupplementIntakeLog.swift */; };
 		E8F618C42F88367D468A57BC /* TrainerProgramParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0448B2F8E394583257AE0FE8 /* TrainerProgramParserTests.swift */; };
@@ -1091,6 +1092,7 @@
 		339FD01E3CCC8C9E29E1840E /* NutritionCoachInsightsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionCoachInsightsTests.swift; sourceTree = "<group>"; };
 		33CA3E94F463EF165758C1D5 /* DashboardQuadrantData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardQuadrantData.swift; sourceTree = "<group>"; };
 		34D601274D0F5FE16076BBF2 /* TrainingBlockTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingBlockTests.swift; sourceTree = "<group>"; };
+		352149C3A0E4144E1BA04407 /* NutritionCoachLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionCoachLayoutTests.swift; sourceTree = "<group>"; };
 		35D4E78FE175BDD66AD2A497 /* DashboardViewModel+NutritionFetch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DashboardViewModel+NutritionFetch.swift"; sourceTree = "<group>"; };
 		362D520BCDCEE611DBED9775 /* cue_ex_barbell_curl.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_barbell_curl.mp3; sourceTree = "<group>"; };
 		3677A79324D4DEF0D8824D22 /* TrainingViewModel+PauseResume.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TrainingViewModel+PauseResume.swift"; sourceTree = "<group>"; };
@@ -1923,6 +1925,7 @@
 			isa = PBXGroup;
 			children = (
 				1CD41DB168043F4F644E867F /* DashboardFlowTests.swift */,
+				352149C3A0E4144E1BA04407 /* NutritionCoachLayoutTests.swift */,
 				18F1A61E3E6137EC69CAA180 /* OnboardingFlowTests.swift */,
 				3B851F53565956DCDD1E1D7D /* TrainerProgramFlowTests.swift */,
 			);
@@ -4185,6 +4188,7 @@
 				8616070C8305B7FEC7EAC080 /* BasePage.swift in Sources */,
 				93F83E102AC59F44813704A7 /* DashboardFlowTests.swift in Sources */,
 				982984177703DEFFE46DD641 /* DashboardPage.swift in Sources */,
+				E8302040658D9B51ECEBEB7D /* NutritionCoachLayoutTests.swift in Sources */,
 				36D46BF586019E4AE013A861 /* OnboardingFlowTests.swift in Sources */,
 				7822242B19A6BB7E050ED921 /* OnboardingPage.swift in Sources */,
 				97A7593FCCAF7FC72BBF4E62 /* TempoUITests.swift in Sources */,

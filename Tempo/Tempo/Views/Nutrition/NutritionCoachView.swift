@@ -49,7 +49,11 @@ struct NutritionCoachView: View {
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.bottom, TempoSpacing.bottomSafe)
+            // Pin the content to the screen width: a too-wide row used to
+            // make the whole page drag sideways.
+            .containerRelativeFrame(.horizontal)
         }
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
         .task {
             viewModel.loadRecoveryData(whoop: services.whoop)
         }
@@ -189,6 +193,8 @@ struct NutritionCoachView: View {
                     .font(.tempoModuleTag)
                     .tracking(TempoTracking.drillLabel)
                     .foregroundStyle(Color.tempoTextSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
 
                 Spacer()
 
@@ -236,7 +242,10 @@ struct NutritionCoachView: View {
                 )
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .tempoCard()
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("coach.card.daily")
     }
 
     private func coachStat(label: String, value: String, unit: String, color: Color) -> some View {
@@ -244,14 +253,20 @@ struct NutritionCoachView: View {
             Text(value)
                 .font(.system(size: 18, weight: .bold, design: .monospaced))
                 .foregroundStyle(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
 
             Text(unit)
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(Color.tempoTextTertiary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
 
             Text(label)
                 .font(.tempoCaption2)
                 .foregroundStyle(Color.tempoTextSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity)
     }
@@ -269,6 +284,8 @@ struct NutritionCoachView: View {
                     .font(.tempoModuleTag)
                     .tracking(TempoTracking.drillLabel)
                     .foregroundStyle(Color.tempoTextSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
 
             if viewModel.isLoadingMealSuggestions {
@@ -349,7 +366,10 @@ struct NutritionCoachView: View {
             }
             .disabled(viewModel.isLoadingMealSuggestions)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .tempoCard()
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("coach.card.suggestion")
     }
 
     private func macroLabel(_ value: String, _ label: String, _ color: Color) -> some View {
@@ -376,6 +396,8 @@ struct NutritionCoachView: View {
                     .font(.tempoModuleTag)
                     .tracking(TempoTracking.drillLabel)
                     .foregroundStyle(Color.tempoTextSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
 
                 Spacer()
 
@@ -446,7 +468,10 @@ struct NutritionCoachView: View {
                 insightErrorRow(error, retry: refreshRecoveryGuidance)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .tempoCard()
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("coach.card.recovery")
     }
 
     private func recoveryTip(icon: String, text: String) -> some View {
@@ -476,6 +501,8 @@ struct NutritionCoachView: View {
                     .font(.tempoModuleTag)
                     .tracking(TempoTracking.drillLabel)
                     .foregroundStyle(Color.tempoTextSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
 
             if eatenMeals.isEmpty {
@@ -493,7 +520,10 @@ struct NutritionCoachView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .tempoCard()
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("coach.card.feedback")
     }
 
     private func mealFeedbackRow(_ meal: PlannedMeal) -> some View {
