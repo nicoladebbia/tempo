@@ -13,8 +13,11 @@ import XCTest
 // Per TESTING_STRATEGY.md Section 5 — Convenience helpers for UI tests.
 
 extension XCUIApplication {
-    /// Launch with onboarding skipped and mock data injected.
-    func launchForTesting(skipOnboarding: Bool = true) {
+    /// Launch with onboarding skipped and mock data injected. `extraArguments`
+    /// appends feature-specific fixtures (e.g. guided run mode's
+    /// GuidedRunUITestSeed launch argument) without every flow needing its
+    /// own launch helper.
+    func launchForTesting(skipOnboarding: Bool = true, extraArguments: [String] = []) {
         launchArguments = [
             TestLaunchArguments.useMockData,
             TestLaunchArguments.resetDefaults,
@@ -22,6 +25,7 @@ extension XCUIApplication {
         if skipOnboarding {
             launchArguments.append(TestLaunchArguments.skipOnboarding)
         }
+        launchArguments.append(contentsOf: extraArguments)
         launch()
     }
 

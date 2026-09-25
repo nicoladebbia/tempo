@@ -57,6 +57,12 @@ struct TempoApp: App {
                 // One-shot purge of Whoop demo data older builds saved as real.
                 WhoopDemoDataCleanup.runIfNeeded(container: container)
             }
+            #if DEBUG
+                // Guided run mode — UI-test-only fixture (see
+                // GuidedRunUITestSeed's header); no-ops unless launched with
+                // its launch argument.
+                GuidedRunUITestSeed.seedIfRequested(context: container.mainContext)
+            #endif
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }
