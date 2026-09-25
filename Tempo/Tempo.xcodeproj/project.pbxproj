@@ -127,6 +127,7 @@
 		1F11E5940ED036979CF059D8 /* TempoWidgetEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE7BDA5C36C3762695DDD533 /* TempoWidgetEntryView.swift */; };
 		1F2CBF677BD27DD93720A003 /* MealPlanScheduleEnforcer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BE5F2EEF6074E06C0FC727D /* MealPlanScheduleEnforcer.swift */; };
 		1F3AD3F9102BB66597F1A248 /* GroceryListGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C894CB5C08BFCA6334837838 /* GroceryListGeneratorTests.swift */; };
+		1F41F6991FB979D2652DD470 /* SettingsSignInFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 373DC9371548C0198ADB5250 /* SettingsSignInFlowTests.swift */; };
 		1F8795C432CE3C7E545846AD /* AnalyticsEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A86C7BEF8CF5E677A435D50 /* AnalyticsEvents.swift */; };
 		201AC4CA90A1F9CFC2614137 /* TestLaunchArguments.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50AA273FA209E0A089905284 /* TestLaunchArguments.swift */; };
 		2043A6D3BA7E7341C8EB6BC2 /* cue_three.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 61C89F43D95814FE77C10EE3 /* cue_three.mp3 */; };
@@ -740,6 +741,7 @@
 		CE212BBF1868C7217B0F9239 /* cue_ex_smith_machine_squat.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 477DF19C7BE95B3F86366A0D /* cue_ex_smith_machine_squat.mp3 */; };
 		CEB7DA994D0CA9593E81F710 /* ArenaEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4C1AD08D1639423D10D0AC8 /* ArenaEnums.swift */; };
 		CEE9B720BE1B3F3621C0D4A0 /* PantryGapStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A565E38BB254B4F8092D5D8 /* PantryGapStepView.swift */; };
+		CF0A9D78C64245B7B9E28441 /* SettingsSignInCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 946C0FE11D2F5A44ABF501EB /* SettingsSignInCard.swift */; };
 		CF1F61F0BE7E064DC1B54B23 /* TrainerProgramImportDTOsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18F04485E5D1E08E841627A7 /* TrainerProgramImportDTOsTests.swift */; };
 		CF62D72EA878FFB8C74A99C2 /* PredictionLogSpineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47F16E9BB42C5AAF3A4D52F2 /* PredictionLogSpineTests.swift */; };
 		CFB89A3F648FD18FF506095E /* VenueProposalCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8E846600465D3C8EEBA71CF /* VenueProposalCard.swift */; };
@@ -1156,6 +1158,7 @@
 		36BC7CDDF03676F51498AC1D /* cue_ex_goblet_squat.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_goblet_squat.mp3; sourceTree = "<group>"; };
 		36C566B85D65C6A9B79EF1DD /* ConditioningBlockResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConditioningBlockResult.swift; sourceTree = "<group>"; };
 		373BC72858BAE47F5A71E65A /* cue_ex_concentration_curl.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_concentration_curl.mp3; sourceTree = "<group>"; };
+		373DC9371548C0198ADB5250 /* SettingsSignInFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSignInFlowTests.swift; sourceTree = "<group>"; };
 		37772590FDF7609BE7A5D5A0 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		37F20941657886F627A26E4A /* TrainingSessionDisplayMathTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingSessionDisplayMathTests.swift; sourceTree = "<group>"; };
 		3855AABC758CCAF55534BBDF /* DropSetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DropSetTests.swift; sourceTree = "<group>"; };
@@ -1492,6 +1495,7 @@
 		931F764CBA37FAB20D930007 /* MacroCarryover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacroCarryover.swift; sourceTree = "<group>"; };
 		9354789CD22E8064188D8E5B /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		93D7F4DBD9EB186AEEF687CF /* FoodPortionLabelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodPortionLabelTests.swift; sourceTree = "<group>"; };
+		946C0FE11D2F5A44ABF501EB /* SettingsSignInCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSignInCard.swift; sourceTree = "<group>"; };
 		9492EE850B765197321370E3 /* MockWhoopService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockWhoopService.swift; sourceTree = "<group>"; };
 		94FE4167F2348EA7977B335E /* CallInterruptionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallInterruptionTests.swift; sourceTree = "<group>"; };
 		9526D8969F0F1B31CA19AB4C /* WeeklyMealPlanCoversTodayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyMealPlanCoversTodayTests.swift; sourceTree = "<group>"; };
@@ -2014,6 +2018,7 @@
 			children = (
 				1CD41DB168043F4F644E867F /* DashboardFlowTests.swift */,
 				18F1A61E3E6137EC69CAA180 /* OnboardingFlowTests.swift */,
+				373DC9371548C0198ADB5250 /* SettingsSignInFlowTests.swift */,
 				9971E959E58D8FD2FF5E1EDB /* TrainerProgramFix6FlowTests.swift */,
 				FB35F6CF85155B6B6C14B726 /* TrainerProgramFix9FlowTests.swift */,
 				323540765E65A09D31E719A6 /* TrainerProgramFixBFlowTests.swift */,
@@ -2611,6 +2616,7 @@
 			children = (
 				8DB2A940C715DAD07999B8CB /* PrivacyInfoView.swift */,
 				037607D7C6D9246FBD64C95F /* SettingsComponents.swift */,
+				946C0FE11D2F5A44ABF501EB /* SettingsSignInCard.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -4338,6 +4344,7 @@
 				982984177703DEFFE46DD641 /* DashboardPage.swift in Sources */,
 				36D46BF586019E4AE013A861 /* OnboardingFlowTests.swift in Sources */,
 				7822242B19A6BB7E050ED921 /* OnboardingPage.swift in Sources */,
+				1F41F6991FB979D2652DD470 /* SettingsSignInFlowTests.swift in Sources */,
 				97A7593FCCAF7FC72BBF4E62 /* TempoUITests.swift in Sources */,
 				201AC4CA90A1F9CFC2614137 /* TestLaunchArguments.swift in Sources */,
 				51B348A0798DBE42F8856FAB /* TrainerProgramFix6FlowTests.swift in Sources */,
@@ -4699,6 +4706,7 @@
 				2367FF58DC3858896718D988 /* SessionNotesField.swift in Sources */,
 				D5458F0CB3806B65E763D068 /* SetFeedback.swift in Sources */,
 				49CEEA453B99AD4ABA027BDD /* SettingsComponents.swift in Sources */,
+				CF0A9D78C64245B7B9E28441 /* SettingsSignInCard.swift in Sources */,
 				A6F737518EA06F74F8DC4AA5 /* SideRepsFormat.swift in Sources */,
 				196C0579ED7F6C96DA8105E9 /* SignInWithAppleView.swift in Sources */,
 				D6F6E3BB0F6599099B562D87 /* SleepDetailView.swift in Sources */,
