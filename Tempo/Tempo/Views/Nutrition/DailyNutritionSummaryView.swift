@@ -614,6 +614,8 @@ struct DailyNutritionSummaryView: View {
                 }
             }
             .padding(TempoSpacing.cardPadding)
+            // Full width like every other card; it hugged its text before.
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.tempoSurfaceCard)
             .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
             .tempoShadow(.card)
