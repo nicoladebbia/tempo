@@ -725,6 +725,7 @@
 		C905C33C087012922030FEEB /* MonthlyReviewAggregatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E80FA6CD0FFD77DEF25430C /* MonthlyReviewAggregatorTests.swift */; };
 		C90C94C01BDE52801C7AFB78 /* OnboardingSplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B14DDAE49F98AC24F57EF735 /* OnboardingSplashView.swift */; };
 		C96FA2ED52AE087F0246EFDD /* OnboardingAuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F50D2B9EA007E3D56328A9A /* OnboardingAuthView.swift */; };
+		C99D0E89F3FE47EB4E661989 /* DashboardCardTextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88926E0E5310DCF6D085BA4F /* DashboardCardTextTests.swift */; };
 		C9AF01B84E022ED7DF610CBB /* cue_ex_skull_crusher.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 16DBCCFEA1B7011742C6D6CE /* cue_ex_skull_crusher.mp3 */; };
 		C9B2043554784D46726CC09A /* VenuePatternLearner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E467D9496DA1FDB270EA68C /* VenuePatternLearner.swift */; };
 		CA01271E64DB72E636A07AA9 /* AdaptiveProfileUpdaterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5013D6692ECB56F906BDDE2B /* AdaptiveProfileUpdaterTests.swift */; };
@@ -744,6 +745,7 @@
 		CFB89A3F648FD18FF506095E /* VenueProposalCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8E846600465D3C8EEBA71CF /* VenueProposalCard.swift */; };
 		CFEF0807A7883160272EA8FB /* RecipeSuggestionEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45F693BE5F1E6E66F03DF250 /* RecipeSuggestionEngineTests.swift */; };
 		D08225D36F03EBD0DF90B667 /* TrainingScheduleProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB2CC74F23E93461311B2D4B /* TrainingScheduleProviderTests.swift */; };
+		D154AD4621A7F5611326026B /* DashboardCardText.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD521BA021F8B36E5B52F0F3 /* DashboardCardText.swift */; };
 		D186FF3472B352D7675AEA8C /* CoachVoiceControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECAA70FB75F5105CD857D3FB /* CoachVoiceControllerTests.swift */; };
 		D1D1095E8BF16DB99EFBCA17 /* cue_ex_incline_hammer_curl.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 4B159B33F931B316671DFF6E /* cue_ex_incline_hammer_curl.mp3 */; };
 		D1FA952EC7CF330DA6BF1B00 /* cue_ex_good_morning.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 9F1C0C7B1C74041B70D7C482 /* cue_ex_good_morning.mp3 */; };
@@ -1454,6 +1456,7 @@
 		87D50529413B8D6FD80DC089 /* RecoveryTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryTabView.swift; sourceTree = "<group>"; };
 		87F3AF85CF5ADFB70964A17C /* testSettingsToolbarIcon.1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = testSettingsToolbarIcon.1.png; sourceTree = "<group>"; };
 		87F649CA06463A79273F45FF /* ConditioningLine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConditioningLine.swift; sourceTree = "<group>"; };
+		88926E0E5310DCF6D085BA4F /* DashboardCardTextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardCardTextTests.swift; sourceTree = "<group>"; };
 		88A1F87AC9F2A374E6270315 /* cue_ex_kettlebell_turkish_get_up.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_kettlebell_turkish_get_up.mp3; sourceTree = "<group>"; };
 		88F30C50D7D2ED0A8F9F7B00 /* cue_ex_trap_bar_deadlift.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_trap_bar_deadlift.mp3; sourceTree = "<group>"; };
 		892C2A269B8BD6AD73EEE729 /* ReceiptPhotoStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiptPhotoStore.swift; sourceTree = "<group>"; };
@@ -1580,6 +1583,7 @@
 		ACED0248855847A11A95B862 /* TrainingSafetyFloor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingSafetyFloor.swift; sourceTree = "<group>"; };
 		ACF191DA19FC6A7DB89BDD14 /* LockdownTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockdownTabView.swift; sourceTree = "<group>"; };
 		AD041199CE54A8A1496ED1C7 /* RecoveryOverrideStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryOverrideStepView.swift; sourceTree = "<group>"; };
+		AD521BA021F8B36E5B52F0F3 /* DashboardCardText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardCardText.swift; sourceTree = "<group>"; };
 		ADA19E1B5A1C9F50B9DC4047 /* MealFeedback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealFeedback.swift; sourceTree = "<group>"; };
 		ADF974CCFA6B9334127BA4CB /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		ADFECB175E6DE25E2E0EAC8B /* VoicePantryParseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoicePantryParseTests.swift; sourceTree = "<group>"; };
@@ -2039,6 +2043,7 @@
 			children = (
 				F859E605E2B5AE51BF7585CF /* CoachViewModelTests.swift */,
 				9A16430ABFCB3DD240A365BB /* ConditioningLoggingTests.swift */,
+				88926E0E5310DCF6D085BA4F /* DashboardCardTextTests.swift */,
 				67C7E9C5EB3FA685532F262B /* DashboardFuelDayTypeTests.swift */,
 				D78697B6EAAA90BD0F682407 /* NutritionTabViewModelPhase7Tests.swift */,
 				C72F5A50FC07C819A4B59782 /* NutritionTabViewModelTests.swift */,
@@ -2868,6 +2873,7 @@
 				496CF146E908D191F82FD2D4 /* AccountabilityViewModel.swift */,
 				54949B90A73092BDE0933B7F /* ArenaViewModel.swift */,
 				11D691551A01A1F04381523A /* CoachViewModel.swift */,
+				AD521BA021F8B36E5B52F0F3 /* DashboardCardText.swift */,
 				33CA3E94F463EF165758C1D5 /* DashboardQuadrantData.swift */,
 				FBF3D155993E4A01D42C6249 /* DashboardViewModel.swift */,
 				40DBEFD74B1E92140B4C3FFE /* DashboardViewModel+DayType.swift */,
@@ -4152,6 +4158,7 @@
 				216B09C6FCEEB67ED6719E0D /* DailyReadinessCoachTests.swift in Sources */,
 				A877D1AD0D2B8A53AB026E2D /* DailySessionParserTests.swift in Sources */,
 				4230E745FA84F934D8B5560B /* DailySessionResyncTests.swift in Sources */,
+				C99D0E89F3FE47EB4E661989 /* DashboardCardTextTests.swift in Sources */,
 				8A7B26C55B56969DACF7BB50 /* DashboardFuelDayTypeTests.swift in Sources */,
 				5945C5BD37ABB4E2E77E2E4A /* DeloadStyleTests.swift in Sources */,
 				440DEA89064C602EC90ED36F /* DropSetTests.swift in Sources */,
@@ -4438,6 +4445,7 @@
 				5B57C4534098C64403099CCD /* DailySession.swift in Sources */,
 				572F78401BAD8EAC32F1BACC /* DailySessionDTO.swift in Sources */,
 				AB932222B84B7C4A066D5994 /* DailySnapshot.swift in Sources */,
+				D154AD4621A7F5611326026B /* DashboardCardText.swift in Sources */,
 				D9E4C7EF26D3D7C363D56ED5 /* DashboardLoadingView.swift in Sources */,
 				AC7F2D240F5E6285CCF595A1 /* DashboardQuadrantData.swift in Sources */,
 				325C8C2C6263920E5CCB395C /* DashboardSettingsView.swift in Sources */,

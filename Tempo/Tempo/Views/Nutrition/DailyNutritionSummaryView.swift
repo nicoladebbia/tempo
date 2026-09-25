@@ -103,16 +103,22 @@ struct DailyNutritionSummaryView: View {
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
+            // Today's targets exist before the first meal, so the page always
+            // shows them; with nothing logged a "log your first meal" card
+            // leads instead of replacing the whole page.
             VStack(spacing: TempoSpacing.xl) {
+                if (fuelData?.mealsLogged ?? 0) == 0 {
+                    emptyStateSection
+                }
+                nutritionModeBanner
+                calorieHeroSection
+                macroRingsSection
+                calorieBalanceSection
+                hydrationSection
+                mealTimingSection
+                mealsSection
+                calorieTrendSection
                 if isConnected {
-                    nutritionModeBanner
-                    calorieHeroSection
-                    macroRingsSection
-                    calorieBalanceSection
-                    hydrationSection
-                    mealTimingSection
-                    mealsSection
-                    calorieTrendSection
                     aiCoachingCard
 
                     // AI disclaimer
@@ -125,14 +131,16 @@ struct DailyNutritionSummaryView: View {
                             .foregroundStyle(Color.tempoTextTertiary)
                     }
                     .padding(.vertical, TempoSpacing.sm)
-                } else {
-                    emptyStateSection
                 }
             }
+            // Full width: without it the scroll view hugs narrow content and
+            // the black navigation background shows down both sides.
+            .frame(maxWidth: .infinity)
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.bottom, TempoSpacing.bottomSafe)
         }
-        .background(Color.tempoBgPrimary)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.tempoBgPrimary.ignoresSafeArea())
         .navigationTitle("Fuel")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable {
@@ -208,41 +216,46 @@ struct DailyNutritionSummaryView: View {
     // MARK: - Empty State
 
     private var emptyStateSection: some View {
-        VStack(spacing: TempoSpacing.xl) {
-            Spacer().frame(height: 60)
-
+        HStack(spacing: TempoSpacing.md) {
             Image(systemName: "fork.knife")
-                .font(.system(size: 40))
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(.system(size: 20))
+                .foregroundStyle(Color.tempoSignal)
+                .frame(width: 40, height: 40)
+                .background(Color.tempoSignal.opacity(0.12))
+                .clipShape(Circle())
 
-            Text("No Nutrition Data")
-                .font(.tempoTitle2)
-                .foregroundStyle(Color.tempoTextPrimary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Nothing logged yet")
+                    .font(.tempoHeadline)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                Text("Log your first meal. The numbers below start moving.")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
-            Text("Log a meal to start tracking your daily nutrition.")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, TempoSpacing.xl)
+            Spacer(minLength: 0)
 
             Button {
                 showMealLogging = true
+                HapticManager.lightImpact()
             } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 14))
-                    Text("Log Meal")
-                        .font(.system(size: 14, weight: .semibold))
-                }
-                .foregroundStyle(Color.tempoTextInverse)
-                .padding(.horizontal, 24)
-                .padding(.vertical, 12)
-                .background(Color.tempoSignal)
-                .clipShape(Capsule())
+                Text("Log")
+                    .font(.tempoCallout)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.tempoTextInverse)
+                    .padding(.horizontal, TempoSpacing.lg)
+                    .padding(.vertical, TempoSpacing.sm)
+                    .background(Color.tempoSignal)
+                    .clipShape(Capsule())
             }
-
-            Spacer()
         }
+        .padding(TempoSpacing.cardPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.tempoSurfaceCard)
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tempoShadow(.card)
+        .padding(.top, TempoSpacing.lg)
     }
 
     // MARK: - Calorie Hero Section
@@ -601,6 +614,8 @@ struct DailyNutritionSummaryView: View {
                 }
             }
             .padding(TempoSpacing.cardPadding)
+            // Full width like every other card; it hugged its text before.
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.tempoSurfaceCard)
             .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
             .tempoShadow(.card)
