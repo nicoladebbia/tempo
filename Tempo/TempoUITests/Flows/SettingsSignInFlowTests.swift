@@ -38,4 +38,24 @@ final class SettingsSignInFlowTests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
     }
+
+    /// Signed out → the Dashboard shows the sign-in nudge with Apple's button;
+    /// "Not now" hides it.
+    func testDashboardShowsSignInNudgeWhenSignedOut() {
+        app.launchArguments = [
+            TestLaunchArguments.useMockData, TestLaunchArguments.resetDefaults,
+            TestLaunchArguments.skipOnboarding, "--uitesting-signin-nudge",
+        ]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Sign in to unlock your AI coach"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Sign in with Apple"].exists)
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "dashboard-signin-nudge"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        app.buttons["Not now"].tap()
+        XCTAssertFalse(app.staticTexts["Sign in to unlock your AI coach"].waitForExistence(timeout: 2))
+    }
 }

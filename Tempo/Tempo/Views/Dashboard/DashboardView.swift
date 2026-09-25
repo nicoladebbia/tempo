@@ -18,6 +18,24 @@ struct DashboardView: View {
     private var modelContext
     @Environment(\.scenePhase)
     private var scenePhase
+
+    /// Signed-out nudge: "Not now" hides it for a day.
+    @AppStorage("dashboard.signInNudgeDismissedAt")
+    private var signInNudgeDismissedAt: Double = 0
+
+    private var showSignInNudge: Bool {
+        if case .authenticated = services.authService.authState {
+            return false
+        }
+        // UI tests run signed out; keep the nudge out of their way unless a
+        // test asks for it.
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("--uitesting-skip-onboarding"), !args.contains("--uitesting-signin-nudge") {
+            return false
+        }
+        return Date().timeIntervalSince1970 - signInNudgeDismissedAt > 24 * 3600
+    }
+
     @State
     private var viewModel: DashboardViewModel?
     @State
@@ -290,6 +308,11 @@ struct DashboardView: View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: TempoSpacing.lg) {
                 headerRow(vm)
+
+                if showSignInNudge {
+                    SignInPromptCard(onDismiss: { signInNudgeDismissedAt = Date().timeIntervalSince1970 })
+                        .transition(.opacity)
+                }
 
                 if !hasCompletedSetup {
                     let whoopDone = services.whoop.connectionState == .connected
