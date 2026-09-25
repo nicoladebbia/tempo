@@ -142,11 +142,12 @@ final class TrainingScheduleProviderTests: XCTestCase {
     func testMatchDayKeptDuringTrainerProgram() throws {
         let container = try TempoModelContainer.create(inMemory: true)
         let context = container.mainContext
-        // `fetchUpcomingMatches` filters on the REAL wall-clock `Date()` (not
-        // an injectable reference date), so the fixture must sit in the
-        // CURRENT ISO week to stay "upcoming" no matter when this test runs.
+        // `fetchUpcomingMatches` drops kickoffs before the REAL wall-clock
+        // today (no injectable reference date), so the fixture uses NEXT
+        // week: its Thursday is always upcoming, whatever day this runs.
         let currentMonday = TrainingCalendar.mondayOfWeek(containing: Date())
-        let thursday = try XCTUnwrap(cal.date(byAdding: .day, value: 3, to: currentMonday))
+        let nextMonday = try XCTUnwrap(cal.date(byAdding: .day, value: 7, to: currentMonday))
+        let thursday = try XCTUnwrap(cal.date(byAdding: .day, value: 3, to: nextMonday))
         context.insert(UserSettings())
         context.insert(Match(kickoff: thursday))
         context.insert(TrainerProgram(
@@ -158,7 +159,7 @@ final class TrainingScheduleProviderTests: XCTestCase {
         try context.save()
 
         let week = TrainingScheduleProvider.weekSchedule(
-            containing: currentMonday,
+            containing: nextMonday,
             trainingEngine: TrainingEngine(),
             whoop: MockWhoopService(),
             healthKit: MockHealthKitService(),
