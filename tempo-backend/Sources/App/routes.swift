@@ -58,6 +58,12 @@ func routes(_ app: Application) throws {
         .grouped(RateLimitMiddleware(limit: 30, window: .minutes(1), scope: .user))
         .register(collection: ReceiptController())
 
+    // Food search — GET /v1/foods/search (USDA FoodData Central proxy; the
+    // USDA key stays server-side). Free for every signed-in user.
+    try protected.grouped("foods")
+        .grouped(RateLimitMiddleware(limit: 60, window: .minutes(1), scope: .user))
+        .register(collection: FoodController())
+
     // Nutrition AI endpoints — Phase 7 of nutrition rebuild.
     // POST /v1/nutrition/ai/explain-adjustment, /v1/nutrition/ai/suggest-meal,
     // /v1/nutrition/ai/proxy/text, /v1/nutrition/ai/proxy/vision.
