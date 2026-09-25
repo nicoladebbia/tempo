@@ -798,6 +798,7 @@
 		DE437C2704840F200B89050D /* MockXPEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA1B364BC6CF319DE06221BA /* MockXPEngine.swift */; };
 		DE4F72ADBD032DF0462AD2E9 /* CoachVoiceController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7240CEFBA2C9802087E4EC3A /* CoachVoiceController.swift */; };
 		DE8B0CF07A9A2F5FABF1B9C2 /* cue_ex_front_raise.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 80557C99B8CC7548AD8122A4 /* cue_ex_front_raise.mp3 */; };
+		DF3D0A231DEEC47E7A32D90C /* AuthServiceExpiredSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 870FDB5375C57BA10F46A673 /* AuthServiceExpiredSessionTests.swift */; };
 		DF5B57D8AE453DD1E520EA5F /* MarkEatenSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E275DA52EAEC4B9BEFE4F442 /* MarkEatenSheet.swift */; };
 		DF71464A093E10BDEA00A613 /* MuscleHeatmapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D269E797B7456C97FB0E45DC /* MuscleHeatmapView.swift */; };
 		E04A722D9B68435F8A5C2FF3 /* cue_ex_walking_lunge.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 167925535843E1F96C7E7009 /* cue_ex_walking_lunge.mp3 */; };
@@ -1454,6 +1455,7 @@
 		86E70856BD5D38154690BB16 /* TrainingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingViewModel.swift; sourceTree = "<group>"; };
 		86F2818363BC60430CA5915A /* cue_ex_deficit_deadlift.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_deficit_deadlift.mp3; sourceTree = "<group>"; };
 		86FB44A00C6BD7496CB85363 /* ArenaIntroView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArenaIntroView.swift; sourceTree = "<group>"; };
+		870FDB5375C57BA10F46A673 /* AuthServiceExpiredSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthServiceExpiredSessionTests.swift; sourceTree = "<group>"; };
 		874B304D1F9AC8A9D6898FDF /* RecoveryAIInsightView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryAIInsightView.swift; sourceTree = "<group>"; };
 		875BAFBBF2000DE2C183CBE9 /* MealPlanInputsFingerprintTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealPlanInputsFingerprintTests.swift; sourceTree = "<group>"; };
 		87D50529413B8D6FD80DC089 /* RecoveryTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryTabView.swift; sourceTree = "<group>"; };
@@ -2287,6 +2289,7 @@
 		23C2B42F4B640082F447FC60 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				EF78B5A2EF1DEBEF85A5C92D /* Auth */,
 				95BED2ACB6A1BEFB13AD0A48 /* Coach */,
 				EB354A387EE00D2996EDB197 /* Training */,
 				DC38A77AD620A2A05751C266 /* .gitkeep */,
@@ -3557,6 +3560,14 @@
 			path = Training;
 			sourceTree = "<group>";
 		};
+		EF78B5A2EF1DEBEF85A5C92D /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				870FDB5375C57BA10F46A673 /* AuthServiceExpiredSessionTests.swift */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
 		F02121855FE945EC7475F95A /* Onboarding */ = {
 			isa = PBXGroup;
 			children = (
@@ -4137,6 +4148,7 @@
 				E2D311970B424573242982A4 /* AcuteChronicSeriesTests.swift in Sources */,
 				52B6398D6A9DFCA753645B16 /* AdaptiveDietServiceTests.swift in Sources */,
 				CA01271E64DB72E636A07AA9 /* AdaptiveProfileUpdaterTests.swift in Sources */,
+				DF3D0A231DEEC47E7A32D90C /* AuthServiceExpiredSessionTests.swift in Sources */,
 				0DB24BEF600B2337002D5885 /* BehaviorObserverTests.swift in Sources */,
 				2C245E4ACE787C825648F601 /* CallInterruptionTests.swift in Sources */,
 				C5DF8C485FF2D9A3CC8E032B /* CircuitFlowTests.swift in Sources */,

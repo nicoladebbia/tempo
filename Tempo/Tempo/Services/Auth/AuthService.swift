@@ -162,8 +162,25 @@ final class AuthService: NSObject {
             #if DEBUG
                 print("[AuthService] refreshToken failed: \(error.localizedDescription)")
             #endif
+            // The server rejected the refresh token (expired / revoked): this
+            // session is over. Without this the app kept `.authenticated` on
+            // a dead session, so Settings hid the sign-in card while every AI
+            // call failed with "sign in". A network error keeps the session.
+            if case APIError.unauthorized = error {
+                endExpiredSession()
+            }
             throw error
         }
+    }
+
+    /// Drops the dead Tempo session (only this app's JWTs — Whoop and other
+    /// keychain items stay) and flips to `.expired` so Settings offers
+    /// Sign in with Apple again.
+    func endExpiredSession() {
+        try? KeychainService.delete(key: Self.accessTokenKey)
+        try? KeychainService.delete(key: Self.refreshTokenKey)
+        try? KeychainService.delete(key: Self.userIDKey)
+        authState = .expired
     }
 
     // MARK: - Sign Out
