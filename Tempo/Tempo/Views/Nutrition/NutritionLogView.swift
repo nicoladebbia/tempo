@@ -30,6 +30,8 @@ struct NutritionLogView: View {
     private var showPhotoAnalysis = false
     @State
     private var showBarcodeScanner = false
+    @State
+    private var showFoodCheck = false
     /// Foods confirmed in the photo-analysis or barcode sheet, stashed here so
     /// we can present the review sheet AFTER that sheet finishes dismissing
     /// (presenting synchronously inside the callback glitches sheet-over-sheet).
@@ -110,6 +112,9 @@ struct NutritionLogView: View {
                 presentPendingReview()
                 viewModel.loadToday(modelContext: modelContext)
             }
+        }
+        .sheet(isPresented: $showFoodCheck) {
+            FoodCheckView()
         }
         .sheet(isPresented: $showBarcodeScanner) {
             // Scan goes straight to the camera (it used to open the full Log
@@ -244,6 +249,11 @@ struct NutritionLogView: View {
             quickActionButton(icon: "barcode.viewfinder", label: "Scan") {
                 showBarcodeScanner = true
             }
+
+            quickActionButton(icon: "checkmark.seal", label: "Check") {
+                showFoodCheck = true
+            }
+            .accessibilityIdentifier("nutritionCheckFood")
         }
     }
 
@@ -469,7 +479,9 @@ struct NutritionLogView: View {
             proteinG: food.protein,
             carbsG: food.carbs,
             fatG: food.fat,
-            isVerified: false
+            isVerified: food.source != .manual,
+            source: food.source,
+            barcode: food.barcode
         )
     }
 
@@ -521,7 +533,8 @@ struct NutritionLogView: View {
                 proteinGrams: item.proteinG,
                 carbsGrams: item.carbsG,
                 fatGrams: item.fatG,
-                source: item.isVerified ? .cached : .claude
+                source: item.source ?? (item.isVerified ? .cached : .claude),
+                barcode: item.barcode
             )
         }
     }

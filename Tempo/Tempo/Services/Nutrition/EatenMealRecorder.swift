@@ -224,12 +224,13 @@ enum EatenMealRecorder {
     }
 
     /// Best-effort grams from a serving-size string. Returns the leading
-    /// number only when the unit is grams ("250g", "250 g"); anything else
-    /// ("1 cup", "diced", "medium") yields 0 — quantityGrams is cosmetic
-    /// (drives serving-size display only), so a 0 doesn't affect macros.
+    /// number only when the unit is grams or millilitres ("250g", "250 g",
+    /// "330 ml" — scanned drinks, 1 ml ≈ 1 g); anything else ("1 cup",
+    /// "diced", "medium") yields 0 — quantityGrams is cosmetic (drives
+    /// serving-size display only), so a 0 doesn't affect macros.
     nonisolated static func gramsFromServingSize(_ serving: String) -> Double {
         let lower = serving.lowercased()
-        guard lower.contains("g") else {
+        guard lower.contains("g") || lower.contains("ml") else {
             return 0
         }
         let number = lower.prefix { $0.isNumber || $0 == "." }

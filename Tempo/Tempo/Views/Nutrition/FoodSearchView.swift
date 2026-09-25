@@ -6,11 +6,16 @@
 //
 //
 
+import SwiftData
 import SwiftUI
 
 // MARK: - FoodSearchView
 
-// Searchable food list with local cache + USDA API fallback.
+// Real food search through FoodCatalog: your own products (history,
+// favourites, added), basic foods (Tempo's table + USDA via the backend) and
+// packaged products (Open Food Facts), each with its Tempo score. Tapping a
+// result opens the product screen. With `onFoodSelected` the product screen
+// offers "Add to meal"; without it it's look-only.
 // Per DESIGN_SYSTEM.md — all tokens, drill-sergeant empty states.
 
 struct FoodSearchView: View {
@@ -21,27 +26,28 @@ struct FoodSearchView: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.modelContext)
+    private var modelContext
+    @Environment(ServiceContainer.self)
+    private var services
+
+    @Query(sort: \ScannedFood.lastViewedAt, order: .reverse)
+    private var saved: [ScannedFood]
 
     @State
     private var searchText = ""
     @State
     private var selectedTab: SearchTab = .all
     @State
-    private var searchResults: [SearchableFoodItem] = []
-    @State
-    private var recentFoods: [SearchableFoodItem] = SearchableFoodItem.mockRecents
-    @State
-    private var favoriteFoods: [SearchableFoodItem] = SearchableFoodItem.mockFavorites
+    private var results = FoodCatalog.SearchResults()
     @State
     private var isLoading = false
     @State
     private var hasSearched = false
     @State
-    private var errorMessage: String?
+    private var showScanner = false
     @State
-    private var selectedFood: SearchableFoodItem?
-    @State
-    private var portionQuantity: Double = 1.0
+    private var catalog: FoodCatalog?
 
     enum SearchTab: String, CaseIterable, Identifiable {
         case all = "All"
@@ -58,8 +64,7 @@ struct FoodSearchView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Tab picker
-                Picker("Filter", selection: $selectedTab) {
+                Picker("Tab", selection: $selectedTab) {
                     ForEach(SearchTab.allCases) { tab in
                         Text(tab.rawValue).tag(tab)
                     }
@@ -67,25 +72,26 @@ struct FoodSearchView: View {
                 .pickerStyle(.segmented)
                 .padding(.horizontal, TempoSpacing.screenEdge)
                 .padding(.vertical, TempoSpacing.sm)
-                .onChange(of: selectedTab) { _, _ in
-                    HapticManager.selection()
-                }
 
-                // Content
-                Group {
+                if let catalog {
                     switch selectedTab {
                     case .all:
-                        allTabContent
+                        allTabContent(catalog)
                     case .recent:
-                        recentTabContent
+                        savedList(filteredRecents, catalog: catalog, empty: "Nothing scanned or opened yet.")
                     case .favorites:
-                        favoritesTabContent
+                        savedList(filteredFavorites, catalog: catalog, empty: "No favourites yet. Tap the star on a product.")
                     }
                 }
             }
             .background(Color.tempoBgPrimary)
             .navigationTitle("Search Food")
             .navigationBarTitleDisplayMode(.inline)
+            .searchable(
+                text: $searchText,
+                placement: .navigationBarDrawer(displayMode: .always),
+                prompt: "Foods or brands — e.g. skyr, Barilla"
+            )
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") {
@@ -94,548 +100,204 @@ struct FoodSearchView: View {
                     .font(.tempoCallout)
                     .foregroundStyle(Color.tempoTextSecondary)
                 }
-            }
-            .searchable(text: $searchText, prompt: "Search for a food")
-            .onSubmit(of: .search) {
-                performSearch()
-            }
-            .onChange(of: searchText) { _, newValue in
-                if newValue.isEmpty {
-                    searchResults = []
-                    hasSearched = false
-                    errorMessage = nil
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showScanner = true
+                    } label: {
+                        Image(systemName: "barcode.viewfinder")
+                    }
+                    .accessibilityLabel("Scan a barcode")
                 }
             }
-            .sheet(item: $selectedFood) { food in
-                portionPickerSheet(food: food)
+            .sheet(isPresented: $showScanner) {
+                BarcodeScannerView(onFoodScanned: onFoodSelected.map { handler in
+                    { item in
+                        handler(item)
+                        dismiss()
+                    }
+                })
+            }
+            .task(id: searchText) {
+                await runSearch()
             }
             .onAppear {
-                if let initialQuery, searchText.isEmpty {
+                if catalog == nil {
+                    catalog = FoodCatalog(services: services)
+                }
+                if searchText.isEmpty, let initialQuery, !initialQuery.isEmpty {
                     searchText = initialQuery
-                    performSearch()
                 }
             }
         }
     }
 
-    // MARK: - All Tab
+    // MARK: - All tab
 
-    private var allTabContent: some View {
-        Group {
-            if isLoading {
-                LoadingStateView(style: .list)
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-                    .padding(.top, TempoSpacing.lg)
-            } else if let errorMessage {
-                errorState(message: errorMessage)
-            } else if searchResults.isEmpty, hasSearched {
-                noResultsState
-            } else if searchResults.isEmpty {
+    @ViewBuilder
+    private func allTabContent(_ catalog: FoodCatalog) -> some View {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if query.count < 2 {
+            if filteredRecents.isEmpty {
                 searchEmptyState
             } else {
-                resultsList(searchResults)
+                savedList(Array(filteredRecents.prefix(15)), catalog: catalog, empty: "", header: "RECENT")
             }
+        } else if results.isEmpty, isLoading {
+            ProgressView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if results.isEmpty, hasSearched {
+            noResultsState
+        } else {
+            List {
+                if !results.notices.isEmpty {
+                    Section {
+                        ForEach(results.notices, id: \.self) { notice in
+                            Label(notice, systemImage: "exclamationmark.triangle")
+                                .font(.tempoCaption1)
+                                .foregroundStyle(Color.tempoAmber)
+                        }
+                    }
+                }
+                resultSection("YOURS", results.yours, catalog: catalog)
+                resultSection("BASIC FOODS", results.basics, catalog: catalog)
+                resultSection("PACKAGED PRODUCTS", results.products, catalog: catalog)
+                if isLoading {
+                    HStack {
+                        Spacer()
+                        ProgressView()
+                        Spacer()
+                    }
+                    .listRowBackground(Color.clear)
+                }
+            }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
         }
     }
 
-    // MARK: - Recent Tab
-
-    private var recentTabContent: some View {
-        Group {
-            if recentFoods.isEmpty {
-                EmptyStateView(
-                    icon: "clock",
-                    title: "No Recent Foods",
-                    message: "Foods you log will show up here for quick access."
-                )
-            } else {
-                resultsList(filteredRecents)
-            }
-        }
-    }
-
-    // MARK: - Favorites Tab
-
-    private var favoritesTabContent: some View {
-        Group {
-            if favoriteFoods.isEmpty {
-                EmptyStateView(
-                    icon: "heart",
-                    title: "No Favorites Yet",
-                    message: "Mark foods as favorites for quick access."
-                )
-            } else {
-                resultsList(filteredFavorites)
-            }
-        }
-    }
-
-    // MARK: - Results List
-
-    private func resultsList(_ items: [SearchableFoodItem]) -> some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            LazyVStack(spacing: 0) {
-                ForEach(items) { item in
-                    Button {
-                        selectedFood = item
-                        HapticManager.lightImpact()
+    @ViewBuilder
+    private func resultSection(_ title: String, _ products: [FoodProduct], catalog: FoodCatalog) -> some View {
+        if !products.isEmpty {
+            Section(title) {
+                ForEach(products) { product in
+                    NavigationLink {
+                        FoodProductView(product: product, mode: productMode, catalog: catalog)
                     } label: {
-                        foodResultRow(item)
+                        FoodProductRow(product: product)
                     }
-                    .buttonStyle(.plain)
-
-                    if item.id != items.last?.id {
-                        Divider()
-                            .background(Color.tempoDivider)
-                            .padding(.leading, TempoSpacing.screenEdge)
-                    }
+                    .listRowBackground(Color.tempoSurfaceCard)
                 }
             }
         }
     }
 
-    private func foodResultRow(_ item: SearchableFoodItem) -> some View {
-        HStack(spacing: TempoSpacing.md) {
-            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                Text(item.name)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                    .lineLimit(1)
+    // MARK: - Recent / favourites
 
-                HStack(spacing: TempoSpacing.sm) {
-                    if let brand = item.brand {
-                        Text(brand)
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                    }
-
-                    Text("per \(item.servingSize)")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                }
-            }
-
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: TempoSpacing.xxs) {
-                Text("\(item.caloriesPerServing) kcal")
-                    .font(.tempoCallout)
-                    .foregroundStyle(Color.tempoTextPrimary)
-
-                HStack(spacing: TempoSpacing.sm) {
-                    Text("P:\(Int(item.proteinPerServing))g")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoMacroProtein)
-                    Text("C:\(Int(item.carbsPerServing))g")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoMacroCarbs)
-                    Text("F:\(Int(item.fatPerServing))g")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoMacroFat)
-                }
-            }
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(Color.tempoTextTertiary)
-        }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.vertical, TempoSpacing.listItemVertical)
-    }
-
-    // MARK: - Portion Picker Sheet
-
-    private func portionPickerSheet(food: SearchableFoodItem) -> some View {
-        NavigationStack {
-            VStack(spacing: TempoSpacing.xxl) {
-                // Food info header — shown as the inline title via navigationTitle.
-                if let brand = food.brand {
-                    Text(brand)
-                        .font(.tempoCallout)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .padding(.top, TempoSpacing.sm)
-                }
-
-                // Serving info
-                VStack(spacing: TempoSpacing.md) {
-                    Text("SERVINGS")
-                        .font(.tempoModuleTag)
-                        .tracking(TempoTracking.moduleTag)
-                        .foregroundStyle(Color.tempoTextSecondary)
-
-                    HStack(spacing: TempoSpacing.lg) {
-                        NumberStepperView(
-                            value: $portionQuantity,
-                            range: 0.5 ... 10,
-                            step: 0.5,
-                            format: "%.1f",
-                            unit: "x"
-                        )
-                    }
-
-                    Text(food.servingSize)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                }
-
-                // Calculated macros
-                macroPreviewCard(food: food)
-
-                Spacer()
-
-                // Add button
-                Button {
-                    addToMeal(food: food)
-                } label: {
-                    Text("Add to Meal")
-                }
-                .buttonStyle(.tempoPrimary)
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.bottom, TempoSpacing.bottomSafe)
-            }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .background(Color.tempoBgPrimary)
-            .navigationTitle(food.name)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        selectedFood = nil
-                    } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    }
-                }
-            }
-        }
-        .presentationDetents([.medium, .large])
-    }
-
-    private func macroPreviewCard(food: SearchableFoodItem) -> some View {
-        let multiplier = portionQuantity
-        return VStack(spacing: TempoSpacing.md) {
-            HStack {
-                Text("Calories")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Spacer()
-                Text("\(Int(Double(food.caloriesPerServing) * multiplier)) kcal")
-                    .font(.tempoDataMedium)
-                    .foregroundStyle(Color.tempoViolet)
-            }
-
-            Divider().background(Color.tempoDivider)
-
-            macroPreviewRow(
-                label: "Protein",
-                value: food.proteinPerServing * multiplier,
-                color: Color.tempoMacroProtein
-            )
-            macroPreviewRow(
-                label: "Carbs",
-                value: food.carbsPerServing * multiplier,
-                color: Color.tempoMacroCarbs
-            )
-            macroPreviewRow(
-                label: "Fat",
-                value: food.fatPerServing * multiplier,
-                color: Color.tempoMacroFat
-            )
-        }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
-    }
-
-    private func macroPreviewRow(label: String, value: Double, color: Color) -> some View {
-        HStack {
-            Circle()
-                .fill(color)
-                .frame(width: 8, height: 8)
-            Text(label)
-                .font(.tempoCallout)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Spacer()
-            Text("\(Int(value))g")
-                .font(.tempoCallout)
+    @ViewBuilder
+    private func savedList(_ rows: [ScannedFood], catalog: FoodCatalog, empty: String, header: String? = nil) -> some View {
+        if rows.isEmpty {
+            Text(empty)
+                .font(.tempoBody)
                 .foregroundStyle(Color.tempoTextSecondary)
+                .multilineTextAlignment(.center)
+                .padding(TempoSpacing.xxl)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            List {
+                Section {
+                    ForEach(rows) { row in
+                        if let product = row.product {
+                            NavigationLink {
+                                FoodProductView(product: product, mode: productMode, catalog: catalog)
+                            } label: {
+                                FoodProductRow(product: product, photo: row.photoData)
+                            }
+                            .listRowBackground(Color.tempoSurfaceCard)
+                        }
+                    }
+                } header: {
+                    if let header {
+                        Text(header)
+                    }
+                }
+            }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
         }
     }
 
-    // MARK: - Empty / Error States
+    // MARK: - Empty States
 
     private var searchEmptyState: some View {
         EmptyStateView(
             icon: "magnifyingglass",
-            title: "Search for a food",
-            message: "Search for a food or scan a barcode."
+            title: "Find any food",
+            message: "Search basics like \"chicken breast\" or packaged products by name or brand. Or scan a barcode."
         )
     }
 
     private var noResultsState: some View {
         EmptyStateView(
-            icon: "magnifyingglass",
-            title: "No results",
-            message: "Try a different search term or scan a barcode."
-        )
-    }
-
-    private func errorState(message: String) -> some View {
-        VStack(spacing: 0) {
-            Spacer()
-
-            Image(systemName: "wifi.slash")
-                .font(.system(size: 48, weight: .ultraLight))
-                .foregroundStyle(Color.tempoAsh)
-
-            Text("Search failed")
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .padding(.top, TempoSpacing.lg)
-
-            Text(message)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 280)
-                .padding(.top, TempoSpacing.sm)
-
-            Button("Retry") {
-                performSearch()
-            }
-            .buttonStyle(.tempoPrimary)
-            .padding(.horizontal, TempoSpacing.xxxxl)
-            .padding(.top, TempoSpacing.xxl)
-
-            Spacer()
+            icon: "fork.knife",
+            title: "Nothing found",
+            message: "Try a shorter name, or scan the barcode.",
+            actionTitle: "Scan a barcode"
+        ) {
+            showScanner = true
         }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, TempoSpacing.screenEdge)
     }
 
-    // MARK: - Filtering
+    // MARK: - Helpers
 
-    private var filteredRecents: [SearchableFoodItem] {
-        guard !searchText.isEmpty else {
-            return recentFoods
+    private var productMode: FoodProductView.Mode {
+        guard let onFoodSelected else {
+            return .check
         }
-        return recentFoods.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
-    }
-
-    private var filteredFavorites: [SearchableFoodItem] {
-        guard !searchText.isEmpty else {
-            return favoriteFoods
+        return .log { item in
+            onFoodSelected(item)
+            dismiss()
         }
-        return favoriteFoods.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
     }
 
-    // MARK: - Actions
+    private var filteredRecents: [ScannedFood] {
+        filter(saved)
+    }
 
-    private func performSearch() {
-        guard !searchText.trimmingCharacters(in: .whitespaces).isEmpty else {
+    private var filteredFavorites: [ScannedFood] {
+        filter(saved.filter(\.isFavorite)).sorted { $0.name < $1.name }
+    }
+
+    private func filter(_ rows: [ScannedFood]) -> [ScannedFood] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !query.isEmpty else {
+            return rows
+        }
+        return rows.filter { $0.searchText.contains(query) }
+    }
+
+    /// Debounced: local results immediately, network sources after a short pause.
+    private func runSearch() async {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard query.count >= 2, let catalog else {
+            results = FoodCatalog.SearchResults()
+            hasSearched = false
+            isLoading = false
             return
         }
+        results = catalog.localResults(for: query, in: modelContext)
         isLoading = true
+        do {
+            try await Task.sleep(for: .milliseconds(400))
+        } catch {
+            return
+        }
+        let found = await catalog.search(query, in: modelContext)
+        guard !Task.isCancelled else {
+            return
+        }
+        results = found
         hasSearched = true
-        errorMessage = nil
-
-        // Simulated search — in production, hits local CachedFood first then USDA API
-        Task {
-            try? await Task.sleep(for: .milliseconds(800))
-
-            // Mock results
-            searchResults = SearchableFoodItem.mockSearchResults(for: searchText)
-            isLoading = false
-
-            if searchResults.isEmpty {
-                // No error — just no results
-            }
-        }
-    }
-
-    private func addToMeal(food: SearchableFoodItem) {
-        let multiplier = portionQuantity
-        let item = FoodItem(
-            id: UUID(),
-            name: food.name,
-            brand: food.brand,
-            servingSize: food.servingSize,
-            servingQuantity: portionQuantity,
-            calories: Int(Double(food.caloriesPerServing) * multiplier),
-            protein: food.proteinPerServing * multiplier,
-            carbs: food.carbsPerServing * multiplier,
-            fat: food.fatPerServing * multiplier
-        )
-        HapticManager.notification(.success)
-        onFoodSelected?(item)
-        selectedFood = nil
-        portionQuantity = 1.0
-        dismiss()
-    }
-}
-
-// MARK: - SearchableFoodItem
-
-struct SearchableFoodItem: Identifiable {
-    let id: UUID
-    let name: String
-    let brand: String?
-    let servingSize: String
-    let caloriesPerServing: Int
-    let proteinPerServing: Double
-    let carbsPerServing: Double
-    let fatPerServing: Double
-    let isFavorite: Bool
-
-    // MARK: - Mock Data
-
-    static let mockRecents: [SearchableFoodItem] = [
-        SearchableFoodItem(
-            id: UUID(),
-            name: "Chicken Breast",
-            brand: nil,
-            servingSize: "150g",
-            caloriesPerServing: 248,
-            proteinPerServing: 46,
-            carbsPerServing: 0,
-            fatPerServing: 5.4,
-            isFavorite: false
-        ),
-        SearchableFoodItem(
-            id: UUID(),
-            name: "Brown Rice",
-            brand: nil,
-            servingSize: "200g cooked",
-            caloriesPerServing: 220,
-            proteinPerServing: 5,
-            carbsPerServing: 46,
-            fatPerServing: 1.8,
-            isFavorite: false
-        ),
-        SearchableFoodItem(
-            id: UUID(),
-            name: "Protein Shake",
-            brand: "Optimum Nutrition",
-            servingSize: "1 scoop (30g)",
-            caloriesPerServing: 120,
-            proteinPerServing: 24,
-            carbsPerServing: 3,
-            fatPerServing: 1.5,
-            isFavorite: true
-        ),
-    ]
-
-    static let mockFavorites: [SearchableFoodItem] = [
-        SearchableFoodItem(
-            id: UUID(),
-            name: "Protein Shake",
-            brand: "Optimum Nutrition",
-            servingSize: "1 scoop (30g)",
-            caloriesPerServing: 120,
-            proteinPerServing: 24,
-            carbsPerServing: 3,
-            fatPerServing: 1.5,
-            isFavorite: true
-        ),
-        SearchableFoodItem(
-            id: UUID(),
-            name: "Eggs",
-            brand: nil,
-            servingSize: "1 large (50g)",
-            caloriesPerServing: 72,
-            proteinPerServing: 6.3,
-            carbsPerServing: 0.4,
-            fatPerServing: 4.8,
-            isFavorite: true
-        ),
-        SearchableFoodItem(
-            id: UUID(),
-            name: "Oats",
-            brand: nil,
-            servingSize: "40g dry",
-            caloriesPerServing: 150,
-            proteinPerServing: 5,
-            carbsPerServing: 27,
-            fatPerServing: 2.5,
-            isFavorite: true
-        ),
-    ]
-
-    static func mockSearchResults(for query: String) -> [SearchableFoodItem] {
-        let all = [
-            SearchableFoodItem(
-                id: UUID(),
-                name: "Chicken Breast (grilled)",
-                brand: nil,
-                servingSize: "150g",
-                caloriesPerServing: 248,
-                proteinPerServing: 46,
-                carbsPerServing: 0,
-                fatPerServing: 5.4,
-                isFavorite: false
-            ),
-            SearchableFoodItem(
-                id: UUID(),
-                name: "Chicken Thigh (skin-on)",
-                brand: nil,
-                servingSize: "130g",
-                caloriesPerServing: 280,
-                proteinPerServing: 28,
-                carbsPerServing: 0,
-                fatPerServing: 18,
-                isFavorite: false
-            ),
-            SearchableFoodItem(
-                id: UUID(),
-                name: "Greek Yogurt 0%",
-                brand: "Fage",
-                servingSize: "170g",
-                caloriesPerServing: 100,
-                proteinPerServing: 18,
-                carbsPerServing: 6,
-                fatPerServing: 0.7,
-                isFavorite: false
-            ),
-            SearchableFoodItem(
-                id: UUID(),
-                name: "Banana",
-                brand: nil,
-                servingSize: "1 medium (118g)",
-                caloriesPerServing: 105,
-                proteinPerServing: 1.3,
-                carbsPerServing: 27,
-                fatPerServing: 0.4,
-                isFavorite: false
-            ),
-            SearchableFoodItem(
-                id: UUID(),
-                name: "Salmon Fillet",
-                brand: nil,
-                servingSize: "150g",
-                caloriesPerServing: 310,
-                proteinPerServing: 34,
-                carbsPerServing: 0,
-                fatPerServing: 18,
-                isFavorite: false
-            ),
-            SearchableFoodItem(
-                id: UUID(),
-                name: "Sweet Potato",
-                brand: nil,
-                servingSize: "200g baked",
-                caloriesPerServing: 180,
-                proteinPerServing: 4,
-                carbsPerServing: 41,
-                fatPerServing: 0.2,
-                isFavorite: false
-            ),
-        ]
-        if query.isEmpty {
-            return all
-        }
-        return all.filter { $0.name.localizedCaseInsensitiveContains(query) }
+        isLoading = false
     }
 }
 
@@ -643,4 +305,6 @@ struct SearchableFoodItem: Identifiable {
 
 #Preview {
     FoodSearchView()
+        .environment(ServiceContainer.mock())
+        .modelContainer(for: [ScannedFood.self], inMemory: true)
 }

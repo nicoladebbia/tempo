@@ -22,6 +22,9 @@ struct ParsedFoodItem: Identifiable {
     let fatG: Double
     /// Whether the macros came from the local FoodMacroDatabase (more accurate) vs Claude estimate.
     let isVerified: Bool
+    /// Set when the item came from the scanner / food search (not a text parse).
+    var source: FoodDataSource?
+    var barcode: String?
 
     /// Formatted portion string using natural portions when available.
     var formattedPortion: String {

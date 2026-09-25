@@ -442,6 +442,8 @@ struct FoodItem: Identifiable, Equatable {
     var protein: Double
     var carbs: Double
     var fat: Double
+    var source: FoodDataSource = .manual
+    var barcode: String?
 
     var portionDescription: String {
         let qty = servingQuantity == 1.0
@@ -472,7 +474,8 @@ struct FoodItem: Identifiable, Equatable {
             proteinGrams: protein,
             carbsGrams: carbs,
             fatGrams: fat,
-            source: .manual
+            source: source,
+            barcode: barcode
         )
     }
 }

@@ -66,6 +66,7 @@ enum TempoSchemaV1: VersionedSchema {
             MealFoodItem.self,
             NutritionTarget.self,
             CachedFood.self,
+            ScannedFood.self,
             DietaryProfile.self,
             WeeklyMealPlan.self,
             PlannedMeal.self,
