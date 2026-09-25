@@ -117,6 +117,14 @@ targets:
           - com.tempo.healthkit-sync
           - com.tempo.data-sync
           - com.tempo.daily-reset
+        # Guided run mode — lets a continuous conditioning step (a trainer's
+        # "35' run") keep tracking GPS distance/pace while the screen locks.
+        # GuidedRunLocationTracker only flips `allowsBackgroundLocationUpdates`
+        # on while a continuous step is actually live, and only when
+        # when-in-use/always authorization is already granted — this mode
+        # alone grants no background access by itself.
+        UIBackgroundModes:
+          - location
         CFBundleURLTypes:
           - CFBundleTypeRole: Viewer
             CFBundleURLName: app.tempo.oauth
