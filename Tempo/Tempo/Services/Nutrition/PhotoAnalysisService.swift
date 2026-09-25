@@ -286,7 +286,7 @@ final class PhotoAnalysisService: PhotoAnalysisServiceProtocol, @unchecked Senda
     /// shared `UIImage.downsampledJPEGBase64` helper. Falls back to the raw
     /// bytes if UIImage decode fails (vector PDFs, HEIC variants without the
     /// right decoder) or if the image is already within the size cap.
-    private static func downsampledBase64(_ original: Data) -> String {
+    static func downsampledBase64(_ original: Data) -> String {
         #if canImport(UIKit)
         guard let image = UIImage(data: original) else {
             return original.base64EncodedString()
