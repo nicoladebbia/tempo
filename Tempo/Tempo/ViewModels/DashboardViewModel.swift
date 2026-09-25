@@ -50,9 +50,10 @@ final class DashboardViewModel {
 
         // Workout planned but not done
         if move.workoutStatus == .planned, let name = move.workoutName {
+            let isMobility = move.startAction == .mobility
             actions.append(QuickAction(
-                title: "Start \(name) Workout",
-                icon: "dumbbell.fill",
+                title: isMobility ? "Start a Mobility Flow" : "Start \(name) Workout",
+                icon: isMobility ? "figure.flexibility" : "dumbbell.fill",
                 targetTab: .training,
                 color: .tempoAmber
             ))
@@ -899,7 +900,8 @@ final class DashboardViewModel {
             strain: move.strain,
             heartRateCurrent: move.heartRateCurrent,
             isConnected: move.isConnected,
-            lastSync: move.lastSync
+            lastSync: move.lastSync,
+            workoutType: todayPlan.type
         )
 
         // Generate meal timing suggestions based on training status (Task 3)

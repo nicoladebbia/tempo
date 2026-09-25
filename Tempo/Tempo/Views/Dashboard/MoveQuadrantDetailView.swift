@@ -50,6 +50,7 @@ struct MoveQuadrantDetailView: View {
     @State private var trainingVM: TrainingViewModel?
     @State private var showActiveWorkout = false
     @State private var showSummary = false
+    @State private var showMobilityFlows = false
 
     private var weightUnit: WeightUnit {
         userSettings.first?.weightUnit ?? .kg
@@ -64,7 +65,14 @@ struct MoveQuadrantDetailView: View {
                     heartRateSection
                     workoutHistorySection
                     weeklyVolumeSection
-                    startWorkoutButton
+                    switch data.startAction {
+                    case .workout:
+                        startWorkoutButton
+                    case .mobility:
+                        startMobilityButton
+                    case .none:
+                        EmptyView()
+                    }
                 } else {
                     EmptyStateView(
                         icon: "heart.text.square",
@@ -94,6 +102,11 @@ struct MoveQuadrantDetailView: View {
                 NavigationStack {
                     ActiveWorkoutView(viewModel: trainingVM)
                 }
+            }
+        }
+        .sheet(isPresented: $showMobilityFlows) {
+            if let trainingVM {
+                MobilityFlowPickerView(viewModel: trainingVM)
             }
         }
         .fullScreenCover(isPresented: $showSummary, onDismiss: {
@@ -529,19 +542,53 @@ struct MoveQuadrantDetailView: View {
 
     // Per MODULE_DASHBOARD.md Section 4.5
 
+    /// Builds the VM lazily, same construction as TrainingTabView.
+    private func loadedTrainingVM() async -> TrainingViewModel {
+        let vm = trainingVM ?? TrainingViewModel(
+            trainingEngine: services.trainingEngine,
+            whoop: services.whoop,
+            healthKit: services.healthKit,
+            apiClient: services.apiClient,
+            calendarService: services.calendar
+        )
+        trainingVM = vm
+        await vm.loadToday(modelContext: modelContext)
+        return vm
+    }
+
+    /// Rest / mobility day: same mobility-flow picker the Training tab offers.
+    private var startMobilityButton: some View {
+        Button {
+            Task { @MainActor in
+                _ = await loadedTrainingVM()
+                showMobilityFlows = true
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "figure.flexibility")
+                    .font(.system(size: 14))
+                Text("Start a Mobility Flow")
+                    .font(.tempoCallout)
+            }
+            .foregroundStyle(Color.tempoTextInverse)
+            .frame(maxWidth: .infinity)
+            .frame(height: 48)
+            .background(Color.tempoAmber)
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+        }
+        .accessibilityIdentifier("move.startMobility")
+    }
+
     private var startWorkoutButton: some View {
         Button {
             Task { @MainActor in
-                // Build the VM lazily, same construction as TrainingTabView.
-                let vm = trainingVM ?? TrainingViewModel(
-                    trainingEngine: services.trainingEngine,
-                    whoop: services.whoop,
-                    healthKit: services.healthKit,
-                    apiClient: services.apiClient,
-                    calendarService: services.calendar
-                )
-                trainingVM = vm
-                await vm.loadToday(modelContext: modelContext)
+                let vm = await loadedTrainingVM()
+                // A mobility / rest / non-gym day has nothing to log — the
+                // plan may have changed since the Dashboard last refreshed.
+                guard vm.canStartWorkout else {
+                    if vm.isRestDay { showMobilityFlows = true }
+                    return
+                }
                 vm.startWorkout()
                 showActiveWorkout = true
                 HapticManager.notification(.success)
