@@ -281,11 +281,19 @@ extension TrainingViewModel {
             plan.type = .mobility
             plan.notes = "Deload — full rest week. Move, stretch, recover."
         }
-        // Same trainer-program overlay as the weekly path.
+        // Same trainer-program overlay as the weekly path — fix #6: seed the
+        // sequence cursor / consecutive-lift guard from real progress so
+        // this single-day fallback never disagrees with `assembleWeekPlans`.
         if let program = activeTrainerProgram(modelContext: modelContext) {
             let cal = Calendar.current
             let matchDays = Set(fetchUpcomingMatches(modelContext: modelContext).map { cal.startOfDay(for: $0.kickoff) })
-            Self.applyTrainerProgram(program, to: [plan], matchDayKeys: matchDays)
+            Self.applyTrainerProgram(
+                program, to: [plan], matchDayKeys: matchDays,
+                completedSequenceCount: completedTrainerSessionCount(for: program, modelContext: modelContext),
+                priorDayWasLift: trainerProgramPriorDayWasLift(
+                    before: cal.startOfDay(for: Date()), program: program, modelContext: modelContext
+                )
+            )
         }
         populateExercises(for: plan, modelContext: modelContext)
         modelContext.insert(plan)

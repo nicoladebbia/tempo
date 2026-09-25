@@ -333,15 +333,37 @@ struct DashboardView: View {
             // Pull-to-refresh is the user explicitly asking for fresh data —
             // bypass the in-memory Whoop response cache.
             await services.whoop.invalidateCache()
-            await vm.refresh()
-            vm.refreshTrainingStatus(modelContext: modelContext)
-            vm.refreshAccountability(modelContext: modelContext)
-            vm.persistDailyScore(modelContext: modelContext)
-            vm.loadScoreHistory(modelContext: modelContext)
+            await syncAll(vm)
+        }
+        .task {
+            // Auto-sync while the Dashboard is on screen, so there's no
+            // "last sync" to watch. Cancelled when the view goes away;
+            // foregrounding already syncs via the scenePhase observer.
+            while !Task.isCancelled {
+                try? await Task.sleep(for: DashboardViewModel.autoRefreshInterval)
+                // Live app state, not `scenePhase`: this closure was captured
+                // once, so an environment value read here would be stale.
+                guard !Task.isCancelled, hasAppeared,
+                      UIApplication.shared.applicationState == .active
+                else {
+                    continue
+                }
+                await syncAll(vm)
+            }
         }
         .sheet(isPresented: $showScoreBreakdown) {
             ScoreBreakdownSheet(vm: vm)
         }
+    }
+
+    /// Full refresh used by pull-to-refresh and the 5-minute auto-sync.
+    private func syncAll(_ vm: DashboardViewModel) async {
+        await vm.refresh()
+        vm.refreshTrainingStatus(modelContext: modelContext)
+        vm.refreshAccountability(modelContext: modelContext)
+        vm.persistDailyScore(modelContext: modelContext)
+        vm.loadScoreHistory(modelContext: modelContext)
+        vm.pushWatchSnapshot()
     }
 
     // MARK: - Header
@@ -356,11 +378,10 @@ struct DashboardView: View {
                     .minimumScaleFactor(0.85)
                     .fixedSize(horizontal: false, vertical: true)
 
-                // Wrapped in TimelineView so the date/time/last-sync line stays
-                // current without a manual refresh. `vm.formattedDate`,
-                // `vm.formattedTimeNow`, and `vm.formattedLastSync` all
-                // re-evaluate `Date()` on each access; TimelineView pings
-                // SwiftUI once a minute so those getters get re-read.
+                // Wrapped in TimelineView so the date/time line stays current
+                // without a manual refresh. `vm.formattedDate` and
+                // `vm.formattedTimeNow` re-evaluate `Date()` on each access;
+                // TimelineView pings SwiftUI once a minute so they get re-read.
                 TimelineView(.everyMinute) { _ in
                     HStack(spacing: 6) {
                         Text(vm.formattedDate.uppercased())
@@ -396,16 +417,6 @@ struct DashboardView: View {
                             }
                         }
 
-                        if !vm.formattedLastSync.isEmpty {
-                            Text("\u{00B7}")
-                                .font(.tempoCaption1)
-                                .fontWeight(.medium)
-                                .foregroundStyle(Color.tempoTextTertiary)
-                            Text(vm.formattedLastSync)
-                                .font(.tempoCaption2)
-                                .fontWeight(.medium)
-                                .foregroundStyle(Color.tempoTextTertiary)
-                        }
                     }
                 }
             }
@@ -484,20 +495,15 @@ struct DashboardView: View {
 
     // MARK: - Body Card
 
+    // All four cards share the Body layout: hero value → caption → divider →
+    // three metric rows → footer bar. Keep them in step when changing one.
+
     private func bodyCard(_ data: BodyQuadrantData) -> some View {
         cardShell(label: "BODY") {
             if data.isConnected || services.whoop.connectionState == .connected {
                 VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    Text(data.formattedRecovery)
-                        .font(.tempoXPDisplay)
-                        .foregroundStyle(data.recoveryZone?.color ?? Color.tempoTextPrimary)
-                        .contentTransition(.numericText(countsDown: false))
-                        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: data.formattedRecovery)
-
-                    Text("Recovery")
-                        .font(.tempoCaption1)
-                        .fontWeight(.medium)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                    cardHero(data.formattedRecovery, color: data.recoveryZone?.color ?? Color.tempoTextPrimary)
+                    cardCaption("Recovery")
 
                     Divider().opacity(0.3)
 
@@ -508,7 +514,15 @@ struct DashboardView: View {
                     }
 
                     if let strain = data.strain {
-                        strainIndicator(strain)
+                        cardFooterBar(
+                            progress: strain / 21.0,
+                            fill: LinearGradient(
+                                colors: [Color.tempoSuccess, Color.tempoWarning, Color.tempoError],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            ),
+                            label: "Strain \(String(format: "%.1f", strain))"
+                        )
                     }
                 }
             } else {
@@ -540,204 +554,56 @@ struct DashboardView: View {
         }
     }
 
+    /// Always shows today's numbers — the targets exist even before the
+    /// first meal, so "0 kcal of 2,400" beats an empty "Add Meal" prompt.
     private func fuelCard(_ data: FuelQuadrantData) -> some View {
         cardShell(label: "FUEL") {
-            // Per spec: when a next meal is available, the Fuel tile shows the
-            // NextMealCardView instead of the calorie/macro summary. Fallback
-            // path keeps the original detail view for plan-less users.
-            if let nextMeal = data.nextMeal {
-                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    NextMealCardView(meal: nextMeal, style: .compact)
-
-                    Divider().opacity(0.3)
-
-                    // Slim calorie progress strip so the macro context isn't lost.
-                    HStack(spacing: 6) {
-                        Text(data.formattedCalories)
-                            .font(.tempoCaption1)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                        Text("/ \(data.formattedCalorieTarget) kcal")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                        Spacer()
-                    }
-                    progressBar(progress: data.calorieProgress, color: Color.tempoViolet)
-                        .frame(height: 4)
-
-                    if data.lastEatenAt != nil {
-                        TimelineView(.everyMinute) { _ in
-                            Text("Last meal \(data.formattedLastEaten)")
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
-                        }
-                    }
-                }
-            } else if data.isConnected {
-                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    HStack(alignment: .firstTextBaseline, spacing: 2) {
-                        // Score-display font is fine for 2-digit values
-                        // but blows the card layout once we hit 1,000+ kcal.
-                        // Drop to tempoTitle1 + a single-line minimumScaleFactor
-                        // so 9,999 still fits without overflowing the card.
-                        Text(data.formattedCalories)
-                            .font(.tempoTitle1)
-                            .fontWeight(.bold)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.6)
-                            .contentTransition(.numericText(countsDown: false))
-                            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: data.formattedCalories)
-                        Text("kcal")
-                            .font(.tempoCaption2)
-                            .fontWeight(.medium)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                    }
-
-                    progressBar(progress: data.calorieProgress, color: Color.tempoViolet)
-                        .animation(.spring(response: 0.5, dampingFraction: 0.8), value: data.calorieProgress)
-
-                    Text("of \(data.formattedCalorieTarget) target")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
-
-                    Divider().opacity(0.3)
-
-                    // Macro mini rings with color-coded status (Task 2)
-                    HStack(spacing: 6) {
-                        fuelCardMacroRing(
-                            letter: "P",
-                            current: data.proteinGrams ?? 0,
-                            target: data.proteinTarget ?? 180,
-                            color: .cyan,
-                            status: data.proteinStatus
-                        )
-                        fuelCardMacroRing(
-                            letter: "C",
-                            current: data.carbsGrams ?? 0,
-                            target: data.carbsTarget ?? 280,
-                            color: .yellow,
-                            status: data.carbsStatus
-                        )
-                        fuelCardMacroRing(
-                            letter: "F",
-                            current: data.fatGrams ?? 0,
-                            target: data.fatTarget ?? 80,
-                            color: .orange,
-                            status: data.fatStatus
-                        )
-                    }
-
-                    // Hydration quick display (Task 4)
-                    if data.hydrationMl > 0 {
-                        HStack(spacing: 4) {
-                            Image(systemName: "drop.fill")
-                                .font(.system(size: 8))
-                                .foregroundStyle(Color.tempoElectric)
-                            Text(data.formattedHydration)
-                                .font(.tempoCaption2)
-                                .fontWeight(.medium)
-                                .foregroundStyle(
-                                    data.hydrationProgress >= 0.7
-                                        ? Color.tempoSuccess : Color.tempoTextSecondary
-                                )
-                        }
-                    }
-
-                    // Nutrition mode badge (Task 1)
-                    if data.nutritionMode != .standard {
-                        HStack(spacing: 4) {
-                            Circle()
-                                .fill(fuelModeBadgeColor(data.nutritionMode))
-                                .frame(width: 5, height: 5)
-                            Text(fuelModeBadgeText(data.nutritionMode))
-                                .font(.system(size: 9, weight: .bold))
-                                .tracking(0.5)
-                                .foregroundStyle(fuelModeBadgeColor(data.nutritionMode))
-                        }
-                    }
-
-                    Text(data.formattedMeals)
-                        .font(.tempoCaption2)
-                        .fontWeight(.medium)
-                        .foregroundStyle(
-                            (data.mealsLogged ?? 0) >= (data.mealsPlanned ?? 1)
-                                ? Color.tempoSuccess : Color.tempoTextSecondary
-                        )
-
-                    // "Last meal Xh ago" — surfaces fasting / next-meal
-                    // timing at a glance. Wrapped in TimelineView so the
-                    // label updates every minute without a manual refresh.
-                    if data.lastEatenAt != nil {
-                        TimelineView(.everyMinute) { _ in
-                            Text("Last meal \(data.formattedLastEaten)")
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
-                        }
-                    }
-                }
-            } else {
-                connectPrompt(
-                    icon: "fork.knife",
-                    message: "Add Meal",
-                    buttonText: "Add",
-                    action: { showMealLogging = true }
+            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+                cardHero(
+                    data.caloriesConsumed.map { NumberFormatter.localizedString(from: NSNumber(value: $0), number: .decimal) } ?? "0",
+                    color: data.calorieProgress > 1.0 ? Color.tempoError : Color.tempoTextPrimary
                 )
+                cardCaption(data.caloriesCaption)
+
+                Divider().opacity(0.3)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    miniMetricAnimated(
+                        label: "Protein",
+                        value: FuelQuadrantData.macroProgress(current: data.proteinGrams, target: data.proteinTarget),
+                        valueColor: macroValueColor(data.proteinStatus)
+                    )
+                    miniMetricAnimated(
+                        label: "Carbs",
+                        value: FuelQuadrantData.macroProgress(current: data.carbsGrams, target: data.carbsTarget),
+                        valueColor: macroValueColor(data.carbsStatus)
+                    )
+                    miniMetricAnimated(
+                        label: "Fat",
+                        value: FuelQuadrantData.macroProgress(current: data.fatGrams, target: data.fatTarget),
+                        valueColor: macroValueColor(data.fatStatus)
+                    )
+                }
+
+                // TimelineView keeps "Last meal Xh ago" current without a refresh.
+                TimelineView(.everyMinute) { _ in
+                    cardFooterBar(
+                        progress: data.calorieProgress,
+                        fill: data.calorieProgress > 1.0 ? Color.tempoError : Color.tempoViolet,
+                        label: data.cardFootnote
+                    )
+                }
             }
         }
     }
 
-    private func fuelCardMacroRing(
-        letter: String,
-        current: Int,
-        target: Int,
-        color: Color,
-        status: NutritionEngine.MacroStatus
-    ) -> some View {
-        let progress = target > 0 ? Double(current) / Double(target) : 0
-        let ringColor: Color = switch status {
+    /// Macro rows stay white until they're done: green when on target, red
+    /// when over. "Behind" is the normal state mid-day, so it isn't flagged.
+    private func macroValueColor(_ status: NutritionEngine.MacroStatus) -> Color {
+        switch status {
         case .onTrack: .tempoSuccess
-        case .behind: .tempoWarning
+        case .behind: .tempoTextPrimary
         case .over: .tempoError
-        }
-
-        return VStack(spacing: 2) {
-            ZStack {
-                Circle()
-                    .stroke(color.opacity(0.2), style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                Circle()
-                    .trim(from: 0, to: min(progress, 1.0))
-                    .stroke(ringColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-
-                Text(letter)
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundStyle(Color.tempoTextSecondary)
-            }
-            .frame(width: 24, height: 24)
-
-            Text("\(current)g")
-                .font(.system(size: 9, weight: .medium, design: .monospaced))
-                .foregroundStyle(Color.tempoTextTertiary)
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private func fuelModeBadgeColor(_ mode: NutritionMode) -> Color {
-        switch mode {
-        case .repair: .tempoError
-        case .fuel: .tempoSuccess
-        case .rest: .tempoElectric
-        case .standard: .tempoTextTertiary
-        }
-    }
-
-    private func fuelModeBadgeText(_ mode: NutritionMode) -> String {
-        switch mode {
-        case .repair: "REPAIR"
-        case .fuel: "FUEL UP"
-        case .rest: "REST"
-        case .standard: ""
         }
     }
 
@@ -746,55 +612,37 @@ struct DashboardView: View {
     private func mindCard(_ data: MindQuadrantData) -> some View {
         cardShell(label: "MIND") {
             VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                Text(data.formattedStudyTime)
-                    .font(.tempoXPDisplay)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                    .contentTransition(.numericText(countsDown: false))
-                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: data.formattedStudyTime)
-
-                if data.studyMinutesToday >= data.studyTargetMinutes, data.studyTargetMinutes > 0 {
-                    Text("Target hit")
-                        .font(.tempoCaption1)
-                        .fontWeight(.medium)
-                        .foregroundStyle(Color.tempoSuccess)
-                } else {
-                    Text("of \(data.formattedStudyTarget) target")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                }
-
-                progressBar(
-                    progress: data.studyProgress,
-                    color: Color.tempoElectric
+                cardHero(data.formattedStudyTime, color: Color.tempoTextPrimary)
+                cardCaption(
+                    data.studyCaption,
+                    color: data.hasHitStudyTarget ? Color.tempoSuccess : Color.tempoTextTertiary
                 )
-                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: data.studyProgress)
 
-                if let exam = data.exams.first {
-                    HStack(spacing: 4) {
-                        Image(systemName: "calendar")
-                            .font(.tempoModuleTag)
-                        Text("\(exam.name) \(exam.formattedCountdown)")
-                            .font(.tempoCaption2)
-                            .fontWeight(.medium)
-                            .lineLimit(1)
-                    }
-                    .foregroundStyle(examCountdownColor(exam.daysUntil))
-                }
+                Divider().opacity(0.3)
 
-                if data.currentStreakDays >= 2 {
-                    HStack(spacing: 4) {
-                        Image(systemName: "flame.fill")
-                            .font(.tempoModuleTag)
-                            .foregroundStyle(Color.tempoAmber)
-                        Text("\(data.formattedStreak) streak")
-                            .font(.tempoCaption2)
-                            .fontWeight(.medium)
-                            .foregroundStyle(
-                                data.currentStreakDays >= 7
-                                    ? Color.tempoAmber : Color.tempoTextSecondary
-                            )
+                VStack(alignment: .leading, spacing: 6) {
+                    miniMetric(label: "Target", value: data.formattedStudyTarget)
+                    miniMetric(
+                        label: "Streak",
+                        value: data.formattedStreak,
+                        valueColor: data.currentStreakDays >= 7 ? Color.tempoAmber : Color.tempoTextPrimary
+                    )
+                    if let exam = data.exams.first {
+                        miniMetric(
+                            label: exam.name,
+                            value: exam.formattedCountdown,
+                            valueColor: examCountdownColor(exam.daysUntil)
+                        )
+                    } else {
+                        miniMetric(label: "Exam", value: "--")
                     }
                 }
+
+                cardFooterBar(
+                    progress: data.studyProgress,
+                    fill: Color.tempoElectric,
+                    label: data.studyProgressText
+                )
             }
         }
     }
@@ -805,7 +653,8 @@ struct DashboardView: View {
         cardShell(label: "MOVE") {
             if data.isConnected || healthKitAuthorized {
                 VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    workoutStatus(data)
+                    cardHero(data.workoutHeadline, color: workoutColor(data.workoutStatus))
+                    cardCaption(data.workoutCaption, color: workoutCaptionColor(data.workoutStatus))
 
                     Divider().opacity(0.3)
 
@@ -815,30 +664,15 @@ struct DashboardView: View {
                             value: data.formattedSteps,
                             valueColor: stepsColor(data.steps, target: data.stepsTarget)
                         )
-                        miniMetricAnimated(
-                            label: "Active",
-                            value: data.formattedActiveCalories,
-                            valueColor: .tempoTextPrimary
-                        )
-                        miniMetricAnimated(
-                            label: "Strain",
-                            value: data.formattedStrain,
-                            valueColor: .tempoTextPrimary
-                        )
+                        miniMetricAnimated(label: "Active", value: data.formattedActiveCalories)
+                        miniMetricAnimated(label: "Strain", value: data.formattedStrain)
                     }
 
-                    progressBar(
+                    cardFooterBar(
                         progress: data.stepsProgress,
-                        color: Color.tempoAmber
+                        fill: Color.tempoAmber,
+                        label: data.stepsGoalText
                     )
-                    .animation(.spring(response: 0.5, dampingFraction: 0.8), value: data.stepsProgress)
-
-                    HStack {
-                        Spacer()
-                        Text("\(NumberFormatter.localizedString(from: NSNumber(value: data.stepsTarget), number: .decimal)) goal")
-                            .font(.tempoModuleTag)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                    }
                 }
             } else {
                 connectPrompt(
@@ -855,54 +689,17 @@ struct DashboardView: View {
         }
     }
 
-    @ViewBuilder
-    private func workoutStatus(_ data: MoveQuadrantData) -> some View {
-        switch data.workoutStatus {
-        case .completed:
-            HStack(spacing: 4) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.tempoCallout)
-                    .foregroundStyle(Color.tempoSuccess)
-                Text("Done")
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoSuccess)
-            }
-            if let name = data.workoutName {
-                Text("\(name) — \(data.formattedWorkoutDuration)")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .lineLimit(1)
-            }
-        case .planned:
-            Text(data.workoutName ?? "Workout")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .lineLimit(1)
-            Text("Planned for today")
-                .font(.tempoCaption2)
-                .fontWeight(.medium)
-                .foregroundStyle(Color.tempoAmber)
-            if let duration = data.workoutDurationMinutes {
-                Text("~\(duration) min")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
-            }
-        case .restDay:
-            Text("Rest Day")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextSecondary)
-            Text("Recovery is training.")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
-                .italic()
-        case .none:
-            Text("No workout")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextTertiary)
-            Text("Add one or skip.")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+    private func workoutColor(_ status: DashboardWorkoutStatus) -> Color {
+        switch status {
+        case .completed: .tempoSuccess
+        case .planned: .tempoTextPrimary
+        case .restDay: .tempoTextSecondary
+        case .none: .tempoTextTertiary
         }
+    }
+
+    private func workoutCaptionColor(_ status: DashboardWorkoutStatus) -> Color {
+        status == .planned ? .tempoAmber : .tempoTextTertiary
     }
 
     // MARK: - Non-Negotiables
@@ -1226,11 +1023,13 @@ struct DashboardView: View {
             Text(label)
                 .font(.tempoCaption2)
                 .foregroundStyle(Color.tempoTextTertiary)
-            Spacer()
+                .lineLimit(1)
+            Spacer(minLength: 4)
             Text(value)
                 .font(.tempoDataSmall)
                 .fontWeight(.bold)
                 .foregroundStyle(valueColor)
+                .lineLimit(1)
                 .minimumScaleFactor(0.7)
         }
     }
@@ -1241,11 +1040,13 @@ struct DashboardView: View {
             Text(label)
                 .font(.tempoCaption2)
                 .foregroundStyle(Color.tempoTextTertiary)
-            Spacer()
+                .lineLimit(1)
+            Spacer(minLength: 4)
             Text(value)
                 .font(.tempoDataSmall)
                 .fontWeight(.bold)
                 .foregroundStyle(valueColor)
+                .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .contentTransition(.numericText(countsDown: false))
                 .animation(.spring(response: 0.4, dampingFraction: 0.8), value: value)
@@ -1266,19 +1067,28 @@ struct DashboardView: View {
         .frame(height: height)
     }
 
-    private func macroDot(letter: String, value: String, color: Color) -> some View {
-        HStack(spacing: 3) {
-            Circle()
-                .fill(color)
-                .frame(width: 5, height: 5)
-            Text("\(letter) \(value)")
-                .font(.tempoModuleTag)
-                .fontWeight(.medium)
-                .foregroundStyle(Color.tempoTextSecondary)
-        }
+    /// Big number at the top of a quadrant card.
+    private func cardHero(_ value: String, color: Color) -> some View {
+        Text(value)
+            .font(.tempoXPDisplay)
+            .foregroundStyle(color)
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
+            .contentTransition(.numericText(countsDown: false))
+            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: value)
     }
 
-    private func strainIndicator(_ strain: Double) -> some View {
+    /// Small label under a card's hero value.
+    private func cardCaption(_ text: String, color: Color = .tempoTextTertiary) -> some View {
+        Text(text)
+            .font(.tempoCaption1)
+            .fontWeight(.medium)
+            .foregroundStyle(color)
+            .lineLimit(1)
+    }
+
+    /// Thin progress bar with a caption, closing every quadrant card.
+    private func cardFooterBar(progress: Double, fill: some ShapeStyle, label: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
@@ -1286,21 +1096,17 @@ struct DashboardView: View {
                         .fill(Color.tempoBorder.opacity(0.5))
                         .frame(height: 3)
                     Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.tempoSuccess, Color.tempoWarning, Color.tempoError],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(width: geo.size.width * min(strain / 21.0, 1.0), height: 3)
+                        .fill(fill)
+                        .frame(width: geo.size.width * min(max(progress, 0), 1.0), height: 3)
                 }
             }
             .frame(height: 3)
+            .animation(.spring(response: 0.5, dampingFraction: 0.8), value: progress)
 
-            Text("Strain \(String(format: "%.1f", strain))")
+            Text(label)
                 .font(.tempoModuleTag)
                 .foregroundStyle(Color.tempoTextTertiary)
+                .lineLimit(1)
         }
     }
 

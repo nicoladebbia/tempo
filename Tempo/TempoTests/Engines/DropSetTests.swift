@@ -354,6 +354,35 @@ final class DropSetTests: XCTestCase {
         _ = slot // silence unused-var warning if slot goes unread on some paths
     }
 
+    /// Fix #9 — `persistCompletion`'s write into `ExerciseHistory.totalVolume`
+    /// (the single source every progress chart/dashboard/monthly-review
+    /// tonnage reader sums) must double a per-side exercise's tonnage, while
+    /// its e1RM stays the single-side Epley value.
+    func testPersistCompletionDoublesPerSideVolumeButNotE1RM() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let (plan, slot) = seedSingleExercise(working: 1, context: context)
+        slot.perSide = true
+        try context.save()
+        vm.todayPlan = plan
+        enterSetActive(vm)
+        vm.autoStartRest = true
+
+        vm.logSet(weight: 20, reps: 8, modelContext: context) // "SA DB Row" — single-side reps
+
+        XCTAssertTrue(vm.persistCompletion(modelContext: context))
+
+        let planID = plan.id
+        let rows = try context.fetch(FetchDescriptor<ExerciseHistory>(
+            predicate: #Predicate<ExerciseHistory> { $0.workoutPlanID == planID }
+        ))
+        let row = try XCTUnwrap(rows.first)
+
+        XCTAssertEqual(row.totalVolume, 20 * 8 * 2, "both sides worked — the tonnage covers both")
+        let e1RM = try XCTUnwrap(row.estimated1RM)
+        XCTAssertEqual(e1RM, 20 * (1 + 8.0 / 30.0), accuracy: 0.001, "e1RM off the single-side reps, never doubled")
+    }
+
     // MARK: - Review fixes
 
     func testNextWorkingSetPrefillsTopSetWeightNotTheDrop() throws {

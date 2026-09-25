@@ -3,11 +3,14 @@
 // Tempo
 //
 // Edit-before-save for an imported Trainer Program: program name, start
-// date, repeats, then per-week -> per-day (weekday/title/focus/notes) ->
-// per-exercise (name with a live library-match indicator, sets/reps/weight/
-// RPE/%1RM/rest/superset group/notes, move/remove). Save resolves any
-// still-unmatched exercise into a custom library entry (TrainerProgramSaver),
-// deactivates any other active program, and posts
+// date, repeats, then per-week -> per-day (weekday/title/focus incl.
+// conditioning/notes) -> per-exercise. A strength day edits sets/reps/
+// weight/RPE/%1RM/rest/superset group/per-side/notes; a conditioning day
+// (focus run/sprint/conditioning/pool/mobility) edits a free-text `detail`
+// prescription instead of sets x reps. Two days can share a weekday (a lift
+// + a conditioning session) — shown as "Lift + conditioning". Save resolves
+// any still-unmatched exercise into a custom library entry
+// (TrainerProgramSaver), deactivates any other active program, and posts
 // `.tempoTrainingSettingsChanged` so the plan regenerates.
 //
 
@@ -21,11 +24,21 @@ struct TrainerProgramReviewView: View {
     private var modelContext
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(ServiceContainer.self)
+    private var services
     @Query(sort: \Exercise.name)
     private var libraryExercises: [Exercise]
     @Query
     private var userSettings: [UserSettings]
+    /// Fix #11(b) — to offer "starts after the current one ends" / "on a
+    /// date" when importing a NEW program while one is already active.
+    @Query
+    private var allPrograms: [TrainerProgram]
 
+    /// Fix #11(a) — non-nil means this screen is EDITING a saved program in
+    /// place (`TrainerProgramSaver.update`) rather than reviewing a freshly
+    /// parsed one before its first save.
+    let editingProgram: TrainerProgram?
     let sourceKind: String
     let sourceText: String
     var onSaved: () -> Void
@@ -36,25 +49,66 @@ struct TrainerProgramReviewView: View {
     private var startDate: Date
     @State
     private var repeats = true
+    /// §13 — whether Tempo adds its own 50%/75% ramp warm-ups on this
+    /// program's lifting days. Defaults on (matches `TrainerProgram.
+    /// warmupsEnabled`'s nil-means-true default for a brand-new program).
+    @State
+    private var autoWarmups = true
+    /// Fix #6 — chosen here (and editable later on TrainerProgramView).
+    @State
+    private var scheduleMode: TrainerProgramScheduleMode = .fixed
     @State
     private var weeks: [ProgramWeek]
     @State
     private var autoAssignedWeekdays: Bool
     @State
     private var saveError: String?
+    /// Weekday-less sessions are placed around football once, on appear
+    /// (UserSettings isn't available at init). Skipped entirely when editing
+    /// — an already-saved program's weekdays are deliberate, not a fresh
+    /// auto-placement.
+    @State
+    private var didPlaceAroundFootball = false
+    /// Fix #11(b) — when creating a NEW program while one is already active.
+    @State
+    private var startTiming: StartTiming = .now
 
+    enum StartTiming: Hashable {
+        case now
+        case afterCurrent
+        case onDate
+    }
+
+    /// Import flow (new program, nothing saved yet).
     init(
         parsed: TrainerProgramParser.ParsedProgram,
         sourceKind: String,
         sourceText: String,
         onSaved: @escaping () -> Void
     ) {
+        editingProgram = nil
         _name = State(initialValue: parsed.name)
         _startDate = State(initialValue: TrainingCalendar.mondayOfWeek(containing: Date()))
         _weeks = State(initialValue: parsed.weeks)
         _autoAssignedWeekdays = State(initialValue: parsed.autoAssignedWeekdays)
         self.sourceKind = sourceKind
         self.sourceText = sourceText
+        self.onSaved = onSaved
+    }
+
+    /// Fix #11(a) — edit flow for an already-saved program.
+    init(editingProgram program: TrainerProgram, onSaved: @escaping () -> Void) {
+        editingProgram = program
+        _name = State(initialValue: program.name)
+        _startDate = State(initialValue: program.startDate)
+        _repeats = State(initialValue: program.repeats)
+        _autoWarmups = State(initialValue: program.warmupsEnabled)
+        _scheduleMode = State(initialValue: program.scheduleMode)
+        _weeks = State(initialValue: program.weeks)
+        _autoAssignedWeekdays = State(initialValue: false)
+        _didPlaceAroundFootball = State(initialValue: true) // never auto-place an edit
+        sourceKind = program.sourceKind
+        sourceText = program.sourceText ?? ""
         self.onSaved = onSaved
     }
 
@@ -66,17 +120,36 @@ struct TrainerProgramReviewView: View {
         !weeks.isEmpty && weeks.contains { $0.days.contains { !$0.exercises.isEmpty } }
     }
 
+    /// The program THIS import would replace/queue behind — nil when
+    /// editing (edits never re-queue) or nothing else is active.
+    private var otherActiveProgram: TrainerProgram? {
+        guard editingProgram == nil else {
+            return nil
+        }
+        return allPrograms.first { $0.isActive }
+    }
+
     var body: some View {
+        reviewContent
+            .task {
+                guard !didPlaceAroundFootball else {
+                    return
+                }
+                didPlaceAroundFootball = true
+                let football = ProgramScheduler.isoWeekdays(of: userSettings.first?.footballDays ?? ActiveDays(rawValue: 0))
+                weeks = ProgramScheduler.place(weeks: weeks, footballWeekdays: football)
+            }
+    }
+
+    private var reviewContent: some View {
         NavigationStack {
             Form {
                 programSection
                 if autoAssignedWeekdays {
                     Section {
-                        Text(
-                            "Some days had no weekday in the source — Tempo spread them across the week (Mon/Wed/Fri style). Change any day below."
-                        )
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        Text("We placed these around your football — change any day.")
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoTextSecondary)
                     }
                 }
                 ForEach($weeks) { $week in
@@ -99,7 +172,7 @@ struct TrainerProgramReviewView: View {
             }
             .scrollContentBackground(.hidden)
             .background(Color.tempoBgPrimary)
-            .navigationTitle("Review Program")
+            .navigationTitle(editingProgram == nil ? "Review Program" : "Edit Program")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -143,11 +216,82 @@ struct TrainerProgramReviewView: View {
                 ),
                 displayedComponents: .date
             )
+            .disabled(startTiming == .afterCurrent)
 
             if weeks.count > 1 {
                 Toggle("Repeats after last week", isOn: $repeats)
                     .tint(Color.tempoSignal)
             }
+
+            Toggle(isOn: $autoWarmups) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Tempo warm-up sets")
+                    Text("Add a 50%/75% ramp before each lift. Off — exactly what your trainer wrote.")
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                }
+            }
+            .tint(Color.tempoSignal)
+
+            // Fix #6 — schedule mode, editable here and later on
+            // TrainerProgramView.
+            Picker("Schedule", selection: $scheduleMode) {
+                ForEach(TrainerProgramScheduleMode.allCases, id: \.self) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+            Text(scheduleMode.explanation)
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextTertiary)
+
+            // Fix #11(b) — queue behind the current program instead of
+            // replacing it immediately.
+            if let otherActiveProgram {
+                Picker("Starts", selection: $startTiming) {
+                    Text("Now — replaces \"\(otherActiveProgram.name)\"").tag(StartTiming.now)
+                    if !otherActiveProgram.repeats {
+                        Text("After \"\(otherActiveProgram.name)\" ends").tag(StartTiming.afterCurrent)
+                    }
+                    Text("On a date").tag(StartTiming.onDate)
+                }
+                .onChange(of: startTiming) { _, newValue in
+                    switch newValue {
+                    case .now:
+                        break
+                    case .afterCurrent:
+                        if let end = blockEndDate(of: otherActiveProgram) {
+                            startDate = TrainingCalendar.mondayOfWeek(containing: end)
+                        }
+                    case .onDate:
+                        break
+                    }
+                }
+                if startTiming != .now {
+                    Text(queueExplanation)
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                }
+            }
+        }
+    }
+
+    /// Monday of the week right after `program`'s last week — nil for a
+    /// repeating (never-ending) program.
+    private func blockEndDate(of program: TrainerProgram) -> Date? {
+        guard !program.repeats else {
+            return nil
+        }
+        return Calendar.current.date(byAdding: .day, value: program.weeks.count * 7, to: program.startDate)
+    }
+
+    private var queueExplanation: String {
+        switch startTiming {
+        case .now:
+            ""
+        case .afterCurrent:
+            "Starts \(startDate.formatted(date: .abbreviated, time: .omitted)) — auto-activates that day; your current program keeps running until then."
+        case .onDate:
+            "Starts \(startDate.formatted(date: .abbreviated, time: .omitted)) — pick the date above. Your current program keeps running until then."
         }
     }
 
@@ -166,15 +310,37 @@ struct TrainerProgramReviewView: View {
 
     private func save() {
         do {
-            _ = try TrainerProgramSaver.save(
-                name: name,
-                startDate: startDate,
-                weeks: weeks,
-                repeats: weeks.count > 1 ? repeats : true,
-                sourceKind: sourceKind,
-                sourceText: sourceText,
-                modelContext: modelContext
-            )
+            if let editingProgram {
+                // Fix #11(a) — edit in place.
+                try TrainerProgramSaver.update(
+                    editingProgram,
+                    name: name,
+                    startDate: startDate,
+                    weeks: weeks,
+                    repeats: weeks.count > 1 ? repeats : true,
+                    autoWarmups: autoWarmups,
+                    scheduleMode: scheduleMode,
+                    modelContext: modelContext,
+                    trainingEngine: services.trainingEngine,
+                    whoop: services.whoop,
+                    healthKit: services.healthKit
+                )
+            } else {
+                let queuedActivationDate: Date? = startTiming == .now ? nil : startDate
+                let saved = try TrainerProgramSaver.save(
+                    name: name,
+                    startDate: startDate,
+                    weeks: weeks,
+                    repeats: weeks.count > 1 ? repeats : true,
+                    sourceKind: sourceKind,
+                    sourceText: sourceText,
+                    modelContext: modelContext,
+                    autoWarmups: autoWarmups,
+                    scheduleMode: scheduleMode,
+                    queuedActivationDate: queuedActivationDate
+                )
+                _ = saved
+            }
             onSaved()
         } catch {
             saveError = error.localizedDescription
@@ -198,6 +364,7 @@ private struct WeekEditorSection: View {
             ForEach($week.days) { $day in
                 DayEditorView(
                     day: $day,
+                    pairedSessionLabel: pairedSessionLabel(for: day),
                     libraryExercises: libraryExercises,
                     weightUnit: weightUnit,
                     onRemoveDay: { removeDay(day.id) }
@@ -220,6 +387,17 @@ private struct WeekEditorSection: View {
         }
     }
 
+    /// Two sessions land on the same weekday when a trainer schedules a
+    /// lift + a conditioning session on the same day — call that out rather
+    /// than let it read as an accidental duplicate.
+    private func pairedSessionLabel(for day: ProgramDay) -> String? {
+        let sameWeekday = week.days.filter { $0.weekday == day.weekday }
+        guard sameWeekday.count == 2 else {
+            return nil
+        }
+        return "Lift + conditioning"
+    }
+
     private func addDay() {
         let used = Set(week.days.map(\.weekday))
         let nextWeekday = (1 ... 7).first { !used.contains($0) } ?? 1
@@ -236,11 +414,20 @@ private struct WeekEditorSection: View {
 private struct DayEditorView: View {
     @Binding
     var day: ProgramDay
+    /// "Lift + conditioning" when another day shares this weekday — nil
+    /// otherwise.
+    let pairedSessionLabel: String?
     let libraryExercises: [Exercise]
     let weightUnit: WeightUnit
     let onRemoveDay: () -> Void
 
-    private static let gymWorkoutTypes = WorkoutType.allCases.filter(\.isGymWorkout)
+    /// Every focus a trainer program can carry — strength and conditioning
+    /// — excluding rest/football, which aren't sessions a program schedules.
+    private static let focusTypes = WorkoutType.allCases.filter { $0 != .rest && $0 != .football }
+
+    private var isConditioning: Bool {
+        !day.isStrength
+    }
 
     var body: some View {
         DisclosureGroup {
@@ -249,12 +436,16 @@ private struct DayEditorView: View {
                     Text(TrainerProgramView.shortWeekdayName(weekday)).tag(weekday)
                 }
             }
+            // The user chose this day — it's no longer an auto-placement.
+            .onChange(of: day.weekday) { _, _ in
+                day.weekdayGuessed = false
+            }
 
             TextField("Day title (optional)", text: stringBinding(for: $day.title))
 
             Picker("Focus", selection: $day.focus) {
                 Text("None").tag(String?.none)
-                ForEach(Self.gymWorkoutTypes, id: \.self) { type in
+                ForEach(Self.focusTypes, id: \.self) { type in
                     Text(type.displayName).tag(String?.some(type.rawValue))
                 }
             }
@@ -264,6 +455,7 @@ private struct DayEditorView: View {
             ForEach($day.exercises) { $exercise in
                 ExerciseRowEditor(
                     exercise: $exercise,
+                    isConditioning: isConditioning,
                     libraryExercises: libraryExercises,
                     weightUnit: weightUnit,
                     canMoveUp: canMove(exercise.id, delta: -1),
@@ -284,9 +476,22 @@ private struct DayEditorView: View {
                 .font(.tempoCaption1)
         } label: {
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(TrainerProgramView.shortWeekdayName(day.weekday)) — \(day.title ?? (day.workoutType.displayName))")
-                    .font(.tempoBodyBold)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                HStack(spacing: TempoSpacing.xs) {
+                    Text("\(TrainerProgramView.shortWeekdayName(day.weekday)) — \(day.title ?? (day.workoutType.displayName))")
+                        .font(.tempoBodyBold)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                    if day.weekdayGuessed == true {
+                        Image(systemName: "wand.and.stars")
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoWarning)
+                            .accessibilityLabel("Day auto-placed")
+                    }
+                }
+                if let pairedSessionLabel {
+                    Text(pairedSessionLabel)
+                        .font(.tempoCaption2.weight(.semibold))
+                        .foregroundStyle(Color.tempoSignal)
+                }
                 Text("\(day.exercises.count) exercise\(day.exercises.count == 1 ? "" : "s")")
                     .font(.tempoCaption2)
                     .foregroundStyle(Color.tempoTextTertiary)
@@ -298,15 +503,16 @@ private struct DayEditorView: View {
         day.exercises.append(ProgramExercise(
             name: "",
             exerciseID: nil,
-            sets: 3,
-            repsLow: 10,
+            sets: isConditioning ? 1 : 3,
+            repsLow: isConditioning ? 1 : 10,
             repsHigh: nil,
             weightKg: nil,
             rpe: nil,
             percentOf1RM: nil,
-            restSeconds: 90,
+            restSeconds: isConditioning ? nil : 90,
             group: nil,
-            notes: nil
+            notes: nil,
+            detail: isConditioning ? "" : nil
         ))
     }
 
@@ -339,6 +545,9 @@ private struct DayEditorView: View {
 private struct ExerciseRowEditor: View {
     @Binding
     var exercise: ProgramExercise
+    /// A conditioning day (run/sprint/conditioning/pool/mobility) edits a
+    /// free-text `detail` prescription instead of sets x reps/weight/%1RM.
+    let isConditioning: Bool
     let libraryExercises: [Exercise]
     let weightUnit: WeightUnit
     let canMoveUp: Bool
@@ -364,6 +573,7 @@ private struct ExerciseRowEditor: View {
 
     init(
         exercise: Binding<ProgramExercise>,
+        isConditioning: Bool,
         libraryExercises: [Exercise],
         weightUnit: WeightUnit,
         canMoveUp: Bool,
@@ -373,6 +583,7 @@ private struct ExerciseRowEditor: View {
         onRemove: @escaping () -> Void
     ) {
         _exercise = exercise
+        self.isConditioning = isConditioning
         self.libraryExercises = libraryExercises
         self.weightUnit = weightUnit
         self.canMoveUp = canMoveUp
@@ -423,40 +634,64 @@ private struct ExerciseRowEditor: View {
 
             matchIndicator
 
-            HStack(spacing: TempoSpacing.md) {
-                labeledField("Sets") {
-                    TextField("sets", text: $setsText)
-                        .keyboardType(.numberPad)
-                        .onChange(of: setsText) { _, newValue in
-                            if let parsed = Int(newValue), parsed > 0 {
-                                exercise.sets = parsed
+            if isConditioning {
+                labeledField("Prescription") {
+                    TextField("e.g. 35' — 2' slow / 1' fast / 30\" walk", text: stringBinding(for: $exercise.detail), axis: .vertical)
+                        .lineLimit(2 ... 4)
+                }
+                HStack(spacing: TempoSpacing.md) {
+                    labeledField("RPE") { TextField("rpe", text: stringBinding(for: $exercise.rpe)).keyboardType(.decimalPad) }
+                    labeledField("Rest (sec)") {
+                        TextField("rest", text: stringBinding(for: $exercise.restSeconds)).keyboardType(.numberPad)
+                    }
+                    labeledField("Superset #") { TextField("group", text: stringBinding(for: $exercise.group)).keyboardType(.numberPad) }
+                }
+            } else {
+                HStack(spacing: TempoSpacing.md) {
+                    labeledField("Sets") {
+                        TextField("sets", text: $setsText)
+                            .keyboardType(.numberPad)
+                            .onChange(of: setsText) { _, newValue in
+                                if let parsed = Int(newValue), parsed > 0 {
+                                    exercise.sets = parsed
+                                }
                             }
-                        }
-                }
-                labeledField("Reps low") {
-                    TextField("low", text: $repsLowText)
-                        .keyboardType(.numberPad)
-                        .onChange(of: repsLowText) { _, newValue in
-                            if let parsed = Int(newValue), parsed > 0 {
-                                exercise.repsLow = parsed
+                    }
+                    labeledField("Reps low") {
+                        TextField("low", text: $repsLowText)
+                            .keyboardType(.numberPad)
+                            .onChange(of: repsLowText) { _, newValue in
+                                if let parsed = Int(newValue), parsed > 0 {
+                                    exercise.repsLow = parsed
+                                }
                             }
-                        }
+                    }
+                    labeledField("Reps high") { TextField("high", text: stringBinding(for: $exercise.repsHigh)).keyboardType(.numberPad) }
                 }
-                labeledField("Reps high") { TextField("high", text: stringBinding(for: $exercise.repsHigh)).keyboardType(.numberPad) }
-            }
 
-            HStack(spacing: TempoSpacing.md) {
-                labeledField("Weight (\(weightUnit.abbreviation))") {
-                    TextField("weight", text: weightBinding(kgValue: $exercise.weightKg, unit: weightUnit))
-                        .keyboardType(.decimalPad)
+                Toggle("Per side (e.g. \"8+8\")", isOn: perSideBinding($exercise.perSide))
+                    .font(.tempoCaption1)
+                    .tint(Color.tempoSignal)
+
+                HStack(spacing: TempoSpacing.md) {
+                    labeledField("Weight (\(weightUnit.abbreviation))") {
+                        TextField("weight", text: weightBinding(kgValue: $exercise.weightKg, unit: weightUnit))
+                            .keyboardType(.decimalPad)
+                    }
+                    labeledField("RPE") { TextField("rpe", text: stringBinding(for: $exercise.rpe)).keyboardType(.decimalPad) }
+                    labeledField("% 1RM") { TextField("pct", text: percentBinding($exercise.percentOf1RM)).keyboardType(.numberPad) }
                 }
-                labeledField("RPE") { TextField("rpe", text: stringBinding(for: $exercise.rpe)).keyboardType(.decimalPad) }
-                labeledField("% 1RM") { TextField("pct", text: percentBinding($exercise.percentOf1RM)).keyboardType(.numberPad) }
-            }
 
-            HStack(spacing: TempoSpacing.md) {
-                labeledField("Rest (sec)") { TextField("rest", text: stringBinding(for: $exercise.restSeconds)).keyboardType(.numberPad) }
-                labeledField("Superset #") { TextField("group", text: stringBinding(for: $exercise.group)).keyboardType(.numberPad) }
+                // §5 — show how the % will actually be read BEFORE saving, so
+                // "70%" never silently becomes a guessed weight.
+                percentReadingHint
+
+                HStack(spacing: TempoSpacing.md) {
+                    labeledField("Rest (sec)") {
+                        TextField("rest", text: stringBinding(for: $exercise.restSeconds)).keyboardType(.numberPad)
+                    }
+                    labeledField("Superset #") { TextField("group", text: stringBinding(for: $exercise.group)).keyboardType(.numberPad) }
+                }
             }
 
             TextField("Notes (optional)", text: stringBinding(for: $exercise.notes))
@@ -476,9 +711,30 @@ private struct ExerciseRowEditor: View {
         }
     }
 
+    /// The equipment the trainer wrote for this row, when it conflicts with
+    /// `matchedExercise`'s own equipment — fix #10. Non-nil here means Save
+    /// will clone an equipment variant (TrainerProgramSaver) instead of
+    /// linking straight to the match; this previews that before saving.
+    private var conflictingWrittenEquipment: Equipment? {
+        guard let matchedExercise else {
+            return nil
+        }
+        guard let written = ExerciseMatcher.writtenEquipment(in: exercise.name), written != matchedExercise.equipment else {
+            return nil
+        }
+        return written
+    }
+
     private var matchIndicator: some View {
         HStack(spacing: TempoSpacing.xs) {
-            if let matchedExercise {
+            if let matchedExercise, let conflictingWrittenEquipment {
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.tempoSuccess)
+                Text(
+                    "→ \(TrainerProgramSaver.variantName(rawName: exercise.name, matchedName: matchedExercise.name, equipment: conflictingWrittenEquipment)) (new variant of \(matchedExercise.name))"
+                )
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextSecondary)
+            } else if let matchedExercise {
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.tempoSuccess)
                 Text("Matches \(matchedExercise.name)")
                     .font(.tempoCaption2)
@@ -492,6 +748,30 @@ private struct ExerciseRowEditor: View {
             Spacer()
             Button("Change") { showPicker = true }
                 .font(.tempoCaption2)
+        }
+    }
+
+    /// §5 — "70% → effort, calibrate first set" vs "70% of your 100 kg max =
+    /// 70 kg", read against the MATCHED library exercise (unmatched → always
+    /// effort, since there's no exercise to hold history against).
+    @ViewBuilder
+    private var percentReadingHint: some View {
+        if let pct = exercise.percentOf1RM, pct > 0, (exercise.weightKg ?? 0) <= 0 {
+            let percentLabel = "\(Int((pct * 100).rounded()))%"
+            if let matched = matchedExercise,
+               !TrainingViewModel.isIsolationOrMachine(matched),
+               let e1RM = TrainingViewModel.reliableEstimated1RM(for: matched), e1RM > 0
+            {
+                let maxDisplay = Int(WeightUnit.kg.convert(e1RM, to: weightUnit).rounded())
+                let weightDisplay = Int(WeightUnit.kg.convert(e1RM * min(pct, 1.1), to: weightUnit).rounded())
+                Text("\(percentLabel) of your \(maxDisplay) \(weightUnit.abbreviation) max = \(weightDisplay) \(weightUnit.abbreviation)")
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextTertiary)
+            } else {
+                Text("\(percentLabel) → effort, calibrate first set")
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoAmber)
+            }
         }
     }
 
@@ -603,6 +883,15 @@ private func stringBinding(for value: Binding<Double?>) -> Binding<String> {
             let cleaned = newText.replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespaces)
             value.wrappedValue = cleaned.isEmpty ? nil : Double(cleaned)
         }
+    )
+}
+
+/// `perSide` is `Bool?` (nil = not per-side); the toggle only cares about
+/// true/false and always writes an explicit value, never nil.
+private func perSideBinding(_ value: Binding<Bool?>) -> Binding<Bool> {
+    Binding<Bool>(
+        get: { value.wrappedValue ?? false },
+        set: { newValue in value.wrappedValue = newValue }
     )
 }
 

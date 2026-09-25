@@ -30,17 +30,47 @@ enum WeightConverter {
     static func increment(for equipment: Equipment, unit: WeightUnit) -> Double {
         switch unit {
         case .lbs:
-            return 5
+            5
         case .kg:
             switch equipment {
-            case .machine, .cable:
-                return 5
+            case .machine,
+                 .cable:
+                5
             case .kettlebell:
-                return 4
+                4
             default:
-                return 2.5
+                2.5
             }
         }
+    }
+
+    /// Real kettlebell bell sizes in kg. Gyms don't stock a bell every 2 kg —
+    /// they jump 20 -> 22 -> 24 -> 28 (no 26), and 28 -> 32 -> 36 -> 40 -> 44
+    /// -> 48 (no odd-4 step at the top either). The old fixed 4 kg lattice
+    /// (`increment(for: .kettlebell, unit: .kg)`) missed every bell at 6, 10,
+    /// 14, 18 and 22 kg and could snap a 21 kg prescription to 20 when the
+    /// nearest REAL bell is 22. Kept separate from `increment` — that's still
+    /// the right step size for a manual +/- stepper (NumericEntrySheet);
+    /// this is for snapping a PRESCRIPTION to gear that actually exists.
+    private static let kettlebellSizesKg: [Double] = [
+        4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 28, 32, 36, 40, 44, 48,
+    ]
+
+    /// Nearest bell; ties (a value exactly between two — the ladder steps by
+    /// 2 kg from 4-24, so every odd kg in that range is exactly between two
+    /// real bells) round UP rather than defaulting to whichever the array
+    /// happens to list first.
+    private static func nearestKettlebellKg(_ kg: Double) -> Double {
+        var best = kettlebellSizesKg[0]
+        var bestDistance = abs(best - kg)
+        for size in kettlebellSizesKg.dropFirst() {
+            let distance = abs(size - kg)
+            if distance < bestDistance || (distance == bestDistance && size > best) {
+                best = size
+                bestDistance = distance
+            }
+        }
+        return best
     }
 
     /// Bar weight in the display unit's REGIONAL standard — a US bar is
@@ -48,13 +78,13 @@ enum WeightConverter {
     static func barWeight(for equipment: Equipment, unit: WeightUnit) -> Double {
         switch unit {
         case .kg:
-            return equipment.barWeightKg
+            equipment.barWeightKg
         case .lbs:
             switch equipment {
-            case .barbell: return 45
-            case .ezBar: return 25
-            case .trapBar: return 55
-            default: return 0
+            case .barbell: 45
+            case .ezBar: 25
+            case .trapBar: 55
+            default: 0
             }
         }
     }
@@ -69,10 +99,18 @@ enum WeightConverter {
             return kg
         }
         switch equipment {
-        case .bodyweight, .pullUpBar, .resistanceBand:
+        case .bodyweight,
+             .pullUpBar,
+             .resistanceBand:
             return kg
         default:
             break
+        }
+        // Kettlebells in kg: snap to a REAL bell size, not a fixed lattice
+        // (see kettlebellSizesKg above). In lbs, gyms already sell bells in
+        // ~5 lb steps, which the generic path below already produces.
+        if equipment == .kettlebell, unit == .kg {
+            return nearestKettlebellKg(kg)
         }
         let display = unit == .kg ? kg : toLbs(kg)
         let step = increment(for: equipment, unit: unit)

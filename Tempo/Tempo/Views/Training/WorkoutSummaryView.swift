@@ -27,6 +27,9 @@ struct WorkoutSummaryView: View {
     private var ringProgress: Double = 0
     @State
     private var checkScale: Double = 0.3
+    /// Fix #8 — "send report to trainer" entry point (TrainerReportSheet.swift, new file).
+    @State
+    private var showTrainerReport = false
 
     /// Completed working sets over planned working sets (warmups excluded).
     /// No sets at all → 1.0 (nothing was cut short).
@@ -76,6 +79,10 @@ struct WorkoutSummaryView: View {
                     .frame(maxWidth: .infinity)
                 }
 
+                // §4 — trainer-program exercises Tempo adjusted (recovery/pain
+                // note) or that the athlete overrode back to the trainer's number.
+                trainerAdjustmentsSection
+
                 // Per-exercise summary
                 exerciseSummary
 
@@ -92,6 +99,26 @@ struct WorkoutSummaryView: View {
         }
         .background(Color.tempoBgPrimary)
         .navigationBarBackButtonHidden()
+        .toolbar {
+            if viewModel.todayPlan?.programSessionKey != nil {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        showTrainerReport = true
+                    } label: {
+                        Image(systemName: "paperplane")
+                    }
+                    .accessibilityLabel("Send report to trainer")
+                }
+            }
+        }
+        .sheet(isPresented: $showTrainerReport) {
+            if let program = TrainerReportSheet.program(
+                forSessionKey: viewModel.todayPlan?.programSessionKey,
+                modelContext: modelContext
+            ) {
+                TrainerReportSheet(program: program)
+            }
+        }
     }
 
     // MARK: - Header
@@ -239,6 +266,51 @@ struct WorkoutSummaryView: View {
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
     }
 
+    // MARK: - Trainer Adjustments (§4)
+
+    /// Exercises with a recorded `loadAdjustmentNote` (Tempo changed the
+    /// trainer's number) or an applied override (the athlete used the
+    /// trainer's own number instead). Empty on a generated day.
+    private var trainerAdjustedExercises: [PlannedExercise] {
+        (viewModel.todayPlan?.orderedExercises ?? []).filter {
+            $0.loadAdjustmentNote != nil || $0.trainerOverrideApplied
+        }
+    }
+
+    @ViewBuilder
+    private var trainerAdjustmentsSection: some View {
+        if !trainerAdjustedExercises.isEmpty {
+            VStack(alignment: .leading, spacing: TempoSpacing.md) {
+                Text("Trainer Adjustments")
+                    .font(.tempoTitle3)
+                    .foregroundStyle(Color.tempoTextPrimary)
+
+                ForEach(trainerAdjustedExercises, id: \.id) { plannedEx in
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(plannedEx.displayName)
+                                .font(.tempoBody)
+                                .foregroundStyle(Color.tempoTextPrimary)
+                            Text(
+                                plannedEx.trainerOverrideApplied
+                                    ? "Used the trainer's own weight"
+                                    : (plannedEx.loadAdjustmentNote ?? "Adjusted")
+                            )
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                        }
+                        Spacer()
+                        Image(systemName: plannedEx.trainerOverrideApplied ? "arrow.uturn.backward.circle" : "slider.horizontal.3")
+                            .foregroundStyle(Color.tempoWarning)
+                    }
+                    .padding(TempoSpacing.md)
+                    .background(Color.tempoSurfaceCard)
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+                }
+            }
+        }
+    }
+
     // MARK: - Per-Exercise Summary
 
     private var exerciseSummary: some View {
@@ -267,7 +339,12 @@ struct WorkoutSummaryView: View {
                    let weight = best.actualWeight,
                    let reps = best.actualReps
                 {
-                    Text("Best: \(formattedWeight(weight)) x \(reps)")
+                    // Fix #9 — "x 8 / side", or "x L8 / R7" for a logged split.
+                    let repsText = SideRepsFormat.loggedReps(
+                        actual: reps, left: best.actualRepsLeft, right: best.actualRepsRight,
+                        perSide: plannedEx.perSide
+                    )
+                    Text("Best: \(formattedWeight(weight)) x \(repsText)")
                         .font(.tempoCaption1)
                         .foregroundStyle(Color.tempoTextSecondary)
                 }

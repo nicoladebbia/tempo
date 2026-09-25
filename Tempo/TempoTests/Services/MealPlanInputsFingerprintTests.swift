@@ -38,6 +38,82 @@ final class MealPlanInputsFingerprintTests: XCTestCase {
         XCTAssertNotEqual(base, MealPlanInputsFingerprint.fingerprint(inputs(football: 2)))
     }
 
+    func testChangesWhenAMatchIsAddedOrTheCustomSplitChanges() throws {
+        let container = try TempoModelContainer.create(inMemory: true)
+        let context = container.mainContext
+        let settings = UserSettings()
+        context.insert(settings)
+        try context.save()
+        let before = MealPlanInputsFingerprint.current(in: context)
+
+        context.insert(Match(kickoff: Date().addingTimeInterval(3 * 24 * 3600), isCompetitive: true))
+        try context.save()
+        let withMatch = MealPlanInputsFingerprint.current(in: context)
+        XCTAssertNotEqual(before, withMatch, "a new match reshapes the training week")
+
+        settings.customWeekdayPlan = [.push, .rest, .pull, .rest, .legs, .rest, .rest]
+        try context.save()
+        XCTAssertNotEqual(withMatch, MealPlanInputsFingerprint.current(in: context))
+    }
+
+    /// Fix #6 — in sequence mode, completing a session shifts which of this
+    /// week's remaining days are training days even with nothing else about
+    /// the program changed, so the cached plan must be flagged stale too.
+    func testChangesWhenASequenceModeSessionIsCompleted() throws {
+        let container = try TempoModelContainer.create(inMemory: true)
+        let context = container.mainContext
+        context.insert(UserSettings())
+        let program = TrainerProgram(
+            name: "PT", startDate: Date(),
+            weeks: [ProgramWeek(days: [
+                ProgramDay(
+                    weekday: 1, title: nil, focus: "push",
+                    exercises: [ProgramExercise(name: "Bench", sets: 3, repsLow: 5)]
+                ),
+            ])],
+            isActive: true, sourceKind: "text", scheduleMode: .sequence
+        )
+        context.insert(program)
+        try context.save()
+        let before = MealPlanInputsFingerprint.current(in: context)
+
+        let completed = WorkoutPlan(date: Date(), type: .push, status: .completed)
+        completed.programSessionKey = program.sessionKey(weekIndex: 0, dayIndex: 0)
+        context.insert(completed)
+        try context.save()
+
+        XCTAssertNotEqual(before, MealPlanInputsFingerprint.current(in: context), "the sequence cursor advanced")
+    }
+
+    /// A fixed-mode program's completions don't move anything (no cursor to
+    /// advance) — the fingerprint should stay stable so a normal set logged
+    /// during a workout doesn't spuriously mark the meal plan out of date.
+    func testFixedModeCompletionDoesNotChangeTheFingerprint() throws {
+        let container = try TempoModelContainer.create(inMemory: true)
+        let context = container.mainContext
+        context.insert(UserSettings())
+        let program = TrainerProgram(
+            name: "PT", startDate: Date(),
+            weeks: [ProgramWeek(days: [
+                ProgramDay(
+                    weekday: 1, title: nil, focus: "push",
+                    exercises: [ProgramExercise(name: "Bench", sets: 3, repsLow: 5)]
+                ),
+            ])],
+            isActive: true, sourceKind: "text"
+        )
+        context.insert(program)
+        try context.save()
+        let before = MealPlanInputsFingerprint.current(in: context)
+
+        let completed = WorkoutPlan(date: Date(), type: .push, status: .completed)
+        completed.programSessionKey = program.sessionKey(weekIndex: 0, dayIndex: 0)
+        context.insert(completed)
+        try context.save()
+
+        XCTAssertEqual(before, MealPlanInputsFingerprint.current(in: context))
+    }
+
     func testChangesWithDietProfileEdits() {
         let profile = DietaryProfile()
         let before = MealPlanInputsFingerprint.fingerprint(inputs(profile: profile))
