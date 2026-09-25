@@ -409,6 +409,28 @@ struct MoveQuadrantData {
     var heartRateCurrent: Int?
     var isConnected: Bool
     var lastSync: Date?
+    /// Today's planned session type (nil until the training status loads).
+    var workoutType: WorkoutType? = nil
+
+    /// What the Move detail's primary button starts — mirrors the Training
+    /// tab: a gym day logs a workout, a rest / mobility day offers a
+    /// mobility flow, and other non-gym days (football, run…) have nothing
+    /// to start.
+    enum StartAction: Equatable {
+        case workout
+        case mobility
+        case none
+    }
+
+    var startAction: StartAction {
+        guard let workoutType else {
+            return .workout
+        }
+        if workoutType == .rest || workoutType == .mobility {
+            return .mobility
+        }
+        return workoutType.isGymWorkout ? .workout : .none
+    }
 
     var stepsProgress: Double {
         guard let steps, stepsTarget > 0 else {
