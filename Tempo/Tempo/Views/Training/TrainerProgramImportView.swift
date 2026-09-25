@@ -82,6 +82,8 @@ struct TrainerProgramImportView: View {
         let parsed: TrainerProgramParser.ParsedProgram
         let sourceKind: String
         let sourceText: String
+        /// The import's session — new-exercise research shares its quota slot.
+        var sessionID: String?
     }
 
     var body: some View {
@@ -158,6 +160,7 @@ struct TrainerProgramImportView: View {
                 parsed: payload.parsed,
                 sourceKind: payload.sourceKind,
                 sourceText: payload.sourceText,
+                researchSessionID: payload.sessionID,
                 onSaved: { dismiss() }
             )
         }
@@ -456,7 +459,12 @@ struct TrainerProgramImportView: View {
             processingLabel = "Structuring your program…"
             let parsed = try await importService.structureProgram(from: transcript, sessionID: sessionID)
             try Task.checkCancellation()
-            reviewPayload = ReviewPayload(parsed: parsed, sourceKind: sourceKindLabel, sourceText: transcript)
+            reviewPayload = ReviewPayload(
+                parsed: parsed,
+                sourceKind: sourceKindLabel,
+                sourceText: transcript,
+                sessionID: sessionID
+            )
             await loadQuota()
         } catch is CancellationError {
             // Cancelled by the user — nothing to report.
