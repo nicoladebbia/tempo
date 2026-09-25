@@ -40,7 +40,8 @@ extension TrainingViewModel {
                 totalSets: working.count,
                 completedSets: working.filter(\.completed).count,
                 targetReps: reference.targetReps,
-                targetWeightKg: reference.targetWeight ?? 0
+                targetWeightKg: reference.targetWeight ?? 0,
+                perSide: slot.perSide
             )
         }
         guard !exercises.isEmpty else {

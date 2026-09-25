@@ -88,6 +88,20 @@ protocol NotificationServiceProtocol: Sendable {
     /// Cancel the overdue reminder for `mealID`.
     func cancelOverdueMealReminder(forMealID mealID: UUID)
 
+    /// Fix #12 — reminder for one active-TrainerProgram session (Training's
+    /// REAL week, after recovery/match pauses). `sessionKey` is
+    /// `TrainerProgram.sessionKey(weekIndex:dayIndex:)`; the identifier is
+    /// derived from it plus `date` so a repeating 1-week program's same
+    /// weekday gets a fresh id every real calendar week, and rescheduling the
+    /// SAME date is idempotent (remove + add lands on the same id). Unlike
+    /// the other reminders here this is deliberately scheduled up to 7 days
+    /// out — see `TrainerSessionReminderScheduler`.
+    func scheduleTrainerSessionReminder(sessionKey: String, date: Date, title: String, body: String, fireDate: Date)
+
+    /// Cancel every pending trainer-session reminder — called before
+    /// rebuilding the rolling 7-day window.
+    func cancelTrainerSessionReminders()
+
     func cancelAll()
     func cancelCategory(_ category: String)
 }

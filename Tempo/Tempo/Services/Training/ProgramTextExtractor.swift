@@ -2,14 +2,25 @@
 // ProgramTextExtractor.swift
 // Tempo
 //
-// On-device text extraction for Trainer Program import: Vision OCR for
-// photos/screenshots (reuses VisionReceiptOCR's accurate-mode pattern, with
-// language correction ON — unlike abbreviated receipt SKUs, exercise-sheet
-// prose benefits from it), PDFKit for PDF text layers (falling back to
-// render + OCR for a scanned page with no text layer), and pasted text
-// as-is. The observation-ordering logic is pure and Vision-free (`order`
-// takes plain bounding boxes), so table layouts (sets/reps columns) can be
-// pinned with fixtures without a real Vision call.
+// On-device extraction helpers feeding the Trainer Program import pipeline
+// (TrainerProgramSourceNormalizer runs the actual per-source pipeline; this
+// file holds the pure/testable primitives it calls):
+//  - Vision OCR for photos/screenshots (reuses VisionReceiptOCR's
+//    accurate-mode pattern, with language correction ON — unlike
+//    abbreviated receipt SKUs, exercise-sheet prose benefits from it).
+//  - Position-aware PDF text: PDFKit's own per-line selections
+//    (`selectionsByLine()`), each mapped to a normalized bounding box and
+//    re-ordered with `order(_:rowTolerance:)`. This matters because a real
+//    trainer sheet is often two tables side by side (e.g. two exercises per
+//    row) — `PDFPage.string` reads the content stream in insertion order and
+//    interleaves the two tables' columns into garbage ("A Leg Press A SA
+//    Incline DB Chest Press 3 x 8 3 x 8 70% - 70% 60\""); grouping by each
+//    line's own visual bounds keeps every table's row intact.
+//  - Page rasterization (2x) for both a scanned page with no text layer and
+//    for every PDF page's own image sent to the vision transcription step.
+// The observation-ordering logic is pure and Vision-free (`order` takes
+// plain bounding boxes), so table layouts (sets/reps columns) can be pinned
+// with fixtures without a real Vision call or a real PDF.
 //
 
 import Foundation
@@ -126,7 +137,9 @@ enum ProgramTextExtractor {
         }
     }
 
-    /// OCRs one image and returns its text in reading order (one page).
+    /// OCRs one image and returns its text in reading order (one page). Used
+    /// both for a photographed page and as the on-device hint for a PDF page
+    /// with no text layer (a scanned sheet).
     static func extractText(from image: UIImage) async throws -> String {
         let lines = try await recognizeLines(in: image)
         guard !lines.isEmpty else {
@@ -135,54 +148,59 @@ enum ProgramTextExtractor {
         return order(lines).joined(separator: "\n")
     }
 
-    /// OCRs several images (photos of consecutive pages/sheets) and joins
-    /// them as separate pages.
-    static func extractText(from images: [UIImage]) async throws -> String {
-        var pages: [String] = []
-        for image in images {
-            try await pages.append(extractText(from: image))
+    // MARK: - PDF: position-aware text
+
+    /// One PDF page's text in reading order, using PDFKit's own per-line
+    /// selections mapped to normalized bounding boxes and re-ordered with
+    /// `order(_:rowTolerance:)`. A tighter tolerance than the OCR default
+    /// (0.006 vs 0.015) is deliberate: PDFKit's line detection is precise
+    /// (unlike Vision's per-character baseline jitter), so a small
+    /// tolerance is enough to catch genuine same-row wrapping without
+    /// merging two visually-close-but-distinct lines.
+    static func positionAwareLines(on page: PDFPage) -> [String] {
+        let bounds = page.bounds(for: .mediaBox)
+        guard bounds.width > 0, bounds.height > 0,
+              let pageSelection = page.selection(for: bounds)
+        else {
+            return []
         }
-        guard !pages.isEmpty else {
-            throw ExtractorError.noTextFound
+        let observations: [TextObservation] = pageSelection.selectionsByLine().compactMap { line in
+            let text = line.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !text.isEmpty else {
+                return nil
+            }
+            let lineBounds = line.bounds(for: page)
+            guard lineBounds.width > 0, lineBounds.height > 0 else {
+                return nil
+            }
+            let normalized = CGRect(
+                x: lineBounds.minX / bounds.width,
+                y: lineBounds.minY / bounds.height,
+                width: lineBounds.width / bounds.width,
+                height: lineBounds.height / bounds.height
+            )
+            return TextObservation(text: text, boundingBox: normalized)
         }
-        return pages.joined(separator: "\n\n")
+        return order(observations, rowTolerance: 0.006)
     }
 
-    // MARK: - PDF
-
-    /// Extracts text from a PDF: each page's own text layer when present,
-    /// otherwise the page is rendered to an image and OCR'd (a scanned
-    /// sheet has no text layer at all).
-    static func extractText(fromPDFAt url: URL) async throws -> String {
-        let didAccess = url.startAccessingSecurityScopedResource()
-        defer {
-            if didAccess {
-                url.stopAccessingSecurityScopedResource()
-            }
+    /// One PDF page's text layer, position-aware-ordered, or nil when the
+    /// page has no text layer at all (a scanned sheet — caller should fall
+    /// back to Vision OCR on the rendered page image).
+    static func positionAwareText(on page: PDFPage) -> String? {
+        let lines = positionAwareLines(on: page)
+        guard !lines.isEmpty else {
+            return nil
         }
-        guard let document = PDFDocument(url: url) else {
-            throw ExtractorError.pdfUnreadable
-        }
-        var pages: [String] = []
-        for index in 0 ..< document.pageCount {
-            guard let page = document.page(at: index) else {
-                continue
-            }
-            if let text = page.string?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty {
-                pages.append(text)
-            } else if let image = renderToImage(page) {
-                try await pages.append(extractText(from: image))
-            }
-        }
-        guard !pages.isEmpty else {
-            throw ExtractorError.noTextFound
-        }
-        return pages.joined(separator: "\n\n")
+        return lines.joined(separator: "\n")
     }
 
-    /// Rasterizes a PDF page with no text layer (a scanned sheet) at 2x so
-    /// OCR has legible input.
-    private static func renderToImage(_ page: PDFPage, scale: CGFloat = 2.0) -> UIImage? {
+    // MARK: - PDF: page rasterization
+
+    /// Rasterizes a PDF page to an image at `scale` — used both as OCR input
+    /// for a page with no text layer and as the image every PDF page sends
+    /// to the vision transcription step.
+    static func renderImage(for page: PDFPage, scale: CGFloat = 2.0) -> UIImage? {
         let bounds = page.bounds(for: .mediaBox)
         guard bounds.width > 0, bounds.height > 0 else {
             return nil

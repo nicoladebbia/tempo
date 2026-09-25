@@ -112,6 +112,49 @@ enum ExerciseMatcher {
         "dumbbell", "barbell", "kettlebell", "cable", "machine", "smith", "band", "bodyweight", "ez", "trap",
     ]
 
+    /// Maps an `equipmentTokens` word to the `Equipment` case it names.
+    private static let equipmentByToken: [String: Equipment] = [
+        "dumbbell": .dumbbell,
+        "barbell": .barbell,
+        "kettlebell": .kettlebell,
+        "cable": .cable,
+        "machine": .machine,
+        "smith": .smithMachine,
+        "band": .resistanceBand,
+        "bodyweight": .bodyweight,
+        "ez": .ezBar,
+        "trap": .trapBar,
+    ]
+
+    /// Equipment the trainer explicitly wrote for this exercise (after
+    /// shorthand expansion — "kt"/"kb" -> kettlebell, "db" -> dumbbell,
+    /// "bb" -> barbell, ...), or nil when the name doesn't name one. Used by
+    /// TrainerProgramSaver to detect when a matched library lift is built on
+    /// DIFFERENT equipment than the trainer prescribed (e.g. "KT Lat Step Up"
+    /// matching the dumbbell "Step-Up") so it can clone a same-name equipment
+    /// variant instead of silently prescribing the wrong gear's loads, and by
+    /// the review screen's live match indicator to preview that variant.
+    static func writtenEquipment(in rawName: String) -> Equipment? {
+        let expanded = expandShorthand(normalize(rawName))
+        let words = expanded.components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }
+        for word in words {
+            if let equipment = equipmentByToken[word] {
+                return equipment
+            }
+        }
+        return nil
+    }
+
+    /// True for any word `writtenEquipment(in:)` recognizes as naming a piece
+    /// of equipment ("dumbbell", "kettlebell", "band", ...). Lets
+    /// TrainerProgramSaver strip equipment words out of a trainer's shorthand
+    /// when building a cloned variant's name (the equipment becomes the
+    /// name's prefix instead — "Kettlebell Lateral Step-Up", not "Kettlebell
+    /// Kettlebell Lateral Step-Up").
+    static func isEquipmentWord(_ word: String) -> Bool {
+        equipmentByToken[word] != nil
+    }
+
     // MARK: - Normalization
 
     static func normalize(_ text: String) -> String {

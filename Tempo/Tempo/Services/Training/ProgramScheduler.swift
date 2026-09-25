@@ -79,13 +79,13 @@ enum ProgramScheduler {
         guard count < sorted.count else {
             return sorted
         }
-        if count == 1 {
-            return [sorted[0]]
-        }
-        let step = Double(sorted.count - 1) / Double(count - 1)
+        // Circular spacing: the week wraps (Sunday → Monday), so spread by
+        // n / count steps rather than pinning both ends (which put two lifts
+        // on Sunday and Monday, back to back).
+        let step = Double(sorted.count) / Double(count)
         var picked: [Int] = []
         for i in 0 ..< count {
-            let candidate = sorted[Int((Double(i) * step).rounded())]
+            let candidate = sorted[Int((Double(i) * step).rounded(.down))]
             if !picked.contains(candidate) {
                 picked.append(candidate)
             }

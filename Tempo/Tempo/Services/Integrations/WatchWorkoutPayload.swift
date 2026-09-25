@@ -20,6 +20,10 @@ struct WatchWorkoutPayload: Codable, Equatable {
         let completedSets: Int
         let targetReps: Int
         let targetWeightKg: Double
+        /// Fix #9 — nil decodes as false (a watch/phone build lag on either
+        /// side must never crash decoding); `targetReps` is always the
+        /// SINGLE-side count, same as the phone.
+        var perSide: Bool?
     }
 
     /// "PUSH", "PULL", … display label for the ready screen.

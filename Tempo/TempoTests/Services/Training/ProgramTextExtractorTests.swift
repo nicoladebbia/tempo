@@ -7,8 +7,20 @@
 // to right within a row) — the part that matters for a table-style sets/reps
 // sheet, and the only part that can be unit-tested without a real Vision call.
 //
+// Also pins `positionAwareLines(on:)`'s own glue — mapping PDFKit's
+// per-line selection bounds into `order()`'s normalized-bounding-box
+// contract (bottom-left origin, 0-1 range) — against small synthetic PDFs
+// built with UIGraphicsPDFRenderer. PDFKit's own line-grouping heuristic
+// (which real trainer-sheet content ends up on the same "line") is a
+// platform behavior these tests don't try to pin; that contract was instead
+// verified against two real trainer PDFs during development (see the PR
+// description) — this file only pins that OUR normalization math and
+// ordering are correct once PDFKit hands back its line selections.
+//
 
+import PDFKit
 @testable import Tempo
+import UIKit
 import XCTest
 
 final class ProgramTextExtractorTests: XCTestCase {
@@ -83,5 +95,61 @@ final class ProgramTextExtractorTests: XCTestCase {
             ProgramTextExtractor.order(observations),
             ["Exercise   Reps", "Bench   10", "Squat   8"]
         )
+    }
+
+    // MARK: - Position-aware PDF text
+
+    /// Builds a one-page PDF with each string drawn at its own rect (UIKit
+    /// coordinates: origin top-left, y down — matching how `NSString.draw
+    /// (in:)` is used everywhere else in this file's production code).
+    private func makeSyntheticPDFPage(lines: [(text: String, rect: CGRect)], pageSize: CGSize) -> PDFPage {
+        let renderer = UIGraphicsPDFRenderer(bounds: CGRect(origin: .zero, size: pageSize))
+        let data = renderer.pdfData { context in
+            context.beginPage()
+            let attributes: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: 14)]
+            for line in lines {
+                (line.text as NSString).draw(in: line.rect, withAttributes: attributes)
+            }
+        }
+        guard let page = PDFDocument(data: data)?.page(at: 0) else {
+            fatalError("synthetic PDF failed to build — test setup is broken")
+        }
+        return page
+    }
+
+    func testPositionAwareLinesOrdersDistinctRowsTopToBottom() {
+        let pageSize = CGSize(width: 300, height: 200)
+        // UIKit y increases downward, so the smallest y is visually topmost.
+        let page = makeSyntheticPDFPage(
+            lines: [
+                (text: "Row 3", rect: CGRect(x: 20, y: 140, width: 200, height: 20)),
+                (text: "Row 1", rect: CGRect(x: 20, y: 20, width: 200, height: 20)),
+                (text: "Row 2", rect: CGRect(x: 20, y: 80, width: 200, height: 20)),
+            ],
+            pageSize: pageSize
+        )
+        XCTAssertEqual(
+            ProgramTextExtractor.positionAwareLines(on: page),
+            ["Row 1", "Row 2", "Row 3"]
+        )
+    }
+
+    func testPositionAwareTextJoinsLinesWithNewlines() throws {
+        let pageSize = CGSize(width: 300, height: 200)
+        let page = makeSyntheticPDFPage(
+            lines: [
+                (text: "Section Title", rect: CGRect(x: 20, y: 20, width: 200, height: 20)),
+                (text: "A Squat 3x5", rect: CGRect(x: 20, y: 80, width: 200, height: 20)),
+            ],
+            pageSize: pageSize
+        )
+        let text = try XCTUnwrap(ProgramTextExtractor.positionAwareText(on: page))
+        XCTAssertEqual(text, "Section Title\nA Squat 3x5")
+    }
+
+    func testPositionAwareTextIsNilForABlankPage() {
+        let page = makeSyntheticPDFPage(lines: [], pageSize: CGSize(width: 300, height: 200))
+        XCTAssertNil(ProgramTextExtractor.positionAwareText(on: page))
+        XCTAssertEqual(ProgramTextExtractor.positionAwareLines(on: page), [])
     }
 }

@@ -832,6 +832,12 @@ extension TrainingViewModel {
     /// `fixedWeightKg` (explicit or %1RM-derived) and `targetRIR`, and skip
     /// Tempo's scheduled deload (`applyDeload: false`) — the trainer owns the
     /// periodization. Recovery, pain notes and loadable snapping still apply.
+    /// §5 `isEffortOnly` — a trainer % with no reliable e1RM to read it
+    /// against (or an isolation/machine lift): every working set gets no
+    /// pre-filled `targetWeight`, the FIRST is flagged `isCalibration`, and no
+    /// warmup ramp is built (there's no known weight to ramp toward).
+    /// §13 `includeWarmups` — false skips the 50%/75% ramp entirely even with
+    /// a known weight (trainer's `autoWarmups` off).
     func prescribedSets(
         for exercise: Exercise,
         workingSets: Int,
@@ -841,9 +847,29 @@ extension TrainingViewModel {
         targetReps: Int? = nil,
         fixedWeightKg: Double? = nil,
         targetRIR: Int? = nil,
-        applyDeload: Bool = true
+        applyDeload: Bool = true,
+        isEffortOnly: Bool = false,
+        includeWarmups: Bool = true
     ) -> [PlannedSet] {
         let reps = targetReps ?? (exercise.isCompound ? 8 : 12)
+
+        if isEffortOnly {
+            var sets: [PlannedSet] = []
+            var setNum = 1
+            for i in 1 ... max(1, workingSets) {
+                sets.append(PlannedSet(
+                    setNumber: setNum,
+                    targetReps: reps,
+                    targetWeight: nil,
+                    targetRIR: targetRIR,
+                    isCalibration: i == 1,
+                    plannedExercise: plannedExercise
+                ))
+                setNum += 1
+            }
+            return sets
+        }
+
         let learnedIncrements = adaptiveSignals(modelContext: modelContext).learnedIncrements
         let history = exercise.history ?? []
         let overload = trainingEngine.calculateProgressiveOverload(
@@ -898,7 +924,7 @@ extension TrainingViewModel {
 
         var sets: [PlannedSet] = []
         var setNum = 1
-        if exercise.isCompound, rounded > 0, !isBodyweightLift {
+        if exercise.isCompound, rounded > 0, !isBodyweightLift, includeWarmups {
             // §2.16 — full 50%/75% ramp only when this is the plan's FIRST
             // compound; a swap/add landing after another compound works warm
             // muscle and gets one 75% feel set.

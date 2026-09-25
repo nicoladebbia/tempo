@@ -26,8 +26,16 @@ struct ActiveWorkoutView: View {
 
     @State
     private var inputWeight: Double = 0
+    /// Fix #9 — not `private` below: read from ActiveWorkoutView+PerSide.swift
+    /// (split out to stay under the file_length cap). `logRepsSeparately`/
+    /// `inputRepsRight` back an optional L/R split log; never sticky (reset
+    /// in `loadCurrentSetInputs`).
     @State
-    private var inputReps: Double = 8
+    var inputReps: Double = 8
+    @State
+    var logRepsSeparately = false
+    @State
+    var inputRepsRight: Double = 8
     /// Signed added load (display unit) for bodyweight-loaded lifts: positive =
     /// weight belt/vest, negative = assistance (band/machine). Only used when the
     /// current exercise is bodyweight-loaded; effective load = bodyweight ± this.
@@ -473,9 +481,17 @@ struct ActiveWorkoutView: View {
                 // bar. For bar-loaded lifts we show a per-side plate hint so
                 // there's no ambiguity about what to actually put on.
                 VStack(spacing: TempoSpacing.sm) {
-                    Text("WEIGHT — total incl. bar")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                    if currentSetIsCalibration {
+                        // §5 — no pre-filled weight; the athlete picks one.
+                        Text(calibrationPromptText)
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoAmber)
+                            .multilineTextAlignment(.center)
+                    } else {
+                        Text("WEIGHT — total incl. bar")
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                    }
                     NumberStepperView(
                         value: $inputWeight,
                         range: 0 ... weightRangeMax,
@@ -494,7 +510,7 @@ struct ActiveWorkoutView: View {
 
             // Reps input
             VStack(spacing: TempoSpacing.sm) {
-                Text("REPS")
+                Text(isPerSideExercise ? "REPS — LEFT" : "REPS")
                     .font(.tempoCaption2)
                     .foregroundStyle(Color.tempoTextTertiary)
                 NumberStepperView(
@@ -502,9 +518,13 @@ struct ActiveWorkoutView: View {
                     range: 1 ... 100,
                     step: 1,
                     format: "%.0f",
-                    unit: "reps",
+                    unit: isPerSideExercise ? "reps / side" : "reps",
                     onTapValue: { activeEntryField = .reps }
                 )
+                // Fix #9 — optional L/R split (e.g. L 8 / R 7).
+                if isPerSideExercise, !currentSetIsWarmup {
+                    PerSideRepsControl(left: $inputReps, right: $inputRepsRight, splitEnabled: $logRepsSeparately)
+                }
                 // §11.12 — the effort target that makes the weight make
                 // sense: the load is computed FOR this rep count at this
                 // proximity to failure.
@@ -542,11 +562,22 @@ struct ActiveWorkoutView: View {
         let exerciseID: UUID? = viewModel.currentExercise?.exercise?.id
         let painFlagged = exerciseID.map { viewModel.painFlaggedExercises.contains($0) } ?? false
         let dropIndex = viewModel.currentSet?.dropStepIndex
-        if currentSetIsWarmup || painFlagged || viewModel.currentSupersetPartnerName != nil || dropIndex != nil {
+        if currentSetIsWarmup || currentSetIsCalibration || painFlagged
+            || viewModel.currentSupersetPartnerName != nil || dropIndex != nil
+        {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: TempoSpacing.xs) {
                     if currentSetIsWarmup {
-                        chip("flame", "RAMP-UP — doesn't count", Color.tempoSignal)
+                        // §13 — a trainer day's ramp is one Tempo added.
+                        let isTrainerDay = viewModel.currentExercise?.workoutPlan?.programSessionKey != nil
+                        chip(
+                            "flame",
+                            isTrainerDay ? "TEMPO WARM-UP — doesn't count" : "RAMP-UP — doesn't count",
+                            Color.tempoSignal
+                        )
+                    }
+                    if currentSetIsCalibration {
+                        chip("ruler", "CALIBRATION SET", Color.tempoAmber)
                     }
                     if painFlagged {
                         chip("exclamationmark.triangle.fill", "Pain flagged — weight held, go easy", Color.tempoWarning)
@@ -606,7 +637,8 @@ struct ActiveWorkoutView: View {
         guard let set = viewModel.currentSet, let w = set.targetWeight else {
             return nil
         }
-        return "\(displayWeight(w)) × \(set.targetReps)"
+        let reps = SideRepsFormat.reps(set.targetReps, perSide: viewModel.currentExercise?.perSide == true)
+        return "\(displayWeight(w)) × \(reps)"
     }
 
     /// All-time best estimated 1RM for this lift.
@@ -714,6 +746,8 @@ struct ActiveWorkoutView: View {
                         weight: bodyweightEffectiveKg,
                         reps: Int(inputReps),
                         addedLoadKg: weightUnit.convert(inputAddedLoad, to: .kg),
+                        leftReps: splitLeftReps,
+                        rightReps: splitRightReps,
                         modelContext: modelContext
                     )
                 } else {
@@ -721,6 +755,8 @@ struct ActiveWorkoutView: View {
                     viewModel.logSet(
                         weight: weightKg,
                         reps: Int(inputReps),
+                        leftReps: splitLeftReps,
+                        rightReps: splitRightReps,
                         modelContext: modelContext
                     )
                 }
@@ -738,8 +774,23 @@ struct ActiveWorkoutView: View {
     }
 
     /// Whether the set currently being entered is a warm-up (ramp) set.
-    private var currentSetIsWarmup: Bool {
+    var currentSetIsWarmup: Bool { // Fix #9 — not `private`: read from +PerSide.swift
         viewModel.currentSet?.isWarmup ?? false
+    }
+
+    /// §5 — whether the current set is a calibration set: a trainer % with no
+    /// reliable e1RM to read it against. No weight is pre-filled; logging it
+    /// derives the working weights for the rest of the exercise.
+    private var currentSetIsCalibration: Bool {
+        viewModel.currentSet?.isCalibration ?? false
+    }
+
+    /// §5 — "Calibration — pick a weight you could do ~N more reps with".
+    private var calibrationPromptText: String {
+        guard let rir = viewModel.currentSet?.targetRIR, rir > 0 else {
+            return "Calibration — pick a weight for this exercise"
+        }
+        return "Calibration — pick a weight you could do ~\(rir) more rep\(rir == 1 ? "" : "s") with"
     }
 
     /// §6.4 — names the drop step explicitly ("Finish Drop 2") so the
@@ -918,11 +969,12 @@ struct ActiveWorkoutView: View {
     }
 
     private func warmupTargetLabel(_ set: PlannedSet) -> String {
+        let reps = SideRepsFormat.reps(set.targetReps, perSide: set.plannedExercise?.perSide == true)
         if let w = set.targetWeight, w > 0 {
             let display = WeightUnit.kg.convert(w, to: weightUnit)
-            return "\(Int(display)) \(weightUnit.abbreviation) × \(set.targetReps)"
+            return "\(Int(display)) \(weightUnit.abbreviation) × \(reps)"
         }
-        return "Bodyweight × \(set.targetReps)"
+        return "Bodyweight × \(reps)"
     }
 
     // MARK: - Exercise Header
@@ -1362,6 +1414,7 @@ struct ActiveWorkoutView: View {
     }
 
     private func loadCurrentSetInputs() {
+        logRepsSeparately = false // Fix #9 — never sticky across sets
         // §15 — seed the inline bodyweight prompt with a sane default the
         // first time it's needed this session (only matters while
         // bodyweightKg <= 0; otherwise the prompt never renders).
@@ -1375,6 +1428,17 @@ struct ActiveWorkoutView: View {
             let addedKg = viewModel.currentSet?.addedLoadKg ?? 0
             let display = WeightUnit.kg.convert(addedKg, to: weightUnit)
             inputAddedLoad = (display / weightStep).rounded() * weightStep
+            if let targetReps = viewModel.currentSet?.targetReps {
+                inputReps = Double(targetReps)
+            }
+            return
+        }
+
+        // §5 — a calibration set has no target to pre-fill by design (the
+        // athlete picks live); reset to 0 so a heavier weight left over from
+        // the PREVIOUS exercise/set can't carry in and look pre-filled.
+        if currentSetIsCalibration {
+            inputWeight = 0
             if let targetReps = viewModel.currentSet?.targetReps {
                 inputReps = Double(targetReps)
             }

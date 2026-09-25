@@ -50,7 +50,8 @@ final class ProgramSchedulerTests: XCTestCase {
     }
 
     func testSpreadPicksEvenlySpacedDays() {
-        XCTAssertEqual(ProgramScheduler.spread(count: 3, over: [1, 2, 3, 4, 5, 6, 7]), [1, 4, 7])
-        XCTAssertEqual(ProgramScheduler.spread(count: 2, over: [1, 3, 5, 7]), [1, 7])
+        XCTAssertEqual(ProgramScheduler.spread(count: 3, over: [1, 2, 3, 4, 5, 6, 7]), [1, 3, 5])
+        XCTAssertEqual(ProgramScheduler.spread(count: 2, over: [1, 2, 3, 4, 5, 6, 7]), [1, 4], "not Sun + Mon back to back")
+        XCTAssertEqual(ProgramScheduler.spread(count: 2, over: [1, 3, 5, 7]), [1, 5])
     }
 }
