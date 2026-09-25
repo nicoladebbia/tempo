@@ -18,7 +18,7 @@ import Vapor
 
 struct GenerateExerciseImagesCommand: AsyncCommand {
     struct Signature: CommandSignature {
-        @Option(name: "file", short: "f", help: "Path to Exercises.json")
+        @Option(name: "file", short: "f", help: "Path to Exercises.json (default: Resources/ExerciseLibrary/Exercises.json)")
         var file: String?
 
         @Option(name: "limit", short: "l", help: "Max number of images to generate this run")
@@ -35,10 +35,11 @@ struct GenerateExerciseImagesCommand: AsyncCommand {
     }
 
     func run(using context: CommandContext, signature: Signature) async throws {
-        guard let filePath = signature.file else {
-            context.console.error("Missing required --file <path to Exercises.json>")
-            return
-        }
+        // Default: the copy of the iOS library shipped in the image
+        // (Resources/ExerciseLibrary), so this runs inside the deployed
+        // container: `railway ssh -- ./app generate-exercise-images`.
+        let filePath = signature.file
+            ?? context.application.directory.resourcesDirectory + "ExerciseLibrary/Exercises.json"
 
         let entries: [LibraryExerciseEntry]
         do {
