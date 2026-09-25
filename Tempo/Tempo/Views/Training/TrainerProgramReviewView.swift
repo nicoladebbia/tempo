@@ -361,9 +361,11 @@ private struct WeekEditorSection: View {
 
     var body: some View {
         Section {
-            ForEach($week.days) { $day in
+            // Shown Monday → Sunday. Display order only: the stored order
+            // backs each session's key, so the array itself isn't re-sorted.
+            ForEach(daysInWeekdayOrder, id: \.id) { day in
                 DayEditorView(
-                    day: $day,
+                    day: binding(forDay: day.id, fallback: day),
                     pairedSessionLabel: pairedSessionLabel(for: day),
                     libraryExercises: libraryExercises,
                     weightUnit: weightUnit,
@@ -385,6 +387,25 @@ private struct WeekEditorSection: View {
                 }
             }
         }
+    }
+
+    private var daysInWeekdayOrder: [ProgramDay] {
+        week.days.enumerated()
+            .sorted { ($0.element.weekday, $0.offset) < ($1.element.weekday, $1.offset) }
+            .map(\.element)
+    }
+
+    /// Looks the day up by id on every read/write, so removing or re-dating a
+    /// day never leaves a stale index behind.
+    private func binding(forDay id: UUID, fallback: ProgramDay) -> Binding<ProgramDay> {
+        Binding(
+            get: { week.days.first { $0.id == id } ?? fallback },
+            set: { newValue in
+                if let index = week.days.firstIndex(where: { $0.id == id }) {
+                    week.days[index] = newValue
+                }
+            }
+        )
     }
 
     /// Two sessions land on the same weekday when a trainer schedules a
