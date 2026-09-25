@@ -60,6 +60,8 @@ struct NotificationSettingsView: View {
     @State
     private var trainingReminder: Bool = true
     @State
+    private var trainerSessionReminder: Bool = true
+    @State
     private var soundEnabled: Bool = true
     @State
     private var quietHoursEnabled: Bool = false
@@ -439,6 +441,20 @@ struct NotificationSettingsView: View {
                         }
                     }
                 )
+                settingsDivider()
+                settingsToggle(
+                    "Trainer Sessions",
+                    isOn: $trainerSessionReminder,
+                    icon: "figure.strengthtraining.traditional",
+                    onToggle: { enabled in
+                        persistToggle(\.trainerSessionReminderEnabled, value: enabled)
+                        if !enabled {
+                            services.notifications.cancelTrainerSessionReminders()
+                        } else {
+                            NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
+                        }
+                    }
+                )
             }
             .tempoCard()
         }
@@ -602,6 +618,7 @@ struct NotificationSettingsView: View {
         arenaNotifications = settings.arenaNotificationsEnabled
         weeklyReport = settings.weeklyReportEnabled
         trainingReminder = settings.trainingReminderEnabled
+        trainerSessionReminder = settings.trainerSessionReminderEnabled
         soundEnabled = settings.soundEnabled
         quietHoursEnabled = settings.quietHoursEnabled
         quietHoursStart = Self.timeFromMinutes(settings.quietHoursStartMinutes)

@@ -40,6 +40,7 @@ enum TempoSchemaV1: VersionedSchema {
             VenueConfirmation.self,
             RunSession.self,
             ActivitySession.self,
+            ConditioningBlockResult.self,
             NonNegotiable.self,
             DailyAccountability.self,
             NonNegotiableProgress.self,

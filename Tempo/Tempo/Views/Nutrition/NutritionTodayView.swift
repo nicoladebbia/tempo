@@ -470,7 +470,9 @@ struct NutritionTodayView: View {
                     modelContext: modelContext,
                     whoop: services.whoop,
                     apiClient: services.apiClient,
-                    notifications: services.notifications
+                    notifications: services.notifications,
+                    trainingEngine: services.trainingEngine,
+                    healthKit: services.healthKit
                 )
             } label: {
                 Text(viewModel.isGeneratingPlan ? "Regenerating…" : "Regenerate")
@@ -539,7 +541,9 @@ struct NutritionTodayView: View {
                     modelContext: modelContext,
                     whoop: services.whoop,
                     apiClient: services.apiClient,
-                    notifications: services.notifications
+                    notifications: services.notifications,
+                    trainingEngine: services.trainingEngine,
+                    healthKit: services.healthKit
                 )
             } label: {
                 Text(viewModel.isGeneratingPlan ? "Regenerating…" : "Regenerate for Today")

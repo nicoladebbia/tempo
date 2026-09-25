@@ -145,7 +145,7 @@ Tab bar: Visible (83pt)
 │         │   34pt Blk │                │    Fill: green gradient
 │         └────────────┘                │
 │          Daily Score                  │ ← tempo.caption1
-│        Last sync: 2m ago             │ ← tempo.caption2
+│  (no sync line: auto-syncs every 5m) │
 │                                       │
 │           ↕ 20pt gap                  │
 │                                       │

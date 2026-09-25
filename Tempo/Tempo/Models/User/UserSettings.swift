@@ -34,6 +34,14 @@ final class UserSettings {
     var arenaNotificationsEnabled: Bool
     var weeklyReportEnabled: Bool
     var trainingReminderEnabled: Bool
+
+    /// Fix #12 — reminders for the active TrainerProgram's upcoming sessions
+    /// (next 7 days, real week — recovery/match-paused sessions excluded).
+    /// Optional + no default so lightweight migration is happy for existing
+    /// stores; nil -> true (on by default, same as every other reminder
+    /// toggle here).
+    var trainerSessionReminderEnabledRaw: Bool?
+
     var soundEnabled: Bool
     var quietHoursEnabled: Bool
     var quietHoursStartMinutes: Int
@@ -153,12 +161,12 @@ final class UserSettings {
 
     // MARK: - Meal-plan intake (persisted across regens)
 
-    /// The user's meal-plan preferences, persisted so EVERY generate path
-    /// reuses them — not just the one-shot wizard. Before this, 4 of 5
-    /// generate buttons (incl. "Regenerate Plan") passed no intake and fell
-    /// back to defaults; only grocery prefs above persisted. All optional /
-    /// defaulted → additive migration; nil means "never set, use the engine
-    /// default". Read via `MealPlanIntake.loadPersisted(from:)`.
+    // The user's meal-plan preferences, persisted so EVERY generate path
+    // reuses them — not just the one-shot wizard. Before this, 4 of 5
+    // generate buttons (incl. "Regenerate Plan") passed no intake and fell
+    // back to defaults; only grocery prefs above persisted. All optional /
+    // defaulted → additive migration; nil means "never set, use the engine
+    // default". Read via `MealPlanIntake.loadPersisted(from:)`.
 
     /// Cookable days this week (1–7). Nil → MealPlanIntake.default (4).
     var mealIntakeCookableDays: Int?
@@ -192,6 +200,15 @@ final class UserSettings {
 
     // MARK: - Computed
 
+    /// Typed accessor over `trainerSessionReminderEnabledRaw` — nil (never
+    /// set, e.g. an existing store from before this toggle existed) reads as
+    /// on, matching every other reminder toggle's default.
+    @Transient
+    var trainerSessionReminderEnabled: Bool {
+        get { trainerSessionReminderEnabledRaw ?? true }
+        set { trainerSessionReminderEnabledRaw = newValue }
+    }
+
     @Transient
     var trainingSplit: TrainingSplit {
         get { TrainingSplit(rawValue: trainingSplitRaw) ?? .pushPullLegs }
@@ -217,7 +234,10 @@ final class UserSettings {
         get {
             guard let data = customWeekdayPlanJSON,
                   let arr = try? JSONDecoder().decode([WorkoutType].self, from: data),
-                  arr.count == 7 else { return nil }
+                  arr.count == 7
+            else {
+                return nil
+            }
             return arr
         }
         set {

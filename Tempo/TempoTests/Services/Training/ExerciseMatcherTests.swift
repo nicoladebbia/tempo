@@ -129,4 +129,23 @@ final class ExerciseMatcherTests: XCTestCase {
         XCTAssertEqual(ExerciseMatcher.expandShorthand("lat pulldown"), "lat pulldown", "lat stays before pulldown")
         XCTAssertEqual(ExerciseMatcher.expandShorthand("db lat raises"), "dumbbell lateral raise")
     }
+
+    // MARK: - writtenEquipment (fix #10 — kettlebell/other equipment variants)
+
+    func testWrittenEquipmentDetectsShorthandAndFullWords() {
+        XCTAssertEqual(ExerciseMatcher.writtenEquipment(in: "KT Lat Step Up"), .kettlebell)
+        XCTAssertEqual(ExerciseMatcher.writtenEquipment(in: "KB Goblet Squat"), .kettlebell)
+        XCTAssertEqual(ExerciseMatcher.writtenEquipment(in: "DB Row"), .dumbbell)
+        XCTAssertEqual(ExerciseMatcher.writtenEquipment(in: "BB Squat"), .barbell)
+        XCTAssertEqual(ExerciseMatcher.writtenEquipment(in: "Cable Row"), .cable)
+        XCTAssertEqual(ExerciseMatcher.writtenEquipment(in: "Band Pull Apart"), .resistanceBand)
+        XCTAssertEqual(ExerciseMatcher.writtenEquipment(in: "Bodyweight Squat"), .bodyweight)
+        XCTAssertEqual(ExerciseMatcher.writtenEquipment(in: "manubri Row"), .dumbbell, "Italian shorthand expands too")
+    }
+
+    func testWrittenEquipmentNilWhenNoneIsNamed() {
+        XCTAssertNil(ExerciseMatcher.writtenEquipment(in: "Step Up"))
+        XCTAssertNil(ExerciseMatcher.writtenEquipment(in: "Romanian Deadlift"))
+        XCTAssertNil(ExerciseMatcher.writtenEquipment(in: "   "))
+    }
 }

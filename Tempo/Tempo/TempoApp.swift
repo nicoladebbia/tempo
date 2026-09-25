@@ -147,6 +147,17 @@ struct TempoApp: App {
                 Task {
                     await DailyResetCoordinator.runIfNeeded(container: containerRef)
                 }
+                // Fix #12 — rebuild the rolling 7-day trainer-session
+                // reminder window on every foreground return (matches, a
+                // recovery swing, or a program edit made while backgrounded
+                // can all change which of the next 7 days actually fire).
+                TrainerSessionReminderScheduler.reschedule(
+                    notifications: services.notifications,
+                    trainingEngine: services.trainingEngine,
+                    whoop: services.whoop,
+                    healthKit: services.healthKit,
+                    modelContext: container.mainContext
+                )
             }
         }
     }

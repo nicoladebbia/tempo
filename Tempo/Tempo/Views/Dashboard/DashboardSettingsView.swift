@@ -199,7 +199,11 @@ struct DashboardSettingsView: View {
                     } label: {
                         SettingsNavRow(
                             icon: "person.crop.circle", iconTint: .tempoElectric,
-                            title: "Account", subtitle: "Sign-in, member since, delete"
+                            title: "Account",
+                            subtitle: services.authService.authState == .unauthenticated
+                                || services.authService.authState == .expired
+                                ? "Not signed in — tap to sign in"
+                                : "Sign-in, member since, delete"
                         )
                     }
                     .buttonStyle(.plain)
@@ -1391,8 +1395,17 @@ struct AccountDetailView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: TempoSpacing.lg) {
+                if !isSignedIn {
+                    SettingsSignInCard()
+                }
+
                 SettingsFormCard(title: "Identity") {
-                    SettingsInfoRow(label: "Sign-in", value: "Apple", icon: "applelogo", iconTint: .tempoTextPrimary)
+                    SettingsInfoRow(
+                        label: "Sign-in",
+                        value: isSignedIn ? "Apple" : "Not signed in",
+                        icon: "applelogo",
+                        iconTint: .tempoTextPrimary
+                    )
                     SettingsRowDivider()
                     SettingsInfoRow(label: "Member since", value: memberSince, icon: "calendar", iconTint: .tempoElectric)
                     if let id = userIDShort {
@@ -1439,6 +1452,13 @@ struct AccountDetailView: View {
         let f = DateFormatter()
         f.dateStyle = .medium
         return f.string(from: created)
+    }
+
+    private var isSignedIn: Bool {
+        if case .authenticated = services.authService.authState {
+            return true
+        }
+        return false
     }
 
     private var userIDShort: String? {

@@ -1,10 +1,10 @@
 import Vapor
 
 // MARK: - Routes
+
 // Per VAPOR_PROJECT_STRUCTURE.md Section 4 — routes.swift
 
 func routes(_ app: Application) throws {
-
     // Health check — no auth, no versioning
     // Per BUILD_PLAN 6.1: GET /health returns {"status":"ok"}
     app.get("health") { _ in
@@ -72,6 +72,17 @@ func routes(_ app: Application) throws {
         .grouped(RateLimitMiddleware(limit: 20, window: .minutes(1), scope: .user))
         .grouped(SubscriptionMiddleware())
         .register(collection: NutritionAIController())
+
+    // Trainer Program import (transcribe/structure/quota) — fixes #1
+    // (Pro-only imports failed for free users) + #2 (one vision request per
+    // page could exhaust the nutrition-ai 20/min limit mid-import).
+    // Deliberately its OWN rate-limit group and NOT SubscriptionMiddleware —
+    // the controller does its own free/Pro entitlement + monthly-quota gate
+    // (see TrainerProgramImportQuotaService) so free users get a bounded
+    // number of imports instead of a hard Pro wall.
+    try protected.grouped("training", "program-import")
+        .grouped(RateLimitMiddleware(limit: 10, window: .minutes(1), scope: .user))
+        .register(collection: TrainingProgramImportController())
 
     // ─────────────────────────────────────────────────
     // Arena endpoints — per BACKEND_API.md Section 10
