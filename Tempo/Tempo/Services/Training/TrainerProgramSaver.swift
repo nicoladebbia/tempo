@@ -51,9 +51,14 @@ enum TrainerProgramSaver {
         // program's last week" — either way this program's own `startDate`
         // already matches, so `queuedActivationDate` only needs to gate WHEN
         // `activeTrainerProgram` promotes it.
-        queuedActivationDate: Date? = nil
+        queuedActivationDate: Date? = nil,
+        // feat/exercise-images — fired AFTER modelContext.save() with any
+        // custom/variant Exercises this call created, so the caller can kick
+        // off background image generation. Never awaited/blocking; nil in
+        // every existing caller that doesn't care (tests, etc).
+        onNewExercisesCreated: (([Exercise]) -> Void)? = nil
     ) throws -> TrainerProgram {
-        let resolvedWeeks = try resolveExerciseIDs(weeks: weeks, modelContext: modelContext)
+        let (resolvedWeeks, newExercises) = try resolveExerciseIDs(weeks: weeks, modelContext: modelContext)
 
         // Only one program runs at a time — but a QUEUED program doesn't
         // touch the current one; it activates itself later
@@ -88,6 +93,10 @@ enum TrainerProgramSaver {
         modelContext.insert(program)
         try modelContext.save()
 
+        if !newExercises.isEmpty {
+            onNewExercisesCreated?(newExercises)
+        }
+
         NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
         return program
     }
@@ -113,9 +122,10 @@ enum TrainerProgramSaver {
         modelContext: ModelContext,
         trainingEngine: any TrainingEngineProtocol,
         whoop: any WhoopServiceProtocol,
-        healthKit: any HealthKitServiceProtocol
+        healthKit: any HealthKitServiceProtocol,
+        onNewExercisesCreated: (([Exercise]) -> Void)? = nil
     ) throws {
-        let resolvedWeeks = try resolveExerciseIDs(weeks: weeks, modelContext: modelContext)
+        let (resolvedWeeks, newExercises) = try resolveExerciseIDs(weeks: weeks, modelContext: modelContext)
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         program.name = trimmedName.isEmpty ? "Trainer Program" : trimmedName
         program.startDate = TrainingCalendar.mondayOfWeek(containing: startDate)
@@ -128,6 +138,10 @@ enum TrainerProgramSaver {
         let vm = TrainingViewModel(trainingEngine: trainingEngine, whoop: whoop, healthKit: healthKit)
         vm.reapplyEditedProgramToday(program: program, modelContext: modelContext)
 
+        if !newExercises.isEmpty {
+            onNewExercisesCreated?(newExercises)
+        }
+
         NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
     }
 
@@ -138,7 +152,10 @@ enum TrainerProgramSaver {
     /// exactly once per distinct name, even if it appears on several
     /// days/weeks.
     @MainActor
-    private static func resolveExerciseIDs(weeks: [ProgramWeek], modelContext: ModelContext) throws -> [ProgramWeek] {
+    private static func resolveExerciseIDs(
+        weeks: [ProgramWeek],
+        modelContext: ModelContext
+    ) throws -> (weeks: [ProgramWeek], newExercises: [Exercise]) {
         let library = (try? modelContext.fetch(FetchDescriptor<Exercise>())) ?? []
         var candidates = library.map { ExerciseMatcher.Candidate(id: $0.id, name: $0.name) }
         var knownExerciseIDs = Set(library.map(\.id))
@@ -148,6 +165,12 @@ enum TrainerProgramSaver {
         // days creates one Exercise, not four — and so does a repeated
         // variant name ("Kettlebell Single Leg Romanian Deadlift").
         var resolvedByName: [String: UUID] = [:]
+        // Every variant/custom Exercise created during THIS call — returned
+        // so the caller can kick off background image generation for them
+        // (feat/exercise-images). Not generated in here: this function is
+        // deliberately kept pure/network-free so it stays unit-testable with
+        // just an in-memory ModelContext.
+        var newExercises: [Exercise] = []
 
         func resolvedExerciseID(for exercise: ProgramExercise) -> UUID {
             if let id = exercise.exerciseID, knownExerciseIDs.contains(id) {
@@ -192,6 +215,7 @@ enum TrainerProgramSaver {
                 exerciseByID[variant.id] = variant
                 resolvedByName[key] = variant.id
                 resolvedByName[variantKey] = variant.id
+                newExercises.append(variant)
                 return variant.id
             }
 
@@ -208,6 +232,7 @@ enum TrainerProgramSaver {
             candidates.append(ExerciseMatcher.Candidate(id: custom.id, name: custom.name))
             exerciseByID[custom.id] = custom
             resolvedByName[key] = custom.id
+            newExercises.append(custom)
             return custom.id
         }
 
@@ -229,7 +254,7 @@ enum TrainerProgramSaver {
             updatedWeek.days = days
             resolvedWeeks.append(updatedWeek)
         }
-        return resolvedWeeks
+        return (resolvedWeeks, newExercises)
     }
 
     /// Activates `program` (deactivating every other one) and posts the

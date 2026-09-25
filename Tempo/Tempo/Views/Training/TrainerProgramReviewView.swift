@@ -323,7 +323,8 @@ struct TrainerProgramReviewView: View {
                     modelContext: modelContext,
                     trainingEngine: services.trainingEngine,
                     whoop: services.whoop,
-                    healthKit: services.healthKit
+                    healthKit: services.healthKit,
+                    onNewExercisesCreated: kickOffImageGeneration
                 )
             } else {
                 let queuedActivationDate: Date? = startTiming == .now ? nil : startDate
@@ -337,13 +338,28 @@ struct TrainerProgramReviewView: View {
                     modelContext: modelContext,
                     autoWarmups: autoWarmups,
                     scheduleMode: scheduleMode,
-                    queuedActivationDate: queuedActivationDate
+                    queuedActivationDate: queuedActivationDate,
+                    onNewExercisesCreated: kickOffImageGeneration
                 )
                 _ = saved
             }
             onSaved()
         } catch {
             saveError = error.localizedDescription
+        }
+    }
+
+    /// feat/exercise-images — fire-and-forget: never blocks the save, never
+    /// surfaces an error (ExerciseImageService.imageData never throws; it
+    /// just silently gives up per exercise on any failure). Each call also
+    /// warms ExerciseImageService's disk cache, so the newly-created
+    /// exercise's thumbnail is likely ready by the time the user reaches
+    /// Today's list or the library.
+    private func kickOffImageGeneration(for newExercises: [Exercise]) {
+        Task {
+            for exercise in newExercises {
+                _ = await services.exerciseImages.imageData(for: exercise)
+            }
         }
     }
 }
@@ -630,6 +646,15 @@ private struct ExerciseRowEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: TempoSpacing.sm) {
             HStack {
+                // Only shown once a library match is resolved — an
+                // unmatched row has no equipment/muscle-group metadata yet
+                // (ProgramExercise carries name + prescription only; that
+                // metadata exists once TrainerProgramSaver creates the real
+                // Exercise on import), so there's nothing to key an image by.
+                if let matchedExercise {
+                    ExerciseImageView(exercise: matchedExercise, style: .thumbnail)
+                        .frame(width: 36, height: 36)
+                }
                 TextField("Exercise name", text: $exercise.name)
                     .font(.tempoBodyBold)
                 Spacer()
