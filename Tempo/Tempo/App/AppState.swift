@@ -57,6 +57,7 @@ final class AppState {
         let args = ProcessInfo.processInfo.arguments
         if args.contains("--uitesting-reset") {
             UserDefaults.standard.removeObject(forKey: "tempo.onboarding.complete")
+            UserDefaults.standard.removeObject(forKey: "dashboard.signInNudgeDismissedAt")
         }
         if args.contains("--uitesting-skip-onboarding") {
             isOnboardingComplete = true
