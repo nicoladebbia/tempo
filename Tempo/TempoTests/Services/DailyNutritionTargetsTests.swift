@@ -47,6 +47,26 @@ final class DailyNutritionTargetsTests: XCTestCase {
         XCTAssertEqual(t.note, "Rest day −15%")
     }
 
+    func testRestDayCutSkippedWhenPlanCoversDay() {
+        // A plan's rest day is already sized for rest, and the TDEE it
+        // starts from is a weekly average — cutting it again undershoots.
+        let t = DailyNutritionTargets.compute(
+            base: base, carryover: .zero, day: rest, recoveryScore: nil, planCoversDay: true
+        )
+        XCTAssertEqual(t.targets, base)
+        XCTAssertEqual(t.mode, .standard)
+        XCTAssertNil(t.note)
+        XCTAssertTrue(t.day.isRestDay, "The day is still a rest day for coaching")
+    }
+
+    func testRecoveryAdjustmentStillAppliesOnPlanRestDay() {
+        let t = DailyNutritionTargets.compute(
+            base: base, carryover: .zero, day: rest, recoveryScore: 20, planCoversDay: true
+        )
+        XCTAssertEqual(t.mode, .repair)
+        XCTAssertEqual(t.calories, 2200)
+    }
+
     func testGreenTrainingAddsCarbsAndTheirCalories() {
         let t = DailyNutritionTargets.compute(base: base, carryover: .zero, day: training, recoveryScore: 90)
         XCTAssertEqual(t.carbs, 240)
@@ -144,6 +164,34 @@ final class DailyNutritionTargetsTests: XCTestCase {
         let ctx = try makeContext()
         ctx.insert(WorkoutPlan(date: Date(), type: .push))
         XCTAssertEqual(DailyNutritionTargets.dayContext(in: ctx).isTrainingDay, true)
+    }
+
+    // MARK: - Rest day with / without a plan
+
+    func testPlanRestDayKeepsPlanAllocation() throws {
+        let ctx = try makeContext()
+        ctx.insert(WorkoutPlan(date: Date(), type: .rest))
+        let plan = WeeklyMealPlan(startDate: Date(), endDate: Date())
+        ctx.insert(plan)
+        ctx.insert(PlannedMeal(
+            dayDate: Date(), mealNumber: 1, mealName: "Meal 1", scheduledTime: "12:00",
+            totalCalories: 2000, totalProtein: 150, totalCarbs: 200, totalFat: 60, mealPlan: plan
+        ))
+        let t = DailyNutritionTargets.today(in: ctx, whoopAvgTDEE: nil, recoveryScore: nil)
+        XCTAssertTrue(t.day.isRestDay)
+        XCTAssertEqual(t.calories, 2000)
+        XCTAssertEqual(t.carbs, 200)
+        XCTAssertNil(t.note)
+    }
+
+    func testNoPlanRestDayStillCut() throws {
+        let ctx = try makeContext()
+        ctx.insert(WorkoutPlan(date: Date(), type: .rest))
+        let t = DailyNutritionTargets.today(in: ctx, whoopAvgTDEE: nil, recoveryScore: nil)
+        XCTAssertEqual(t.base.calories, 2400)
+        XCTAssertEqual(t.calories, 2040)
+        XCTAssertEqual(t.mode, .rest)
+        XCTAssertEqual(t.note, "Rest day −15%")
     }
 
     // MARK: - No compounding

@@ -42,7 +42,7 @@ enum NutritionTargetCalculator {
         dietaryProfile: DietaryProfile?,
         whoopAvgTDEE: Double? = nil
     ) -> Targets {
-        let baseline = todayMeals.reduce(MealMacros.zero) { $0 + $1.planBaseline }
+        let baseline = planBaseline(todayMeals)
         if baseline.calories > 0 {
             return Targets(
                 calories: Int(baseline.calories),
@@ -52,6 +52,16 @@ enum NutritionTargetCalculator {
             )
         }
         return fallbackTargets(profile: dietaryProfile, whoopAvgTDEE: whoopAvgTDEE)
+    }
+
+    /// True when today's target comes from a meal plan's baseline rather
+    /// than the no-plan TDEE estimate (same test `targetsForToday` uses).
+    static func planCoversDay(_ todayMeals: [PlannedMeal]) -> Bool {
+        planBaseline(todayMeals).calories > 0
+    }
+
+    private static func planBaseline(_ todayMeals: [PlannedMeal]) -> MealMacros {
+        todayMeals.reduce(MealMacros.zero) { $0 + $1.planBaseline }
     }
 
     /// The data-driven estimate shown when no plan covers today. Routes

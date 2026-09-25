@@ -69,15 +69,28 @@ final class NutritionTabViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.todayTargetNote)
     }
 
-    func testTodayTargets_restDayCutsFifteenPercentWithNote() {
+    func testTodayTargets_planRestDayKeepsPlanAllocation() {
+        // The plan already sized its rest day — no second −15% on top.
         seedPlannedDay()
         viewModel._testSetTodayRecovery(nil)
         viewModel._testSetTargetInputs(
             carryover: .zero,
             day: DailyNutritionTargets.DayContext(isTrainingDay: false, isRestDay: true)
         )
-        XCTAssertEqual(viewModel.todayCalorieTarget, 1700)
-        XCTAssertEqual(viewModel.todayCarbsTarget, 170)
+        XCTAssertEqual(viewModel.todayCalorieTarget, 2000)
+        XCTAssertEqual(viewModel.todayCarbsTarget, 200)
+        XCTAssertNil(viewModel.todayTargetNote)
+    }
+
+    func testTodayTargets_noPlanRestDayCutsFifteenPercentWithNote() {
+        // No plan → TDEE fallback (2400 with no profile), cut 15% on rest days.
+        viewModel._testSetTodayMeals([])
+        viewModel._testSetTodayRecovery(nil)
+        viewModel._testSetTargetInputs(
+            carryover: .zero,
+            day: DailyNutritionTargets.DayContext(isTrainingDay: false, isRestDay: true)
+        )
+        XCTAssertEqual(viewModel.todayCalorieTarget, 2040)
         XCTAssertEqual(viewModel.todayTargetNote, "Rest day −15%")
     }
 
@@ -102,9 +115,9 @@ final class NutritionTabViewModelTests: XCTestCase {
             ),
             day: DailyNutritionTargets.DayContext(isTrainingDay: false, isRestDay: true)
         )
-        // (2000 + 150) × 0.85 = 1827.5 → 1827
-        XCTAssertEqual(viewModel.todayCalorieTarget, 1827)
-        XCTAssertEqual(viewModel.todayTargetNote, "Rest day −15% · +150 kcal from yesterday")
+        // Plan rest day: no −15%, so 2000 + 150.
+        XCTAssertEqual(viewModel.todayCalorieTarget, 2150)
+        XCTAssertEqual(viewModel.todayTargetNote, "+150 kcal from yesterday")
     }
 
     func testTodayTargets_matchFetchingTwinUsedByRebalancer() throws {
