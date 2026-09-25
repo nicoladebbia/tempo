@@ -83,7 +83,9 @@ struct NutritionTabView: View {
                     modelContext: modelContext,
                     whoop: services.whoop,
                     apiClient: services.apiClient,
-                    notifications: services.notifications
+                    notifications: services.notifications,
+                    trainingEngine: services.trainingEngine,
+                    healthKit: services.healthKit
                 )
             }
             // Surface plan-generation failures (timeout / 5xx / decode) as
@@ -110,7 +112,9 @@ struct NutritionTabView: View {
                             modelContext: modelContext,
                             whoop: services.whoop,
                             apiClient: services.apiClient,
-                            notifications: services.notifications
+                            notifications: services.notifications,
+                            trainingEngine: services.trainingEngine,
+                            healthKit: services.healthKit
                         )
                     }
                 })

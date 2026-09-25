@@ -393,6 +393,65 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         )
     }
 
+    // MARK: - Trainer Session Reminder (fix #12)
+
+    /// Identifier prefix every trainer-session reminder shares, so
+    /// `cancelTrainerSessionReminders()` can find them all by prefix — the
+    /// same pattern `cancelDefrostReminders(forMealID:)` uses.
+    private static let trainerSessionReminderPrefix = "trainer_session_"
+
+    static func trainerSessionReminderID(sessionKey: String, date: Date) -> String {
+        "\(trainerSessionReminderPrefix)\(sessionKey)_\(TempoDateFormatters.isoDate.string(from: date))"
+    }
+
+    /// Deliberately bypasses `scheduleNotification`'s 48h pre-schedule window
+    /// and daily budget — those exist for the "reschedule TODAY" categories
+    /// (`rescheduleAllForToday`); this is a rolling 7-day window rebuilt on
+    /// every settings/workout change and app foreground
+    /// (`TrainerSessionReminderScheduler`), so a fixed handful of sessions a
+    /// week never competes with the rest of the day's notification budget.
+    func scheduleTrainerSessionReminder(sessionKey: String, date: Date, title: String, body: String, fireDate: Date) {
+        guard fireDate > Date() else {
+            return
+        }
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.categoryIdentifier = "TRAINING_REMINDER"
+        content.threadIdentifier = "tempo.trainer.\(dateKey(fireDate))"
+        content.interruptionLevel = .active
+        content.sound = sound(for: "TRAINING_REMINDER")
+
+        let components = Calendar.current.dateComponents(
+            [.year, .month, .day, .hour, .minute, .second],
+            from: fireDate
+        )
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: Self.trainerSessionReminderID(sessionKey: sessionKey, date: date),
+            content: content,
+            trigger: trigger
+        )
+        center.add(request) { [weak self] error in
+            if let error {
+                self?.logger.error("Failed to schedule trainer session reminder: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    func cancelTrainerSessionReminders() {
+        center.getPendingNotificationRequests { [weak self] requests in
+            let idsToCancel = requests
+                .map(\.identifier)
+                .filter { $0.hasPrefix(Self.trainerSessionReminderPrefix) }
+            guard !idsToCancel.isEmpty else {
+                return
+            }
+            self?.center.removePendingNotificationRequests(withIdentifiers: idsToCancel)
+            self?.logger.info("Cancelled \(idsToCancel.count) trainer session reminders")
+        }
+    }
+
     // MARK: - Missed-Log Reminder (§4)
 
     static let missedLogReminderID = "missed_log_yesterday"

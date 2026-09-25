@@ -135,6 +135,30 @@ final class MockNotificationService: NotificationServiceProtocol, @unchecked Sen
         logger.debug("Mock: cancelled overdue reminder for meal \(mealID.uuidString)")
     }
 
+    // MARK: - Trainer Session Reminder (fix #12)
+
+    private static let trainerSessionReminderPrefix = "trainer_session_"
+
+    func scheduleTrainerSessionReminder(sessionKey: String, date: Date, title: String, body: String, fireDate: Date) {
+        let notification = ScheduledNotification(
+            category: "\(Self.trainerSessionReminderPrefix)\(sessionKey)_\(TempoDateFormatters.isoDate.string(from: date))",
+            title: title,
+            body: body,
+            triggerDate: fireDate
+        )
+        scheduledNotifications.append(notification)
+        logger.debug("Mock: scheduled trainer session reminder '\(title)' at \(fireDate)")
+    }
+
+    func cancelTrainerSessionReminders() {
+        let before = scheduledNotifications.count
+        scheduledNotifications.removeAll { $0.category.hasPrefix(Self.trainerSessionReminderPrefix) }
+        let removed = before - scheduledNotifications.count
+        if removed > 0 {
+            logger.debug("Mock: cancelled \(removed) trainer session reminders")
+        }
+    }
+
     func cancelAll() {
         scheduledNotifications.removeAll()
         logger.debug("Mock: cancelled all notifications")

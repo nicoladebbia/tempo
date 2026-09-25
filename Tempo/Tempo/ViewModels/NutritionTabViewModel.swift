@@ -474,7 +474,9 @@ final class NutritionTabViewModel {
         modelContext: ModelContext,
         whoop: any WhoopServiceProtocol,
         apiClient: APIClient,
-        notifications: (any NotificationServiceProtocol)? = nil
+        notifications: (any NotificationServiceProtocol)? = nil,
+        trainingEngine: any TrainingEngineProtocol,
+        healthKit: any HealthKitServiceProtocol
     ) {
         guard !isGeneratingPlan else {
             return
@@ -493,7 +495,9 @@ final class NutritionTabViewModel {
             modelContext: modelContext,
             whoop: whoop,
             apiClient: apiClient,
-            notifications: notifications
+            notifications: notifications,
+            trainingEngine: trainingEngine,
+            healthKit: healthKit
         )
     }
 
@@ -943,7 +947,13 @@ final class NutritionTabViewModel {
         whoop: any WhoopServiceProtocol,
         apiClient: APIClient,
         notifications: (any NotificationServiceProtocol)? = nil,
-        intake: MealPlanIntake? = nil
+        intake: MealPlanIntake? = nil,
+        // Real source of the week's training schedule (TrainingScheduleProvider) —
+        // the same engine/HealthKit instances the live Training tab uses, so a
+        // throwaway TrainingViewModel built from them reads identical settings/
+        // persisted state. See the `trainingSchedule` enrichment below.
+        trainingEngine: any TrainingEngineProtocol,
+        healthKit: any HealthKitServiceProtocol
     ) {
         // CRITICAL: re-fetch the DietaryProfile from SwiftData rather than
         // trusting the VM's cached `dietaryProfile`. When the user edits
@@ -1044,10 +1054,19 @@ final class NutritionTabViewModel {
                         "[Diag.Plan] intake source: \(intakeSource, privacy: .public) — cookDays=\(diagCookDays) leftover=\(diagLeftover, privacy: .public) window=\(diagWindow, privacy: .public) exclusions=\(diagExclusions)"
                     )
                 if let settings = settingsForIntake {
-                    enrichedIntake.trainingSchedule = WeeklyTrainingSchedule.make(
-                        split: settings.trainingSplit,
-                        footballDays: settings.footballDays
+                    // Fix #3 — the settings-only guess (split + footballDays)
+                    // agreed with Training only in the simplest case. Pull the
+                    // REAL week (trainer program, matches, custom map, recovery
+                    // swaps included) from the same generation path the
+                    // Training tab uses, via TrainingScheduleProvider.
+                    let realWeek = TrainingScheduleProvider.weekSchedule(
+                        containing: Date(),
+                        trainingEngine: trainingEngine,
+                        whoop: whoop,
+                        healthKit: healthKit,
+                        modelContext: modelContext
                     )
+                    enrichedIntake.trainingSchedule = WeeklyTrainingSchedule.build(from: realWeek)
                     // Hydrate the persisted grocery preferences when the
                     // caller didn't supply them (non-wizard regen) so the
                     // Sonnet prompt always sees the latest budget cap +

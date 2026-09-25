@@ -148,7 +148,9 @@ struct WeeklyTrainingSchedule: Sendable, Equatable {
     var formattedForPrompt: String {
         let names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         return (1 ... 7).compactMap { weekday in
-            guard let kind = byWeekday[weekday] else { return nil }
+            guard let kind = byWeekday[weekday] else {
+                return nil
+            }
             return "- \(names[weekday - 1]): \(kind)"
         }.joined(separator: "\n")
     }
@@ -163,23 +165,22 @@ struct WeeklyTrainingSchedule: Sendable, Equatable {
         // Base 6-day split pattern in Mon..Sat slots (Sunday = Rest unless
         // football lands there). These match the canonical split layouts
         // shipped with the Training engine.
-        let base: [String]
-        switch split {
+        let base: [String] = switch split {
         case .pushPullLegs:
             // Mon Push, Tue Pull, Wed Legs, Thu Push, Fri Pull, Sat Legs
-            base = ["Push", "Pull", "Legs", "Push", "Pull", "Legs"]
+            ["Push", "Pull", "Legs", "Push", "Pull", "Legs"]
         case .upperLower:
             // Mon Upper, Tue Lower, Wed Upper, Thu Lower, Fri Upper, Sat Lower
-            base = ["Upper", "Lower", "Upper", "Lower", "Upper", "Lower"]
+            ["Upper", "Lower", "Upper", "Lower", "Upper", "Lower"]
         case .fullBody:
             // Mon, Wed, Fri Full Body; Tue/Thu/Sat Mobility
-            base = ["Full Body", "Mobility", "Full Body", "Mobility", "Full Body", "Mobility"]
+            ["Full Body", "Mobility", "Full Body", "Mobility", "Full Body", "Mobility"]
         case .bro:
             // Mon Chest, Tue Back, Wed Legs, Thu Shoulders, Fri Arms, Sat Mobility
-            base = ["Chest", "Back", "Legs", "Shoulders", "Arms", "Mobility"]
+            ["Chest", "Back", "Legs", "Shoulders", "Arms", "Mobility"]
         case .custom:
             // No assumption — let the AI fall back to its own heuristic.
-            base = ["Strength", "Strength", "Strength", "Strength", "Strength", "Mobility"]
+            ["Strength", "Strength", "Strength", "Strength", "Strength", "Mobility"]
         }
         var byWeekday: [Int: String] = [:]
         for (i, label) in base.enumerated() {
@@ -198,6 +199,27 @@ struct WeeklyTrainingSchedule: Sendable, Equatable {
         // Calendar-Monday). Measured via [PlanDiag] wd1=Football.
         for weekday in 1 ... 7 where footballDays.isActive(on: (weekday % 7) + 1) {
             byWeekday[weekday] = "Football"
+        }
+        return WeeklyTrainingSchedule(byWeekday: byWeekday)
+    }
+
+    /// Build the schedule from `TrainingScheduleProvider`'s week — the real
+    /// generation path (split, custom weekday map, recovery, matches,
+    /// emphasis, deload, and the active TrainerProgram overlay) instead of
+    /// the settings-only guess `make(split:footballDays:)` produced. This is
+    /// what every generate path now uses; `make` stays only for its existing
+    /// unit tests.
+    /// A second same-day session (two-a-day) is appended as "Main + Second"
+    /// so the AI's existing "two trainings in one day → double" rule (see
+    /// MealPlanPrompts) actually has something to key off.
+    static func build(from week: [DayTrainingSchedule]) -> WeeklyTrainingSchedule {
+        var byWeekday: [Int: String] = [:]
+        for day in week {
+            var label = day.mainType.displayName
+            if let secondary = day.secondaryType {
+                label += " + \(secondary.displayName)"
+            }
+            byWeekday[day.weekday] = label
         }
         return WeeklyTrainingSchedule(byWeekday: byWeekday)
     }

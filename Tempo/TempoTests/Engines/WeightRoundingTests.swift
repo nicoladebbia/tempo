@@ -38,12 +38,20 @@ final class WeightRoundingTests: XCTestCase {
 
     func testKgModeKeepsKgLattices() {
         XCTAssertEqual(WeightConverter.loadableKg(41, equipment: .barbell, unit: .kg), 40)
-        XCTAssertEqual(WeightConverter.loadableKg(41, equipment: .barbell, unit: .kg),
-                       WeightConverter.loadableKg(40, equipment: .barbell, unit: .kg))
-        XCTAssertEqual(WeightConverter.loadableKg(22, equipment: .machine, unit: .kg), 20,
-                       "kg stacks pin in 5s")
-        XCTAssertEqual(WeightConverter.loadableKg(10, equipment: .barbell, unit: .kg), 20,
-                       "kg bar floor")
+        XCTAssertEqual(
+            WeightConverter.loadableKg(41, equipment: .barbell, unit: .kg),
+            WeightConverter.loadableKg(40, equipment: .barbell, unit: .kg)
+        )
+        XCTAssertEqual(
+            WeightConverter.loadableKg(22, equipment: .machine, unit: .kg),
+            20,
+            "kg stacks pin in 5s"
+        )
+        XCTAssertEqual(
+            WeightConverter.loadableKg(10, equipment: .barbell, unit: .kg),
+            20,
+            "kg bar floor"
+        )
     }
 
     func testBodyweightEquipmentPassesThrough() {
@@ -53,8 +61,48 @@ final class WeightRoundingTests: XCTestCase {
 
     func testNeverSnapsToZeroForLoadableEquipment() {
         let kg = WeightConverter.loadableKg(0.5, equipment: .dumbbell, unit: .lbs)
-        XCTAssertEqual(WeightConverter.toLbs(kg), 5, accuracy: 0.01,
-                       "Smallest dumbbell, never 0")
+        XCTAssertEqual(
+            WeightConverter.toLbs(kg),
+            5,
+            accuracy: 0.01,
+            "Smallest dumbbell, never 0"
+        )
+    }
+
+    // MARK: - Kettlebell bell-size snapping (fix #10)
+
+    func testKettlebellKgSnapsToRealBellSizesNotAFourKgLattice() {
+        // Every odd kg from 4-24 sits exactly between two real bells (the
+        // ladder steps by 2 there) — ties round up, deterministically.
+        // 21 kg is exactly between 20 and 22 — the old fixed 4 kg lattice
+        // (4, 8, 12, 16, 20, 24, ...) had no 22 at all and would floor to 20.
+        XCTAssertEqual(WeightConverter.loadableKg(21, equipment: .kettlebell, unit: .kg), 22)
+        XCTAssertEqual(WeightConverter.loadableKg(13, equipment: .kettlebell, unit: .kg), 14)
+        XCTAssertEqual(WeightConverter.loadableKg(17, equipment: .kettlebell, unit: .kg), 18)
+        // Odd bells the old 4kg-step lattice could never produce at all.
+        XCTAssertEqual(WeightConverter.loadableKg(9, equipment: .kettlebell, unit: .kg), 10)
+        XCTAssertEqual(WeightConverter.loadableKg(5, equipment: .kettlebell, unit: .kg), 6)
+    }
+
+    func testKettlebellKgSnapsAboveTwentyFourJumpToTheNextRealBell() {
+        // 24 -> 28 -> 32 -> 36 -> 40 -> 44 -> 48 steps by 4 up here — nearest
+        // real bell still resolves cleanly, and an exact-midpoint tie (38,
+        // between 36 and 40) rounds up like the 4-24 range does.
+        XCTAssertEqual(WeightConverter.loadableKg(25, equipment: .kettlebell, unit: .kg), 24, "closer to 24 than 28")
+        XCTAssertEqual(WeightConverter.loadableKg(27, equipment: .kettlebell, unit: .kg), 28, "closer to 28 than 24")
+        XCTAssertEqual(WeightConverter.loadableKg(33, equipment: .kettlebell, unit: .kg), 32, "closer to 32 than 36")
+        XCTAssertEqual(WeightConverter.loadableKg(38, equipment: .kettlebell, unit: .kg), 40, "tie between 36/40 rounds up")
+    }
+
+    func testKettlebellKgFloorsAtSmallestBell() {
+        XCTAssertEqual(WeightConverter.loadableKg(1, equipment: .kettlebell, unit: .kg), 4)
+    }
+
+    func testKettlebellLbsSnapsToFivePoundSteps() {
+        // Common US bells are sold in ~5 lb steps — the generic lbs path
+        // already produces this; kettlebell shouldn't need a separate ladder.
+        let kg = WeightConverter.loadableKg(WeightConverter.toKg(23), equipment: .kettlebell, unit: .lbs)
+        XCTAssertEqual(WeightConverter.toLbs(kg), 25, accuracy: 0.01)
     }
 
     // MARK: - On-load re-snap of legacy plans
@@ -80,15 +128,30 @@ final class WeightRoundingTests: XCTestCase {
 
         let plan = WorkoutPlan(date: Date(), type: .push)
         context.insert(plan)
-        let bench = Exercise(name: "Bench Press", muscleGroup: .chest,
-                             equipment: .barbell, movementPattern: .horizontalPush, isCompound: true)
+        let bench = Exercise(
+            name: "Bench Press",
+            muscleGroup: .chest,
+            equipment: .barbell,
+            movementPattern: .horizontalPush,
+            isCompound: true
+        )
         context.insert(bench)
         let slot = PlannedExercise(order: 0, workoutPlan: plan, exercise: bench)
-        let logged = PlannedSet(setNumber: 1, targetReps: 8, targetWeight: 40,
-                                actualReps: 8, actualWeight: 40, completed: true,
-                                plannedExercise: slot)
-        let open = PlannedSet(setNumber: 2, targetReps: 8, targetWeight: 40,
-                              plannedExercise: slot)
+        let logged = PlannedSet(
+            setNumber: 1,
+            targetReps: 8,
+            targetWeight: 40,
+            actualReps: 8,
+            actualWeight: 40,
+            completed: true,
+            plannedExercise: slot
+        )
+        let open = PlannedSet(
+            setNumber: 2,
+            targetReps: 8,
+            targetWeight: 40,
+            plannedExercise: slot
+        )
         slot.sets = [logged, open]
         try context.save()
 
@@ -99,8 +162,12 @@ final class WeightRoundingTests: XCTestCase {
         )
         vm.snapPrescribedWeights(for: plan, modelContext: context)
 
-        XCTAssertEqual(WeightConverter.toLbs(open.targetWeight ?? 0), 90, accuracy: 0.01,
-                       "Open target re-snaps to the lbs lattice")
+        XCTAssertEqual(
+            WeightConverter.toLbs(open.targetWeight ?? 0),
+            90,
+            accuracy: 0.01,
+            "Open target re-snaps to the lbs lattice"
+        )
         XCTAssertEqual(logged.targetWeight, 40, "Logged set is history — untouched")
         XCTAssertEqual(logged.actualWeight, 40)
 
@@ -119,8 +186,13 @@ final class WeightRoundingTests: XCTestCase {
         let plan = WorkoutPlan(date: Date(), type: .push)
         plan.status = .completed
         context.insert(plan)
-        let bench = Exercise(name: "Bench Press", muscleGroup: .chest,
-                             equipment: .barbell, movementPattern: .horizontalPush, isCompound: true)
+        let bench = Exercise(
+            name: "Bench Press",
+            muscleGroup: .chest,
+            equipment: .barbell,
+            movementPattern: .horizontalPush,
+            isCompound: true
+        )
         context.insert(bench)
         let slot = PlannedExercise(order: 0, workoutPlan: plan, exercise: bench)
         let set = PlannedSet(setNumber: 1, targetReps: 8, targetWeight: 40, plannedExercise: slot)

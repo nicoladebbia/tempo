@@ -320,7 +320,10 @@ final class TrainingViewModel {
 
     let trainingEngine: any TrainingEngineProtocol
     let whoop: any WhoopServiceProtocol
-    private let healthKit: any HealthKitServiceProtocol
+    /// Fix #7 — "Fill from Whoop/Health" reads this from
+    /// TrainingViewModel+ConditioningLogging.swift, hence internal (was
+    /// private) rather than a duplicated dependency.
+    let healthKit: any HealthKitServiceProtocol
     /// §5 calendar awareness — exams + day load into the daily prompt.
     /// Optional: paths that only ensure the plan (DailyResetCoordinator)
     /// don't need it; the picture just omits the calendar lines.
@@ -714,8 +717,14 @@ final class TrainingViewModel {
 
         // The athlete's own trainer program replaces the generated gym days
         // (recovery + match days still adjust it — see +TrainerProgram).
+        // Fix #6 — sequence mode needs real progress as of `monday` to
+        // resolve "today's session"; see TrainingViewModel+TrainerProgram.
         if let program = activeTrainerProgram(modelContext: modelContext) {
-            Self.applyTrainerProgram(program, to: plans, matchDayKeys: matchDayKeys)
+            Self.applyTrainerProgram(
+                program, to: plans, matchDayKeys: matchDayKeys,
+                completedSequenceCount: completedTrainerSessionCount(for: program, modelContext: modelContext),
+                priorDayWasLift: trainerProgramPriorDayWasLift(before: monday, program: program, modelContext: modelContext)
+            )
         }
         return plans
     }
@@ -730,6 +739,29 @@ final class TrainingViewModel {
             // All days are "future" relative to that week's own Monday.
             referenceDate: monday
         )
+    }
+
+    /// Read-only snapshot of the real ISO week containing `date`, built from
+    /// the EXACT SAME generation path `loadWeekPlan` uses (assembleWeekPlans:
+    /// split, custom weekday map, recovery, matches, emphasis, deload, and the
+    /// TrainerProgram overlay) with the persisted-row substitution for today
+    /// and any sacred (completed/in-progress) day, so it can never disagree
+    /// with what the Training tab actually shows. Unlike `loadWeekPlan`, this
+    /// does NOT mutate instance state (`weekPlans`, `todayTemplate`, deload
+    /// flags) and does NOT populate exercises — callers that only need "what
+    /// TYPE of training happens on each day" (e.g. `TrainingScheduleProvider`
+    /// for Nutrition) can call this on a throwaway TrainingViewModel without
+    /// disturbing a live session, exactly like `DailyResetCoordinator
+    /// .workoutPlanEnsurer` already does for `ensureTodayPlanPersisted`.
+    func weekPlanSnapshot(containing date: Date, modelContext: ModelContext) -> [WorkoutPlan] {
+        let monday = TrainingCalendar.mondayOfWeek(containing: date)
+        let generated = assembleWeekPlans(
+            startingMonday: monday,
+            modelContext: modelContext,
+            referenceDate: date
+        )
+        let persisted = persistedPlans(forWeekOf: monday, modelContext: modelContext)
+        return Self.mergePersistedIntoWeek(generated, persisted: persisted, today: date)
     }
 
     func loadWeekPlan(modelContext: ModelContext) {
@@ -1050,6 +1082,11 @@ final class TrainingViewModel {
         weight: Double,
         reps: Int,
         addedLoadKg: Double? = nil,
+        // Fix #9 — non-nil only when the athlete opted into logging a
+        // per-side set's two sides separately (e.g. L 8 / R 7); nil (the
+        // default) means `reps` alone applies to both sides, unchanged.
+        leftReps: Int? = nil,
+        rightReps: Int? = nil,
         modelContext: ModelContext
     ) {
         guard let plan = todayPlan else {
@@ -1089,10 +1126,25 @@ final class TrainingViewModel {
         // `weight` is the EFFECTIVE load in kg (for bodyweight lifts the caller
         // passes bodyweight ± addedLoadKg); addedLoadKg records the signed input.
         set.actualWeight = weight
+        // Fix #9 — with an uneven L/R split the weaker side is the lift's
+        // real single-limb number: it's what e1RM, PR detection and
+        // calibration read (volume still sums both sides).
+        let reps = if let leftReps, let rightReps { min(leftReps, rightReps) } else { reps }
         set.actualReps = reps
+        set.actualRepsLeft = leftReps
+        set.actualRepsRight = rightReps
         set.addedLoadKg = addedLoadKg
         set.completed = true
         set.completedAt = Date()
+
+        // §5 — a calibration set just told us the athlete's real number for a
+        // trainer % that had no reliable e1RM to read it against. Derive an
+        // e1RM from what was actually logged and set every remaining,
+        // not-yet-completed set's target from it — the rest of the exercise
+        // no longer prescribes blind.
+        if set.isCalibration, weight > 0, reps > 0 {
+            propagateCalibration(from: set, weight: weight, reps: reps, modelContext: modelContext)
+        }
 
         // Surface the just-completed set so the session view's inline feedback
         // panel edits exactly this set.
@@ -1730,12 +1782,11 @@ final class TrainingViewModel {
             guard !completedSets.isEmpty else {
                 return nil
             }
-            let totalVolume = completedSets.reduce(0.0) { acc, set in
-                guard let w = set.actualWeight, let r = set.actualReps else {
-                    return acc
-                }
-                return acc + (w * Double(r))
-            }
+            // Fix #9 — `PlannedSet.volume` covers a per-side set's both-sides
+            // tonnage (or sums a logged L/R split); this is the single write
+            // path for `ExerciseHistory.totalVolume`, which every progress
+            // chart/dashboard/monthly-review tonnage reader sums from.
+            let totalVolume = completedSets.reduce(0.0) { $0 + ($1.volume ?? 0) }
             // §6.4 — a drop step is a reduced-weight backoff, never the
             // session's "best" set; volume/set-count above still count it
             // (the work was performed), but the history's headline
