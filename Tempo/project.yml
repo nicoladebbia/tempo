@@ -88,7 +88,7 @@ targets:
         INFOPLIST_KEY_NSHealthShareUsageDescription: "Tempo reads your health data (steps, heart rate, HRV, sleep, workouts) to calculate your daily score, adapt your training plan to your recovery, and track your progress automatically."
         INFOPLIST_KEY_NSHealthUpdateUsageDescription: "Tempo writes your completed workouts and nutrition data to HealthKit so your health record stays complete across all your apps."
         INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription: "Tempo reads your calendar to avoid scheduling workouts during classes and football practice, and to identify study blocks for your accountability targets."
-        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Tempo uses your location to provide weather-aware hydration targets and workout recommendations."
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Tempo uses your location to provide weather-aware hydration targets and workout recommendations, and to track distance and pace during a guided run."
         INFOPLIST_KEY_NSMicrophoneUsageDescription: "Tempo uses your microphone so you can dictate pantry items hands-free instead of typing each ingredient."
         INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: "Tempo converts what you say into pantry item names on-device, so you can add ingredients without typing."
       configs:
