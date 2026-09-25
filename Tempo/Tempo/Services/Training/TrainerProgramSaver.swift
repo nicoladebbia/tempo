@@ -44,6 +44,9 @@ enum TrainerProgramSaver {
         modelContext: ModelContext,
         autoWarmups: Bool? = nil,
         scheduleMode: TrainerProgramScheduleMode = .fixed,
+        // Researched details for exercises the library doesn't have, keyed by
+        // `ExerciseMatcher.normalize(name)` (ExerciseResearchStore.results).
+        research: [String: ExerciseResearch] = [:],
         // Fix #11(b) — queue the next block: non-nil means "don't activate
         // now" (isActive stays false, no other program is deactivated). The
         // caller passes either `startDate` itself (starting later, on that
@@ -53,7 +56,7 @@ enum TrainerProgramSaver {
         // `activeTrainerProgram` promotes it.
         queuedActivationDate: Date? = nil
     ) throws -> TrainerProgram {
-        let resolvedWeeks = try resolveExerciseIDs(weeks: weeks, modelContext: modelContext)
+        let resolvedWeeks = try resolveExerciseIDs(weeks: weeks, research: research, modelContext: modelContext)
 
         // Only one program runs at a time — but a QUEUED program doesn't
         // touch the current one; it activates itself later
@@ -113,9 +116,10 @@ enum TrainerProgramSaver {
         modelContext: ModelContext,
         trainingEngine: any TrainingEngineProtocol,
         whoop: any WhoopServiceProtocol,
-        healthKit: any HealthKitServiceProtocol
+        healthKit: any HealthKitServiceProtocol,
+        research: [String: ExerciseResearch] = [:]
     ) throws {
-        let resolvedWeeks = try resolveExerciseIDs(weeks: weeks, modelContext: modelContext)
+        let resolvedWeeks = try resolveExerciseIDs(weeks: weeks, research: research, modelContext: modelContext)
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         program.name = trimmedName.isEmpty ? "Trainer Program" : trimmedName
         program.startDate = TrainingCalendar.mondayOfWeek(containing: startDate)
@@ -136,9 +140,14 @@ enum TrainerProgramSaver {
     /// screen sets one for anything the user matched or the live matcher
     /// already resolved); if still no match, a custom Exercise is created —
     /// exactly once per distinct name, even if it appears on several
-    /// days/weeks.
+    /// days/weeks — from its `research` details when the review screen
+    /// looked it up.
     @MainActor
-    private static func resolveExerciseIDs(weeks: [ProgramWeek], modelContext: ModelContext) throws -> [ProgramWeek] {
+    private static func resolveExerciseIDs(
+        weeks: [ProgramWeek],
+        research: [String: ExerciseResearch],
+        modelContext: ModelContext
+    ) throws -> [ProgramWeek] {
         let library = (try? modelContext.fetch(FetchDescriptor<Exercise>())) ?? []
         var candidates = library.map { ExerciseMatcher.Candidate(id: $0.id, name: $0.name) }
         var knownExerciseIDs = Set(library.map(\.id))
@@ -195,14 +204,29 @@ enum TrainerProgramSaver {
                 return variant.id
             }
 
-            let custom = Exercise(
-                name: exercise.name,
-                muscleGroup: .fullBody,
-                equipment: writtenEquipment ?? .none,
-                movementPattern: .isolation,
-                isCompound: false,
-                isCustom: true
-            )
+            // The trainer's written equipment wins over the researched guess.
+            let custom = if let found = research[key] {
+                Exercise(
+                    name: exercise.name,
+                    muscleGroup: found.muscleGroup,
+                    secondaryMuscles: found.secondaryMuscles,
+                    equipment: writtenEquipment ?? found.equipment,
+                    movementPattern: found.movementPattern,
+                    isCompound: found.isCompound,
+                    isCustom: true,
+                    instructions: found.instructions.isEmpty ? nil : found.instructions,
+                    cues: found.cues
+                )
+            } else {
+                Exercise(
+                    name: exercise.name,
+                    muscleGroup: .fullBody,
+                    equipment: writtenEquipment ?? .none,
+                    movementPattern: .isolation,
+                    isCompound: false,
+                    isCustom: true
+                )
+            }
             modelContext.insert(custom)
             knownExerciseIDs.insert(custom.id)
             candidates.append(ExerciseMatcher.Candidate(id: custom.id, name: custom.name))
