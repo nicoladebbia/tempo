@@ -4,7 +4,7 @@ import Vapor
 
 // Per VAPOR_PROJECT_STRUCTURE.md Section 4 — routes.swift
 
-func routes(_ app: Application) throws {
+func routes(_ app: Application, instacartClient: InstacartClient = InstacartAPIClient()) throws {
     // Health check — no auth, no versioning
     // Per BUILD_PLAN 6.1: GET /health returns {"status":"ok"}
     app.get("health") { _ in
@@ -166,6 +166,20 @@ func routes(_ app: Application) throws {
         .post(use: exerciseImages.generate)
 
     // ─────────────────────────────────────────────────
+    // Grocery sharing + ordering — feat/grocery-share-order
+    // ─────────────────────────────────────────────────
+
+    // Owner-side (JWT): create/replace/get/revoke a live shared-list link.
+    try protected.grouped("grocery", "shared")
+        .grouped(RateLimitMiddleware(limit: 30, window: .minutes(1), scope: .user))
+        .register(collection: GroceryShareController())
+
+    // Instacart "shopping list" link — server holds INSTACART_API_KEY.
+    try protected.grouped("grocery")
+        .grouped(RateLimitMiddleware(limit: 20, window: .minutes(1), scope: .user))
+        .register(collection: InstacartController(instacartClient: instacartClient))
+
+    // ─────────────────────────────────────────────────
     // Webhooks (no JWT — verified via HMAC)
     // ─────────────────────────────────────────────────
 
@@ -174,4 +188,15 @@ func routes(_ app: Application) throws {
     try v1.grouped("webhooks", "whoop")
         .grouped(WhoopWebhookMiddleware())
         .register(collection: WhoopWebhookController())
+
+    // ─────────────────────────────────────────────────
+    // Public shared-grocery-list page — feat/grocery-share-order
+    // Deliberately mounted at the app root (NOT under /v1, no JWT) so the
+    // link a shopper opens is short (`/g/<token>`). IP rate-limited since
+    // there's no user identity to scope by — the shopper has no Tempo
+    // account.
+    // ─────────────────────────────────────────────────
+    try app.grouped("g")
+        .grouped(RateLimitMiddleware(limit: 60, window: .minutes(1), scope: .ip))
+        .register(collection: PublicGroceryShareController())
 }
