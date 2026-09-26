@@ -40,6 +40,10 @@ struct BarcodeScannerView: View {
     private var showSearch = false
     @State
     private var catalog: FoodCatalog?
+    @State
+    private var network = NetworkStatus()
+    @State
+    private var showOfflineNotice = false
 
     private enum ScanState: Equatable {
         case scanning
@@ -128,11 +132,25 @@ struct BarcodeScannerView: View {
                     }
                 })
             }
+            .alert("You're offline", isPresented: $showOfflineNotice) {
+                Button("Search basic foods") {
+                    showSearch = true
+                }
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Barcode scanning needs internet to look products up. Products you've checked before still open from your history.")
+            }
             .onAppear {
                 if catalog == nil {
                     catalog = FoodCatalog(services: services)
                 }
                 checkScannerAvailability()
+            }
+            .task {
+                await network.monitor()
+            }
+            .onChange(of: network.isOffline) { _, offline in
+                showOfflineNotice = offline
             }
         }
     }
