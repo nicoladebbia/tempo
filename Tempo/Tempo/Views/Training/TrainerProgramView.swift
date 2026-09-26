@@ -263,17 +263,25 @@ struct TrainerProgramView: View {
             .tint(Color.tempoSignal)
 
             // Fix #6 — editable here too (chosen first on the review screen).
-            Picker("Schedule", selection: Binding(
-                get: { program.scheduleMode },
-                set: { newValue in
-                    program.scheduleMode = newValue
-                    _ = modelContext.saveOrAlert("trainer program schedule mode")
-                    NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
+            HStack {
+                Text("Schedule")
+                    .font(.tempoBody)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                Spacer()
+                Picker("Schedule", selection: Binding(
+                    get: { program.scheduleMode },
+                    set: { newValue in
+                        program.scheduleMode = newValue
+                        _ = modelContext.saveOrAlert("trainer program schedule mode")
+                        NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
+                    }
+                )) {
+                    ForEach(TrainerProgramScheduleMode.allCases, id: \.self) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
                 }
-            )) {
-                ForEach(TrainerProgramScheduleMode.allCases, id: \.self) { mode in
-                    Text(mode.displayName).tag(mode)
-                }
+                .pickerStyle(.menu)
+                .tint(Color.tempoSignal)
             }
             Text(program.scheduleMode.explanation)
                 .font(.tempoCaption2)
@@ -294,6 +302,7 @@ struct TrainerProgramView: View {
                     showEdit = true
                 } label: {
                     Label("Edit", systemImage: "pencil")
+                        .lineLimit(1)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.tempoSecondary)
@@ -301,20 +310,25 @@ struct TrainerProgramView: View {
                 Button {
                     TrainerProgramSaver.deactivate(program, modelContext: modelContext)
                 } label: {
-                    Label("Deactivate", systemImage: "pause.circle")
+                    Label("Pause", systemImage: "pause.circle")
+                        .lineLimit(1)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.tempoSecondary)
-
-                Button {
-                    pendingDelete = program
-                } label: {
-                    Label("Delete", systemImage: "trash")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.tempoDestructive)
+                .accessibilityHint("Stops using this program. You can run it again later.")
             }
             .padding(.top, TempoSpacing.xs)
+
+            Button(role: .destructive) {
+                pendingDelete = program
+            } label: {
+                Label("Delete program", systemImage: "trash")
+                    .font(.tempoFootnote)
+                    .foregroundStyle(Color.tempoError)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, TempoSpacing.xxs)
         }
         .padding(TempoSpacing.cardPadding)
         .background(Color.tempoSurfaceCard)
