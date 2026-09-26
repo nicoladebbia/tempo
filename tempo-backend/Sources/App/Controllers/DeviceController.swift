@@ -39,6 +39,8 @@ struct DeviceController: RouteCollection {
             existing.token = body.token
             existing.appVersion = body.appVersion
             existing.deviceName = body.deviceName
+            existing.bundleID = body.bundleID
+            existing.apnsEnvironment = body.apnsEnvironment
             try await existing.save(on: req.db)
 
             return Envelope(
@@ -56,7 +58,9 @@ struct DeviceController: RouteCollection {
             token: body.token,
             deviceID: body.deviceID,
             deviceName: body.deviceName,
-            appVersion: body.appVersion
+            appVersion: body.appVersion,
+            bundleID: body.bundleID,
+            apnsEnvironment: body.apnsEnvironment
         )
         try await deviceToken.save(on: req.db)
 
@@ -116,6 +120,9 @@ struct DeviceTokenRegisterDTO: Content {
     let deviceID: String
     let deviceName: String?
     let appVersion: String?
+    /// Optional — older app versions don't send them.
+    let bundleID: String?
+    let apnsEnvironment: String?
 
     // The global decoder already converts snake_case (`device_id` →
     // `deviceId`), so keys here are the CONVERTED names — a literal
@@ -124,6 +131,8 @@ struct DeviceTokenRegisterDTO: Content {
         case token
         case deviceID = "deviceId"
         case deviceName, appVersion
+        case bundleID = "bundleId"
+        case apnsEnvironment
     }
 }
 

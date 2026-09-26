@@ -178,6 +178,7 @@ func configure(_ app: Application) async throws {
     app.migrations.add(CreateExerciseImageMonthlySpend())
     app.migrations.add(CreateFoodNutritionCache())
     app.migrations.add(CreateWeeklyPlanJobs())
+    app.migrations.add(AddAPNsRoutingToDeviceTokens())
 
     // Arena module — per BUILD_PLAN step 14.1
     app.migrations.add(CreateXPEvents())

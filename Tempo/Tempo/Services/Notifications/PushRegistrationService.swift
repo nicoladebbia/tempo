@@ -80,7 +80,9 @@ final class PushRegistrationService: @unchecked Sendable {
             token: token,
             deviceID: deviceID,
             deviceName: deviceName,
-            appVersion: appVersion
+            appVersion: appVersion,
+            bundleID: Bundle.main.bundleIdentifier,
+            apnsEnvironment: DeviceTokenRegisterBody.apnsEnvironment
         )
 
         do {
@@ -142,12 +144,48 @@ struct DeviceTokenRegisterBody: Codable {
     let deviceID: String
     let deviceName: String?
     let appVersion: String?
+    /// The APNs topic for this build (`app.tempo.Tempo.dev` from Xcode).
+    let bundleID: String?
+    /// Which APNs server issued the token. Debug builds are signed with the
+    /// development `aps-environment`, so their tokens only work on sandbox.
+    let apnsEnvironment: String?
+
+    /// Read from the build's provisioning profile: Xcode and ad-hoc installs
+    /// embed one saying `development` or `production`; App Store / TestFlight
+    /// builds carry none and are always production.
+    static let apnsEnvironment: String = {
+        guard let url = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
+              let data = try? Data(contentsOf: url)
+        else {
+            return "production"
+        }
+        return apnsEnvironment(inProvisioningProfile: data)
+    }()
+
+    /// The profile is a CMS envelope around a plain XML plist; slice the
+    /// plist out rather than decoding the signature.
+    static func apnsEnvironment(inProvisioningProfile data: Data) -> String {
+        let text = String(decoding: data, as: UTF8.self)
+        guard let start = text.range(of: "<?xml"),
+              let end = text.range(of: "</plist>", range: start.lowerBound ..< text.endIndex),
+              let plist = try? PropertyListSerialization.propertyList(
+                  from: Data(text[start.lowerBound ..< end.upperBound].utf8),
+                  format: nil
+              ) as? [String: Any],
+              let entitlements = plist["Entitlements"] as? [String: Any]
+        else {
+            return "production"
+        }
+        return entitlements["aps-environment"] as? String == "development" ? "sandbox" : "production"
+    }
 
     enum CodingKeys: String, CodingKey {
         case token
         case deviceID = "device_id"
         case deviceName = "device_name"
         case appVersion = "app_version"
+        case bundleID = "bundle_id"
+        case apnsEnvironment = "apns_environment"
     }
 }
 
