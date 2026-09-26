@@ -85,6 +85,7 @@ enum TempoSchemaV1: VersionedSchema {
             RecipeStep.self,
             GroceryList.self,
             GroceryListItem.self,
+            GroceryShare.self,
             // Coach (v2.1)
             LearnedPreference.self,
             LearnedOutcome.self,
