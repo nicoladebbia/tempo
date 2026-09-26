@@ -76,8 +76,6 @@ enum APNsService {
         data: [String: String] = [:],
         on req: Request
     ) async throws {
-        let topic = Environment.get("APNS_TOPIC") ?? "app.tempo.ios"
-
         let devices = try await DeviceToken.query(on: req.db)
             .filter(\.$userID == userID)
             .all()
@@ -107,12 +105,13 @@ enum APNsService {
 
         for device in devices {
             do {
-                try await req.apns.client.sendAlertNotification(
+                let route = route(for: device)
+                try await req.application.apns.client(route.container).sendAlertNotification(
                     .init(
                         alert: alertContent,
                         expiration: .immediately,
                         priority: .immediately,
-                        topic: topic,
+                        topic: route.topic,
                         payload: TempoNotificationPayload(data: payload),
                         category: type.category,
                         interruptionLevel: interruptionLevel
@@ -138,18 +137,17 @@ enum APNsService {
         data: [String: String],
         on req: Request
     ) async throws {
-        let topic = Environment.get("APNS_TOPIC") ?? "app.tempo.ios"
-
         let devices = try await DeviceToken.query(on: req.db)
             .filter(\.$userID == userID)
             .all()
 
         for device in devices {
             do {
-                try await req.apns.client.sendBackgroundNotification(
+                let route = route(for: device)
+                try await req.application.apns.client(route.container).sendBackgroundNotification(
                     .init(
                         expiration: .immediately,
-                        topic: topic,
+                        topic: route.topic,
                         payload: TempoNotificationPayload(data: data)
                     ),
                     deviceToken: device.token
@@ -161,6 +159,23 @@ enum APNsService {
                 }
             }
         }
+    }
+
+    // MARK: - Routing
+
+    /// Topic used for tokens registered before the app reported its bundle ID.
+    static var defaultTopic: String {
+        Environment.get("APNS_TOPIC") ?? "app.tempo.Tempo"
+    }
+
+    /// Which APNs environment and topic a token must be pushed through:
+    /// Xcode builds register sandbox tokens for the `.dev` bundle, App Store
+    /// builds production tokens for the release bundle. Sending through the
+    /// wrong one is rejected as an invalid token (and deletes it).
+    static func route(for device: DeviceToken) -> (container: APNSContainers.ID, topic: String) {
+        let container: APNSContainers.ID = device.apnsEnvironment == "sandbox" ? .development : .production
+        let topic = device.bundleID.flatMap { $0.isEmpty ? nil : $0 } ?? defaultTopic
+        return (container, topic)
     }
 
     // MARK: - Error Helpers

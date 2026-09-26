@@ -143,8 +143,6 @@ struct MorningBriefingJob: AsyncScheduledJob {
         app: Application,
         db: Database
     ) async throws {
-        let topic = Environment.get("APNS_TOPIC") ?? "app.tempo.ios"
-
         let devices = try await DeviceToken.query(on: db)
             .filter(\.$userID == userID)
             .all()
@@ -166,12 +164,13 @@ struct MorningBriefingJob: AsyncScheduledJob {
 
         for device in devices {
             do {
-                try await app.apns.client.sendAlertNotification(
+                let route = APNsService.route(for: device)
+                try await app.apns.client(route.container).sendAlertNotification(
                     .init(
                         alert: alertContent,
                         expiration: .immediately,
                         priority: .immediately,
-                        topic: topic,
+                        topic: route.topic,
                         payload: payload,
                         category: "MORNING_BRIEFING",
                         interruptionLevel: .timeSensitive

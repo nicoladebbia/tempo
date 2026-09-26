@@ -29,6 +29,14 @@ final class DeviceToken: Model, Content, @unchecked Sendable {
     @OptionalField(key: "app_version")
     var appVersion: String?
 
+    /// The app build's bundle ID — the APNs topic for this token.
+    @OptionalField(key: "bundle_id")
+    var bundleID: String?
+
+    /// "sandbox" (Xcode builds) or "production" (TestFlight / App Store).
+    @OptionalField(key: "apns_environment")
+    var apnsEnvironment: String?
+
     @Timestamp(key: "created_at", on: .create)
     var createdAt: Date?
 
@@ -45,7 +53,9 @@ final class DeviceToken: Model, Content, @unchecked Sendable {
         deviceID: String,
         deviceName: String? = nil,
         platform: String = "ios",
-        appVersion: String? = nil
+        appVersion: String? = nil,
+        bundleID: String? = nil,
+        apnsEnvironment: String? = nil
     ) {
         self.id = "dt_" + UUID().uuidString
             .replacingOccurrences(of: "-", with: "")
@@ -58,5 +68,7 @@ final class DeviceToken: Model, Content, @unchecked Sendable {
         self.deviceName = deviceName
         self.platform = platform
         self.appVersion = appVersion
+        self.bundleID = bundleID
+        self.apnsEnvironment = apnsEnvironment
     }
 }
