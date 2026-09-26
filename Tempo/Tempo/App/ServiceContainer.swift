@@ -45,6 +45,10 @@ final class ServiceContainer {
     /// survives view remounts — otherwise rapid `.task` re-fires each spawn a
     /// fresh paid Haiku call (the retry-storm bug).
     let recoveryInsight: RecoveryAIInsightService
+    /// Per feat/exercise-images. Shared (not per-view) so its disk cache and
+    /// per-slug in-flight/failure tracking survive view remounts — every
+    /// ExerciseImageView reads through this one instance.
+    let exerciseImages: ExerciseImageService
     /// §21 — phone side of the WCSession pair. Singleton (WCSession.default
     /// allows exactly one delegate); activated here so watch quick actions
     /// queued while the app was closed are delivered at launch.
@@ -99,6 +103,15 @@ final class ServiceContainer {
         self.nutrition = nutrition
         self.nutritionIntelligence = NutritionIntelligenceService()
         self.recoveryInsight = RecoveryAIInsightService(apiClient: apiClient)
+        self.exerciseImages = ExerciseImageService(
+            apiClient: apiClient,
+            isSignedIn: { [weak authService] in
+                guard case .authenticated = authService?.authState else {
+                    return false
+                }
+                return true
+            }
+        )
         let router = WatchActionRouter(
             accountabilityEngine: accountabilityEngine,
             notifications: notifications
