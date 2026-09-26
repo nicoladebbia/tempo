@@ -63,14 +63,15 @@ final class WeeklyPlanServiceTests: XCTestCase {
     // MARK: - Server plan → SwiftData
 
     private let serverPlan = """
-    {"id":"job-1","weekStart":"2026-09-28","status":"ready","error":null,
+    {"id":"job-1","week_start":"2026-09-28","status":"ready","error":null,
      "plan":{"days":[{"dayIndex":0,"dayType":"strength","meals":[
        {"mealNumber":1,"mealName":"Breakfast","scheduledTime":"08:30","foods":[
          {"name":"rolled oats","quantityGrams":85,"calories":323,"proteinG":11.2,"carbsG":57.1,"fatG":5.6,"source":"usda","restaurant":null}]},
        {"mealNumber":2,"mealName":"Lunch — Panera Bread","scheduledTime":"13:00","foods":[
          {"name":"chipotle chicken avocado melt (half)","quantityGrams":190,"calories":480,"proteinG":28,"carbsG":38,"fatG":24,"source":"restaurant","restaurant":"Panera Bread"}]}],
        "supplements":[{"name":"Creatine","take":true,"timing":"with breakfast","reason":"daily"}]}],
-     "solver":[{"dayIndex":0,"withinTolerance":true}]}}
+     "solver":[{"dayIndex":0,"withinTolerance":true}]},
+     "created_at":"2026-09-27T22:00:00Z","completed_at":"2026-09-27T22:03:10Z"}
     """
 
     func testServerPlanDecodes() throws {
@@ -80,6 +81,14 @@ final class WeeklyPlanServiceTests: XCTestCase {
         XCTAssertEqual(food.source, "restaurant")
         XCTAssertEqual(food.restaurant, "Panera Bread")
         XCTAssertNotNil(job.plan?.jsonString)
+        XCTAssertEqual(job.weekStart, "2026-09-28")
+        // POST answers with just the id/status/week.
+        let queued = try JSONDecoder().decode(
+            WeeklyPlanJobDTO.self,
+            from: Data(#"{"id":"job-2","status":"queued","week_start":"2026-10-05"}"#.utf8)
+        )
+        XCTAssertEqual(queued.status, .queued)
+        XCTAssertNil(queued.plan)
     }
 
     @MainActor

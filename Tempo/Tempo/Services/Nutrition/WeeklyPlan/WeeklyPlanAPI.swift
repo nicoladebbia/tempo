@@ -45,6 +45,16 @@ struct WeeklyPlanJobDTO: Decodable, Sendable, Equatable {
     let status: Status
     let error: String?
     let plan: WeeklyPlanPayload?
+
+    // The backend snake_cases its envelope; only `plan` (AI-authored JSON,
+    // passed through untouched) stays camelCase.
+    enum CodingKeys: String, CodingKey {
+        case id
+        case weekStart = "week_start"
+        case status
+        case error
+        case plan
+    }
 }
 
 // MARK: - WeeklyPlanPayload
