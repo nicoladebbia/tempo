@@ -26,8 +26,8 @@ final class FoodScannerFlowTests: XCTestCase {
         add(attachment)
     }
 
-    private func openScanner() {
-        app.launchForTesting()
+    private func openScanner(extraArguments: [String] = []) {
+        app.launchForTesting(extraArguments: extraArguments)
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 30))
         app.tabBars.buttons["Nutrition"].tap()
         let logSegment = app.segmentedControls.buttons["Log"]
@@ -112,5 +112,14 @@ final class FoodScannerFlowTests: XCTestCase {
         let rating = app.staticTexts["foodScoreRating"]
         XCTAssertTrue(rating.waitForExistence(timeout: 10), "Saved product opens with a score")
         attach("06-added-product")
+    }
+
+    func testOfflineScannerExplainsItself() {
+        openScanner(extraArguments: ["--uitesting-simulate-offline"])
+        let notice = app.alerts["You're offline"]
+        XCTAssertTrue(notice.waitForExistence(timeout: 10), "Offline pop-up on opening the scanner")
+        attach("07-offline-notice")
+        notice.buttons["OK"].tap()
+        XCTAssertTrue(app.buttons["Type the barcode"].waitForExistence(timeout: 5), "Scanner still usable after dismissing")
     }
 }
