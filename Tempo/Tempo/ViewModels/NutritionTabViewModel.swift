@@ -1010,101 +1010,43 @@ final class NutritionTabViewModel {
                 // identical to what the projection screen does.
                 let whoopTDEE: Double? = nil
 
-                // Whoop wake time → meal anchor. iOS won't share the Health
-                // Sleep Schedule, but Whoop knows when the user actually
-                // woke. Use last night's Whoop wake (minutes from midnight)
-                // to anchor meal times; nil falls back to UserSettings wake.
-                var whoopWakeMinutes: Int?
-                if whoop.providesRealData,
-                   let sleep = try? await whoop.fetchSleep(for: Date()),
-                   let wake = sleep.wakeTime
-                {
-                    let comps = Calendar.current.dateComponents([.hour, .minute], from: wake)
-                    whoopWakeMinutes = (comps.hour ?? 0) * 60 + (comps.minute ?? 0)
-                }
-
-                // Enrich the intake with the user's actual weekly training
-                // schedule from UserSettings so the AI generates day-types
-                // that match Mon=Upper / Wed=Football reality rather than
-                // a generic "Wed strength / Thu cardio" guess.
-                // When the caller supplies a fresh intake (the wizard), use it.
-                // Otherwise — the "Regenerate Plan" button and the other 3
-                // non-wizard generate paths — load the user's PERSISTED prefs
-                // instead of bare .default, so a quick regen respects their real
-                // cooking days / leftover style / eating window / exclusions.
-                let settingsForIntake = Self.loadUserSettings(modelContext: modelContext)
-                let intakeSource: String
-                var enrichedIntake: MealPlanIntake
-                if let intake {
-                    enrichedIntake = intake
-                    intakeSource = "wizard"
-                } else if let settingsForIntake {
-                    enrichedIntake = MealPlanIntake.loadPersisted(from: settingsForIntake)
-                    intakeSource = "persisted"
-                } else {
-                    enrichedIntake = .default
-                    intakeSource = "default"
-                }
-                let diagCookDays = enrichedIntake.cookableDaysThisWeek
-                let diagLeftover = enrichedIntake.leftoverTolerance.rawValue
-                let diagWindow = "\(enrichedIntake.eatingWindow.firstMealHour)-\(enrichedIntake.eatingWindow.lastMealHour)"
-                let diagExclusions = enrichedIntake.temporaryExclusions.count
-                Logger.nutrition
-                    .info(
-                        "[Diag.Plan] intake source: \(intakeSource, privacy: .public) — cookDays=\(diagCookDays) leftover=\(diagLeftover, privacy: .public) window=\(diagWindow, privacy: .public) exclusions=\(diagExclusions)"
-                    )
-                if let settings = settingsForIntake {
-                    // Fix #3 — the settings-only guess (split + footballDays)
-                    // agreed with Training only in the simplest case. Pull the
-                    // REAL week (trainer program, matches, custom map, recovery
-                    // swaps included) from the same generation path the
-                    // Training tab uses, via TrainingScheduleProvider.
-                    let realWeek = TrainingScheduleProvider.weekSchedule(
-                        containing: Date(),
-                        trainingEngine: trainingEngine,
-                        whoop: whoop,
-                        healthKit: healthKit,
-                        modelContext: modelContext
-                    )
-                    enrichedIntake.trainingSchedule = WeeklyTrainingSchedule.build(from: realWeek)
-                    // Hydrate the persisted grocery preferences when the
-                    // caller didn't supply them (non-wizard regen) so the
-                    // Sonnet prompt always sees the latest budget cap +
-                    // store list. The wizard's own commitAndAdvance keeps
-                    // these in sync, so the values here are the source of
-                    // truth.
-                    let persistedGrocery = GroceryIntent(
-                        willShopThisWeek: enrichedIntake.groceryIntent?.willShopThisWeek ?? true,
-                        budgetCapUSD: settings.groceryBudgetCapUSD,
-                        preferredStores: settings.groceryPreferredStores
-                    )
-                    if let existing = enrichedIntake.groceryIntent {
-                        // Wizard already populated — only fill in blanks.
-                        var merged = existing
-                        if merged.budgetCapUSD == nil {
-                            merged.budgetCapUSD = persistedGrocery.budgetCapUSD
-                        }
-                        if merged.preferredStores.isEmpty {
-                            merged.preferredStores = persistedGrocery.preferredStores
-                        }
-                        enrichedIntake.groceryIntent = merged
-                    } else if persistedGrocery.budgetCapUSD != nil
-                        || !persistedGrocery.preferredStores.isEmpty
-                    {
-                        enrichedIntake.groceryIntent = persistedGrocery
-                    }
-                }
-
-                let plan = try await generator.generateWeeklyPlan(
-                    profile: profile,
-                    whoopTDEE: whoopTDEE,
-                    wakeMinutesOverride: whoopWakeMinutes,
+                let (enrichedIntake, whoopWakeMinutes) = await Self.planInputs(
+                    intake: intake,
                     modelContext: modelContext,
-                    intake: enrichedIntake,
-                    onStatus: { [self] state in
-                        planGenerationStatusLabel = state.statusLabel
-                    }
+                    whoop: whoop,
+                    trainingEngine: trainingEngine,
+                    healthKit: healthKit
                 )
+
+                // Server first: USDA-checked foods + grams solved to every
+                // day's macros. Not deployed / failed → build on device.
+                let plan: WeeklyMealPlan
+                do {
+                    plan = try await WeeklyPlanService.shared.buildNow(
+                        weekStart: WeeklyPlanService.currentWeekStart(),
+                        intake: enrichedIntake,
+                        modelContext: modelContext,
+                        deps: PlanDeps(apiClient: apiClient, whoop: whoop, trainingEngine: trainingEngine, healthKit: healthKit),
+                        onStatus: { [self] label in
+                            planGenerationStatusLabel = label
+                        }
+                    )
+                } catch {
+                    if Task.isCancelled {
+                        return
+                    }
+                    Logger.nutrition.info("[Diag.Plan] server plan unavailable (\(error.localizedDescription, privacy: .public)) — building on device")
+                    plan = try await generator.generateWeeklyPlan(
+                        profile: profile,
+                        whoopTDEE: whoopTDEE,
+                        wakeMinutesOverride: whoopWakeMinutes,
+                        modelContext: modelContext,
+                        intake: enrichedIntake,
+                        onStatus: { [self] state in
+                            planGenerationStatusLabel = state.statusLabel
+                        }
+                    )
+                }
 
                 // Plan-gen's delete-and-reinsert of WeeklyMealPlan +
                 // PlannedMeal rows leaves the `plan` local pointing at
@@ -1173,6 +1115,127 @@ final class NutritionTabViewModel {
                 HapticManager.notification(.error)
             }
         }
+    }
+
+    // MARK: - Server-built plan
+
+    /// A plan the Sunday job saved while this screen wasn't generating it:
+    /// adopt it and run the same post-plan passes as a Regenerate.
+    func adoptActivePlan(modelContext: ModelContext, notifications: (any NotificationServiceProtocol)?) {
+        guard !isGeneratingPlan else {
+            return
+        }
+        let descriptor = FetchDescriptor<WeeklyMealPlan>(predicate: #Predicate { $0.isActive })
+        guard let plan = (try? modelContext.fetch(descriptor))?.first else {
+            return
+        }
+        weeklyPlan = plan
+        loadToday(modelContext: modelContext)
+        if let notifications {
+            scheduleDefrostReminders(for: plan, notifications: notifications, modelContext: modelContext)
+        }
+        pantryGapAlert = computePantryGap(for: plan, modelContext: modelContext)
+        generateGroceryList()
+    }
+
+    // MARK: - Plan inputs
+
+    /// The intake a weekly plan is built from — persisted prefs (or the
+    /// wizard's), the REAL training week, grocery prefs — plus last night's
+    /// Whoop wake time. Shared by the in-app generate and the Sunday job.
+    static func planInputs(
+        intake: MealPlanIntake?,
+        modelContext: ModelContext,
+        whoop: any WhoopServiceProtocol,
+        trainingEngine: any TrainingEngineProtocol,
+        healthKit: any HealthKitServiceProtocol,
+        week: Date = Date()
+    ) async -> (intake: MealPlanIntake, whoopWakeMinutes: Int?) {
+        // Whoop wake time → meal anchor. iOS won't share the Health
+        // Sleep Schedule, but Whoop knows when the user actually
+        // woke. Use last night's Whoop wake (minutes from midnight)
+        // to anchor meal times; nil falls back to UserSettings wake.
+        var whoopWakeMinutes: Int?
+        if whoop.providesRealData,
+           let sleep = try? await whoop.fetchSleep(for: Date()),
+           let wake = sleep.wakeTime
+        {
+            let comps = Calendar.current.dateComponents([.hour, .minute], from: wake)
+            whoopWakeMinutes = (comps.hour ?? 0) * 60 + (comps.minute ?? 0)
+        }
+
+        // Enrich the intake with the user's actual weekly training
+        // schedule from UserSettings so the AI generates day-types
+        // that match Mon=Upper / Wed=Football reality rather than
+        // a generic "Wed strength / Thu cardio" guess.
+        // When the caller supplies a fresh intake (the wizard), use it.
+        // Otherwise — the "Regenerate Plan" button and the other 3
+        // non-wizard generate paths — load the user's PERSISTED prefs
+        // instead of bare .default, so a quick regen respects their real
+        // cooking days / leftover style / eating window / exclusions.
+        let settingsForIntake = Self.loadUserSettings(modelContext: modelContext)
+        let intakeSource: String
+        var enrichedIntake: MealPlanIntake
+        if let intake {
+            enrichedIntake = intake
+            intakeSource = "wizard"
+        } else if let settingsForIntake {
+            enrichedIntake = MealPlanIntake.loadPersisted(from: settingsForIntake)
+            intakeSource = "persisted"
+        } else {
+            enrichedIntake = .default
+            intakeSource = "default"
+        }
+        let diagCookDays = enrichedIntake.cookableDaysThisWeek
+        let diagLeftover = enrichedIntake.leftoverTolerance.rawValue
+        let diagWindow = "\(enrichedIntake.eatingWindow.firstMealHour)-\(enrichedIntake.eatingWindow.lastMealHour)"
+        let diagExclusions = enrichedIntake.temporaryExclusions.count
+        Logger.nutrition
+            .info(
+                "[Diag.Plan] intake source: \(intakeSource, privacy: .public) — cookDays=\(diagCookDays) leftover=\(diagLeftover, privacy: .public) window=\(diagWindow, privacy: .public) exclusions=\(diagExclusions)"
+            )
+        if let settings = settingsForIntake {
+            // Fix #3 — the settings-only guess (split + footballDays)
+            // agreed with Training only in the simplest case. Pull the
+            // REAL week (trainer program, matches, custom map, recovery
+            // swaps included) from the same generation path the
+            // Training tab uses, via TrainingScheduleProvider.
+            let realWeek = TrainingScheduleProvider.weekSchedule(
+                containing: week,
+                trainingEngine: trainingEngine,
+                whoop: whoop,
+                healthKit: healthKit,
+                modelContext: modelContext
+            )
+            enrichedIntake.trainingSchedule = WeeklyTrainingSchedule.build(from: realWeek)
+            // Hydrate the persisted grocery preferences when the
+            // caller didn't supply them (non-wizard regen) so the
+            // Sonnet prompt always sees the latest budget cap +
+            // store list. The wizard's own commitAndAdvance keeps
+            // these in sync, so the values here are the source of
+            // truth.
+            let persistedGrocery = GroceryIntent(
+                willShopThisWeek: enrichedIntake.groceryIntent?.willShopThisWeek ?? true,
+                budgetCapUSD: settings.groceryBudgetCapUSD,
+                preferredStores: settings.groceryPreferredStores
+            )
+            if let existing = enrichedIntake.groceryIntent {
+                // Wizard already populated — only fill in blanks.
+                var merged = existing
+                if merged.budgetCapUSD == nil {
+                    merged.budgetCapUSD = persistedGrocery.budgetCapUSD
+                }
+                if merged.preferredStores.isEmpty {
+                    merged.preferredStores = persistedGrocery.preferredStores
+                }
+                enrichedIntake.groceryIntent = merged
+            } else if persistedGrocery.budgetCapUSD != nil
+                || !persistedGrocery.preferredStores.isEmpty
+            {
+                enrichedIntake.groceryIntent = persistedGrocery
+            }
+        }
+        return (enrichedIntake, whoopWakeMinutes)
     }
 
     /// Compute the set of canonical ingredient names referenced by the plan that

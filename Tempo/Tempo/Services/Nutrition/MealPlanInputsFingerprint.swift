@@ -91,8 +91,23 @@ enum MealPlanInputsFingerprint {
             footballDays: settings?.footballDaysRaw,
             activeTrainerProgramIDs: programs.filter(\.isActive).map(\.id),
             profile: profileFields(profile),
-            schedule: scheduleFields(settings: settings, in: context)
+            schedule: scheduleFields(settings: settings, in: context) + routineFields(in: context)
         ))
+    }
+
+    /// The Fuel setup routine (wake/leave times, meals out, notes) shapes
+    /// meal timing and restaurant slots. Empty when there's no routine, so
+    /// installs without one keep their existing fingerprint (no surprise regen).
+    @MainActor
+    static func routineFields(in context: ModelContext) -> [String] {
+        let dailyPlan = UserDailyPlanProfile.current(in: context)
+        guard let routine = dailyPlan?.weeklyRoutine else {
+            return []
+        }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        let json = (try? encoder.encode(routine)).flatMap { String(data: $0, encoding: .utf8) } ?? "-"
+        return ["routine=\(json)", "notes=\(dailyPlan?.fuelSetupNotes ?? "")"]
     }
 
     /// The meal plan's training days come from Training's real week

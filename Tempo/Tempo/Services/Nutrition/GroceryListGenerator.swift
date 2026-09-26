@@ -50,7 +50,8 @@ enum GroceryListGenerator {
         var aggregated: [String: Aggregated] = [:]
 
         for meal in input.mealPlan.meals ?? [] {
-            for food in meal.foods {
+            // Restaurant items are bought ready-made, not shopped for.
+            for food in meal.foods where !food.isApproximate {
                 let canonical = FoodCanonicalizer.canonicalize(food.name)
                 guard !canonical.isEmpty else {
                     continue

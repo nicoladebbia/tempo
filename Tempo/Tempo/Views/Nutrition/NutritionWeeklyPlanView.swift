@@ -46,6 +46,7 @@ struct NutritionWeeklyPlanView: View {
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: TempoSpacing.lg) {
+                NextWeekPlanCard()
                 if let plan = viewModel.weeklyPlan {
                     planHeaderCard(plan)
                     weekDaysList(plan)

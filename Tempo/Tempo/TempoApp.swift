@@ -8,6 +8,7 @@
 
 import SwiftData
 import SwiftUI
+import UserNotifications
 import UIKit
 
 // MARK: - TempoAppDelegate
@@ -17,6 +18,25 @@ import UIKit
 class TempoAppDelegate: NSObject, UIApplicationDelegate {
     /// Shared push registration service, set by TempoApp on init.
     static var pushRegistration: PushRegistrationService?
+
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        // Must be set before launch finishes, or a notification action that
+        // launched the app (the Sunday "Yes" in the background) is dropped.
+        UNUserNotificationCenter.current().delegate = TempoNotificationDelegate.shared
+        (TempoNotificationDelegate.services?.notifications as? NotificationService)?.registerCategories()
+        Task { @MainActor in
+            // Already allowed → refresh the device token silently so the
+            // "plan ready" push can reach this phone.
+            let settings = await UNUserNotificationCenter.current().notificationSettings()
+            if settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional {
+                application.registerForRemoteNotifications()
+            }
+        }
+        return true
+    }
 
     func application(
         _ application: UIApplication,
@@ -81,6 +101,8 @@ struct TempoApp: App {
 
         // Wire push registration service to AppDelegate
         TempoAppDelegate.pushRegistration = serviceContainer.pushRegistration
+        TempoNotificationDelegate.services = serviceContainer
+        TempoNotificationDelegate.modelContainer = container
 
         // Per BUILD_PLAN — register BG tasks before scene activation per Apple
         // guidance, then arm the daily reset handler.

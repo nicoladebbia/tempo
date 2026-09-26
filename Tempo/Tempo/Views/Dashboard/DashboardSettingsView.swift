@@ -128,6 +128,17 @@ struct DashboardSettingsView: View {
                     }
                     .buttonStyle(.plain)
 
+                    NavigationLink {
+                        WeeklyHabitsSettingsView()
+                    } label: {
+                        SettingsNavRow(
+                            icon: "calendar.badge.clock", iconTint: .tempoSuccess,
+                            title: "Weekly habits", subtitle: "Sunday planning, routine, what we've learned"
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("settingsWeeklyHabits")
+
                     Button {
                         openSystemSettings()
                     } label: {

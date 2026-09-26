@@ -42,6 +42,9 @@ final class AppState {
     }
 
     var activeTab: Tab = .dashboard
+    /// Set by the Sunday notification's "Something's different" — ContentView
+    /// opens the weekly check-in.
+    var weeklyCheckInRequested = false
     var isOffline: Bool = false
 
     private let authService: AuthService

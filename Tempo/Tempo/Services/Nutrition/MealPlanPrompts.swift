@@ -26,6 +26,16 @@ enum MealPlanPrompts {
         return String(s.prefix(120))
     }
 
+    /// `sanitizeForPrompt` for free text the user wrote at length (Fuel setup
+    /// notes, the Sunday check-in): same stripping, longer cap.
+    static func sanitizeLongForPrompt(_ input: String, limit: Int = 2000) -> String {
+        var s = input
+        for ch in ["\n", "\r", "<", ">", "\"", "`"] {
+            s = s.replacingOccurrences(of: ch, with: " ")
+        }
+        return String(s.prefix(limit))
+    }
+
     // MARK: - Dietary Restrictions
 
     struct DietaryRestrictions {
@@ -735,7 +745,11 @@ enum MealPlanPrompts {
         cookTimeWeekdayMins: Int? = nil,
         cookTimeWeekendMins: Int? = nil,
         equipment: [String] = [],
-        clearSkinFocus: Bool = false
+        clearSkinFocus: Bool = false,
+        routine: WeeklyRoutine? = nil,
+        lifeNotes: String? = nil,
+        checkIn: String? = nil,
+        nearbyRestaurants: [String: [String]] = [:]
     ) -> (system: String, user: String) {
         let system = """
         You are the nutrition arm of Tempo, a drill-sergeant life operating system for student-athletes. \
@@ -794,6 +808,8 @@ enum MealPlanPrompts {
         \(functionalNutritionBlock(clearSkinFocus: clearSkinFocus))
         \(equipmentBlock(equipment))
         \(supplementShelfBlock(supplements))
+        \(routineBlock(routine, notes: lifeNotes, nearby: nearbyRestaurants))
+        \(checkInBlock(checkIn))
 
         <meal_structure>
         \(mealCountDirective(mealsPerDay))
@@ -827,7 +843,9 @@ enum MealPlanPrompts {
                                     "calories": number,
                                     "proteinG": number,
                                     "carbsG": number,
-                                    "fatG": number
+                                    "fatG": number,
+                                    "source": "home | restaurant",
+                                    "restaurant": "restaurant name when source is restaurant, else null"
                                 }
                             ]
                         }
@@ -871,6 +889,9 @@ enum MealPlanPrompts {
         user's PREFERRED time for that meal — use it when it falls inside the \
         window above and keeps the day ordered; otherwise nudge to the nearest \
         time that satisfies the window + ordering rules.
+        - When a <weekly_routine> block is provided it OVERRIDES the default \
+        meal windows above: follow its per-day timing rules (the ordering rule \
+        still applies).
         - Each food's macros must be realistic for the stated quantity. Reference standard per-100g values.
         - Each meal's total macros (sum of foods) must match the meal's share of the day's target within 5%.
         - Each day's total macros (sum of meals) must match the day type's target within 3%.
@@ -885,5 +906,103 @@ enum MealPlanPrompts {
         """
 
         return (system: system, user: user)
+    }
+
+    // MARK: - Weekly routine (Fuel setup)
+
+    private static let weekdayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+    /// The user's real week from Fuel setup: when they wake, leave, train and
+    /// eat out, day by day — so meals land where their life actually is.
+    static func routineBlock(_ routine: WeeklyRoutine?, notes: String?, nearby: [String: [String]]) -> String {
+        guard let routine, !routine.isEmpty else {
+            return ""
+        }
+        func time(_ minutes: Int?) -> String? {
+            RoutineTime.string(minutes)
+        }
+        var lines: [String] = []
+        for day in routine.days {
+            var parts: [String] = []
+            if let wake = time(day.wakeMinutes) { parts.append("wake \(wake)") }
+            if let leave = time(day.leaveHomeMinutes) { parts.append("leaves home \(leave)") }
+            for event in day.events {
+                let place = routine.place(id: event.placeID).map { " at \(sanitizeForPrompt($0.name))" } ?? ""
+                let span = [time(event.startMinutes), time(event.endMinutes)].compactMap(\.self).joined(separator: "–")
+                switch event.kind {
+                case .mealOut:
+                    let with = event.with.map { " with \(sanitizeForPrompt($0))" } ?? ""
+                    let usual = event.restaurants.isEmpty ? "" :
+                        " (usually: \(event.restaurants.map(sanitizeForPrompt).joined(separator: ", ")))"
+                    parts.append("EATS OUT \(span)\(place)\(with)\(usual)")
+                case .classOrWork, .other:
+                    parts.append("\(sanitizeForPrompt(event.title)) \(span)\(place)")
+                }
+            }
+            if let training = day.training {
+                let kind = training.kind.isEmpty ? "training" : sanitizeForPrompt(training.kind)
+                parts.append("\(kind) \(time(training.startMinutes) ?? "")–\(time(training.startMinutes + training.durationMinutes) ?? "")")
+            }
+            if let back = time(day.backHomeMinutes) { parts.append("home \(back)") }
+            if let bed = time(day.bedMinutes) { parts.append("bed \(bed)") }
+            guard !parts.isEmpty, (1 ... 7).contains(day.weekday) else {
+                continue
+            }
+            lines.append("- \(weekdayNames[day.weekday - 1]) (dayIndex \(day.weekday - 1)): \(parts.joined(separator: "; "))")
+        }
+        var places: [String] = []
+        for place in routine.places {
+            var options = place.usualRestaurants
+            for name in nearby[place.name] ?? [] where !options.contains(where: { $0.caseInsensitiveCompare(name) == .orderedSame }) {
+                options.append(name)
+            }
+            guard !options.isEmpty else {
+                continue
+            }
+            places.append("- \(sanitizeForPrompt(place.name)): \(options.prefix(15).map(sanitizeForPrompt).joined(separator: ", "))")
+        }
+        let cleanNotes = notes.map { sanitizeLongForPrompt($0) }?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return """
+
+        <weekly_routine>
+        \(lines.joined(separator: "\n"))
+        \(places.isEmpty ? "" : "Restaurants at their places (usual ones first, then nearby):\n" + places.joined(separator: "\n"))
+        \(cleanNotes.isEmpty ? "" : "Other things they said: \(cleanNotes)")
+
+        Timing rules for this routine:
+        - Breakfast 20–60 min after that day's wake time, and before they leave home.
+        - A meal that falls while they're away from home (between leaving and \
+        getting back) and isn't an EATS OUT slot must be portable: a packed \
+        lunch/snack they prep at home (say "packed" in mealName).
+        - EATS OUT slots: that meal is at that time, at one of that place's \
+        restaurants. Pick ONE specific real menu item (or two) that best fits \
+        the day's macros — prefer their usual place, but choose a better-fitting \
+        restaurant from the list when the usual one can't fit. Each such food \
+        has "source":"restaurant", "restaurant":"<name>", quantityGrams = the \
+        served portion, and macros from that chain's published nutrition \
+        (your best estimate). mealName like "Lunch — Panera Bread". The home \
+        meals that day absorb the difference so the day still hits target.
+        - Training days: a pre-training meal or snack 60–120 min before the \
+        session, and a protein + carb meal within 60 min after it. Nothing \
+        heavy in the last hour before training.
+        - Last meal ≥ 60 min before bed.
+        - All other foods: "source":"home", "restaurant": null.
+        </weekly_routine>
+        """
+    }
+
+    /// The 30-second Sunday check-in: what's different about next week.
+    static func checkInBlock(_ checkIn: String?) -> String {
+        let text = checkIn.map { sanitizeLongForPrompt($0) }?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !text.isEmpty else {
+            return ""
+        }
+        return """
+
+        <next_week_check_in>
+        What they said is different about next week (overrides the routine where it conflicts):
+        \(text)
+        </next_week_check_in>
+        """
     }
 }

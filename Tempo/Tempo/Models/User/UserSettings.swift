@@ -189,6 +189,11 @@ final class UserSettings {
     /// (the current 4-5 default). Drives the meal-count directive.
     var mealsPerDayPreference: Int?
 
+    /// Sunday "plan next week?" notification. nil = on (default).
+    var weeklyPlanPromptEnabled: Bool?
+    /// Minutes from midnight for that Sunday notification. nil = 18:00.
+    var weeklyPlanPromptMinutes: Int?
+
     /// Cooking-time budget in minutes — weekday vs weekend. Nil → no cap (AI
     /// uses its under-20-min weekday default). Drives recipe complexity.
     var cookTimeWeekdayMins: Int?
