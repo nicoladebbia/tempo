@@ -176,6 +176,7 @@ func configure(_ app: Application) async throws {
     app.migrations.add(CreateTrainerProgramImports())
     app.migrations.add(CreateExerciseImages())
     app.migrations.add(CreateExerciseImageMonthlySpend())
+    app.migrations.add(CreateFoodNutritionCache())
 
     // Arena module — per BUILD_PLAN step 14.1
     app.migrations.add(CreateXPEvents())
