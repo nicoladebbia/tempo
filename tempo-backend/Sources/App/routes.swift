@@ -144,6 +144,20 @@ func routes(_ app: Application) throws {
         .register(collection: UserController())
 
     // ─────────────────────────────────────────────────
+    // Exercise images — feat/exercise-images
+    // GET  /v1/exercise-images/:slug — public, no auth (images aren't
+    //      sensitive; this lets AsyncImage/URLSession cache them directly).
+    // POST /v1/exercise-images       — JWT auth, generates on demand.
+    // Not a RouteCollection: the two routes need different auth, so they're
+    // wired individually against the public `v1` group and the `protected` group.
+    // ─────────────────────────────────────────────────
+    let exerciseImages = ExerciseImageController()
+    v1.get("exercise-images", ":slug", use: exerciseImages.show)
+    protected.grouped("exercise-images")
+        .grouped(RateLimitMiddleware(limit: 40, window: .minutes(1), scope: .user))
+        .post(use: exerciseImages.generate)
+
+    // ─────────────────────────────────────────────────
     // Webhooks (no JWT — verified via HMAC)
     // ─────────────────────────────────────────────────
 

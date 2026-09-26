@@ -174,6 +174,8 @@ func configure(_ app: Application) async throws {
     app.migrations.add(CreateAIResponseCache())
     app.migrations.add(CreateUserDailyPlanProfiles())
     app.migrations.add(CreateTrainerProgramImports())
+    app.migrations.add(CreateExerciseImages())
+    app.migrations.add(CreateExerciseImageMonthlySpend())
 
     // Arena module — per BUILD_PLAN step 14.1
     app.migrations.add(CreateXPEvents())
@@ -223,6 +225,13 @@ func configure(_ app: Application) async throws {
     // notification UUIDs older than 90 days. Daily at 04:00 UTC.
     app.queues.schedule(ProcessedNotificationsCleanupJob())
         .daily().at(.init(integerLiteral: 4), .init(integerLiteral: 0))
+
+    // ─────────────────────────────────────────────────
+    // 8.5 CLI commands
+    // ─────────────────────────────────────────────────
+    // `swift run App generate-exercise-images --file <path> [--limit N] [--dry-run]`
+    // Pre-generates the exercise-image library. Per feat/exercise-images.
+    app.asyncCommands.use(GenerateExerciseImagesCommand(), as: "generate-exercise-images")
 
     // ─────────────────────────────────────────────────
     // 9. Routes

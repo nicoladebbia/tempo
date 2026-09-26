@@ -28,6 +28,12 @@ struct DashboardSettingsView: View {
     private var allSettings: [UserSettings]
     @Query
     private var allProfiles: [UserProfile]
+    #if DEBUG
+        @Query
+        private var allExercisesForImageBackfill: [Exercise]
+        @State private var isGeneratingMissingImages = false
+        @State private var missingImagesStatus: String?
+    #endif
 
     private var settings: UserSettings? {
         allSettings.first
@@ -38,6 +44,7 @@ struct DashboardSettingsView: View {
     }
 
     // MARK: - Account deletion state
+
     //
     // Apple-required per App Store Review Guideline 5.1.1(v): users must be
     // able to initiate account deletion from within the app. Backend wipes
@@ -50,7 +57,7 @@ struct DashboardSettingsView: View {
     @State private var showPaywall = false
     @State private var isRestoring = false
     @State private var restoreError: String?
-    // Refreshed on appear — location auth can change in iOS Settings while away.
+    /// Refreshed on appear — location auth can change in iOS Settings while away.
     @State private var locationStatus: CLAuthorizationStatus = CLLocationManager().authorizationStatus
 
     var body: some View {
@@ -225,17 +232,29 @@ struct DashboardSettingsView: View {
                 }
 
                 #if DEBUG
-                SettingsGroupCard(title: "Developer") {
-                    NavigationLink {
-                        DailyReadinessHarnessView()
-                    } label: {
-                        SettingsNavRow(
-                            icon: "flask.fill", iconTint: .tempoWarning,
-                            title: "D0 Prompt Harness", subtitle: "Run ~20 synthetic days through Haiku"
-                        )
+                    SettingsGroupCard(title: "Developer") {
+                        NavigationLink {
+                            DailyReadinessHarnessView()
+                        } label: {
+                            SettingsNavRow(
+                                icon: "flask.fill", iconTint: .tempoWarning,
+                                title: "D0 Prompt Harness", subtitle: "Run ~20 synthetic days through Haiku"
+                            )
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            Task { await generateMissingExerciseImages() }
+                        } label: {
+                            SettingsNavRow(
+                                icon: "photo.badge.plus", iconTint: .tempoElectric,
+                                title: "Generate missing exercise pictures",
+                                subtitle: missingImagesStatus ?? "Walk the local library, request any missing ones"
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isGeneratingMissingImages)
                     }
-                    .buttonStyle(.plain)
-                }
                 #endif
             }
             .padding(.horizontal, TempoSpacing.xl)
@@ -265,7 +284,11 @@ struct DashboardSettingsView: View {
             "Could not delete account",
             isPresented: Binding(
                 get: { deleteAccountError != nil },
-                set: { if !$0 { deleteAccountError = nil } }
+                set: {
+                    if !$0 {
+                        deleteAccountError = nil
+                    }
+                }
             )
         ) {
             Button("OK", role: .cancel) { deleteAccountError = nil }
@@ -279,7 +302,6 @@ struct DashboardSettingsView: View {
 
     // MARK: - Profile Header Card
 
-    @ViewBuilder
     private var profileHeaderCard: some View {
         NavigationLink {
             ProfileSettingsDetailView()
@@ -325,7 +347,6 @@ struct DashboardSettingsView: View {
 
     // MARK: - Subscription Card
 
-    @ViewBuilder
     private var subscriptionCard: some View {
         SettingsGroupCard(title: "Subscription") {
             HStack(spacing: TempoSpacing.md) {
@@ -372,29 +393,41 @@ struct DashboardSettingsView: View {
     }
 
     private var scheduleSubtitle: String {
-        guard let s = settings else { return "Not set up" }
+        guard let s = settings else {
+            return "Not set up"
+        }
         // leisureTimeMinutes is a TIME-OF-DAY (validated 0..<1440 alongside
         // wake/bedtime as invalidTimeOfDay), NOT a duration — render as a clock.
         return "Wake \(timeString(fromMinutes: s.wakeTimeMinutes)) · Bed \(timeString(fromMinutes: s.bedtimeTargetMinutes)) · Leisure \(timeString(fromMinutes: s.leisureTimeMinutes))"
     }
 
     private var trainingSubtitle: String {
-        guard let s = settings else { return "Not set up" }
+        guard let s = settings else {
+            return "Not set up"
+        }
         let days = s.footballDaysRaw.nonzeroBitCount
         let football = days == 0 ? "no football" : "\(days) football day\(days == 1 ? "" : "s")"
         return "\(s.trainingSplit.displayName) · \(football) · \(s.weightUnitRaw)"
     }
 
     private var focusSubtitle: String {
-        guard let s = settings else { return "Not set up" }
+        guard let s = settings else {
+            return "Not set up"
+        }
         return "\(s.pomodoroDuration) / \(s.breakDuration) / \(s.longBreakDuration) min"
     }
 
     private var modesSubtitle: String {
-        guard let s = settings else { return "None active" }
+        guard let s = settings else {
+            return "None active"
+        }
         var active: [String] = []
-        if s.weekendMode { active.append("Weekend") }
-        if s.examMode { active.append("Exam") }
+        if s.weekendMode {
+            active.append("Weekend")
+        }
+        if s.examMode {
+            active.append("Exam")
+        }
         return active.isEmpty ? "None active" : active.joined(separator: " · ")
     }
 
@@ -449,7 +482,9 @@ struct DashboardSettingsView: View {
 
     @MainActor
     private func restorePurchases() async {
-        guard !isRestoring else { return }
+        guard !isRestoring else {
+            return
+        }
         isRestoring = true
         restoreError = nil
         defer { isRestoring = false }
@@ -461,11 +496,47 @@ struct DashboardSettingsView: View {
         }
     }
 
+    #if DEBUG
+
+        // MARK: - Exercise image backfill (DEBUG only) — feat/exercise-images
+
+        /// Walks the local exercise library and requests any missing picture,
+        /// skipping ones ExerciseImageService already has cached or already
+        /// knows failed this session. Rate-aware: relies on
+        /// ExerciseImageService's own session-scoped failure memory (so a 429
+        /// from the backend's 40/day cap stops hammering after the first hit)
+        /// rather than adding a second rate limiter here.
+        @MainActor
+        private func generateMissingExerciseImages() async {
+            guard !isGeneratingMissingImages else {
+                return
+            }
+            isGeneratingMissingImages = true
+            defer { isGeneratingMissingImages = false }
+
+            let missing = allExercisesForImageBackfill.filter {
+                !services.exerciseImages.hasCachedOrFailedResult(for: $0)
+            }
+            guard !missing.isEmpty else {
+                missingImagesStatus = "All \(allExercisesForImageBackfill.count) exercises already have a picture."
+                return
+            }
+
+            for (done, exercise) in missing.enumerated() {
+                _ = await services.exerciseImages.imageData(for: exercise)
+                missingImagesStatus = "\(done + 1)/\(missing.count) checked"
+            }
+            missingImagesStatus = "Done — checked \(missing.count) missing pictures."
+        }
+    #endif
+
     // MARK: - Account deletion action
 
     @MainActor
     private func performAccountDeletion() async {
-        guard !isDeletingAccount else { return }
+        guard !isDeletingAccount else {
+            return
+        }
         isDeletingAccount = true
         defer { isDeletingAccount = false }
 
@@ -535,8 +606,10 @@ struct DashboardSettingsView: View {
 
     private var locationStatusText: String {
         switch locationStatus {
-        case .authorizedWhenInUse, .authorizedAlways: "Authorized"
-        case .denied, .restricted: "Denied"
+        case .authorizedWhenInUse,
+             .authorizedAlways: "Authorized"
+        case .denied,
+             .restricted: "Denied"
         case .notDetermined: "Not Set Up"
         @unknown default: "Not Set Up"
         }
@@ -544,8 +617,10 @@ struct DashboardSettingsView: View {
 
     private var locationStatusColor: Color {
         switch locationStatus {
-        case .authorizedWhenInUse, .authorizedAlways: .tempoSuccess
-        case .denied, .restricted: .tempoError
+        case .authorizedWhenInUse,
+             .authorizedAlways: .tempoSuccess
+        case .denied,
+             .restricted: .tempoError
         default: .tempoTextTertiary
         }
     }
@@ -615,7 +690,6 @@ struct ProfileSettingsDetailView: View {
 
     // MARK: - Hero
 
-    @ViewBuilder
     private var heroCard: some View {
         VStack(spacing: TempoSpacing.md) {
             Circle()
@@ -660,7 +734,6 @@ struct ProfileSettingsDetailView: View {
 
     // MARK: - Stats
 
-    @ViewBuilder
     private var statsCard: some View {
         HStack(spacing: 0) {
             statCell(value: "\(profile?.currentLevel ?? 1)", label: "Level")
@@ -709,7 +782,9 @@ struct ProfileSettingsDetailView: View {
     }
 
     private var memberSince: String {
-        guard let created = profile?.createdAt else { return "—" }
+        guard let created = profile?.createdAt else {
+            return "—"
+        }
         let f = DateFormatter()
         f.dateFormat = "MMM ''yy"
         return f.string(from: created)
@@ -717,7 +792,6 @@ struct ProfileSettingsDetailView: View {
 
     // MARK: - Training summary (read-only, surfaced from UserSettings)
 
-    @ViewBuilder
     private var trainingSummaryCard: some View {
         SettingsFormCard(title: "Training") {
             SettingsInfoRow(
@@ -751,7 +825,6 @@ struct ProfileSettingsDetailView: View {
 
     // MARK: - Identity (editable)
 
-    @ViewBuilder
     private var identityCard: some View {
         VStack(alignment: .leading, spacing: TempoSpacing.sm) {
             Text("IDENTITY")
@@ -806,26 +879,37 @@ struct ProfileSettingsDetailView: View {
 
     // MARK: - Biometrics (editable)
 
-    // Biometrics are READ-ONLY here. They're owned by the active
-    // DietaryProfile (which has the "Refresh from Health" flow); editing
-    // them lives there, not on the profile screen.
-    @ViewBuilder
+    /// Biometrics are READ-ONLY here. They're owned by the active
+    /// DietaryProfile (which has the "Refresh from Health" flow); editing
+    /// them lives there, not on the profile screen.
     private var biometricsCard: some View {
         SettingsFormCard(
             title: "Biometrics",
             footnote: "Biometrics come from your Diet Profile. Update them there with “Refresh from Health.”"
         ) {
             if let d = dietProfile {
-                SettingsInfoRow(label: "Weight", value: String(format: "%.1f kg", d.currentWeightKg),
-                                icon: "scalemass", iconTint: .tempoElectric)
+                SettingsInfoRow(
+                    label: "Weight",
+                    value: String(format: "%.1f kg", d.currentWeightKg),
+                    icon: "scalemass",
+                    iconTint: .tempoElectric
+                )
                 SettingsRowDivider()
-                SettingsInfoRow(label: "Height", value: String(format: "%.0f cm", d.heightCm),
-                                icon: "ruler", iconTint: .tempoAmber)
+                SettingsInfoRow(
+                    label: "Height",
+                    value: String(format: "%.0f cm", d.heightCm),
+                    icon: "ruler",
+                    iconTint: .tempoAmber
+                )
                 SettingsRowDivider()
                 SettingsInfoRow(label: "Age", value: "\(d.age)", icon: "calendar", iconTint: .tempoViolet)
                 SettingsRowDivider()
-                SettingsInfoRow(label: "Est. BMR", value: "\(Int(bmr(from: d))) kcal",
-                                icon: "flame", iconTint: .tempoSignal)
+                SettingsInfoRow(
+                    label: "Est. BMR",
+                    value: "\(Int(bmr(from: d))) kcal",
+                    icon: "flame",
+                    iconTint: .tempoSignal
+                )
             } else {
                 NavigationLink {
                     DietaryProfileSetupView()
@@ -981,7 +1065,6 @@ struct ScheduleSettingsDetailView: View {
 
     /// Big computed sleep-window length (bedtime → wake), surfaced as data
     /// the screen didn't show before.
-    @ViewBuilder
     private var sleepWindowCard: some View {
         VStack(spacing: TempoSpacing.xs) {
             Text(sleepWindowText)
@@ -998,10 +1081,14 @@ struct ScheduleSettingsDetailView: View {
     }
 
     private var sleepWindowText: String {
-        guard let s = settings else { return "—" }
+        guard let s = settings else {
+            return "—"
+        }
         // Minutes from bedtime to wake, wrapping past midnight.
         var span = s.wakeTimeMinutes - s.bedtimeTargetMinutes
-        if span <= 0 { span += 24 * 60 }
+        if span <= 0 {
+            span += 24 * 60
+        }
         let h = span / 60
         let m = span % 60
         return m == 0 ? "\(h)h" : "\(h)h \(m)m"
@@ -1109,7 +1196,6 @@ struct FocusTimerSettingsDetailView: View {
     }
 
     /// Visual cycle preview — surfaces what the durations actually produce.
-    @ViewBuilder
     private var cyclePreviewCard: some View {
         VStack(spacing: TempoSpacing.md) {
             Text("\(pomodoroDuration) / \(breakDuration) / \(longBreakDuration)")
@@ -1274,13 +1360,21 @@ struct SubscriptionDetailView: View {
                 .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
 
                 SettingsFormCard(title: "Details") {
-                    SettingsInfoRow(label: "Status", value: planTitle, icon: "checkmark.seal.fill",
-                                    iconTint: state.isPro ? .tempoSuccess : .tempoTextTertiary,
-                                    valueColor: state.isPro ? .tempoSuccess : .tempoTextTertiary)
+                    SettingsInfoRow(
+                        label: "Status",
+                        value: planTitle,
+                        icon: "checkmark.seal.fill",
+                        iconTint: state.isPro ? .tempoSuccess : .tempoTextTertiary,
+                        valueColor: state.isPro ? .tempoSuccess : .tempoTextTertiary
+                    )
                     if let renewal = renewalLine {
                         SettingsRowDivider()
-                        SettingsInfoRow(label: renewal.label, value: renewal.value,
-                                        icon: "calendar", iconTint: .tempoElectric)
+                        SettingsInfoRow(
+                            label: renewal.label,
+                            value: renewal.value,
+                            icon: "calendar",
+                            iconTint: .tempoElectric
+                        )
                     }
                     if let plan = productLine {
                         SettingsRowDivider()
@@ -1326,7 +1420,8 @@ struct SubscriptionDetailView: View {
         case .trial: "Pro · Trial"
         case .active: "Pro"
         case .gracePeriod: "Pro · Billing issue"
-        case .expired, .churned: "Expired"
+        case .expired,
+             .churned: "Expired"
         }
     }
 
@@ -1362,7 +1457,9 @@ struct SubscriptionDetailView: View {
 
     @MainActor
     private func restore() async {
-        guard !isRestoring else { return }
+        guard !isRestoring else {
+            return
+        }
         isRestoring = true
         restoreError = nil
         defer { isRestoring = false }
@@ -1390,7 +1487,9 @@ struct AccountDetailView: View {
     @State
     private var deleteError: String?
 
-    private var profile: UserProfile? { allProfiles.first }
+    private var profile: UserProfile? {
+        allProfiles.first
+    }
 
     var body: some View {
         ScrollView {
@@ -1439,7 +1538,11 @@ struct AccountDetailView: View {
             Text("This permanently deletes all your data. This cannot be undone.")
         }
         .alert("Could not delete account", isPresented: Binding(
-            get: { deleteError != nil }, set: { if !$0 { deleteError = nil } }
+            get: { deleteError != nil }, set: {
+                if !$0 {
+                    deleteError = nil
+                }
+            }
         )) {
             Button("OK", role: .cancel) { deleteError = nil }
         } message: {
@@ -1448,7 +1551,9 @@ struct AccountDetailView: View {
     }
 
     private var memberSince: String {
-        guard let created = profile?.createdAt else { return "—" }
+        guard let created = profile?.createdAt else {
+            return "—"
+        }
         let f = DateFormatter()
         f.dateStyle = .medium
         return f.string(from: created)
@@ -1470,7 +1575,9 @@ struct AccountDetailView: View {
 
     @MainActor
     private func performDeletion() async {
-        guard !isDeleting else { return }
+        guard !isDeleting else {
+            return
+        }
         isDeleting = true
         defer { isDeleting = false }
         do {

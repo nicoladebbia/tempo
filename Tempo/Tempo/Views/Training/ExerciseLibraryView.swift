@@ -289,10 +289,7 @@ struct ExerciseLibraryView: View {
     /// (best e1RM + times trained) when the lift has history.
     private func exerciseRow(_ exercise: Exercise) -> some View {
         HStack(spacing: TempoSpacing.md) {
-            ExerciseDemoImage(demoAsset: exercise.demoAsset, muscleGroup: exercise.muscleGroup, symbolSize: 18)
-                .frame(width: 44, height: 44)
-                .background(Color.tempoSurfaceElevated)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+            ExerciseImageView(exercise: exercise, style: .thumbnail)
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: TempoSpacing.xs) {

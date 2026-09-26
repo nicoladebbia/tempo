@@ -180,8 +180,7 @@ struct ExerciseDetailView: View {
             RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
                 .fill(Color.tempoSurfaceCard)
 
-            ExerciseDemoImage(demoAsset: exercise.demoAsset, muscleGroup: exercise.muscleGroup)
-                .padding(TempoSpacing.md)
+            ExerciseImageView(exercise: exercise, style: .hero)
         }
         .frame(height: 200)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))

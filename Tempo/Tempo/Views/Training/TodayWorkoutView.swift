@@ -1083,7 +1083,7 @@ struct TodayWorkoutView: View {
         Group {
             if let exercise = plannedExercise.exercise {
                 NavigationLink(destination: ExerciseDetailView(exercise: exercise)) {
-                    exerciseCardContent(index: index, plannedExercise: plannedExercise)
+                    exerciseCardRow(exercise: exercise, index: index, plannedExercise: plannedExercise)
                 }
                 .buttonStyle(.plain)
             } else {
@@ -1133,7 +1133,10 @@ struct TodayWorkoutView: View {
         return allExercises[idx + 1]
     }
 
-    private func exerciseCardContent(index: Int, plannedExercise: PlannedExercise) -> some View {
+    /// Not private: TodayWorkoutView+Thumbnail.swift (exerciseCardRow) calls
+    /// this from a separate file to keep this already-near-the-cap file from
+    /// growing further — same convention as TodayWorkoutView+Equipment.swift.
+    func exerciseCardContent(index: Int, plannedExercise: PlannedExercise) -> some View {
         VStack(alignment: .leading, spacing: TempoSpacing.xs) {
             // Row 1: Number + Name + Muscle group + chevron
             HStack {

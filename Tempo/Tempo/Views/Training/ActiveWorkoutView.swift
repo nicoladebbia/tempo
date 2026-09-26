@@ -986,7 +986,7 @@ struct ActiveWorkoutView: View {
     private var exerciseHeader: some View {
         Group {
             if let exercise = viewModel.currentExercise?.exercise {
-                ExerciseDemoImage(demoAsset: exercise.demoAsset, muscleGroup: exercise.muscleGroup, symbolSize: 48)
+                ExerciseImageView(exercise: exercise, style: .hero)
                     .frame(maxWidth: .infinity)
                     .frame(height: 150)
                     .background(Color.tempoSurfaceCard)
