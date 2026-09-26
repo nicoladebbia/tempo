@@ -2,14 +2,19 @@
 // WeeklyUploadPromptCard.swift
 // Tempo
 //
-// Weekly-upload feature — "New week — upload <program>'s next program".
-// Shown on Today from Sunday 19:00 of the active WEEKLY program's served week
-// onward (and every day after, while nothing covers the upcoming week —
+// Weekly-upload feature — "Wrap up the week" once the active WEEKLY
+// program's served-week Sunday-19:00 deadline hits (and every day after,
+// while nothing covers the upcoming week —
 // TrainerProgramWeeklyUpload/TrainingViewModel.weeklyUploadDue), so Nicola is
 // never left wondering whether the old week is stale. Renders nothing for a
 // `.block` program, or once the next week's program is uploaded. Self-
 // contained, same pattern as MissedTrainerSessionCard.swift — dropped into
 // TodayWorkoutView with a single line.
+//
+// Primary action opens the guided `SundayWrapUpSheet` (recap → send report →
+// upload next week); "Upload only" stays as a plain shortcut straight to
+// `TrainerProgramImportView` for anyone who just wants to get the new
+// program in without the recap/report steps.
 //
 
 import Combine
@@ -26,6 +31,8 @@ struct WeeklyUploadPromptCard: View {
 
     @State
     private var dueProgram: TrainerProgram?
+    @State
+    private var showWrapUp = false
     @State
     private var showImport = false
 
@@ -52,6 +59,11 @@ struct WeeklyUploadPromptCard: View {
         .onReceive(refreshTimer) { _ in
             refresh()
         }
+        .sheet(isPresented: $showWrapUp, onDismiss: refresh) {
+            if let dueProgram {
+                SundayWrapUpSheet(program: dueProgram)
+            }
+        }
         .sheet(isPresented: $showImport, onDismiss: refresh) {
             TrainerProgramImportView()
         }
@@ -69,20 +81,20 @@ struct WeeklyUploadPromptCard: View {
                     .foregroundStyle(Color.tempoViolet)
             }
 
-            Text("Upload \(program.name)'s next program")
+            Text("Wrap up \(program.name)'s week")
                 .font(.tempoBodyBold)
                 .foregroundStyle(Color.tempoTextPrimary)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text("Your trainer sends a new one every week — get it in so Monday's ready.")
+            Text("Recap the week, send your trainer the report, and load what's next.")
                 .font(.tempoFootnote)
                 .foregroundStyle(Color.tempoTextSecondary)
 
             Button {
-                showImport = true
+                showWrapUp = true
             } label: {
-                Label("Upload", systemImage: "square.and.arrow.up")
+                Label("Wrap up the week", systemImage: "checkmark.seal")
                     .font(.tempoSubheadline.weight(.semibold))
                     .frame(maxWidth: .infinity)
                     .frame(height: 40)
@@ -92,6 +104,16 @@ struct WeeklyUploadPromptCard: View {
             }
             .buttonStyle(.plain)
             .padding(.top, TempoSpacing.xxs)
+
+            Button {
+                showImport = true
+            } label: {
+                Text("Upload only")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextTertiary)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(TempoSpacing.md)
