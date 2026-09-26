@@ -1,16 +1,17 @@
-import Vapor
-import Fluent
-import VaporAPNS
 import APNSCore
+import Fluent
+import Vapor
+import VaporAPNS
 
 // MARK: - APNs Service
+
 // Per BUILD_PLAN step 12.1 — Sends push notifications via Apple Push Notification service.
 // Per ADR-019 — Direct APNs with P8 token-based authentication.
 // Per TECHNICAL_FEASIBILITY_AUDIT.md Section 5.4 — apnswift is production-ready.
 
-struct APNsService {
-
+enum APNsService {
     // MARK: - Notification Types
+
     // Per ONBOARDING_AND_NOTIFICATIONS.md — All notification channels.
 
     enum NotificationType: String, Codable, Sendable {
@@ -28,7 +29,10 @@ struct APNsService {
         case challengeUpdate = "challenge_update"
         case achievementUnlock = "achievement_unlock"
         case weeklySummary = "weekly_summary"
-        case general = "general"
+        /// Per feat/weekly-plan-server — server finished building next
+        /// week's meal plan (WeeklyPlanJob) and it's ready to review.
+        case mealPlanReady = "meal_plan_ready"
+        case general
 
         /// APNs category identifier for actionable notifications.
         var category: String {
@@ -39,6 +43,7 @@ struct APNsService {
             case .mealReminder: return "MEAL_REMINDER"
             case .challengeInvite: return "CHALLENGE_INVITE"
             case .achievementUnlock: return "ACHIEVEMENT"
+            case .mealPlanReady: return "MEAL_PLAN_READY"
             default: return "GENERAL"
             }
         }
@@ -53,6 +58,7 @@ struct APNsService {
             case .bedtimeReminder: return "time-sensitive"
             case .streakWarning: return "time-sensitive"
             case .leaderboardChange, .challengeUpdate: return "passive"
+            case .mealPlanReady: return "time-sensitive"
             default: return "active"
             }
         }
@@ -124,6 +130,7 @@ struct APNsService {
     }
 
     // MARK: - Send Silent Notification
+
     // Per ONBOARDING_AND_NOTIFICATIONS.md — Silent push triggers background data refresh.
 
     static func sendSilent(
