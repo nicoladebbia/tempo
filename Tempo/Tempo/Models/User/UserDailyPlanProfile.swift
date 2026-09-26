@@ -95,6 +95,15 @@ final class UserDailyPlanProfile {
     /// plan engine know whether to prompt the user to re-enter their schedule.
     var examScheduleMigratedAt: Date?
 
+    // MARK: - Weekly routine
+
+    /// JSON `WeeklyRoutine` from Fuel setup (per-weekday wake / leave / back /
+    /// bed, training, classes, meals out and places). nil until captured.
+    var weeklyRoutineJSON: Data?
+
+    /// Free-text extras from Fuel setup that a planner should know.
+    var fuelSetupNotes: String?
+
     var updatedAt: Date
 
     // MARK: - Transient accessors
@@ -115,6 +124,12 @@ final class UserDailyPlanProfile {
     var eatingWindowPreset: EatingWindowPreset {
         get { EatingWindowPreset(rawValue: eatingWindowPresetRaw) ?? .twelveTwelve }
         set { eatingWindowPresetRaw = newValue.rawValue }
+    }
+
+    @Transient
+    var weeklyRoutine: WeeklyRoutine? {
+        get { weeklyRoutineJSON.flatMap { try? JSONDecoder().decode(WeeklyRoutine.self, from: $0) } }
+        set { weeklyRoutineJSON = newValue.flatMap { try? JSONEncoder().encode($0) } }
     }
 
     @Transient

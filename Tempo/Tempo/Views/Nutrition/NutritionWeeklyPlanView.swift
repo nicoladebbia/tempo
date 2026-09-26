@@ -98,7 +98,7 @@ struct NutritionWeeklyPlanView: View {
         // attaching it to both would render two competing `.alert` modifiers
         // against the same binding when this view is mounted as a tab child.
         .sheet(isPresented: $showProfileSetup) {
-            DietaryProfileSetupView(onSaveAndGenerate: { _ in
+            FuelSetupView(onSaveAndGenerate: { _ in
                 showProfileSetup = false
                 viewModel.loadToday(modelContext: modelContext)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {

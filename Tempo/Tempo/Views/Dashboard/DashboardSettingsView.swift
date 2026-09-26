@@ -119,7 +119,7 @@ struct DashboardSettingsView: View {
                     .buttonStyle(.plain)
 
                     NavigationLink {
-                        DietaryProfileSetupView()
+                        FuelSetupView(embedded: true)
                     } label: {
                         SettingsStatusRow(
                             icon: "fork.knife", title: "Diet Profile",
@@ -912,7 +912,7 @@ struct ProfileSettingsDetailView: View {
                 )
             } else {
                 NavigationLink {
-                    DietaryProfileSetupView()
+                    FuelSetupView(embedded: true)
                 } label: {
                     SettingsNavRow(
                         icon: "heart.text.square", iconTint: .tempoSignal,

@@ -22,6 +22,9 @@ enum TestLaunchArguments {
     /// Reset all user defaults on launch.
     static let resetDefaults = "--uitesting-reset"
 
+    /// Start from an empty in-memory SwiftData store (no profile, no plans).
+    static let emptyStore = "--uitesting-empty-store"
+
     /// Start on a specific tab.
     static func startTab(_ tab: String) -> String {
         "--uitesting-start-tab=\(tab)"

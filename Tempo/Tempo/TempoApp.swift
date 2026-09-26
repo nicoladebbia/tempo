@@ -47,7 +47,10 @@ struct TempoApp: App {
 
     init() {
         do {
-            container = try TempoModelContainer.create()
+            // UI tests that need a first-run store (the app-group store
+            // survives uninstalling the app) start from an empty in-memory one.
+            let freshStore = ProcessInfo.processInfo.arguments.contains("--uitesting-empty-store")
+            container = try TempoModelContainer.create(inMemory: freshStore)
             if !ProcessInfo.processInfo.environment.keys.contains("XCTestBundlePath") {
                 try ExerciseLibraryLoader.loadIfNeeded(context: container.mainContext)
                 try AchievementLibrary.loadIfNeeded(context: container.mainContext)
