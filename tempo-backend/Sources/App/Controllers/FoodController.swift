@@ -1,6 +1,7 @@
 import Vapor
 
 // MARK: - Food Controller
+
 // Generic-food search for the iOS food search screen, backed by USDA
 // FoodData Central. Proxied (not called from the phone) so the USDA key
 // stays server-side: USDA_API_KEY env var, falling back to the shared,
@@ -10,6 +11,11 @@ import Vapor
 // Free for every signed-in user (not Pro-gated): searching is core logging.
 
 struct FoodController: RouteCollection {
+    let usdaClient: USDAFoodClient
+
+    init(usdaClient: USDAFoodClient = USDAAPIClient()) {
+        self.usdaClient = usdaClient
+    }
 
     func boot(routes: RoutesBuilder) throws {
         routes.get("search", use: search)
@@ -23,34 +29,21 @@ struct FoodController: RouteCollection {
             throw Abort(.badRequest, reason: "Query must be 2–100 characters.")
         }
         let limit = min(max((try? req.query.get(Int.self, at: "limit")) ?? 15, 1), 25)
-        let apiKey = Environment.get("USDA_API_KEY").flatMap { $0.isEmpty ? nil : $0 } ?? "DEMO_KEY"
 
-        var uri = URI(string: "https://api.nal.usda.gov/fdc/v1/foods/search")
-        uri.query = [
-            "query=\(Self.percentEncode(query))",
-            "pageSize=\(limit)",
+        let raw: USDASearchRawResponse
+        do {
             // Generic foods only — packaged products come from Open Food Facts on the phone.
-            "dataType=\(Self.percentEncode("Foundation,SR Legacy"))",
-            "api_key=\(apiKey)",
-        ].joined(separator: "&")
-
-        let response = try await req.client.get(uri)
-        switch response.status {
-        case .ok:
-            break
-        case .tooManyRequests:
+            raw = try await usdaClient.search(query: query, dataTypes: ["Foundation", "SR Legacy"], pageSize: limit, on: req)
+        } catch USDAClientError.tooManyRequests {
             throw Abort(.tooManyRequests, reason: "Food database is busy. Try again in a minute.")
-        default:
-            req.logger.error("USDA search HTTP \(response.status.code)")
+        } catch USDAClientError.upstreamError {
             throw Abort(.badGateway, reason: "Food database unavailable.")
         }
-        let raw = try response.content.decode(USDASearchRawResponse.self)
+        // Any other error (network failure, response decoding) propagates as-is,
+        // matching the pre-refactor behavior where only the status-code switch
+        // was special-cased and everything else bubbled up unmodified.
         let foods = raw.foods.compactMap(FoodDTO.init(usda:))
         return Envelope(data: FoodSearchResponseDTO(foods: foods))
-    }
-
-    static func percentEncode(_ value: String) -> String {
-        value.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? value
     }
 }
 
@@ -134,26 +127,5 @@ struct FoodDTO: Content, Equatable {
             return text
         }
         return text.capitalized
-    }
-}
-
-struct USDASearchRawResponse: Content {
-    let foods: [Food]
-
-    struct Food: Content {
-        let fdcId: Int
-        let description: String
-        let dataType: String?
-        let brandOwner: String?
-        let brandName: String?
-        let gtinUpc: String?
-        let servingSize: Double?
-        let servingSizeUnit: String?
-        let foodNutrients: [Nutrient]?
-    }
-
-    struct Nutrient: Content {
-        let nutrientId: Int?
-        let value: Double?
     }
 }
