@@ -44,6 +44,10 @@ enum TrainerProgramSaver {
         modelContext: ModelContext,
         autoWarmups: Bool? = nil,
         scheduleMode: TrainerProgramScheduleMode = .fixed,
+        // Weekly-upload feature — how the trainer sends programs. Drives the
+        // duration text, the "New week — upload" prompt/reminders, and (on
+        // the review screen) how a new upload replaces the old one.
+        cadence: TrainerProgramCadence = .block,
         // Fix #11(b) — queue the next block: non-nil means "don't activate
         // now" (isActive stays false, no other program is deactivated). The
         // caller passes either `startDate` itself (starting later, on that
@@ -88,7 +92,8 @@ enum TrainerProgramSaver {
             sourceText: sourceText,
             autoWarmups: autoWarmups,
             scheduleMode: scheduleMode,
-            queuedActivationDate: queuedActivationDate
+            queuedActivationDate: queuedActivationDate,
+            cadence: cadence
         )
         modelContext.insert(program)
         try modelContext.save()
@@ -119,6 +124,7 @@ enum TrainerProgramSaver {
         repeats: Bool,
         autoWarmups: Bool?,
         scheduleMode: TrainerProgramScheduleMode,
+        cadence: TrainerProgramCadence,
         modelContext: ModelContext,
         trainingEngine: any TrainingEngineProtocol,
         whoop: any WhoopServiceProtocol,
@@ -133,6 +139,7 @@ enum TrainerProgramSaver {
         program.repeats = repeats
         program.autoWarmups = autoWarmups
         program.scheduleMode = scheduleMode
+        program.cadence = cadence
         try modelContext.save()
 
         let vm = TrainingViewModel(trainingEngine: trainingEngine, whoop: whoop, healthKit: healthKit)

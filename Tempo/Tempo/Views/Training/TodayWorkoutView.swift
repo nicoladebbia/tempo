@@ -28,9 +28,16 @@ struct TodayWorkoutView: View {
     private var allSettings: [UserSettings]
     @State
     private var showMobilityFlows = false
-    /// Late-night "Starting early? Show the session" — this launch only.
-    @State
-    private var showSessionTonight = false
+    /// Late-night "Skip for tonight" — persisted (not launch-only): the
+    /// timestamp (epoch seconds) until which the bedtime card stays hidden,
+    /// today's 05:00 local (`LateNightWindow.skipUntil`). 0 (never skipped
+    /// yet, or the persisted value already passed) reads as "not skipped".
+    @AppStorage("tempo.latenight.skipUntil")
+    private var lateNightSkipUntilRaw: Double = 0
+    private var showSessionTonight: Bool {
+        Date() < Date(timeIntervalSince1970: lateNightSkipUntilRaw)
+    }
+
     @State
     private var showMonthlyReview = false
     /// Captured at card-tap. The sheet reads THIS, not monthlyReviewDueKey —
@@ -120,7 +127,7 @@ struct TodayWorkoutView: View {
                     if viewModel.isLoading {
                         loadingState
                     } else if showsBedtimeCard(showSessionAnyway: showSessionTonight) {
-                        bedtimeCard { showSessionTonight = true }
+                        bedtimeCard { lateNightSkipUntilRaw = LateNightWindow.skipUntil().timeIntervalSince1970 }
                     } else {
                         switch viewModel.todayDisplayState {
                         case .noPlan:
@@ -146,6 +153,11 @@ struct TodayWorkoutView: View {
                     // See MissedTrainerSessionCard.swift.
                     if !showsBedtimeCard(showSessionAnyway: showSessionTonight) {
                         MissedTrainerSessionCard(viewModel: viewModel)
+
+                        // Weekly-upload feature — "New week — upload …"
+                        // (renders nothing when nothing's due, or the active
+                        // program isn't weekly). See WeeklyUploadPromptCard.swift.
+                        WeeklyUploadPromptCard(viewModel: viewModel)
                     }
 
                     // Suggestions and rituals sit BELOW today's work — the

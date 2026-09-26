@@ -100,14 +100,8 @@ struct TrainerProgramHistoryView: View {
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl))
     }
 
+    /// Cadence-aware dates — see `TrainerProgramDurationText`.
     private func dateRange(for program: TrainerProgram) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        let start = formatter.string(from: program.startDate)
-        guard !program.repeats else {
-            return "Started \(start)"
-        }
-        let end = Calendar.current.date(byAdding: .day, value: program.weeks.count * 7, to: program.startDate) ?? program.startDate
-        return "\(start) – \(formatter.string(from: end))"
+        TrainerProgramDurationText.historyText(for: program)
     }
 }

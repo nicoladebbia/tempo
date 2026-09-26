@@ -85,6 +85,10 @@ struct TempoApp: App {
                 // GuidedRunUITestSeed's header); no-ops unless launched with
                 // its launch argument.
                 GuidedRunUITestSeed.seedIfRequested(context: container.mainContext)
+                // Weekly-upload feature — UI-test-only fixture (see
+                // WeeklyUploadUITestSeed's header); no-ops unless launched
+                // with its launch argument.
+                WeeklyUploadUITestSeed.seedIfRequested(context: container.mainContext)
             #endif
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
@@ -183,6 +187,14 @@ struct TempoApp: App {
                 // recovery swing, or a program edit made while backgrounded
                 // can all change which of the next 7 days actually fire).
                 TrainerSessionReminderScheduler.reschedule(
+                    notifications: services.notifications,
+                    trainingEngine: services.trainingEngine,
+                    whoop: services.whoop,
+                    healthKit: services.healthKit,
+                    modelContext: container.mainContext
+                )
+                // Weekly-upload feature — same foreground hook.
+                WeeklyUploadReminderScheduler.reschedule(
                     notifications: services.notifications,
                     trainingEngine: services.trainingEngine,
                     whoop: services.whoop,

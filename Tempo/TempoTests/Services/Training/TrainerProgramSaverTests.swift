@@ -65,6 +65,41 @@ final class TrainerProgramSaverTests: XCTestCase {
         XCTAssertEqual(all.filter(\.isActive).count, 1)
     }
 
+    // MARK: - Weekly-upload feature — cadence persists through save
+
+    func testCadenceDefaultsToBlockWhenNotPassed() throws {
+        let context = try makeContext()
+        let program = try TrainerProgramSaver.save(
+            name: "P",
+            startDate: Date(),
+            weeks: [ProgramWeek(days: [
+                ProgramDay(weekday: 1, title: nil, focus: nil, exercises: [exercise(named: "Squat")], notes: nil),
+            ])],
+            repeats: true,
+            sourceKind: "text",
+            sourceText: nil,
+            modelContext: context
+        )
+        XCTAssertEqual(program.cadence, .block)
+    }
+
+    func testWeeklyCadencePersists() throws {
+        let context = try makeContext()
+        let program = try TrainerProgramSaver.save(
+            name: "P",
+            startDate: Date(),
+            weeks: [ProgramWeek(days: [
+                ProgramDay(weekday: 1, title: nil, focus: nil, exercises: [exercise(named: "Squat")], notes: nil),
+            ])],
+            repeats: true,
+            sourceKind: "text",
+            sourceText: nil,
+            modelContext: context,
+            cadence: .weekly
+        )
+        XCTAssertEqual(program.cadence, .weekly)
+    }
+
     // MARK: - Library matching reuses an existing Exercise
 
     func testMatchedExerciseReusesLibraryRowNoDuplicate() throws {

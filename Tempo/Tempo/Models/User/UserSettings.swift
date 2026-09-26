@@ -42,6 +42,15 @@ final class UserSettings {
     /// toggle here).
     var trainerSessionReminderEnabledRaw: Bool?
 
+    /// Weekly-upload feature — Sunday 19:00 / Monday 08:00 nudges to upload
+    /// the trainer's next weekly program (a sibling of
+    /// `trainerSessionReminderEnabledRaw`, not a rename of it: this is about
+    /// the PROGRAM ITSELF landing on time, not any one session — Nicola may
+    /// want session reminders off but this on, or vice versa). Optional + no
+    /// default so lightweight migration is happy for existing stores; nil ->
+    /// true (on by default, same as every other reminder toggle here).
+    var weeklyUploadReminderEnabledRaw: Bool?
+
     var soundEnabled: Bool
     var quietHoursEnabled: Bool
     var quietHoursStartMinutes: Int
@@ -212,6 +221,13 @@ final class UserSettings {
     var trainerSessionReminderEnabled: Bool {
         get { trainerSessionReminderEnabledRaw ?? true }
         set { trainerSessionReminderEnabledRaw = newValue }
+    }
+
+    /// Typed accessor over `weeklyUploadReminderEnabledRaw` — nil reads as on.
+    @Transient
+    var weeklyUploadReminderEnabled: Bool {
+        get { weeklyUploadReminderEnabledRaw ?? true }
+        set { weeklyUploadReminderEnabledRaw = newValue }
     }
 
     @Transient

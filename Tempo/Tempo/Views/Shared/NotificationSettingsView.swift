@@ -62,6 +62,8 @@ struct NotificationSettingsView: View {
     @State
     private var trainerSessionReminder: Bool = true
     @State
+    private var weeklyUploadReminder: Bool = true
+    @State
     private var soundEnabled: Bool = true
     @State
     private var quietHoursEnabled: Bool = false
@@ -455,6 +457,20 @@ struct NotificationSettingsView: View {
                         }
                     }
                 )
+                settingsDivider()
+                settingsToggle(
+                    "New-Week Upload Reminder",
+                    isOn: $weeklyUploadReminder,
+                    icon: "calendar.badge.exclamationmark",
+                    onToggle: { enabled in
+                        persistToggle(\.weeklyUploadReminderEnabled, value: enabled)
+                        if !enabled {
+                            services.notifications.cancelWeeklyUploadReminders()
+                        } else {
+                            NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
+                        }
+                    }
+                )
             }
             .tempoCard()
         }
@@ -619,6 +635,7 @@ struct NotificationSettingsView: View {
         weeklyReport = settings.weeklyReportEnabled
         trainingReminder = settings.trainingReminderEnabled
         trainerSessionReminder = settings.trainerSessionReminderEnabled
+        weeklyUploadReminder = settings.weeklyUploadReminderEnabled
         soundEnabled = settings.soundEnabled
         quietHoursEnabled = settings.quietHoursEnabled
         quietHoursStart = Self.timeFromMinutes(settings.quietHoursStartMinutes)

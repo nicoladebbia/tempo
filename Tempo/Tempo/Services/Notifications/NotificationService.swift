@@ -466,6 +466,71 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         }
     }
 
+    // MARK: - Weekly Upload Reminder
+
+    // Weekly-upload feature — Sunday 19:00 / Monday 08:00 nudges to upload
+    // the trainer's next weekly program (`WeeklyUploadReminderScheduler`).
+    // Stable identifiers (unlike the per-date trainer-session reminders
+    // above): at most one program is ever active, so there's never more than
+    // one of each pending — a reschedule just overwrites it in place.
+
+    private static let weeklyUploadSundayReminderID = "weekly_upload_sunday"
+    private static let weeklyUploadMondayReminderID = "weekly_upload_monday"
+
+    func scheduleWeeklyUploadSundayReminder(programName: String, fireDate: Date) {
+        scheduleWeeklyUploadReminder(
+            id: Self.weeklyUploadSundayReminderID,
+            title: "New week from your trainer",
+            body: "Upload it so Monday's ready.",
+            fireDate: fireDate
+        )
+    }
+
+    func scheduleWeeklyUploadMondayReminder(programName: String, fireDate: Date) {
+        scheduleWeeklyUploadReminder(
+            id: Self.weeklyUploadMondayReminderID,
+            title: "Still no new program from your trainer",
+            body: "\(programName) is running on last week's plan. Get the new one in.",
+            fireDate: fireDate
+        )
+    }
+
+    /// Deliberately bypasses `scheduleNotification`'s 48h pre-schedule window
+    /// and daily budget — same rationale as `scheduleTrainerSessionReminder`:
+    /// a fixed handful of standing reminders rebuilt on every settings/
+    /// program change and app foreground, never competing with the rest of
+    /// the day's notification budget.
+    private func scheduleWeeklyUploadReminder(id: String, title: String, body: String, fireDate: Date) {
+        guard fireDate > Date() else {
+            return
+        }
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.categoryIdentifier = "TRAINING_REMINDER"
+        content.threadIdentifier = "tempo.weeklyupload"
+        content.interruptionLevel = .active
+        content.sound = sound(for: "TRAINING_REMINDER")
+
+        let components = Calendar.current.dateComponents(
+            [.year, .month, .day, .hour, .minute, .second],
+            from: fireDate
+        )
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
+        center.add(request) { [weak self] error in
+            if let error {
+                self?.logger.error("Failed to schedule weekly upload reminder: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    func cancelWeeklyUploadReminders() {
+        center.removePendingNotificationRequests(
+            withIdentifiers: [Self.weeklyUploadSundayReminderID, Self.weeklyUploadMondayReminderID]
+        )
+    }
+
     // MARK: - Missed-Log Reminder (§4)
 
     static let missedLogReminderID = "missed_log_yesterday"

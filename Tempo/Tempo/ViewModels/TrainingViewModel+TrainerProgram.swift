@@ -31,6 +31,21 @@ extension TrainingViewModel {
         return try? modelContext.fetch(descriptor).first
     }
 
+    /// Weekly-upload feature — the active program, if it's `.weekly` cadence
+    /// AND due (or overdue) for its next upload (`TrainerProgramWeeklyUpload
+    /// .shouldPromptUpload`). Drives `WeeklyUploadPromptCard` and the
+    /// Sunday/Monday reminders (`WeeklyUploadReminderScheduler`).
+    func weeklyUploadDue(modelContext: ModelContext, now: Date = Date()) -> TrainerProgram? {
+        guard let program = activeTrainerProgram(modelContext: modelContext) else {
+            return nil
+        }
+        let all = (try? modelContext.fetch(FetchDescriptor<TrainerProgram>())) ?? []
+        guard TrainerProgramWeeklyUpload.shouldPromptUpload(programs: all, activeProgram: program, now: now) else {
+            return nil
+        }
+        return program
+    }
+
     /// Fix #11(b) — a program queued as "starts after the current one ends"
     /// (or on a chosen date) is saved with `isActive == false` and
     /// `queuedActivationDate` set (`TrainerProgramSaver.save`). Once that

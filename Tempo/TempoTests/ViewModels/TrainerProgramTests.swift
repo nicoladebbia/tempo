@@ -23,6 +23,12 @@ final class TrainerProgramTests: XCTestCase {
         return f.date(from: string)!
     }
 
+    /// `date(_:)` plus a time of day — for weekly-upload-feature tests that
+    /// pin the exact Sunday-19:00/Monday-08:00 deadline boundary.
+    private func date(_ string: String, hour: Int, minute: Int = 0) -> Date {
+        cal.date(bySettingHour: hour, minute: minute, second: 0, of: date(string)) ?? date(string)
+    }
+
     private func day(_ weekday: Int, _ focus: String = "upper", exercises: [ProgramExercise]? = nil) -> ProgramDay {
         ProgramDay(
             weekday: weekday,
@@ -114,6 +120,83 @@ final class TrainerProgramTests: XCTestCase {
         XCTAssertEqual(wed.type, .run)
         XCTAssertEqual(wed.secondarySessionType, .sprint, "second conditioning session isn't dropped")
         XCTAssertEqual(p.day(forSessionKey: wed.programSecondaryKey ?? "")?.title, "Speed")
+    }
+
+    // MARK: - Weekly-upload feature — cadence default/migration
+
+    func testCadenceDefaultsToBlockWhenNeverSet() {
+        let p = program(weeks: [ProgramWeek(days: [day(1)])])
+        XCTAssertNil(p.cadenceRaw, "lightweight migration — existing programs have no cadence stored")
+        XCTAssertEqual(p.cadence, .block)
+    }
+
+    func testCadenceRoundTripsThroughTheTypedAccessor() {
+        let p = program(weeks: [ProgramWeek(days: [day(1)])])
+        p.cadence = .weekly
+        XCTAssertEqual(p.cadenceRaw, "weekly")
+        XCTAssertEqual(p.cadence, .weekly)
+    }
+
+    // MARK: - Weekly-upload feature — TrainingViewModel.weeklyUploadDue
+
+    func testWeeklyUploadDueReturnsTheActiveProgramOnceDue() throws {
+        let container = try TempoModelContainer.create(inMemory: true)
+        let context = container.mainContext
+        let p = TrainerProgram(
+            name: "Coach", startDate: date("2026-09-21"), weeks: [ProgramWeek(days: [day(1)])],
+            isActive: true, sourceKind: "text", cadence: .weekly
+        )
+        context.insert(p)
+        try context.save()
+
+        let vm = TrainingViewModel(
+            trainingEngine: MockTrainingEngine(), whoop: MockWhoopService(), healthKit: MockHealthKitService()
+        )
+        XCTAssertNil(
+            vm.weeklyUploadDue(modelContext: context, now: date("2026-09-27", hour: 18, minute: 59)),
+            "before the Sunday 19:00 deadline"
+        )
+        XCTAssertEqual(
+            vm.weeklyUploadDue(modelContext: context, now: date("2026-09-27", hour: 19))?.id, p.id,
+            "at/after Sunday 19:00 of the served week — due"
+        )
+    }
+
+    func testWeeklyUploadDueIsNilForABlockProgram() throws {
+        let container = try TempoModelContainer.create(inMemory: true)
+        let context = container.mainContext
+        let p = TrainerProgram(
+            name: "Coach", startDate: date("2026-09-21"), weeks: [ProgramWeek(days: [day(1)])],
+            isActive: true, sourceKind: "text", cadence: .block
+        )
+        context.insert(p)
+        try context.save()
+
+        let vm = TrainingViewModel(
+            trainingEngine: MockTrainingEngine(), whoop: MockWhoopService(), healthKit: MockHealthKitService()
+        )
+        XCTAssertNil(vm.weeklyUploadDue(modelContext: context, now: date("2026-12-01")))
+    }
+
+    func testWeeklyUploadDueIsNilOnceTheUpcomingWeekIsUploaded() throws {
+        let container = try TempoModelContainer.create(inMemory: true)
+        let context = container.mainContext
+        let active = TrainerProgram(
+            name: "Coach", startDate: date("2026-09-21"), weeks: [ProgramWeek(days: [day(1)])],
+            isActive: true, sourceKind: "text", cadence: .weekly
+        )
+        context.insert(active)
+        let queued = TrainerProgram(
+            name: "Coach", startDate: date("2026-09-28"), weeks: [ProgramWeek(days: [day(1)])],
+            isActive: false, sourceKind: "text", queuedActivationDate: date("2026-09-28"), cadence: .weekly
+        )
+        context.insert(queued)
+        try context.save()
+
+        let vm = TrainingViewModel(
+            trainingEngine: MockTrainingEngine(), whoop: MockWhoopService(), healthKit: MockHealthKitService()
+        )
+        XCTAssertNil(vm.weeklyUploadDue(modelContext: context, now: date("2026-09-27", hour: 20)))
     }
 
     // MARK: - Overlay
@@ -797,7 +880,7 @@ final class TrainerProgramTests: XCTestCase {
             weeks: [ProgramWeek(days: [day(1, "push", exercises: [
                 ProgramExercise(name: "Incline Bench Press", sets: 4, repsLow: 6),
             ])])],
-            repeats: true, autoWarmups: false, scheduleMode: .sequence, modelContext: context,
+            repeats: true, autoWarmups: false, scheduleMode: .sequence, cadence: .block, modelContext: context,
             trainingEngine: MockTrainingEngine(), whoop: MockWhoopService(), healthKit: MockHealthKitService()
         )
 
@@ -866,6 +949,36 @@ final class TrainerProgramTests: XCTestCase {
         XCTAssertTrue(queued.isActive)
         XCTAssertNil(queued.queuedActivationDate, "cleared once promoted")
         XCTAssertFalse(current.isActive, "the outgoing program is archived (just isActive == false)")
+    }
+
+    /// Weekly-upload feature (fix #5) — a queued weekly program's promotion
+    /// uses the exact same "old one just becomes `isActive == false`"
+    /// archiving as any block queue promotion; this pins it specifically
+    /// against `.weekly` cadence so the feature stays covered end to end.
+    func testWeeklyQueuedProgramReplacesTheOldOneOnPromotionAndArchivesIt() throws {
+        let container = try TempoModelContainer.create(inMemory: true)
+        let context = container.mainContext
+        let current = TrainerProgram(
+            name: "Week 1", startDate: Date(), weeks: [ProgramWeek(days: [day(1)])],
+            isActive: true, sourceKind: "text", cadence: .weekly
+        )
+        context.insert(current)
+        let due = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -1, to: Date()))
+        let queued = TrainerProgram(
+            name: "Week 2", startDate: due, weeks: [ProgramWeek(days: [day(1)])],
+            isActive: false, sourceKind: "text", queuedActivationDate: due, cadence: .weekly
+        )
+        context.insert(queued)
+        try context.save()
+
+        let vm = TrainingViewModel(
+            trainingEngine: MockTrainingEngine(), whoop: MockWhoopService(), healthKit: MockHealthKitService()
+        )
+        let active = vm.activeTrainerProgram(modelContext: context)
+
+        XCTAssertEqual(active?.id, queued.id, "the due date has passed — the queued weekly program takes over")
+        XCTAssertFalse(current.isActive, "the outgoing week is archived (just isActive == false) — shows in history")
+        XCTAssertEqual(current.cadence, .weekly, "archiving doesn't touch the old program's own fields")
     }
 
     /// Regression — `applyTrainerProgram` must reset `previousDayWasLift` on

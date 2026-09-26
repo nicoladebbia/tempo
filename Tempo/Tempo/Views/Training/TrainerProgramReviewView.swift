@@ -57,6 +57,10 @@ struct TrainerProgramReviewView: View {
     /// Fix #6 — chosen here (and editable later on TrainerProgramView).
     @State
     private var scheduleMode: TrainerProgramScheduleMode = .fixed
+    /// Weekly-upload feature — chosen here (and editable later on
+    /// TrainerProgramView). Pre-selected in `init(parsed:...)`.
+    @State
+    private var cadence: TrainerProgramCadence = .block
     @State
     private var weeks: [ProgramWeek]
     @State
@@ -91,6 +95,10 @@ struct TrainerProgramReviewView: View {
         _startDate = State(initialValue: TrainingCalendar.mondayOfWeek(containing: Date()))
         _weeks = State(initialValue: parsed.weeks)
         _autoAssignedWeekdays = State(initialValue: parsed.autoAssignedWeekdays)
+        // Weekly-upload feature — pre-select weekly for a single-week import
+        // (the common "trainer sends one week at a time" shape), block
+        // otherwise. Always editable below before saving.
+        _cadence = State(initialValue: parsed.weeks.count == 1 ? .weekly : .block)
         self.sourceKind = sourceKind
         self.sourceText = sourceText
         self.onSaved = onSaved
@@ -104,6 +112,7 @@ struct TrainerProgramReviewView: View {
         _repeats = State(initialValue: program.repeats)
         _autoWarmups = State(initialValue: program.warmupsEnabled)
         _scheduleMode = State(initialValue: program.scheduleMode)
+        _cadence = State(initialValue: program.cadence)
         _weeks = State(initialValue: program.weeks)
         _autoAssignedWeekdays = State(initialValue: false)
         _didPlaceAroundFootball = State(initialValue: true) // never auto-place an edit
@@ -127,6 +136,19 @@ struct TrainerProgramReviewView: View {
             return nil
         }
         return allPrograms.first { $0.isActive }
+    }
+
+    /// Weekly-upload feature (fix #5) — a brand-new WEEKLY program replacing
+    /// an existing active one is never manually timed: the upload's own
+    /// weekday decides it (`TrainerProgramWeeklyUpload.uploadTiming`). nil
+    /// when there's nothing to replace, or this import isn't weekly (the
+    /// existing "starts now / after current / on a date" picker applies
+    /// instead — see `startTiming`).
+    private var weeklyAutoTiming: TrainerProgramWeeklyUpload.UploadTiming? {
+        guard cadence == .weekly, otherActiveProgram != nil else {
+            return nil
+        }
+        return TrainerProgramWeeklyUpload.uploadTiming(forUploadOn: Date())
     }
 
     var body: some View {
@@ -208,15 +230,33 @@ struct TrainerProgramReviewView: View {
             TextField("Program name", text: $name)
                 .font(.tempoBody)
 
-            DatePicker(
-                "Start date (Monday)",
-                selection: Binding(
-                    get: { startDate },
-                    set: { startDate = TrainingCalendar.mondayOfWeek(containing: $0) }
-                ),
-                displayedComponents: .date
+            // Weekly-upload feature — decides the duration text, the "New
+            // week — upload" prompt/reminders, and (below) how a new upload
+            // replaces the old one.
+            Picker("How does your trainer send programs?", selection: $cadence) {
+                ForEach(TrainerProgramCadence.allCases, id: \.self) { option in
+                    Text(option.displayName).tag(option)
+                }
+            }
+            Text(
+                cadence == .weekly
+                    ? "Tempo reminds you every Sunday to upload the next one."
+                    : "Runs for its full length, then repeats or ends."
             )
-            .disabled(startTiming == .afterCurrent)
+            .font(.tempoCaption2)
+            .foregroundStyle(Color.tempoTextTertiary)
+
+            if weeklyAutoTiming == nil {
+                DatePicker(
+                    "Start date (Monday)",
+                    selection: Binding(
+                        get: { startDate },
+                        set: { startDate = TrainingCalendar.mondayOfWeek(containing: $0) }
+                    ),
+                    displayedComponents: .date
+                )
+                .disabled(startTiming == .afterCurrent)
+            }
 
             if weeks.count > 1 {
                 Toggle("Repeats after last week", isOn: $repeats)
@@ -244,9 +284,15 @@ struct TrainerProgramReviewView: View {
                 .font(.tempoCaption2)
                 .foregroundStyle(Color.tempoTextTertiary)
 
-            // Fix #11(b) — queue behind the current program instead of
-            // replacing it immediately.
-            if let otherActiveProgram {
+            // Weekly-upload feature (fix #5) — no manual picker: the upload's
+            // own weekday decides start/replace timing.
+            if let otherActiveProgram, let weeklyAutoTiming {
+                Text(weeklyReplaceExplanation(otherActiveProgram, timing: weeklyAutoTiming))
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextSecondary)
+            } else if let otherActiveProgram {
+                // Fix #11(b) — queue behind the current program instead of
+                // replacing it immediately (block cadence only).
                 Picker("Starts", selection: $startTiming) {
                     Text("Now — replaces \"\(otherActiveProgram.name)\"").tag(StartTiming.now)
                     if !otherActiveProgram.repeats {
@@ -273,6 +319,15 @@ struct TrainerProgramReviewView: View {
                 }
             }
         }
+    }
+
+    /// "Starts Monday 28 Sep and replaces "Coach — Block 4" once this week
+    /// ends." / "Starts Monday 22 Sep and replaces "Coach — Block 4" now."
+    private func weeklyReplaceExplanation(_ other: TrainerProgram, timing: TrainerProgramWeeklyUpload.UploadTiming) -> String {
+        let dateText = timing.startDate.formatted(date: .abbreviated, time: .omitted)
+        return timing.isQueued
+            ? "Starts \(dateText) and replaces \"\(other.name)\" once this week ends — your current one keeps running until then."
+            : "Starts \(dateText) and replaces \"\(other.name)\" now."
     }
 
     /// Monday of the week right after `program`'s last week — nil for a
@@ -320,6 +375,7 @@ struct TrainerProgramReviewView: View {
                     repeats: weeks.count > 1 ? repeats : true,
                     autoWarmups: autoWarmups,
                     scheduleMode: scheduleMode,
+                    cadence: cadence,
                     modelContext: modelContext,
                     trainingEngine: services.trainingEngine,
                     whoop: services.whoop,
@@ -327,10 +383,16 @@ struct TrainerProgramReviewView: View {
                     onNewExercisesCreated: kickOffImageGeneration
                 )
             } else {
-                let queuedActivationDate: Date? = startTiming == .now ? nil : startDate
+                // Weekly-upload feature (fix #5) — the upload's own weekday
+                // decides start/replace timing; only a `.block` import (or a
+                // weekly one with nothing else active) uses the manual
+                // "starts now / after current / on a date" picker.
+                let effectiveStartDate = weeklyAutoTiming?.startDate ?? startDate
+                let queuedActivationDate = weeklyAutoTiming?.queuedActivationDate
+                    ?? (startTiming == .now ? nil : startDate)
                 let saved = try TrainerProgramSaver.save(
                     name: name,
-                    startDate: startDate,
+                    startDate: effectiveStartDate,
                     weeks: weeks,
                     repeats: weeks.count > 1 ? repeats : true,
                     sourceKind: sourceKind,
@@ -338,6 +400,7 @@ struct TrainerProgramReviewView: View {
                     modelContext: modelContext,
                     autoWarmups: autoWarmups,
                     scheduleMode: scheduleMode,
+                    cadence: cadence,
                     queuedActivationDate: queuedActivationDate,
                     onNewExercisesCreated: kickOffImageGeneration
                 )
