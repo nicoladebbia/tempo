@@ -26,4 +26,20 @@ final class LateNightWindowTests: XCTestCase {
         XCTAssertFalse(LateNightWindow.contains(date(hour: 12)))
         XCTAssertFalse(LateNightWindow.contains(date(hour: 23, minute: 59)))
     }
+
+    // MARK: - "Skip for tonight" skip-until computation
+
+    func testSkipUntilIsFiveAmOfTheSameCalendarDay() {
+        let now = date(hour: 1, minute: 30)
+        let skipUntil = LateNightWindow.skipUntil(from: now)
+        let expected = date(hour: 5)
+        XCTAssertEqual(skipUntil, expected)
+    }
+
+    func testSkipUntilTakenRightBeforeFiveAmIsStillMinutesAway() {
+        let now = date(hour: 4, minute: 58)
+        let skipUntil = LateNightWindow.skipUntil(from: now)
+        XCTAssertEqual(skipUntil, date(hour: 5))
+        XCTAssertGreaterThan(skipUntil, now)
+    }
 }

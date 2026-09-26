@@ -20,6 +20,15 @@ enum LateNightWindow {
     static func contains(_ date: Date, calendar: Calendar = .current) -> Bool {
         calendar.component(.hour, from: date) < endHour
     }
+
+    /// "Skip for tonight" persists (`@AppStorage`) this timestamp — the
+    /// bedtime card stays hidden across relaunches until it passes, then
+    /// returns normally the next night. Always today's 05:00 local: tapped
+    /// only from inside the 00:00–05:00 window itself, so this is always a
+    /// few hours out, never a full day.
+    static func skipUntil(from now: Date = Date(), calendar: Calendar = .current) -> Date {
+        calendar.date(bySettingHour: endHour, minute: 0, second: 0, of: now) ?? now
+    }
 }
 
 extension TodayWorkoutView {
@@ -43,7 +52,7 @@ extension TodayWorkoutView {
         }
     }
 
-    func bedtimeCard(onShowSession: @escaping () -> Void) -> some View {
+    func bedtimeCard(onSkipForTonight: @escaping () -> Void) -> some View {
         let plan = viewModel.todayPlan
         let trainerDay = plan.flatMap { viewModel.trainerDay(forKey: $0.programSessionKey, modelContext: modelContext) }
         let sessionName = trainerDay?.title ?? plan?.type.displayName ?? "Training"
@@ -88,10 +97,11 @@ extension TodayWorkoutView {
             .background(Color.tempoSurfaceElevated)
             .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
 
-            Button("Starting early? Show the session", action: onShowSession)
-                .font(.tempoFootnote)
-                .foregroundStyle(Color.tempoTextTertiary)
-                .frame(maxWidth: .infinity)
+            Button(action: onSkipForTonight) {
+                Text("Skip for tonight")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.tempoSecondary)
         }
         .padding(TempoSpacing.lg)
         .background(Color.tempoSurfaceCard)
