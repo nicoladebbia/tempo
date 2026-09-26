@@ -47,6 +47,20 @@ import SwiftData
                 notes: "UI test fixture",
                 weekdayGuessed: false
             )
+            // Earlier UI tests on the same simulator leave programs (and
+            // today's plan) behind; start from a clean slate so THIS fixture
+            // is the active program.
+            for old in (try? context.fetch(FetchDescriptor<TrainerProgram>())) ?? [] {
+                context.delete(old)
+            }
+            let dayStart = Calendar.current.startOfDay(for: Date())
+            let dayEnd = Calendar.current.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart
+            let todaysPlans = (try? context.fetch(FetchDescriptor<WorkoutPlan>(
+                predicate: #Predicate { $0.date >= dayStart && $0.date < dayEnd }
+            ))) ?? []
+            for plan in todaysPlans {
+                context.delete(plan)
+            }
             let program = TrainerProgram(
                 name: "UI Test Program",
                 startDate: today,

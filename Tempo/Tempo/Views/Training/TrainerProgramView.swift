@@ -284,7 +284,7 @@ struct TrainerProgramView: View {
             // Weekly-upload feature — editable here too (chosen first on the
             // review screen).
             HStack {
-                Text("Upload cadence")
+                Text("New program")
                     .font(.tempoBody)
                     .foregroundStyle(Color.tempoTextPrimary)
                 Spacer()
@@ -297,7 +297,7 @@ struct TrainerProgramView: View {
                     }
                 )) {
                     ForEach(TrainerProgramCadence.allCases, id: \.self) { option in
-                        Text(option.displayName).tag(option)
+                        Text(option.shortName).tag(option)
                     }
                 }
                 .pickerStyle(.menu)

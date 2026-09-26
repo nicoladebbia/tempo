@@ -143,6 +143,14 @@ enum TrainerProgramCadence: String, Codable, CaseIterable {
         case .block: "A block of weeks"
         }
     }
+
+    /// Compact label for the program screen's menu row.
+    var shortName: String {
+        switch self {
+        case .weekly: "Every week"
+        case .block: "Block of weeks"
+        }
+    }
 }
 
 // MARK: - TrainerProgram
