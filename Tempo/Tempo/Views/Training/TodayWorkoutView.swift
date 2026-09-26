@@ -28,6 +28,9 @@ struct TodayWorkoutView: View {
     private var allSettings: [UserSettings]
     @State
     private var showMobilityFlows = false
+    /// Late-night "Starting early? Show the session" — this launch only.
+    @State
+    private var showSessionTonight = false
     @State
     private var showMonthlyReview = false
     /// Captured at card-tap. The sheet reads THIS, not monthlyReviewDueKey —
@@ -116,6 +119,8 @@ struct TodayWorkoutView: View {
                     // empty state below permanently unreachable.
                     if viewModel.isLoading {
                         loadingState
+                    } else if showsBedtimeCard(showSessionAnyway: showSessionTonight) {
+                        bedtimeCard { showSessionTonight = true }
                     } else {
                         switch viewModel.todayDisplayState {
                         case .noPlan:
@@ -139,7 +144,9 @@ struct TodayWorkoutView: View {
                     // Fix #6 — "Missed <session> — do it today?" (fixed-mode
                     // only; renders nothing when there's nothing missed).
                     // See MissedTrainerSessionCard.swift.
-                    MissedTrainerSessionCard(viewModel: viewModel)
+                    if !showsBedtimeCard(showSessionAnyway: showSessionTonight) {
+                        MissedTrainerSessionCard(viewModel: viewModel)
+                    }
 
                     // Suggestions and rituals sit BELOW today's work — the
                     // exercise list is what this screen is for.
@@ -166,7 +173,9 @@ struct TodayWorkoutView: View {
             // Floating Start Workout button — ONLY on a loggable gym day.
             // Non-gym days (rest, mobility, football, run, sprint, conditioning)
             // have nothing to log, so no button is shown.
-            if viewModel.canStartWorkout, !viewModel.isLoading {
+            if viewModel.canStartWorkout, !viewModel.isLoading,
+               !showsBedtimeCard(showSessionAnyway: showSessionTonight)
+            {
                 startWorkoutButton
             }
         }
@@ -1426,8 +1435,9 @@ struct TodayWorkoutView: View {
                 .padding(.horizontal, TempoSpacing.lg)
 
             // Trainer program: the coach's own conditioning session, block by block.
-            if let day = viewModel.trainerDay(forKey: plan.programSessionKey, modelContext: modelContext) {
-                trainerSessionCard(day, heading: "YOUR TRAINER'S SESSION", plan: plan, key: plan.programSessionKey)
+            let trainerDay = viewModel.trainerDay(forKey: plan.programSessionKey, modelContext: modelContext)
+            if let trainerDay {
+                trainerSessionCard(trainerDay, heading: "YOUR TRAINER'S SESSION", plan: plan, key: plan.programSessionKey)
                     .padding(.horizontal, TempoSpacing.lg)
             }
 
@@ -1436,7 +1446,9 @@ struct TodayWorkoutView: View {
 
             // D2 — the readiness prescription IS the content on a non-gym day
             // (modality/intensity/why + blocks with cues; there's no exercise list).
-            if let session = viewModel.dailySession {
+            // A trainer's session IS the prescription — Tempo's generic card
+            // ("Today's conditioning.") on top of it only confused the day.
+            if trainerDay == nil, let session = viewModel.dailySession {
                 dailySessionCard(session)
             }
 
@@ -1451,16 +1463,9 @@ struct TodayWorkoutView: View {
             // distance/pace/splits).
             if plan.type == .run || plan.type == .sprint || plan.type == .conditioning {
                 NavigationLink(destination: RunHistoryView()) {
-                    HStack(spacing: TempoSpacing.sm) {
-                        Image(systemName: "figure.run")
-                        Text("Your Runs")
-                    }
-                    .font(.tempoHeadline)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 44)
-                    .background(Color.tempoSurfaceCard)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+                    Label("Past runs", systemImage: "clock.arrow.circlepath")
+                        .font(.tempoFootnote)
+                        .foregroundStyle(Color.tempoTextSecondary)
                 }
                 .padding(.horizontal, TempoSpacing.lg)
             }
@@ -1469,7 +1474,7 @@ struct TodayWorkoutView: View {
             // day isn't just an icon + one line. Reads type + duration off the
             // plan. FALLBACK ONLY: when the daily brain already produced a
             // DailySession card above, defer to it — don't show two prescriptions.
-            if viewModel.dailySession == nil, let rx = cardioPrescription(for: plan) {
+            if trainerDay == nil, viewModel.dailySession == nil, let rx = cardioPrescription(for: plan) {
                 VStack(alignment: .leading, spacing: TempoSpacing.sm) {
                     Text(rx.headline)
                         .font(.tempoHeadline)
@@ -1486,8 +1491,11 @@ struct TodayWorkoutView: View {
                 .padding(.horizontal, TempoSpacing.lg)
             }
 
-            // Whoop activity confirm / saved summary.
-            nonGymActivitySection(plan: plan)
+            // Whoop activity confirm / saved summary. With a trainer session
+            // the guided run / per-block Log already completes the day, so
+            // the bare manual button is left out (a found Whoop activity
+            // still asks to confirm).
+            nonGymActivitySection(plan: plan, hasTrainerSession: trainerDay != nil)
 
             // §14 #3 — one-tap session RPE, only after completion.
             sessionRPESection(plan: plan)
@@ -1499,7 +1507,7 @@ struct TodayWorkoutView: View {
 
     /// The strain/HR confirm-and-save block beneath the non-gym card.
     @ViewBuilder
-    private func nonGymActivitySection(plan: WorkoutPlan) -> some View {
+    private func nonGymActivitySection(plan: WorkoutPlan, hasTrainerSession: Bool) -> some View {
         switch viewModel.nonGymActivityState {
         case .loading:
             ProgressView()
@@ -1534,10 +1542,12 @@ struct TodayWorkoutView: View {
 
         case .none,
              .dismissed:
-            confirmButton(
-                title: "LOG THAT I PLAYED",
-                summary: nil
-            )
+            if !hasTrainerSession {
+                confirmButton(
+                    title: plan.type == .football ? "LOG THAT I PLAYED" : "MARK \(plan.type.displayName.uppercased()) DONE",
+                    summary: nil
+                )
+            }
 
         case let .saved(summary):
             VStack(spacing: TempoSpacing.sm) {

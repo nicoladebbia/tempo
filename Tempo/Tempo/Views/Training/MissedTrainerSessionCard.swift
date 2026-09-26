@@ -42,33 +42,52 @@ struct MissedTrainerSessionCard: View {
     }
 
     private func card(for missed: TrainingViewModel.MissedTrainerSession) -> some View {
-        HStack(alignment: .top, spacing: TempoSpacing.sm) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(Color.tempoWarning)
-                .font(.tempoBody)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Missed \(missed.day.title ?? missed.day.workoutType.displayName)")
-                    .font(.tempoBodyBold)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Text("From \(missed.date.formatted(date: .abbreviated, time: .omitted)). Swap it in for today?")
+        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            HStack(alignment: .firstTextBaseline, spacing: TempoSpacing.xs) {
+                Image(systemName: "exclamationmark.triangle.fill")
                     .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .foregroundStyle(Color.tempoWarning)
+                    .accessibilityHidden(true)
+                Text("MISSED ON \(missed.date.formatted(.dateTime.weekday(.wide)).uppercased())")
+                    .font(.tempoCaption2.weight(.semibold))
+                    .foregroundStyle(Color.tempoWarning)
             }
 
-            Spacer()
+            Text(missed.day.title ?? missed.day.workoutType.displayName)
+                .font(.tempoBodyBold)
+                .foregroundStyle(Color.tempoTextPrimary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
 
-            Button("Do it today") {
+            Text("Swap it in for today's session instead?")
+                .font(.tempoFootnote)
+                .foregroundStyle(Color.tempoTextSecondary)
+
+            Button {
                 viewModel.swapInMissedSession(missed, modelContext: modelContext)
                 HapticManager.selection()
                 self.missed = nil
+            } label: {
+                Label("Do it today", systemImage: "arrow.uturn.left")
+                    .font(.tempoSubheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 40)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                    .background(Color.tempoWarning.opacity(TempoOpacity.o15))
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
             }
-            .buttonStyle(.tempoSecondary)
-            .font(.tempoCaption1.weight(.semibold))
+            .buttonStyle(.plain)
+            .padding(.top, TempoSpacing.xxs)
         }
-        .padding(TempoSpacing.cardPaddingCompact)
-        .background(Color.tempoWarning.opacity(TempoOpacity.o15))
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(TempoSpacing.md)
+        .background(Color.tempoSurfaceCard)
+        .overlay(
+            RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
+                .strokeBorder(Color.tempoWarning.opacity(TempoOpacity.o15), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .padding(.horizontal, TempoSpacing.lg)
     }
 
     /// Only worth offering while Today is still `.planned` (untouched) —
