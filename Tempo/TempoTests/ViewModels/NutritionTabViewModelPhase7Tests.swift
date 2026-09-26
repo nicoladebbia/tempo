@@ -60,6 +60,22 @@ final class NutritionTabViewModelPhase7Tests: XCTestCase {
         XCTAssertEqual(viewModel.pantryState.items.first?.canonicalName, "chicken breast")
     }
 
+    func testEmptyPantry_removesEveryItem() throws {
+        let pantry = MockPantryService()
+        viewModel.pantryService = pantry
+        for (name, location) in [("chicken breast", PantryStorageLocation.fridge), ("rice", .pantry), ("peas", .freezer)] {
+            try pantry.add(PantryItem(canonicalName: name, displayName: name, quantity: 1, unit: .pieces, storageLocation: location))
+        }
+        viewModel.reloadPantry()
+        XCTAssertEqual(viewModel.pantryState.items.count, 3)
+
+        XCTAssertEqual(viewModel.emptyPantry(), 3)
+
+        XCTAssertTrue(viewModel.pantryState.items.isEmpty)
+        XCTAssertTrue(try pantry.fetchAll().isEmpty)
+        XCTAssertNil(viewModel.pantryState.loadError)
+    }
+
     func testAddPantryItem_canonicalizesAndPersists() {
         let pantry = MockPantryService()
         viewModel.pantryService = pantry

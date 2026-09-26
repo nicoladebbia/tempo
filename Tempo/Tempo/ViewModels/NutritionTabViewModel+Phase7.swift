@@ -245,6 +245,27 @@ extension NutritionTabViewModel {
         reloadPantry()
     }
 
+    /// "Empty pantry": archives every active item (same soft delete as the
+    /// per-row trash button). Price history stays for cost estimates.
+    /// Returns how many items were removed.
+    @discardableResult
+    func emptyPantry() -> Int {
+        guard let service = pantryService else {
+            return 0
+        }
+        var removed = 0
+        do {
+            for item in try service.fetchAll() {
+                try service.archive(item)
+                removed += 1
+            }
+        } catch {
+            pantryState.loadError = "Couldn't empty the pantry: \(error.localizedDescription)"
+        }
+        reloadPantry()
+        return removed
+    }
+
     // MARK: - Receipts
 
     func reloadReceipts() {
