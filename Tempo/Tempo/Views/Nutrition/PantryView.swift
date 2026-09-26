@@ -25,6 +25,8 @@ struct PantryView: View {
     private var showManualAddSheet = false
     @State
     private var showVoiceSheet = false
+    @State
+    private var confirmEmpty = false
 
     var body: some View {
         ScrollView {
@@ -54,6 +56,29 @@ struct PantryView: View {
                     Image(systemName: "plus")
                 }
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button("Empty pantry", systemImage: "trash", role: .destructive) {
+                        confirmEmpty = true
+                    }
+                    .disabled(viewModel.pantryState.items.isEmpty)
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .accessibilityIdentifier("pantryMoreMenu")
+            }
+        }
+        .confirmationDialog(
+            "Empty the whole pantry?",
+            isPresented: $confirmEmpty,
+            titleVisibility: .visible
+        ) {
+            Button("Remove all \(viewModel.pantryState.items.count) items", role: .destructive) {
+                viewModel.emptyPantry()
+                HapticManager.success()
+            }
+        } message: {
+            Text("Every item comes off your pantry. Prices you paid are kept.")
         }
         .sheet(isPresented: $showCaptureSheet) {
             if let receiptService = viewModel.receiptService,
