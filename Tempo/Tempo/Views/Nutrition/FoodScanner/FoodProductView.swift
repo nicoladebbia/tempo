@@ -49,6 +49,15 @@ struct FoodProductView: View {
     private var isLoadingAlternatives = false
     @State
     private var showIngredients = false
+    @State
+    private var photoSource: PhotoSource?
+    @State
+    private var isRenderingPhoto = false
+
+    private struct PhotoSource: Identifiable {
+        let type: UIImagePickerController.SourceType
+        var id: Int { type.rawValue }
+    }
 
     private let score: FoodScore?
 
@@ -116,6 +125,11 @@ struct FoodProductView: View {
     private var header: some View {
         HStack(alignment: .top, spacing: TempoSpacing.lg) {
             FoodProductThumbnail(product: product, photo: photo, size: 96)
+                .overlay {
+                    if isRenderingPhoto {
+                        ProgressView()
+                    }
+                }
             VStack(alignment: .leading, spacing: TempoSpacing.xs) {
                 Text(product.name)
                     .font(.tempoTitle3)
@@ -131,8 +145,58 @@ struct FoodProductView: View {
                         .font(.tempoCaption1)
                         .foregroundStyle(Color.tempoTextTertiary)
                 }
+                if product.imageURL == nil, product.imageSmallURL == nil {
+                    addPhotoMenu
+                }
             }
             Spacer(minLength: 0)
+        }
+        .fullScreenCover(item: $photoSource) { source in
+            FoodImagePicker(sourceType: source.type) { image in
+                photoSource = nil
+                if let image {
+                    savePhoto(image)
+                }
+            }
+            .ignoresSafeArea()
+        }
+    }
+
+    /// No picture anywhere → let the user snap one; it gets the same white
+    /// studio background as added products.
+    private var addPhotoMenu: some View {
+        Menu {
+            Button {
+                photoSource = PhotoSource(type: .camera)
+            } label: {
+                Label("Camera", systemImage: "camera")
+            }
+            Button {
+                photoSource = PhotoSource(type: .photoLibrary)
+            } label: {
+                Label("Library", systemImage: "photo.on.rectangle")
+            }
+        } label: {
+            Label(photo == nil ? "Add a photo" : "Change photo", systemImage: "camera")
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoSignal)
+        }
+        .disabled(isRenderingPhoto)
+        .padding(.top, TempoSpacing.xxs)
+        .accessibilityIdentifier("foodAddPhoto")
+    }
+
+    private func savePhoto(_ image: UIImage) {
+        guard let data = image.jpegData(compressionQuality: 0.9) else {
+            return
+        }
+        isRenderingPhoto = true
+        Task {
+            if let output = await ProductPhotoStudio.render(data) {
+                photo = output.jpegData
+                catalog.setPhoto(output.jpegData, for: product, in: modelContext)
+            }
+            isRenderingPhoto = false
         }
     }
 
@@ -310,6 +374,7 @@ struct FoodProductView: View {
             Grid(alignment: .leading, horizontalSpacing: TempoSpacing.md, verticalSpacing: TempoSpacing.sm) {
                 GridRow {
                     Text("")
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     Text("100 \(product.unit)")
                         .gridColumnAlignment(.trailing)
                     Text("\(Self.format(grams)) \(product.unit)")
@@ -317,6 +382,7 @@ struct FoodProductView: View {
                 }
                 .font(.tempoCaption1)
                 .foregroundStyle(Color.tempoTextTertiary)
+                Divider()
                 nutrientRow("Calories", per100.kcal, portion.kcal, unit: "kcal", level: nil)
                 nutrientRow("Protein", per100.protein, portion.protein, unit: "g", level: nil)
                 nutrientRow("Carbs", per100.carbs, portion.carbs, unit: "g", level: nil)
@@ -395,9 +461,11 @@ struct FoodProductView: View {
             }
             .font(.tempoBody)
             .foregroundStyle(Color.tempoTextPrimary)
+            .frame(maxWidth: .infinity, alignment: .leading)
             Text(Self.amount(per100, unit: unit))
                 .foregroundStyle(Color.tempoTextSecondary)
             Text(Self.amount(portion, unit: unit))
+                .fontWeight(.semibold)
                 .foregroundStyle(Color.tempoTextPrimary)
         }
         .font(.tempoBody)

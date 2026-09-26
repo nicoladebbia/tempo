@@ -133,17 +133,21 @@ final class FoodCatalog {
 
     // MARK: - Alternatives
 
-    /// Up to `limit` products from the same category that score higher.
+    /// Up to `limit` products from the same category that score higher —
+    /// ones with a photo first (a wall of blank tiles helps nobody), then by score.
     func alternatives(for product: FoodProduct, limit: Int = 5) async -> [FoodProduct] {
         guard let current = FoodScore.evaluate(product), current.rating != .excellent else {
             return []
         }
         do {
-            let candidates = try await products.alternatives(for: product, limit: 12)
+            let candidates = try await products.alternatives(for: product, limit: 30)
             return candidates
                 .compactMap { candidate in FoodScore.evaluate(candidate).map { (candidate, $0.total) } }
                 .filter { $0.1 > current.total }
-                .sorted { $0.1 > $1.1 }
+                .sorted { lhs, rhs in
+                    let lp = lhs.0.imageURL != nil, rp = rhs.0.imageURL != nil
+                    return lp != rp ? lp : lhs.1 > rhs.1
+                }
                 .prefix(limit)
                 .map(\.0)
         } catch {
@@ -211,6 +215,16 @@ final class FoodCatalog {
 
     func photo(for product: FoodProduct, in context: ModelContext) -> Data? {
         record(for: product.id, in: context)?.photoData
+    }
+
+    /// The user's own picture for a product Open Food Facts has no photo of.
+    func setPhoto(_ photo: Data, for product: FoodProduct, in context: ModelContext) {
+        if let existing = record(for: product.id, in: context) {
+            existing.photoData = photo
+        } else {
+            context.insert(ScannedFood(product: product, photoData: photo))
+        }
+        save(context)
     }
 
     func remove(_ row: ScannedFood, in context: ModelContext) {

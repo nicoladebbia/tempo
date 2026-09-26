@@ -51,7 +51,7 @@ struct OpenFoodFactsClient: FoodProductProviding {
         "serving_size", "serving_quantity", "nutriments", "nutriscore_grade", "nutriscore_score",
         "nova_group", "additives_tags", "allergens_tags", "labels_tags", "categories_tags",
         "categories_hierarchy", "ingredients_analysis_tags", "ingredients_text", "ingredients_text_it",
-        "ingredients_text_en", "image_front_url", "image_front_small_url", "countries_tags",
+        "ingredients_text_en", "image_front_url", "image_front_small_url", "images", "countries_tags",
     ].joined(separator: ",")
 
     /// OFF asks every app to identify itself.
@@ -106,15 +106,25 @@ struct OpenFoodFactsClient: FoodProductProviding {
     }
 
     func alternatives(for product: FoodProduct, limit: Int = 6) async throws -> [FoodProduct] {
-        guard let category = product.categories.last else {
-            return []
+        // The most specific category often has no well-graded products (or
+        // isn't indexed by search at all) → step up to broader ones.
+        for category in product.categories.reversed().prefix(3) {
+            var clauses = ["categories_tags:\"en:\(category)\"", "nutrition_grades:(\(Self.betterGrades(than: product.nutriScoreGrade)))"]
+            if let countryTag {
+                clauses.append("countries_tags:\"\(countryTag)\"")
+            }
+            let hits = try await searchHits(query: clauses.joined(separator: " AND "), sortBy: "-unique_scans_n", limit: min(limit + 4, 50))
+                .filter { $0.barcode != product.barcode && $0.per100g.hasCoreMacros }
+            if !hits.isEmpty {
+                return hits
+            }
         }
-        var clauses = ["categories_tags:\"en:\(category)\"", "nutrition_grades:(a OR b)"]
-        if let countryTag {
-            clauses.append("countries_tags:\"\(countryTag)\"")
-        }
-        let hits = try await searchHits(query: clauses.joined(separator: " AND "), sortBy: "-unique_scans_n", limit: limit + 4)
-        return hits.filter { $0.barcode != product.barcode && $0.per100g.hasCoreMacros }
+        return []
+    }
+
+    /// "a OR b", plus "c" for a D/E product — a C is still a clear step up.
+    static func betterGrades(than grade: String?) -> String {
+        ["d", "e"].contains(grade?.lowercased()) ? "a OR b OR c" : "a OR b"
     }
 
     // MARK: - Private
@@ -207,6 +217,19 @@ struct OFFRawProduct: Decodable {
     let ingredientsText: [String: String]
     let imageFront: String?
     let imageFrontSmall: String?
+    /// Uploaded images: selected ones ("front_it") carry a revision, raw
+    /// uploads ("1", "2") don't. Used when no front image is selected.
+    let images: [String: String?]
+
+    private struct ImageEntry: Decodable {
+        let rev: String?
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: Key.self)
+            rev = (try? c.decodeIfPresent(String.self, forKey: Key("rev")))
+                ?? (try? c.decodeIfPresent(Int.self, forKey: Key("rev"))).flatMap { $0.map(String.init) }
+        }
+    }
 
     private struct Key: CodingKey {
         var stringValue: String
@@ -290,6 +313,55 @@ struct OFFRawProduct: Decodable {
         ingredientsText = ingredients
         imageFront = string("image_front_url")
         imageFrontSmall = string("image_front_small_url")
+        let imageEntries = try? c.decodeIfPresent([String: ImageEntry].self, forKey: Key("images"))
+        images = imageEntries.flatMap { $0 }?.mapValues(\.rev) ?? [:]
+    }
+
+    /// A picture for products whose front image was never selected: another
+    /// language's front, else the first raw upload (usually the front — it's
+    /// what the app asks for first).
+    static func fallbackImage(code: String, images: [String: String?], language: String) -> (full: URL, small: URL)? {
+        let base = "https://images.openfoodfacts.org/images/products/\(imageFolder(code))"
+        let fronts = images.keys.filter { $0.hasPrefix("front_") }
+        let preferred = ["front_\(language)", "front_en"].first { fronts.contains($0) } ?? fronts.sorted().first
+        if let key = preferred, let rev = images[key].flatMap({ $0 }),
+           let full = URL(string: "\(base)/\(key).\(rev).400.jpg"),
+           let small = URL(string: "\(base)/\(key).\(rev).200.jpg") {
+            return (full, small)
+        }
+        guard let raw = images.keys.compactMap(Int.init).min(),
+              let full = URL(string: "\(base)/\(raw).400.jpg"),
+              let small = URL(string: "\(base)/\(raw).100.jpg")
+        else {
+            return nil
+        }
+        return (full, small)
+    }
+
+    /// Only real taxonomy entries ("en:sweet-spreads"): user-typed ones like
+    /// "fr:Nuttela" or "en:Pâtes à tartiner" often sit last in the hierarchy
+    /// and match nothing, which left products with no alternatives.
+    static func taxonomyCategories(_ tags: [String]) -> [String] {
+        tags.compactMap { tag in
+            let parts = tag.split(separator: ":", maxSplits: 1).map(String.init)
+            let (language, name) = parts.count == 2 ? (parts[0], parts[1]) : ("en", tag)
+            guard language == "en", !name.isEmpty,
+                  name.unicodeScalars.allSatisfy({ ("a" ... "z").contains($0) || ("0" ... "9").contains($0) || $0 == "-" })
+            else {
+                return nil
+            }
+            return name
+        }
+    }
+
+    /// OFF's image folders: "0076515508478" → "007/651/550/8478"; short codes stay whole.
+    static func imageFolder(_ code: String) -> String {
+        guard code.count > 8 else {
+            return code
+        }
+        let padded = String(repeating: "0", count: max(0, 13 - code.count)) + code
+        let chars = Array(padded)
+        return [String(chars[0 ..< 3]), String(chars[3 ..< 6]), String(chars[6 ..< 9]), String(chars[9...])].joined(separator: "/")
     }
 
     /// "400 g e" / "400 g ℮" → "400 g" (the EU estimated-quantity mark).
@@ -311,7 +383,7 @@ struct OFFRawProduct: Decodable {
             tags.map { $0.split(separator: ":").last.map(String.init) ?? $0 }
         }
         let grade = nutriscoreGrade?.lowercased()
-        let categoryTags = stripped(categories)
+        let categoryTags = Self.taxonomyCategories(categories)
         let per100g = FoodProduct.Nutrients(
             kcal: nutriments["energy-kcal_100g"] ?? nutriments["energy_100g"].map { $0 / 4.184 },
             protein: nutriments["proteins_100g"],
@@ -323,6 +395,7 @@ struct OFFRawProduct: Decodable {
             salt: nutriments["salt_100g"] ?? nutriments["sodium_100g"].map { $0 * 2.5 }
         )
         let servingGrams = servingQuantity.flatMap { $0 > 0 ? $0 : nil } ?? FoodProduct.grams(fromLabel: servingSize)
+        let fallback = imageFront == nil ? Self.fallbackImage(code: barcode, images: images, language: language) : nil
         return FoodProduct(
             id: barcode,
             barcode: barcode,
@@ -343,8 +416,8 @@ struct OFFRawProduct: Decodable {
             categories: categoryTags,
             ingredientsAnalysis: stripped(ingredientsAnalysis),
             ingredientsText: ingredientsText[language] ?? ingredientsText[""] ?? ingredientsText["en"],
-            imageURL: imageFront.flatMap(URL.init(string:)),
-            imageSmallURL: imageFrontSmall.flatMap(URL.init(string:))
+            imageURL: imageFront.flatMap(URL.init(string:)) ?? fallback?.full,
+            imageSmallURL: imageFrontSmall.flatMap(URL.init(string:)) ?? fallback?.small
         )
     }
 }
