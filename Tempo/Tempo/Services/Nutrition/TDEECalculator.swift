@@ -52,7 +52,8 @@ enum TDEECalculator {
         whoopAverageTDEE: Double?,
         goal: DietaryGoal,
         goalWeightKg: Double? = nil,
-        weeklyRateKg: Double? = nil
+        weeklyRateKg: Double? = nil,
+        observedExpenditure: AdaptiveExpenditure.Observation? = nil
     ) -> TDEEResult {
         // ── Step 1: BMR ──────────────────────────────────────────
 
@@ -82,12 +83,24 @@ enum TDEECalculator {
 
         // ── Step 3: Whoop blend ──────────────────────────────────
 
-        let tdee: Double
+        var tdee: Double
         if let whoopTDEE = whoopAverageTDEE, whoopTDEE > 0 {
             let correctedWhoop = whoopTDEE * 0.9 // wrist HR overestimation correction
             tdee = 0.6 * correctedWhoop + 0.4 * calculatedTDEE
         } else {
             tdee = calculatedTDEE
+        }
+
+        // ── Step 3b: What this body actually burns ───────────────
+        //
+        // Logged intake vs the weight trend (AdaptiveExpenditure), trusted
+        // by its confidence. Wildly off the estimate (< 60% / > 150%) means
+        // the log is incomplete, not a freak metabolism — ignore it.
+        if let observed = observedExpenditure,
+           observed.kcal >= tdee * 0.6, observed.kcal <= tdee * 1.5
+        {
+            let trust = min(max(observed.confidence, 0), AdaptiveExpenditure.maxConfidence)
+            tdee = tdee * (1 - trust) + observed.kcal * trust
         }
 
         // ── Step 4: Goal adjustment with safety rails ────────────
