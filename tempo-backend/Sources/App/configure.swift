@@ -177,6 +177,7 @@ func configure(_ app: Application) async throws {
     app.migrations.add(CreateExerciseImages())
     app.migrations.add(CreateExerciseImageMonthlySpend())
     app.migrations.add(CreateFoodNutritionCache())
+    app.migrations.add(CreateWeeklyPlanJobs())
 
     // Arena module — per BUILD_PLAN step 14.1
     app.migrations.add(CreateXPEvents())
@@ -195,6 +196,23 @@ func configure(_ app: Application) async throws {
     // 8. Background jobs
     // ─────────────────────────────────────────────────
     app.queues.add(WhoopWebhookJob())
+
+    // Per feat/weekly-plan-server — server-side "build next week" job.
+    // Deliberately its OWN queue (`.mealPlans`), NOT `.default`: production
+    // today runs no queue worker at all (Dockerfile/railway.toml only run
+    // `serve`), so `.default` has zero consumers and nothing dispatched to
+    // it has ever executed in prod. Starting a `.default` worker here would
+    // silently activate that queue for every OTHER job type too (whichever
+    // ones exist today or get added later) — an unrelated, unreviewed
+    // behavior change bundled into this feature. Starting an in-process
+    // worker for `.mealPlans` ONLY affects this job. Skipped in the testing
+    // environment so `swift test` never runs the job as a side effect of
+    // dispatching it — tests that need the job to run call
+    // `WeeklyPlanJob().dequeue(...)` directly against a QueueContext.
+    app.queues.add(WeeklyPlanJob())
+    if app.environment != .testing {
+        try app.queues.startInProcessJobs(on: .mealPlans)
+    }
 
     // Per BUILD_PLAN step 12.4 — Morning briefing scheduled job.
     // Runs every 15 minutes, checks which users need their morning briefing.

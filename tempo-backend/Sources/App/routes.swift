@@ -73,6 +73,14 @@ func routes(_ app: Application) throws {
         .grouped(SubscriptionMiddleware())
         .register(collection: NutritionAIController())
 
+    // Weekly meal-plan job — server-side "build next week" so the plan gets
+    // built with the app closed, then a push arrives. POST kicks off the
+    // job; GET latest/:id poll status. Pro-only, same gate as nutrition/ai.
+    try protected.grouped("nutrition", "weekly-plans")
+        .grouped(RateLimitMiddleware(limit: 20, window: .minutes(1), scope: .user))
+        .grouped(SubscriptionMiddleware())
+        .register(collection: WeeklyPlanController())
+
     // Trainer Program import (transcribe/structure/quota) — fixes #1
     // (Pro-only imports failed for free users) + #2 (one vision request per
     // page could exhaust the nutrition-ai 20/min limit mid-import).
