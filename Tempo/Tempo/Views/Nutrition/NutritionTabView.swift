@@ -103,7 +103,7 @@ struct NutritionTabView: View {
             }
             .tempoToast($planErrorToast)
             .sheet(isPresented: $showDietaryProfileSetup) {
-                DietaryProfileSetupView(onSaveAndGenerate: { _ in
+                FuelSetupView(onSaveAndGenerate: { _ in
                     // Switch to Plan tab and auto-generate
                     viewModel.loadToday(modelContext: modelContext)
                     viewModel.selectedTab = .plan

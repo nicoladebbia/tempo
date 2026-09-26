@@ -957,7 +957,7 @@ final class NutritionTabViewModel {
     ) {
         // CRITICAL: re-fetch the DietaryProfile from SwiftData rather than
         // trusting the VM's cached `dietaryProfile`. When the user edits
-        // the profile in DietaryProfileSetupView and triggers regen, the
+        // the profile in FuelSetupView and triggers regen, the
         // cached property still holds the pre-save snapshot — that's why
         // the projection screen and the actual plan disagreed on kcal
         // (the projection used the live @State values; the plan used the

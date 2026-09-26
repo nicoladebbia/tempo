@@ -120,7 +120,12 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         }
         setState(.calculating)
 
-        // Step 1: Calculate TDEE and macro targets per day type
+        // Step 1: Calculate TDEE and macro targets per day type — corrected
+        // by the last four weeks of logged intake vs weight trend when there's enough.
+        let expenditure = AdaptiveExpenditure.observe(in: modelContext)
+        if let expenditure {
+            logger.info("[Diag.Plan] observed expenditure \(Int(expenditure.kcal)) kcal (trust \(expenditure.confidence), \(expenditure.loggedDays) days, \(expenditure.trendKgPerWeek) kg/wk)")
+        }
         let tdeeResult = TDEECalculator.calculate(
             weightKg: profile.currentWeightKg,
             heightCm: profile.heightCm,
@@ -131,7 +136,8 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             whoopAverageTDEE: whoopTDEE,
             goal: profile.primaryGoal,
             goalWeightKg: profile.goalWeightKg,
-            weeklyRateKg: profile.weeklyRateKg
+            weeklyRateKg: profile.weeklyRateKg,
+            observedExpenditure: expenditure
         )
 
         logger.info("TDEE calculated: \(Int(tdeeResult.tdee)) kcal, adjusted: \(tdeeResult.adjustedCalories) kcal")
