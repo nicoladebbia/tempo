@@ -326,7 +326,10 @@ final class TrainerSessionReminderSchedulerTests: XCTestCase {
             trainingEngine: TrainingEngine(),
             whoop: MockWhoopService(),
             healthKit: MockHealthKitService(),
-            modelContext: context
+            modelContext: context,
+            // Start of today, so today's reminder is still in the future
+            // whatever time the suite runs (it failed after 5 pm).
+            now: today
         )
 
         let reminders = scheduledTrainerReminders(mock)

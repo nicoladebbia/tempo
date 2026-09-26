@@ -53,6 +53,10 @@
 	<string>__TEMPO_API_BASE_URL__</string>
 	<key>TEMPO_ENVIRONMENT</key>
 	<string>__TEMPO_ENVIRONMENT__</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>

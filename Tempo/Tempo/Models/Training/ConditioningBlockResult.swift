@@ -65,8 +65,12 @@ final class ConditioningBlockResult {
     /// (freeform, or a cap-less repsDistance).
     var targetMet: Bool?
 
-    /// "manual" | "whoop" | "healthkit" — where duration/distance/HR came
-    /// from. Rep times, rounds, RPE and notes are always athlete-entered.
+    /// "manual" | "whoop" | "healthkit" | "guided_run" — where
+    /// duration/distance/HR came from. "guided_run" is Guided Run mode's
+    /// live session (timed reps, GPS distance, engine-tracked duration),
+    /// distinct from "manual"'s after-the-fact typed entry
+    /// (ConditioningLogSheet). Rep times, rounds, RPE and notes are always
+    /// athlete-entered.
     var source: String
 
     var createdAt: Date

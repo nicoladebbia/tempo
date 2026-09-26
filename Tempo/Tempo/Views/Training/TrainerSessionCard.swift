@@ -12,6 +12,12 @@
 // lift block still just shows the prescription — it's logged through the
 // normal gym set-by-set flow, not here.
 //
+// Guided run mode — a conditioning session also gets a primary "Start
+// guided run" button that runs the whole session live (countdown, timed
+// reps/rounds/continuous efforts, rest, cues) and logs every block through
+// the same `logConditioningBlock` the per-block "Log" button uses. The
+// per-block Log stays for after-the-fact manual entry.
+//
 
 import SwiftData
 import SwiftUI
@@ -30,6 +36,8 @@ struct TrainerSessionCard: View {
 
     @State
     private var loggingBlock: ProgramExercise?
+    @State
+    private var isPresentingGuidedRun = false
 
     private var canLog: Bool {
         !day.isStrength && workoutPlanID != nil && programSessionKey != nil && viewModel != nil
@@ -54,6 +62,9 @@ struct TrainerSessionCard: View {
                     .foregroundStyle(Color.tempoTextSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            if canLog {
+                startGuidedRunButton
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(TempoSpacing.cardPadding)
@@ -69,6 +80,35 @@ struct TrainerSessionCard: View {
                 )
             }
         }
+        .fullScreenCover(isPresented: $isPresentingGuidedRun) {
+            if let workoutPlanID, let programSessionKey, let viewModel {
+                GuidedRunView(
+                    day: day,
+                    workoutPlanID: workoutPlanID,
+                    programSessionKey: programSessionKey,
+                    heading: heading,
+                    viewModel: viewModel
+                )
+            }
+        }
+    }
+
+    private var startGuidedRunButton: some View {
+        Button {
+            HapticManager.impact(.medium)
+            isPresentingGuidedRun = true
+        } label: {
+            HStack(spacing: TempoSpacing.xs) {
+                Image(systemName: "figure.run")
+                Text("Start guided run")
+            }
+            .font(.tempoHeadline)
+            .frame(maxWidth: .infinity)
+            .frame(height: 48)
+        }
+        .buttonStyle(TempoPrimaryButtonStyle())
+        .padding(.top, TempoSpacing.xs)
+        .accessibilityIdentifier("startGuidedRunButton")
     }
 
     private func blockRow(_ block: ProgramExercise) -> some View {
