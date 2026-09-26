@@ -227,6 +227,15 @@ struct ContentView: View {
             healthKit: services.healthKit,
             modelContext: modelContext
         )
+        // Weekly-upload feature — same hooks/debounce as the trainer-session
+        // reminders above.
+        WeeklyUploadReminderScheduler.reschedule(
+            notifications: services.notifications,
+            trainingEngine: services.trainingEngine,
+            whoop: services.whoop,
+            healthKit: services.healthKit,
+            modelContext: modelContext
+        )
     }
 
     /// Regenerates the active meal plan when its inputs fingerprint no longer

@@ -159,6 +159,40 @@ final class MockNotificationService: NotificationServiceProtocol, @unchecked Sen
         }
     }
 
+    // MARK: - Weekly Upload Reminder
+
+    static let weeklyUploadSundayCategory = "weekly_upload_sunday"
+    static let weeklyUploadMondayCategory = "weekly_upload_monday"
+
+    func scheduleWeeklyUploadSundayReminder(programName: String, fireDate: Date) {
+        let notification = ScheduledNotification(
+            category: Self.weeklyUploadSundayCategory,
+            title: "New week from your trainer",
+            body: "Upload it so Monday's ready.",
+            triggerDate: fireDate
+        )
+        scheduledNotifications.append(notification)
+        logger.debug("Mock: scheduled weekly upload Sunday reminder for \(programName) at \(fireDate)")
+    }
+
+    func scheduleWeeklyUploadMondayReminder(programName: String, fireDate: Date) {
+        let notification = ScheduledNotification(
+            category: Self.weeklyUploadMondayCategory,
+            title: "Still no new program from your trainer",
+            body: "\(programName) is running on last week's plan. Get the new one in.",
+            triggerDate: fireDate
+        )
+        scheduledNotifications.append(notification)
+        logger.debug("Mock: scheduled weekly upload Monday reminder for \(programName) at \(fireDate)")
+    }
+
+    func cancelWeeklyUploadReminders() {
+        scheduledNotifications.removeAll {
+            $0.category == Self.weeklyUploadSundayCategory || $0.category == Self.weeklyUploadMondayCategory
+        }
+        logger.debug("Mock: cancelled weekly upload reminders")
+    }
+
     func cancelAll() {
         scheduledNotifications.removeAll()
         logger.debug("Mock: cancelled all notifications")

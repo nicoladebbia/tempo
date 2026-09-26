@@ -102,6 +102,19 @@ protocol NotificationServiceProtocol: Sendable {
     /// rebuilding the rolling 7-day window.
     func cancelTrainerSessionReminders()
 
+    /// Weekly-upload feature — Sunday 19:00 "New week from your trainer —
+    /// upload it so Monday's ready." Stable identifier: always reschedules
+    /// in place (see `WeeklyUploadReminderScheduler`), never accumulates.
+    func scheduleWeeklyUploadSundayReminder(programName: String, fireDate: Date)
+
+    /// The Monday 08:00 "still not uploaded" follow-up nudge. Stable
+    /// identifier, same rebuild pattern as the Sunday reminder.
+    func scheduleWeeklyUploadMondayReminder(programName: String, fireDate: Date)
+
+    /// Cancel both weekly-upload reminders — called before rebuilding them,
+    /// and once the upcoming week's program exists.
+    func cancelWeeklyUploadReminders()
+
     func cancelAll()
     func cancelCategory(_ category: String)
 }
