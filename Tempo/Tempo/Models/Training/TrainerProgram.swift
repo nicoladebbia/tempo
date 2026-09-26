@@ -125,6 +125,26 @@ enum TrainerProgramScheduleMode: String, Codable, CaseIterable {
     }
 }
 
+// MARK: - TrainerProgramCadence
+
+/// Weekly-upload feature — how the athlete's trainer sends programs: a fresh
+/// one every week (`.weekly`), or a fixed multi-week block that repeats or
+/// ends (`.block`, the pre-existing behavior). Drives the duration text on
+/// `TrainerProgramView`, the "New week — upload" prompt/reminders
+/// (`TrainerProgramWeeklyUpload`), and how a new upload replaces the old one
+/// (`TrainerProgramReviewView`).
+enum TrainerProgramCadence: String, Codable, CaseIterable {
+    case weekly
+    case block
+
+    var displayName: String {
+        switch self {
+        case .weekly: "A new program every week"
+        case .block: "A block of weeks"
+        }
+    }
+}
+
 // MARK: - TrainerProgram
 
 @Model
@@ -168,6 +188,12 @@ final class TrainerProgram {
     /// SwiftData migration.
     var queuedActivationDate: Date?
 
+    /// Weekly-upload feature — nil means `.block` (the pre-existing behavior,
+    /// and the default for every program saved before this shipped —
+    /// lightweight SwiftData migration). Editable on the review screen and on
+    /// `TrainerProgramView`.
+    var cadenceRaw: String?
+
     init(
         id: UUID = UUID(),
         name: String,
@@ -180,6 +206,7 @@ final class TrainerProgram {
         autoWarmups: Bool? = nil,
         scheduleMode: TrainerProgramScheduleMode? = nil,
         queuedActivationDate: Date? = nil,
+        cadence: TrainerProgramCadence? = nil,
         createdAt: Date = Date()
     ) {
         self.id = id
@@ -193,6 +220,7 @@ final class TrainerProgram {
         self.autoWarmups = autoWarmups
         self.scheduleModeRaw = scheduleMode?.rawValue
         self.queuedActivationDate = queuedActivationDate
+        self.cadenceRaw = cadence?.rawValue
         self.createdAt = createdAt
     }
 
@@ -200,6 +228,12 @@ final class TrainerProgram {
     var scheduleMode: TrainerProgramScheduleMode {
         get { scheduleModeRaw.flatMap(TrainerProgramScheduleMode.init(rawValue:)) ?? .fixed }
         set { scheduleModeRaw = newValue.rawValue }
+    }
+
+    /// `cadenceRaw` read with its nil-means-`.block` default.
+    var cadence: TrainerProgramCadence {
+        get { cadenceRaw.flatMap(TrainerProgramCadence.init(rawValue:)) ?? .block }
+        set { cadenceRaw = newValue.rawValue }
     }
 
     /// Which program week applies to `date` (0-based), or nil before the

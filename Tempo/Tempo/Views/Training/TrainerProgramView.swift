@@ -186,15 +186,9 @@ struct TrainerProgramView: View {
                     .clipShape(Capsule())
             }
 
-            if let currentWeek = program.weekIndex(on: Date()) {
-                Text("Currently on Week \(currentWeek + 1) of \(program.weeks.count)")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-            } else if program.isFinished(on: Date()) {
-                Text("This block has finished.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoWarning)
-            }
+            Text(TrainerProgramDurationText.summary(for: program))
+                .font(.tempoCaption1)
+                .foregroundStyle(program.isFinished(on: Date()) ? Color.tempoWarning : Color.tempoTextTertiary)
 
             Divider().background(Color.tempoDivider)
 
@@ -286,6 +280,29 @@ struct TrainerProgramView: View {
             Text(program.scheduleMode.explanation)
                 .font(.tempoCaption2)
                 .foregroundStyle(Color.tempoTextTertiary)
+
+            // Weekly-upload feature — editable here too (chosen first on the
+            // review screen).
+            HStack {
+                Text("Upload cadence")
+                    .font(.tempoBody)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                Spacer()
+                Picker("Upload cadence", selection: Binding(
+                    get: { program.cadence },
+                    set: { newValue in
+                        program.cadence = newValue
+                        _ = modelContext.saveOrAlert("trainer program cadence")
+                        NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
+                    }
+                )) {
+                    ForEach(TrainerProgramCadence.allCases, id: \.self) { option in
+                        Text(option.displayName).tag(option)
+                    }
+                }
+                .pickerStyle(.menu)
+                .tint(Color.tempoSignal)
+            }
 
             // Fix #8 — report the athlete's logged sessions back to the trainer.
             Button {
