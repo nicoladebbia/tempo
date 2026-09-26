@@ -337,6 +337,30 @@ final class FoodCatalogTests: XCTestCase {
         XCTAssertEqual(found.map(\.id), ["3"])
     }
 
+    func testAlternativesWithAPhotoComeFirst() async {
+        let fake = FakeProducts()
+        let bestNoPhoto = FoodProduct.sample(id: "2", grade: "a", points: -8)
+        var goodWithPhoto = FoodProduct.sample(id: "3", grade: "b", points: 1)
+        goodWithPhoto.imageURL = URL(string: "https://images.openfoodfacts.org/x.jpg")
+        fake.alternatives = [bestNoPhoto, goodWithPhoto]
+        let catalog = FoodCatalog(products: fake, generic: nil)
+
+        let found = await catalog.alternatives(for: .sample(id: "1", grade: "d", points: 15))
+        XCTAssertEqual(found.map(\.id), ["3", "2"])
+    }
+
+    func testUserPhotoIsSavedForAnyProduct() throws {
+        let context = try makeContext()
+        let catalog = FoodCatalog(products: FakeProducts(), generic: nil)
+        let photo = Data([1, 2, 3])
+        catalog.setPhoto(photo, for: .sample(), in: context)
+        XCTAssertEqual(catalog.photo(for: .sample(), in: context), photo)
+
+        catalog.recordView(.sample(), in: context)
+        XCTAssertEqual(catalog.photo(for: .sample(), in: context), photo, "Viewing again keeps the photo")
+        XCTAssertEqual(catalog.history(in: context).count, 1)
+    }
+
     func testFavoriteToggle() throws {
         let context = try makeContext()
         let catalog = FoodCatalog(products: FakeProducts(), generic: nil)
@@ -415,5 +439,68 @@ final class FoodScannerCleanupTests: XCTestCase {
         XCTAssertEqual(OFFRawProduct.cleanQuantity("400 g e"), "400 g")
         XCTAssertEqual(OFFRawProduct.cleanQuantity("1 l ℮"), "1 l")
         XCTAssertEqual(OFFRawProduct.cleanQuantity("6 x 125 g"), "6 x 125 g")
+    }
+
+    func testImageFolderSplitsLikeOpenFoodFacts() {
+        XCTAssertEqual(OFFRawProduct.imageFolder("0076515508478"), "007/651/550/8478")
+        XCTAssertEqual(OFFRawProduct.imageFolder("3017620422003"), "301/762/042/2003")
+        XCTAssertEqual(OFFRawProduct.imageFolder("76515508478"), "007/651/550/8478", "Padded to 13 digits")
+        XCTAssertEqual(OFFRawProduct.imageFolder("20692285"), "20692285", "Short codes stay whole")
+    }
+
+    func testFallbackImagePrefersAnyFrontThenRawUpload() throws {
+        let base = "https://images.openfoodfacts.org/images/products/007/651/550/8478"
+        let front = try XCTUnwrap(OFFRawProduct.fallbackImage(
+            code: "0076515508478",
+            images: ["front_fr": "5", "front_en": "12", "1": nil],
+            language: "it"
+        ))
+        XCTAssertEqual(front.full.absoluteString, "\(base)/front_en.12.400.jpg")
+        XCTAssertEqual(front.small.absoluteString, "\(base)/front_en.12.200.jpg")
+
+        let raw = try XCTUnwrap(OFFRawProduct.fallbackImage(code: "0076515508478", images: ["3": nil, "1": nil], language: "en"))
+        XCTAssertEqual(raw.full.absoluteString, "\(base)/1.400.jpg")
+        XCTAssertEqual(raw.small.absoluteString, "\(base)/1.100.jpg")
+
+        XCTAssertNil(OFFRawProduct.fallbackImage(code: "0076515508478", images: [:], language: "en"))
+    }
+
+    func testProductWithoutSelectedFrontGetsAFallbackPicture() throws {
+        let json = """
+        {"code":"0076515508478","product_name":"Peanut Butter Crunch","nutriscore_grade":"c",
+        "images":{"front_de":{"rev":7},"1":{"uploaded_t":1}},
+        "nutriments":{"energy-kcal_100g":500,"proteins_100g":10,"carbohydrates_100g":60,"fat_100g":25,"salt_100g":1}}
+        """
+        let raw = try JSONDecoder().decode(OFFRawProduct.self, from: Data(json.utf8))
+        let product = try XCTUnwrap(raw.toProduct(fallbackCode: nil, language: "en"))
+        XCTAssertEqual(
+            product.imageURL?.absoluteString,
+            "https://images.openfoodfacts.org/images/products/007/651/550/8478/front_de.7.400.jpg",
+            "Numeric rev decodes too"
+        )
+    }
+
+    func testPlaceholderSymbolFollowsMostSpecificCategory() {
+        let peanut = FoodProduct.sample(categories: ["plant-based-foods-and-beverages", "spreads", "peanut-butters"])
+        XCTAssertEqual(peanut.placeholderSymbol, "leaf.fill", "Not a drink just because of the root category")
+        XCTAssertEqual(FoodProduct.sample(categories: ["beverages", "coffees"]).placeholderSymbol, "cup.and.saucer.fill")
+        XCTAssertEqual(FoodProduct.sample(categories: ["unknown-thing"]).placeholderSymbol, "barcode")
+    }
+
+    func testFreeTextCategoriesAreDropped() {
+        let nutella = ["en:breakfasts", "en:spreads", "en:sweet-spreads", "en:confectionary-based-spreads",
+                       "en:Pâtes à tartiner", "fr:Nutella", "fr:Nuttela"]
+        XCTAssertEqual(
+            OFFRawProduct.taxonomyCategories(nutella),
+            ["breakfasts", "spreads", "sweet-spreads", "confectionary-based-spreads"],
+            "The last category drives alternatives — it must be a real one"
+        )
+    }
+
+    func testAlternativesAcceptGradeCOnlyForPoorProducts() {
+        XCTAssertEqual(OpenFoodFactsClient.betterGrades(than: "e"), "a OR b OR c")
+        XCTAssertEqual(OpenFoodFactsClient.betterGrades(than: "D"), "a OR b OR c")
+        XCTAssertEqual(OpenFoodFactsClient.betterGrades(than: "c"), "a OR b")
+        XCTAssertEqual(OpenFoodFactsClient.betterGrades(than: nil), "a OR b")
     }
 }
