@@ -21,6 +21,19 @@ import SwiftUI
 
 struct TrainerReportSheet: View {
     let program: TrainerProgram
+    /// Sunday wrap-up feature — fires when the athlete taps either share
+    /// button, so an embedding flow (`SundayWrapUpSheet`) can remember the
+    /// report was actually sent this week. nil (default) for every other
+    /// entry point — behavior is unchanged for them.
+    var onShared: (() -> Void)?
+    /// Sunday wrap-up feature — true when this view is embedded as a STEP
+    /// inside another modal (`SundayWrapUpSheet`) rather than presented as
+    /// its own `.sheet`. Suppresses the toolbar "Close" button: with this
+    /// view embedded (not its own sheet), `@Environment(\.dismiss)` resolves
+    /// to the OUTER sheet's dismiss — tapping "Close" here would silently
+    /// skip the wrap-up's remaining steps instead of just leaving this one.
+    /// The embedding flow supplies its own Skip/Continue navigation instead.
+    var embedded = false
 
     @Environment(\.modelContext)
     private var modelContext
@@ -38,8 +51,10 @@ struct TrainerReportSheet: View {
     @State
     private var pdfErrorMessage: String?
 
-    init(program: TrainerProgram) {
+    init(program: TrainerProgram, onShared: (() -> Void)? = nil, embedded: Bool = false) {
         self.program = program
+        self.onShared = onShared
+        self.embedded = embedded
         _language = State(initialValue: TrainerReportBuilder.detectLanguage(program: program))
     }
 
@@ -73,8 +88,10 @@ struct TrainerReportSheet: View {
             .navigationTitle("Report to Trainer")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
+                if !embedded {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Close") { dismiss() }
+                    }
                 }
             }
             .alert(
@@ -159,6 +176,7 @@ struct TrainerReportSheet: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.tempoSecondary)
+            .simultaneousGesture(TapGesture().onEnded { onShared?() })
 
             if let pdfShareURL {
                 ShareLink(item: pdfShareURL) {
@@ -166,6 +184,7 @@ struct TrainerReportSheet: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.tempoSecondary)
+                .simultaneousGesture(TapGesture().onEnded { onShared?() })
             } else {
                 Button {
                     preparePDF(document)
@@ -195,14 +214,29 @@ struct TrainerReportSheet: View {
 
     private func rebuild() {
         pdfShareURL = nil
+        document = Self.buildDocument(program: program, scope: scope, language: language, modelContext: modelContext)
+    }
+
+    /// Fetches everything `TrainerReportBuilder.build` needs for `program`
+    /// and runs it — the whole ModelContext-touching assembly, factored out
+    /// of `rebuild()` so the Sunday wrap-up feature (`SundayWrapUpSheet`,
+    /// which needs the exact same document for its recap step) can call it
+    /// without re-fetching or duplicating any of this.
+    @MainActor
+    static func buildDocument(
+        program: TrainerProgram,
+        scope: TrainerReportScope,
+        language: TrainerReportLanguage,
+        modelContext: ModelContext
+    ) -> TrainerReportDocument {
         let scopeRange = TrainerReportBuilder.scheduleRange(for: scope, program: program)
         let searchRange = TrainerReportBuilder.searchRange(around: scopeRange)
 
-        let plans = Self.fetchPlans(in: searchRange, modelContext: modelContext)
+        let plans = fetchPlans(in: searchRange, modelContext: modelContext)
         let planIDs = Set(plans.map(\.id))
-        let personalRecords = Self.fetchPersonalRecords(matching: planIDs, modelContext: modelContext)
-        let recoveryScores = Self.fetchRecoveryScores(in: searchRange, modelContext: modelContext)
-        let painFlaggedExerciseIDs = Self.fetchPainFlaggedExerciseIDs(in: searchRange, modelContext: modelContext)
+        let personalRecords = fetchPersonalRecords(matching: planIDs, modelContext: modelContext)
+        let recoveryScores = fetchRecoveryScores(in: searchRange, modelContext: modelContext)
+        let painFlaggedExerciseIDs = fetchPainFlaggedExerciseIDs(in: searchRange, modelContext: modelContext)
 
         let input = TrainerReportInput(
             program: program,
@@ -213,14 +247,16 @@ struct TrainerReportSheet: View {
             recoveryScores: recoveryScores,
             painFlaggedExerciseIDs: painFlaggedExerciseIDs,
             conditioningProvider: StoredConditioningResults(
-                results: Self.fetchConditioningResults(forPlans: planIDs, modelContext: modelContext),
+                results: fetchConditioningResults(forPlans: planIDs, modelContext: modelContext),
                 program: program
-            )
+            ),
+            // Week-over-week progress feature.
+            weekOverWeek: WeekOverWeekProgressLoader.load(scopeRange: scopeRange, modelContext: modelContext)
         )
-        document = TrainerReportBuilder.build(input: input, language: language)
+        return TrainerReportBuilder.build(input: input, language: language)
     }
 
-    private static func fetchPlans(in range: ClosedRange<Date>, modelContext: ModelContext) -> [WorkoutPlan] {
+    static func fetchPlans(in range: ClosedRange<Date>, modelContext: ModelContext) -> [WorkoutPlan] {
         let lower = range.lowerBound
         let upper = Calendar.current.date(byAdding: .day, value: 1, to: range.upperBound) ?? range.upperBound
         let descriptor = FetchDescriptor<WorkoutPlan>(

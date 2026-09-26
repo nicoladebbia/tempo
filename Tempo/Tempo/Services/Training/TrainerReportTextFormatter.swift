@@ -45,9 +45,15 @@ enum TrainerReportTextFormatter {
                 if let note = exercise.noteText {
                     lines.append("   \(s.notesLabel): \(note)")
                 }
+                if let vsLastWeek = exercise.vsLastWeekText {
+                    lines.append("   \(vsLastWeek)")
+                }
             }
             for conditioning in session.conditioning {
                 lines.append("• \(s.conditioningHeader): \(conditioning.text)")
+                if let vsLastWeek = conditioning.vsLastWeekText {
+                    lines.append("   \(vsLastWeek)")
+                }
             }
             for pr in session.prs {
                 lines.append("🏆 \(pr.text)")

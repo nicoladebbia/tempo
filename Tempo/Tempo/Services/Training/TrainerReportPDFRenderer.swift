@@ -92,6 +92,9 @@ enum TrainerReportPDFRenderer {
         }
         for conditioning in session.conditioning {
             cursor.draw("\(strings.conditioningHeader): \(conditioning.text)", font: smallFont, spacingAfter: 2)
+            if let vsLastWeek = conditioning.vsLastWeekText {
+                cursor.draw("   \(vsLastWeek)", font: smallFont, color: .darkGray, spacingAfter: 2)
+            }
         }
         for pr in session.prs {
             cursor.draw("★ \(pr.text)", font: bodyFont, color: prColor, spacingAfter: 2)
@@ -167,6 +170,9 @@ enum TrainerReportPDFRenderer {
         }
         if let note = exercise.noteText {
             extraLines.append("\(strings.notesLabel): \(note)")
+        }
+        if let vsLastWeek = exercise.vsLastWeekText {
+            extraLines.append(vsLastWeek)
         }
         for line in extraLines {
             cursor.draw("   \(line)", font: smallFont, color: .darkGray, spacingAfter: 1)
