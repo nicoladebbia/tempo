@@ -71,6 +71,15 @@ final class MealPlanGeneratorService: @unchecked Sendable {
 
     // MARK: - Generate Weekly Plan
 
+    /// What a weekly plan is built from: the per-day-type targets and the
+    /// Sonnet prompt. Built on device; sent to the server for the Sunday job.
+    struct PreparedWeeklyPlan {
+        let system: String
+        let prompt: String
+        let targets: [DayType: MacroTargets]
+        let intake: MealPlanIntake?
+    }
+
     /// Generate a full weekly meal plan from the user's dietary profile and optional Whoop TDEE.
     ///
     /// 1. Calculate TDEE and per-day-type macro targets
@@ -87,8 +96,48 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         wakeMinutesOverride: Int? = nil,
         modelContext: ModelContext,
         intake callerIntake: MealPlanIntake? = nil,
+        weekStart: Date? = nil,
         onStatus: ((GenerationState) -> Void)? = nil
     ) async throws -> WeeklyMealPlan {
+        let prepared = prepareWeeklyPlan(
+            profile: profile,
+            whoopTDEE: whoopTDEE,
+            wakeMinutesOverride: wakeMinutesOverride,
+            modelContext: modelContext,
+            intake: callerIntake,
+            onStatus: onStatus
+        )
+        stateReporter(onStatus)(.generating)
+        let response = try await sendWithRetry(
+            system: prepared.system,
+            prompt: prepared.prompt,
+            feature: "meal_plan_generation"
+        )
+        return try await finishWeeklyPlan(
+            response,
+            prepared: prepared,
+            profile: profile,
+            weekStart: weekStart,
+            macrosVerified: false,
+            modelContext: modelContext,
+            onStatus: onStatus
+        )
+    }
+
+    /// Steps 1–3 on device: targets (formula + adaptive expenditure) and the
+    /// Sonnet prompt with every local signal — routine, pantry, feedback,
+    /// observed eat-times. The Sunday server job runs this same prompt.
+    @MainActor
+    func prepareWeeklyPlan(
+        profile: DietaryProfile,
+        whoopTDEE: Double?,
+        wakeMinutesOverride: Int? = nil,
+        modelContext: ModelContext,
+        intake callerIntake: MealPlanIntake? = nil,
+        checkIn: String? = nil,
+        nearbyRestaurants: [String: [String]] = [:],
+        onStatus: ((GenerationState) -> Void)? = nil
+    ) -> PreparedWeeklyPlan {
         // Onboarding eating preferences (UserDailyPlanProfile) — the eating
         // window until the wizard / AI Meals settings saves one, plus
         // breakfastSkipped + postWorkoutMandatory always. Read here (not in
@@ -114,10 +163,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         // migration keys off "a plan already exists".
         let clearSkinFocus = ClearSkinFocusSetting.resolve(modelContext: modelContext)
 
-        let setState: (GenerationState) -> Void = { newState in
-            self.state = newState
-            onStatus?(newState)
-        }
+        let setState = stateReporter(onStatus)
         setState(.calculating)
 
         // Step 1: Calculate TDEE and macro targets per day type — corrected
@@ -145,8 +191,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         // Step 2: Build dietary restrictions from profile
         let restrictions = MealPlanPrompts.DietaryRestrictions(from: profile)
 
-        // Step 3: Build prompt and call Claude Sonnet
-        setState(.generating)
+        // Step 3: Build the Sonnet prompt
 
         let preferences = buildPreferences(from: profile)
 
@@ -218,52 +263,92 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             cookTimeWeekdayMins: cookWeekday,
             cookTimeWeekendMins: cookWeekend,
             equipment: equipment,
-            clearSkinFocus: clearSkinFocus
+            clearSkinFocus: clearSkinFocus,
+            routine: dailyPlanProfile?.weeklyRoutine,
+            lifeNotes: dailyPlanProfile?.fuelSetupNotes,
+            checkIn: checkIn,
+            nearbyRestaurants: nearbyRestaurants
         )
-
-        let response = try await sendWithRetry(
+        return PreparedWeeklyPlan(
             system: systemPrompt,
             prompt: userPrompt,
-            feature: "meal_plan_generation"
+            targets: tdeeResult.dayTypeTargets,
+            intake: intake
         )
 
+    }
+
+    /// Steps 4–7: parse the plan JSON (from Sonnet directly, or the server job
+    /// with `macrosVerified`), persist it for the week starting `weekStart`
+    /// (nil = this week's Monday) and attach recipes.
+    @MainActor
+    func finishWeeklyPlan(
+        _ response: String,
+        prepared: PreparedWeeklyPlan,
+        profile: DietaryProfile,
+        weekStart: Date?,
+        macrosVerified: Bool,
+        modelContext: ModelContext,
+        attachingRecipes: Bool = true,
+        onStatus: ((GenerationState) -> Void)? = nil
+    ) async throws -> WeeklyMealPlan {
+        let setState = stateReporter(onStatus)
         // Step 4: Parse JSON response
         setState(.validating)
 
-        var parsedPlan = try parseWeeklyPlanJSON(response)
-        if let intake {
+        let raw = try parseWeeklyPlanJSON(response)
+        var parsedPlan = raw
+        if let intake = prepared.intake {
             parsedPlan = enforceEatingPattern(parsedPlan, intake: intake)
         }
 
-        // Step 5: Validate and scale macros
-        let validatedPlan = validateAndScaleMeals(
-            parsedPlan,
-            targets: tdeeResult.dayTypeTargets
-        )
+        // Step 5: Validate and scale macros — unless the server already
+        // verified every food against USDA and solved the grams to the
+        // targets, and the eating pattern didn't drop a meal since.
+        let mealsBefore = parsedMealCount(raw)
+        let validatedPlan = if macrosVerified, parsedMealCount(parsedPlan) == mealsBefore {
+            parsedPlan
+        } else {
+            validateAndScaleMeals(parsedPlan, targets: prepared.targets)
+        }
 
         // Step 6: Persist to SwiftData
         setState(.saving)
 
         let weeklyPlan = try persistPlan(
             validatedPlan,
-            targets: tdeeResult.dayTypeTargets,
+            targets: prepared.targets,
+            weekStart: weekStart,
             modelContext: modelContext
         )
 
         // Step 7: Generate per-meal recipes via Haiku (fan-out, attach in main actor)
-        setState(.attachingRecipes)
-        await attachRecipes(
-            to: weeklyPlan,
-            profile: profile,
-            intake: intake,
-            modelContext: modelContext
-        )
+        if attachingRecipes {
+            setState(.attachingRecipes)
+            await attachRecipes(
+                to: weeklyPlan,
+                profile: profile,
+                intake: prepared.intake,
+                modelContext: modelContext
+            )
+        }
 
         setState(.complete)
         logger.info("Weekly meal plan generated: \(weeklyPlan.id) with \(weeklyPlan.meals?.count ?? 0) meals")
         logPlanDiagnostics(weeklyPlan)
 
         return weeklyPlan
+    }
+
+    private func stateReporter(_ onStatus: ((GenerationState) -> Void)?) -> (GenerationState) -> Void {
+        { newState in
+            self.state = newState
+            onStatus?(newState)
+        }
+    }
+
+    private func parsedMealCount(_ plan: ParsedWeeklyPlan) -> Int {
+        plan.days.reduce(0) { $0 + $1.meals.count }
     }
 
     /// Dump a structured, human-readable summary of the generated plan so a
@@ -392,8 +477,12 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             return Array(Set(combined.map { $0.trimmingCharacters(in: .whitespaces) }))
                 .filter { !$0.isEmpty }
         }()
-        let requests: [MealRequest] = meals.map { meal in
-            MealRequest(mealID: meal.id, mealName: meal.mealName, foods: meal.foods)
+        // Restaurant items are ordered, not cooked — no recipe for them, and a
+        // meal eaten out entirely gets none (it would also put the dish's
+        // ingredients on the grocery/pantry-gap lists).
+        let requests: [MealRequest] = meals.compactMap { meal in
+            let cooked = meal.foods.filter { !$0.isApproximate }
+            return cooked.isEmpty ? nil : MealRequest(mealID: meal.id, mealName: meal.mealName, foods: cooked)
         }
 
         // Capped fan-out. Previously we fired all 28 recipes in parallel,
@@ -1039,7 +1128,8 @@ final class MealPlanGeneratorService: @unchecked Sendable {
     /// Validate a single food item against FoodMacroDatabase.
     /// If the database has it and macros differ by >5%, use database values scaled to the quantity.
     private func validateFood(_ food: ParsedFoodData) -> ParsedFoodData {
-        guard let dbMacros = FoodMacroDatabase.lookup(food.name) else {
+        // A menu item is what the restaurant serves — not a home ingredient.
+        guard food.source != "restaurant", let dbMacros = FoodMacroDatabase.lookup(food.name) else {
             return food
         }
 
@@ -1055,7 +1145,9 @@ final class MealPlanGeneratorService: @unchecked Sendable {
                 calories: scaled.calories.rounded(),
                 proteinG: scaled.protein.rounded(),
                 carbsG: scaled.carbs.rounded(),
-                fatG: scaled.fat.rounded()
+                fatG: scaled.fat.rounded(),
+                source: food.source,
+                restaurant: food.restaurant
             )
         }
 
@@ -1067,8 +1159,10 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         _ meals: [ParsedMealData],
         target: MacroTargets
     ) -> [ParsedMealData] {
-        let totalCal = meals.flatMap(\.foods).reduce(0.0) { $0 + $1.calories }
-        let targetCal = Double(target.calories)
+        // Restaurant items are fixed portions — only home food scales.
+        let fixedCal = meals.flatMap(\.foods).filter { $0.source == "restaurant" }.reduce(0.0) { $0 + $1.calories }
+        let totalCal = meals.flatMap(\.foods).reduce(0.0) { $0 + $1.calories } - fixedCal
+        let targetCal = Double(target.calories) - fixedCal
         // Both sides must be positive; a zero target would otherwise scale
         // every meal to zero calories silently.
         guard totalCal > 0, targetCal > 0 else {
@@ -1086,13 +1180,18 @@ final class MealPlanGeneratorService: @unchecked Sendable {
 
         return meals.map { meal in
             let scaledFoods = meal.foods.map { food in
-                ParsedFoodData(
+                guard food.source != "restaurant" else {
+                    return food
+                }
+                return ParsedFoodData(
                     name: food.name,
                     quantityGrams: (food.quantityGrams * ratio).rounded(),
                     calories: (food.calories * ratio).rounded(),
                     proteinG: (food.proteinG * ratio).rounded(),
                     carbsG: (food.carbsG * ratio).rounded(),
-                    fatG: (food.fatG * ratio).rounded()
+                    fatG: (food.fatG * ratio).rounded(),
+                    source: food.source,
+                    restaurant: food.restaurant
                 )
             }
             return ParsedMealData(
@@ -1111,6 +1210,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
     private func persistPlan(
         _ plan: ParsedWeeklyPlan,
         targets: [DayType: MacroTargets],
+        weekStart: Date? = nil,
         modelContext: ModelContext
     ) throws -> WeeklyMealPlan {
         let calendar = Calendar.current
@@ -1136,7 +1236,9 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         // when the device locale starts the week on Sunday.
         let weekdayOfToday = calendar.component(.weekday, from: today) // 1=Sun, 2=Mon, ..., 7=Sat
         let mondayOffset = (weekdayOfToday + 5) % 7 // days since Monday: Mon=0, Tue=1, ..., Sun=6
-        let startDate = calendar.date(byAdding: .day, value: -mondayOffset, to: today) ?? today
+        let thisMonday = calendar.date(byAdding: .day, value: -mondayOffset, to: today) ?? today
+        // A Sunday-built plan is for NEXT week — the caller passes its Monday.
+        let startDate = weekStart.map { calendar.startOfDay(for: $0) } ?? thisMonday
         let endDate = calendar.date(byAdding: .day, value: 6, to: startDate)!
 
         // Build day type assignments keyed by absolute weekday (Mon=1..Sun=7)
@@ -1221,7 +1323,9 @@ final class MealPlanGeneratorService: @unchecked Sendable {
                         calories: food.calories,
                         proteinG: food.proteinG,
                         carbsG: food.carbsG,
-                        fatG: food.fatG
+                        fatG: food.fatG,
+                        source: food.source,
+                        restaurant: food.restaurant
                     )
                 }
 
@@ -1299,6 +1403,10 @@ private struct ParsedFoodData: Codable {
     let proteinG: Double
     let carbsG: Double
     let fatG: Double
+    /// "usda" / "ai" / "restaurant" — set by the server job; nil from a direct Sonnet call.
+    var source: String? = nil
+    /// The restaurant a meal-out item comes from.
+    var restaurant: String? = nil
 }
 
 // MARK: - ParsedRecipe

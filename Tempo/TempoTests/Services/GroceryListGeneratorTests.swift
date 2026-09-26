@@ -50,6 +50,17 @@ final class GroceryListGeneratorTests: XCTestCase {
 
     // MARK: - Aggregation
 
+    func testGenerate_skipsRestaurantItems() {
+        var melt = food("Chipotle Chicken Avocado Melt", 190)
+        melt.source = "restaurant"
+        melt.restaurant = "Panera Bread"
+        let plan = makePlan(foodsByMeal: [[food("Rice", 150)], [melt]])
+        let names = GroceryListGenerator.generate(from: .init(mealPlan: plan, pantry: [], weekStartDate: Date())).map(\.canonicalName)
+        XCTAssertFalse(names.contains { $0.contains("melt") }, "Ordered, not shopped for")
+        XCTAssertTrue(names.contains("rice"))
+    }
+
+
     // generate() aggregates each food's grams across meals, then rewrites the
     // gram total into WHOLE PURCHASE UNITS via naturalPortions.purchaseGrams
     // (ceil). So "200g + 250g chicken" aggregates to 450g → ceil(450/170) =

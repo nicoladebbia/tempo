@@ -18,6 +18,16 @@ struct PlannedFood: Codable {
     let proteinG: Double
     let carbsG: Double
     let fatG: Double
+    /// Where the numbers come from: "usda" (verified), "ai", or "restaurant"
+    /// (a menu item — approximate). nil on older plans and manual logs.
+    var source: String?
+    /// Restaurant for a meal-out item ("Panera Bread").
+    var restaurant: String?
+
+    /// A menu item whose macros are an estimate, not a weighed home portion.
+    var isApproximate: Bool {
+        source == "restaurant"
+    }
 }
 
 // MARK: - MealMacros

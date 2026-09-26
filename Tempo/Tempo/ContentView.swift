@@ -36,6 +36,8 @@ struct ContentView: View {
     /// `handlePlanInputsChanged`).
     @State
     private var nutritionViewModel = NutritionTabViewModel()
+    @Environment(\.scenePhase)
+    private var scenePhase
 
     private var accentColor: Color {
         switch accentColorChoice {
@@ -56,6 +58,8 @@ struct ContentView: View {
                         _ = ClearSkinFocusSetting.resolve(modelContext: modelContext)
                         handlePlanInputsChanged()
                         rescheduleTrainerSessionReminders()
+                        await WeeklyPlanReminder.sync(settings: NutritionTabViewModel.loadUserSettings(modelContext: modelContext))
+                        await syncWeeklyPlan()
                     }
             } else {
                 OnboardingContainerView()
@@ -189,6 +193,18 @@ struct ContentView: View {
         .onChange(of: appState.activeTab) { _, _ in
             HapticManager.selection()
         }
+        // Sunday loop: pick up a server-built plan whenever the app comes back.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                Task { await syncWeeklyPlan() }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .tempoWeeklyPlanApplied)) { _ in
+            nutritionViewModel.adoptActivePlan(modelContext: modelContext, notifications: services.notifications)
+        }
+        .sheet(isPresented: $appState.weeklyCheckInRequested) {
+            WeeklyCheckInView()
+        }
         // Training settings (split / football days / trainer program) and
         // diet-profile edits can happen from Training, Dashboard Settings or
         // Nutrition. Handle them here, app-wide, so the meal plan follows even
@@ -215,6 +231,10 @@ struct ContentView: View {
         ) { _ in
             rescheduleTrainerSessionReminders()
         }
+    }
+
+    private func syncWeeklyPlan() async {
+        await WeeklyPlanService.shared.sync(modelContext: modelContext, deps: PlanDeps(services))
     }
 
     /// Rebuilds the rolling 7-day window of trainer-session reminders. See

@@ -92,6 +92,20 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
                     UNNotificationAction(identifier: "VIEW_STATS", title: "View Stats", options: .foreground),
                 ]
             ),
+            // Sunday "plan next week?" — Yes builds it without opening the app.
+            makeCategory(
+                id: WeeklyPlanReminder.categoryID,
+                actions: [
+                    UNNotificationAction(identifier: WeeklyPlanReminder.buildActionID, title: "Yes, build it"),
+                    UNNotificationAction(
+                        identifier: WeeklyPlanReminder.checkInActionID,
+                        title: "Something's different",
+                        options: .foreground
+                    ),
+                ]
+            ),
+            // Server push: next week's plan is built.
+            makeCategory(id: WeeklyPlanReminder.readyCategoryID, actions: []),
             // Meal Reminder
             makeCategory(
                 id: "MEAL_REMINDER",

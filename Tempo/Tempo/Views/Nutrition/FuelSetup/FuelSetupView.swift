@@ -259,6 +259,14 @@ struct FuelSetupView: View {
     private func save() {
         draft.save(to: modelContext)
         HapticManager.success()
+        // The routine is what the Sunday plan reads — ask for notifications
+        // now (once) so the Sunday prompt and "plan ready" push can arrive.
+        let pushRegistration = services.pushRegistration
+        let settings = NutritionTabViewModel.loadUserSettings(modelContext: modelContext)
+        Task {
+            _ = try? await pushRegistration.requestAuthorizationAndRegister()
+            await WeeklyPlanReminder.sync(settings: settings)
+        }
         let profile = (try? modelContext.fetch(FetchDescriptor<DietaryProfile>(predicate: #Predicate { $0.isActive == true })))?.first
         dismiss()
         if let profile, let onSaveAndGenerate {
