@@ -998,6 +998,17 @@ struct ActiveWorkoutView: View {
                     )
                     .overlay(alignment: .bottomLeading) {
                         VStack(alignment: .leading, spacing: 2) {
+                            // trainer-feedback-tests — this session's a
+                            // trainer-flagged 1RM/3RM/5RM/time-trial test.
+                            if viewModel.currentExercise?.isTestExercise == true {
+                                Text("TEST — WORK UP TO A MAX")
+                                    .font(.tempoCaption2.weight(.bold))
+                                    .foregroundStyle(Color.tempoSignal)
+                                    .padding(.horizontal, TempoSpacing.sm)
+                                    .padding(.vertical, 2)
+                                    .background(Color.white.opacity(0.9))
+                                    .clipShape(Capsule())
+                            }
                             Text(exercise.name.uppercased())
                                 .font(.tempoTitle3)
                                 .foregroundStyle(.white)
