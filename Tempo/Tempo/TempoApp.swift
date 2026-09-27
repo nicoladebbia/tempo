@@ -8,8 +8,8 @@
 
 import SwiftData
 import SwiftUI
-import UserNotifications
 import UIKit
+import UserNotifications
 
 // MARK: - TempoAppDelegate
 
@@ -89,6 +89,10 @@ struct TempoApp: App {
                 // WeeklyUploadUITestSeed's header); no-ops unless launched
                 // with its launch argument.
                 WeeklyUploadUITestSeed.seedIfRequested(context: container.mainContext)
+                // Advanced-groceries feature — UI-test-only fixture (see
+                // GroceryShoppingUITestSeed's header); no-ops unless
+                // launched with its launch argument.
+                GroceryShoppingUITestSeed.seedIfRequested(context: container.mainContext)
             #endif
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")

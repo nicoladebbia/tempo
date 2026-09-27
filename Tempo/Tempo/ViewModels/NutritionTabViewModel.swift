@@ -67,12 +67,18 @@ final class NutritionTabViewModel {
     let receiptState = NutritionReceiptState()
     let recipeState = NutritionRecipeState()
     let groceryState = NutritionGroceryState()
+    /// Store Mode aisle-tick session + weekly spend history state — see
+    /// NutritionTabViewModel+GroceryAdvanced.swift.
+    let groceryStoreModeState = NutritionGroceryStoreModeState()
 
     var pantryService: (any PantryServiceProtocol)?
     var receiptService: (any ReceiptServiceProtocol)?
     var recipeService: (any RecipeServiceProtocol)?
     var groceryService: (any GroceryListServiceProtocol)?
     var intelligence: NutritionIntelligenceService?
+    /// AI batch price estimator for grocery items with no purchase history —
+    /// see NutritionTabViewModel+GroceryAdvanced.swift.
+    var groceryPriceAIService: GroceryPriceAIService?
     /// ModelContext captured at Phase 7 attach. Used by addPantryItem to
     /// insert a PantryPriceEntry on manual adds (the pantry service's
     /// mergeOrCreate doesn't own price history). Set in attachPhase7Services.
@@ -1035,7 +1041,8 @@ final class NutritionTabViewModel {
                     if Task.isCancelled {
                         return
                     }
-                    Logger.nutrition.info("[Diag.Plan] server plan unavailable (\(error.localizedDescription, privacy: .public)) — building on device")
+                    Logger.nutrition
+                        .info("[Diag.Plan] server plan unavailable (\(error.localizedDescription, privacy: .public)) — building on device")
                     plan = try await generator.generateWeeklyPlan(
                         profile: profile,
                         whoopTDEE: whoopTDEE,
