@@ -9,6 +9,20 @@ import Foundation
 import os
 import SwiftData
 
+// MARK: - PantryDecrementDetail
+
+/// One row's exact contribution to a decrement — recorded on the meal
+/// (`PlannedMeal.decrementDetail`) so an undo can credit back EXACTLY what
+/// was taken, from EXACTLY the row it came from, instead of the old
+/// approximate "re-derive from the recipe" inverse.
+struct PantryDecrementDetail: Codable, Sendable, Equatable {
+    let pantryItemID: UUID
+    let canonicalName: String
+    let unitRaw: String
+    /// Amount applied, in the pantry item's OWN unit, always positive.
+    let amount: Double
+}
+
 // MARK: - PantryDecrementResult
 
 /// Per-ingredient outcome of a pantry decrement. Callers can surface a
@@ -22,17 +36,26 @@ struct PantryDecrementResult: Sendable {
         case skippedStaple
         case skippedNoUnitMatch
     }
+
     let canonicalName: String
     let requestedGrams: Double
     let outcome: Outcome
+    /// Per-row amounts actually applied — FIFO across brand-duplicate rows,
+    /// earliest `useBy` first. Empty for `.notFound` / `.skipped*` outcomes.
+    var details: [PantryDecrementDetail] = []
 }
 
 // MARK: - PantryDecrementService
 
 /// Subtracts a meal's ingredients from the pantry the moment the user
 /// marks it eaten. Honest about its limits:
-///   - Staples (salt, olive oil, etc.) are skipped — flagged in
-///     `FoodMacroDatabase.naturalPortions` with `isStaple == true`.
+///   - Staples (salt, olive oil, etc.) are skipped — flagged EITHER in
+///     `FoodMacroDatabase.naturalPortions` with `isStaple == true`, OR
+///     tracked in the user's own `PantryStaple` list (Pantry Smarts).
+///   - When several pantry ROWS share a canonical name (brand duplicates,
+///     or the same food re-bought before the old batch ran out), the
+///     oldest `useBy` is consumed FIRST (FIFO) before moving to the next
+///     row — matches how food actually spoils.
 ///   - Pantry items stored in `.grams` / `.kilograms` / `.milliliters` /
 ///     `.liters` are decremented directly with unit normalization.
 ///   - Pantry items stored in `.pieces` are decremented using the
@@ -41,6 +64,8 @@ struct PantryDecrementResult: Sendable {
 ///   - `.ounces` / `.pounds` are converted by mass (28.35 g / 453.59 g).
 ///   - `.servings` use the natural-portion grams as one serving; foods
 ///     without a natural portion are skipped (`skippedNoUnitMatch`).
+///   - A meal with NO recipe (a logged substitute) decrements using
+///     `meal.foods` directly.
 ///
 /// Callers should NOT invoke this when the user logged a substitute
 /// ("ate something else") — in that case the planned ingredients weren't
@@ -49,27 +74,31 @@ struct PantryDecrementResult: Sendable {
 enum PantryDecrementService {
     private static let logger = Logger(subsystem: "app.tempo", category: "PantryDecrement")
 
-    /// Decrement pantry for every required ingredient of `meal`. Returns
-    /// per-ingredient outcomes so the caller can surface user-facing
-    /// banners (e.g. "out of rolled oats").
+    /// Decrement pantry for every required ingredient of `meal`. Falls back
+    /// to `meal.foods` when the meal has no recipe (a logged substitute or
+    /// an ad-hoc log) — the old behavior silently decremented NOTHING for
+    /// such meals. Returns per-ingredient outcomes so the caller can surface
+    /// user-facing banners (e.g. "out of rolled oats") AND persist
+    /// `result.details` onto `meal.decrementDetail` for an exact undo.
     @discardableResult
     static func decrement(
         for meal: PlannedMeal,
         modelContext: ModelContext
     ) -> [PantryDecrementResult] {
-        guard let ingredients = meal.recipe?.ingredients, !ingredients.isEmpty else {
-            return []
+        let pairs: [(String, Double)] = if let ingredients = meal.recipe?.ingredients, !ingredients.isEmpty {
+            ingredients
+                .filter { !$0.isOptional }
+                .map { ($0.canonicalFoodName, $0.quantityGrams) }
+        } else {
+            meal.foods.map { ($0.name, $0.quantityGrams) }
         }
-        let pairs = ingredients
-            .filter { !$0.isOptional }
-            .map { ($0.canonicalFoodName, $0.quantityGrams) }
         return decrement(pairs: pairs, label: meal.mealName, modelContext: modelContext)
     }
 
     /// Decrement the pantry by an arbitrary list of foods — used when a meal
     /// was SUBSTITUTED (recipe cleared, actual foods in `meal.foods`) and the
     /// user confirms they used pantry stock. Same per-item logic as the
-    /// recipe path (staple-skip, unit conversion, floor at zero).
+    /// recipe path (staple-skip, FIFO, unit conversion, floor at zero).
     @discardableResult
     static func decrement(
         foods: [PlannedFood],
@@ -80,10 +109,65 @@ enum PantryDecrementService {
         return decrement(pairs: pairs, label: label, modelContext: modelContext)
     }
 
-    /// Re-credit the pantry by an arbitrary list of foods — the inverse of
-    /// `decrement(foods:)`, used when the user UNDOES a meal that had pulled
-    /// from pantry stock (e.g. logged an açai bowl to the wrong slot). Adds
-    /// the converted quantity back to each matching row.
+    /// EXACT inverse of a recorded decrement: credits back precisely the
+    /// per-row amounts in `details`, matched by `pantryItemID` — no
+    /// re-derivation, no drift. Rows that were deleted/archived since are
+    /// skipped (nothing sensible to credit back to).
+    @discardableResult
+    static func creditExact(
+        details: [PantryDecrementDetail],
+        modelContext: ModelContext
+    ) -> Int {
+        guard !details.isEmpty else {
+            return 0
+        }
+        var credited = 0
+        for detail in details {
+            let id = detail.pantryItemID
+            var descriptor = FetchDescriptor<PantryItem>(
+                predicate: #Predicate<PantryItem> { $0.id == id }
+            )
+            descriptor.fetchLimit = 1
+            guard let item = (try? modelContext.fetch(descriptor))?.first else {
+                continue
+            }
+            // The row's unit can change between decrement and undo (the
+            // tap-edit sheet lets the user re-unit a row at any time).
+            // `detail.amount` was recorded in whatever unit the row had AT
+            // DECREMENT TIME — crediting it back blindly into a row that's
+            // since switched units would silently corrupt the quantity
+            // (e.g. crediting 200 straight into a row now in kilograms
+            // instead of grams). Convert through grams when they differ.
+            if item.unitRaw == detail.unitRaw {
+                item.quantity += detail.amount
+            } else if let detailUnit = PantryUnit(rawValue: detail.unitRaw),
+                      let grams = gramsEquivalent(pantryAmount: detail.amount, canonicalName: detail.canonicalName, unit: detailUnit),
+                      let converted = convertGramsToPantryUnit(grams: grams, canonicalName: detail.canonicalName, unit: item.unit)
+            {
+                item.quantity += converted
+            } else {
+                // No safe conversion available — skip rather than risk
+                // corrupting the row; the approximate `credit(foods:)` path
+                // stays available as a fallback for callers.
+                logger.error("Pantry exact-credit unit mismatch, skipping row \(item.canonicalName, privacy: .public)")
+                continue
+            }
+            item.updatedAt = Date()
+            credited += 1
+        }
+        do {
+            try modelContext.save()
+            logger.info("Pantry exact-credit: \(credited)/\(details.count) row(s)")
+        } catch {
+            logger.error("Pantry exact-credit save failed: \(error.localizedDescription, privacy: .public)")
+        }
+        return credited
+    }
+
+    /// Re-credit the pantry by an arbitrary list of foods — the APPROXIMATE
+    /// inverse of `decrement(foods:)`, kept as a fallback for meals that
+    /// don't carry a recorded `decrementDetail` (e.g. data from before this
+    /// feature existed). Prefer `creditExact` whenever detail is available.
     ///
     /// NOTE: this is an APPROXIMATE inverse, not an exact one. The decrement
     /// floored at zero (`max(0, qty - delta)`), so if the meal had depleted an
@@ -118,17 +202,22 @@ enum PantryDecrementService {
     }
 
     /// Shared per-item pantry mutation over (canonicalName, grams) pairs.
-    /// `direction` selects subtract (floor at 0) vs add-back.
+    /// `direction` selects subtract (floor at 0, FIFO across rows) vs the
+    /// approximate add-back (single-row, legacy `credit(foods:)` path).
     private static func apply(
         pairs: [(String, Double)],
         direction: Direction,
         label: String,
         modelContext: ModelContext
     ) -> [PantryDecrementResult] {
-        guard !pairs.isEmpty else { return [] }
+        guard !pairs.isEmpty else {
+            return []
+        }
 
-        // Fetch all non-archived pantry rows once and index by canonical
-        // name. Pantry size is bounded (~50–150 items); a single fetch is
+        // Fetch all non-archived pantry rows once and GROUP by canonical
+        // name (not index — a canonical name can have several rows: brand
+        // duplicates, or a restock bought before the old batch ran out).
+        // Pantry size is bounded (~50–150 items); a single fetch is
         // cheaper than per-ingredient predicates.
         let pantryDescriptor = FetchDescriptor<PantryItem>(
             predicate: #Predicate<PantryItem> { item in
@@ -136,71 +225,77 @@ enum PantryDecrementService {
             }
         )
         let pantryRows = (try? modelContext.fetch(pantryDescriptor)) ?? []
-        var byName: [String: PantryItem] = [:]
+        var byName: [String: [PantryItem]] = [:]
         for row in pantryRows {
-            byName[row.canonicalName.lowercased()] = row
+            byName[row.canonicalName.lowercased(), default: []].append(row)
         }
+        // FIFO: earliest useBy first (a row with no useBy sorts last — it's
+        // the least urgent to use up first, by definition it has no known
+        // expiry pressure).
+        for key in byName.keys {
+            byName[key]?.sort { lhs, rhs in
+                switch (lhs.useBy, rhs.useBy) {
+                case let (l?, r?): l < r
+                case (nil, nil): false
+                case (nil, _): false
+                case (_, nil): true
+                }
+            }
+        }
+
+        // Staples (user-tracked, Pantry Smarts) are NEVER decremented —
+        // in addition to the pre-existing FoodMacroDatabase.isStaple skip.
+        let stapleDescriptor = FetchDescriptor<PantryStaple>()
+        let stapleNames = Set(((try? modelContext.fetch(stapleDescriptor)) ?? []).map { $0.canonicalName.lowercased() })
 
         var results: [PantryDecrementResult] = []
         for (rawName, rawGrams) in pairs {
             let canonical = FoodCanonicalizer.canonicalize(rawName).lowercased()
-            let grams = rawGrams
-            guard grams > 0 else { continue }
+            guard rawGrams > 0 else {
+                continue
+            }
 
             // Staple? Don't decrement (you bought a jar of salt months ago).
-            if FoodMacroDatabase.naturalPortions[canonical]?.isStaple == true {
+            if FoodMacroDatabase.naturalPortions[canonical]?.isStaple == true || stapleNames.contains(canonical) {
                 results.append(PantryDecrementResult(
                     canonicalName: canonical,
-                    requestedGrams: grams,
+                    requestedGrams: rawGrams,
                     outcome: .skippedStaple
                 ))
                 continue
             }
 
-            guard let pantryItem = byName[canonical] else {
+            guard let rows = byName[canonical], !rows.isEmpty else {
                 results.append(PantryDecrementResult(
                     canonicalName: canonical,
-                    requestedGrams: grams,
+                    requestedGrams: rawGrams,
                     outcome: .notFound
                 ))
                 continue
             }
 
-            let delta = convertGramsToPantryUnit(
-                grams: grams,
-                canonicalName: canonical,
-                unit: pantryItem.unit
-            )
-            guard let delta else {
-                results.append(PantryDecrementResult(
-                    canonicalName: canonical,
-                    requestedGrams: grams,
-                    outcome: .skippedNoUnitMatch
-                ))
-                continue
-            }
-
-            let newQty: Double
             switch direction {
             case .decrement:
-                newQty = max(0, pantryItem.quantity - delta)
+                results.append(decrementFIFO(canonical: canonical, requestedGrams: rawGrams, rows: rows))
             case .credit:
-                newQty = pantryItem.quantity + delta
-            }
-            pantryItem.quantity = newQty
-            pantryItem.updatedAt = Date()
-
-            if newQty <= 0 {
+                // Legacy approximate credit — single row (the first match),
+                // no FIFO semantics needed since it's a best-effort add-back.
+                let row = rows[0]
+                let delta = convertGramsToPantryUnit(grams: rawGrams, canonicalName: canonical, unit: row.unit)
+                guard let delta else {
+                    results.append(PantryDecrementResult(
+                        canonicalName: canonical,
+                        requestedGrams: rawGrams,
+                        outcome: .skippedNoUnitMatch
+                    ))
+                    continue
+                }
+                row.quantity += delta
+                row.updatedAt = Date()
                 results.append(PantryDecrementResult(
                     canonicalName: canonical,
-                    requestedGrams: grams,
-                    outcome: .depleted
-                ))
-            } else {
-                results.append(PantryDecrementResult(
-                    canonicalName: canonical,
-                    requestedGrams: grams,
-                    outcome: .decremented(remaining: newQty)
+                    requestedGrams: rawGrams,
+                    outcome: .decremented(remaining: row.quantity)
                 ))
             }
         }
@@ -213,9 +308,66 @@ enum PantryDecrementService {
             // A failed save leaves quantities mutated in memory but not on
             // disk; surfacing the error in the log makes a stale-pantry
             // bug debuggable instead of silently rolling back at relaunch.
-            logger.error("Pantry \(verb, privacy: .public) save failed for \(label, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            logger
+                .error(
+                    "Pantry \(verb, privacy: .public) save failed for \(label, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                )
         }
         return results
+    }
+
+    /// Consume `requestedGrams` worth of `canonical` across `rows` (already
+    /// sorted earliest-useBy-first), moving to the next row once the current
+    /// one is exhausted. Rows whose unit can't be converted are skipped
+    /// individually (their stock is left untouched) rather than aborting
+    /// the whole ingredient.
+    private static func decrementFIFO(
+        canonical: String,
+        requestedGrams: Double,
+        rows: [PantryItem]
+    ) -> PantryDecrementResult {
+        var remainingGrams = requestedGrams
+        var details: [PantryDecrementDetail] = []
+        var anyRowMatchedUnit = false
+        var totalRemainingStock: Double = 0
+
+        for row in rows {
+            guard remainingGrams > 0 else {
+                totalRemainingStock += row.quantity
+                continue
+            }
+            guard let neededInRowUnit = convertGramsToPantryUnit(
+                grams: remainingGrams, canonicalName: canonical, unit: row.unit
+            )
+            else {
+                // Can't convert for this row's unit — leave it alone, try
+                // the next row (a different unit might convert fine).
+                totalRemainingStock += row.quantity
+                continue
+            }
+            anyRowMatchedUnit = true
+            let consume = min(row.quantity, neededInRowUnit)
+            guard consume > 0 else {
+                totalRemainingStock += row.quantity
+                continue
+            }
+            let gramsConsumed = gramsEquivalent(pantryAmount: consume, canonicalName: canonical, unit: row.unit) ?? remainingGrams
+            row.quantity = max(0, row.quantity - consume)
+            row.updatedAt = Date()
+            details.append(PantryDecrementDetail(
+                pantryItemID: row.id, canonicalName: canonical, unitRaw: row.unitRaw, amount: consume
+            ))
+            remainingGrams = max(0, remainingGrams - gramsConsumed)
+            totalRemainingStock += row.quantity
+        }
+
+        guard anyRowMatchedUnit else {
+            return PantryDecrementResult(canonicalName: canonical, requestedGrams: requestedGrams, outcome: .skippedNoUnitMatch)
+        }
+        let outcome: PantryDecrementResult.Outcome = totalRemainingStock <= 0
+            ? .depleted
+            : .decremented(remaining: totalRemainingStock)
+        return PantryDecrementResult(canonicalName: canonical, requestedGrams: requestedGrams, outcome: outcome, details: details)
     }
 
     // MARK: - Unit conversion
@@ -250,7 +402,11 @@ enum PantryDecrementService {
             return grams
         case .liters:
             return grams / 1000
-        case .pieces, .cans, .bottles, .jars, .packs:
+        case .pieces,
+             .cans,
+             .bottles,
+             .jars,
+             .packs:
             guard let portion = FoodMacroDatabase.naturalPortions[canonicalName] else {
                 return nil
             }
@@ -263,7 +419,9 @@ enum PantryDecrementService {
                 }
                 return portion.purchaseGrams > 0 ? portion.purchaseGrams : portion.grams
             }()
-            guard perUnit > 0 else { return nil }
+            guard perUnit > 0 else {
+                return nil
+            }
             return (grams / perUnit).rounded(.up)
         case .ounces:
             return grams / gramsPerOunce
@@ -276,6 +434,48 @@ enum PantryDecrementService {
                 return nil
             }
             return (grams / portion.grams).rounded(.up)
+        }
+    }
+
+    /// Inverse of `convertGramsToPantryUnit`: how many grams a given amount
+    /// IN THE PANTRY'S OWN UNIT represents. Used by the FIFO loop to debit
+    /// the right amount from `remainingGrams` after a row only partially
+    /// covers the requirement (e.g. row had 2 cans, needed 3 → row supplies
+    /// 2 cans' worth of grams, remainder rolls to the next row).
+    static func gramsEquivalent(
+        pantryAmount: Double,
+        canonicalName: String,
+        unit: PantryUnit
+    ) -> Double? {
+        switch unit {
+        case .grams,
+             .milliliters:
+            return pantryAmount
+        case .kilograms,
+             .liters:
+            return pantryAmount * 1000
+        case .ounces:
+            return pantryAmount * gramsPerOunce
+        case .pounds:
+            return pantryAmount * gramsPerPound
+        case .pieces,
+             .cans,
+             .bottles,
+             .jars,
+             .packs:
+            guard let portion = FoodMacroDatabase.naturalPortions[canonicalName] else {
+                return nil
+            }
+            let perUnit = unit == .pieces ? portion.grams : (portion.purchaseGrams > 0 ? portion.purchaseGrams : portion.grams)
+            guard perUnit > 0 else {
+                return nil
+            }
+            return pantryAmount * perUnit
+        case .servings:
+            guard let portion = FoodMacroDatabase.naturalPortions[canonicalName], portion.grams > 0 else {
+                return nil
+            }
+            return pantryAmount * portion.grams
         }
     }
 }

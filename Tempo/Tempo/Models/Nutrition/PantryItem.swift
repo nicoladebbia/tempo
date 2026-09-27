@@ -51,7 +51,12 @@ enum PantryUnit: String, Codable, CaseIterable, Sendable {
     /// whole purchase units (grocery list, pantry decrement).
     var isCountable: Bool {
         switch self {
-        case .pieces, .servings, .cans, .bottles, .jars, .packs: true
+        case .pieces,
+             .servings,
+             .cans,
+             .bottles,
+             .jars,
+             .packs: true
         default: false
         }
     }
@@ -74,14 +79,21 @@ enum PantryUnit: String, Codable, CaseIterable, Sendable {
         case .liters: return quantity * 1000
         case .ounces: return quantity * 28.3495
         case .pounds: return quantity * 453.592
-        case .pieces, .servings, .cans, .bottles, .jars, .packs:
+        case .pieces,
+             .servings,
+             .cans,
+             .bottles,
+             .jars,
+             .packs:
             // Look up the per-unit gram weight for this food (e.g. one
             // "pack" of pasta = 500g per naturalPortions). Without the
             // food name we can't disambiguate "1 piece" of an apple
             // (~150g) from "1 piece" of a chip (~2g).
             guard let foodName,
                   let portion = FoodMacroDatabase.naturalPortions[foodName.lowercased()]
-            else { return nil }
+            else {
+                return nil
+            }
             let unitGrams = self == .packs ? portion.purchaseGrams : portion.grams
             return quantity * unitGrams
         }
@@ -266,6 +278,16 @@ final class PantryItem {
             return false
         }
         return days >= 0 && days <= 3
+    }
+
+    /// `true` once a decrement (or manual edit) has brought stock to zero
+    /// but the row hasn't been archived yet — "used up" rather than
+    /// "gone from the pantry". Callers (Today view, `PantryDecrementService`
+    /// results) use this to decide whether to show a "used up" chip or
+    /// offer to add the item back to the grocery list.
+    @Transient
+    var isDepleted: Bool {
+        !isArchived && quantity <= 0
     }
 
     // MARK: - Init
