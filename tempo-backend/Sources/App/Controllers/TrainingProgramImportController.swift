@@ -23,6 +23,16 @@ import Vapor
 //   POST /v1/training/program-import/transcribe
 //   POST /v1/training/program-import/structure
 //   GET  /v1/training/program-import/quota
+//   POST /v1/training/program-import/feedback
+//
+// `feedback` (trainer-feedback-tests) — "trainer sent changes": the athlete
+// pastes/screenshots a WhatsApp reply and it's turned into structured edits
+// against their CURRENT program (TrainerFeedbackParser/TrainerFeedbackApplier
+// on iOS). Deliberately NOT gated by TrainerProgramImportQuotaService — a
+// feedback edit is a small text-only Sonnet call, not a full program import,
+// and burning one of the athlete's few free monthly imports on it would be
+// wrong. Same JWT auth + this controller's own rate limit as every other
+// route here.
 
 struct TrainingProgramImportController: RouteCollection {
     /// 1–5 images per transcribe request.
@@ -36,6 +46,7 @@ struct TrainingProgramImportController: RouteCollection {
         routes.on(.POST, "transcribe", body: .collect(maxSize: "7mb"), use: transcribe)
         routes.on(.POST, "structure", body: .collect(maxSize: "256kb"), use: structure)
         routes.get("quota", use: quota)
+        routes.on(.POST, "feedback", body: .collect(maxSize: "64kb"), use: feedback)
     }
 
     // MARK: - Transcribe
@@ -114,6 +125,35 @@ struct TrainingProgramImportController: RouteCollection {
         )
 
         let envelope = Envelope(data: ProgramImportStructureResponse(text: proxyResponse.text), requestID: req.requestID)
+        let response = Response(status: .ok)
+        try response.content.encode(envelope)
+        return response
+    }
+
+    // MARK: - Feedback
+
+    /// "Trainer sent changes" — structures a pasted/OCR'd WhatsApp reply into
+    /// a list of edits against the athlete's current program. Thin passthrough
+    /// to the SAME generic text proxy `structure` uses (`sendText`), just
+    /// without the quota gate (see the type-level doc comment above).
+    @Sendable
+    func feedback(req: Request) async throws -> Response {
+        _ = try req.auth.requireUserID()
+        let input = try req.content.decode(ProgramFeedbackRequest.self)
+
+        let proxyResponse = try await NutritionClaudeProxyService.shared.sendText(
+            input: NutritionProxyTextRequest(
+                model: input.model,
+                system: input.system,
+                userMessage: input.userMessage,
+                maxTokens: input.maxTokens,
+                temperature: input.temperature,
+                caller: input.caller
+            ),
+            on: req
+        )
+
+        let envelope = Envelope(data: ProgramFeedbackResponse(text: proxyResponse.text), requestID: req.requestID)
         let response = Response(status: .ok)
         try response.content.encode(envelope)
         return response
@@ -249,9 +289,9 @@ struct ProgramImportTranscribeRequest: Content {
     let system: String
     let userMessage: String
 
-    // The global decoder's `.convertFromSnakeCase` turns `session_id` into
-    // `sessionId`, which never matches a property spelled `sessionID` —
-    // every request failed to decode (400). Map it explicitly.
+    /// The global decoder's `.convertFromSnakeCase` turns `session_id` into
+    /// `sessionId`, which never matches a property spelled `sessionID` —
+    /// every request failed to decode (400). Map it explicitly.
     enum CodingKeys: String, CodingKey {
         case sessionID = "sessionId"
         case images, hintTexts, system, userMessage
@@ -309,4 +349,26 @@ struct ProgramImportQuotaErrorBody: Content {
     let limit: Int
     let used: Int
     let resetsAt: Date
+}
+
+// MARK: - Feedback DTOs (trainer-feedback-tests)
+
+/// No `sessionId` — feedback isn't quota-gated, so there's nothing to dedup
+/// across retries. `model` is always "sonnet" in practice (iOS sends it),
+/// same convention as `ProgramImportStructureRequest.model`.
+struct ProgramFeedbackRequest: Content {
+    let model: String
+    let system: String
+    let userMessage: String
+    let maxTokens: Int
+    let temperature: Double
+    let caller: String
+
+    // No acronym/ID properties here, so the global `.convertFromSnakeCase`
+    // decoder needs no explicit CodingKeys (unlike ProgramImportTranscribe/
+    // StructureRequest's `sessionId` — see their CodingKeys comment).
+}
+
+struct ProgramFeedbackResponse: Content {
+    let text: String
 }
