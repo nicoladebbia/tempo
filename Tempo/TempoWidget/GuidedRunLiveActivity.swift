@@ -79,11 +79,7 @@ private struct GuidedRunTimerText: View {
             // ActivityKit propagation delay), "now" can already be past a
             // very-short-lived anchor. Guard rather than trust the source
             // never produces this: a stale "0:00" for one frame beats a crash.
-            if state.timerAnchor > Date.now {
-                Text(timerInterval: Date.now ... state.timerAnchor, countsDown: true)
-            } else {
-                Text("0:00")
-            }
+            Text(timerInterval: SafeTimerRange.countdown(to: state.timerAnchor), countsDown: true)
         } else {
             Text(timerInterval: state.timerAnchor ... Date.distantFuture, countsDown: false)
         }
