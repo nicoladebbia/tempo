@@ -75,7 +75,11 @@ struct GroceryListView: View {
         .toolbar {
             // Only surface Add/Sync when a list actually exists — there's
             // nothing to add to or sync against until generation runs.
-            if viewModel.groceryState.latest != nil {
+            if let list = viewModel.groceryState.latest {
+                // feat/grocery-share-order (Lane C) — share as text / live link / order online.
+                ToolbarItem(placement: .topBarTrailing) {
+                    GroceryShareMenu(list: list)
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button {

@@ -13,7 +13,7 @@ import VaporAPNS
 
 // Per VAPOR_PROJECT_STRUCTURE.md Section 4 — configure.swift
 
-func configure(_ app: Application) async throws {
+func configure(_ app: Application, instacartClient: InstacartClient = InstacartAPIClient()) async throws {
     // ─────────────────────────────────────────────────
     // 1. Content configuration
     // ─────────────────────────────────────────────────
@@ -179,6 +179,7 @@ func configure(_ app: Application) async throws {
     app.migrations.add(CreateFoodNutritionCache())
     app.migrations.add(CreateWeeklyPlanJobs())
     app.migrations.add(AddAPNsRoutingToDeviceTokens())
+    app.migrations.add(CreateSharedGroceryLists())
 
     // Arena module — per BUILD_PLAN step 14.1
     app.migrations.add(CreateXPEvents())
@@ -256,5 +257,5 @@ func configure(_ app: Application) async throws {
     // ─────────────────────────────────────────────────
     // 9. Routes
     // ─────────────────────────────────────────────────
-    try routes(app)
+    try routes(app, instacartClient: instacartClient)
 }
