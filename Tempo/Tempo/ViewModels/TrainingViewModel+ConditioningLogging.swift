@@ -105,6 +105,8 @@ extension TrainingViewModel {
         roundsCompleted: Int?,
         rpe: Double?,
         notes: String?,
+        avgHeartRateBPM: Double? = nil,
+        maxHeartRateBPM: Double? = nil,
         source: String,
         modelContext: ModelContext
     ) -> ConditioningBlockResult {
@@ -139,6 +141,8 @@ extension TrainingViewModel {
             roundsCompleted: roundsCompleted,
             rpe: rpe,
             notes: notes,
+            avgHeartRateBPM: avgHeartRateBPM,
+            maxHeartRateBPM: maxHeartRateBPM,
             targetMet: met,
             source: source
         )

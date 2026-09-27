@@ -121,6 +121,47 @@ extension PhoneWatchConnectivityService {
         try? WCSession.default.updateApplicationContext(context)
     }
 
+    /// Guided run mode — push the current live snapshot to the watch mirror.
+    /// Sent via BOTH channels like `pushSnapshot`: `sendMessage` when
+    /// reachable (low-latency tap sync) AND `updateApplicationContext` always
+    /// (so a relaunch/reconnect still picks up the latest step).
+    func pushGuidedRun(_ snapshot: GuidedRunActivitySnapshot) {
+        guard WCSession.isSupported(),
+              WCSession.default.activationState == .activated,
+              WCSession.default.isPaired,
+              WCSession.default.isWatchAppInstalled
+        else {
+            return
+        }
+        var context = WCSession.default.applicationContext
+        context[GuidedRunActivitySnapshot.contextKey] = snapshot.toDictionary()
+        try? WCSession.default.updateApplicationContext(context)
+        if WCSession.default.isReachable {
+            WCSession.default.sendMessage([GuidedRunActivitySnapshot.contextKey: snapshot.toDictionary()], replyHandler: nil)
+        }
+    }
+
+    /// Clears the watch mirror — an explicit flag rather than just removing
+    /// the context key, since an ABSENT key in application context means
+    /// "unchanged", not "cleared" (see `GuidedRunActivitySnapshot.endedKey`).
+    func endGuidedRun() {
+        guard WCSession.isSupported(), WCSession.default.activationState == .activated else {
+            return
+        }
+        var context = WCSession.default.applicationContext
+        context.removeValue(forKey: GuidedRunActivitySnapshot.contextKey)
+        // The endedKey flag must ALSO go through the durable context, not
+        // just the best-effort sendMessage below — a watch that's
+        // unreachable at exactly this instant (screen off, brief BT gap)
+        // would otherwise never learn the run ended and stay stuck mirroring
+        // the last live step forever, hijacking its Workout tab.
+        context[GuidedRunActivitySnapshot.endedKey] = true
+        try? WCSession.default.updateApplicationContext(context)
+        if WCSession.default.isReachable {
+            WCSession.default.sendMessage([GuidedRunActivitySnapshot.endedKey: true], replyHandler: nil)
+        }
+    }
+
     /// Route every decoded watch quick action to the app-level router
     /// (`ServiceContainer.watchActionRouter`, registered once at launch —
     /// §22). Actions arriving before it exists (queued userInfo delivered
