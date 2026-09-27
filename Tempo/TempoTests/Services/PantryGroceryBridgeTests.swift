@@ -119,16 +119,37 @@ final class PantryGroceryBridgeTests: XCTestCase {
         XCTAssertEqual(bumped.quantity, 5)
     }
 
-    func testAddToCurrentGroceryList_sameNameDifferentUnit_createsSeparateRow() throws {
-        _ = try PantryGroceryBridge.addToCurrentGroceryList(
+    func testAddToCurrentGroceryList_sameFoodInAnotherUnit_reusesTheRow() throws {
+        let first = try PantryGroceryBridge.addToCurrentGroceryList(
             canonicalName: "rice", displayName: "Rice", quantity: 2, unit: .pieces, modelContext: context
         )
-        _ = try PantryGroceryBridge.addToCurrentGroceryList(
+        let again = try PantryGroceryBridge.addToCurrentGroceryList(
             canonicalName: "rice", displayName: "Rice", quantity: 500, unit: .grams, modelContext: context
         )
 
         let lists = try context.fetch(FetchDescriptor<GroceryList>())
-        XCTAssertEqual(lists.first?.items?.count, 2)
+        XCTAssertEqual(lists.first?.items?.count, 1, "Rice is already on the list — no second row")
+        XCTAssertTrue(again === first)
+        XCTAssertEqual(first.quantity, 2)
+    }
+
+    func testAddToCurrentGroceryList_leavesAPlanRowAlone() throws {
+        let list = GroceryList(weekStartDate: PantryGroceryBridge.currentWeekMonday(), sourceMealPlanID: UUID())
+        context.insert(list)
+        let planned = GroceryListItem(
+            list: list, canonicalFoodName: "rice", displayName: "Rice", quantity: 600, unit: .grams, category: "grains"
+        )
+        context.insert(planned)
+        list.items = [planned]
+
+        let result = try PantryGroceryBridge.addToCurrentGroceryList(
+            canonicalName: "rice", displayName: "Rice", quantity: 1, unit: .pieces, modelContext: context
+        )
+
+        XCTAssertTrue(result === planned)
+        XCTAssertEqual(list.items?.count, 1)
+        XCTAssertFalse(planned.isManual, "Stays the planner's row so a regenerate doesn't duplicate it")
+        XCTAssertEqual(planned.quantity, 600)
     }
 
     func testCurrentWeekMonday_isStableWithinTheSameWeek() {

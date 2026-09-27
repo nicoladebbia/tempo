@@ -167,12 +167,18 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
                 reminderIdentifier: state?.reminderIdentifier
             )
         }
-        items.append(contentsOf: preservedManual.map { $0.makeItem(list: list) })
+        // A pantry "ran out" row the new plan now covers itself would show
+        // twice — the plan row wins. User-typed manual items always stay.
+        let planned = Set(aggregated.map(\.canonicalName))
+        let carried = preservedManual.filter { manual in
+            !(manual.category == PantryGroceryBridge.category && !manual.isBought && planned.contains(manual.canonicalFoodName))
+        }
+        items.append(contentsOf: carried.map { $0.makeItem(list: list) })
         list.items = items
         try modelContext.save()
         logger
             .info(
-                "Grocery list generated: \(items.count) items (\(preservedManual.count) preserved manual), week \(weekStart.ISO8601Format(), privacy: .public)"
+                "Grocery list generated: \(items.count) items (\(carried.count) preserved manual), week \(weekStart.ISO8601Format(), privacy: .public)"
             )
         return list
     }

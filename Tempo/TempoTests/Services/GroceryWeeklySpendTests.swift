@@ -43,14 +43,38 @@ final class GroceryWeeklySpendTests: XCTestCase {
         XCTAssertEqual(result.count, 8)
     }
 
-    func testCompute_sumsManualEntriesIntoTheCurrentWeek() {
+    func testCompute_sumsManualEntriesIntoTheCurrentWeek() throws {
+        // A fixed Thursday, so "yesterday" is always this week.
+        let thursday = try XCTUnwrap(Calendar.current.date(from: DateComponents(year: 2026, month: 10, day: 1, hour: 12)))
+        let entries = [priceEntry(daysAgo: 0, usd: 20), priceEntry(daysAgo: 1, usd: 30)]
+        entries[0].purchaseDate = thursday
+        entries[1].purchaseDate = thursday.addingTimeInterval(-86400)
         let result = GroceryWeeklySpendCalculator.compute(
-            priceEntries: [priceEntry(daysAgo: 0, usd: 20), priceEntry(daysAgo: 1, usd: 30)],
+            priceEntries: entries,
             receipts: [],
             weeks: 4,
-            budgetCapUSD: nil
+            budgetCapUSD: nil,
+            now: thursday
         )
         XCTAssertEqual(result.last?.totalUSD ?? -1, 50, accuracy: 0.01)
+    }
+
+    func testCompute_weeksRunMondayToSundayEvenInASundayFirstLocale() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.firstWeekday = 1
+        // Sunday 27 Sep 2026 and the Saturday before are the same shopping week.
+        let sunday = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 9, day: 27, hour: 12)))
+        let saturday = try XCTUnwrap(calendar.date(byAdding: .day, value: -1, to: sunday))
+        let entries = [priceEntry(daysAgo: 0, usd: 20), priceEntry(daysAgo: 0, usd: 30)]
+        entries[0].purchaseDate = sunday
+        entries[1].purchaseDate = saturday
+
+        let result = GroceryWeeklySpendCalculator.compute(
+            priceEntries: entries, receipts: [], weeks: 2, budgetCapUSD: nil, now: sunday, calendar: calendar
+        )
+
+        XCTAssertEqual(result.last?.totalUSD ?? -1, 50, accuracy: 0.01)
+        XCTAssertEqual(calendar.component(.weekday, from: try XCTUnwrap(result.last?.weekStartDate)), 2)
     }
 
     func testCompute_excludesReceiptSourcedPriceEntriesToAvoidDoubleCounting() {

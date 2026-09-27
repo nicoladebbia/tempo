@@ -93,6 +93,19 @@ final class GroceryPreservationTests: XCTestCase {
         XCTAssertTrue(regenerated.orderedItems.contains { $0.canonicalFoodName == "paper towels" })
     }
 
+    func testRegenerate_dropsAPantryRowThePlanNowCovers() throws {
+        let plan = makePlan(foods: [("Rice", 200)])
+        _ = try grocery.generate(from: plan, pantry: pantry, weekStartDate: plan.startDate)
+        _ = try grocery.addItem(name: "Salmon", quantity: 1, unit: .pieces, category: PantryGroceryBridge.category)
+        _ = try grocery.addItem(name: "Olive Oil", quantity: 1, unit: .bottles, category: PantryGroceryBridge.category)
+        let updated = makePlan(foods: [("Rice", 200), ("Salmon", 300)])
+
+        let regenerated = try grocery.generate(from: updated, pantry: pantry, weekStartDate: plan.startDate)
+
+        XCTAssertEqual(regenerated.orderedItems.filter { $0.canonicalFoodName == "salmon" }.count, 1)
+        XCTAssertTrue(regenerated.orderedItems.contains { $0.canonicalFoodName == "olive oil" }, "Not in the plan — kept")
+    }
+
     func testAddItem_marksItemManual() throws {
         let plan = makePlan(foods: [("Rice", 200)])
         _ = try grocery.generate(from: plan, pantry: pantry, weekStartDate: plan.startDate)

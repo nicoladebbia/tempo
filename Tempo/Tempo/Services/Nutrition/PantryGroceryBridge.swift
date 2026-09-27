@@ -26,8 +26,9 @@ enum PantryGroceryBridge {
 
     /// Finds the current week's `GroceryList` (creating an empty one if
     /// none exists yet) and appends a `GroceryListItem` for
-    /// `canonicalName` — or, if that food is already on the list in the
-    /// same unit, bumps its quantity instead of creating a duplicate row.
+    /// `canonicalName` — or, if that food is already on the list, reuses
+    /// that row (bumping our own pantry row's amount when the unit matches)
+    /// instead of creating a duplicate.
     ///
     /// Used for: staple needs (low/out), "I'm out of X" voice edits, and
     /// pantry items that hit zero via decrement or manual edit.
@@ -43,23 +44,33 @@ enum PantryGroceryBridge {
         let display = displayName.trimmingCharacters(in: .whitespaces)
         let list = try findOrCreateCurrentWeekList(modelContext: modelContext)
 
-        if let existing = (list.items ?? []).first(where: {
-            $0.canonicalFoodName == canonical && $0.unitRaw == unit.rawValue
-        }) {
-            if existing.isBought {
-                // Bought on an earlier trip and now needed again — back on
-                // the list as a fresh item, not added to the old amount.
-                existing.isBought = false
-                existing.boughtAt = nil
-                existing.isChecked = false
-                existing.quantity = max(0, quantity)
-            } else {
-                existing.quantity += max(0, quantity)
+        let sameFood = (list.items ?? []).filter { $0.canonicalFoodName == canonical }
+        // Already on the list and still to buy — in any unit. Plan items use
+        // their own purchase unit (grams, packs…), so matching on unit here
+        // would add a second row for the same food.
+        if let open = sameFood.first(where: { !$0.isBought }) {
+            // Only bump our own pantry rows; a plan row already covers the
+            // week's need and stays the planner's (not manual), so a plan
+            // regenerate doesn't duplicate it.
+            if open.isManual, open.unitRaw == unit.rawValue {
+                open.quantity += max(0, quantity)
+                try modelContext.save()
             }
-            // Pantry-driven needs survive a plan regenerate.
-            existing.isManual = true
+            return open
+        }
+        if let bought = sameFood.first {
+            // Bought on an earlier trip and now needed again — back on the
+            // list as a fresh item, not added to the old amount. A plan row
+            // keeps its unit/amount (regenerate carries its un-bought state).
+            bought.isBought = false
+            bought.boughtAt = nil
+            bought.isChecked = false
+            if bought.isManual {
+                bought.quantity = max(0, quantity)
+                bought.unit = unit
+            }
             try modelContext.save()
-            return existing
+            return bought
         }
 
         let item = GroceryListItem(

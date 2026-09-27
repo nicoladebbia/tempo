@@ -45,11 +45,15 @@ enum GroceryWeeklySpendCalculator {
         weeks: Int = 8,
         budgetCapUSD: Int?,
         now: Date = Date(),
-        calendar: Calendar = .current
+        calendar baseCalendar: Calendar = .current
     ) -> [GroceryWeeklySpend] {
         guard weeks > 0 else {
             return []
         }
+        // Monday weeks like the grocery lists, whatever the locale's first
+        // weekday (US = Sunday, which split a Sat+Sun shop across two bars).
+        var calendar = baseCalendar
+        calendar.firstWeekday = 2
 
         func weekStart(for date: Date) -> Date {
             let interval = calendar.dateInterval(of: .weekOfYear, for: date)

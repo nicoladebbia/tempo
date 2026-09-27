@@ -30,6 +30,8 @@ struct GroceryShareMenu: View {
     private var modelContext
     @Environment(\.openURL)
     private var openURL
+    @Environment(\.scenePhase)
+    private var scenePhase
 
     @State private var service: SharedGroceryListService?
     @State private var share: GroceryShare?
@@ -85,6 +87,25 @@ struct GroceryShareMenu: View {
             let svc = SharedGroceryListService(apiClient: services.apiClient)
             service = svc
             share = svc.fetchShare(for: list, in: modelContext)
+            await pullShopperTicks()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                Task { await pullShopperTicks() }
+            }
+        }
+        // Any local change (tick, add, delete, Done shopping) re-pushes the
+        // live page. `.task(id:)` cancels the previous run, so rapid ticks
+        // collapse into one push.
+        .task(id: syncSignature) {
+            guard share?.isLive == true else {
+                return
+            }
+            try? await Task.sleep(for: .seconds(1.5))
+            guard !Task.isCancelled, let service else {
+                return
+            }
+            try? await service.refreshSnapshot(for: list, in: modelContext)
         }
         .sheet(item: Binding(
             get: { textToShare.map { ShareTextPayload(text: $0) } },
@@ -118,6 +139,22 @@ struct GroceryShareMenu: View {
         } message: {
             Text(errorMessage ?? "")
         }
+    }
+
+    /// What the shopper's page shows — changes whenever it needs a re-push.
+    private var syncSignature: String {
+        list.activeItems
+            .map { "\($0.id.uuidString)|\($0.isChecked)|\($0.quantity)|\($0.unitRaw)|\($0.displayName)" }
+            .joined(separator: ";")
+    }
+
+    /// Brings a shopper's ticks from the live page into the app.
+    private func pullShopperTicks() async {
+        guard let service, share?.isLive == true else {
+            return
+        }
+        try? await service.pullAndApply(list: list, in: modelContext)
+        share = service.fetchShare(for: list, in: modelContext)
     }
 
     // MARK: - Actions
