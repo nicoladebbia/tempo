@@ -65,6 +65,14 @@ final class ConditioningBlockResult {
     /// (freeform, or a cap-less repsDistance).
     var targetMet: Bool?
 
+    /// trainer-feedback-tests — true when the `ProgramExercise`/`ProgramDay`
+    /// this block logs was flagged `isTest` (e.g. "test 30m", "time trial").
+    /// `ConditioningBaselineProvider` reads baseline (isBaselineTest) rows
+    /// only, so a later ordinary conditioning block never gets compared
+    /// against — and never overwrites — the athlete's actual tested best.
+    /// Defaulted → SwiftData auto-migrates.
+    var isBaselineTest: Bool = false
+
     /// "manual" | "whoop" | "healthkit" | "guided_run" — where
     /// duration/distance/HR came from. "guided_run" is Guided Run mode's
     /// live session (timed reps, GPS distance, engine-tracked duration),
@@ -88,6 +96,7 @@ final class ConditioningBlockResult {
         rpe: Double? = nil,
         notes: String? = nil,
         targetMet: Bool? = nil,
+        isBaselineTest: Bool = false,
         source: String = "manual",
         createdAt: Date = Date()
     ) {
@@ -102,6 +111,7 @@ final class ConditioningBlockResult {
         self.roundsCompleted = roundsCompleted
         self.rpe = rpe
         self.notes = notes
+        self.isBaselineTest = isBaselineTest
         self.targetMet = targetMet
         self.source = source
         self.createdAt = createdAt

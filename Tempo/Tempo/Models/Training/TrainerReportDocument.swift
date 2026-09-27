@@ -137,4 +137,9 @@ struct TrainerReportDocument: Sendable {
     /// verbatim by the text formatter and the PDF's summary box.
     var summaryLines: [String]
     var sessions: [TrainerReportSessionRow]
+    /// trainer-feedback-tests — "Changes from trainer this week", built by
+    /// `TrainerReportChangesSectionBuilder` (a separate file/type so this
+    /// document only needs one extra field, not a restructuring of the
+    /// builder). nil when nothing was logged in this report's window.
+    var changesSection: TrainerReportChangesSection?
 }

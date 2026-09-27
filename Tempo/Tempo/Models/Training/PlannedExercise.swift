@@ -56,6 +56,18 @@ final class PlannedExercise {
     /// SwiftData auto-migrates.
     var perSide: Bool = false
 
+    /// trainer-feedback-tests — true when this slot came from a `ProgramDay`/
+    /// `ProgramExercise` flagged `isTest` (a 1RM/3RM/5RM/time-trial test day).
+    /// Drives the "TEST — work up to a max" banner in the workout and, at
+    /// workout completion, marks its `ExerciseHistory` row's e1RM as a
+    /// TRUSTED max (`ExerciseHistory.isTrustedMax`) rather than an ordinary
+    /// estimate — see `TrainingViewModel.reliableEstimated1RM`'s doc comment
+    /// for how a trusted max outranks a same-or-later ordinary estimate. Set
+    /// from `ProgramExercise.isTest`/`ProgramDay.isTest` on import
+    /// (`TrainingViewModel.populateFromTrainerProgram`); false for every
+    /// generated/routine slot. Defaulted → SwiftData auto-migrates.
+    var isTestExercise: Bool = false
+
     /// Exercise name captured when this slot was created. `Exercise.
     /// plannedExercises` is `.nullify` (§10.6) — deleting a custom exercise
     /// detaches `exercise` instead of deleting this row, so a past session's
