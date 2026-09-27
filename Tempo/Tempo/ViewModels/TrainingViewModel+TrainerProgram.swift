@@ -43,6 +43,16 @@ extension TrainingViewModel {
         guard TrainerProgramWeeklyUpload.shouldPromptUpload(programs: all, activeProgram: program, now: now) else {
             return nil
         }
+        // Pause/travel-pain feature — a pause covering the WHOLE served week
+        // suppresses the nudge (nothing to upload for while away). See
+        // TrainingPauseSchedule.swift; new file, no edits to
+        // TrainerProgramWeeklyUpload.swift/WeeklyUploadPromptCard.swift needed.
+        let servedMonday = TrainerProgramWeeklyUpload.servedWeekMonday(for: program)
+        if TrainingPauseSchedule.pausesCoverWholeWeek(
+            pauses: fetchTrainingPauses(modelContext: modelContext), weekMonday: servedMonday
+        ) {
+            return nil
+        }
         return program
     }
 
@@ -290,8 +300,16 @@ extension TrainingViewModel {
             return nil
         }
         let cal = Calendar.current
-        let matchDays = Set(fetchUpcomingMatches(modelContext: modelContext).map { cal.startOfDay(for: $0.kickoff) })
         let todayStart = cal.startOfDay(for: today)
+        // Pause/travel-pain feature — no missed prompts at all while today
+        // itself is paused (offering "do it today?" mid-pause makes no sense),
+        // and a paused PAST day is the same kind of deliberate override a
+        // match day already is (see the match check right below).
+        let pauses = fetchTrainingPauses(modelContext: modelContext)
+        guard TrainingPauseSchedule.coveringPause(pauses, on: todayStart, calendar: cal) == nil else {
+            return nil
+        }
+        let matchDays = Set(fetchUpcomingMatches(modelContext: modelContext).map { cal.startOfDay(for: $0.kickoff) })
         for offset in 1 ... 7 {
             guard let date = cal.date(byAdding: .day, value: -offset, to: todayStart) else {
                 continue
@@ -301,6 +319,9 @@ extension TrainingViewModel {
             }
             if matchDays.contains(date) {
                 continue // Tempo's own deliberate override, not a miss.
+            }
+            if TrainingPauseSchedule.coveringPause(pauses, on: date, calendar: cal) != nil {
+                continue // Paused — Tempo's own deliberate override, not a miss.
             }
             let key = program.sessionKey(weekIndex: session.weekIndex, dayIndex: session.dayIndex)
             let descriptor = FetchDescriptor<WorkoutPlan>(predicate: #Predicate<WorkoutPlan> { $0.date == date })
@@ -431,7 +452,8 @@ extension TrainingViewModel {
         let signals = noteSignals(modelContext: modelContext)
 
         for (order, item) in day.exercises.enumerated() {
-            let exercise: Exercise
+            var exercise: Exercise
+            var travelSwapOriginalName: String?
             if let id = item.exerciseID, let known = byID[id] {
                 exercise = known
             } else if let known = byName[Self.normalizedName(item.name)] {
@@ -452,7 +474,21 @@ extension TrainingViewModel {
                 byName[Self.normalizedName(item.name)] = exercise
             }
 
+            // Pause/travel-pain feature — "Limited equipment today/this
+            // week": swap the trainer's exercise for the closest available-
+            // equipment alternative (same movement pattern + muscle group),
+            // keeping the trainer's own sets/reps. See TravelSwapEngine.swift
+            // / TrainingViewModel+Travel.swift. No-op when no travel period
+            // is active or this exercise's equipment is already available.
+            if let replacement = travelSwapReplacement(
+                for: exercise, planDate: plan.date, library: library, modelContext: modelContext
+            ) {
+                travelSwapOriginalName = exercise.name
+                exercise = replacement
+            }
+
             let slot = PlannedExercise(order: order, workoutPlan: plan, exercise: exercise)
+            slot.travelSwapOriginalName = travelSwapOriginalName
             slot.supersetGroup = item.group
             slot.restSecondsOverride = item.restSeconds
             // Fix #9 — a real flag, not just baked-in note text: drives the
