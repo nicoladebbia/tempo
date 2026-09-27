@@ -89,6 +89,13 @@ final class WorkoutPlan {
     /// SwiftData auto-migrates.
     var secondaryCompleted: Bool = false
 
+    /// Pause/travel feature — set by `TrainingPauseSchedule.apply` when a
+    /// `TrainingPause` covers this day (`PauseReason.rawValue`); nil = not a
+    /// paused day. Distinguishes a deliberate pause-forced rest day from an
+    /// ordinary generated rest day for Today's card and the trainer report.
+    /// Optional → lightweight SwiftData migration.
+    var pausedReasonRaw: String?
+
     // MARK: - Relationships
 
     @Relationship(deleteRule: .cascade, inverse: \PlannedExercise.workoutPlan)
@@ -122,6 +129,13 @@ final class WorkoutPlan {
     var secondarySessionType: WorkoutType? {
         get { secondarySessionTypeRaw.flatMap(WorkoutType.init(rawValue:)) }
         set { secondarySessionTypeRaw = newValue?.rawValue }
+    }
+
+    /// Pause/travel feature — typed accessor over `pausedReasonRaw`.
+    @Transient
+    var pauseReason: PauseReason? {
+        get { pausedReasonRaw.flatMap(PauseReason.init(rawValue:)) }
+        set { pausedReasonRaw = newValue?.rawValue }
     }
 
     /// True when this day carries a gym lift AND an easy cardio second session.

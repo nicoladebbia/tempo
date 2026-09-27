@@ -494,7 +494,13 @@ enum TrainerReportBuilder {
         )
     }
 
-    private static func buildSummaryLines(summary: TrainerReportSummary, strings: TrainerReportStrings) -> [String] {
+    /// Pause/travel-pain feature — widened from `private` to `internal` so
+    /// `TrainerReportSupplementalSections.swift` (a new, separate file) can
+    /// reuse this EXACT formatting after recomputing `summary` for a
+    /// paused/match-skipped day, instead of hand-duplicating it (which would
+    /// silently drift from this one). One-word access-level change; no
+    /// behavior change. See that file's header.
+    static func buildSummaryLines(summary: TrainerReportSummary, strings: TrainerReportStrings) -> [String] {
         var lines = [
             "\(strings.completionRateLabel): \(Int((summary.completionRate * 100).rounded()))% (\(summary.doneCount)/\(summary.scheduledCount))",
         ]

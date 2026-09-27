@@ -726,6 +726,11 @@ final class TrainingViewModel {
                 priorDayWasLift: trainerProgramPriorDayWasLift(before: monday, program: program, modelContext: modelContext)
             )
         }
+
+        // Pause/travel-pain feature — "I'm sick / taking a break" forces every
+        // covered day to rest, AFTER the trainer overlay so a pause always
+        // wins. See TrainingPauseSchedule.swift.
+        TrainingPauseSchedule.apply(fetchTrainingPauses(modelContext: modelContext), to: plans)
         return plans
     }
 
@@ -1129,7 +1134,11 @@ final class TrainingViewModel {
         // Fix #9 — with an uneven L/R split the weaker side is the lift's
         // real single-limb number: it's what e1RM, PR detection and
         // calibration read (volume still sums both sides).
-        let reps = if let leftReps, let rightReps { min(leftReps, rightReps) } else { reps }
+        let reps = if let leftReps, let rightReps {
+            min(leftReps, rightReps)
+        } else {
+            reps
+        }
         set.actualReps = reps
         set.actualRepsLeft = leftReps
         set.actualRepsRight = rightReps

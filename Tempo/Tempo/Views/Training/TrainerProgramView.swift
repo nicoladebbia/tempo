@@ -20,6 +20,8 @@ import SwiftUI
 struct TrainerProgramView: View {
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(ServiceContainer.self)
+    private var services
     @Query(sort: \TrainerProgram.createdAt, order: .reverse)
     private var programs: [TrainerProgram]
 
@@ -34,6 +36,11 @@ struct TrainerProgramView: View {
     /// Fix #8 — "send report to trainer" (TrainerReportSheet.swift, new file).
     @State
     private var reportProgram: TrainerProgram?
+    /// Pause/travel-pain feature — see AwayModeSheet.swift.
+    @State
+    private var showAwayMode = false
+    @State
+    private var awayModeViewModel: TrainingViewModel?
 
     private var activeProgram: TrainerProgram? {
         programs.first { $0.isActive }
@@ -112,9 +119,27 @@ struct TrainerProgramView: View {
                     .accessibilityLabel("Import from trainer")
                 }
             }
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    if awayModeViewModel == nil {
+                        awayModeViewModel = TrainingViewModel(
+                            trainingEngine: services.trainingEngine, whoop: services.whoop, healthKit: services.healthKit
+                        )
+                    }
+                    showAwayMode = true
+                } label: {
+                    Image(systemName: "airplane")
+                }
+                .accessibilityLabel("Away from the gym — pause or limited equipment")
+            }
         }
         .sheet(isPresented: $showImport) {
             TrainerProgramImportView()
+        }
+        .sheet(isPresented: $showAwayMode) {
+            if let awayModeViewModel {
+                AwayModeSheet(viewModel: awayModeViewModel)
+            }
         }
         .sheet(item: $reportProgram) { program in
             TrainerReportSheet(program: program)

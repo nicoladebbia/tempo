@@ -63,6 +63,14 @@ enum TrainerReportTextFormatter {
             }
         }
 
+        // Pause/travel-pain feature — football/pain/pauses/travel-swap
+        // sections. See TrainerReportSupplementalSections.swift.
+        for section in document.extraSections {
+            lines.append("")
+            lines.append(section.title.uppercased())
+            lines.append(contentsOf: section.lines.map { "• \($0)" })
+        }
+
         lines.append("")
         lines.append("——————————")
         lines.append("\(s.footer) · \(document.generatedLabel)")

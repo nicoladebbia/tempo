@@ -64,6 +64,22 @@ final class PlannedExercise {
     /// before this field existed.
     var exerciseNameSnapshot: String?
 
+    /// Pause/travel-pain feature — non-nil when `TravelSwapEngine` swapped
+    /// this slot's exercise for a hotel/limited-equipment alternative, holding
+    /// the trainer's ORIGINAL exercise name (for the "Hotel swap for Barbell
+    /// RDL" label and the trainer-report "swapped (travel)" note — see
+    /// `TrainerReportSupplementalSections.swift`). Set once, at population
+    /// time, in `TrainingViewModel.populateFromTrainerProgram`. Optional →
+    /// lightweight SwiftData migration.
+    var travelSwapOriginalName: String?
+
+    /// "This hurts" flow — true once the athlete (or the severe-pain flow)
+    /// skipped this exercise for today due to pain. Display-only: doesn't
+    /// touch `WorkoutPlan.totalSets`/`completedSets` (an unlogged set already
+    /// reads honestly as not-done). Optional/defaulted → lightweight
+    /// SwiftData migration.
+    var painSkipped: Bool = false
+
     // MARK: - Relationships
 
     @Relationship(deleteRule: .nullify)
