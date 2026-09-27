@@ -71,6 +71,11 @@ struct TrainerReportExerciseLine: Identifiable, Sendable {
     var overrideApplied: Bool
     /// Trainer's exercise note and/or a pain flag, already localized.
     var noteText: String?
+    /// Week-over-week progress feature — "vs last week: 60→65 kg (+5)",
+    /// already localized. nil when this exercise has no earlier session to
+    /// compare against (see `WeekOverWeekProgress`). Defaulted so existing
+    /// call sites are unaffected.
+    var vsLastWeekText: String?
 }
 
 // MARK: - TrainerReportPRLine
@@ -85,6 +90,11 @@ struct TrainerReportPRLine: Identifiable, Sendable {
 struct TrainerReportConditioningRow: Identifiable, Sendable {
     var id: UUID = .init()
     var text: String
+    /// Week-over-week progress feature — see `TrainerReportExerciseLine
+    /// .vsLastWeekText`; matched by block name/shape instead of an ID (see
+    /// `WeekOverWeekProgress`). Defaulted so existing call sites are
+    /// unaffected.
+    var vsLastWeekText: String?
 }
 
 // MARK: - TrainerReportSessionRow

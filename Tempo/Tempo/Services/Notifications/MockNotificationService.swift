@@ -168,7 +168,7 @@ final class MockNotificationService: NotificationServiceProtocol, @unchecked Sen
         let notification = ScheduledNotification(
             category: Self.weeklyUploadSundayCategory,
             title: "New week from your trainer",
-            body: "Upload it so Monday's ready.",
+            body: "Week's done — wrap it up: send your trainer the report and load next week.",
             triggerDate: fireDate
         )
         scheduledNotifications.append(notification)
