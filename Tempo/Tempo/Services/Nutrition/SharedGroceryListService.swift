@@ -96,7 +96,7 @@ final class SharedGroceryListService {
         let now = Date()
         var newBaseline: [GroceryShareItemState] = []
 
-        let items: [GroceryShareItemUpsertDTO] = list.orderedItems.map { item in
+        let items: [GroceryShareItemUpsertDTO] = list.activeItems.map { item in
             let idString = item.id.uuidString
             let updatedAt: Date = if let prior = baseline[idString], prior.checked == item.isChecked {
                 // Unchanged locally since the last sync — keep the OLD

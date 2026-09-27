@@ -46,7 +46,18 @@ enum PantryGroceryBridge {
         if let existing = (list.items ?? []).first(where: {
             $0.canonicalFoodName == canonical && $0.unitRaw == unit.rawValue
         }) {
-            existing.quantity += max(0, quantity)
+            if existing.isBought {
+                // Bought on an earlier trip and now needed again — back on
+                // the list as a fresh item, not added to the old amount.
+                existing.isBought = false
+                existing.boughtAt = nil
+                existing.isChecked = false
+                existing.quantity = max(0, quantity)
+            } else {
+                existing.quantity += max(0, quantity)
+            }
+            // Pantry-driven needs survive a plan regenerate.
+            existing.isManual = true
             try modelContext.save()
             return existing
         }
@@ -59,6 +70,9 @@ enum PantryGroceryBridge {
             unit: unit,
             category: category
         )
+        // Pantry-driven ("I'm out of rice", a staple running low) — the
+        // regenerate keeps manual items, so these survive a plan rebuild.
+        item.isManual = true
         modelContext.insert(item)
         if list.items == nil {
             list.items = []
@@ -100,11 +114,14 @@ enum PantryGroceryBridge {
             sortBy: [SortDescriptor(\.weekStartDate, order: .reverse)]
         )
         descriptor.fetchLimit = 1
-        if let existing = try modelContext.fetch(descriptor).first {
+        // Lists are keyed by the plan's Monday; a list from an earlier week
+        // is stale, so start this week's (the plan regenerate for the same
+        // Monday then merges into it, keeping these manual items).
+        let thisMonday = currentWeekMonday()
+        if let existing = try modelContext.fetch(descriptor).first, existing.weekStartDate >= thisMonday {
             return existing
         }
-        let weekStart = Calendar.current.startOfDay(for: Date())
-        let list = GroceryList(weekStartDate: weekStart, sourceMealPlanID: nil)
+        let list = GroceryList(weekStartDate: thisMonday, sourceMealPlanID: nil)
         modelContext.insert(list)
         return list
     }

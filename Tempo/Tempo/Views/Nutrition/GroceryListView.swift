@@ -102,7 +102,6 @@ struct GroceryListView: View {
                             Label("Spend History", systemImage: "chart.bar.fill")
                         }
                         storePickerMenu
-                        shareMenuContent
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
@@ -183,16 +182,6 @@ struct GroceryListView: View {
         } label: {
             Label("Store: \(viewModel.groceryActiveStore.displayName)", systemImage: "cart.fill")
         }
-    }
-
-    // MARK: - Share menu (Lane C hook)
-
-    /// Lane C is adding "Share list" (text + live web link) and an Instacart
-    /// cart action here. Leaving this empty hook so that work drops straight
-    /// into the existing toolbar Menu without Lane A needing to touch it
-    /// again. DO NOT implement sharing in this lane.
-    private var shareMenuContent: some View {
-        EmptyView()
     }
 
     // MARK: - Budget / cost

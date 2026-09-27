@@ -104,7 +104,7 @@ struct GroceryShareMenu: View {
             }
         }
         .sheet(isPresented: $showOrderLinksSheet) {
-            GroceryOrderLinksSheet(itemNames: list.orderedItems.map(\.displayName))
+            GroceryOrderLinksSheet(itemNames: list.activeItems.map(\.displayName))
         }
         .alert("Grocery Sharing", isPresented: Binding(
             get: { errorMessage != nil },
@@ -154,7 +154,7 @@ struct GroceryShareMenu: View {
         isWorking = true
         defer { isWorking = false }
         do {
-            let url = try await service.createInstacartCartURL(items: list.orderedItems)
+            let url = try await service.createInstacartCartURL(items: list.activeItems)
             openURL(url)
         } catch {
             // Not configured server-side, or the Instacart request failed —

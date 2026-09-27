@@ -33,7 +33,7 @@ enum GroceryShareTextFormatter {
     ]
 
     static func text(for list: GroceryList, title: String = "Grocery List") -> String {
-        let items = list.orderedItems
+        let items = list.activeItems
         guard !items.isEmpty else {
             return title
         }
