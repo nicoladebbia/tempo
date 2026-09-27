@@ -88,8 +88,18 @@ extension NutritionTabViewModel {
             return
         }
 
-        pantryService = LocalPantryService(modelContext: modelContext)
+        notificationsService = services.notifications
+        let aiEstimator: (any ShelfLifeAIEstimating)? = phase7APIClient(from: services).map(LiveShelfLifeAIEstimator.init)
+        pantryService = LocalPantryService(modelContext: modelContext, shelfLifeAIEstimator: aiEstimator)
         services.pantry = pantryService
+        stapleService = LocalStapleService(modelContext: modelContext)
+
+        // One-shot-per-launch backfill: rows created before the shelf-life
+        // estimator existed get a useBy from their purchase date. Idempotent
+        // (only touches useBy == nil rows) so it's safe to call every time
+        // this guard is reached — which is at most once per view-model
+        // instance thanks to the pantryService == nil guard above.
+        PantryShelfLifeBackfillService.run(modelContext: modelContext)
         if receiptService == nil, let api = phase7APIClient(from: services) {
             receiptService = LiveReceiptService(modelContext: modelContext, apiClient: api)
             services.receipts = receiptService
@@ -115,6 +125,7 @@ extension NutritionTabViewModel {
         reloadReceipts()
         reloadRecipes()
         reloadGrocery()
+        reloadStaples()
     }
 
     // MARK: - Pantry
@@ -130,6 +141,7 @@ extension NutritionTabViewModel {
             pantryState.items = items
             pantryState.expiringSoon = items.filter(\.isExpiringSoon)
             pantryState.loadError = nil
+            scheduleUseItUpNotificationIfNeeded(items: items)
         } catch {
             pantryState.loadError = error.localizedDescription
         }
@@ -269,6 +281,50 @@ extension NutritionTabViewModel {
         }
         reloadPantry()
         return removed
+    }
+
+    /// Tap-edit sheet commit — quantity, unit, storage location, useBy,
+    /// brand. Any parameter left `nil` is unchanged. Moving fridge→freezer
+    /// (or any location change) with no explicit `useBy` recomputes it via
+    /// `ShelfLifeEstimator`, matching the auto-expiry behavior on add.
+    func updatePantryItem(
+        _ item: PantryItem,
+        quantity: Double? = nil,
+        unit: PantryUnit? = nil,
+        storageLocation: PantryStorageLocation? = nil,
+        useBy: Date? = nil,
+        brand: String? = nil
+    ) {
+        guard let service = pantryService else {
+            return
+        }
+        do {
+            _ = try service.updateItem(
+                item, quantity: quantity, unit: unit,
+                storageLocation: storageLocation, useBy: useBy, brand: brand
+            )
+        } catch {
+            pantryState.loadError = "Couldn't update item: \(error.localizedDescription)"
+        }
+        reloadPantry()
+    }
+
+    /// Schedules (or cancels) the daily "Use it up" summary notification
+    /// based on the freshly-loaded pantry snapshot. Safe to call on every
+    /// reload — `NotificationService.scheduleUseItUpReminder` uses a stable
+    /// identifier, so repeated calls just overwrite the pending request
+    /// instead of stacking duplicates.
+    private func scheduleUseItUpNotificationIfNeeded(items: [PantryItem]) {
+        guard let notificationsService = notificationsService as? NotificationService else {
+            return
+        }
+        let decision = UseItUpNotificationPlanner.decide(items: items)
+        if decision.shouldFire {
+            let fireDate = UseItUpNotificationPlanner.nextMorningFireDate()
+            notificationsService.scheduleUseItUpReminder(body: decision.body, fireDate: fireDate)
+        } else {
+            notificationsService.cancelUseItUpReminder()
+        }
     }
 
     // MARK: - Receipts

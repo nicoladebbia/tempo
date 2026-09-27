@@ -61,6 +61,22 @@ protocol PantryServiceProtocol: Sendable {
     /// Floors quantity at zero.
     func adjustQuantity(of item: PantryItem, by delta: Double) throws
 
+    /// Tap-edit / voice-edit surface: update any subset of an item's
+    /// editable fields. `nil` for a parameter means "leave unchanged" —
+    /// EXCEPT `storageLocation`: when it changes and `useBy` is left `nil`,
+    /// the implementation recomputes `useBy` from `ShelfLifeEstimator` for
+    /// the new location (moving fridge → freezer extends the clock). Pass
+    /// an explicit `useBy` to override that recompute.
+    @discardableResult
+    func updateItem(
+        _ item: PantryItem,
+        quantity: Double?,
+        unit: PantryUnit?,
+        storageLocation: PantryStorageLocation?,
+        useBy: Date?,
+        brand: String?
+    ) throws -> PantryItem
+
     /// Archive an item (soft-delete). The row stays for analytics/history.
     func archive(_ item: PantryItem) throws
 

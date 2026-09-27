@@ -167,6 +167,13 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
                     UNNotificationAction(identifier: "VIEW_REPORT", title: "View Report", options: .foreground),
                 ]
             ),
+            // Use It Up (pantry expiry — Phase Pantry Smarts)
+            makeCategory(
+                id: "USE_IT_UP",
+                actions: [
+                    UNNotificationAction(identifier: "VIEW_PANTRY", title: "View Pantry", options: .foreground),
+                ]
+            ),
             // Streak Warning
             makeCategory(
                 id: "STREAK_WARNING",
@@ -560,6 +567,34 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
             priority: 4,
             bypassBudget: true
         )
+    }
+
+    // MARK: - Use It Up Reminder (pantry expiry)
+
+    /// One stable identifier — a reschedule just overwrites the pending
+    /// request in place, so calling this repeatedly (e.g. every pantry
+    /// reload) never spams duplicates. Bypasses budget/anti-spam like the
+    /// other discrete, food-physical reminders (defrost, prep-start): a
+    /// single daily summary is already the anti-spam measure.
+    static let useItUpReminderID = "use_it_up_daily"
+
+    func scheduleUseItUpReminder(body: String, fireDate: Date) {
+        scheduleNotification(
+            id: Self.useItUpReminderID,
+            title: "Use it up",
+            body: body,
+            date: fireDate,
+            categoryID: "USE_IT_UP",
+            threadID: "tempo.useitup",
+            interruptionLevel: .active,
+            budgetCost: 0.5,
+            priority: 5,
+            bypassBudget: true
+        )
+    }
+
+    func cancelUseItUpReminder() {
+        center.removePendingNotificationRequests(withIdentifiers: [Self.useItUpReminderID])
     }
 
     // MARK: - Recovery Notification

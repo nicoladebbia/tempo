@@ -75,6 +75,7 @@ enum TempoSchemaV1: VersionedSchema {
             MacroCarryover.self,
             PantryItem.self,
             PantryPriceEntry.self,
+            PantryStaple.self,
             Supplement.self,
             SupplementIntakeLog.self,
             KitchenEquipment.self,

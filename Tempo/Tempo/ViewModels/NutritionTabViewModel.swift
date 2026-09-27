@@ -84,6 +84,14 @@ final class NutritionTabViewModel {
     /// mergeOrCreate doesn't own price history). Set in attachPhase7Services.
     var pantryModelContext: ModelContext?
 
+    // MARK: - Pantry Smarts (staples + use-it-up notifications)
+
+    let stapleState = NutritionStapleState()
+    var stapleService: (any StapleServiceProtocol)?
+    /// Held so `reloadPantry()` can schedule/cancel the daily "Use it up"
+    /// notification without threading `services` through every call site.
+    var notificationsService: (any NotificationServiceProtocol)?
+
     // MARK: - Service instances
 
     /// Held as stored properties so tests can replace them (and so each
@@ -570,8 +578,11 @@ final class NutritionTabViewModel {
     ///   - Deletes this meal's `MealFeedback` row(s) so a stale "how did it
     ///     feel" / substitute note doesn't linger on a meal that wasn't eaten.
     ///   - Re-credits the pantry IF this meal had decremented it
-    ///     (`didDecrementPantry`), then resets the flag. Approximate inverse
-    ///     (see `PantryDecrementService.credit`), guarded so it runs once.
+    ///     (`didDecrementPantry`), then resets the flag. Prefers the EXACT
+    ///     inverse (`PantryDecrementService.creditExact`, using the recorded
+    ///     `decrementDetail`); falls back to the approximate re-derivation
+    ///     (`credit(foods:)`) for meals decremented before that detail was
+    ///     recorded. Guarded so it runs once.
     ///
     /// Deliberately does NOT try to un-shift sibling meals or reverse the
     /// macro rebalance that `markMealEaten` applied — that state-machine
@@ -590,9 +601,15 @@ final class NutritionTabViewModel {
         // Re-credit pantry before flipping state, while didDecrementPantry
         // still tells us whether stock was pulled.
         if meal.didDecrementPantry {
-            _ = PantryDecrementService.credit(
-                foods: meal.foods, label: meal.mealName, modelContext: modelContext
-            )
+            let detail = meal.decrementDetail
+            if !detail.isEmpty {
+                _ = PantryDecrementService.creditExact(details: detail, modelContext: modelContext)
+            } else {
+                _ = PantryDecrementService.credit(
+                    foods: meal.foods, label: meal.mealName, modelContext: modelContext
+                )
+            }
+            meal.decrementDetail = []
             meal.didDecrementPantry = false
         }
 

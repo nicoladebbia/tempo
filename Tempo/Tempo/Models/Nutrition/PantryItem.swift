@@ -295,6 +295,16 @@ final class PantryItem {
         return days >= 0 && days <= 3
     }
 
+    /// `true` once a decrement (or manual edit) has brought stock to zero
+    /// but the row hasn't been archived yet — "used up" rather than
+    /// "gone from the pantry". Callers (Today view, `PantryDecrementService`
+    /// results) use this to decide whether to show a "used up" chip or
+    /// offer to add the item back to the grocery list.
+    @Transient
+    var isDepleted: Bool {
+        !isArchived && quantity <= 0
+    }
+
     // MARK: - Init
 
     init(

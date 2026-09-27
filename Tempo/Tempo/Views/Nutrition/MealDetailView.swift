@@ -149,7 +149,11 @@ struct MealDetailView: View {
             "Couldn't log that",
             isPresented: Binding(
                 get: { substituteError != nil },
-                set: { if !$0 { substituteError = nil } }
+                set: {
+                    if !$0 {
+                        substituteError = nil
+                    }
+                }
             )
         ) {
             Button("OK", role: .cancel) { substituteError = nil }
@@ -242,7 +246,9 @@ struct MealDetailView: View {
         var components = cal.dateComponents([.year, .month, .day], from: dayStart)
         components.hour = hour
         components.minute = minute
-        guard let normalized = cal.date(from: components) else { return }
+        guard let normalized = cal.date(from: components) else {
+            return
+        }
         meal.actualEatenAt = normalized
 
         // Keep the linked MealLog row in sync so the Fuel card and Coach
@@ -383,10 +389,12 @@ struct MealDetailView: View {
                 .foregroundStyle(Color.tempoSuccess)
         case .overdue:
             let minutes = max(1, Int(now.timeIntervalSince(display.eatFinish) / 60))
-            Text("Past \(Self.clockFormatter.string(from: display.eatFinish)) — did you eat it? (\(formatDuration(minutes: minutes)) overdue)")
-                .font(.tempoBody)
-                .fontWeight(.semibold)
-                .foregroundStyle(Color.tempoAmber)
+            Text(
+                "Past \(Self.clockFormatter.string(from: display.eatFinish)) — did you eat it? (\(formatDuration(minutes: minutes)) overdue)"
+            )
+            .font(.tempoBody)
+            .fontWeight(.semibold)
+            .foregroundStyle(Color.tempoAmber)
         case let .eaten(at):
             VStack(alignment: .leading, spacing: TempoSpacing.sm) {
                 HStack(spacing: TempoSpacing.sm) {
@@ -568,8 +576,10 @@ struct MealDetailView: View {
             // Plain "ate the planned meal" — synchronous. Decrement once.
             recordEaten(at: eatTime, feel: feel, satiety: satiety)
             if !meal.didDecrementPantry {
-                PantryDecrementService.decrement(for: meal, modelContext: modelContext)
+                let results = PantryDecrementService.decrement(for: meal, modelContext: modelContext)
+                meal.decrementDetail = results.flatMap(\.details)
                 meal.didDecrementPantry = true
+                PantryDepletionPlanCheck.handleDepletions(results, weeklyPlan: meal.mealPlan, modelContext: modelContext)
                 try? modelContext.save()
             }
             HapticManager.notification(.success)
@@ -609,7 +619,9 @@ struct MealDetailView: View {
         if nlService == nil {
             nlService = NaturalLanguageLoggingService(apiClient: services.apiClient)
         }
-        guard let nlService else { return }
+        guard let nlService else {
+            return
+        }
         isResolvingSubstitute = true
         defer { isResolvingSubstitute = false }
         do {
@@ -647,10 +659,12 @@ struct MealDetailView: View {
             // double-subtract). "Ate out" / unknown leaves the pantry alone.
             if usedPantry, !meal.didDecrementPantry {
                 let foods = meal.foods
-                _ = PantryDecrementService.decrement(
+                let results = PantryDecrementService.decrement(
                     foods: foods, label: meal.mealName, modelContext: modelContext
                 )
+                meal.decrementDetail = results.flatMap(\.details)
                 meal.didDecrementPantry = true
+                PantryDepletionPlanCheck.handleDepletions(results, weeklyPlan: meal.mealPlan, modelContext: modelContext)
                 try? modelContext.save()
             }
             HapticManager.notification(.success)
@@ -720,7 +734,9 @@ struct MealDetailView: View {
         let isNext = point.id == phase.nextPointID
         let size: CGFloat = isNext ? 14 : 10
         let dotColor: Color = {
-            if case .overdue = phase, point.id == .finish { return Color.tempoAmber }
+            if case .overdue = phase, point.id == .finish {
+                return Color.tempoAmber
+            }
             return isNext ? Color.tempoSignal : Color.tempoTextTertiary
         }()
         return Circle()
@@ -795,13 +811,18 @@ struct MealDetailView: View {
     /// overlay opacity check. In-window phases linearly interpolate.
     private func markerProgress(now: Date, display: MealScheduleDisplay, phase: SchedulePhase) -> CGFloat {
         switch phase {
-        case .eaten, .skipped, .overdue:
+        case .eaten,
+             .skipped,
+             .overdue:
             return 1.0
         case .beforePrep:
             return 0
-        case .prepping, .eating:
+        case .prepping,
+             .eating:
             let total = display.eatFinish.timeIntervalSince(display.prepStart)
-            guard total > 0 else { return 0 }
+            guard total > 0 else {
+                return 0
+            }
             let elapsed = now.timeIntervalSince(display.prepStart)
             let clamped = max(0, min(elapsed, total))
             return CGFloat(clamped / total)
@@ -809,7 +830,9 @@ struct MealDetailView: View {
     }
 
     private func formatDuration(minutes: Int) -> String {
-        if minutes < 60 { return "\(minutes) min" }
+        if minutes < 60 {
+            return "\(minutes) min"
+        }
         let h = minutes / 60
         let m = minutes % 60
         return m == 0 ? "\(h) h" : "\(h) h \(m) min"
@@ -1281,13 +1304,17 @@ struct MealDetailView: View {
             switch self {
             case .beforePrep: .prep
             case .prepping: .eat
-            case .eating, .overdue, .eaten, .skipped: .finish
+            case .eating,
+                 .overdue,
+                 .eaten,
+                 .skipped: .finish
             }
         }
 
         var isResolved: Bool {
             switch self {
-            case .eaten, .skipped: true
+            case .eaten,
+                 .skipped: true
             default: false
             }
         }
@@ -1303,15 +1330,22 @@ struct MealDetailView: View {
             default:
                 break
             }
-            if now < display.prepStart { self = .beforePrep }
-            else if now < display.mealTime { self = .prepping }
-            else if now < display.eatFinish { self = .eating }
-            else { self = .overdue }
+            if now < display.prepStart {
+                self = .beforePrep
+            } else if now < display.mealTime {
+                self = .prepping
+            } else if now < display.eatFinish {
+                self = .eating
+            } else {
+                self = .overdue
+            }
         }
     }
 
     private enum TimelinePointID: Hashable {
-        case prep, eat, finish
+        case prep
+        case eat
+        case finish
     }
 
     private struct TimelinePoint: Identifiable {
