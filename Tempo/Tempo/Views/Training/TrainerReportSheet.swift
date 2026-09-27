@@ -139,6 +139,22 @@ struct TrainerReportSheet: View {
                     }
                 }
             }
+
+            // Pause/travel-pain feature — football/pain/pauses/travel-swap
+            // sections. See TrainerReportSupplementalSections.swift.
+            ForEach(document.extraSections) { section in
+                VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+                    Text(section.title.uppercased())
+                        .font(.tempoCaption2.weight(.semibold))
+                        .foregroundStyle(Color.tempoTextTertiary)
+                    ForEach(Array(section.lines.enumerated()), id: \.offset) { _, line in
+                        Text("• \(line)")
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                    }
+                }
+                .padding(.top, TempoSpacing.xs)
+            }
         }
     }
 
@@ -217,7 +233,39 @@ struct TrainerReportSheet: View {
                 program: program
             )
         )
-        document = TrainerReportBuilder.build(input: input, language: language)
+        var built = TrainerReportBuilder.build(input: input, language: language)
+
+        // Pause/travel-pain feature — football/pain/pauses/travel-swap
+        // sections, and the pause/match-day-aware relabeling of missed rows.
+        // New file (TrainerReportSupplementalSections.swift); zero changes to
+        // TrainerReportBuilder.swift itself. See that file's header.
+        let supplementalInput = TrainerReportSupplementalSections.Input(
+            pauses: Self.fetchTrainingPauses(modelContext: modelContext),
+            matches: Self.fetchMatches(in: searchRange, modelContext: modelContext),
+            plans: plans,
+            painReports: Self.fetchPainReports(in: searchRange, modelContext: modelContext),
+            scopeRange: scopeRange
+        )
+        built = TrainerReportSupplementalSections.apply(to: built, input: supplementalInput, language: language)
+        document = built
+    }
+
+    private static func fetchTrainingPauses(modelContext: ModelContext) -> [TrainingPause] {
+        (try? modelContext.fetch(FetchDescriptor<TrainingPause>())) ?? []
+    }
+
+    private static func fetchMatches(in range: ClosedRange<Date>, modelContext: ModelContext) -> [Match] {
+        let lower = range.lowerBound
+        let upper = Calendar.current.date(byAdding: .day, value: 1, to: range.upperBound) ?? range.upperBound
+        let descriptor = FetchDescriptor<Match>(predicate: #Predicate<Match> { $0.kickoff >= lower && $0.kickoff < upper })
+        return (try? modelContext.fetch(descriptor)) ?? []
+    }
+
+    private static func fetchPainReports(in range: ClosedRange<Date>, modelContext: ModelContext) -> [PainReport] {
+        let lower = range.lowerBound
+        let upper = Calendar.current.date(byAdding: .day, value: 1, to: range.upperBound) ?? range.upperBound
+        let descriptor = FetchDescriptor<PainReport>(predicate: #Predicate<PainReport> { $0.date >= lower && $0.date < upper })
+        return (try? modelContext.fetch(descriptor)) ?? []
     }
 
     private static func fetchPlans(in range: ClosedRange<Date>, modelContext: ModelContext) -> [WorkoutPlan] {

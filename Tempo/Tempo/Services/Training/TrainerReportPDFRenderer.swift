@@ -57,6 +57,16 @@ enum TrainerReportPDFRenderer {
                 drawSession(session, strings: document.strings, cursor: cursor)
             }
 
+            // Pause/travel-pain feature — football/pain/pauses/travel-swap
+            // sections. See TrainerReportSupplementalSections.swift.
+            for section in document.extraSections {
+                cursor.draw(section.title, font: sectionFont, spacingAfter: 4)
+                for line in section.lines {
+                    cursor.draw("• \(line)", font: bodyFont, spacingAfter: 2)
+                }
+                cursor.y += 4
+            }
+
             cursor.drawRule()
             cursor.draw(document.strings.footer, font: smallFont, color: .gray)
         }
