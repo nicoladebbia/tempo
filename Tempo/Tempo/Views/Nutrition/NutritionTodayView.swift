@@ -370,8 +370,14 @@ struct NutritionTodayView: View {
                                     notifications: services.notifications
                                 )
                                 if !meal.didDecrementPantry {
-                                    PantryDecrementService.decrement(for: meal, modelContext: modelContext)
+                                    let results = PantryDecrementService.decrement(for: meal, modelContext: modelContext)
+                                    meal.decrementDetail = results.flatMap(\.details)
                                     meal.didDecrementPantry = true
+                                    PantryDepletionPlanCheck.handleDepletions(
+                                        results,
+                                        weeklyPlan: meal.mealPlan,
+                                        modelContext: modelContext
+                                    )
                                     try? modelContext.save()
                                 }
                             } else {
@@ -580,8 +586,10 @@ struct NutritionTodayView: View {
                 notifications: services.notifications
             )
             if !meal.didDecrementPantry {
-                PantryDecrementService.decrement(for: meal, modelContext: modelContext)
+                let results = PantryDecrementService.decrement(for: meal, modelContext: modelContext)
+                meal.decrementDetail = results.flatMap(\.details)
                 meal.didDecrementPantry = true
+                PantryDepletionPlanCheck.handleDepletions(results, weeklyPlan: meal.mealPlan, modelContext: modelContext)
             }
             if feel != nil || satiety != nil {
                 let feedback = MealFeedback(plannedMeal: meal, mealFeel: feel, satiety: satiety)
@@ -625,10 +633,12 @@ struct NutritionTodayView: View {
                 notifications: services.notifications
             )
             if usedPantry, !meal.didDecrementPantry {
-                _ = PantryDecrementService.decrement(
+                let results = PantryDecrementService.decrement(
                     foods: meal.foods, label: meal.mealName, modelContext: modelContext
                 )
+                meal.decrementDetail = results.flatMap(\.details)
                 meal.didDecrementPantry = true
+                PantryDepletionPlanCheck.handleDepletions(results, weeklyPlan: meal.mealPlan, modelContext: modelContext)
             }
             let feedback = MealFeedback(plannedMeal: meal, mealFeel: feel, satiety: satiety, substituteNote: note)
             modelContext.insert(feedback)

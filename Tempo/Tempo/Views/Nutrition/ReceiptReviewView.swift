@@ -157,12 +157,18 @@ private struct ReceiptLineCard: View {
     private var displayName: String
     @State
     private var quantityText: String
+    @State
+    private var priceText: String
+    @State
+    private var unit: ReceiptLineUnit
 
     init(line: ReceiptLineItem, onConfirmToggle: @escaping (Bool) -> Void) {
         self.line = line
         self.onConfirmToggle = onConfirmToggle
         _displayName = State(initialValue: line.displayName)
         _quantityText = State(initialValue: ReceiptQuantityParser.format(line.quantity))
+        _priceText = State(initialValue: ReceiptQuantityParser.format(line.totalPrice))
+        _unit = State(initialValue: line.unit)
     }
 
     var body: some View {
@@ -199,13 +205,32 @@ private struct ReceiptLineCard: View {
                             line.quantity = value
                         }
                     }
-                Text(line.unit.rawValue.uppercased())
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                Picker("Unit", selection: $unit) {
+                    ForEach(ReceiptLineUnit.allCases, id: \.self) { u in
+                        Text(u.rawValue.uppercased()).tag(u)
+                    }
+                }
+                .pickerStyle(.menu)
+                .font(.tempoCaption1)
+                .onChange(of: unit) { _, newValue in
+                    line.unit = newValue
+                }
                 Spacer()
-                Text(String(format: "$%.2f", line.totalPrice))
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                HStack(spacing: 2) {
+                    Text("$")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                    TextField("Price", text: $priceText)
+                        .font(.tempoCaption1)
+                        .frame(maxWidth: 60)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        .onChange(of: priceText) { _, newValue in
+                            if let value = ReceiptQuantityParser.parse(newValue) {
+                                line.totalPrice = value
+                            }
+                        }
+                }
             }
 
             HStack(spacing: TempoSpacing.sm) {
