@@ -46,6 +46,9 @@ struct ActiveWorkoutView: View {
     /// §11.13 — "How to" sheet: full exercise detail from the set screen.
     @State
     private var showHowTo = false
+    /// "This hurts" flow — see PainReportSheet.swift.
+    @State
+    private var showPainReport = false
     /// §4.2-4.4 — which numeric field the tap-to-type/wheel sheet is
     /// currently editing. nil = no sheet presented.
     @State
@@ -364,6 +367,16 @@ struct ActiveWorkoutView: View {
                 NavigationStack {
                     ExerciseDetailView(exercise: exercise)
                 }
+            }
+        }
+        .sheet(isPresented: $showPainReport, onDismiss: {
+            // Mild pain reduces the CURRENT set's target weight in place
+            // (TrainingViewModel+Pain.swift.reduceLoad) — refresh the cached
+            // input fields so the athlete can't log the pre-reduction number.
+            loadCurrentSetInputs()
+        }) {
+            PainReportSheet(viewModel: viewModel, plannedExercise: viewModel.currentExercise) {
+                dismiss()
             }
         }
         // §4.2-4.4 — tap-to-type / scroll-wheel entry for weight, added load,
@@ -998,6 +1011,17 @@ struct ActiveWorkoutView: View {
                     )
                     .overlay(alignment: .bottomLeading) {
                         VStack(alignment: .leading, spacing: 2) {
+                            // trainer-feedback-tests — this session's a
+                            // trainer-flagged 1RM/3RM/5RM/time-trial test.
+                            if viewModel.currentExercise?.isTestExercise == true {
+                                Text("TEST — WORK UP TO A MAX")
+                                    .font(.tempoCaption2.weight(.bold))
+                                    .foregroundStyle(Color.tempoSignal)
+                                    .padding(.horizontal, TempoSpacing.sm)
+                                    .padding(.vertical, 2)
+                                    .background(Color.white.opacity(0.9))
+                                    .clipShape(Capsule())
+                            }
                             Text(exercise.name.uppercased())
                                 .font(.tempoTitle3)
                                 .foregroundStyle(.white)
@@ -1024,6 +1048,21 @@ struct ActiveWorkoutView: View {
                                 .padding(.horizontal, TempoSpacing.sm)
                                 .padding(.vertical, 6)
                                 .background(Color.black.opacity(0.45))
+                                .clipShape(Capsule())
+                        }
+                        .padding(TempoSpacing.sm)
+                    }
+                    // "This hurts" flow — see PainReportSheet.swift.
+                    .overlay(alignment: .bottomTrailing) {
+                        Button {
+                            showPainReport = true
+                        } label: {
+                            Label("This hurts", systemImage: "bandage.fill")
+                                .font(.tempoCaption1)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, TempoSpacing.sm)
+                                .padding(.vertical, 6)
+                                .background(Color.tempoError.opacity(0.55))
                                 .clipShape(Capsule())
                         }
                         .padding(TempoSpacing.sm)

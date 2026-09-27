@@ -158,7 +158,10 @@ final class GuidedRunSessionTests: XCTestCase {
         clock.advance(1)
         session.tick()
         XCTAssertEqual(session.phase, .work(stepIndex: 0))
-        XCTAssertEqual(cues, [.countdown(3), .countdown(2), .countdown(1), .go])
+        XCTAssertEqual(cues, [
+            .countdown(3), .countdown(2), .countdown(1), .go,
+            .repStart(index: 0, of: 2, capSeconds: 10, isLast: false),
+        ])
     }
 
     // MARK: - Timed reps + rest

@@ -756,17 +756,26 @@ extension TrainingViewModel {
     /// reps/weights re-prescribe for the NEW movement from its own history or
     /// the cold-start model. Refuses once any set on the slot is completed —
     /// logged work must never be re-attributed to a different exercise.
+    ///
+    /// Pause/travel-pain feature — returns whether the swap actually applied
+    /// (`@discardableResult` so every pre-existing call site, which never
+    /// checked this, still compiles unchanged): `PainReportSheet`'s
+    /// moderate-pain flow offers this mid-exercise, exactly the case this
+    /// guard refuses (a set already logged) — the caller MUST know it was a
+    /// no-op instead of telling the athlete "swapped" while the plan is
+    /// unchanged. See `TrainingViewModel+Pain.swift.applyPainSwap`.
+    @discardableResult
     func swapExercise(
         _ plannedEx: PlannedExercise,
         with newExercise: Exercise,
         modelContext: ModelContext
-    ) {
+    ) -> Bool {
         guard let plan = plannedEx.workoutPlan,
               plan.status == .planned || plan.status == .inProgress,
               newExercise.id != plannedEx.exercise?.id,
               plannedEx.orderedSets.allSatisfy({ !$0.completed })
         else {
-            return
+            return false
         }
 
         let oldExerciseID = plannedEx.exercise?.id
@@ -795,6 +804,7 @@ extension TrainingViewModel {
         HapticManager.selection()
         // Watch + Dashboard read the plan's exercises directly.
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
+        return true
     }
 
     /// §2.14 — append a chosen movement to today's plan with a full

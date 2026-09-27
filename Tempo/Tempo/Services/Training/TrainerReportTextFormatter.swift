@@ -45,15 +45,41 @@ enum TrainerReportTextFormatter {
                 if let note = exercise.noteText {
                     lines.append("   \(s.notesLabel): \(note)")
                 }
+                if let vsLastWeek = exercise.vsLastWeekText {
+                    lines.append("   \(vsLastWeek)")
+                }
             }
             for conditioning in session.conditioning {
                 lines.append("• \(s.conditioningHeader): \(conditioning.text)")
+                if let vsLastWeek = conditioning.vsLastWeekText {
+                    lines.append("   \(vsLastWeek)")
+                }
             }
             for pr in session.prs {
                 lines.append("🏆 \(pr.text)")
             }
             for note in session.notes {
                 lines.append("\(s.notesLabel): \(note)")
+            }
+        }
+
+        // Pause/travel-pain feature — football/pain/pauses/travel-swap
+        // sections. See TrainerReportSupplementalSections.swift.
+        for section in document.extraSections {
+            lines.append("")
+            lines.append(section.title.uppercased())
+            lines.append(contentsOf: section.lines.map { "• \($0)" })
+        }
+        // trainer-feedback-tests — "Changes from trainer this week", its own
+        // clearly separated block (never mixed into the per-session loop
+        // above, which another agent also edits).
+        if let changes = document.changesSection {
+            lines.append("")
+            lines.append("——————————")
+            lines.append(changes.title.uppercased())
+            for entry in changes.entries {
+                lines.append("\(entry.dateLabel):")
+                lines.append(contentsOf: entry.summaries.map { "  • \($0)" })
             }
         }
 

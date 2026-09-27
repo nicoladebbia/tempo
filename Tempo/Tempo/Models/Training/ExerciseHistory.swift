@@ -51,6 +51,16 @@ final class ExerciseHistory {
     /// avgRPE/worstFormRaw fields above).
     var gassedFraction: Double?
 
+    /// trainer-feedback-tests — true when `estimated1RM` on this row came
+    /// from a trainer-flagged TEST exercise (1RM/3RM/5RM/time-trial —
+    /// `PlannedExercise.isTestExercise`) rather than an ordinary working set.
+    /// `TrainingViewModel.reliableEstimated1RM` prefers the most recent
+    /// TRUSTED row within its own (longer) trust window over a same-or-later
+    /// untrusted one — a submax AMRAP set logged after a real test isn't more
+    /// reliable just because it's more recent. Defaulted → SwiftData
+    /// auto-migrates.
+    var isTrustedMax: Bool = false
+
     /// Scalar back-reference to the WorkoutPlan that produced this row. NOT a
     /// relationship — ExerciseHistory is the permanent training record and must
     /// outlive the ephemeral daily plan. The ID enables exact, idempotent dedup
@@ -104,6 +114,7 @@ final class ExerciseHistory {
         worstFormRaw: String? = nil,
         feedbackSampleCount: Int = 0,
         gassedFraction: Double? = nil,
+        isTrustedMax: Bool = false,
         workoutPlanID: UUID? = nil,
         exercise: Exercise? = nil
     ) {
@@ -118,6 +129,7 @@ final class ExerciseHistory {
         self.worstFormRaw = worstFormRaw
         self.feedbackSampleCount = feedbackSampleCount
         self.gassedFraction = gassedFraction
+        self.isTrustedMax = isTrustedMax
         self.workoutPlanID = workoutPlanID
         self.exercise = exercise
         exerciseNameSnapshot = exercise?.name

@@ -40,6 +40,22 @@ struct ProgramImportRequestDecodingTests {
         #expect(request.sessionID == id)
         #expect(request.maxTokens == 4000)
     }
+
+    /// trainer-feedback-tests — the "feedback" route's request has no
+    /// acronym/ID field (unlike transcribe/structure's `session_id`), so it
+    /// needs no explicit CodingKeys — pin that `.convertFromSnakeCase` alone
+    /// is enough for it to decode correctly.
+    @Test func feedbackRequestDecodesFromSnakeCase() throws {
+        let json = """
+        {"model":"sonnet","system":"s","user_message":"u",
+         "max_tokens":1500,"temperature":0,"caller":"trainer_feedback_edit"}
+        """
+        let request = try decoder().decode(ProgramFeedbackRequest.self, from: Data(json.utf8))
+        #expect(request.model == "sonnet")
+        #expect(request.userMessage == "u")
+        #expect(request.maxTokens == 1500)
+        #expect(request.caller == "trainer_feedback_edit")
+    }
 }
 
 @Suite("DeviceTokenRegisterDecoding")

@@ -20,6 +20,8 @@ import SwiftUI
 struct TrainerProgramView: View {
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(ServiceContainer.self)
+    private var services
     @Query(sort: \TrainerProgram.createdAt, order: .reverse)
     private var programs: [TrainerProgram]
 
@@ -34,6 +36,14 @@ struct TrainerProgramView: View {
     /// Fix #8 — "send report to trainer" (TrainerReportSheet.swift, new file).
     @State
     private var reportProgram: TrainerProgram?
+    /// Pause/travel-pain feature — see AwayModeSheet.swift.
+    @State
+    private var showAwayMode = false
+    @State
+    private var awayModeViewModel: TrainingViewModel?
+    /// trainer-feedback-tests — "Trainer sent changes" (TrainerFeedbackInputView.swift, new file).
+    @State
+    private var feedbackProgram: TrainerProgram?
 
     private var activeProgram: TrainerProgram? {
         programs.first { $0.isActive }
@@ -112,12 +122,33 @@ struct TrainerProgramView: View {
                     .accessibilityLabel("Import from trainer")
                 }
             }
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    if awayModeViewModel == nil {
+                        awayModeViewModel = TrainingViewModel(
+                            trainingEngine: services.trainingEngine, whoop: services.whoop, healthKit: services.healthKit
+                        )
+                    }
+                    showAwayMode = true
+                } label: {
+                    Image(systemName: "airplane")
+                }
+                .accessibilityLabel("Away from the gym — pause or limited equipment")
+            }
         }
         .sheet(isPresented: $showImport) {
             TrainerProgramImportView()
         }
+        .sheet(isPresented: $showAwayMode) {
+            if let awayModeViewModel {
+                AwayModeSheet(viewModel: awayModeViewModel)
+            }
+        }
         .sheet(item: $reportProgram) { program in
             TrainerReportSheet(program: program)
+        }
+        .sheet(item: $feedbackProgram) { program in
+            TrainerFeedbackInputView(program: program)
         }
         .sheet(isPresented: $showEdit) {
             if let activeProgram {
@@ -314,6 +345,35 @@ struct TrainerProgramView: View {
             .buttonStyle(.tempoSecondary)
             .padding(.top, TempoSpacing.xs)
 
+            // trainer-feedback-tests — paste/screenshot the trainer's reply,
+            // review the resulting diff, apply what's accepted.
+            Button {
+                feedbackProgram = program
+            } label: {
+                Label("Trainer Sent Changes", systemImage: "text.bubble")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.tempoSecondary)
+
+            if !program.changeLog.isEmpty {
+                NavigationLink {
+                    TrainerProgramChangeLogView(program: program)
+                } label: {
+                    HStack {
+                        Text("Changes from Trainer")
+                            .font(.tempoBody)
+                            .foregroundStyle(Color.tempoTextPrimary)
+                        Spacer()
+                        Text("\(program.changeLog.count)")
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                        Image(systemName: "chevron.right")
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                    }
+                }
+            }
+
             HStack(spacing: TempoSpacing.sm) {
                 Button {
                     showEdit = true
@@ -387,7 +447,11 @@ struct TrainerProgramView: View {
         return "\(weekLabel) · \(dayLabel) · \(cadence)"
     }
 
-    static func shortWeekdayName(_ weekday: Int) -> String {
+    /// trainer-feedback-tests — `nonisolated` so `TrainerFeedbackApplier`
+    /// (a plain, non-MainActor enum, unit-tested with no actor context at
+    /// all) can call this pure formatter without an `await`. Purely
+    /// computational — no view state involved.
+    nonisolated static func shortWeekdayName(_ weekday: Int) -> String {
         let names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
         guard (1 ... 7).contains(weekday) else {
             return "?"

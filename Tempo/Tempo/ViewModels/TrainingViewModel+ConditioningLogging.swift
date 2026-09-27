@@ -105,6 +105,8 @@ extension TrainingViewModel {
         roundsCompleted: Int?,
         rpe: Double?,
         notes: String?,
+        avgHeartRateBPM: Double? = nil,
+        maxHeartRateBPM: Double? = nil,
         source: String,
         modelContext: ModelContext
     ) -> ConditioningBlockResult {
@@ -116,6 +118,12 @@ extension TrainingViewModel {
             distanceMeters: distanceMeters,
             roundsCompleted: roundsCompleted
         )
+
+        // trainer-feedback-tests — this block a trainer-flagged TEST (e.g.
+        // "test 30m", a time trial)? Its result becomes a trusted baseline
+        // later blocks of the same distance shape can be shown against
+        // (ConditioningBaselineProvider), instead of just another logged rep.
+        let isBaselineTest = isTestBlock(programSessionKey: programSessionKey, blockID: blockID, modelContext: modelContext)
 
         // Replace any prior log for this exact block — re-logging edits the
         // result, it doesn't duplicate it. Same dedup convention as
@@ -139,11 +147,34 @@ extension TrainingViewModel {
             roundsCompleted: roundsCompleted,
             rpe: rpe,
             notes: notes,
+            avgHeartRateBPM: avgHeartRateBPM,
+            maxHeartRateBPM: maxHeartRateBPM,
             targetMet: met,
+            isBaselineTest: isBaselineTest,
             source: source
         )
         modelContext.insert(result)
         saveGuarded(modelContext, operation: "conditioning block result")
+
+        // trainer-feedback-tests — announce the new timed baseline, same
+        // convention as a strength test's "New max" message. Either
+        // distance-carrying shape counts (a bare "test 30m" parses as
+        // `.distance`; an explicit "1 rep 30m" as `.repsDistance` — see
+        // `ConditioningBaselineProvider`'s header comment for why both are
+        // real trainer phrasings).
+        if isBaselineTest, let (label, seconds) = Self.baselineAnnouncement(
+            target: target,
+            repTimesSeconds: repTimesSeconds,
+            durationSeconds: durationSeconds
+        ) {
+            let message = TrainerTestResultMessage.runTestMessage(label: label, seconds: seconds)
+            // "Log that I played" / re-logging a block replaces its prior
+            // result (see the dedup above) — don't also duplicate its
+            // announcement if the athlete edits and re-saves the same block.
+            if !testResultMessages.contains(message) {
+                testResultMessages.append(message)
+            }
+        }
 
         #if DEBUG
             print(
@@ -174,5 +205,52 @@ extension TrainingViewModel {
                 toggleSecondarySessionComplete(modelContext: modelContext)
             }
         }
+    }
+
+    /// trainer-feedback-tests — whether `blockID` (a `ProgramExercise.id`)
+    /// was flagged as a test on import, either on its own or by inheriting
+    /// its day's `isTest`. nil-safe: a program that's been deleted/edited
+    /// since (or a plan not on the trainer-program path at all) just reads
+    /// as "not a test".
+    private func isTestBlock(programSessionKey: String, blockID: UUID, modelContext: ModelContext) -> Bool {
+        guard let day = trainerDay(forKey: programSessionKey, modelContext: modelContext) else {
+            return false
+        }
+        if day.isTest == true {
+            return true
+        }
+        return day.exercises.first { $0.id == blockID }?.isTest == true
+    }
+
+    /// trainer-feedback-tests — the (label, seconds) pair for a "New best"
+    /// announcement, or nil when `target` isn't a distance shape or has no
+    /// logged time for it — mirrors `ConditioningBaselineProvider`'s own
+    /// repsDistance-vs-distance time lookup so the announcement and the
+    /// later "your best Xm" display line can never disagree.
+    private static func baselineAnnouncement(
+        target: ConditioningTarget,
+        repTimesSeconds: [Double]?,
+        durationSeconds: Double?
+    ) -> (label: String, seconds: Double)? {
+        let distance: Double
+        let unit: ConditioningDistanceUnit
+        let seconds: Double?
+        switch target.kind {
+        case let .repsDistance(_, d, u, _):
+            distance = d
+            unit = u
+            seconds = repTimesSeconds?.min()
+        case let .distance(d, u):
+            distance = d
+            unit = u
+            seconds = durationSeconds
+        default:
+            return nil
+        }
+        guard let seconds else {
+            return nil
+        }
+        let distanceLabel = distance == distance.rounded() ? "\(Int(distance))" : String(format: "%.1f", distance)
+        return ("\(distanceLabel)\(unit.shortLabel)", seconds)
     }
 }
