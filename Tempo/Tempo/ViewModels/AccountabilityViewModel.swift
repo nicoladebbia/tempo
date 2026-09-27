@@ -940,14 +940,30 @@ final class AccountabilityViewModel {
 // MARK: LiveActivityParticipant
 
 extension AccountabilityViewModel: LiveActivityParticipant {
+    /// Deliberately NOT `focusState.isActive` — that's `false` for `.paused`
+    /// (see `FocusTimerState.isActive`), which used to mean a session paused
+    /// at the moment a higher-priority activity suspended it could NEVER be
+    /// resumed: `end(_:)` would see `hasActiveLiveSession == false`, drop
+    /// `.focusTimer` from `suspendedKinds` for good, and unpausing afterwards
+    /// only ever routes through `syncFocusTimerLiveSurfaces()` → `update`,
+    /// which no-ops once `current` is nil (code review finding). Whether
+    /// there is something to resume is exactly whether `focusActivityRemaining`
+    /// finds a phase to report — which already looks through `.paused` — so
+    /// defer to it directly instead of a second, narrower "alive" check.
     var hasActiveLiveSession: Bool {
-        focusState.isActive
+        focusActivityRemaining() != nil
     }
 
     func suspendLiveActivity() async {
         await FocusTimerActivityManager.shared.endCurrent()
     }
 
+    /// Correctly re-requests a PAUSED-looking Activity when resumed
+    /// mid-pause — `isFocusPaused` is passed through to `start`, which
+    /// (unlike `WorkoutActivityManager.start`, which takes a full
+    /// `ContentState`) used to hardcode `isPaused: false` regardless of
+    /// what's passed to it, since nothing ever needed to START already
+    /// paused before this resume path existed.
     func resumeLiveActivityIfNeeded() async {
         guard let remaining = focusActivityRemaining(), let session = currentStudySession else {
             return
@@ -959,8 +975,19 @@ extension AccountabilityViewModel: LiveActivityParticipant {
             progress: focusTimerProgress,
             subject: focusSubject,
             sessionIndex: currentSessionCount + 1,
-            totalSessions: sessionsBeforeLongBreak
+            totalSessions: sessionsBeforeLongBreak,
+            isPaused: isFocusPaused
         )
+    }
+
+    /// True while `focusState` is `.paused` — used wherever a fan-out needs
+    /// to know paused-ness without re-matching the enum itself.
+    private var isFocusPaused: Bool {
+        if case .paused = focusState {
+            true
+        } else {
+            false
+        }
     }
 
     /// The current phase's remaining time, however `focusState` names it —
@@ -1018,11 +1045,7 @@ extension AccountabilityViewModel: LiveActivityParticipant {
         guard let remaining = focusActivityRemaining() else {
             return
         }
-        let isPaused = if case .paused = focusState {
-            true
-        } else {
-            false
-        }
+        let isPaused = isFocusPaused
         let phaseLabel = focusActivityPhaseLabel()
         let sessionIndex = currentSessionCount + 1
         let totalSessions = sessionsBeforeLongBreak
@@ -1048,11 +1071,7 @@ extension AccountabilityViewModel: LiveActivityParticipant {
         guard let remaining = focusActivityRemaining() else {
             return
         }
-        let isPaused = if case .paused = focusState {
-            true
-        } else {
-            false
-        }
+        let isPaused = isFocusPaused
         PhoneWatchConnectivityService.shared.pushFocusTimer(
             WatchFocusTimerPayload(
                 isPaused: isPaused,
