@@ -269,7 +269,7 @@ extension WeekOverWeekProgress.ExerciseDelta {
         kg == kg.rounded() ? "\(Int(kg))" : String(format: "%.1f", kg)
     }
 
-    /// "60→65 kg (+5)" — best-set weight change plus the e1RM delta, when
+    /// "60→65 kg (1RM +5)" — best-set weight change plus the e1RM delta, when
     /// both sessions have one. Falls back to just the current best when
     /// there's no weight to diff (e.g. only reps changed).
     var weightChangeText: String? {
@@ -283,12 +283,14 @@ extension WeekOverWeekProgress.ExerciseDelta {
         }
         if let e1RMDelta, abs(e1RMDelta) >= 0.5 {
             let sign = e1RMDelta > 0 ? "+" : ""
-            text += " (\(sign)\(Self.formatKg(e1RMDelta)))"
+            // Labelled: a bare "(+6)" next to "60→65 kg" read as a weight
+            // delta. "1RM" is the same word in Italian and English gyms.
+            text += " (1RM \(sign)\(Int(e1RMDelta.rounded())))"
         }
         return text
     }
 
-    /// "RDL 60→65 kg (+5)" — the wrap-up recap's bullet format.
+    /// "RDL 60→65 kg (1RM +5)" — the wrap-up recap's bullet format.
     var recapLine: String {
         guard let change = weightChangeText else {
             return name

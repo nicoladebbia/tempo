@@ -97,7 +97,7 @@ final class WeekOverWeekProgressTests: XCTestCase {
         XCTAssertEqual(delta.currentBestWeightKg, 65)
         XCTAssertEqual(delta.e1RMDelta, 5)
         XCTAssertEqual(delta.volumeDelta, 100)
-        XCTAssertEqual(delta.recapLine, "RDL 60→65 kg (+5)")
+        XCTAssertEqual(delta.recapLine, "RDL 60→65 kg (1RM +5)")
     }
 
     func testMultipleCurrentOccurrencesUseTheMostRecentOne() throws {
