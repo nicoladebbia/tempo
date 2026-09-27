@@ -9,6 +9,8 @@
 import SwiftData
 import SwiftUI
 
+// MARK: - GroceryListView
+
 struct GroceryListView: View {
     @Bindable
     var viewModel: NutritionTabViewModel
@@ -25,14 +27,35 @@ struct GroceryListView: View {
     @State
     private var pantrySyncMessage: String?
 
+    /// Full-screen Store Mode presentation.
+    @State
+    private var showStoreMode = false
+
+    /// "Done shopping" bought → pantry review sheet.
+    @State
+    private var showDoneShopping = false
+
+    /// Weekly spend vs. budget history.
+    @State
+    private var showSpendHistory = false
+
+    /// Cheaper-swaps suggestion sheet (over-budget path).
+    @State
+    private var showCheaperSwaps = false
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TempoSpacing.lg) {
                 headerCard
                 if let list = viewModel.groceryState.latest {
+                    storeModeBar
                     progressBar(for: list)
-                    ForEach(groupedCategories(for: list), id: \.self) { category in
+                    budgetSection(for: list)
+                    ForEach(viewModel.resolvedGroceryCategoryOrder(for: list), id: \.self) { category in
                         categorySection(category: category, items: items(in: list, category: category))
+                    }
+                    if !list.boughtItems.isEmpty {
+                        boughtSection(for: list)
                     }
                     exportButton(for: list)
                 } else {
@@ -69,6 +92,13 @@ struct GroceryListView: View {
                         } label: {
                             Label("Sync with Pantry", systemImage: "arrow.triangle.2.circlepath")
                         }
+                        Button {
+                            showSpendHistory = true
+                        } label: {
+                            Label("Spend History", systemImage: "chart.bar.fill")
+                        }
+                        storePickerMenu
+                        shareMenuContent
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
@@ -80,9 +110,32 @@ struct GroceryListView: View {
                 viewModel.addGroceryItem(name: name, quantity: qty, unit: unit)
             }
         }
+        .sheet(isPresented: $showDoneShopping) {
+            if let list = viewModel.groceryState.latest {
+                GroceryDoneShoppingView(viewModel: viewModel, list: list)
+            }
+        }
+        .sheet(isPresented: $showSpendHistory) {
+            GroceryWeeklySpendView(viewModel: viewModel)
+        }
+        .sheet(isPresented: $showCheaperSwaps) {
+            CheaperSwapsSheet(viewModel: viewModel)
+        }
+        .fullScreenCover(isPresented: $showStoreMode) {
+            if let list = viewModel.groceryState.latest {
+                GroceryStoreModeView(viewModel: viewModel, list: list) {
+                    showStoreMode = false
+                    showDoneShopping = true
+                }
+            }
+        }
         .alert("Pantry Sync", isPresented: Binding(
             get: { pantrySyncMessage != nil },
-            set: { if !$0 { pantrySyncMessage = nil } }
+            set: {
+                if !$0 {
+                    pantrySyncMessage = nil
+                }
+            }
         )) {
             Button("OK") { pantrySyncMessage = nil }
         } message: {
@@ -91,7 +144,123 @@ struct GroceryListView: View {
         .task {
             viewModel.attachPhase7Services(modelContext: modelContext, services: services)
             viewModel.reloadGrocery()
+            viewModel.refreshGroceryPrices()
         }
+    }
+
+    // MARK: - Store mode entry + picker
+
+    private var storeModeBar: some View {
+        HStack(spacing: TempoSpacing.sm) {
+            Button {
+                HapticManager.lightImpact()
+                showStoreMode = true
+            } label: {
+                Label("Store Mode", systemImage: "figure.walk")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.tempoSecondary)
+        }
+    }
+
+    private var storePickerMenu: some View {
+        Menu {
+            ForEach(GroceryStore.allCases) { store in
+                Button {
+                    viewModel.groceryActiveStore = store
+                } label: {
+                    if viewModel.groceryActiveStore == store {
+                        Label(store.displayName, systemImage: "checkmark")
+                    } else {
+                        Text(store.displayName)
+                    }
+                }
+            }
+        } label: {
+            Label("Store: \(viewModel.groceryActiveStore.displayName)", systemImage: "cart.fill")
+        }
+    }
+
+    // MARK: - Share menu (Lane C hook)
+
+    /// Lane C is adding "Share list" (text + live web link) and an Instacart
+    /// cart action here. Leaving this empty hook so that work drops straight
+    /// into the existing toolbar Menu without Lane A needing to touch it
+    /// again. DO NOT implement sharing in this lane.
+    private var shareMenuContent: some View {
+        EmptyView()
+    }
+
+    // MARK: - Budget / cost
+
+    private func budgetSection(for list: GroceryList) -> some View {
+        let cap = viewModel.groceryBudgetCapUSD
+        let total = list.estimatedTotalUSD
+        let isOver = viewModel.groceryIsOverBudget()
+        return VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+            HStack {
+                Text(list.totalIsApproximate ? "≈ \(formatUSD(total))" : formatUSD(total))
+                    .font(.tempoBody)
+                    .foregroundStyle(isOver ? Color.tempoError : Color.tempoTextPrimary)
+                if list.hasUnresolvedPrices {
+                    Text("pricing…")
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                }
+                Spacer()
+                if let cap {
+                    Text("of $\(cap) budget")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                }
+            }
+            if isOver {
+                HStack {
+                    Text("Over budget — tighten up or swap something.")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoError)
+                    Spacer()
+                    Button("Cheaper swaps") {
+                        showCheaperSwaps = true
+                        Task { await viewModel.fetchCheaperSwaps() }
+                    }
+                    .font(.tempoCaption1)
+                }
+            }
+        }
+        .padding(TempoSpacing.cardPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.tempoSurfaceCard)
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+    }
+
+    private func formatUSD(_ value: Double) -> String {
+        "$" + String(format: "%.2f", value)
+    }
+
+    // MARK: - Bought section (Done-shopping record)
+
+    private func boughtSection(for list: GroceryList) -> some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            Text("BOUGHT")
+                .font(.tempoModuleTag)
+                .foregroundStyle(Color.tempoTextSecondary)
+            ForEach(list.boughtItems, id: \.id) { item in
+                HStack(spacing: TempoSpacing.sm) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Color.tempoSuccess)
+                    Text(item.displayName)
+                        .font(.tempoBody)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                        .strikethrough()
+                    Spacer()
+                }
+            }
+        }
+        .padding(TempoSpacing.cardPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.tempoSurfaceCard.opacity(TempoOpacity.o70))
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
     }
 
     // MARK: - Header
@@ -149,22 +318,8 @@ struct GroceryListView: View {
 
     // MARK: - Per-category section
 
-    private func groupedCategories(for list: GroceryList) -> [String] {
-        // Store-aisle order rather than alphabetical: produce first (you
-        // shop the perimeter), dairy / protein next, then dry goods, with
-        // unknown categories falling to the end. Without this the list was
-        // pantry → grains → produce, which is the reverse of how anyone
-        // actually moves through a grocery store.
-        // "protein" kept for older lists; new lists split meat/seafood out.
-        let preferred = ["produce", "meat", "seafood", "protein", "dairy", "frozen", "grains", "oils", "pantry"]
-        let present = Array(Set(list.orderedItems.map(\.category)))
-        let known = preferred.filter { present.contains($0) }
-        let unknown = present.filter { !preferred.contains($0) }.sorted()
-        return known + unknown
-    }
-
     private func items(in list: GroceryList, category: String) -> [GroceryListItem] {
-        list.orderedItems.filter { $0.category == category }
+        list.activeItems.filter { $0.category == category }
     }
 
     private func categorySection(category: String, items: [GroceryListItem]) -> some View {
@@ -175,6 +330,9 @@ struct GroceryListView: View {
             ForEach(items, id: \.id) { item in
                 Button {
                     viewModel.toggleGroceryItem(item)
+                    if item.isChecked {
+                        viewModel.recordGroceryCategoryTick(item.category)
+                    }
                 } label: {
                     HStack(spacing: TempoSpacing.sm) {
                         Image(systemName: item.isChecked ? "checkmark.circle.fill" : "circle")
@@ -189,6 +347,11 @@ struct GroceryListView: View {
                                 .foregroundStyle(Color.tempoTextSecondary)
                         }
                         Spacer()
+                        if let price = item.estimatedPriceUSD {
+                            Text(item.priceSource == .estimate ? "≈\(formatUSD(price))" : formatUSD(price))
+                                .font(.tempoCaption1)
+                                .foregroundStyle(Color.tempoTextTertiary)
+                        }
                     }
                 }
                 .buttonStyle(.plain)

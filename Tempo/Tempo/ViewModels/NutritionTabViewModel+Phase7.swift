@@ -84,7 +84,9 @@ extension NutritionTabViewModel {
         // mount (and the log line double-fires). `pantryService` is the first
         // thing set unconditionally below, so it doubles as the
         // "already attached" sentinel.
-        guard pantryService == nil else { return }
+        guard pantryService == nil else {
+            return
+        }
 
         pantryService = LocalPantryService(modelContext: modelContext)
         services.pantry = pantryService
@@ -102,6 +104,9 @@ extension NutritionTabViewModel {
         }
         if intelligence == nil {
             intelligence = services.nutritionIntelligence
+        }
+        if groceryPriceAIService == nil, let api = phase7APIClient(from: services) {
+            groceryPriceAIService = GroceryPriceAIService(apiClient: api)
         }
 
         logger.info("Phase 7 services attached to NutritionTabViewModel")
@@ -308,7 +313,9 @@ extension NutritionTabViewModel {
         let pantryNames = Set(activePantry.map(\.canonicalName))
         var expiryByName: [String: Int] = [:]
         for item in activePantry {
-            guard let days = item.daysUntilUseBy, days >= 0 else { continue }
+            guard let days = item.daysUntilUseBy, days >= 0 else {
+                continue
+            }
             // Keep the soonest expiry per canonical name if duplicates exist.
             if let existing = expiryByName[item.canonicalName], existing <= days {
                 continue
@@ -364,7 +371,10 @@ extension NutritionTabViewModel {
         groceryState.isGenerating = true
         defer { groceryState.isGenerating = false }
         do {
-            let weekStart = Calendar.current.startOfDay(for: Date())
+            // The plan's own Monday, NOT today — otherwise a mid-week
+            // regenerate stamps a new "today" week instead of replacing the
+            // list for the week the plan actually covers (BUILD item 1a).
+            let weekStart = Calendar.current.startOfDay(for: plan.startDate)
             let list = try groceryService.generate(
                 from: plan,
                 pantry: pantryService,
@@ -372,7 +382,11 @@ extension NutritionTabViewModel {
             )
             groceryState.latest = list
             groceryState.lastError = nil
-            Logger.nutrition.info("[Diag.Grocery] generated \(list.itemCount) items for week \(weekStart.formatted(date: .abbreviated, time: .omitted), privacy: .public)")
+            Logger.nutrition
+                .info(
+                    "[Diag.Grocery] generated \(list.itemCount) items for week \(weekStart.formatted(date: .abbreviated, time: .omitted), privacy: .public)"
+                )
+            refreshGroceryPrices()
         } catch {
             groceryState.lastError = error.localizedDescription
             Logger.nutrition.error("[Diag.Grocery] generation FAILED: \(error.localizedDescription, privacy: .public)")
@@ -394,7 +408,9 @@ extension NutritionTabViewModel {
     /// User-added "oh, also" item. Refreshes the latest list so the UI
     /// reflects the new row immediately.
     func addGroceryItem(name: String, quantity: Double, unit: PantryUnit) {
-        guard let service = groceryService else { return }
+        guard let service = groceryService else {
+            return
+        }
         do {
             _ = try service.addItem(name: name, quantity: quantity, unit: unit, category: "pantry")
             groceryState.latest = try service.fetchLatest()
@@ -406,7 +422,9 @@ extension NutritionTabViewModel {
 
     /// Swipe-to-delete from the list. Refreshes latest after the remove.
     func deleteGroceryItem(_ item: GroceryListItem) {
-        guard let service = groceryService else { return }
+        guard let service = groceryService else {
+            return
+        }
         do {
             try service.deleteItem(item)
             groceryState.latest = try service.fetchLatest()
@@ -422,7 +440,9 @@ extension NutritionTabViewModel {
     /// Returns the count of items removed for surfacing to the user.
     @discardableResult
     func reapplyPantryToGrocery() -> Int {
-        guard let service = groceryService, let pantryService else { return 0 }
+        guard let service = groceryService, let pantryService else {
+            return 0
+        }
         do {
             let removed = try service.reapplyPantry(pantryService)
             groceryState.latest = try service.fetchLatest()

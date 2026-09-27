@@ -39,22 +39,67 @@ final class GroceryList {
         }
     }
 
+    /// Items still "to shop" — excludes anything already pushed into the
+    /// pantry via "Done shopping". Store Mode and the header counters work
+    /// off this, not the raw `items` array, so a bought item doesn't keep
+    /// inflating "N items" after the trip that bought it is long over.
+    @Transient
+    var activeItems: [GroceryListItem] {
+        orderedItems.filter { !$0.isBought }
+    }
+
+    /// Items already confirmed into the pantry — kept as a "bought" record
+    /// rather than deleted (per BUILD item 3).
+    @Transient
+    var boughtItems: [GroceryListItem] {
+        orderedItems.filter(\.isBought)
+    }
+
     @Transient
     var itemCount: Int {
-        items?.count ?? 0
+        activeItems.count
     }
 
     @Transient
     var checkedCount: Int {
-        (items ?? []).filter(\.isChecked).count
+        activeItems.filter(\.isChecked).count
     }
 
     @Transient
     var isComplete: Bool {
-        guard let items, !items.isEmpty else {
+        let active = activeItems
+        guard !active.isEmpty else {
             return false
         }
-        return items.allSatisfy(\.isChecked)
+        return active.allSatisfy(\.isChecked)
+    }
+
+    /// Sum of `estimatedPriceUSD` across items still to buy. nil items
+    /// (price not resolved yet — no network round trip has completed)
+    /// contribute 0, so the total is always displayable, just possibly
+    /// incomplete; `hasUnresolvedPrices` tells the UI whether to caveat it.
+    @Transient
+    var estimatedTotalUSD: Double {
+        activeItems.reduce(0) { $0 + ($1.estimatedPriceUSD ?? 0) }
+    }
+
+    /// `true` when at least one active item has no price yet (still loading,
+    /// offline, or the AI batch hasn't run). Lets the UI show "prices still
+    /// loading" instead of implying the total above is final.
+    @Transient
+    var hasUnresolvedPrices: Bool {
+        activeItems.contains { $0.estimatedPriceUSD == nil }
+    }
+
+    /// `true` when every priced item's source is an AI guess rather than the
+    /// user's own paid history — the UI labels the total "approx" in that case.
+    @Transient
+    var totalIsApproximate: Bool {
+        let priced = activeItems.filter { $0.estimatedPriceUSD != nil }
+        guard !priced.isEmpty else {
+            return false
+        }
+        return priced.contains { $0.priceSource == .estimate }
     }
 
     init(
@@ -69,6 +114,18 @@ final class GroceryList {
         self.exportedToReminders = false
         self.exportedAt = nil
     }
+}
+
+// MARK: - GroceryPriceSource
+
+/// Where an item's `estimatedPriceUSD` came from. "paid" = derived from the
+/// user's own PantryPriceEntry history (their real receipt/manual prices);
+/// "estimate" = an AI-guessed typical price at the selected chain. The list
+/// UI labels "estimate" rows "approx" so a guess is never mistaken for a
+/// tracked price.
+enum GroceryPriceSource: String, Codable, CaseIterable, Sendable {
+    case paid
+    case estimate
 }
 
 // MARK: - GroceryListItem
@@ -98,6 +155,36 @@ final class GroceryListItem {
     /// User-checked in the in-app list.
     var isChecked: Bool
 
+    /// `true` for a one-off item the user typed in ("oh, also: olive oil")
+    /// rather than one derived from the meal plan. Manual items don't come
+    /// from `GroceryListGenerator`, so a regenerate must carry them forward
+    /// verbatim instead of dropping them (they'd never be reproduced by
+    /// re-aggregating the plan).
+    var isManual: Bool = false
+
+    /// `true` once "Done shopping" has pushed this item into the pantry.
+    /// The item stays on the list (as a record — "bought") instead of being
+    /// deleted, so the shopping trip has a receipt-like trail.
+    var isBought: Bool = false
+
+    /// When `isBought` was set. nil until then.
+    var boughtAt: Date?
+
+    /// Apple Reminders identifier for this item's exported reminder
+    /// (`EKReminder.calendarItemIdentifier`). Set on first export; reused on
+    /// re-export so the list updates/removes the SAME reminder instead of
+    /// creating a duplicate every time "Export to Reminders" is tapped.
+    var reminderIdentifier: String?
+
+    /// Estimated (or actual paid-history-derived) total USD cost for this
+    /// line at the currently selected store, for `quantity` units. nil until
+    /// GroceryPriceEstimator/GroceryPriceAIService fills it in — pricing
+    /// never blocks list generation or display.
+    var estimatedPriceUSD: Double?
+
+    /// Raw `GroceryPriceSource`. nil alongside a nil `estimatedPriceUSD`.
+    var priceSourceRaw: String?
+
     /// Optional notes (brand preference, substitutions).
     var notes: String?
 
@@ -109,6 +196,12 @@ final class GroceryListItem {
         set { unitRaw = newValue.rawValue }
     }
 
+    @Transient
+    var priceSource: GroceryPriceSource? {
+        get { priceSourceRaw.flatMap(GroceryPriceSource.init(rawValue:)) }
+        set { priceSourceRaw = newValue?.rawValue }
+    }
+
     init(
         id: UUID = UUID(),
         list: GroceryList? = nil,
@@ -118,6 +211,12 @@ final class GroceryListItem {
         unit: PantryUnit,
         category: String = "pantry",
         isChecked: Bool = false,
+        isManual: Bool = false,
+        isBought: Bool = false,
+        boughtAt: Date? = nil,
+        reminderIdentifier: String? = nil,
+        estimatedPriceUSD: Double? = nil,
+        priceSource: GroceryPriceSource? = nil,
         notes: String? = nil
     ) {
         self.id = id
@@ -128,6 +227,12 @@ final class GroceryListItem {
         self.unitRaw = unit.rawValue
         self.category = category
         self.isChecked = isChecked
+        self.isManual = isManual
+        self.isBought = isBought
+        self.boughtAt = boughtAt
+        self.reminderIdentifier = reminderIdentifier
+        self.estimatedPriceUSD = estimatedPriceUSD
+        self.priceSourceRaw = priceSource?.rawValue
         self.notes = notes
         self.createdAt = Date()
     }

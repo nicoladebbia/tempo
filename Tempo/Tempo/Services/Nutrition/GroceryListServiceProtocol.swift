@@ -48,6 +48,14 @@ protocol GroceryListServiceProtocol: Sendable {
     func exportToReminders(_ list: GroceryList) async throws
 
     func delete(_ list: GroceryList) throws
+
+    /// "Done shopping" confirmed these items into the pantry (BUILD item 3).
+    /// Marks them bought (kept as a record, not deleted — see
+    /// `GroceryList.activeItems`/`boughtItems`) rather than removing them.
+    /// Adding the pantry rows themselves is the CALLER's job (routes through
+    /// PantryServiceProtocol.mergeOrCreate) — this only updates the grocery
+    /// side of the bookkeeping.
+    func markBought(_ items: [GroceryListItem], boughtAt: Date) throws
 }
 
 // MARK: - GroceryListServiceError

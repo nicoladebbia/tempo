@@ -51,7 +51,12 @@ enum PantryUnit: String, Codable, CaseIterable, Sendable {
     /// whole purchase units (grocery list, pantry decrement).
     var isCountable: Bool {
         switch self {
-        case .pieces, .servings, .cans, .bottles, .jars, .packs: true
+        case .pieces,
+             .servings,
+             .cans,
+             .bottles,
+             .jars,
+             .packs: true
         default: false
         }
     }
@@ -74,17 +79,39 @@ enum PantryUnit: String, Codable, CaseIterable, Sendable {
         case .liters: return quantity * 1000
         case .ounces: return quantity * 28.3495
         case .pounds: return quantity * 453.592
-        case .pieces, .servings, .cans, .bottles, .jars, .packs:
+        case .pieces,
+             .servings,
+             .cans,
+             .bottles,
+             .jars,
+             .packs:
             // Look up the per-unit gram weight for this food (e.g. one
             // "pack" of pasta = 500g per naturalPortions). Without the
             // food name we can't disambiguate "1 piece" of an apple
             // (~150g) from "1 piece" of a chip (~2g).
             guard let foodName,
                   let portion = FoodMacroDatabase.naturalPortions[foodName.lowercased()]
-            else { return nil }
+            else {
+                return nil
+            }
             let unitGrams = self == .packs ? portion.purchaseGrams : portion.grams
             return quantity * unitGrams
         }
+    }
+
+    /// Rounds `quantity` UP to a whole number when this unit is countable
+    /// (cans/bottles/jars/packs/pieces/servings) — you can't buy 0.4 of a
+    /// can. Any mutation path that can leave a countable-unit quantity
+    /// fractional (partial pantry coverage shrinking a grocery item, a
+    /// manually-typed decimal) routes through this instead of persisting
+    /// the fraction. Non-countable units (grams, ml, …) pass through
+    /// unchanged — fractional weight/volume is normal. Zero/negative values
+    /// pass through too (an item at 0 is "fully covered", not "buy 1 more").
+    func wholeUnitQuantity(_ quantity: Double) -> Double {
+        guard isCountable, quantity > 0 else {
+            return quantity
+        }
+        return quantity.rounded(.up)
     }
 }
 
