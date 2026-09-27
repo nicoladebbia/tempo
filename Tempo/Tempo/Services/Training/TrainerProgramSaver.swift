@@ -287,6 +287,59 @@ enum TrainerProgramSaver {
         NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
     }
 
+    // MARK: - Trainer feedback (trainer-feedback-tests)
+
+    /// Applies an accepted batch of `TrainerFeedbackApplier`-resolved edits
+    /// to `program`'s CURRENT week and logs the batch (date, the athlete's
+    /// own source text, one summary line per edit actually applied) on
+    /// `TrainerProgram.changeLog`. Goes through the SAME `update` path as
+    /// every other in-place program edit, so today's plan re-applies and
+    /// `.tempoTrainingSettingsChanged` posts exactly once — no separate code
+    /// path for "an edit came from feedback" vs. "an edit came from the
+    /// review screen".
+    @MainActor
+    static func applyFeedback(
+        _ resolved: [ResolvedTrainerFeedbackEdit],
+        acceptedIDs: Set<UUID>,
+        to program: TrainerProgram,
+        sourceText: String,
+        modelContext: ModelContext,
+        trainingEngine: any TrainingEngineProtocol,
+        whoop: any WhoopServiceProtocol,
+        healthKit: any HealthKitServiceProtocol,
+        onNewExercisesCreated: (([Exercise]) -> Void)? = nil,
+        now: Date = Date()
+    ) throws {
+        let accepted = resolved.filter { acceptedIDs.contains($0.id) && $0.matched }
+        guard !accepted.isEmpty else {
+            return
+        }
+        let updatedWeeks = TrainerFeedbackApplier.apply(resolved, acceptedIDs: acceptedIDs, to: program.weeks)
+
+        try update(
+            program,
+            name: program.name,
+            startDate: program.startDate,
+            weeks: updatedWeeks,
+            repeats: program.repeats,
+            autoWarmups: program.autoWarmups,
+            scheduleMode: program.scheduleMode,
+            cadence: program.cadence,
+            modelContext: modelContext,
+            trainingEngine: trainingEngine,
+            whoop: whoop,
+            healthKit: healthKit,
+            onNewExercisesCreated: onNewExercisesCreated
+        )
+
+        program.changeLog.append(TrainerProgramChangeLogEntry(
+            date: now,
+            sourceText: sourceText,
+            editSummaries: accepted.map(\.summary)
+        ))
+        try? modelContext.save()
+    }
+
     // MARK: - Equipment-variant naming
 
     /// Names a cloned equipment variant from the trainer's own words: the

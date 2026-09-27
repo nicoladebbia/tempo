@@ -213,7 +213,10 @@ enum TrainerReportBuilder {
             generatedLabel: "\(strings.generatedOnLabel) \(formatDate(Date(), language: language, includeWeekday: false))",
             summary: summary,
             summaryLines: summaryLines,
-            sessions: rows
+            sessions: rows,
+            // trainer-feedback-tests — see TrainerReportChangesSection.swift;
+            // deliberately a single wired-in line, not logic added here.
+            changesSection: TrainerReportChangesSectionBuilder.build(program: program, scopeRange: input.scopeRange, language: language)
         )
     }
 
@@ -502,15 +505,17 @@ enum TrainerReportBuilder {
             return strings.noSetsLoggedText
         }
         var text = working
-            .map { set in
-                let reps = if let left = set.actualRepsLeft, let right = set.actualRepsRight {
-                    "\(strings.leftInitial)\(left)/\(strings.rightInitial)\(right)"
-                } else {
-                    "\(set.actualReps ?? 0)"
-                }
-                return "\(formatKg(set.actualWeight ?? 0))×\(reps)"
+            .map
+        {
+            set in
+            let reps = if let left = set.actualRepsLeft, let right = set.actualRepsRight {
+                "\(strings.leftInitial)\(left)/\(strings.rightInitial)\(right)"
+            } else {
+                "\(set.actualReps ?? 0)"
             }
-            .joined(separator: ", ")
+            return "\(formatKg(set.actualWeight ?? 0))×\(reps)"
+        }
+        .joined(separator: ", ")
         let rpes = working.compactMap(\.rpe)
         if !rpes.isEmpty {
             let avg = Double(rpes.reduce(0, +)) / Double(rpes.count)
