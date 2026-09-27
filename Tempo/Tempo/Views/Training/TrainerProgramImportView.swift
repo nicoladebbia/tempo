@@ -246,6 +246,18 @@ struct TrainerProgramImportView: View {
                     .font(.tempoCaption1)
                     .foregroundStyle(Color.tempoTextTertiary)
                     .padding(.top, TempoSpacing.md)
+
+                    // trainer-feedback-tests — a separate sample (today's
+                    // weekday, one exercise flagged as a test) so the
+                    // "TEST — work up to a max" workout banner and the
+                    // post-test "New max" summary can be exercised without a
+                    // real multi-day program in the way.
+                    Button("Load Test Day Sample (DEBUG)") {
+                        loadTestDaySample()
+                    }
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextTertiary)
+                    .padding(.top, TempoSpacing.xs)
                 #endif
             }
             .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
@@ -510,6 +522,44 @@ struct TrainerProgramImportView: View {
                 parsed: Self.sampleParsedProgram,
                 sourceKind: "multi",
                 sourceText: "DEBUG sample — no real source text."
+            )
+        }
+
+        /// trainer-feedback-tests — a one-day program pinned to TODAY's
+        /// weekday with a single 5RM test exercise, so the test-day workout
+        /// banner and post-test "New max" message can be verified end to end
+        /// in the simulator.
+        private func loadTestDaySample() {
+            reviewPayload = ReviewPayload(
+                parsed: Self.sampleTestDayProgram,
+                sourceKind: "text",
+                sourceText: "DEBUG test-day sample — no real source text."
+            )
+        }
+
+        static var sampleTestDayProgram: TrainerProgramParser.ParsedProgram {
+            let todayWeekday = TrainerProgram.isoWeekday(of: Date())
+            return TrainerProgramParser.ParsedProgram(
+                name: "Test Week",
+                weeks: [
+                    ProgramWeek(days: [
+                        ProgramDay(
+                            weekday: todayWeekday,
+                            title: "5RM Test Day",
+                            focus: WorkoutType.fullBody.rawValue,
+                            exercises: [
+                                ProgramExercise(
+                                    name: "Barbell Back Squat", exerciseID: nil, sets: 1, repsLow: 5, repsHigh: nil,
+                                    weightKg: nil, rpe: nil, percentOf1RM: nil, restSeconds: 180, group: nil,
+                                    notes: "Work up to a 5RM", isTest: true
+                                ),
+                            ],
+                            notes: nil,
+                            isTest: true
+                        ),
+                    ]),
+                ],
+                autoAssignedWeekdays: false
             )
         }
 

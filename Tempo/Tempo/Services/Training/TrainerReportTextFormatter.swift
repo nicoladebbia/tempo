@@ -70,6 +70,18 @@ enum TrainerReportTextFormatter {
             lines.append(section.title.uppercased())
             lines.append(contentsOf: section.lines.map { "• \($0)" })
         }
+        // trainer-feedback-tests — "Changes from trainer this week", its own
+        // clearly separated block (never mixed into the per-session loop
+        // above, which another agent also edits).
+        if let changes = document.changesSection {
+            lines.append("")
+            lines.append("——————————")
+            lines.append(changes.title.uppercased())
+            for entry in changes.entries {
+                lines.append("\(entry.dateLabel):")
+                lines.append(contentsOf: entry.summaries.map { "  • \($0)" })
+            }
+        }
 
         lines.append("")
         lines.append("——————————")

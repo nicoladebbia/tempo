@@ -223,7 +223,10 @@ enum TrainerReportBuilder {
             generatedLabel: "\(strings.generatedOnLabel) \(formatDate(Date(), language: language, includeWeekday: false))",
             summary: summary,
             summaryLines: summaryLines,
-            sessions: rows
+            sessions: rows,
+            // trainer-feedback-tests — see TrainerReportChangesSection.swift;
+            // deliberately a single wired-in line, not logic added here.
+            changesSection: TrainerReportChangesSectionBuilder.build(program: program, scopeRange: input.scopeRange, language: language)
         )
     }
 

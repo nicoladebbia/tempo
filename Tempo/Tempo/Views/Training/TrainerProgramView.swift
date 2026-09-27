@@ -41,6 +41,9 @@ struct TrainerProgramView: View {
     private var showAwayMode = false
     @State
     private var awayModeViewModel: TrainingViewModel?
+    /// trainer-feedback-tests — "Trainer sent changes" (TrainerFeedbackInputView.swift, new file).
+    @State
+    private var feedbackProgram: TrainerProgram?
 
     private var activeProgram: TrainerProgram? {
         programs.first { $0.isActive }
@@ -143,6 +146,9 @@ struct TrainerProgramView: View {
         }
         .sheet(item: $reportProgram) { program in
             TrainerReportSheet(program: program)
+        }
+        .sheet(item: $feedbackProgram) { program in
+            TrainerFeedbackInputView(program: program)
         }
         .sheet(isPresented: $showEdit) {
             if let activeProgram {
@@ -339,6 +345,35 @@ struct TrainerProgramView: View {
             .buttonStyle(.tempoSecondary)
             .padding(.top, TempoSpacing.xs)
 
+            // trainer-feedback-tests — paste/screenshot the trainer's reply,
+            // review the resulting diff, apply what's accepted.
+            Button {
+                feedbackProgram = program
+            } label: {
+                Label("Trainer Sent Changes", systemImage: "text.bubble")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.tempoSecondary)
+
+            if !program.changeLog.isEmpty {
+                NavigationLink {
+                    TrainerProgramChangeLogView(program: program)
+                } label: {
+                    HStack {
+                        Text("Changes from Trainer")
+                            .font(.tempoBody)
+                            .foregroundStyle(Color.tempoTextPrimary)
+                        Spacer()
+                        Text("\(program.changeLog.count)")
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                        Image(systemName: "chevron.right")
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                    }
+                }
+            }
+
             HStack(spacing: TempoSpacing.sm) {
                 Button {
                     showEdit = true
@@ -412,7 +447,11 @@ struct TrainerProgramView: View {
         return "\(weekLabel) · \(dayLabel) · \(cadence)"
     }
 
-    static func shortWeekdayName(_ weekday: Int) -> String {
+    /// trainer-feedback-tests — `nonisolated` so `TrainerFeedbackApplier`
+    /// (a plain, non-MainActor enum, unit-tested with no actor context at
+    /// all) can call this pure formatter without an `await`. Purely
+    /// computational — no view state involved.
+    nonisolated static func shortWeekdayName(_ weekday: Int) -> String {
         let names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
         guard (1 ... 7).contains(weekday) else {
             return "?"

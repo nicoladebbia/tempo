@@ -105,6 +105,12 @@ struct ConditioningLogSheet: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+            // trainer-feedback-tests — "TEST — work up to a max" banner.
+            if block.isTest == true {
+                Text("TEST — WORK UP TO A MAX")
+                    .font(.tempoCaption2.weight(.bold))
+                    .foregroundStyle(Color.tempoSignal)
+            }
             Text(block.name)
                 .font(.tempoTitle3)
                 .foregroundStyle(Color.tempoTextPrimary)
@@ -114,8 +120,26 @@ struct ConditioningLogSheet: View {
                     .foregroundStyle(Color.tempoTextSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            // trainer-feedback-tests — "your best 30m: 4.30″" on a LATER
+            // block of the same distance shape (ConditioningBaselineProvider).
+            if let baselineLine {
+                Text(baselineLine)
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextTertiary)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// nil when this block isn't distance-shaped, or no baseline test of
+    /// that shape has been logged yet (including for the baseline itself,
+    /// the first time it's logged — nothing to compare it to yet).
+    private var baselineLine: String? {
+        guard let program = viewModel.activeTrainerProgram(modelContext: modelContext) else {
+            return nil
+        }
+        let results = viewModel.conditioningResults(forSessionKey: programSessionKey, modelContext: modelContext)
+        return ConditioningBaselineProvider.displayLine(forDetail: block.detail, results: results, program: program)
     }
 
     // MARK: - reps × distance (shuttle-style)

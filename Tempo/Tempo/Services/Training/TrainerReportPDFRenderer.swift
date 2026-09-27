@@ -66,6 +66,11 @@ enum TrainerReportPDFRenderer {
                 }
                 cursor.y += 4
             }
+            // trainer-feedback-tests — "Changes from trainer this week", its
+            // own clearly separated block after every session.
+            if let changes = document.changesSection {
+                drawChangesSection(changes, cursor: cursor)
+            }
 
             cursor.drawRule()
             cursor.draw(document.strings.footer, font: smallFont, color: .gray)
@@ -115,6 +120,19 @@ enum TrainerReportPDFRenderer {
 
         cursor.y += 6
         cursor.drawRule()
+    }
+
+    // MARK: - Changes from trainer (trainer-feedback-tests)
+
+    private static func drawChangesSection(_ changes: TrainerReportChangesSection, cursor: Cursor) {
+        cursor.drawRule()
+        cursor.draw(changes.title, font: sectionFont, spacingAfter: 4)
+        for entry in changes.entries {
+            cursor.draw(entry.dateLabel, font: bodyFont, color: .darkGray, spacingAfter: 2)
+            for summary in entry.summaries {
+                cursor.draw("  • \(summary)", font: smallFont, spacingAfter: 2)
+            }
+        }
     }
 
     private static func statusColor(_ status: TrainerReportSessionStatus) -> UIColor {

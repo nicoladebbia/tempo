@@ -223,6 +223,11 @@ final class TrainingViewModel {
     var elapsedSeconds: TimeInterval = 0
     var totalPauseDuration: TimeInterval = 0
     var detectedPRs: [PersonalRecord] = []
+    /// trainer-feedback-tests — "New max: Squat 120 kg — your trainer's 75%
+    /// is now 90 kg." style lines, populated in `persistCompletion` for any
+    /// trainer-flagged TEST exercise. Shown on `WorkoutSummaryView` alongside
+    /// (not instead of) the ordinary PR badges above.
+    var testResultMessages: [String] = []
 
     /// The working set just completed via `logSet`. The session view observes
     /// this to know which set the inline feedback panel edits.
@@ -872,6 +877,7 @@ final class TrainingViewModel {
         currentExerciseIndex = 0
         currentSetIndex = 0
         detectedPRs = []
+        testResultMessages = []
         // STATE_MACHINES §1 — watch for phone calls only while a session runs.
         startCallMonitoring()
 
@@ -928,6 +934,7 @@ final class TrainingViewModel {
         currentExerciseIndex = 0
         currentSetIndex = 0
         detectedPRs = []
+        testResultMessages = []
         startCallMonitoring()
         if plan.type.isGymWorkout {
             warmupRoutine = WarmupRoutine.routine(for: plan.type)
@@ -1684,6 +1691,7 @@ final class TrainingViewModel {
         currentFeedback = nil
         lastCompletedSet = nil
         detectedPRs = []
+        testResultMessages = []
         // Momentary .discarded so TrainingTabView dismisses the cover, then it
         // reloads today and the state settles back to .idle (ready to restart).
         sessionState = .discarded
@@ -1782,6 +1790,8 @@ final class TrainingViewModel {
             let worstFormRaw: String?
             let feedbackSampleCount: Int
             let gassedFraction: Double?
+            /// trainer-feedback-tests
+            let isTrustedMax: Bool
         }
         let snapshots: [HistorySnapshot] = plan.orderedExercises.compactMap { plannedEx in
             guard let exercise = plannedEx.exercise else {
@@ -1818,7 +1828,11 @@ final class TrainingViewModel {
                 avgRPE: agg.avgRPE,
                 worstFormRaw: agg.worstFormRaw,
                 feedbackSampleCount: agg.count,
-                gassedFraction: agg.gassedFraction
+                gassedFraction: agg.gassedFraction,
+                // trainer-feedback-tests — a trainer-flagged TEST exercise's
+                // logged max is a TRUSTED reading (see `ExerciseHistory
+                // .isTrustedMax` / `TrainingViewModel.reliableEstimated1RM`).
+                isTrustedMax: plannedEx.isTestExercise
             )
         }
 
@@ -1854,6 +1868,10 @@ final class TrainingViewModel {
                 modelContext.delete(row)
             }
         }
+        // trainer-feedback-tests — fetched once, outside the loop below, to
+        // avoid re-running `activeTrainerProgram`'s queued-promotion check
+        // (idempotent, but pointless work) once per completed exercise.
+        let activeProgramForTestMessages = activeTrainerProgram(modelContext: modelContext)
         for snap in snapshots {
             let history = ExerciseHistory(
                 date: sessionDate,
@@ -1866,10 +1884,24 @@ final class TrainingViewModel {
                 worstFormRaw: snap.worstFormRaw,
                 feedbackSampleCount: snap.feedbackSampleCount,
                 gassedFraction: snap.gassedFraction,
+                isTrustedMax: snap.isTrustedMax,
                 workoutPlanID: planID,
                 exercise: snap.exercise
             )
             modelContext.insert(history)
+            // trainer-feedback-tests — a test just produced (or matched) a
+            // real max: tell the athlete what changed and what it means for
+            // the trainer's %-based prescriptions from now on.
+            if snap.isTrustedMax, let weight = snap.bestSetWeight, weight > 0 {
+                if let message = TrainerTestResultMessage.strengthTestMessage(
+                    exercise: snap.exercise,
+                    newMaxKg: snap.best1RM ?? weight,
+                    weightUnit: currentWeightUnit(modelContext: modelContext),
+                    program: activeProgramForTestMessages
+                ) {
+                    testResultMessages.append(message)
+                }
+            }
         }
 
         // Step 1 (measurement spine) — backfill the outcome onto the
