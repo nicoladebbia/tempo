@@ -151,6 +151,18 @@ struct GuidedRunSummaryView: View {
                 .font(.tempoCaption2)
                 .foregroundStyle(Color.tempoTextTertiary)
         }
+        if let avg = record.avgHeartRateBPM {
+            HStack(spacing: TempoSpacing.xs) {
+                Image(systemName: "heart.fill")
+                    .foregroundStyle(Color.tempoError)
+                Text("Avg \(Int(avg.rounded())) bpm")
+                if let max = record.maxHeartRateBPM {
+                    Text("· Max \(Int(max.rounded())) bpm")
+                }
+            }
+            .font(.tempoCaption2)
+            .foregroundStyle(Color.tempoTextTertiary)
+        }
     }
 
     private func repTimesGrid(_ block: GuidedRunBlock, record: GuidedRunBlockRecord) -> some View {
@@ -292,6 +304,8 @@ struct GuidedRunSummaryView: View {
                 roundsCompleted: input.roundsCompleted,
                 rpe: input.rpe,
                 notes: input.notes,
+                avgHeartRateBPM: input.avgHeartRateBPM,
+                maxHeartRateBPM: input.maxHeartRateBPM,
                 // Distinct from ConditioningLogSheet's "manual" — this was
                 // timed/tracked live by the guided-run engine, not typed
                 // after the fact (see ConditioningBlockResult.source).
@@ -314,6 +328,12 @@ struct GuidedRunSummaryView: View {
         guard totalDuration > 0 else {
             return
         }
+        // Apple Watch run mode — a simple session-wide average/max across
+        // every block that streamed HR, good enough for one summary
+        // HKWorkout row (per-block detail lives on each ConditioningBlockResult).
+        let allSamples = results.values.flatMap(\.heartRateSamplesBPM)
+        let avgHeartRate = allSamples.isEmpty ? nil : allSamples.reduce(0, +) / Double(allSamples.count)
+        let maxHeartRate = allSamples.max()
         let end = Date()
         let sample = WorkoutSample(
             startDate: end.addingTimeInterval(-totalDuration),
@@ -321,8 +341,8 @@ struct GuidedRunSummaryView: View {
             workoutType: "running",
             durationMinutes: totalDuration / 60,
             activeCalories: 0,
-            averageHeartRate: nil,
-            maxHeartRate: nil,
+            averageHeartRate: avgHeartRate,
+            maxHeartRate: maxHeartRate,
             distanceMeters: totalDistance > 0 ? totalDistance : nil
         )
         Task {

@@ -23,6 +23,8 @@ enum GuidedRunSummaryBuilder {
         let roundsCompleted: Int?
         let rpe: Double?
         let notes: String?
+        let avgHeartRateBPM: Double?
+        let maxHeartRateBPM: Double?
     }
 
     /// One input per block that has ANY recorded result (a block skipped in
@@ -49,7 +51,9 @@ enum GuidedRunSummaryBuilder {
                 distanceMeters: record.distanceMeters,
                 roundsCompleted: record.roundsCompleted > 0 ? record.roundsCompleted : nil,
                 rpe: rpe,
-                notes: notes
+                notes: notes,
+                avgHeartRateBPM: record.avgHeartRateBPM,
+                maxHeartRateBPM: record.maxHeartRateBPM
             )
         }
     }

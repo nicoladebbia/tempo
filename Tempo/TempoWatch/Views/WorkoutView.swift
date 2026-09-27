@@ -62,7 +62,12 @@ struct WorkoutView: View {
     }
 
     var body: some View {
-        if workoutState.isActive {
+        // Guided run mode takes over this tab whenever the phone has a live
+        // guided run mirrored down — a different session shape from the
+        // lifting flow below (rep/rest/countdown against a cap, not sets).
+        if connectivity.latestGuidedRun != nil {
+            GuidedRunWatchView(connectivity: connectivity)
+        } else if workoutState.isActive {
             if isResting {
                 restTimerContent
             } else {

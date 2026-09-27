@@ -59,6 +59,13 @@ final class ConditioningBlockResult {
 
     var notes: String?
 
+    /// Apple Watch run mode — average/max BPM streamed live from the wrist
+    /// while this block was active (Guided Run mode only; nil for a manual
+    /// log or when no Watch was paired/reachable). Optional + no default so
+    /// SwiftData's lightweight migration is happy for existing rows.
+    var avgHeartRateBPM: Double?
+    var maxHeartRateBPM: Double?
+
     /// Result of `ConditioningTargetEvaluator.targetMet(...)` at log time, so
     /// the card/history don't need the parser + evaluator + raw detail text
     /// on hand to render a ✓/✗. nil when the target shape can't judge it
@@ -87,6 +94,8 @@ final class ConditioningBlockResult {
         roundsCompleted: Int? = nil,
         rpe: Double? = nil,
         notes: String? = nil,
+        avgHeartRateBPM: Double? = nil,
+        maxHeartRateBPM: Double? = nil,
         targetMet: Bool? = nil,
         source: String = "manual",
         createdAt: Date = Date()
@@ -102,6 +111,8 @@ final class ConditioningBlockResult {
         self.roundsCompleted = roundsCompleted
         self.rpe = rpe
         self.notes = notes
+        self.avgHeartRateBPM = avgHeartRateBPM
+        self.maxHeartRateBPM = maxHeartRateBPM
         self.targetMet = targetMet
         self.source = source
         self.createdAt = createdAt
