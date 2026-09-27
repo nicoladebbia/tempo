@@ -460,6 +460,9 @@ extension TrainingViewModel {
             // tonnage is read (see PlannedSet.volume).
             slot.perSide = item.perSide == true
             slot.programNote = item.notes?.nilIfEmpty
+            // trainer-feedback-tests — inherits the day's test flag too (a
+            // test day's ramp/warm-up exercise counts as part of the test).
+            slot.isTestExercise = item.isTest == true || day.isTest == true
 
             // §5 — a % with no reliable e1RM (or an isolation/machine lift) is
             // read as EFFORT, not a weight guess: no fixed weight, a
@@ -597,10 +600,33 @@ extension TrainingViewModel {
     /// ONLY if it came from a working set logged within the last ~90 days.
     /// A stale e1RM (last trained months ago) isn't trustworthy enough to
     /// read a trainer's % against.
+    ///
+    /// trainer-feedback-tests — a TRUSTED max (`ExerciseHistory.isTrustedMax`,
+    /// written for a 1RM/3RM/5RM/time-trial test day) OUTRANKS an ordinary
+    /// estimate within a longer, ~180-day window: recency alone isn't a good
+    /// enough reliability signal, because an ordinary working set logged
+    /// AFTER the test (e.g. a submax AMRAP set, or a set at a lighter %) can
+    /// produce a lower Epley estimate than the real tested max without that
+    /// meaning the athlete actually got weaker — it just wasn't a max
+    /// attempt. So: find the most recent trusted row within its own window
+    /// first; a LATER row (trusted or not) only overrides it if it's
+    /// actually HIGHER (real progress, never noise). No trusted row in
+    /// window → falls back to the plain "most recent within 90 days" rule.
     nonisolated static func reliableEstimated1RM(for exercise: Exercise, asOf date: Date = Date()) -> Double? {
+        let rows = (exercise.history ?? []).filter { ($0.estimated1RM ?? 0) > 0 }
         let cutoff = Calendar.current.date(byAdding: .day, value: -90, to: date) ?? .distantPast
-        return exercise.history?
-            .filter { $0.date >= cutoff && ($0.estimated1RM ?? 0) > 0 }
+
+        let trustedCutoff = Calendar.current.date(byAdding: .day, value: -180, to: date) ?? .distantPast
+        if let trusted = rows.filter({ $0.isTrustedMax && $0.date >= trustedCutoff }).max(by: { $0.date < $1.date }) {
+            let trustedValue = trusted.estimated1RM ?? 0
+            let laterHigher = rows
+                .filter { $0.date > trusted.date && $0.date >= cutoff && ($0.estimated1RM ?? 0) > trustedValue }
+                .max { ($0.estimated1RM ?? 0) < ($1.estimated1RM ?? 0) }
+            return laterHigher?.estimated1RM ?? trusted.estimated1RM
+        }
+
+        return rows
+            .filter { $0.date >= cutoff }
             .max { $0.date < $1.date }?
             .estimated1RM
     }
