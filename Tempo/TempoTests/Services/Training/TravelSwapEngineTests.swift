@@ -80,4 +80,25 @@ final class TravelSwapEngineTests: XCTestCase {
         XCTAssertFalse(TravelSwapEngine.isUsable(.barbell, available: []))
         XCTAssertTrue(TravelSwapEngine.isUsable(.barbell, available: [.barbell]))
     }
+
+    /// The trainer's 60 kg was for the barbell bench — it must not follow the
+    /// exercise onto a hotel swap (it showed "Push-up 3 x 8 @ 7kg").
+    func testTravelSwapDropsTheTrainerLoadAndUsesEffort() {
+        let item = ProgramExercise(name: "Bench Press", sets: 3, repsLow: 8, weightKg: 60)
+        let pushUp = Exercise(
+            name: "Push-Up", muscleGroup: .chest, equipment: .bodyweight,
+            movementPattern: .horizontalPush, isCompound: true
+        )
+        let swapped = TrainingViewModel.trainerLoad(item, exercise: pushUp, travelSwapped: true)
+        XCTAssertTrue(swapped.isEffort)
+        XCTAssertNil(swapped.kg)
+
+        let bench = Exercise(
+            name: "Barbell Bench Press", muscleGroup: .chest, equipment: .barbell,
+            movementPattern: .horizontalPush, isCompound: true
+        )
+        let normal = TrainingViewModel.trainerLoad(item, exercise: bench, travelSwapped: false)
+        XCTAssertEqual(normal.kg, 60)
+        XCTAssertFalse(normal.isEffort)
+    }
 }

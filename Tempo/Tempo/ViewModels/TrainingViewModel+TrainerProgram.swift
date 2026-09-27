@@ -501,8 +501,9 @@ extension TrainingViewModel {
             // read as EFFORT, not a weight guess: no fixed weight, a
             // calibration first set, and an RIR derived from the Epley
             // reps-at-% relationship.
-            let isEffort = Self.isEffortPercent(item, exercise: exercise)
-            let trainerTargetKg = Self.programWeightKg(item, exercise: exercise)
+            let load = Self.trainerLoad(item, exercise: exercise, travelSwapped: travelSwapOriginalName != nil)
+            let isEffort = load.isEffort
+            let trainerTargetKg = load.kg
             let rpeRIR = item.rpe.map { max(0, Int((10 - $0).rounded())) }
             let effortRIR = (isEffort ? item.percentOf1RM : nil)
                 .map { Self.effortTargetRIR(percent: $0, targetReps: item.targetReps) }
@@ -598,6 +599,20 @@ extension TrainingViewModel {
     /// history) and "% written but unreadable as a weight" (§5 effort path —
     /// see `isEffortPercent`); an isolation/machine lift's % is NEVER read as
     /// e1RM × %, even with a reliable max on file.
+    /// How a trainer exercise is loaded today. A travel swap's trainer load
+    /// was written for the ORIGINAL lift (60 kg bench ≠ push-ups), so it's
+    /// dropped and the swap is prescribed by effort instead.
+    nonisolated static func trainerLoad(
+        _ item: ProgramExercise,
+        exercise: Exercise,
+        travelSwapped: Bool
+    ) -> (isEffort: Bool, kg: Double?) {
+        if travelSwapped {
+            return (true, nil)
+        }
+        return (isEffortPercent(item, exercise: exercise), programWeightKg(item, exercise: exercise))
+    }
+
     nonisolated static func programWeightKg(_ item: ProgramExercise, exercise: Exercise) -> Double? {
         if let weight = item.weightKg, weight > 0 {
             return weight
