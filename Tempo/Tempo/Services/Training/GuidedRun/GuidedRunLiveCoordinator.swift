@@ -22,6 +22,8 @@
 
 import Foundation
 
+// MARK: - GuidedRunLiveCoordinator
+
 @MainActor
 final class GuidedRunLiveCoordinator {
     /// Weak — `GuidedRunView`'s own `@State` is what keeps the session
@@ -40,12 +42,6 @@ final class GuidedRunLiveCoordinator {
     /// Tracked locally so this coordinator always knows whether it has
     /// already requested the Activity, without querying the actor.
     private var activityStarted = false
-    /// Chains every `GuidedRunActivityManager` call (start/update/end) so
-    /// they execute in the order they were queued, even though each is its
-    /// own `Task` — actor reentrancy alone doesn't guarantee that a LATER
-    /// snapshot's update can't finish before an EARLIER one's, which could
-    /// otherwise flash a stale step back onto the Live Activity.
-    private var pendingActivityTask: Task<Void, Never>?
 
     // MARK: - Lifecycle
 
@@ -56,6 +52,7 @@ final class GuidedRunLiveCoordinator {
         self.maxHeartRate = maxHeartRate
         isActive = true
         activityStarted = false
+        LiveActivityCoordinator.shared.register(self, for: .guidedRun)
         sync()
     }
 
@@ -65,7 +62,9 @@ final class GuidedRunLiveCoordinator {
         }
         isActive = false
         activityStarted = false
-        enqueueActivityWork { await GuidedRunActivityManager.shared.endCurrent() }
+        LiveActivityCoordinator.shared.end(.guidedRun) {
+            await GuidedRunActivityManager.shared.endCurrent()
+        }
         PhoneWatchConnectivityService.shared.endGuidedRun()
     }
 
@@ -148,27 +147,51 @@ final class GuidedRunLiveCoordinator {
             return
         }
         if activityStarted {
-            enqueueActivityWork { await GuidedRunActivityManager.shared.update(state: snapshot) }
+            LiveActivityCoordinator.shared.update {
+                await GuidedRunActivityManager.shared.update(state: snapshot)
+            }
         } else {
             activityStarted = true
             let title = runTitle
-            enqueueActivityWork { await GuidedRunActivityManager.shared.start(runTitle: title, state: snapshot) }
+            LiveActivityCoordinator.shared.start(.guidedRun) {
+                await GuidedRunActivityManager.shared.start(runTitle: title, state: snapshot)
+            }
         }
         PhoneWatchConnectivityService.shared.pushGuidedRun(snapshot)
     }
+}
 
-    /// Runs `work` only after every PREVIOUSLY queued activity operation has
-    /// finished. `GuidedRunActivityManager` is a plain class (not actor-
-    /// isolated — see its header for why), so independent `Task { await ... }`
-    /// calls could otherwise run concurrently or complete out of order,
-    /// corrupting `current` or flashing a stale snapshot back onto the Live
-    /// Activity after a newer one already applied. Chaining on the prior
-    /// task's `.value` makes this coordinator the single serializer.
-    private func enqueueActivityWork(_ work: @escaping @Sendable () async -> Void) {
-        let previous = pendingActivityTask
-        pendingActivityTask = Task {
-            _ = await previous?.value
-            await work()
+// MARK: LiveActivityParticipant
+
+extension GuidedRunLiveCoordinator: LiveActivityParticipant {
+    /// Guided run outranks the other two kinds, but it can still get
+    /// suspended in the (currently theoretical, since the app has no UI path
+    /// to start a workout mid-run) case another `LiveActivityCoordinator`
+    /// caller registers something above it — kept honest so priority is
+    /// enforced uniformly rather than guided run being a hardcoded special
+    /// case.
+    var hasActiveLiveSession: Bool {
+        isActive
+    }
+
+    func suspendLiveActivity() async {
+        await GuidedRunActivityManager.shared.endCurrent()
+        activityStarted = false
+    }
+
+    func resumeLiveActivityIfNeeded() async {
+        guard isActive, let session, let locationTracker,
+              let snapshot = GuidedRunActivityContentBuilder.build(
+                  session: session,
+                  locationTracker: locationTracker,
+                  useMiles: useMiles,
+                  heartRateBPM: session.currentHeartRateBPM,
+                  maxHeartRate: maxHeartRate
+              )
+        else {
+            return
         }
+        activityStarted = true
+        await GuidedRunActivityManager.shared.start(runTitle: runTitle, state: snapshot)
     }
 }
