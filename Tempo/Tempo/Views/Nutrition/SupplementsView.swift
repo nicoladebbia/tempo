@@ -14,9 +14,13 @@
 import SwiftData
 import SwiftUI
 
+// MARK: - SupplementsView
+
 struct SupplementsView: View {
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(ServiceContainer.self)
+    private var services
 
     /// Live shelf — non-archived only, sorted by name.
     @Query(
@@ -26,6 +30,8 @@ struct SupplementsView: View {
     private var supplements: [Supplement]
 
     @State private var showAddSheet = false
+    @State private var showQuickAdd = false
+    @State private var showBarcodeScan = false
     @State private var editing: Supplement?
 
     var body: some View {
@@ -35,6 +41,8 @@ struct SupplementsView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: TempoSpacing.lg) {
                     headerCard
+                    // Integration: SupplementReorderBanner (Lane 1) goes here,
+                    // above the shelf list, when any item is running low.
                     if supplements.isEmpty {
                         emptyState
                     } else {
@@ -49,17 +57,45 @@ struct SupplementsView: View {
         .navigationTitle("Supplements")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showAddSheet) {
-            SupplementEditSheet(existing: nil) { draft in
+            SupplementEditSheet(existing: nil, prefillUPC: nil) { draft in
                 modelContext.insert(draft)
                 try? modelContext.save()
+                notifyShelfChanged()
             }
         }
         .sheet(item: $editing) { supp in
-            SupplementEditSheet(existing: supp) { _ in
+            SupplementEditSheet(existing: supp, prefillUPC: nil) { _ in
                 try? modelContext.save()
+                notifyShelfChanged()
             }
         }
+        .sheet(isPresented: $showQuickAdd) {
+            SupplementQuickAddSheet(existingNames: supplements.map(\.name)) { drafts in
+                for draft in drafts {
+                    modelContext.insert(draft)
+                }
+                try? modelContext.save()
+                notifyShelfChanged()
+            }
+        }
+        .fullScreenCover(isPresented: $showBarcodeScan) {
+            SupplementBarcodeScanView(shelf: supplements) {
+                try? modelContext.save()
+                notifyShelfChanged()
+            }
+            .environment(services)
+        }
     }
+
+    /// Fires after every shelf mutation (add / edit / archive / restock) so
+    /// anything that caches the shelf elsewhere — reminders, the meal-plan
+    /// AI's supplement block — can react.
+    ///
+    /// TODO(integration): `NotificationCenter.default.post(name: .tempoSupplementsChanged, object: nil)`.
+    /// `.tempoSupplementsChanged` is defined in Lane 1's
+    /// `SupplementReminderScheduler.swift`, which isn't on this branch yet —
+    /// wire the real post in once that lane merges.
+    private func notifyShelfChanged() {}
 
     // MARK: - Header
 
@@ -74,9 +110,7 @@ struct SupplementsView: View {
                     .foregroundStyle(Color.tempoTextPrimary)
             }
             Spacer()
-            Button {
-                showAddSheet = true
-            } label: {
+            addMenu {
                 Label("Add", systemImage: "plus")
             }
             .buttonStyle(.tempoPrimary)
@@ -84,6 +118,30 @@ struct SupplementsView: View {
         .padding(TempoSpacing.cardPadding)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+    }
+
+    /// Toolbar "+" → a menu with all three add paths, per DESIGN_SYSTEM.md
+    /// menu conventions. Shared by the header button and the empty state.
+    private func addMenu(@ViewBuilder label: () -> some View) -> some View {
+        Menu {
+            Button {
+                showQuickAdd = true
+            } label: {
+                Label("Quick add", systemImage: "square.grid.2x2")
+            }
+            Button {
+                showBarcodeScan = true
+            } label: {
+                Label("Scan barcode", systemImage: "barcode.viewfinder")
+            }
+            Button {
+                showAddSheet = true
+            } label: {
+                Label("Add manually", systemImage: "square.and.pencil")
+            }
+        } label: {
+            label()
+        }
     }
 
     // MARK: - Empty state
@@ -96,10 +154,33 @@ struct SupplementsView: View {
             Text("No supplements yet")
                 .font(.tempoHeadline)
                 .foregroundStyle(Color.tempoTextPrimary)
-            Text("Add what you own — whey, creatine, omega-3. Your plan will decide each day whether to take or skip them, and count protein powder toward your macros.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
+            Text(
+                "Add what you own — whey, creatine, omega-3. Your plan will decide each day whether to take or skip them, and count protein powder toward your macros."
+            )
+            .font(.tempoCaption1)
+            .foregroundStyle(Color.tempoTextSecondary)
+            .multilineTextAlignment(.center)
+            VStack(spacing: TempoSpacing.buttonStackVertical) {
+                Button {
+                    showQuickAdd = true
+                } label: {
+                    Label("Quick add", systemImage: "square.grid.2x2")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.tempoPrimary)
+                Button {
+                    showBarcodeScan = true
+                } label: {
+                    Label("Scan barcode", systemImage: "barcode.viewfinder")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.tempoSecondary)
+                Button("Add manually") {
+                    showAddSheet = true
+                }
+                .buttonStyle(.tempoGhost)
+            }
+            .padding(.top, TempoSpacing.md)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, TempoSpacing.xxxl)
@@ -129,7 +210,7 @@ struct SupplementsView: View {
                     .frame(width: 24)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
-                        Text(supp.name)
+                        Text(titleText(for: supp))
                             .font(.tempoBody)
                             .foregroundStyle(Color.tempoTextPrimary)
                         if supp.takeDaily {
@@ -148,6 +229,7 @@ struct SupplementsView: View {
                     supp.isArchived = true
                     supp.updatedAt = Date()
                     try? modelContext.save()
+                    notifyShelfChanged()
                 } label: {
                     Image(systemName: "trash")
                 }
@@ -183,13 +265,26 @@ struct SupplementsView: View {
         }
         return parts.joined(separator: " · ")
     }
+
+    /// "Thorne · Creatine" when a brand is on file, else just the name.
+    private func titleText(for supp: Supplement) -> String {
+        guard let brand = supp.brand, !brand.isEmpty else {
+            return supp.name
+        }
+        return "\(brand) · \(supp.name)"
+    }
 }
 
-// MARK: - Edit / Add sheet
+// MARK: - SupplementEditSheet
 
-private struct SupplementEditSheet: View {
+/// Internal (not `private`) — also presented from SupplementBarcodeScanView's
+/// "add manually" fallback (404 / offline / camera unavailable).
+struct SupplementEditSheet: View {
     /// Non-nil when editing an existing shelf item; nil when adding a new one.
     let existing: Supplement?
+    /// Prefills `upc` on a fresh add — set when this sheet is the fallback
+    /// after a barcode scan the lookup couldn't resolve.
+    let prefillUPC: String?
     /// Called with the supplement to persist (a fresh insert when adding, or
     /// the mutated existing item when editing).
     let onSave: (Supplement) -> Void
@@ -199,16 +294,20 @@ private struct SupplementEditSheet: View {
 
     @State private var name: String
     @State private var kind: SupplementKind
+    @State private var brand: String
     @State private var dose: String
     @State private var proteinPerServingText: String
     @State private var servingsText: String
+    @State private var servingsPerContainerText: String
     @State private var notes: String
 
-    init(existing: Supplement?, onSave: @escaping (Supplement) -> Void) {
+    init(existing: Supplement?, prefillUPC: String?, onSave: @escaping (Supplement) -> Void) {
         self.existing = existing
+        self.prefillUPC = prefillUPC
         self.onSave = onSave
         _name = State(initialValue: existing?.name ?? "")
         _kind = State(initialValue: existing?.kind ?? .protein)
+        _brand = State(initialValue: existing?.brand ?? "")
         _dose = State(initialValue: existing?.dosePerServing ?? "")
         _proteinPerServingText = State(
             initialValue: (existing?.proteinGramsPerServing ?? 0) > 0
@@ -217,6 +316,10 @@ private struct SupplementEditSheet: View {
         _servingsText = State(
             initialValue: (existing?.servingsRemaining ?? 0) > 0
                 ? String(Int(existing?.servingsRemaining ?? 0)) : ""
+        )
+        _servingsPerContainerText = State(
+            initialValue: (existing?.servingsPerContainer ?? 0) > 0
+                ? String(Int(existing?.servingsPerContainer ?? 0)) : ""
         )
         _notes = State(initialValue: existing?.userNotes ?? "")
     }
@@ -230,6 +333,7 @@ private struct SupplementEditSheet: View {
             Form {
                 Section("Supplement") {
                     TextField("Name (e.g. Whey Isolate)", text: $name)
+                    TextField("Brand (optional)", text: $brand)
                     Picker("Type", selection: $kind) {
                         ForEach(SupplementKind.allCases, id: \.rawValue) { k in
                             Text(k.displayName).tag(k)
@@ -244,11 +348,19 @@ private struct SupplementEditSheet: View {
                     }
                     TextField("Servings left (optional)", text: $servingsText)
                         .keyboardType(.numberPad)
+                    TextField("Servings per container (optional)", text: $servingsPerContainerText)
+                        .keyboardType(.numberPad)
                 } header: {
                     Text("Details (optional)")
                 } footer: {
-                    Text("Your plan decides each day whether to take this and when — you don't have to schedule it. These facts just help it (protein per scoop counts toward your macros; servings left flags when you're low).")
+                    Text(
+                        "Your plan decides each day whether to take this and when — you don't have to schedule it. These facts just help it (protein per scoop counts toward your macros; servings per container is what a restock resets servings-left to)."
+                    )
                 }
+                // Integration: Lane 1's SupplementTimingSection(supplement:)
+                // — the "when to take it" editor (anchor/pinned time/reminders)
+                // — mounts here as its own Section, only when `existing` is
+                // set (a not-yet-saved draft has nothing to anchor timing to).
                 Section("Notes (optional)") {
                     TextField("e.g. I get bloated with two scoops", text: $notes, axis: .vertical)
                 }
@@ -270,16 +382,20 @@ private struct SupplementEditSheet: View {
 
     private func save() {
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
+        let trimmedBrand = brand.trimmingCharacters(in: .whitespaces)
         let protein = Double(proteinPerServingText) ?? 0
         let servings = Double(servingsText) ?? 0
+        let servingsPerContainer = Double(servingsPerContainerText)
         let trimmedNotes = notes.trimmingCharacters(in: .whitespaces)
 
         if let existing {
             existing.name = trimmedName
             existing.kind = kind
+            existing.brand = trimmedBrand.isEmpty ? nil : trimmedBrand
             existing.dosePerServing = dose
             existing.proteinGramsPerServing = max(0, protein)
             existing.servingsRemaining = max(0, servings)
+            existing.servingsPerContainer = servingsPerContainer.map { max(0, $0) }
             // takeDaily is no longer a user choice — the AI infers daily-vs-
             // conditional from the kind. Keep it aligned to the (possibly
             // changed) kind's default so the prompt's "daily by default" hint
@@ -297,6 +413,9 @@ private struct SupplementEditSheet: View {
                 servingsRemaining: max(0, servings),
                 userNotes: trimmedNotes.isEmpty ? nil : trimmedNotes
             )
+            new.brand = trimmedBrand.isEmpty ? nil : trimmedBrand
+            new.servingsPerContainer = servingsPerContainer.map { max(0, $0) }
+            new.upc = prefillUPC
             onSave(new)
         }
         HapticManager.notification(.success)
