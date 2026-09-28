@@ -4,7 +4,11 @@ import Vapor
 
 // Per VAPOR_PROJECT_STRUCTURE.md Section 4 — routes.swift
 
-func routes(_ app: Application, instacartClient: InstacartClient = InstacartAPIClient()) throws {
+func routes(
+    _ app: Application,
+    instacartClient: InstacartClient = InstacartAPIClient(),
+    supplementLookupClient: SupplementLookupClient = SupplementLookupAPIClient()
+) throws {
     // Health check — no auth, no versioning
     // Per BUILD_PLAN 6.1: GET /health returns {"status":"ok"}
     app.get("health") { _ in
@@ -178,6 +182,15 @@ func routes(_ app: Application, instacartClient: InstacartClient = InstacartAPIC
     try protected.grouped("grocery")
         .grouped(RateLimitMiddleware(limit: 20, window: .minutes(1), scope: .user))
         .register(collection: InstacartController(instacartClient: instacartClient))
+
+    // ─────────────────────────────────────────────────
+    // Supplement catalog — feat/supplements-picks
+    // GET /v1/supplements/lookup/:upc (DSLD → Open Food Facts)
+    // GET /v1/supplements/picks/:kind (curated catalog → Claude Haiku fallback)
+    // ─────────────────────────────────────────────────
+    try protected.grouped("supplements")
+        .grouped(RateLimitMiddleware(limit: 30, window: .minutes(1), scope: .user))
+        .register(collection: SupplementController(lookupClient: supplementLookupClient))
 
     // ─────────────────────────────────────────────────
     // Webhooks (no JWT — verified via HMAC)
