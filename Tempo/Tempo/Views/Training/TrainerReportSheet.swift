@@ -39,6 +39,12 @@ struct TrainerReportSheet: View {
     private var modelContext
     @Environment(\.dismiss)
     private var dismiss
+    /// Whoop-football feature — best-effort async fallback (see
+    /// `enrichFootballWithWhoopIfNeeded`) when a football match/day has no
+    /// already-persisted `ActivitySession`. Same container every other
+    /// Training screen reads (`TrainerProgramView`, `TodayWorkoutView`).
+    @Environment(ServiceContainer.self)
+    private var services
 
     @State
     private var scope: TrainerReportScope = .week
@@ -50,6 +56,11 @@ struct TrainerReportSheet: View {
     private var pdfShareURL: URL?
     @State
     private var pdfErrorMessage: String?
+    /// Whoop-football feature — tracks the in-flight enrichment fetch so a
+    /// scope/language change (new `rebuild()`) cancels the stale one instead
+    /// of racing it into `document`.
+    @State
+    private var footballEnrichmentTask: Task<Void, Never>?
 
     init(program: TrainerProgram, onShared: (() -> Void)? = nil, embedded: Bool = false) {
         self.program = program
@@ -230,7 +241,106 @@ struct TrainerReportSheet: View {
 
     private func rebuild() {
         pdfShareURL = nil
+        // A previous enrichment fetch (for the old scope/language) must never
+        // land on the document we're about to build fresh.
+        footballEnrichmentTask?.cancel()
         document = Self.buildDocument(program: program, scope: scope, language: language, modelContext: modelContext)
+        footballEnrichmentTask = Task { @MainActor in
+            await enrichFootballWithWhoopIfNeeded()
+        }
+    }
+
+    /// Whoop-football feature — best-effort network fallback for football
+    /// match days with no persisted `ActivitySession` (§ "Only if nothing is
+    /// persisted, fetch Whoop workouts ... async, with the report still
+    /// rendering immediately"). `buildDocument` above already rendered the
+    /// document synchronously from persisted data alone; this only ever
+    /// ADDS numbers to it later, never blocks the initial render, and is a
+    /// no-op (leaves the document exactly as-is) when Whoop is disconnected,
+    /// in demo mode, slow, or errors out.
+    @MainActor
+    private func enrichFootballWithWhoopIfNeeded() async {
+        guard services.whoop.providesRealData else {
+            return
+        }
+        let scopeRange = TrainerReportBuilder.scheduleRange(for: scope, program: program)
+        let searchRange = TrainerReportBuilder.searchRange(around: scopeRange)
+        let matchesInScope = Self.fetchMatches(in: searchRange, modelContext: modelContext)
+            .filter { scopeRange.contains(Calendar.current.startOfDay(for: $0.kickoff)) }
+        guard !matchesInScope.isEmpty else {
+            return
+        }
+
+        let persisted = Self.fetchFootballActivitySessions(in: searchRange, modelContext: modelContext)
+        let cal = Calendar.current
+        let needsLookup = matchesInScope.filter {
+            TrainerReportSupplementalSections.footballStats(matching: $0.kickoff, in: persisted, calendar: cal) == nil
+        }
+        guard !needsLookup.isEmpty else {
+            return
+        }
+
+        var fetched: [ActivitySession] = []
+        for match in needsLookup {
+            if Task.isCancelled {
+                return
+            }
+            guard let workout = await Self.fetchSoccerWorkout(on: match.kickoff, whoop: services.whoop) else {
+                continue
+            }
+            fetched.append(ActivitySession(
+                date: match.kickoff,
+                startTime: workout.startTime,
+                workoutType: WorkoutType.football.rawValue,
+                sportID: workout.sportID,
+                source: "whoop",
+                strain: workout.strain,
+                averageHeartRate: workout.averageHeartRate,
+                maxHeartRate: workout.maxHeartRate,
+                caloriesBurned: workout.caloriesBurned,
+                durationMinutes: workout.durationMinutes
+            ))
+        }
+        guard !fetched.isEmpty, !Task.isCancelled else {
+            return
+        }
+        // Rebuilds from scratch (cheap — local fetches + pure computation)
+        // rather than patching `document` in place, so the missed-row
+        // relabeling / summary recompute in
+        // `TrainerReportSupplementalSections.apply` never runs twice over
+        // its own output.
+        document = Self.buildDocument(
+            program: program, scope: scope, language: language, modelContext: modelContext,
+            extraFootballActivities: fetched
+        )
+    }
+
+    /// Races a single-day Whoop workouts fetch against a short timeout so a
+    /// slow or hanging network call can never block the report. Returns the
+    /// longest soccer-tagged workout on `date`, or nil on timeout, error, or
+    /// no soccer activity that day.
+    private static func fetchSoccerWorkout(
+        on date: Date,
+        whoop: any WhoopServiceProtocol,
+        timeout: Duration = .seconds(4)
+    ) async -> WhoopWorkoutData? {
+        await withTaskGroup(of: WhoopWorkoutData?.self) { group in
+            group.addTask {
+                let workouts = await (try? whoop.fetchWorkouts(for: date)) ?? []
+                return workouts.filter { $0.sportID == 1 }.max { $0.durationMinutes < $1.durationMinutes }
+            }
+            group.addTask {
+                try? await Task.sleep(for: timeout)
+                return nil
+            }
+            // `next()` is `WhoopWorkoutData??` — outer optional is "no more
+            // child tasks" (never true here, both always return), inner is
+            // the winning task's own result. Flatten rather than `?? nil`
+            // (redundant-nil-coalescing false positive on the flattening idiom).
+            let result = await (group.next()).flatMap(\.self)
+            group.cancelAll()
+            return result
+        }
     }
 
     /// Fetches everything `TrainerReportBuilder.build` needs for `program`
@@ -238,12 +348,20 @@ struct TrainerReportSheet: View {
     /// of `rebuild()` so the Sunday wrap-up feature (`SundayWrapUpSheet`,
     /// which needs the exact same document for its recap step) can call it
     /// without re-fetching or duplicating any of this.
+    ///
+    /// `extraFootballActivities` — Whoop-football feature — additional
+    /// (not-yet-persisted) football `ActivitySession` facts to merge in on
+    /// top of whatever's already saved, used by the async network-fallback
+    /// enrichment above. Empty by default: every existing call site
+    /// (including `SundayWrapUpSheet`) is unaffected and stays
+    /// persisted-data-only.
     @MainActor
     static func buildDocument(
         program: TrainerProgram,
         scope: TrainerReportScope,
         language: TrainerReportLanguage,
-        modelContext: ModelContext
+        modelContext: ModelContext,
+        extraFootballActivities: [ActivitySession] = []
     ) -> TrainerReportDocument {
         let scopeRange = TrainerReportBuilder.scheduleRange(for: scope, program: program)
         let searchRange = TrainerReportBuilder.searchRange(around: scopeRange)
@@ -280,6 +398,10 @@ struct TrainerReportSheet: View {
             matches: fetchMatches(in: searchRange, modelContext: modelContext),
             plans: plans,
             painReports: fetchPainReports(in: searchRange, modelContext: modelContext),
+            // Whoop-football feature — persisted first, network fallback
+            // (`extraFootballActivities`) merged on top when the async
+            // enrichment above found something persisted data didn't have.
+            footballActivities: fetchFootballActivitySessions(in: searchRange, modelContext: modelContext) + extraFootballActivities,
             scopeRange: scopeRange
         )
         return TrainerReportSupplementalSections.apply(to: built, input: supplementalInput, language: language)
@@ -300,6 +422,27 @@ struct TrainerReportSheet: View {
         let lower = range.lowerBound
         let upper = Calendar.current.date(byAdding: .day, value: 1, to: range.upperBound) ?? range.upperBound
         let descriptor = FetchDescriptor<PainReport>(predicate: #Predicate<PainReport> { $0.date >= lower && $0.date < upper })
+        return (try? modelContext.fetch(descriptor)) ?? []
+    }
+
+    /// Whoop-football feature — already-persisted football activity: saved
+    /// either by `persistNonGymCompletion` when the athlete confirmed "that
+    /// was football" (workoutType == "football") or tagged by Whoop as
+    /// soccer (sportID == 1) even if logged under a different plan type.
+    /// Preferred over any live Whoop call — see `Input.footballActivities`.
+    private static func fetchFootballActivitySessions(
+        in range: ClosedRange<Date>,
+        modelContext: ModelContext
+    ) -> [ActivitySession] {
+        let lower = range.lowerBound
+        let upper = Calendar.current.date(byAdding: .day, value: 1, to: range.upperBound) ?? range.upperBound
+        let footballType = WorkoutType.football.rawValue
+        let soccerSportID = 1
+        let descriptor = FetchDescriptor<ActivitySession>(
+            predicate: #Predicate<ActivitySession> {
+                $0.date >= lower && $0.date < upper && ($0.workoutType == footballType || $0.sportID == soccerSportID)
+            }
+        )
         return (try? modelContext.fetch(descriptor)) ?? []
     }
 
