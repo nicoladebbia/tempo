@@ -182,6 +182,22 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
                     UNNotificationAction(identifier: "VIEW_TASKS", title: "View Tasks", options: .foreground),
                 ]
             ),
+            // Supplement dose reminder (Lane 1 — timing engine)
+            makeCategory(
+                id: "SUPPLEMENT_REMINDER",
+                actions: [
+                    UNNotificationAction(identifier: "SUPPLEMENT_TAKEN", title: "Taken"),
+                    UNNotificationAction(identifier: "SUPPLEMENT_SNOOZE_15", title: "Snooze 15 min"),
+                ]
+            ),
+            // Supplement running-low alert
+            makeCategory(
+                id: "SUPPLEMENT_REORDER",
+                actions: [
+                    UNNotificationAction(identifier: "SUPPLEMENT_ADD_TO_LIST", title: "Add to grocery list", options: .foreground),
+                    UNNotificationAction(identifier: "SUPPLEMENT_RESTOCKED", title: "Restocked"),
+                ]
+            ),
         ]
 
         center.setNotificationCategories(categories)
@@ -470,6 +486,83 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
             }
             self?.center.removePendingNotificationRequests(withIdentifiers: idsToCancel)
             self?.logger.info("Cancelled \(idsToCancel.count) trainer session reminders")
+        }
+    }
+
+    // MARK: - Supplement Timing (Lane 1)
+
+    /// Identifier prefix every supplement reminder shares, so
+    /// `cancelSupplementReminders()` can find them all by prefix — same
+    /// pattern as `cancelTrainerSessionReminders()`. Derived from `fireDate`
+    /// (day + minute), which is unique per group since
+    /// `SupplementScheduleEngine.group` groups by clock minute.
+    private static let supplementReminderPrefix = "supplement_reminder_"
+
+    func scheduleSupplementReminder(title: String, body: String, fireDate: Date, supplementNames: [String]) {
+        guard fireDate > Date(), !supplementNames.isEmpty else {
+            return
+        }
+        let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
+        let id = "\(Self.supplementReminderPrefix)\(dateKey(fireDate))_\(components.hour ?? 0)-\(components.minute ?? 0)"
+
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.categoryIdentifier = "SUPPLEMENT_REMINDER"
+        content.threadIdentifier = "tempo.supplements.\(dateKey(fireDate))"
+        content.interruptionLevel = .active
+        content.sound = sound(for: "SUPPLEMENT_REMINDER")
+        content.userInfo = ["supplementNames": supplementNames]
+
+        let trigger = UNCalendarNotificationTrigger(
+            dateMatching: Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: fireDate),
+            repeats: false
+        )
+        let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
+        center.add(request) { [weak self] error in
+            if let error {
+                self?.logger.error("Failed to schedule supplement reminder: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    func cancelSupplementReminders() {
+        center.getPendingNotificationRequests { [weak self] requests in
+            let idsToCancel = requests
+                .map(\.identifier)
+                .filter { $0.hasPrefix(Self.supplementReminderPrefix) }
+            guard !idsToCancel.isEmpty else {
+                return
+            }
+            self?.center.removePendingNotificationRequests(withIdentifiers: idsToCancel)
+            self?.logger.info("Cancelled \(idsToCancel.count) supplement reminders")
+        }
+    }
+
+    // MARK: - Supplement Reorder Alert
+
+    func scheduleSupplementReorderAlert(supplementName: String, title: String, body: String) {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.categoryIdentifier = "SUPPLEMENT_REORDER"
+        content.threadIdentifier = "tempo.supplement_reorder.\(supplementName)"
+        content.interruptionLevel = .active
+        content.sound = sound(for: "SUPPLEMENT_REORDER")
+        content.userInfo = ["supplementName": supplementName]
+
+        // Fires almost immediately — this is a discrete "it just crossed the
+        // threshold" event, not something scheduled for a future clock time.
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 2, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: "supplement_reorder_\(supplementName)_\(dateKey(Date()))",
+            content: content,
+            trigger: trigger
+        )
+        center.add(request) { [weak self] error in
+            if let error {
+                self?.logger.error("Failed to schedule supplement reorder alert: \(error.localizedDescription)")
+            }
         }
     }
 
