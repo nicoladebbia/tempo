@@ -13,7 +13,11 @@ import VaporAPNS
 
 // Per VAPOR_PROJECT_STRUCTURE.md Section 4 — configure.swift
 
-func configure(_ app: Application, instacartClient: InstacartClient = InstacartAPIClient()) async throws {
+func configure(
+    _ app: Application,
+    instacartClient: InstacartClient = InstacartAPIClient(),
+    supplementLookupClient: SupplementLookupClient = SupplementLookupAPIClient()
+) async throws {
     // ─────────────────────────────────────────────────
     // 1. Content configuration
     // ─────────────────────────────────────────────────
@@ -257,5 +261,5 @@ func configure(_ app: Application, instacartClient: InstacartClient = InstacartA
     // ─────────────────────────────────────────────────
     // 9. Routes
     // ─────────────────────────────────────────────────
-    try routes(app, instacartClient: instacartClient)
+    try routes(app, instacartClient: instacartClient, supplementLookupClient: supplementLookupClient)
 }
