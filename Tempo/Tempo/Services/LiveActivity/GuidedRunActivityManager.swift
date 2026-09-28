@@ -15,11 +15,13 @@
 // the brand-new activity this method just assigned to `current`). Actual
 // serialization of every call into this manager — so two calls never touch
 // `current` concurrently, and updates apply in the order they were queued
-// rather than completion order — is the caller's job:
-// `GuidedRunLiveCoordinator.enqueueActivityWork` chains every start/update/end
-// onto one another. (A plain class, not an `actor`, because `Activity<T>`'s
-// own `update`/`end` are not `Sendable`-friendly across an actor boundary —
-// matches the existing siblings' shape.)
+// rather than completion order — is the caller's job: every
+// `GuidedRunLiveCoordinator` call into this manager is chained through
+// `LiveActivityCoordinator.shared`, the single serializer (and priority
+// arbiter against the gym-workout and focus-timer activities) shared by all
+// three Live Activity kinds. (A plain class, not an `actor`, because
+// `Activity<T>`'s own `update`/`end` are not `Sendable`-friendly across an
+// actor boundary — matches the existing siblings' shape.)
 //
 
 import ActivityKit

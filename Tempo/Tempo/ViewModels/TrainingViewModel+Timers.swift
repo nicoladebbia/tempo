@@ -387,8 +387,13 @@ extension TrainingViewModel {
         stopElapsedTimer()
         stopCallMonitoring()
         // Belt-and-braces: terminal states already end it via the sessionState
-        // sync, but a reset must never leave a zombie activity on the lock screen.
-        WorkoutActivityManager.shared.endCurrentDetached()
+        // sync, but a reset must never leave a zombie activity on the lock
+        // screen — routed through the coordinator (not endCurrentDetached)
+        // so its bookkeeping (`activeKind`/`suspendedKinds`) doesn't drift
+        // out of sync with what's actually on screen.
+        LiveActivityCoordinator.shared.end(.gymWorkout) {
+            await WorkoutActivityManager.shared.endCurrent()
+        }
     }
 
     func restDuration(for exercise: PlannedExercise) -> TimeInterval {

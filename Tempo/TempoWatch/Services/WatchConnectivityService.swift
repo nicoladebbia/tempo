@@ -43,6 +43,11 @@ final class WatchConnectivityService: NSObject, @unchecked Sendable {
     /// signal (an absent context key can't distinguish "unchanged" from
     /// "cleared" — see `GuidedRunActivitySnapshot.endedKey`).
     var latestGuidedRun: GuidedRunActivitySnapshot?
+    /// Focus timer mode — the phone's live session, mirrored on the wrist
+    /// (Watch audit, 2026-09). nil until a session starts, or once the phone
+    /// sends the explicit "ended" signal, same convention as
+    /// `latestGuidedRun`/`GuidedRunActivitySnapshot.endedKey`.
+    var latestFocusTimer: WatchFocusTimerPayload?
     var isReachable: Bool = false
 
     private static let snapshotDefaultsKey = "tempo.watch.lastSnapshot"
@@ -156,18 +161,21 @@ extension WatchConnectivityService: WCSessionDelegate {
         ingestSnapshot(from: context)
         ingestWorkout(from: context)
         ingestGuidedRun(from: context)
+        ingestFocusTimer(from: context)
     }
 
     func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
         ingestSnapshot(from: message)
         ingestWorkout(from: message)
         ingestGuidedRun(from: message)
+        ingestFocusTimer(from: message)
     }
 
     func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
         ingestSnapshot(from: applicationContext)
         ingestWorkout(from: applicationContext)
         ingestGuidedRun(from: applicationContext)
+        ingestFocusTimer(from: applicationContext)
     }
 
     /// §21 — pull the workout payload out of any incoming dictionary. Keyed
@@ -206,6 +214,29 @@ extension WatchConnectivityService: WCSessionDelegate {
                 return
             }
             self.latestGuidedRun = snapshot
+        }
+    }
+
+    /// Focus timer mode — pull the live session (or the explicit "ended"
+    /// flag) out of any incoming dictionary, same convention as
+    /// `ingestGuidedRun`.
+    private func ingestFocusTimer(from dict: [String: Any]) {
+        if (dict[WatchFocusTimerPayload.endedKey] as? Bool) == true {
+            DispatchQueue.main.async {
+                self.latestFocusTimer = nil
+            }
+            return
+        }
+        guard let raw = dict[WatchFocusTimerPayload.contextKey] as? [String: Any],
+              let payload = WatchFocusTimerPayload.from(dictionary: raw)
+        else {
+            return
+        }
+        DispatchQueue.main.async {
+            if let current = self.latestFocusTimer, current.updatedAt > payload.updatedAt {
+                return
+            }
+            self.latestFocusTimer = payload
         }
     }
 

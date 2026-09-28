@@ -297,6 +297,9 @@ targets:
       # Shared with the Tempo app target — the workout payload the phone
       # pushes and the watch consumes (§21 sync).
       - path: Tempo/Services/Integrations/WatchWorkoutPayload.swift
+      # Shared with the Tempo app target — the focus timer session state the
+      # phone pushes and the watch mirrors (Watch audit, 2026-09).
+      - path: Tempo/Services/Integrations/WatchFocusTimerPayload.swift
       # Guided run mode — the live snapshot mirrored from the phone (same
       # file shared with TempoWidget above, as the Live Activity ContentState).
       - path: Tempo/Services/LiveActivity/GuidedRunActivitySnapshot.swift

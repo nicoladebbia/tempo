@@ -162,6 +162,43 @@ extension PhoneWatchConnectivityService {
         }
     }
 
+    /// Focus timer mode — push the current session snapshot to the watch
+    /// mirror (Watch audit, 2026-09: without this, a session started on the
+    /// phone was invisible to the Watch app's Focus Timer tab). Same
+    /// dual-channel convention as `pushGuidedRun`.
+    func pushFocusTimer(_ payload: WatchFocusTimerPayload) {
+        guard WCSession.isSupported(),
+              WCSession.default.activationState == .activated,
+              WCSession.default.isPaired,
+              WCSession.default.isWatchAppInstalled
+        else {
+            return
+        }
+        var context = WCSession.default.applicationContext
+        context[WatchFocusTimerPayload.contextKey] = payload.toDictionary()
+        try? WCSession.default.updateApplicationContext(context)
+        if WCSession.default.isReachable {
+            WCSession.default.sendMessage([WatchFocusTimerPayload.contextKey: payload.toDictionary()], replyHandler: nil)
+        }
+    }
+
+    /// Clears the watch mirror when a focus session ends (cancelled or
+    /// finished) — same explicit-flag convention as `endGuidedRun`, so a
+    /// watch that's briefly unreachable still learns it ended instead of
+    /// ticking a phantom countdown forever.
+    func endFocusTimer() {
+        guard WCSession.isSupported(), WCSession.default.activationState == .activated else {
+            return
+        }
+        var context = WCSession.default.applicationContext
+        context.removeValue(forKey: WatchFocusTimerPayload.contextKey)
+        context[WatchFocusTimerPayload.endedKey] = true
+        try? WCSession.default.updateApplicationContext(context)
+        if WCSession.default.isReachable {
+            WCSession.default.sendMessage([WatchFocusTimerPayload.endedKey: true], replyHandler: nil)
+        }
+    }
+
     /// Route every decoded watch quick action to the app-level router
     /// (`ServiceContainer.watchActionRouter`, registered once at launch —
     /// §22). Actions arriving before it exists (queued userInfo delivered

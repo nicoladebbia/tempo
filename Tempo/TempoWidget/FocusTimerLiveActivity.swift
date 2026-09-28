@@ -30,10 +30,18 @@ struct FocusTimerLiveActivity: Widget {
                     }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text(timerInterval: SafeTimerRange.countdown(to: context.state.phaseEndsAt), countsDown: true)
-                        .monospacedDigit()
-                        .font(.title3.bold())
-                        .frame(maxWidth: .infinity, alignment: .trailing)
+                    if context.state.isPaused {
+                        Text("PAUSED")
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    } else {
+                        Text(timerInterval: SafeTimerRange.countdown(to: context.state.phaseEndsAt), countsDown: true)
+                            .monospacedDigit()
+                            .font(.title3.bold())
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
                 }
                 DynamicIslandExpandedRegion(.center) {
                     if let subject = context.state.subject {
@@ -58,9 +66,14 @@ struct FocusTimerLiveActivity: Widget {
                 Image(systemName: "book.fill")
                     .foregroundStyle(.blue)
             } compactTrailing: {
-                Text(timerInterval: SafeTimerRange.countdown(to: context.state.phaseEndsAt), countsDown: true)
-                    .monospacedDigit()
-                    .frame(width: 44)
+                if context.state.isPaused {
+                    Image(systemName: "pause.fill")
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text(timerInterval: SafeTimerRange.countdown(to: context.state.phaseEndsAt), countsDown: true)
+                        .monospacedDigit()
+                        .frame(width: 44)
+                }
             } minimal: {
                 Image(systemName: "book.fill")
                     .foregroundStyle(.blue)
@@ -90,7 +103,7 @@ private struct FocusTimerLockScreenView: View {
                 Text(state.subject ?? "Focus")
                     .font(.subheadline.bold())
                     .foregroundStyle(.white)
-                Text(state.phaseLabel)
+                Text(state.isPaused ? "Paused" : state.phaseLabel)
                     .font(.caption2)
                     .tracking(2)
                     .foregroundStyle(.white.opacity(0.7))
@@ -98,10 +111,16 @@ private struct FocusTimerLockScreenView: View {
 
             Spacer()
 
-            Text(timerInterval: SafeTimerRange.countdown(to: state.phaseEndsAt), countsDown: true)
-                .monospacedDigit()
-                .font(.title2.bold())
-                .foregroundStyle(.white)
+            if state.isPaused {
+                Text("PAUSED")
+                    .font(.headline)
+                    .foregroundStyle(.white.opacity(0.7))
+            } else {
+                Text(timerInterval: SafeTimerRange.countdown(to: state.phaseEndsAt), countsDown: true)
+                    .monospacedDigit()
+                    .font(.title2.bold())
+                    .foregroundStyle(.white)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
