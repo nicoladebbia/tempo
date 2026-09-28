@@ -129,7 +129,7 @@ protocol NotificationServiceProtocol: Sendable {
 
     /// Cancel every pending supplement reminder — called before rebuilding
     /// the rolling today+tomorrow window.
-    func cancelSupplementReminders()
+    func cancelSupplementReminders() async
 
     /// One-shot "you're running low" alert (`SupplementReorderService`).
     /// Fires almost immediately — callers gate frequency themselves by

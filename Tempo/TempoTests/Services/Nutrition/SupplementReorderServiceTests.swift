@@ -150,11 +150,11 @@ final class SupplementReorderServiceTests: XCTestCase {
         XCTAssertEqual(supp.servingsRemaining, 10)
     }
 
-    func testApplyUndo_cappedAtFullContainer() {
-        let supp = Supplement(name: "Creatine", kind: .creatine, servingsRemaining: 30)
+    func testApplyUndo_canGoPastOneContainerAfterARestock() {
+        let supp = Supplement(name: "Creatine", kind: .creatine, servingsRemaining: 32)
         supp.servingsPerContainer = 30
         SupplementReorderService.applyUndo(to: supp)
-        XCTAssertEqual(supp.servingsRemaining, 30, "Undo must not overshoot a full container")
+        XCTAssertEqual(supp.servingsRemaining, 33, "Leftovers + a new tub can exceed one container")
     }
 
     func testApplyUndo_noOpWhenUntracked() {
@@ -163,18 +163,18 @@ final class SupplementReorderServiceTests: XCTestCase {
         XCTAssertEqual(supp.servingsRemaining, 0)
     }
 
-    func testRestock_resetsToFullContainerAndStartsNewCycle() {
+    func testRestock_addsAContainerToWhatsLeftAndStartsNewCycle() {
         let supp = Supplement(name: "Creatine", kind: .creatine, servingsRemaining: 2)
         supp.servingsPerContainer = 90
         SupplementReorderService.restock(supp, at: now)
-        XCTAssertEqual(supp.servingsRemaining, 90)
+        XCTAssertEqual(supp.servingsRemaining, 92, "Same math as a barcode rescan")
         XCTAssertEqual(supp.lastRestockedAt, now)
     }
 
     func testRestock_leavesRemainingUnchangedWhenContainerSizeUnknown() {
         let supp = Supplement(name: "Creatine", kind: .creatine, servingsRemaining: 2)
         SupplementReorderService.restock(supp, at: now)
-        XCTAssertEqual(supp.servingsRemaining, 2, "No known container size — can't reset to a number we don't know")
+        XCTAssertEqual(supp.servingsRemaining, 2, "No known container size — can't add a number we don't know")
         XCTAssertEqual(supp.lastRestockedAt, now)
     }
 }

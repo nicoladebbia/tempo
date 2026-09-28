@@ -82,7 +82,9 @@ struct SupplementReorderSheet: View {
                     .disabled(restocked)
                 } footer: {
                     Text(
-                        "Restocking resets the count\(supplement.servingsPerContainer != nil ? " to a full container" : "") and starts a fresh low-stock check."
+                        supplement.servingsPerContainer != nil
+                            ? "Restocking adds a full container to what's left and starts a fresh low-stock check."
+                            : "Restocking starts a fresh low-stock check. Add servings per container to keep count."
                     )
                 }
 

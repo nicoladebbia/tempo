@@ -67,7 +67,11 @@ struct SupplementController: RouteCollection {
             throw Abort(.badRequest, reason: "Unknown supplement kind.")
         }
         let rawName = (try? req.query.get(String.self, at: "name")) ?? ""
-        let name = String(rawName.trimmingCharacters(in: .whitespacesAndNewlines).prefix(80))
+        // Goes into an AI prompt: letters, digits, spaces and basic label
+        // punctuation only — no quotes, newlines or tags to break out with.
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: " -+.,&%/()'"))
+        let cleaned = String(String.UnicodeScalarView(rawName.unicodeScalars.filter { allowed.contains($0) }))
+        let name = String(cleaned.trimmingCharacters(in: .whitespacesAndNewlines).prefix(80))
 
         if let slug = SupplementCatalogSlug.match(kind: kindRaw, name: name),
            let entry = SupplementCuratedCatalog.entries[slug]

@@ -526,17 +526,15 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         }
     }
 
-    func cancelSupplementReminders() {
-        center.getPendingNotificationRequests { [weak self] requests in
-            let idsToCancel = requests
-                .map(\.identifier)
-                .filter { $0.hasPrefix(Self.supplementReminderPrefix) }
-            guard !idsToCancel.isEmpty else {
-                return
-            }
-            self?.center.removePendingNotificationRequests(withIdentifiers: idsToCancel)
-            self?.logger.info("Cancelled \(idsToCancel.count) supplement reminders")
+    func cancelSupplementReminders() async {
+        let idsToCancel = await center.pendingNotificationRequests()
+            .map(\.identifier)
+            .filter { $0.hasPrefix(Self.supplementReminderPrefix) }
+        guard !idsToCancel.isEmpty else {
+            return
         }
+        center.removePendingNotificationRequests(withIdentifiers: idsToCancel)
+        logger.info("Cancelled \(idsToCancel.count) supplement reminders")
     }
 
     // MARK: - Supplement Reorder Alert

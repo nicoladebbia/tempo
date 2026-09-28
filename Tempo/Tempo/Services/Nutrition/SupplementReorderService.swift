@@ -112,21 +112,22 @@ enum SupplementReorderService {
         supplement.servingsRemaining = max(0, supplement.servingsRemaining - 1)
     }
 
-    /// Undo — adds a serving back, capped at a full container when known so a
-    /// double-undo (or an undo after a manual edit) can't overshoot it.
+    /// Undo — adds the serving back. Not capped at a container: after a
+    /// restock the leftovers plus the new tub can exceed one. Callers only
+    /// undo a day that has a taken log, so it can't run twice.
     static func applyUndo(to supplement: Supplement) {
         guard isTracked(supplement) else {
             return
         }
-        let cap = supplement.servingsPerContainer ?? .greatestFiniteMagnitude
-        supplement.servingsRemaining = min(cap, supplement.servingsRemaining + 1)
+        supplement.servingsRemaining += 1
     }
 
-    /// "Restocked" — resets to a full container (when the container size is
-    /// known) and starts a new reorder cycle.
+    /// "Restocked" — adds a new container to what's left (same math as a
+    /// barcode rescan, `Supplement.restock(fromContainerSize:)`) and starts a
+    /// new reorder cycle.
     static func restock(_ supplement: Supplement, at date: Date = Date()) {
         if let full = supplement.servingsPerContainer {
-            supplement.servingsRemaining = full
+            supplement.servingsRemaining += full
         }
         supplement.lastRestockedAt = date
         supplement.updatedAt = date

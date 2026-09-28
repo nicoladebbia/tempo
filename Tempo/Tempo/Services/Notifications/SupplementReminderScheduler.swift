@@ -111,6 +111,10 @@ extension SupplementDayContext {
 
 @MainActor
 enum SupplementReminderScheduler {
+    /// The in-flight rebuild; each new one waits for it, so a slow cancel
+    /// from an earlier call can never delete reminders a later one added.
+    private static var latestRebuild: Task<Void, Never>?
+
     /// Rebuilds today + tomorrow's reminders and checks for a reorder alert.
     /// Safe to call as often as needed.
     static func reschedule(
@@ -118,7 +122,19 @@ enum SupplementReminderScheduler {
         modelContext: ModelContext,
         now: Date = Date()
     ) {
-        notifications.cancelSupplementReminders()
+        let previous = latestRebuild
+        latestRebuild = Task { @MainActor in
+            await previous?.value
+            await notifications.cancelSupplementReminders()
+            scheduleAll(notifications: notifications, modelContext: modelContext, now: now)
+        }
+    }
+
+    private static func scheduleAll(
+        notifications: any NotificationServiceProtocol,
+        modelContext: ModelContext,
+        now: Date
+    ) {
 
         let settings = (try? modelContext.fetch(FetchDescriptor<UserSettings>()))?.first
         guard settings?.supplementRemindersEnabled ?? true else {

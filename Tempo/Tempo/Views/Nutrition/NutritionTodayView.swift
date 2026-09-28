@@ -84,6 +84,12 @@ struct NutritionTodayView: View {
             viewModel.reloadPantry()
             viewModel.refreshRecipeSuggestions()
         }
+        // A "Taken" tapped on a notification (or a restock elsewhere) changes
+        // the intake logs behind this card's fetch — re-read so the checkmark
+        // is right and a second tap doesn't undo it.
+        .onReceive(NotificationCenter.default.publisher(for: .tempoSupplementsChanged)) { _ in
+            supplementTakenRefresh += 1
+        }
         .sheet(item: $feedbackMeal, onDismiss: {
             viewModel.refreshFeedbackPresence(modelContext: modelContext)
         }) { meal in

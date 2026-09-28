@@ -208,7 +208,7 @@ final class MockNotificationService: NotificationServiceProtocol, @unchecked Sen
         logger.debug("Mock: scheduled supplement reminder '\(title)' at \(fireDate)")
     }
 
-    func cancelSupplementReminders() {
+    func cancelSupplementReminders() async {
         let before = scheduledNotifications.count
         scheduledNotifications.removeAll { $0.category.hasPrefix(Self.supplementReminderPrefix) }
         let removed = before - scheduledNotifications.count
