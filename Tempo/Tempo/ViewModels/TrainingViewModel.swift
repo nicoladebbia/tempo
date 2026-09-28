@@ -88,7 +88,10 @@ final class TrainingViewModel {
 
     /// Snapshot of the running session for the lock screen / Dynamic Island.
     /// nil in states that shouldn't show an activity (idle/summary/…).
-    private func liveActivityState() -> WorkoutActivityAttributes.ContentState? {
+    /// Not `private` — `TrainingViewModel+LiveActivityCoordination.swift`
+    /// (a separate file, to keep this one under the file-length lint cap)
+    /// calls it from `resumeLiveActivityIfNeeded()`.
+    func liveActivityState() -> WorkoutActivityAttributes.ContentState? {
         guard let plan = todayPlan else {
             return nil
         }
@@ -147,11 +150,13 @@ final class TrainingViewModel {
 
     private func syncLiveActivity() {
         if let state = liveActivityState() {
-            Task {
+            LiveActivityCoordinator.shared.update {
                 await WorkoutActivityManager.shared.update(state: state)
             }
         } else {
-            WorkoutActivityManager.shared.endCurrentDetached()
+            LiveActivityCoordinator.shared.end(.gymWorkout) {
+                await WorkoutActivityManager.shared.endCurrent()
+            }
         }
     }
 
@@ -160,7 +165,11 @@ final class TrainingViewModel {
         guard let plan = todayPlan, let state = liveActivityState() else {
             return
         }
-        WorkoutActivityManager.shared.start(planID: plan.id.uuidString, state: state)
+        LiveActivityCoordinator.shared.register(self, for: .gymWorkout)
+        let planID = plan.id.uuidString
+        LiveActivityCoordinator.shared.start(.gymWorkout) {
+            WorkoutActivityManager.shared.start(planID: planID, state: state)
+        }
     }
 
     var todayPlan: WorkoutPlan?

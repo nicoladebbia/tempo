@@ -370,19 +370,28 @@ final class AccountabilityViewModel {
         pauseStartedAt = nil
 
         // Per spec B37–B40 — start Live Activity for lock screen + Dynamic Island.
-        FocusTimerActivityManager.shared.start(
-            sessionID: session.id.uuidString,
-            phaseEndsAt: Date().addingTimeInterval(focusDuration),
-            phaseLabel: "FOCUS TIME",
-            progress: 0,
-            subject: focusSubject,
-            sessionIndex: currentSessionCount + 1,
-            totalSessions: sessionsBeforeLongBreak
-        )
+        LiveActivityCoordinator.shared.register(self, for: .focusTimer)
+        let sessionID = session.id.uuidString
+        let phaseEndsAt = Date().addingTimeInterval(focusDuration)
+        let subject = focusSubject
+        let sessionIndex = currentSessionCount + 1
+        let totalSessions = sessionsBeforeLongBreak
+        LiveActivityCoordinator.shared.start(.focusTimer) {
+            FocusTimerActivityManager.shared.start(
+                sessionID: sessionID,
+                phaseEndsAt: phaseEndsAt,
+                phaseLabel: "FOCUS TIME",
+                progress: 0,
+                subject: subject,
+                sessionIndex: sessionIndex,
+                totalSessions: totalSessions
+            )
+        }
 
         // Start timer
         // Per STATE_MACHINES.md Section 2: configuring/breakDone → focusing
         focusState = .focusing(remaining: focusDuration)
+        pushFocusTimerToWatch()
         startFocusCountdown(total: focusDuration, modelContext: modelContext)
     }
 
@@ -408,6 +417,9 @@ final class AccountabilityViewModel {
         default:
             break
         }
+        // Watch/Live-Activity audit, 2026-09 — a pause used to be invisible
+        // to both surfaces; they'd keep counting down past zero.
+        syncFocusTimerLiveSurfaces()
     }
 
     func resumeFocus(modelContext: ModelContext) {
@@ -432,6 +444,7 @@ final class AccountabilityViewModel {
             focusState = .longBreak(remaining: r)
             startBreakCountdown(total: r)
         }
+        syncFocusTimerLiveSurfaces()
     }
 
     func cancelFocus(modelContext: ModelContext) {
@@ -458,7 +471,10 @@ final class AccountabilityViewModel {
         pauseCount = 0
         totalPauseDuration = 0
         pauseStartedAt = nil
-        FocusTimerActivityManager.shared.endCurrentDetached()
+        LiveActivityCoordinator.shared.end(.focusTimer) {
+            await FocusTimerActivityManager.shared.endCurrent()
+        }
+        PhoneWatchConnectivityService.shared.endFocusTimer()
         focusState = .cancelled
         // Return to idle after brief delay
         Task {
@@ -476,6 +492,7 @@ final class AccountabilityViewModel {
         } else {
             focusState = .onBreak(remaining: duration)
         }
+        syncFocusTimerLiveSurfaces()
         startBreakCountdown(total: duration)
     }
 
@@ -505,7 +522,10 @@ final class AccountabilityViewModel {
         pauseCount = 0
         totalPauseDuration = 0
         pauseStartedAt = nil
-        FocusTimerActivityManager.shared.endCurrentDetached()
+        LiveActivityCoordinator.shared.end(.focusTimer) {
+            await FocusTimerActivityManager.shared.endCurrent()
+        }
+        PhoneWatchConnectivityService.shared.endFocusTimer()
         focusState = .idle
     }
 
@@ -709,6 +729,7 @@ final class AccountabilityViewModel {
 
     private func startNextSession(modelContext: ModelContext) {
         focusState = .focusing(remaining: focusDuration)
+        syncFocusTimerLiveSurfaces()
         startFocusCountdown(total: focusDuration, modelContext: modelContext)
     }
 
@@ -913,5 +934,153 @@ final class AccountabilityViewModel {
 
         try? modelContext.save()
         dailyState = .review
+    }
+}
+
+// MARK: LiveActivityParticipant
+
+extension AccountabilityViewModel: LiveActivityParticipant {
+    /// Deliberately NOT `focusState.isActive` — that's `false` for `.paused`
+    /// (see `FocusTimerState.isActive`), which used to mean a session paused
+    /// at the moment a higher-priority activity suspended it could NEVER be
+    /// resumed: `end(_:)` would see `hasActiveLiveSession == false`, drop
+    /// `.focusTimer` from `suspendedKinds` for good, and unpausing afterwards
+    /// only ever routes through `syncFocusTimerLiveSurfaces()` → `update`,
+    /// which no-ops once `current` is nil (code review finding). Whether
+    /// there is something to resume is exactly whether `focusActivityRemaining`
+    /// finds a phase to report — which already looks through `.paused` — so
+    /// defer to it directly instead of a second, narrower "alive" check.
+    var hasActiveLiveSession: Bool {
+        focusActivityRemaining() != nil
+    }
+
+    func suspendLiveActivity() async {
+        await FocusTimerActivityManager.shared.endCurrent()
+    }
+
+    /// Correctly re-requests a PAUSED-looking Activity when resumed
+    /// mid-pause — `isFocusPaused` is passed through to `start`, which
+    /// (unlike `WorkoutActivityManager.start`, which takes a full
+    /// `ContentState`) used to hardcode `isPaused: false` regardless of
+    /// what's passed to it, since nothing ever needed to START already
+    /// paused before this resume path existed.
+    func resumeLiveActivityIfNeeded() async {
+        guard let remaining = focusActivityRemaining(), let session = currentStudySession else {
+            return
+        }
+        FocusTimerActivityManager.shared.start(
+            sessionID: session.id.uuidString,
+            phaseEndsAt: Date().addingTimeInterval(remaining),
+            phaseLabel: focusActivityPhaseLabel(),
+            progress: focusTimerProgress,
+            subject: focusSubject,
+            sessionIndex: currentSessionCount + 1,
+            totalSessions: sessionsBeforeLongBreak,
+            isPaused: isFocusPaused
+        )
+    }
+
+    /// True while `focusState` is `.paused` — used wherever a fan-out needs
+    /// to know paused-ness without re-matching the enum itself.
+    private var isFocusPaused: Bool {
+        if case .paused = focusState {
+            true
+        } else {
+            false
+        }
+    }
+
+    /// The current phase's remaining time, however `focusState` names it —
+    /// including while `.paused` (needed so a pause push tells the Watch/
+    /// Live Activity the FROZEN remaining time, not nothing). `nil` outside
+    /// any focus/break phase (nothing to show).
+    private func focusActivityRemaining() -> TimeInterval? {
+        switch focusState {
+        case let .focusing(r),
+             let .onBreak(r),
+             let .longBreak(r):
+            r
+        case let .paused(previous):
+            switch previous {
+            case let .focusing(r),
+                 let .onBreak(r),
+                 let .longBreak(r):
+                r
+            }
+        default:
+            nil
+        }
+    }
+
+    /// Mirrors the label `startFocusSession` uses for the working phase;
+    /// gives break phases their own so a resumed Activity doesn't lie about
+    /// what's actually counting down. Looks through `.paused` to the phase
+    /// it paused FROM, same reasoning as `focusActivityRemaining`.
+    private func focusActivityPhaseLabel() -> String {
+        switch focusState {
+        case .onBreak:
+            "BREAK"
+        case .longBreak:
+            "LONG BREAK"
+        case let .paused(previous):
+            switch previous {
+            case .onBreak: "BREAK"
+            case .longBreak: "LONG BREAK"
+            case .focusing: "FOCUS TIME"
+            }
+        default:
+            "FOCUS TIME"
+        }
+    }
+
+    /// Fans the current phase out to BOTH the Live Activity's `update` (the
+    /// initial `start` request happens once, in `startFocusSession`) and the
+    /// Watch mirror — the two on-device surfaces that show the focus timer
+    /// outside this view. Call on every phase transition (pause, resume,
+    /// break start, next session) so neither goes stale (Watch/Live-Activity
+    /// audit, 2026-09 — before this, both surfaces only ever reflected the
+    /// ORIGINAL `startFocusSession` call; a pause, a break starting, or a
+    /// resume was invisible to them until the whole session finally ended).
+    private func syncFocusTimerLiveSurfaces() {
+        guard let remaining = focusActivityRemaining() else {
+            return
+        }
+        let isPaused = isFocusPaused
+        let phaseLabel = focusActivityPhaseLabel()
+        let sessionIndex = currentSessionCount + 1
+        let totalSessions = sessionsBeforeLongBreak
+        let progress = focusTimerProgress
+        LiveActivityCoordinator.shared.update {
+            await FocusTimerActivityManager.shared.update(
+                phaseEndsAt: Date().addingTimeInterval(remaining),
+                phaseLabel: phaseLabel,
+                progress: progress,
+                sessionIndex: sessionIndex,
+                totalSessions: totalSessions,
+                isPaused: isPaused
+            )
+        }
+        pushFocusTimerToWatch()
+    }
+
+    /// Watch mirror only (Watch audit, 2026-09) — same payload shape/channel
+    /// as the guided-run and workout mirrors, so the wrist reflects an
+    /// in-progress phone session instead of showing its own stale local
+    /// ready/running state.
+    private func pushFocusTimerToWatch() {
+        guard let remaining = focusActivityRemaining() else {
+            return
+        }
+        let isPaused = isFocusPaused
+        PhoneWatchConnectivityService.shared.pushFocusTimer(
+            WatchFocusTimerPayload(
+                isPaused: isPaused,
+                remainingSeconds: remaining,
+                phaseLabel: focusActivityPhaseLabel(),
+                sessionIndex: currentSessionCount + 1,
+                totalSessions: sessionsBeforeLongBreak,
+                updatedAt: Date()
+            )
+        )
     }
 }
