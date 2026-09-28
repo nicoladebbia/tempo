@@ -30,6 +30,8 @@ struct WeeklyHabitsSettingsView: View {
     @State
     private var routineSummary: [String] = []
     @State
+    private var supplementRemindersEnabled = true
+    @State
     private var loaded = false
 
     private static let mealNames = [1: "Breakfast", 2: "Lunch", 3: "Dinner", 4: "Snack", 5: "Second snack"]
@@ -91,6 +93,12 @@ struct WeeklyHabitsSettingsView: View {
             } header: {
                 Text("Learned from your logs")
             }
+
+            Section {
+                Toggle("Remind me to take my supplements", isOn: $supplementRemindersEnabled)
+            } footer: {
+                Text("Per-supplement reminders can still be turned off individually from the shelf.")
+            }
         }
         .scrollContentBackground(.hidden)
         .background(Color.tempoBgPrimary)
@@ -114,6 +122,14 @@ struct WeeklyHabitsSettingsView: View {
         .onChange(of: promptTime) { _, _ in
             save()
         }
+        .onChange(of: supplementRemindersEnabled) { _, enabled in
+            guard loaded, let settings else {
+                return
+            }
+            settings.supplementRemindersEnabled = enabled
+            try? modelContext.save()
+            NotificationCenter.default.post(name: .tempoSupplementsChanged, object: nil)
+        }
     }
 
     private var settings: UserSettings? {
@@ -128,6 +144,7 @@ struct WeeklyHabitsSettingsView: View {
         promptEnabled = settings?.weeklyPlanPromptEnabled ?? true
         let minutes = settings?.weeklyPlanPromptMinutes ?? WeeklyPlanReminder.defaultMinutes
         promptTime = Calendar.current.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: Date()) ?? Date()
+        supplementRemindersEnabled = settings?.supplementRemindersEnabled ?? true
 
         let observed = MealPlanGeneratorService(apiClient: services.apiClient).observedMealTimes(modelContext: modelContext) ?? [:]
         observedTimes = observed.sorted { $0.key < $1.key }.map { (Self.mealNames[$0.key] ?? "Meal \($0.key)", $0.value) }

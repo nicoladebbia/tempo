@@ -175,6 +175,9 @@ final class UserSettings {
     /// price lookups right now. nil → `.generic` layout, no chain assumed.
     var groceryActiveStoreRaw: String?
 
+    /// Supplement reminder notifications master switch. nil → on.
+    var supplementRemindersEnabled: Bool?
+
     /// JSON-encoded `[String: GroceryStoreLayout.CategoryRankLearning]`,
     /// keyed by `GroceryStore.rawValue`. Records the order in which the user
     /// actually ticks off aisle categories during a trip at each store, so

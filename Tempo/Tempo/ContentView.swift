@@ -58,6 +58,7 @@ struct ContentView: View {
                         _ = ClearSkinFocusSetting.resolve(modelContext: modelContext)
                         handlePlanInputsChanged()
                         rescheduleTrainerSessionReminders()
+                        rescheduleSupplementReminders()
                         await WeeklyPlanReminder.sync(settings: NutritionTabViewModel.loadUserSettings(modelContext: modelContext))
                         await syncWeeklyPlan()
                     }
@@ -197,6 +198,12 @@ struct ContentView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 Task { await syncWeeklyPlan() }
+                // Foreground is one of the required reschedule triggers per
+                // the supplement timing engine — doses drift with the clock
+                // (a "pre-training" dose from yesterday shouldn't still be
+                // pending), so the rolling today+tomorrow window rebuilds
+                // every time the app comes back.
+                rescheduleSupplementReminders()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .tempoWeeklyPlanApplied)) { _ in
@@ -231,6 +238,26 @@ struct ContentView: View {
         ) { _ in
             rescheduleTrainerSessionReminders()
         }
+        // Supplement reminders follow the shelf, per-supplement overrides, the
+        // active plan's take/skip + timing decisions, and the training
+        // schedule they anchor to — any of those changing can move today's
+        // doses. `.tempoSupplementsChanged` is posted by the shelf-editing
+        // views and by a "taken" toggle; the other two cover a fresh plan and
+        // a routine/training edit.
+        .onReceive(
+            NotificationCenter.default.publisher(for: .tempoSupplementsChanged)
+                .merge(with: NotificationCenter.default.publisher(for: .tempoWeeklyPlanApplied))
+                .merge(with: NotificationCenter.default.publisher(for: .tempoTrainingSettingsChanged))
+                .debounce(for: .seconds(0.6), scheduler: DispatchQueue.main)
+        ) { _ in
+            rescheduleSupplementReminders()
+        }
+    }
+
+    /// Rebuilds today+tomorrow's supplement reminders. See
+    /// `SupplementReminderScheduler`.
+    private func rescheduleSupplementReminders() {
+        SupplementReminderScheduler.reschedule(notifications: services.notifications, modelContext: modelContext)
     }
 
     private func syncWeeklyPlan() async {

@@ -193,6 +193,41 @@ final class MockNotificationService: NotificationServiceProtocol, @unchecked Sen
         logger.debug("Mock: cancelled weekly upload reminders")
     }
 
+    // MARK: - Supplement Timing (Lane 1)
+
+    private static let supplementReminderPrefix = "supplement_reminder_"
+
+    func scheduleSupplementReminder(title: String, body: String, fireDate: Date, supplementNames: [String]) {
+        let notification = ScheduledNotification(
+            category: "\(Self.supplementReminderPrefix)\(TempoDateFormatters.isoDate.string(from: fireDate))",
+            title: title,
+            body: body,
+            triggerDate: fireDate
+        )
+        scheduledNotifications.append(notification)
+        logger.debug("Mock: scheduled supplement reminder '\(title)' at \(fireDate)")
+    }
+
+    func cancelSupplementReminders() async {
+        let before = scheduledNotifications.count
+        scheduledNotifications.removeAll { $0.category.hasPrefix(Self.supplementReminderPrefix) }
+        let removed = before - scheduledNotifications.count
+        if removed > 0 {
+            logger.debug("Mock: cancelled \(removed) supplement reminders")
+        }
+    }
+
+    func scheduleSupplementReorderAlert(supplementName: String, title: String, body: String) {
+        let notification = ScheduledNotification(
+            category: "supplement_reorder_\(supplementName)",
+            title: title,
+            body: body,
+            triggerDate: Date()
+        )
+        scheduledNotifications.append(notification)
+        logger.debug("Mock: scheduled supplement reorder alert for \(supplementName)")
+    }
+
     func cancelAll() {
         scheduledNotifications.removeAll()
         logger.debug("Mock: cancelled all notifications")

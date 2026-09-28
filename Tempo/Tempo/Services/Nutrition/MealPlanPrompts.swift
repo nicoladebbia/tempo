@@ -105,7 +105,9 @@ enum MealPlanPrompts {
         /// `<taste_preferences>` prompt block — favorites + bored-of. Empty
         /// string when neither is set so callers interpolate unconditionally.
         var tastePreferencesBlock: String {
-            guard !favoriteFoods.isEmpty || !boredOfFoods.isEmpty else { return "" }
+            guard !favoriteFoods.isEmpty || !boredOfFoods.isEmpty else {
+                return ""
+            }
             var lines: [String] = []
             if !favoriteFoods.isEmpty {
                 let safe = favoriteFoods.map(MealPlanPrompts.sanitizeForPrompt).joined(separator: ", ")
@@ -113,7 +115,10 @@ enum MealPlanPrompts {
             }
             if !boredOfFoods.isEmpty {
                 let safe = boredOfFoods.map(MealPlanPrompts.sanitizeForPrompt).joined(separator: ", ")
-                lines.append("BORED OF (rotate AWAY from these — do not overuse; an occasional appearance is fine, but never the weekly default): \(safe)")
+                lines
+                    .append(
+                        "BORED OF (rotate AWAY from these — do not overuse; an occasional appearance is fine, but never the weekly default): \(safe)"
+                    )
             }
             return """
 
@@ -278,7 +283,7 @@ enum MealPlanPrompts {
 
         if !digest.recipes.isEmpty {
             let lines = digest.recipes.map { recipe -> String in
-                var parts: [String] = ["• \(recipe.recipeName) (\(recipe.mentionCount)×)"]
+                var parts = ["• \(recipe.recipeName) (\(recipe.mentionCount)×)"]
                 if let avg = recipe.averageRating {
                     parts.append(String(format: "avg %.1f★", avg))
                 }
@@ -315,7 +320,7 @@ enum MealPlanPrompts {
 
         if !digest.ingredients.isEmpty {
             let lines = digest.ingredients.map { ing -> String in
-                var parts: [String] = ["• \(ing.ingredientName) (👍 \(ing.likedCount), 👎 \(ing.dislikedCount))"]
+                var parts = ["• \(ing.ingredientName) (👍 \(ing.likedCount), 👎 \(ing.dislikedCount))"]
                 if !ing.perRecipeNotes.isEmpty {
                     parts.append("ctx: " + ing.perRecipeNotes.joined(separator: " / "))
                 }
@@ -452,7 +457,9 @@ enum MealPlanPrompts {
     /// Onboarding eating-pattern overrides for <meal_structure>. Empty when the
     /// user eats breakfast and has no post-workout requirement.
     static func eatingPatternDirective(_ intake: MealPlanIntake?) -> String {
-        guard let intake else { return "" }
+        guard let intake else {
+            return ""
+        }
         var lines: [String] = []
         if intake.breakfastSkipped {
             lines.append(
@@ -474,7 +481,9 @@ enum MealPlanPrompts {
     /// Directive overriding the default 4-5 meal structure when the user has a
     /// specific meals-per-day preference. Empty when nil (AI uses the default).
     static func mealCountDirective(_ mealsPerDay: Int?) -> String {
-        guard let n = mealsPerDay, (3 ... 6).contains(n) else { return "" }
+        guard let n = mealsPerDay, (3 ... 6).contains(n) else {
+            return ""
+        }
         return "- MEAL COUNT (user preference, OVERRIDES the default below): give EXACTLY \(n) meals per day. Keep the same calorie distribution spirit, just across \(n) slots."
     }
 
@@ -482,9 +491,15 @@ enum MealPlanPrompts {
     /// Empty when neither is set (AI uses its under-20-min weekday default).
     static func cookTimeDirective(weekday: Int?, weekend: Int?) -> String {
         var parts: [String] = []
-        if let weekday { parts.append("weekdays ≤ \(weekday) min") }
-        if let weekend { parts.append("weekends ≤ \(weekend) min") }
-        guard !parts.isEmpty else { return "" }
+        if let weekday {
+            parts.append("weekdays ≤ \(weekday) min")
+        }
+        if let weekend {
+            parts.append("weekends ≤ \(weekend) min")
+        }
+        guard !parts.isEmpty else {
+            return ""
+        }
         return "- COOK-TIME BUDGET (user preference): keep total active cooking/prep time within \(parts.joined(separator: ", ")). On tight-time days favor one-pan, no-cook, or batch-reheat meals; save longer recipes for the higher-budget days. Never exceed the budget for a day."
     }
 
@@ -496,7 +511,9 @@ enum MealPlanPrompts {
         let cleaned = availableAppliances
             .map { MealPlanPrompts.sanitizeForPrompt($0).trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
-        guard !cleaned.isEmpty else { return "" }
+        guard !cleaned.isEmpty else {
+            return ""
+        }
         return """
 
         <equipment>
@@ -517,7 +534,9 @@ enum MealPlanPrompts {
     /// ONLY schedule items listed here — never recommend buying anything.
     static func supplementShelfBlock(_ supplements: [Supplement]) -> String {
         let active = supplements.filter { !$0.isArchived }
-        guard !active.isEmpty else { return "" }
+        guard !active.isEmpty else {
+            return ""
+        }
 
         let lines = active.map { supp -> String in
             var parts = ["- \(sanitizeForPrompt(supp.name)) (\(supp.kind.displayName))"]
@@ -532,6 +551,17 @@ enum MealPlanPrompts {
                 parts.append("\(Int(supp.servingsRemaining)) servings left\(low)")
             }
             parts.append(supp.takeDaily ? "daily by default" : "conditional")
+            // The user fixed WHEN this is taken (via the shelf's timing
+            // controls) — the plan's own `timing` text must match it, not
+            // suggest something else. `pinnedMinutes` (an exact clock time)
+            // wins over `timingAnchorOverride` when both are somehow set.
+            if let pinned = supp.pinnedMinutes {
+                let hh = pinned / 60 % 24
+                let mm = pinned % 60
+                parts.append("USER FIXED TIME: \(String(format: "%02d:%02d", hh, mm)) — do not change")
+            } else if let anchor = supp.timingAnchorOverride {
+                parts.append("USER FIXED TIMING: \(anchor.displayName.lowercased()) — do not change")
+            }
             if let notes = supp.userNotes, !notes.isEmpty {
                 parts.append("note: \(sanitizeForPrompt(notes))")
             }
@@ -548,6 +578,11 @@ enum MealPlanPrompts {
         \(lines)
 
         SCHEDULING RULES (emit a per-day "supplements" array — see schema):
+        - USER FIXED TIME / USER FIXED TIMING: the app already resolves this
+          supplement's clock time from that fixed value — your "timing" text
+          must describe that same time/anchor (e.g. echo "before bed" for a
+          bedtime fix), never a different one. This does not change whether to
+          take it, only what you say about when.
         - "daily by default" items (e.g. creatine): take EVERY day. Skip only if
           a user note says otherwise.
         - Protein powder: take ONLY on days the whole-food meals fall short of
@@ -625,11 +660,10 @@ enum MealPlanPrompts {
         }
         let lines = expiringSoon
             .map { entry -> String in
-                let timing: String
-                switch entry.days {
-                case 0: timing = "expires today"
-                case 1: timing = "expires tomorrow"
-                default: timing = "expires in \(entry.days) days"
+                let timing = switch entry.days {
+                case 0: "expires today"
+                case 1: "expires tomorrow"
+                default: "expires in \(entry.days) days"
                 }
                 return "- \(entry.name) (\(timing))"
             }
@@ -719,6 +753,7 @@ enum MealPlanPrompts {
             /// be dropped, period.
             let substituteNotes: [String]
         }
+
         struct IngredientSignal: Sendable {
             let ingredientName: String
             /// Per-recipe sentiment so the model can see "user dislikes rice
@@ -727,6 +762,7 @@ enum MealPlanPrompts {
             let likedCount: Int
             let dislikedCount: Int
         }
+
         let recipes: [RecipeSignal]
         let ingredients: [IngredientSignal]
     }
@@ -924,8 +960,12 @@ enum MealPlanPrompts {
         var lines: [String] = []
         for day in routine.days {
             var parts: [String] = []
-            if let wake = time(day.wakeMinutes) { parts.append("wake \(wake)") }
-            if let leave = time(day.leaveHomeMinutes) { parts.append("leaves home \(leave)") }
+            if let wake = time(day.wakeMinutes) {
+                parts.append("wake \(wake)")
+            }
+            if let leave = time(day.leaveHomeMinutes) {
+                parts.append("leaves home \(leave)")
+            }
             for event in day.events {
                 let place = routine.place(id: event.placeID).map { " at \(sanitizeForPrompt($0.name))" } ?? ""
                 let span = [time(event.startMinutes), time(event.endMinutes)].compactMap(\.self).joined(separator: "–")
@@ -935,7 +975,8 @@ enum MealPlanPrompts {
                     let usual = event.restaurants.isEmpty ? "" :
                         " (usually: \(event.restaurants.map(sanitizeForPrompt).joined(separator: ", ")))"
                     parts.append("EATS OUT \(span)\(place)\(with)\(usual)")
-                case .classOrWork, .other:
+                case .classOrWork,
+                     .other:
                     parts.append("\(sanitizeForPrompt(event.title)) \(span)\(place)")
                 }
             }
@@ -943,8 +984,12 @@ enum MealPlanPrompts {
                 let kind = training.kind.isEmpty ? "training" : sanitizeForPrompt(training.kind)
                 parts.append("\(kind) \(time(training.startMinutes) ?? "")–\(time(training.startMinutes + training.durationMinutes) ?? "")")
             }
-            if let back = time(day.backHomeMinutes) { parts.append("home \(back)") }
-            if let bed = time(day.bedMinutes) { parts.append("bed \(bed)") }
+            if let back = time(day.backHomeMinutes) {
+                parts.append("home \(back)")
+            }
+            if let bed = time(day.bedMinutes) {
+                parts.append("bed \(bed)")
+            }
             guard !parts.isEmpty, (1 ... 7).contains(day.weekday) else {
                 continue
             }

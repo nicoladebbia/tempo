@@ -115,6 +115,28 @@ protocol NotificationServiceProtocol: Sendable {
     /// and once the upcoming week's program exists.
     func cancelWeeklyUploadReminders()
 
+    // MARK: - Supplement Timing (Lane 1)
+
+    /// One reminder per clock-minute GROUP from `SupplementScheduleEngine` —
+    /// "Breakfast: Creatine + Vitamin D3", not one notification per
+    /// supplement. `supplementNames` rides in `userInfo` so the "Taken"
+    /// action (`TempoNotificationDelegate`) can mark every one of them taken
+    /// without re-deriving the group. No stable caller-supplied identifier:
+    /// `SupplementReminderScheduler` always cancels + rebuilds the whole
+    /// rolling window, so the concrete implementation is free to derive its
+    /// own id from `fireDate`.
+    func scheduleSupplementReminder(title: String, body: String, fireDate: Date, supplementNames: [String])
+
+    /// Cancel every pending supplement reminder — called before rebuilding
+    /// the rolling today+tomorrow window.
+    func cancelSupplementReminders() async
+
+    /// One-shot "you're running low" alert (`SupplementReorderService`).
+    /// Fires almost immediately — callers gate frequency themselves by
+    /// stamping `Supplement.lastReorderAlertAt` before calling this, so this
+    /// method does not need its own cancel/dedupe.
+    func scheduleSupplementReorderAlert(supplementName: String, title: String, body: String)
+
     func cancelAll()
     func cancelCategory(_ category: String)
 }

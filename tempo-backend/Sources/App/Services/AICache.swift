@@ -4,6 +4,7 @@ import Redis
 import Vapor
 
 // MARK: - AICache
+
 //
 // Per AI_INTELLIGENCE_ENGINE.md §6 + INTELLIGENCE_REMEDIATION_PLAN.md §6.
 //
@@ -26,6 +27,7 @@ enum AICacheStorage {
 }
 
 // MARK: - Typed cache keys
+
 //
 // One factory per spec §6.1 row. Adding a new AI feature in §7 means adding
 // a new factory here, not inventing ad-hoc strings.
@@ -128,6 +130,35 @@ struct AICacheKey: Sendable {
             storage: .postgres,
             feature: "study_schedule",
             // Spec §6.1: "until exam date changes". TTL is a backstop.
+            ttl: 30 * 24 * 3600
+        )
+    }
+
+    // ── Supplements (feat/supplements-picks) ──
+
+    /// Barcode → product lookup (DSLD / Open Food Facts proxy). Not an AI
+    /// call, but reuses this cache-aside utility rather than duplicating it —
+    /// barcode data is effectively static, so a long TTL is safe. Caches
+    /// misses too (value is `SupplementLookupDTO?`) so a repeatedly-scanned
+    /// unknown barcode doesn't keep hitting both upstream APIs.
+    static func supplementLookup(upc: String) -> AICacheKey {
+        AICacheKey(
+            value: "supplement:lookup:\(upc)",
+            storage: .redis,
+            feature: "supplement_lookup",
+            ttl: 30 * 24 * 3600
+        )
+    }
+
+    /// AI-fallback picks for a (kind, name) not in the curated catalog.
+    /// ~30 days per the product spec — these products don't change often
+    /// enough to warrant re-asking Claude on every request.
+    static func supplementPicksAI(kind: String, name: String) -> AICacheKey {
+        let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return AICacheKey(
+            value: "supplement:picks:ai:\(kind):\(normalizedName)",
+            storage: .redis,
+            feature: "supplement_picks_ai",
             ttl: 30 * 24 * 3600
         )
     }
@@ -339,8 +370,8 @@ struct AICache {
     ) async throws -> AICacheLookup<T> {
         guard
             let row = try await CachedAIResponse.query(on: req.db)
-                .filter(\.$cacheKey == key.value)
-                .first()
+            .filter(\.$cacheKey == key.value)
+            .first()
         else {
             return .miss
         }
@@ -389,7 +420,9 @@ private extension AICacheLookup {
     /// Returns the value only on a fresh hit. Used by `withCache` (non-SWR)
     /// where stale is treated the same as miss.
     var fresh: Value? {
-        if case let .fresh(value) = self { return value }
+        if case let .fresh(value) = self {
+            return value
+        }
         return nil
     }
 }
