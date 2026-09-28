@@ -131,12 +131,45 @@ final class Supplement {
     /// the shelf the AI reads.
     var isArchived: Bool
 
+    // MARK: - Product (all optional — added Sep 2026, lightweight migration)
+
+    /// Brand as printed on the label, e.g. "Thorne", "Optimum Nutrition".
+    var brand: String?
+
+    /// Barcode the product was scanned from (UPC/EAN), if any.
+    var upc: String?
+
+    /// Servings in a full, new container — what a restock resets
+    /// `servingsRemaining` to, and the base for the reorder warning.
+    var servingsPerContainer: Double?
+
+    /// When `servingsRemaining` was last reset by a restock.
+    var lastRestockedAt: Date?
+
+    // MARK: - Timing (all optional)
+
+    /// User override of WHEN to take it (`SupplementTimingAnchor.rawValue`).
+    /// nil → the app decides (plan AI timing, else the kind's default).
+    var timingAnchorRaw: String?
+
+    /// User-pinned clock time (minutes after midnight). Wins over any anchor.
+    var pinnedMinutes: Int?
+
+    /// Per-supplement reminder switch. nil → on.
+    var remindersEnabled: Bool?
+
     // MARK: - Computed
 
     @Transient
     var kind: SupplementKind {
         get { SupplementKind(rawValue: kindRaw) ?? .other }
         set { kindRaw = newValue.rawValue }
+    }
+
+    @Transient
+    var timingAnchorOverride: SupplementTimingAnchor? {
+        get { timingAnchorRaw.flatMap(SupplementTimingAnchor.init(rawValue:)) }
+        set { timingAnchorRaw = newValue?.rawValue }
     }
 
     @Transient
