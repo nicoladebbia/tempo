@@ -59,6 +59,7 @@ struct NutritionTodayView: View {
                 UseUpSoonCard(viewModel: viewModel)
                 calorieProgressSection
                 supplementsCard
+                SupplementReorderBanner()
                 mealsListSection
 
                 // AI disclaimer
@@ -172,35 +173,41 @@ struct NutritionTodayView: View {
 
     // MARK: - Today's Supplements
 
-    /// The plan AI's take/skip decision for the user's owned supplements today.
-    /// Renders nothing when the user owns no supplements (decisions empty).
+    /// Today's full supplement schedule (`SupplementScheduleEngine`) — every
+    /// owned, non-archived supplement, take AND skip, sorted by clock time.
+    /// Shown whenever the shelf is non-empty, not only when the plan AI made
+    /// decisions (the engine has its own no-plan defaults).
     @ViewBuilder
     private var supplementsCard: some View {
-        let decisions = viewModel.todaySupplementDecisions
+        let doses = viewModel.todaySupplementDoses(modelContext: modelContext)
         // Re-read on every toggle (supplementTakenRefresh) so the checkmarks
         // reflect the latest taken state.
         let taken = supplementTakenRefresh >= 0
             ? viewModel.takenSupplementsToday(modelContext: modelContext)
             : []
-        if !decisions.isEmpty {
+        if !doses.isEmpty {
             VStack(alignment: .leading, spacing: TempoSpacing.md) {
                 Text("TODAY'S SUPPLEMENTS")
                     .font(.tempoModuleTag)
                     .foregroundStyle(Color.tempoTextTertiary)
-                ForEach(decisions) { decision in
+                ForEach(doses) { dose in
                     HStack(alignment: .top, spacing: TempoSpacing.md) {
-                        Text(decision.take ? "TAKE" : "SKIP")
-                            .font(.tempoCaption2)
-                            .fontWeight(.bold)
-                            .foregroundStyle(decision.take ? Color.tempoSuccess : Color.tempoTextTertiary)
+                        Text(dose.timeLabel)
+                            .font(.system(size: 12, weight: .bold, design: .monospaced))
+                            .foregroundStyle(dose.take ? Color.tempoTextSecondary : Color.tempoTextTertiary)
                             .frame(width: 44, alignment: .leading)
                         VStack(alignment: .leading, spacing: 2) {
                             HStack(spacing: 6) {
-                                Text(decision.name)
+                                Text(dose.name)
                                     .font(.tempoBody)
-                                    .foregroundStyle(Color.tempoTextPrimary)
-                                if decision.take, let timing = decision.timing, !timing.isEmpty {
-                                    Text(timing)
+                                    .foregroundStyle(dose.take ? Color.tempoTextPrimary : Color.tempoTextTertiary)
+                                if !dose.dosePerServing.isEmpty {
+                                    Text(dose.dosePerServing)
+                                        .font(.tempoCaption2)
+                                        .foregroundStyle(Color.tempoTextTertiary)
+                                }
+                                if dose.take {
+                                    Text(dose.timingLabel)
                                         .font(.tempoCaption2)
                                         .fontWeight(.semibold)
                                         .foregroundStyle(Color.tempoSignal)
@@ -210,20 +217,19 @@ struct NutritionTodayView: View {
                                         .clipShape(Capsule())
                                 }
                             }
-                            if let reason = decision.reason, !reason.isEmpty {
-                                Text(reason)
-                                    .font(.tempoCaption2)
-                                    .foregroundStyle(Color.tempoTextSecondary)
-                            }
+                            Text(dose.take ? dose.reason : "Skip — \(dose.reason)")
+                                .font(.tempoCaption2)
+                                .foregroundStyle(Color.tempoTextSecondary)
                         }
+                        .opacity(dose.take ? 1 : 0.5)
                         Spacer(minLength: 0)
                         // "I took it" checkmark — only on TAKE rows (a SKIP has
                         // nothing to check off). Tap toggles + persists; tap
                         // again undoes.
-                        if decision.take {
-                            let isTaken = taken.contains(decision.name)
+                        if dose.take {
+                            let isTaken = taken.contains(dose.name)
                             Button {
-                                viewModel.toggleSupplementTaken(name: decision.name, modelContext: modelContext)
+                                viewModel.toggleSupplementTaken(name: dose.name, modelContext: modelContext)
                                 supplementTakenRefresh += 1
                             } label: {
                                 Image(systemName: isTaken ? "checkmark.circle.fill" : "circle")
@@ -231,7 +237,7 @@ struct NutritionTodayView: View {
                                     .foregroundStyle(isTaken ? Color.tempoSuccess : Color.tempoTextTertiary)
                             }
                             .buttonStyle(.plain)
-                            .accessibilityLabel(isTaken ? "\(decision.name) taken, tap to undo" : "Mark \(decision.name) taken")
+                            .accessibilityLabel(isTaken ? "\(dose.name) taken, tap to undo" : "Mark \(dose.name) taken")
                         }
                     }
                 }

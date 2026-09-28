@@ -266,6 +266,22 @@ final class NutritionTabViewModel {
         return plan.supplementDecisions[key] ?? []
     }
 
+    /// Today's full supplement schedule (`SupplementScheduleEngine`), sorted
+    /// chronologically — every non-archived shelf item, take AND skip, timed
+    /// by pin/override/plan-timing/kind-default. Unlike
+    /// `todaySupplementDecisions` (plan-only, take rows only) this is shown
+    /// whenever the shelf is non-empty, even with no active plan.
+    func todaySupplementDoses(modelContext: ModelContext) -> [SupplementDose] {
+        let supplements = (try? modelContext.fetch(
+            FetchDescriptor<Supplement>(predicate: #Predicate<Supplement> { !$0.isArchived })
+        )) ?? []
+        guard !supplements.isEmpty else {
+            return []
+        }
+        let context = SupplementDayContext.build(date: Date(), modelContext: modelContext)
+        return SupplementScheduleEngine.schedule(supplements: supplements, context: context)
+    }
+
     /// Names of supplements the user marked TAKEN today (start-of-day keyed).
     /// Drives the checkmark state on the Today supplement card.
     func takenSupplementsToday(modelContext: ModelContext) -> Set<String> {
@@ -281,6 +297,11 @@ final class NutritionTabViewModel {
     /// existence means taken; tapping again (undo) deletes it. Guarded against
     /// a double-tap leaving two rows that one undo can't clear: we delete ALL
     /// matching rows on un-take and only insert when none exist.
+    ///
+    /// Also applies the reorder decrement/undo (`SupplementReorderService`)
+    /// when the shelf item is tracked, and posts `.tempoSupplementsChanged` so
+    /// `SupplementReminderScheduler` rebuilds today's reminders (a taken dose
+    /// needs no more nagging).
     func toggleSupplementTaken(name: String, modelContext: ModelContext) {
         let today = Calendar.current.startOfDay(for: Date())
         let descriptor = FetchDescriptor<SupplementIntakeLog>(
@@ -289,15 +310,26 @@ final class NutritionTabViewModel {
             }
         )
         let existing = (try? modelContext.fetch(descriptor)) ?? []
+        let supplementDescriptor = FetchDescriptor<Supplement>(
+            predicate: #Predicate<Supplement> { $0.name == name }
+        )
+        let supplement = (try? modelContext.fetch(supplementDescriptor))?.first
         if existing.isEmpty {
             modelContext.insert(SupplementIntakeLog(supplementName: name, day: today))
+            if let supplement {
+                SupplementReorderService.applyTaken(to: supplement)
+            }
         } else {
             for row in existing {
                 modelContext.delete(row)
             }
+            if let supplement {
+                SupplementReorderService.applyUndo(to: supplement)
+            }
         }
         try? modelContext.save()
         HapticManager.lightImpact()
+        NotificationCenter.default.post(name: .tempoSupplementsChanged, object: nil)
     }
 
     var todayProteinConsumed: Int {
