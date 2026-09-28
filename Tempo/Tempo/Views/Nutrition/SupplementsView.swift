@@ -41,8 +41,7 @@ struct SupplementsView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: TempoSpacing.lg) {
                     headerCard
-                    // Integration: SupplementReorderBanner (Lane 1) goes here,
-                    // above the shelf list, when any item is running low.
+                    SupplementReorderBanner()
                     if supplements.isEmpty {
                         emptyState
                     } else {
@@ -91,11 +90,10 @@ struct SupplementsView: View {
     /// anything that caches the shelf elsewhere — reminders, the meal-plan
     /// AI's supplement block — can react.
     ///
-    /// TODO(integration): `NotificationCenter.default.post(name: .tempoSupplementsChanged, object: nil)`.
-    /// `.tempoSupplementsChanged` is defined in Lane 1's
-    /// `SupplementReminderScheduler.swift`, which isn't on this branch yet —
-    /// wire the real post in once that lane merges.
-    private func notifyShelfChanged() {}
+    /// Reminders and the reorder check re-read the shelf on this.
+    private func notifyShelfChanged() {
+        NotificationCenter.default.post(name: .tempoSupplementsChanged, object: nil)
+    }
 
     // MARK: - Header
 
@@ -357,10 +355,16 @@ struct SupplementEditSheet: View {
                         "Your plan decides each day whether to take this and when — you don't have to schedule it. These facts just help it (protein per scoop counts toward your macros; servings per container is what a restock resets servings-left to)."
                     )
                 }
-                // Integration: Lane 1's SupplementTimingSection(supplement:)
-                // — the "when to take it" editor (anchor/pinned time/reminders)
-                // — mounts here as its own Section, only when `existing` is
-                // set (a not-yet-saved draft has nothing to anchor timing to).
+                if let existing {
+                    SupplementTimingSection(supplement: existing)
+                    Section {
+                        NavigationLink {
+                            SupplementPicksView(supplement: existing)
+                        } label: {
+                            Label("Better products & where to buy", systemImage: "checkmark.seal")
+                        }
+                    }
+                }
                 Section("Notes (optional)") {
                     TextField("e.g. I get bloated with two scoops", text: $notes, axis: .vertical)
                 }

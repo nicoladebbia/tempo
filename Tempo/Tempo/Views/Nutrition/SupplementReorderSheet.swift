@@ -5,9 +5,8 @@
 // Opened from `SupplementReorderBanner` (or the shelf) for one low-stock
 // supplement: shows the estimate, lets the user add it to this week's
 // grocery list (`PantryGroceryBridge`) or confirm they already restocked
-// (resets the count + starts a new reorder-alert cycle). Reserves a slot for
-// Lane 3's `SupplementPicksView(supplement:)` ("better products + nearby
-// shops") — not built here, just left room for the coordinator to embed it.
+// (resets the count + starts a new reorder-alert cycle), or open
+// `SupplementPicksView` for better products and nearby shops.
 //
 // Per DESIGN_SYSTEM.md — all tokens, drill-sergeant voice.
 //
@@ -87,8 +86,13 @@ struct SupplementReorderSheet: View {
                     )
                 }
 
-                // Reserved for Lane 3's `SupplementPicksView(supplement:)` —
-                // "better products + nearby shops". Not built yet.
+                Section {
+                    NavigationLink {
+                        SupplementPicksView(supplement: supplement)
+                    } label: {
+                        Label("Better products & where to buy", systemImage: "checkmark.seal")
+                    }
+                }
             }
             .navigationTitle(supplement.name)
             .navigationBarTitleDisplayMode(.inline)
