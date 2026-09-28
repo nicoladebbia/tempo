@@ -56,6 +56,18 @@ final class PlannedExercise {
     /// SwiftData auto-migrates.
     var perSide: Bool = false
 
+    /// trainer-feedback-tests — true when this slot came from a `ProgramDay`/
+    /// `ProgramExercise` flagged `isTest` (a 1RM/3RM/5RM/time-trial test day).
+    /// Drives the "TEST — work up to a max" banner in the workout and, at
+    /// workout completion, marks its `ExerciseHistory` row's e1RM as a
+    /// TRUSTED max (`ExerciseHistory.isTrustedMax`) rather than an ordinary
+    /// estimate — see `TrainingViewModel.reliableEstimated1RM`'s doc comment
+    /// for how a trusted max outranks a same-or-later ordinary estimate. Set
+    /// from `ProgramExercise.isTest`/`ProgramDay.isTest` on import
+    /// (`TrainingViewModel.populateFromTrainerProgram`); false for every
+    /// generated/routine slot. Defaulted → SwiftData auto-migrates.
+    var isTestExercise: Bool = false
+
     /// Exercise name captured when this slot was created. `Exercise.
     /// plannedExercises` is `.nullify` (§10.6) — deleting a custom exercise
     /// detaches `exercise` instead of deleting this row, so a past session's
@@ -63,6 +75,22 @@ final class PlannedExercise {
     /// (read `exercise.name` — see `displayName`) or on legacy rows written
     /// before this field existed.
     var exerciseNameSnapshot: String?
+
+    /// Pause/travel-pain feature — non-nil when `TravelSwapEngine` swapped
+    /// this slot's exercise for a hotel/limited-equipment alternative, holding
+    /// the trainer's ORIGINAL exercise name (for the "Hotel swap for Barbell
+    /// RDL" label and the trainer-report "swapped (travel)" note — see
+    /// `TrainerReportSupplementalSections.swift`). Set once, at population
+    /// time, in `TrainingViewModel.populateFromTrainerProgram`. Optional →
+    /// lightweight SwiftData migration.
+    var travelSwapOriginalName: String?
+
+    /// "This hurts" flow — true once the athlete (or the severe-pain flow)
+    /// skipped this exercise for today due to pain. Display-only: doesn't
+    /// touch `WorkoutPlan.totalSets`/`completedSets` (an unlogged set already
+    /// reads honestly as not-done). Optional/defaulted → lightweight
+    /// SwiftData migration.
+    var painSkipped: Bool = false
 
     // MARK: - Relationships
 

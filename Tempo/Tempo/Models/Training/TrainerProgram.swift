@@ -48,6 +48,17 @@ struct ProgramExercise: Codable, Hashable, Identifiable {
     /// "8+8" style reps: `repsLow` is per side.
     var perSide: Bool?
 
+    /// trainer-feedback-tests — true when this row is a max/time-trial TEST
+    /// ("test 1RM", "5RM", "time trial", "test 30m", "Yo-Yo"…), detected on
+    /// import by `TrainerTestDayDetector` (or inherited from `ProgramDay
+    /// .isTest`) — never guessed beyond its keyword list. Drives the "TEST —
+    /// work up to a max" banner in the workout (`PlannedExercise
+    /// .isTestExercise`) and, for a conditioning block, whether its logged
+    /// result becomes a trusted baseline (`ConditioningBlockResult
+    /// .isBaselineTest`). Optional → lightweight SwiftData/Codable migration
+    /// (nil on every program saved before this shipped).
+    var isTest: Bool?
+
     /// Rep target for a prescribed set: the low end of a range.
     var targetReps: Int {
         max(1, repsLow)
@@ -71,6 +82,14 @@ struct ProgramDay: Codable, Hashable, Identifiable {
     /// picked one — ProgramScheduler may move it around football days.
     var weekdayGuessed: Bool?
 
+    /// trainer-feedback-tests — true when the WHOLE day is a max/time-trial
+    /// test (a day titled "Test 1RM" / "5RM Week", say), detected on import
+    /// by `TrainerTestDayDetector` from the day's title/notes/exercise text.
+    /// Every exercise on a test day is treated as a test exercise even if it
+    /// individually carries no test wording of its own (`ProgramExercise
+    /// .isTest`). Optional → lightweight SwiftData/Codable migration.
+    var isTest: Bool?
+
     var workoutType: WorkoutType {
         if let focus, let type = WorkoutType(rawValue: focus), type != .rest, type != .football {
             return type
@@ -89,6 +108,19 @@ struct ProgramDay: Codable, Hashable, Identifiable {
 struct ProgramWeek: Codable, Hashable, Identifiable {
     var id = UUID()
     var days: [ProgramDay]
+}
+
+// MARK: - TrainerProgramChangeLogEntry
+
+/// trainer-feedback-tests — one "trainer sent changes" batch: when it was
+/// applied, the athlete's own source text (for reference/debugging), and a
+/// short human-readable line per edit actually accepted. `TrainerProgramSaver
+/// .appendChangeLogEntry` is the only writer.
+struct TrainerProgramChangeLogEntry: Codable, Hashable, Identifiable {
+    var id = UUID()
+    var date: Date
+    var sourceText: String
+    var editSummaries: [String]
 }
 
 // MARK: - TrainerProgramScheduleMode
@@ -202,6 +234,16 @@ final class TrainerProgram {
     /// `TrainerProgramView`.
     var cadenceRaw: String?
 
+    /// trainer-feedback-tests — "trainer sent changes" history: one entry per
+    /// accepted feedback-edit batch (date, the athlete's own source text, and
+    /// a short description of each edit actually applied). Shown on
+    /// `TrainerProgramView` and folded into the trainer report as "Changes
+    /// from trainer this week" (`TrainerReportChangesSection.swift` — a
+    /// separate extension so it stays out of `TrainerReportBuilder`'s way).
+    /// Defaulted → lightweight SwiftData migration (empty on every program
+    /// saved before this shipped).
+    var changeLog: [TrainerProgramChangeLogEntry] = []
+
     init(
         id: UUID = UUID(),
         name: String,
@@ -215,6 +257,7 @@ final class TrainerProgram {
         scheduleMode: TrainerProgramScheduleMode? = nil,
         queuedActivationDate: Date? = nil,
         cadence: TrainerProgramCadence? = nil,
+        changeLog: [TrainerProgramChangeLogEntry] = [],
         createdAt: Date = Date()
     ) {
         self.id = id
@@ -229,6 +272,7 @@ final class TrainerProgram {
         self.scheduleModeRaw = scheduleMode?.rawValue
         self.queuedActivationDate = queuedActivationDate
         self.cadenceRaw = cadence?.rawValue
+        self.changeLog = changeLog
         self.createdAt = createdAt
     }
 

@@ -26,6 +26,8 @@ struct GuidedRunView: View {
     private var modelContext
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(ServiceContainer.self)
+    private var services
     @Query
     private var userSettings: [UserSettings]
 
@@ -39,6 +41,11 @@ struct GuidedRunView: View {
     private var cueService = GuidedRunCueService()
     @State
     private var locationTracker = GuidedRunLocationTracker()
+    /// Live Activity + Apple Watch run mode — fans the session's state out to
+    /// both and routes wrist taps back onto it. See its header for the
+    /// update-cadence reasoning.
+    @State
+    private var liveCoordinator = GuidedRunLiveCoordinator()
     @State
     private var isMuted = false
     private let clock: GuidedRunClock
@@ -85,12 +92,34 @@ struct GuidedRunView: View {
         .onDisappear {
             UIApplication.shared.isIdleTimerDisabled = false
             locationTracker.stop()
+            liveCoordinator.end()
+            cueService.endSession()
+            services.watchActionRouter.clearGuidedRunActionHandler()
+        }
+        .task {
+            liveCoordinator.locationTracker = locationTracker
+            services.watchActionRouter.setGuidedRunActionHandler { [liveCoordinator] action in
+                liveCoordinator.handleWatchAction(action)
+            }
         }
         .onReceive(Timer.publish(every: 0.25, on: .main, in: .common).autoconnect()) { _ in
             session?.tick()
             syncLocationTracking()
         }
         .onChange(of: isMuted) { _, muted in cueService.isMuted = muted }
+        .onChange(of: session?.phase) { _, _ in liveCoordinator.handleTransition() }
+        .onChange(of: session?.isPaused) { _, _ in liveCoordinator.handleTransition() }
+    }
+
+    /// `HeartRateZoneCalculator.maxHeartRate` (220-age, or the athlete's own
+    /// override) — always resolvable (falls back to age 30), so the Live
+    /// Activity/Watch zone is never permanently blank just because the
+    /// profile has no age set.
+    private var maxHeartRate: Double {
+        HeartRateZoneCalculator.maxHeartRate(
+            age: userSettings.first?.userProfile?.age,
+            override: userSettings.first?.maxHeartRateOverride
+        )
     }
 
     private static func clockForLaunch() -> GuidedRunClock {
@@ -198,10 +227,22 @@ struct GuidedRunView: View {
             HapticManager.impact(.heavy)
             let builtPlan = GuidedRunPlanBuilder.build(day: day, restOverrides: restOverrides)
             plan = builtPlan
+            cueService.startSession()
             let newSession = GuidedRunSession(plan: builtPlan, clock: clock)
-            newSession.cueHandler = { [cueService] cue in cueService.handle(cue) }
+            newSession.cueHandler = { [cueService, liveCoordinator] cue in
+                cueService.handle(cue)
+                liveCoordinator.handleCue(cue)
+            }
             session = newSession
+            liveCoordinator.start(session: newSession, runTitle: heading, useMiles: useMiles, maxHeartRate: maxHeartRate)
             newSession.start()
+            #if DEBUG
+                // Screenshot/manual-QA aid only — lets the Live Activity/HR
+                // badge be exercised on a simulator with no paired Watch.
+                if ProcessInfo.processInfo.arguments.contains("--uitesting-fake-heart-rate") {
+                    newSession.updateLiveHeartRate(142)
+                }
+            #endif
         } label: {
             Text(plan.isEmpty ? "Nothing to run" : "Start guided run")
                 .font(.tempoHeadline)
@@ -230,12 +271,14 @@ struct GuidedRunView: View {
                 locationTracker: locationTracker,
                 isMuted: $isMuted,
                 useMiles: useMiles,
+                maxHeartRate: maxHeartRate,
                 onExit: { confirmEndEarly(session) }
             )
         case .rest:
             GuidedRunRestScreen(
                 session: session,
                 isMuted: $isMuted,
+                maxHeartRate: maxHeartRate,
                 onExit: { confirmEndEarly(session) }
             )
         }

@@ -25,7 +25,8 @@ final class FocusTimerActivityManager: @unchecked Sendable {
         progress: Double,
         subject: String?,
         sessionIndex: Int,
-        totalSessions: Int
+        totalSessions: Int,
+        isPaused: Bool = false
     ) {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else {
             return
@@ -41,7 +42,7 @@ final class FocusTimerActivityManager: @unchecked Sendable {
             subject: subject,
             sessionIndex: sessionIndex,
             totalSessions: totalSessions,
-            isPaused: false
+            isPaused: isPaused
         )
         do {
             let activity = try Activity.request(

@@ -242,4 +242,61 @@ final class WatchActionRouterTests: XCTestCase {
         XCTAssertEqual(decoded.action, .logSet)
         XCTAssertEqual(decoded.id, "abc", "falls back to the payload's actionID tag")
     }
+
+    // MARK: - Guided run (Apple Watch run mode)
+
+    func testGuidedRunActionsNoOpWithoutAHandlerRegistered() throws {
+        let context = try makeContext()
+        let router = makeRouter(configured: context)
+
+        XCTAssertFalse(
+            router.handle(.init(action: .guidedRunMarkDone, payload: [:])),
+            "No live guided run to apply to — never fakes success"
+        )
+        XCTAssertFalse(router.handle(.init(action: .guidedRunPause, payload: [:])))
+        XCTAssertFalse(router.handle(.init(action: .guidedRunHeartRate, payload: ["bpm": "142"])))
+    }
+
+    func testGuidedRunActionsRouteToTheRegisteredHandler() throws {
+        let context = try makeContext()
+        let router = makeRouter(configured: context)
+
+        var received: [WatchQuickAction] = []
+        router.setGuidedRunActionHandler { action in
+            received.append(action.action)
+            return true
+        }
+
+        XCTAssertTrue(router.handle(.init(action: .guidedRunMarkDone, payload: [:])))
+        XCTAssertTrue(router.handle(.init(action: .guidedRunSkipRep, payload: [:])))
+        XCTAssertTrue(router.handle(.init(action: .guidedRunPause, payload: [:])))
+        XCTAssertTrue(router.handle(.init(action: .guidedRunResume, payload: [:])))
+        XCTAssertTrue(router.handle(.init(action: .guidedRunHeartRate, payload: ["bpm": "142"])))
+        XCTAssertEqual(received, [.guidedRunMarkDone, .guidedRunSkipRep, .guidedRunPause, .guidedRunResume, .guidedRunHeartRate])
+    }
+
+    func testClearingTheGuidedRunHandlerStopsRouting() throws {
+        let context = try makeContext()
+        let router = makeRouter(configured: context)
+
+        router.setGuidedRunActionHandler { _ in true }
+        router.clearGuidedRunActionHandler()
+
+        XCTAssertFalse(
+            router.handle(.init(action: .guidedRunMarkDone, payload: [:])),
+            "Cleared at session end (GuidedRunView.onDisappear) — a stray late action must not silently succeed"
+        )
+    }
+
+    /// New `WatchQuickAction` cases must decode like any other — an older
+    /// phone build receiving these strings would fail closed via `?? false`
+    /// upstream if it somehow didn't know the case, but THIS build must
+    /// round-trip them cleanly.
+    func testNewGuidedRunActionCasesDecode() throws {
+        for raw in ["guidedRunMarkDone", "guidedRunSkipRep", "guidedRunPause", "guidedRunResume", "guidedRunHeartRate"] {
+            let json = Data(#"{"action":"\#(raw)","payload":{}}"#.utf8)
+            let decoded = try JSONDecoder().decode(WatchActionPayload.self, from: json)
+            XCTAssertEqual(decoded.action.rawValue, raw)
+        }
+    }
 }

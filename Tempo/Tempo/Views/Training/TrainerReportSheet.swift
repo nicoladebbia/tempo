@@ -21,11 +21,30 @@ import SwiftUI
 
 struct TrainerReportSheet: View {
     let program: TrainerProgram
+    /// Sunday wrap-up feature — fires when the athlete taps either share
+    /// button, so an embedding flow (`SundayWrapUpSheet`) can remember the
+    /// report was actually sent this week. nil (default) for every other
+    /// entry point — behavior is unchanged for them.
+    var onShared: (() -> Void)?
+    /// Sunday wrap-up feature — true when this view is embedded as a STEP
+    /// inside another modal (`SundayWrapUpSheet`) rather than presented as
+    /// its own `.sheet`. Suppresses the toolbar "Close" button: with this
+    /// view embedded (not its own sheet), `@Environment(\.dismiss)` resolves
+    /// to the OUTER sheet's dismiss — tapping "Close" here would silently
+    /// skip the wrap-up's remaining steps instead of just leaving this one.
+    /// The embedding flow supplies its own Skip/Continue navigation instead.
+    var embedded = false
 
     @Environment(\.modelContext)
     private var modelContext
     @Environment(\.dismiss)
     private var dismiss
+    /// Whoop-football feature — best-effort async fallback (see
+    /// `enrichFootballWithWhoopIfNeeded`) when a football match/day has no
+    /// already-persisted `ActivitySession`. Same container every other
+    /// Training screen reads (`TrainerProgramView`, `TodayWorkoutView`).
+    @Environment(ServiceContainer.self)
+    private var services
 
     @State
     private var scope: TrainerReportScope = .week
@@ -37,9 +56,16 @@ struct TrainerReportSheet: View {
     private var pdfShareURL: URL?
     @State
     private var pdfErrorMessage: String?
+    /// Whoop-football feature — tracks the in-flight enrichment fetch so a
+    /// scope/language change (new `rebuild()`) cancels the stale one instead
+    /// of racing it into `document`.
+    @State
+    private var footballEnrichmentTask: Task<Void, Never>?
 
-    init(program: TrainerProgram) {
+    init(program: TrainerProgram, onShared: (() -> Void)? = nil, embedded: Bool = false) {
         self.program = program
+        self.onShared = onShared
+        self.embedded = embedded
         _language = State(initialValue: TrainerReportBuilder.detectLanguage(program: program))
     }
 
@@ -73,8 +99,10 @@ struct TrainerReportSheet: View {
             .navigationTitle("Report to Trainer")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
+                if !embedded {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Close") { dismiss() }
+                    }
                 }
             }
             .alert(
@@ -139,6 +167,22 @@ struct TrainerReportSheet: View {
                     }
                 }
             }
+
+            // Pause/travel-pain feature — football/pain/pauses/travel-swap
+            // sections. See TrainerReportSupplementalSections.swift.
+            ForEach(document.extraSections) { section in
+                VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+                    Text(section.title.uppercased())
+                        .font(.tempoCaption2.weight(.semibold))
+                        .foregroundStyle(Color.tempoTextTertiary)
+                    ForEach(Array(section.lines.enumerated()), id: \.offset) { _, line in
+                        Text("• \(line)")
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                    }
+                }
+                .padding(.top, TempoSpacing.xs)
+            }
         }
     }
 
@@ -159,6 +203,7 @@ struct TrainerReportSheet: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.tempoSecondary)
+            .simultaneousGesture(TapGesture().onEnded { onShared?() })
 
             if let pdfShareURL {
                 ShareLink(item: pdfShareURL) {
@@ -166,6 +211,7 @@ struct TrainerReportSheet: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.tempoSecondary)
+                .simultaneousGesture(TapGesture().onEnded { onShared?() })
             } else {
                 Button {
                     preparePDF(document)
@@ -195,14 +241,136 @@ struct TrainerReportSheet: View {
 
     private func rebuild() {
         pdfShareURL = nil
+        // A previous enrichment fetch (for the old scope/language) must never
+        // land on the document we're about to build fresh.
+        footballEnrichmentTask?.cancel()
+        document = Self.buildDocument(program: program, scope: scope, language: language, modelContext: modelContext)
+        footballEnrichmentTask = Task { @MainActor in
+            await enrichFootballWithWhoopIfNeeded()
+        }
+    }
+
+    /// Whoop-football feature — best-effort network fallback for football
+    /// match days with no persisted `ActivitySession` (§ "Only if nothing is
+    /// persisted, fetch Whoop workouts ... async, with the report still
+    /// rendering immediately"). `buildDocument` above already rendered the
+    /// document synchronously from persisted data alone; this only ever
+    /// ADDS numbers to it later, never blocks the initial render, and is a
+    /// no-op (leaves the document exactly as-is) when Whoop is disconnected,
+    /// in demo mode, slow, or errors out.
+    @MainActor
+    private func enrichFootballWithWhoopIfNeeded() async {
+        guard services.whoop.providesRealData else {
+            return
+        }
+        let scopeRange = TrainerReportBuilder.scheduleRange(for: scope, program: program)
+        let searchRange = TrainerReportBuilder.searchRange(around: scopeRange)
+        let matchesInScope = Self.fetchMatches(in: searchRange, modelContext: modelContext)
+            .filter { scopeRange.contains(Calendar.current.startOfDay(for: $0.kickoff)) }
+        guard !matchesInScope.isEmpty else {
+            return
+        }
+
+        let persisted = Self.fetchFootballActivitySessions(in: searchRange, modelContext: modelContext)
+        let cal = Calendar.current
+        let needsLookup = matchesInScope.filter {
+            TrainerReportSupplementalSections.footballStats(matching: $0.kickoff, in: persisted, calendar: cal) == nil
+        }
+        guard !needsLookup.isEmpty else {
+            return
+        }
+
+        var fetched: [ActivitySession] = []
+        for match in needsLookup {
+            if Task.isCancelled {
+                return
+            }
+            guard let workout = await Self.fetchSoccerWorkout(on: match.kickoff, whoop: services.whoop) else {
+                continue
+            }
+            fetched.append(ActivitySession(
+                date: match.kickoff,
+                startTime: workout.startTime,
+                workoutType: WorkoutType.football.rawValue,
+                sportID: workout.sportID,
+                source: "whoop",
+                strain: workout.strain,
+                averageHeartRate: workout.averageHeartRate,
+                maxHeartRate: workout.maxHeartRate,
+                caloriesBurned: workout.caloriesBurned,
+                durationMinutes: workout.durationMinutes
+            ))
+        }
+        guard !fetched.isEmpty, !Task.isCancelled else {
+            return
+        }
+        // Rebuilds from scratch (cheap — local fetches + pure computation)
+        // rather than patching `document` in place, so the missed-row
+        // relabeling / summary recompute in
+        // `TrainerReportSupplementalSections.apply` never runs twice over
+        // its own output.
+        document = Self.buildDocument(
+            program: program, scope: scope, language: language, modelContext: modelContext,
+            extraFootballActivities: fetched
+        )
+    }
+
+    /// Races a single-day Whoop workouts fetch against a short timeout so a
+    /// slow or hanging network call can never block the report. Returns the
+    /// longest soccer-tagged workout on `date`, or nil on timeout, error, or
+    /// no soccer activity that day.
+    private static func fetchSoccerWorkout(
+        on date: Date,
+        whoop: any WhoopServiceProtocol,
+        timeout: Duration = .seconds(4)
+    ) async -> WhoopWorkoutData? {
+        await withTaskGroup(of: WhoopWorkoutData?.self) { group in
+            group.addTask {
+                let workouts = await (try? whoop.fetchWorkouts(for: date)) ?? []
+                return workouts.filter { $0.sportID == 1 }.max { $0.durationMinutes < $1.durationMinutes }
+            }
+            group.addTask {
+                try? await Task.sleep(for: timeout)
+                return nil
+            }
+            // `next()` is `WhoopWorkoutData??` — outer optional is "no more
+            // child tasks" (never true here, both always return), inner is
+            // the winning task's own result. Flatten rather than `?? nil`
+            // (redundant-nil-coalescing false positive on the flattening idiom).
+            let result = await (group.next()).flatMap(\.self)
+            group.cancelAll()
+            return result
+        }
+    }
+
+    /// Fetches everything `TrainerReportBuilder.build` needs for `program`
+    /// and runs it — the whole ModelContext-touching assembly, factored out
+    /// of `rebuild()` so the Sunday wrap-up feature (`SundayWrapUpSheet`,
+    /// which needs the exact same document for its recap step) can call it
+    /// without re-fetching or duplicating any of this.
+    ///
+    /// `extraFootballActivities` — Whoop-football feature — additional
+    /// (not-yet-persisted) football `ActivitySession` facts to merge in on
+    /// top of whatever's already saved, used by the async network-fallback
+    /// enrichment above. Empty by default: every existing call site
+    /// (including `SundayWrapUpSheet`) is unaffected and stays
+    /// persisted-data-only.
+    @MainActor
+    static func buildDocument(
+        program: TrainerProgram,
+        scope: TrainerReportScope,
+        language: TrainerReportLanguage,
+        modelContext: ModelContext,
+        extraFootballActivities: [ActivitySession] = []
+    ) -> TrainerReportDocument {
         let scopeRange = TrainerReportBuilder.scheduleRange(for: scope, program: program)
         let searchRange = TrainerReportBuilder.searchRange(around: scopeRange)
 
-        let plans = Self.fetchPlans(in: searchRange, modelContext: modelContext)
+        let plans = fetchPlans(in: searchRange, modelContext: modelContext)
         let planIDs = Set(plans.map(\.id))
-        let personalRecords = Self.fetchPersonalRecords(matching: planIDs, modelContext: modelContext)
-        let recoveryScores = Self.fetchRecoveryScores(in: searchRange, modelContext: modelContext)
-        let painFlaggedExerciseIDs = Self.fetchPainFlaggedExerciseIDs(in: searchRange, modelContext: modelContext)
+        let personalRecords = fetchPersonalRecords(matching: planIDs, modelContext: modelContext)
+        let recoveryScores = fetchRecoveryScores(in: searchRange, modelContext: modelContext)
+        let painFlaggedExerciseIDs = fetchPainFlaggedExerciseIDs(in: searchRange, modelContext: modelContext)
 
         let input = TrainerReportInput(
             program: program,
@@ -213,14 +381,72 @@ struct TrainerReportSheet: View {
             recoveryScores: recoveryScores,
             painFlaggedExerciseIDs: painFlaggedExerciseIDs,
             conditioningProvider: StoredConditioningResults(
-                results: Self.fetchConditioningResults(forPlans: planIDs, modelContext: modelContext),
+                results: fetchConditioningResults(forPlans: planIDs, modelContext: modelContext),
                 program: program
-            )
+            ),
+            // Week-over-week progress feature.
+            weekOverWeek: WeekOverWeekProgressLoader.load(scopeRange: scopeRange, modelContext: modelContext)
         )
-        document = TrainerReportBuilder.build(input: input, language: language)
+        let built = TrainerReportBuilder.build(input: input, language: language)
+
+        // Pause/travel-pain feature — football/pain/pauses/travel-swap
+        // sections, and the pause/match-day-aware relabeling of missed rows
+        // (TrainerReportSupplementalSections.swift). Applied here so the
+        // Sunday wrap-up recap sees the same document as the report sheet.
+        let supplementalInput = TrainerReportSupplementalSections.Input(
+            pauses: fetchTrainingPauses(modelContext: modelContext),
+            matches: fetchMatches(in: searchRange, modelContext: modelContext),
+            plans: plans,
+            painReports: fetchPainReports(in: searchRange, modelContext: modelContext),
+            // Whoop-football feature — persisted first, network fallback
+            // (`extraFootballActivities`) merged on top when the async
+            // enrichment above found something persisted data didn't have.
+            footballActivities: fetchFootballActivitySessions(in: searchRange, modelContext: modelContext) + extraFootballActivities,
+            scopeRange: scopeRange
+        )
+        return TrainerReportSupplementalSections.apply(to: built, input: supplementalInput, language: language)
     }
 
-    private static func fetchPlans(in range: ClosedRange<Date>, modelContext: ModelContext) -> [WorkoutPlan] {
+    private static func fetchTrainingPauses(modelContext: ModelContext) -> [TrainingPause] {
+        (try? modelContext.fetch(FetchDescriptor<TrainingPause>())) ?? []
+    }
+
+    private static func fetchMatches(in range: ClosedRange<Date>, modelContext: ModelContext) -> [Match] {
+        let lower = range.lowerBound
+        let upper = Calendar.current.date(byAdding: .day, value: 1, to: range.upperBound) ?? range.upperBound
+        let descriptor = FetchDescriptor<Match>(predicate: #Predicate<Match> { $0.kickoff >= lower && $0.kickoff < upper })
+        return (try? modelContext.fetch(descriptor)) ?? []
+    }
+
+    private static func fetchPainReports(in range: ClosedRange<Date>, modelContext: ModelContext) -> [PainReport] {
+        let lower = range.lowerBound
+        let upper = Calendar.current.date(byAdding: .day, value: 1, to: range.upperBound) ?? range.upperBound
+        let descriptor = FetchDescriptor<PainReport>(predicate: #Predicate<PainReport> { $0.date >= lower && $0.date < upper })
+        return (try? modelContext.fetch(descriptor)) ?? []
+    }
+
+    /// Whoop-football feature — already-persisted football activity: saved
+    /// either by `persistNonGymCompletion` when the athlete confirmed "that
+    /// was football" (workoutType == "football") or tagged by Whoop as
+    /// soccer (sportID == 1) even if logged under a different plan type.
+    /// Preferred over any live Whoop call — see `Input.footballActivities`.
+    private static func fetchFootballActivitySessions(
+        in range: ClosedRange<Date>,
+        modelContext: ModelContext
+    ) -> [ActivitySession] {
+        let lower = range.lowerBound
+        let upper = Calendar.current.date(byAdding: .day, value: 1, to: range.upperBound) ?? range.upperBound
+        let footballType = WorkoutType.football.rawValue
+        let soccerSportID = 1
+        let descriptor = FetchDescriptor<ActivitySession>(
+            predicate: #Predicate<ActivitySession> {
+                $0.date >= lower && $0.date < upper && ($0.workoutType == footballType || $0.sportID == soccerSportID)
+            }
+        )
+        return (try? modelContext.fetch(descriptor)) ?? []
+    }
+
+    static func fetchPlans(in range: ClosedRange<Date>, modelContext: ModelContext) -> [WorkoutPlan] {
         let lower = range.lowerBound
         let upper = Calendar.current.date(byAdding: .day, value: 1, to: range.upperBound) ?? range.upperBound
         let descriptor = FetchDescriptor<WorkoutPlan>(

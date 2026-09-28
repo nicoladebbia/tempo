@@ -72,6 +72,9 @@ struct TodayWorkoutView: View {
     /// drives the alternatives sheet.
     @State
     private var swapTarget: PlannedExercise?
+    /// "This hurts" flow — see PainReportSheet.swift.
+    @State
+    private var painReportTarget: PlannedExercise?
     /// §2.14 — add-exercise picker sheet.
     @State
     private var showAddExercise = false
@@ -82,6 +85,15 @@ struct TodayWorkoutView: View {
     private var showSaveRoutine = false
     @State
     private var routineName = ""
+
+    /// Pause/travel-pain feature — refreshed by `.task`/notification below,
+    /// same pattern as `MissedTrainerSessionCard`'s own `missed` state.
+    @State
+    private var activePause: TrainingPause?
+    /// A pause must never replace an already-started/completed session.
+    private var isTodaySessionSacred: Bool {
+        viewModel.todayPlan?.status == .inProgress || viewModel.todayPlan?.status == .completed
+    }
 
     /// Reminder is scheduled at most once per saved-event start.
     private static let workoutReminderID = "tempo.workout.reminder"
@@ -126,6 +138,13 @@ struct TodayWorkoutView: View {
                     // empty state below permanently unreachable.
                     if viewModel.isLoading {
                         loadingState
+                    } else if let activePause, !isTodaySessionSacred {
+                        // Pause/travel-pain feature — the calm "Paused —
+                        // recover" card replaces ALL of Today's normal
+                        // content while paused (never a sacred started/
+                        // completed session — see `isTodaySessionSacred`).
+                        // See PausedTrainingCard.swift.
+                        PausedTrainingCard(viewModel: viewModel, pause: activePause)
                     } else if showsBedtimeCard(showSessionAnyway: showSessionTonight) {
                         bedtimeCard { lateNightSkipUntilRaw = LateNightWindow.skipUntil().timeIntervalSince1970 }
                     } else {
@@ -152,6 +171,12 @@ struct TodayWorkoutView: View {
                     // only; renders nothing when there's nothing missed).
                     // See MissedTrainerSessionCard.swift.
                     if !showsBedtimeCard(showSessionAnyway: showSessionTonight) {
+                        // Pause/travel-pain feature — must render even (especially)
+                        // while `activePause` is nil, so a fixed-mode pause's
+                        // resume decision is never silently skipped. See
+                        // WelcomeBackResumeCard.swift.
+                        WelcomeBackResumeCard(viewModel: viewModel)
+
                         MissedTrainerSessionCard(viewModel: viewModel)
 
                         // Weekly-upload feature — "New week — upload …"
@@ -197,6 +222,9 @@ struct TodayWorkoutView: View {
         }
         .sheet(item: $swapTarget) { target in
             SwapExerciseSheet(viewModel: viewModel, target: target)
+        }
+        .sheet(item: $painReportTarget) { target in
+            PainReportSheet(viewModel: viewModel, plannedExercise: target)
         }
         .sheet(isPresented: $showRoutines) {
             NavigationStack {
@@ -258,6 +286,13 @@ struct TodayWorkoutView: View {
             // Any surface that mutates the workout re-syncs the wrist.
             viewModel.pushWorkoutToWatch()
         }
+        // Pause/travel-pain feature.
+        .task(id: viewModel.todayPlan?.id) {
+            refreshActivePause()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .tempoTrainingSettingsChanged)) { _ in
+            refreshActivePause()
+        }
         .task {
             // Once-a-minute countdown refresh (was a Combine Timer.publish
             // tick; replaced to keep this file Combine-free per project
@@ -292,6 +327,11 @@ struct TodayWorkoutView: View {
     }
 
     // MARK: - Workout Schedule Loading
+
+    /// Pause/travel-pain feature.
+    private func refreshActivePause() {
+        activePause = viewModel.activePause(modelContext: modelContext)
+    }
 
     /// Loads both the saved workout event (countdown source) and the
     /// suggested free window (fallback). Schedules the 30-min reminder when a
@@ -1140,6 +1180,12 @@ struct TodayWorkoutView: View {
                     Label("Break Group", systemImage: "link.badge.minus")
                 }
             }
+            // "This hurts" flow — see PainReportSheet.swift.
+            Button {
+                painReportTarget = plannedExercise
+            } label: {
+                Label("This hurts", systemImage: "bandage.fill")
+            }
         }
     }
 
@@ -1201,6 +1247,17 @@ struct TodayWorkoutView: View {
                         .clipShape(Capsule())
                 }
 
+                // "This hurts" flow — caution chip while a pain report on this
+                // exercise is still inside its 7-day window. See PainReport.swift.
+                if let exerciseID = plannedExercise.exercise?.id,
+                   viewModel.recentPainCaution(for: exerciseID, modelContext: modelContext) != nil
+                {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color.tempoWarning)
+                        .accessibilityLabel("Recent pain reported on this exercise")
+                }
+
                 Image(systemName: "chevron.right")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(Color.tempoTextTertiary)
@@ -1232,6 +1289,20 @@ struct TodayWorkoutView: View {
                             .foregroundStyle(Color.tempoSignal)
                     }
                 }
+            }
+
+            // Travel/hotel-gym swap label — see TravelSwapEngine.swift.
+            if let original = plannedExercise.travelSwapOriginalName {
+                Label("Hotel swap for \(original)", systemImage: "arrow.triangle.2.circlepath")
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoElectric)
+            }
+
+            // "This hurts" flow — skipped-for-pain marker.
+            if plannedExercise.painSkipped {
+                Label("Skipped — pain", systemImage: "bandage.fill")
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoWarning)
             }
 
             // Trainer program: their cue / rest for this exercise.
@@ -1763,112 +1834,6 @@ struct TodayWorkoutView: View {
     }
 
     // MARK: - Helpers
-
-    private func recoveryDotColor(plan: WorkoutPlan) -> Color {
-        let adj = plan.recoveryAdjustment
-        if adj >= 1.0 {
-            return Color.tempoRecoveryGreen
-        }
-        if adj >= 0.6 {
-            return Color.tempoRecoveryYellow
-        }
-        return Color.tempoRecoveryRed
-    }
-
-    private func recoveryText(plan: WorkoutPlan) -> String {
-        let adj = plan.recoveryAdjustment
-        if adj >= 1.0 {
-            return "Green Recovery"
-        }
-        if adj >= 0.6 {
-            return "Yellow Recovery"
-        }
-        return "Red Recovery"
-    }
-
-    private func adjustmentLabel(plan: WorkoutPlan) -> String {
-        let adj = plan.recoveryAdjustment
-        if adj >= 1.0 {
-            return "Full Volume"
-        }
-        if adj >= 0.8 {
-            return "-20% Volume"
-        }
-        if adj >= 0.75 {
-            return "-20% Volume, Lighter Load"
-        }
-        return "Swapped to Mobility"
-    }
-
-    private func estimatedDuration(plan: WorkoutPlan) -> Int {
-        let exercises = plan.orderedExercises
-        guard !exercises.isEmpty else {
-            return 20
-        }
-
-        var totalMinutes = 5.0 // Warmup period
-        let exerciseCount = exercises.count
-
-        for (index, plannedEx) in exercises.enumerated() {
-            let sets = plannedEx.orderedSets
-            let isCompound = plannedEx.exercise?.isCompound ?? false
-
-            for set in sets {
-                if set.isWarmup {
-                    totalMinutes += 1.0 // Warmup sets: 1 min each
-                } else if isCompound {
-                    totalMinutes += 2.5 // Working compound sets: 2.5 min (set + rest)
-                } else {
-                    totalMinutes += 1.5 // Working isolation sets: 1.5 min (set + rest)
-                }
-            }
-
-            // Between-exercise transition (not after the last exercise)
-            if index < exerciseCount - 1 {
-                totalMinutes += 1.0
-            }
-        }
-
-        totalMinutes += 3.0 // Cooldown
-
-        return max(20, Int(totalMinutes.rounded()))
-    }
-
-    private func prescriptionText(sets: [PlannedSet], firstSet: PlannedSet, isTrainerDay: Bool = false, perSide: Bool = false) -> String {
-        let workingSets = sets.filter { !$0.isWarmup }
-        let warmupSets = sets.filter(\.isWarmup)
-        let setCount = workingSets.count
-        let leadSet = workingSets.first ?? firstSet
-        // Fix #9 — "8" vs "8 / side" for a unilateral trainer prescription.
-        let reps = SideRepsFormat.reps(leadSet.targetReps, perSide: perSide)
-        let unit = settings?.weightUnit ?? .kg
-
-        var text: String
-        if let weight = leadSet.targetWeight, weight > 0 {
-            let displayWeight = WeightUnit.kg.convert(weight, to: unit)
-            text = "\(setCount) x \(reps) @ \(Int(displayWeight))\(unit.abbreviation)"
-        } else if leadSet.isCalibration {
-            // §5 — a trainer % with no reliable max: no weight to show yet,
-            // the first set calibrates it live.
-            text = "\(setCount) x \(reps) · calibrate first set"
-        } else {
-            text = "\(setCount) x \(reps) (BW)"
-        }
-
-        // §11.12 — effort target rides the prescription line when the
-        // e1RM-anchored path set one.
-        if let rir = leadSet.targetRIR, !leadSet.isCalibration {
-            text += " · RIR \(rir)"
-        }
-
-        if !warmupSets.isEmpty {
-            // §13 — every warmup on a trainer day is one Tempo added; the
-            // trainer never wrote it.
-            text += " + \(warmupSets.count) \(isTrainerDay ? "Tempo warm-up" : "warmup")"
-        }
-
-        return text
-    }
 
     private var nextWorkoutType: String? {
         let cal = Calendar.current

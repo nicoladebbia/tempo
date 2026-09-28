@@ -160,14 +160,26 @@ enum TrainerProgramParser {
                 if validWeekday == nil {
                     autoAssigned = true
                 }
-                let exercises = (rawDay.exercises ?? []).compactMap(convert)
+                // trainer-feedback-tests — day-level test detection (title +
+                // notes) is checked once; each exercise then ALSO inherits it
+                // (a test day's warm-up ramp counts too) OR is flagged on its
+                // own text (a single test block inside an otherwise-ordinary
+                // conditioning day, e.g. "test 30m" among easy running).
+                let dayIsTest = TrainerTestDayDetector.isTestDay(title: rawDay.title, notes: rawDay.notes)
+                let exercises = (rawDay.exercises ?? []).compactMap(convert).map { exercise -> ProgramExercise in
+                    var exercise = exercise
+                    exercise.isTest = dayIsTest
+                        || TrainerTestDayDetector.isTestExercise(name: exercise.name, detail: exercise.detail, notes: exercise.notes)
+                    return exercise
+                }
                 days.append(ProgramDay(
                     weekday: weekday,
                     title: nonEmpty(rawDay.title),
                     focus: normalizedFocus(rawDay.focus),
                     exercises: exercises,
                     notes: nonEmpty(rawDay.notes),
-                    weekdayGuessed: validWeekday == nil
+                    weekdayGuessed: validWeekday == nil,
+                    isTest: dayIsTest
                 ))
             }
             weeks.append(ProgramWeek(days: days))

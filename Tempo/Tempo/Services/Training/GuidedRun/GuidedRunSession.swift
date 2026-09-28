@@ -70,6 +70,13 @@ final class GuidedRunSession {
     private var firedHalfwayForCurrentStep = false
     private var firedTenSecondsForCurrentStep = false
 
+    /// Apple Watch run mode — the most recent live BPM streamed in from the
+    /// wrist's HKWorkoutSession, or nil with no paired/reachable Watch. Read
+    /// by the guided-run screens and fanned into the Live Activity/Watch
+    /// snapshot; every sample also accumulates into the current step's
+    /// block record (see `updateLiveHeartRate`).
+    private(set) var currentHeartRateBPM: Double?
+
     init(plan: GuidedRunPlan, clock: GuidedRunClock = SystemClock()) {
         self.plan = plan
         steps = plan.steps
@@ -138,6 +145,25 @@ final class GuidedRunSession {
     /// fix; does not itself record anything (markDone does that).
     func updateLiveDistance(_ meters: Double) {
         currentLiveDistanceMeters = meters
+    }
+
+    /// Apple Watch run mode — a live BPM sample from the wrist. Accumulates
+    /// into the CURRENT step's block record continuously (not just at
+    /// `markDone`, since HR keeps flowing through both work and rest) so the
+    /// block's avg/max is always the true average over the whole time it was
+    /// live, not just the moments a rep happened to complete.
+    func updateLiveHeartRate(_ bpm: Double) {
+        guard bpm > 0 else {
+            return
+        }
+        currentHeartRateBPM = bpm
+        guard steps.indices.contains(stepIndex) else {
+            return
+        }
+        let blockID = steps[stepIndex].blockID
+        var record = results[blockID] ?? GuidedRunBlockRecord(blockID: blockID)
+        record.heartRateSamplesBPM.append(bpm)
+        results[blockID] = record
     }
 
     // MARK: - Athlete actions
@@ -305,8 +331,9 @@ final class GuidedRunSession {
             return
         }
         switch kind {
-        case .timedRep:
+        case let .timedRep(rep):
             record.repTimesSeconds.append(elapsed)
+            cueHandler(.repResult(elapsedSeconds: elapsed, capSeconds: rep.capSeconds))
         case .round:
             record.roundsCompleted += 1
         case .continuousDuration:
@@ -355,8 +382,11 @@ final class GuidedRunSession {
         currentLiveDistanceMeters = 0
 
         switch steps[index].kind {
-        case .work:
+        case let .work(kind):
             phase = .work(stepIndex: index)
+            if case let .timedRep(rep) = kind {
+                cueHandler(.repStart(index: rep.index, of: rep.of, capSeconds: rep.capSeconds, isLast: rep.index == rep.of - 1))
+            }
         case .rest:
             phase = .rest(stepIndex: index)
             cueHandler(.restStart)

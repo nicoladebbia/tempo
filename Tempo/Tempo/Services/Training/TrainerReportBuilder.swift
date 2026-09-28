@@ -50,6 +50,16 @@ struct TrainerReportInput {
     var painFlaggedExerciseIDs: Set<UUID> = []
     /// Logged conditioning results, keyed by session — see `ConditioningLine`.
     var conditioningProvider: ConditioningResultProviding = EmptyConditioningResultProvider()
+
+    // MARK: Week-over-week progress feature (see WeekOverWeekProgress.swift)
+
+    /// This exercise/conditioning-block's comparison against its most recent
+    /// earlier session, any past week's program — populated by
+    /// `WeekOverWeekProgressLoader` and read only from `buildExerciseLine`/
+    /// `buildRow`'s conditioning mapping below. `.empty` (the default) means
+    /// every row's `vsLastWeekText` stays nil — a caller that doesn't build
+    /// this (e.g. an older test) sees the exact same report as before.
+    var weekOverWeek: WeekOverWeekProgress.Result = .empty
 }
 
 // MARK: - TrainerReportBuilder
@@ -213,7 +223,10 @@ enum TrainerReportBuilder {
             generatedLabel: "\(strings.generatedOnLabel) \(formatDate(Date(), language: language, includeWeekday: false))",
             summary: summary,
             summaryLines: summaryLines,
-            sessions: rows
+            sessions: rows,
+            // trainer-feedback-tests — see TrainerReportChangesSection.swift;
+            // deliberately a single wired-in line, not logic added here.
+            changesSection: TrainerReportChangesSectionBuilder.build(program: program, scopeRange: input.scopeRange, language: language)
         )
     }
 
@@ -342,7 +355,9 @@ enum TrainerReportBuilder {
                         actualText: actualText(extra, strings: strings),
                         adjustmentText: nil,
                         overrideApplied: extra.trainerOverrideApplied,
-                        noteText: nil
+                        noteText: nil,
+                        // Week-over-week progress feature.
+                        vsLastWeekText: vsLastWeekText(forExerciseID: extra.exercise?.id, input: input, strings: strings)
                     ))
                 }
             }
@@ -353,8 +368,17 @@ enum TrainerReportBuilder {
             }
         }
 
+        // Week-over-week progress feature — matched by block label/shape
+        // (see WeekOverWeekProgress), never by ProgramExercise.id: every
+        // weekly re-upload mints a fresh one.
         let conditioning = input.conditioningProvider.conditioningLines(forSessionKey: sessionKey, workoutPlanID: matchedPlan?.id)
-            .map { TrainerReportConditioningRow(text: formatConditioningLine($0, strings: strings)) }
+            .map { line in
+                TrainerReportConditioningRow(
+                    text: formatConditioningLine(line, strings: strings),
+                    vsLastWeekText: input.weekOverWeek.conditioningDelta(forBlockLabel: line.blockLabel)?.avgChangeText
+                        .map { "\(strings.vsLastWeekLabel): \($0)" }
+                )
+            }
 
         // PRs are lift-based — attribute them to the strength row only, so a
         // shared two-a-day plan doesn't list the same PR twice.
@@ -411,8 +435,26 @@ enum TrainerReportBuilder {
             actualText: actualText(plannedEx, strings: strings),
             adjustmentText: adjustmentText,
             overrideApplied: plannedEx?.trainerOverrideApplied ?? false,
-            noteText: noteParts.isEmpty ? nil : noteParts.joined(separator: " · ")
+            noteText: noteParts.isEmpty ? nil : noteParts.joined(separator: " · "),
+            // Week-over-week progress feature.
+            vsLastWeekText: vsLastWeekText(forExerciseID: plannedEx?.exercise?.id, input: input, strings: strings)
         )
+    }
+
+    // MARK: Week-over-week progress feature (see WeekOverWeekProgress.swift)
+
+    /// "vs last week: 60→65 kg (+5)", localized — nil when `exerciseID` is
+    /// nil (an unmatched/custom exercise) or has no earlier session to
+    /// compare against.
+    private static func vsLastWeekText(
+        forExerciseID exerciseID: UUID?,
+        input: TrainerReportInput,
+        strings: TrainerReportStrings
+    ) -> String? {
+        guard let exerciseID, let change = input.weekOverWeek.exerciseDelta(forExerciseID: exerciseID)?.weightChangeText else {
+            return nil
+        }
+        return "\(strings.vsLastWeekLabel): \(change)"
     }
 
     // MARK: Summary
@@ -455,7 +497,13 @@ enum TrainerReportBuilder {
         )
     }
 
-    private static func buildSummaryLines(summary: TrainerReportSummary, strings: TrainerReportStrings) -> [String] {
+    /// Pause/travel-pain feature — widened from `private` to `internal` so
+    /// `TrainerReportSupplementalSections.swift` (a new, separate file) can
+    /// reuse this EXACT formatting after recomputing `summary` for a
+    /// paused/match-skipped day, instead of hand-duplicating it (which would
+    /// silently drift from this one). One-word access-level change; no
+    /// behavior change. See that file's header.
+    static func buildSummaryLines(summary: TrainerReportSummary, strings: TrainerReportStrings) -> [String] {
         var lines = [
             "\(strings.completionRateLabel): \(Int((summary.completionRate * 100).rounded()))% (\(summary.doneCount)/\(summary.scheduledCount))",
         ]
@@ -493,6 +541,17 @@ enum TrainerReportBuilder {
         return text
     }
 
+    /// One logged set's "80kg×8" / "S12/D10" (per-side) fragment for
+    /// `actualText`'s comma-joined list.
+    private static func actualSetText(_ set: PlannedSet, strings: TrainerReportStrings) -> String {
+        let reps = if let left = set.actualRepsLeft, let right = set.actualRepsRight {
+            "\(strings.leftInitial)\(left)/\(strings.rightInitial)\(right)"
+        } else {
+            "\(set.actualReps ?? 0)"
+        }
+        return "\(formatKg(set.actualWeight ?? 0))×\(reps)"
+    }
+
     private static func actualText(_ plannedEx: PlannedExercise?, strings: TrainerReportStrings) -> String {
         guard let plannedEx else {
             return strings.notDoneText
@@ -502,14 +561,7 @@ enum TrainerReportBuilder {
             return strings.noSetsLoggedText
         }
         var text = working
-            .map { set in
-                let reps = if let left = set.actualRepsLeft, let right = set.actualRepsRight {
-                    "\(strings.leftInitial)\(left)/\(strings.rightInitial)\(right)"
-                } else {
-                    "\(set.actualReps ?? 0)"
-                }
-                return "\(formatKg(set.actualWeight ?? 0))×\(reps)"
-            }
+            .map { actualSetText($0, strings: strings) }
             .joined(separator: ", ")
         let rpes = working.compactMap(\.rpe)
         if !rpes.isEmpty {
@@ -628,6 +680,9 @@ struct TrainerReportStrings: Sendable {
     let movedLabel: String
     let recoveryLabel: String
     let painNotesLabel: String
+    /// Week-over-week progress feature — prefixes a report row's delta line,
+    /// e.g. "vs last week: 60→65 kg (+5)" (see `WeekOverWeekProgress`).
+    let vsLastWeekLabel: String
 
     let statusDone: String
     let statusMissed: String
@@ -670,6 +725,7 @@ struct TrainerReportStrings: Sendable {
                 movedLabel: "Spostate",
                 recoveryLabel: "Recupero medio",
                 painNotesLabel: "Note di dolore",
+                vsLastWeekLabel: "vs settimana scorsa",
                 statusDone: "Fatta",
                 statusMissed: "Saltata",
                 statusMovedPrefix: "Spostata al",
@@ -706,6 +762,7 @@ struct TrainerReportStrings: Sendable {
                 movedLabel: "Moved",
                 recoveryLabel: "Avg. recovery",
                 painNotesLabel: "Pain notes",
+                vsLastWeekLabel: "vs last week",
                 statusDone: "Done",
                 statusMissed: "Missed",
                 statusMovedPrefix: "Moved to",

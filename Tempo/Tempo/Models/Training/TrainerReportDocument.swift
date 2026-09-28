@@ -71,6 +71,11 @@ struct TrainerReportExerciseLine: Identifiable, Sendable {
     var overrideApplied: Bool
     /// Trainer's exercise note and/or a pain flag, already localized.
     var noteText: String?
+    /// Week-over-week progress feature — "vs last week: 60→65 kg (+5)",
+    /// already localized. nil when this exercise has no earlier session to
+    /// compare against (see `WeekOverWeekProgress`). Defaulted so existing
+    /// call sites are unaffected.
+    var vsLastWeekText: String?
 }
 
 // MARK: - TrainerReportPRLine
@@ -85,6 +90,11 @@ struct TrainerReportPRLine: Identifiable, Sendable {
 struct TrainerReportConditioningRow: Identifiable, Sendable {
     var id: UUID = .init()
     var text: String
+    /// Week-over-week progress feature — see `TrainerReportExerciseLine
+    /// .vsLastWeekText`; matched by block name/shape instead of an ID (see
+    /// `WeekOverWeekProgress`). Defaulted so existing call sites are
+    /// unaffected.
+    var vsLastWeekText: String?
 }
 
 // MARK: - TrainerReportSessionRow
@@ -119,6 +129,21 @@ struct TrainerReportSummary: Sendable {
     var painNoteCount: Int
 }
 
+// MARK: - TrainerReportExtraSection
+
+/// Pause/travel-pain feature — a generic, title + bullet-lines section
+/// appended AFTER the normal build (`TrainerReportSupplementalSections
+/// .swift`), so the football/pain sections need zero changes to
+/// `TrainerReportBuilder.build`/`document` (another agent edits that file
+/// concurrently for the Sunday wrap-up work — see that new file's header).
+/// Both renderers (`TrainerReportTextFormatter`, `TrainerReportPDFRenderer`)
+/// loop `TrainerReportDocument.extraSections` at the end of their output.
+struct TrainerReportExtraSection: Identifiable, Sendable {
+    var id: UUID = .init()
+    var title: String
+    var lines: [String]
+}
+
 // MARK: - TrainerReportDocument
 
 /// The single, pure output of `TrainerReportBuilder.build(input:language:)`.
@@ -137,4 +162,13 @@ struct TrainerReportDocument: Sendable {
     /// verbatim by the text formatter and the PDF's summary box.
     var summaryLines: [String]
     var sessions: [TrainerReportSessionRow]
+    /// Pause/travel-pain feature — see `TrainerReportExtraSection` above.
+    /// Defaulted so every existing `TrainerReportBuilder.document(...)` call
+    /// site (unedited) keeps compiling unchanged.
+    var extraSections: [TrainerReportExtraSection] = []
+    /// trainer-feedback-tests — "Changes from trainer this week", built by
+    /// `TrainerReportChangesSectionBuilder` (a separate file/type so this
+    /// document only needs one extra field, not a restructuring of the
+    /// builder). nil when nothing was logged in this report's window.
+    var changesSection: TrainerReportChangesSection?
 }

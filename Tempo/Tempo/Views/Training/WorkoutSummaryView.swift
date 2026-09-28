@@ -64,6 +64,12 @@ struct WorkoutSummaryView: View {
                     prSection
                 }
 
+                // trainer-feedback-tests — "New max: Squat 120 kg — your
+                // trainer's 75% is now 90 kg." / "New best: 30m in 4.30″".
+                if !viewModel.testResultMessages.isEmpty {
+                    testResultSection
+                }
+
                 // Stats grid
                 statsGrid
 
@@ -211,6 +217,27 @@ struct WorkoutSummaryView: View {
                 }
                 .padding(TempoSpacing.md)
                 .background(Color.tempoPRGold.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+            }
+        }
+    }
+
+    // MARK: - Test Result Section (trainer-feedback-tests)
+
+    private var testResultSection: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            ForEach(Array(viewModel.testResultMessages.enumerated()), id: \.offset) { _, message in
+                HStack(spacing: TempoSpacing.sm) {
+                    Image(systemName: "chart.line.uptrend.xyaxis")
+                        .font(.tempoBody)
+                        .foregroundStyle(Color.tempoSignal)
+                    Text(message)
+                        .font(.tempoSubheadline)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                    Spacer()
+                }
+                .padding(TempoSpacing.md)
+                .background(Color.tempoSignal.opacity(0.1))
                 .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
             }
         }

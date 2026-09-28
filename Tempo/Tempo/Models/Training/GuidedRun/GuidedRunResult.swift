@@ -25,6 +25,23 @@ struct GuidedRunBlockRecord: Equatable {
     /// but shown on the summary so the athlete sees what was cut.
     var skippedCount: Int = 0
 
+    /// Apple Watch run mode — every live BPM sample streamed in while this
+    /// block's steps were active (`GuidedRunSession.updateLiveHeartRate`).
+    /// Empty with no paired/reachable Watch — the summary and
+    /// `ConditioningBlockResult` just show nothing HR-related.
+    var heartRateSamplesBPM: [Double] = []
+
+    var avgHeartRateBPM: Double? {
+        guard !heartRateSamplesBPM.isEmpty else {
+            return nil
+        }
+        return heartRateSamplesBPM.reduce(0, +) / Double(heartRateSamplesBPM.count)
+    }
+
+    var maxHeartRateBPM: Double? {
+        heartRateSamplesBPM.max()
+    }
+
     /// Live ✓/✗ per timed rep against `capSeconds`, in rep order — nil
     /// entries are reps with no cap to judge against.
     func repChecks(capSeconds: Double?) -> [Bool?] {
@@ -58,4 +75,9 @@ enum GuidedRunCue: Equatable {
     case tenSecondsLeft
     case halfway
     case done
+    /// Entering a new timed rep — "Rep 2 of 4, cap 65" / "Last rep, cap 65".
+    /// `index`/`of` are 0-based-in / 1-based-total, matching `GuidedRunTimedRep`.
+    case repStart(index: Int, of: Int, capSeconds: Double?, isLast: Bool)
+    /// A timed rep just completed — under/over its cap (nil cap: just the time).
+    case repResult(elapsedSeconds: Double, capSeconds: Double?)
 }

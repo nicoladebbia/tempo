@@ -21,6 +21,18 @@ enum WatchQuickAction: String, Codable {
     case resumeFocusTimer
     case markMealEaten
     case startWorkout
+    // Guided run mode — Apple Watch run mode. The phone's GuidedRunSession is
+    // the source of truth; these are pure "the athlete tapped this on the
+    // wrist" signals with no payload (mark/skip/pause/resume act on whatever
+    // step the phone is currently on). `.guidedRunHeartRate` carries the
+    // live HKWorkoutSession BPM in `payload["bpm"]`, sent continuously while
+    // a run is active — reused as an ordinary quick action rather than a new
+    // wire format, same as every other watch->phone signal here.
+    case guidedRunMarkDone
+    case guidedRunSkipRep
+    case guidedRunPause
+    case guidedRunResume
+    case guidedRunHeartRate
     // §22 — `.endWorkout` was removed: there is no honest phone-side
     // equivalent that doesn't reach into ActiveWorkoutView's set-completion
     // internals (ExerciseHistory + per-set feedback aggregation, owned by

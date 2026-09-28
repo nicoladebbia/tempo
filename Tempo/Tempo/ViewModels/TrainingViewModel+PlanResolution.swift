@@ -295,6 +295,9 @@ extension TrainingViewModel {
                 )
             )
         }
+        // Pause/travel-pain feature — see TrainingViewModel.assembleWeekPlans'
+        // sibling call for why this runs AFTER the trainer overlay.
+        TrainingPauseSchedule.apply(fetchTrainingPauses(modelContext: modelContext), to: [plan])
         populateExercises(for: plan, modelContext: modelContext)
         modelContext.insert(plan)
         try? modelContext.save()
