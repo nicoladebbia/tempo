@@ -26,6 +26,9 @@ struct TrainingTabView: View {
     private var showActiveWorkout = false
     @State
     private var showSummary = false
+    /// Pause/travel-pain feature — see AwayModeSheet.swift.
+    @State
+    private var showAwayMode = false
 
     var body: some View {
         NavigationStack {
@@ -67,6 +70,12 @@ struct TrainingTabView: View {
                             TrainerProgramView()
                         } label: {
                             Label("Trainer Program", systemImage: "person.crop.circle.badge.checkmark")
+                        }
+
+                        Button {
+                            showAwayMode = true
+                        } label: {
+                            Label("Away from the gym", systemImage: "airplane")
                         }
 
                         NavigationLink {
@@ -115,6 +124,11 @@ struct TrainingTabView: View {
                     NavigationStack {
                         WorkoutSummaryView(viewModel: viewModel)
                     }
+                }
+            }
+            .sheet(isPresented: $showAwayMode) {
+                if let viewModel {
+                    AwayModeSheet(viewModel: viewModel)
                 }
             }
         }

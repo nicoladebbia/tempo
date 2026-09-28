@@ -293,7 +293,11 @@ final class TrainerSessionReminderSchedulerTests: XCTestCase {
         context.insert(UserSettings())
 
         let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
+        // A mid-week "today" (next week's Wednesday): with the real date on
+        // a Sunday, today + tomorrow straddled two program weeks and the
+        // sequence cursor resolved differently — the test failed every Sunday.
+        let nextMonday = try XCTUnwrap(cal.date(byAdding: .day, value: 7, to: TrainingCalendar.mondayOfWeek(containing: Date())))
+        let today = try XCTUnwrap(cal.date(byAdding: .day, value: 2, to: nextMonday))
         let todayWeekday = TrainerProgram.isoWeekday(of: today)
         let tomorrowWeekday = todayWeekday == 7 ? 1 : todayWeekday + 1
 

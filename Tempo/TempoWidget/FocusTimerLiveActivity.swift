@@ -30,7 +30,7 @@ struct FocusTimerLiveActivity: Widget {
                     }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text(timerInterval: Date() ... context.state.phaseEndsAt, countsDown: true)
+                    Text(timerInterval: SafeTimerRange.countdown(to: context.state.phaseEndsAt), countsDown: true)
                         .monospacedDigit()
                         .font(.title3.bold())
                         .frame(maxWidth: .infinity, alignment: .trailing)
@@ -58,7 +58,7 @@ struct FocusTimerLiveActivity: Widget {
                 Image(systemName: "book.fill")
                     .foregroundStyle(.blue)
             } compactTrailing: {
-                Text(timerInterval: Date() ... context.state.phaseEndsAt, countsDown: true)
+                Text(timerInterval: SafeTimerRange.countdown(to: context.state.phaseEndsAt), countsDown: true)
                     .monospacedDigit()
                     .frame(width: 44)
             } minimal: {
@@ -98,7 +98,7 @@ private struct FocusTimerLockScreenView: View {
 
             Spacer()
 
-            Text(timerInterval: Date() ... state.phaseEndsAt, countsDown: true)
+            Text(timerInterval: SafeTimerRange.countdown(to: state.phaseEndsAt), countsDown: true)
                 .monospacedDigit()
                 .font(.title2.bold())
                 .foregroundStyle(.white)

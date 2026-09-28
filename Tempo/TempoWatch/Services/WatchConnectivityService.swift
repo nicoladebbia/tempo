@@ -38,6 +38,11 @@ final class WatchConnectivityService: NSObject, @unchecked Sendable {
     /// context, so it survives the watch app being closed). nil until the
     /// phone has synced once.
     var latestWorkout: WatchWorkoutPayload?
+    /// Guided run mode — the phone's live snapshot, mirrored on the wrist.
+    /// nil until a run starts, or once the phone sends the explicit "ended"
+    /// signal (an absent context key can't distinguish "unchanged" from
+    /// "cleared" — see `GuidedRunActivitySnapshot.endedKey`).
+    var latestGuidedRun: GuidedRunActivitySnapshot?
     var isReachable: Bool = false
 
     private static let snapshotDefaultsKey = "tempo.watch.lastSnapshot"
@@ -150,16 +155,19 @@ extension WatchConnectivityService: WCSessionDelegate {
         let context = session.receivedApplicationContext
         ingestSnapshot(from: context)
         ingestWorkout(from: context)
+        ingestGuidedRun(from: context)
     }
 
     func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
         ingestSnapshot(from: message)
         ingestWorkout(from: message)
+        ingestGuidedRun(from: message)
     }
 
     func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
         ingestSnapshot(from: applicationContext)
         ingestWorkout(from: applicationContext)
+        ingestGuidedRun(from: applicationContext)
     }
 
     /// §21 — pull the workout payload out of any incoming dictionary. Keyed
@@ -176,6 +184,28 @@ extension WatchConnectivityService: WCSessionDelegate {
                 return
             }
             self.latestWorkout = payload
+        }
+    }
+
+    /// Guided run mode — pull the live snapshot (or the explicit "ended"
+    /// flag) out of any incoming dictionary, same convention as `ingestWorkout`.
+    private func ingestGuidedRun(from dict: [String: Any]) {
+        if (dict[GuidedRunActivitySnapshot.endedKey] as? Bool) == true {
+            DispatchQueue.main.async {
+                self.latestGuidedRun = nil
+            }
+            return
+        }
+        guard let raw = dict[GuidedRunActivitySnapshot.contextKey] as? [String: Any],
+              let snapshot = GuidedRunActivitySnapshot.from(dictionary: raw)
+        else {
+            return
+        }
+        DispatchQueue.main.async {
+            if let current = self.latestGuidedRun, current.updatedAt > snapshot.updatedAt {
+                return
+            }
+            self.latestGuidedRun = snapshot
         }
     }
 

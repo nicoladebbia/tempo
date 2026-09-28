@@ -57,6 +57,21 @@ enum TrainerReportPDFRenderer {
                 drawSession(session, strings: document.strings, cursor: cursor)
             }
 
+            // Pause/travel-pain feature — football/pain/pauses/travel-swap
+            // sections. See TrainerReportSupplementalSections.swift.
+            for section in document.extraSections {
+                cursor.draw(section.title, font: sectionFont, spacingAfter: 4)
+                for line in section.lines {
+                    cursor.draw("• \(line)", font: bodyFont, spacingAfter: 2)
+                }
+                cursor.y += 4
+            }
+            // trainer-feedback-tests — "Changes from trainer this week", its
+            // own clearly separated block after every session.
+            if let changes = document.changesSection {
+                drawChangesSection(changes, cursor: cursor)
+            }
+
             cursor.drawRule()
             cursor.draw(document.strings.footer, font: smallFont, color: .gray)
         }
@@ -92,6 +107,9 @@ enum TrainerReportPDFRenderer {
         }
         for conditioning in session.conditioning {
             cursor.draw("\(strings.conditioningHeader): \(conditioning.text)", font: smallFont, spacingAfter: 2)
+            if let vsLastWeek = conditioning.vsLastWeekText {
+                cursor.draw("   \(vsLastWeek)", font: smallFont, color: .darkGray, spacingAfter: 2)
+            }
         }
         for pr in session.prs {
             cursor.draw("★ \(pr.text)", font: bodyFont, color: prColor, spacingAfter: 2)
@@ -102,6 +120,19 @@ enum TrainerReportPDFRenderer {
 
         cursor.y += 6
         cursor.drawRule()
+    }
+
+    // MARK: - Changes from trainer (trainer-feedback-tests)
+
+    private static func drawChangesSection(_ changes: TrainerReportChangesSection, cursor: Cursor) {
+        cursor.drawRule()
+        cursor.draw(changes.title, font: sectionFont, spacingAfter: 4)
+        for entry in changes.entries {
+            cursor.draw(entry.dateLabel, font: bodyFont, color: .darkGray, spacingAfter: 2)
+            for summary in entry.summaries {
+                cursor.draw("  • \(summary)", font: smallFont, spacingAfter: 2)
+            }
+        }
     }
 
     private static func statusColor(_ status: TrainerReportSessionStatus) -> UIColor {
@@ -167,6 +198,9 @@ enum TrainerReportPDFRenderer {
         }
         if let note = exercise.noteText {
             extraLines.append("\(strings.notesLabel): \(note)")
+        }
+        if let vsLastWeek = exercise.vsLastWeekText {
+            extraLines.append(vsLastWeek)
         }
         for line in extraLines {
             cursor.draw("   \(line)", font: smallFont, color: .darkGray, spacingAfter: 1)

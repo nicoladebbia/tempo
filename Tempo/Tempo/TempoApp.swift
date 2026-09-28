@@ -93,6 +93,14 @@ struct TempoApp: App {
                 // GroceryShoppingUITestSeed's header); no-ops unless
                 // launched with its launch argument.
                 GroceryShoppingUITestSeed.seedIfRequested(context: container.mainContext)
+                // Week-over-week progress feature — UI-test-only fixture
+                // (see SundayWrapUpProgressUITestSeed's header); no-ops
+                // unless launched with its launch argument.
+                SundayWrapUpProgressUITestSeed.seedIfRequested(context: container.mainContext)
+                // Pause/travel-pain feature — UI-test-only fixture (see
+                // PauseTravelPainUITestSeed's header); no-ops unless launched
+                // with one of its launch arguments.
+                PauseTravelPainUITestSeed.seedIfRequested(context: container.mainContext)
             #endif
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")

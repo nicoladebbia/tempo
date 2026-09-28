@@ -256,6 +256,11 @@ targets:
       - path: Tempo/Services/LiveActivity/FocusTimerActivityAttributes.swift
       # Same sharing for the workout Live Activity (§3.9).
       - path: Tempo/Services/LiveActivity/WorkoutActivityAttributes.swift
+      # Guided run mode — GuidedRunActivityAttributes.ContentState IS
+      # GuidedRunActivitySnapshot (Foundation-only), so it also travels to
+      # TempoWatch below as the wire payload for the wrist mirror.
+      - path: Tempo/Services/LiveActivity/GuidedRunActivitySnapshot.swift
+      - path: Tempo/Services/LiveActivity/GuidedRunActivityAttributes.swift
     dependencies: []
     info:
       path: TempoWidget/Info.plist
@@ -292,6 +297,12 @@ targets:
       # Shared with the Tempo app target — the workout payload the phone
       # pushes and the watch consumes (§21 sync).
       - path: Tempo/Services/Integrations/WatchWorkoutPayload.swift
+      # Guided run mode — the live snapshot mirrored from the phone (same
+      # file shared with TempoWidget above, as the Live Activity ContentState).
+      - path: Tempo/Services/LiveActivity/GuidedRunActivitySnapshot.swift
+      # Pure Z1-Z5 math shared so the watch can show a zone immediately off
+      # its own HKWorkoutSession BPM, without waiting on the phone round trip.
+      - path: Tempo/Services/Training/GuidedRun/HeartRateZoneCalculator.swift
     dependencies: []
     settings:
       base:
@@ -301,15 +312,29 @@ targets:
         GENERATE_INFOPLIST_FILE: true
         SWIFT_VERSION: "6.0"
         CODE_SIGN_ENTITLEMENTS: TempoWatch/TempoWatch.entitlements
-        INFOPLIST_KEY_WKCompanionAppBundleIdentifier: app.tempo.Tempo
         INFOPLIST_KEY_CFBundleDisplayName: Tempo
+        # Guided run mode — the watch runs its own HKWorkoutSession for live
+        # heart rate during a mirrored run. watchOS asks for HealthKit
+        # authorization independently of the phone, so it needs its own
+        # usage strings even though the entitlement is shared via the app group.
+        INFOPLIST_KEY_NSHealthShareUsageDescription: "Tempo reads your heart rate during a guided run so you can see your live HR and zone on your wrist."
+        INFOPLIST_KEY_NSHealthUpdateUsageDescription: "Tempo saves the workout it runs on your wrist during a guided run."
       configs:
+        # WKCompanionAppBundleIdentifier must match whatever the iOS target's
+        # PRODUCT_BUNDLE_IDENTIFIER resolves to for THIS SAME config (was
+        # hardcoded to the Release id for every config — a pre-existing bug
+        # that silently fails `simctl install`/pairing in Debug and Staging,
+        # found while verifying guided-run Watch mode. Fixed here since it
+        # blocks Watch testing entirely, not just this feature).
         Debug:
           PRODUCT_BUNDLE_IDENTIFIER: app.tempo.Tempo.dev.watchkitapp
+          INFOPLIST_KEY_WKCompanionAppBundleIdentifier: app.tempo.Tempo.dev
         Staging:
           PRODUCT_BUNDLE_IDENTIFIER: app.tempo.Tempo.staging.watchkitapp
+          INFOPLIST_KEY_WKCompanionAppBundleIdentifier: app.tempo.Tempo.staging
         Release:
           PRODUCT_BUNDLE_IDENTIFIER: app.tempo.Tempo.watchkitapp
+          INFOPLIST_KEY_WKCompanionAppBundleIdentifier: app.tempo.Tempo
 
   TempoSnapshotTests:
     type: bundle.unit-test

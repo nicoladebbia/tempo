@@ -488,7 +488,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         scheduleWeeklyUploadReminder(
             id: Self.weeklyUploadSundayReminderID,
             title: "New week from your trainer",
-            body: "Upload it so Monday's ready.",
+            body: "Week's done — wrap it up: send your trainer the report and load next week.",
             fireDate: fireDate
         )
     }

@@ -59,11 +59,26 @@ final class ConditioningBlockResult {
 
     var notes: String?
 
+    /// Apple Watch run mode — average/max BPM streamed live from the wrist
+    /// while this block was active (Guided Run mode only; nil for a manual
+    /// log or when no Watch was paired/reachable). Optional + no default so
+    /// SwiftData's lightweight migration is happy for existing rows.
+    var avgHeartRateBPM: Double?
+    var maxHeartRateBPM: Double?
+
     /// Result of `ConditioningTargetEvaluator.targetMet(...)` at log time, so
     /// the card/history don't need the parser + evaluator + raw detail text
     /// on hand to render a ✓/✗. nil when the target shape can't judge it
     /// (freeform, or a cap-less repsDistance).
     var targetMet: Bool?
+
+    /// trainer-feedback-tests — true when the `ProgramExercise`/`ProgramDay`
+    /// this block logs was flagged `isTest` (e.g. "test 30m", "time trial").
+    /// `ConditioningBaselineProvider` reads baseline (isBaselineTest) rows
+    /// only, so a later ordinary conditioning block never gets compared
+    /// against — and never overwrites — the athlete's actual tested best.
+    /// Defaulted → SwiftData auto-migrates.
+    var isBaselineTest: Bool = false
 
     /// "manual" | "whoop" | "healthkit" | "guided_run" — where
     /// duration/distance/HR came from. "guided_run" is Guided Run mode's
@@ -87,7 +102,10 @@ final class ConditioningBlockResult {
         roundsCompleted: Int? = nil,
         rpe: Double? = nil,
         notes: String? = nil,
+        avgHeartRateBPM: Double? = nil,
+        maxHeartRateBPM: Double? = nil,
         targetMet: Bool? = nil,
+        isBaselineTest: Bool = false,
         source: String = "manual",
         createdAt: Date = Date()
     ) {
@@ -102,6 +120,9 @@ final class ConditioningBlockResult {
         self.roundsCompleted = roundsCompleted
         self.rpe = rpe
         self.notes = notes
+        self.avgHeartRateBPM = avgHeartRateBPM
+        self.maxHeartRateBPM = maxHeartRateBPM
+        self.isBaselineTest = isBaselineTest
         self.targetMet = targetMet
         self.source = source
         self.createdAt = createdAt

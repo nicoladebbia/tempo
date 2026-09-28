@@ -49,6 +49,7 @@ final class GuidedRunFlowTests: XCTestCase {
         app.launchForTesting(extraArguments: [
             GuidedRunUITestSeedArguments.sample,
             "--uitesting-time-scale=1",
+            "--uitesting-fake-heart-rate",
         ])
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 30))
 

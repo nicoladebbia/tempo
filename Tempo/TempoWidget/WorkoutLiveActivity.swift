@@ -35,7 +35,7 @@ struct WorkoutLiveActivity: Widget {
                             .fontWeight(.bold)
                             .foregroundStyle(.secondary)
                     } else if context.state.isResting, let end = context.state.restEndsAt {
-                        Text(timerInterval: Date.now ... end, countsDown: true)
+                        Text(timerInterval: SafeTimerRange.countdown(to: end), countsDown: true)
                             .font(.title3)
                             .fontWeight(.bold)
                             .monospacedDigit()
@@ -70,7 +70,7 @@ struct WorkoutLiveActivity: Widget {
                     .foregroundStyle(.orange)
             } compactTrailing: {
                 if context.state.isResting, let end = context.state.restEndsAt, !context.state.isPaused {
-                    Text(timerInterval: Date.now ... end, countsDown: true)
+                    Text(timerInterval: SafeTimerRange.countdown(to: end), countsDown: true)
                         .monospacedDigit()
                         .frame(width: 44)
                 } else {
@@ -121,7 +121,7 @@ private struct WorkoutLockScreenView: View {
                         .font(.caption2)
                         .fontWeight(.bold)
                         .foregroundStyle(.secondary)
-                    Text(timerInterval: Date.now ... end, countsDown: true)
+                    Text(timerInterval: SafeTimerRange.countdown(to: end), countsDown: true)
                         .font(.title2)
                         .fontWeight(.bold)
                         .monospacedDigit()

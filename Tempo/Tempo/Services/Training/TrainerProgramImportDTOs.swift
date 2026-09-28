@@ -128,3 +128,39 @@ extension APIEndpoint where Response == ProgramImportQuotaResponseDTO {
         APIEndpoint(path: "/v1/training/program-import/quota", method: .get)
     }
 }
+
+// MARK: - ProgramFeedbackRequestDTO
+
+/// Mirrors backend `ProgramFeedbackRequest`. No `sessionId` — feedback isn't
+/// quota-gated (see `TrainingProgramImportController`'s `feedback` route),
+/// so there's no retry-dedup to key.
+struct ProgramFeedbackRequestDTO: Codable, Sendable {
+    let model: String
+    let system: String
+    let userMessage: String
+    let maxTokens: Int
+    let temperature: Double
+    let caller: String
+
+    enum CodingKeys: String, CodingKey {
+        case model
+        case system
+        case userMessage = "user_message"
+        case maxTokens = "max_tokens"
+        case temperature
+        case caller
+    }
+}
+
+// MARK: - ProgramFeedbackResponseDTO
+
+/// Mirrors backend `ProgramFeedbackResponse`.
+struct ProgramFeedbackResponseDTO: Codable, Sendable {
+    let text: String
+}
+
+extension APIEndpoint where Response == ProgramFeedbackResponseDTO {
+    static func trainerProgramFeedback() -> Self {
+        APIEndpoint(path: "/v1/training/program-import/feedback", method: .post)
+    }
+}

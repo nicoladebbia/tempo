@@ -50,6 +50,10 @@ struct GuidedRunWorkScreen: View {
     @Binding
     var isMuted: Bool
     var useMiles: Bool = false
+    /// Apple Watch run mode — nil hides the badge entirely (no Watch, or the
+    /// athlete hasn't set an age/override yet, is still a real max value per
+    /// `HeartRateZoneCalculator`, so this is only nil before a session starts).
+    var maxHeartRate: Double?
     let onExit: () -> Void
 
     private var step: GuidedRunStep? {
@@ -94,6 +98,7 @@ struct GuidedRunWorkScreen: View {
                 .font(.tempoCallout)
                 .foregroundStyle(Color.tempoTextSecondary)
                 .multilineTextAlignment(.center)
+            GuidedRunHeartRateBadge(bpm: session.currentHeartRateBPM, maxHeartRate: maxHeartRate)
         }
     }
 
@@ -308,6 +313,7 @@ struct GuidedRunRestScreen: View {
     var session: GuidedRunSession
     @Binding
     var isMuted: Bool
+    var maxHeartRate: Double?
     let onExit: () -> Void
 
     private var nextStep: GuidedRunStep? {
@@ -328,6 +334,7 @@ struct GuidedRunRestScreen: View {
                     .font(.system(size: 110, weight: .heavy, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(Color.tempoTextPrimary)
+                GuidedRunHeartRateBadge(bpm: session.currentHeartRateBPM, maxHeartRate: maxHeartRate)
 
                 if let nextStep, case let .work(kind) = nextStep.kind {
                     VStack(spacing: TempoSpacing.xxs) {
@@ -374,6 +381,34 @@ struct GuidedRunRestScreen: View {
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.bottom, TempoSpacing.xl)
+        }
+    }
+}
+
+// MARK: - GuidedRunHeartRateBadge
+
+/// Apple Watch run mode §2 — live BPM + Z1-Z5 zone on the phone screen,
+/// mirroring what the Watch itself shows. Renders nothing without a live
+/// reading (no Watch paired/reachable) rather than a placeholder dash — the
+/// rest of the guided-run screen already works identically either way.
+private struct GuidedRunHeartRateBadge: View {
+    let bpm: Double?
+    let maxHeartRate: Double?
+
+    var body: some View {
+        if let bpm {
+            HStack(spacing: TempoSpacing.xxs) {
+                Image(systemName: "heart.fill")
+                    .foregroundStyle(Color.tempoError)
+                Text("\(Int(bpm.rounded())) bpm")
+                if let maxHeartRate, let zone = HeartRateZoneCalculator.zone(bpm: bpm, maxHeartRate: maxHeartRate) {
+                    Text(HeartRateZoneCalculator.zoneLabel(zone))
+                        .fontWeight(.bold)
+                }
+            }
+            .font(.tempoCaption1)
+            .foregroundStyle(Color.tempoTextSecondary)
+            .accessibilityIdentifier("guidedRunHeartRateBadge")
         }
     }
 }

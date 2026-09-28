@@ -223,6 +223,14 @@ final class UserSettings {
     var cookTimeWeekdayMins: Int?
     var cookTimeWeekendMins: Int?
 
+    // MARK: - Guided run (Apple Watch run mode)
+
+    /// Athlete-set max HR override for Z1-Z5 zone math
+    /// (`HeartRateZoneCalculator`). Nil -> `220 - UserProfile.age` (the
+    /// standard estimate). Optional + no default so lightweight migration is
+    /// happy for existing stores.
+    var maxHeartRateOverride: Double?
+
     // MARK: - Timestamps
 
     var updatedAt: Date

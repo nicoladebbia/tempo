@@ -31,6 +31,13 @@ final class WatchActionRouter {
     private var logSetHandler: (@MainActor (WatchActionPayload) -> Bool)?
     private var pendingLogSets: [WatchActionPayload] = []
 
+    /// Owned by `GuidedRunView` for exactly the lifetime of a live guided-run
+    /// session (registered in `.task`, cleared in `.onDisappear`). Unlike
+    /// `logSetHandler`, arriving with no handler registered is a genuine
+    /// no-op (there's no session to buffer against) rather than something to
+    /// queue and replay.
+    private var guidedRunActionHandler: (@MainActor (WatchActionPayload) -> Bool)?
+
     /// Kept alive for the duration of a wrist-started focus session — its
     /// internal countdown `Task` and Live Activity update loop capture
     /// `self` weakly, so nothing else retaining it would silently kill the
@@ -86,6 +93,16 @@ final class WatchActionRouter {
         }
     }
 
+    // MARK: - Guided Run (owned by GuidedRunView, only while live)
+
+    func setGuidedRunActionHandler(_ handler: @escaping @MainActor (WatchActionPayload) -> Bool) {
+        guidedRunActionHandler = handler
+    }
+
+    func clearGuidedRunActionHandler() {
+        guidedRunActionHandler = nil
+    }
+
     // MARK: - Dispatch
 
     /// Returns whether the action was actually applied — travels back to
@@ -117,6 +134,12 @@ final class WatchActionRouter {
             stopFocusTimer()
         case .startWorkout:
             startWorkout()
+        case .guidedRunMarkDone,
+             .guidedRunSkipRep,
+             .guidedRunPause,
+             .guidedRunResume,
+             .guidedRunHeartRate:
+            guidedRunActionHandler?(action) ?? false
         }
     }
 
