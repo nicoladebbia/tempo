@@ -78,7 +78,9 @@ struct SupplementDecision: Codable, Hashable, Identifiable {
     var timing: String?
     var reason: String?
 
-    var id: String { name }
+    var id: String {
+        name
+    }
 }
 
 // MARK: - Supplement
@@ -145,6 +147,13 @@ final class Supplement {
 
     /// When `servingsRemaining` was last reset by a restock.
     var lastRestockedAt: Date?
+
+    /// When the "you're running low" reorder alert last fired. Compared
+    /// against `lastRestockedAt` (`SupplementReorderService.shouldSendReorderAlert`)
+    /// so the alert fires at most once per restock cycle — a restock that's
+    /// more recent than the last alert starts a fresh cycle without needing to
+    /// clear this field. nil = never alerted. Additive, lightweight migration.
+    var lastReorderAlertAt: Date?
 
     // MARK: - Timing (all optional)
 
