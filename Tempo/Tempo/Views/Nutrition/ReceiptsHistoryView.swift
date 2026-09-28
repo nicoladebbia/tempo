@@ -27,7 +27,25 @@ struct ReceiptsHistoryView: View {
                 )
             } else {
                 ForEach(viewModel.receiptState.receipts, id: \.id) { receipt in
-                    receiptRow(receipt)
+                    // A scanned receipt opens its review screen — "Needs review"
+                    // used to be a label with nowhere to go.
+                    if let receiptService = viewModel.receiptService,
+                       let pantryService = viewModel.pantryService,
+                       Self.canOpen(receipt)
+                    {
+                        NavigationLink {
+                            ReceiptReviewView(
+                                receipt: receipt,
+                                receiptService: receiptService,
+                                pantryService: pantryService,
+                                onIngested: { viewModel.reloadReceipts() }
+                            )
+                        } label: {
+                            receiptRow(receipt)
+                        }
+                    } else {
+                        receiptRow(receipt)
+                    }
                 }
             }
         }
@@ -86,6 +104,20 @@ struct ReceiptsHistoryView: View {
                 }
                 .tint(Color.tempoSignal)
             }
+        }
+    }
+
+    /// Receipts with structured lines to look at: needs review, or already
+    /// confirmed (to see what went in). Pending/processing/failed have none.
+    static func canOpen(_ receipt: Receipt) -> Bool {
+        switch receipt.ocrStatus {
+        // Always openable: even with no lines read, the review screen says
+        // so instead of leaving the receipt stuck on "Needs review".
+        case .awaitingReview: true
+        case .confirmed: receipt.lineItemCount > 0
+        case .pending,
+             .processing,
+             .failed: false
         }
     }
 
