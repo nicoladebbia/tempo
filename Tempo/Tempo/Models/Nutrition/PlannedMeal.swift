@@ -101,6 +101,29 @@ final class PlannedMeal: Identifiable {
     /// eaten or corrects a substitute. Additive migration, default false.
     var didDecrementPantry: Bool = false
 
+    /// Per-row amounts actually subtracted from the pantry when this meal
+    /// was decremented (`PantryDecrementService.decrement`), JSON-encoded
+    /// `[PantryDecrementDetail]`. Lets `undoMealEaten` credit back EXACTLY
+    /// what was taken, from exactly the pantry rows it came from, instead of
+    /// re-deriving an approximate inverse from the recipe. Nil for meals
+    /// decremented before this field existed, or when nothing matched any
+    /// pantry stock — those fall back to the approximate `credit(foods:)`.
+    var decrementDetailJSON: Data?
+
+    /// Convenience accessor — decodes/encodes `decrementDetailJSON`.
+    @Transient
+    var decrementDetail: [PantryDecrementDetail] {
+        get {
+            guard let decrementDetailJSON else {
+                return []
+            }
+            return (try? JSONDecoder().decode([PantryDecrementDetail].self, from: decrementDetailJSON)) ?? []
+        }
+        set {
+            decrementDetailJSON = newValue.isEmpty ? nil : try? JSONEncoder().encode(newValue)
+        }
+    }
+
     /// Wall-clock time the user actually ate this meal. Set by
     /// `NutritionTabViewModel.markMealEaten`. Drives the deterministic
     /// shift of subsequent meals (`MealShiftPlanner`) and feeds into

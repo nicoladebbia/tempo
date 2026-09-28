@@ -78,6 +78,7 @@ enum TempoSchemaV1: VersionedSchema {
             MacroCarryover.self,
             PantryItem.self,
             PantryPriceEntry.self,
+            PantryStaple.self,
             Supplement.self,
             SupplementIntakeLog.self,
             KitchenEquipment.self,
@@ -88,6 +89,7 @@ enum TempoSchemaV1: VersionedSchema {
             RecipeStep.self,
             GroceryList.self,
             GroceryListItem.self,
+            GroceryShare.self,
             // Coach (v2.1)
             LearnedPreference.self,
             LearnedOutcome.self,

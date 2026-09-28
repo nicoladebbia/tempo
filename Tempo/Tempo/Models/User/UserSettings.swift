@@ -168,6 +168,21 @@ final class UserSettings {
     /// Same lifecycle reasoning as groceryBudgetCapUSD.
     var groceryPreferredStoresRaw: String = ""
 
+    /// The SINGLE store chain currently selected on the grocery list / Store
+    /// Mode (`GroceryStore.rawValue`). Distinct from the CSV list above,
+    /// which is the fuel-setup wizard's "where do you shop" free-text
+    /// preferences — this is the one active chain driving aisle ordering and
+    /// price lookups right now. nil → `.generic` layout, no chain assumed.
+    var groceryActiveStoreRaw: String?
+
+    /// JSON-encoded `[String: GroceryStoreLayout.CategoryRankLearning]`,
+    /// keyed by `GroceryStore.rawValue`. Records the order in which the user
+    /// actually ticks off aisle categories during a trip at each store, so
+    /// aisle ordering drifts toward that store's REAL layout over time
+    /// instead of staying fixed to the hand-authored default forever. See
+    /// GroceryStoreLayout.swift for the read/write helpers.
+    var groceryCategoryLearningRaw: Data?
+
     // MARK: - Meal-plan intake (persisted across regens)
 
     // The user's meal-plan preferences, persisted so EVERY generate path
@@ -340,6 +355,35 @@ final class UserSettings {
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
                 .joined(separator: ", ")
+        }
+    }
+
+    /// The single active store chain for the grocery list / Store Mode.
+    /// nil raw value (never set, or an unrecognised persisted string from an
+    /// older build) reads as `.generic` — no chain-specific aisle order.
+    @Transient
+    var groceryActiveStore: GroceryStore {
+        get { groceryActiveStoreRaw.flatMap(GroceryStore.init(rawValue:)) ?? .generic }
+        set { groceryActiveStoreRaw = newValue.rawValue }
+    }
+
+    /// Decoded per-store aisle-tick learning. Empty dict when nothing has
+    /// been recorded yet or the persisted JSON can't be read (corrupt/old
+    /// format) — callers then fall back to the hand-authored default order.
+    @Transient
+    var groceryCategoryLearning: [String: GroceryStoreLayout.CategoryRankLearning] {
+        get {
+            guard let data = groceryCategoryLearningRaw,
+                  let decoded = try? JSONDecoder().decode(
+                      [String: GroceryStoreLayout.CategoryRankLearning].self, from: data
+                  )
+            else {
+                return [:]
+            }
+            return decoded
+        }
+        set {
+            groceryCategoryLearningRaw = try? JSONEncoder().encode(newValue)
         }
     }
 

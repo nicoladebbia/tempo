@@ -67,16 +67,30 @@ final class NutritionTabViewModel {
     let receiptState = NutritionReceiptState()
     let recipeState = NutritionRecipeState()
     let groceryState = NutritionGroceryState()
+    /// Store Mode aisle-tick session + weekly spend history state — see
+    /// NutritionTabViewModel+GroceryAdvanced.swift.
+    let groceryStoreModeState = NutritionGroceryStoreModeState()
 
     var pantryService: (any PantryServiceProtocol)?
     var receiptService: (any ReceiptServiceProtocol)?
     var recipeService: (any RecipeServiceProtocol)?
     var groceryService: (any GroceryListServiceProtocol)?
     var intelligence: NutritionIntelligenceService?
+    /// AI batch price estimator for grocery items with no purchase history —
+    /// see NutritionTabViewModel+GroceryAdvanced.swift.
+    var groceryPriceAIService: GroceryPriceAIService?
     /// ModelContext captured at Phase 7 attach. Used by addPantryItem to
     /// insert a PantryPriceEntry on manual adds (the pantry service's
     /// mergeOrCreate doesn't own price history). Set in attachPhase7Services.
     var pantryModelContext: ModelContext?
+
+    // MARK: - Pantry Smarts (staples + use-it-up notifications)
+
+    let stapleState = NutritionStapleState()
+    var stapleService: (any StapleServiceProtocol)?
+    /// Held so `reloadPantry()` can schedule/cancel the daily "Use it up"
+    /// notification without threading `services` through every call site.
+    var notificationsService: (any NotificationServiceProtocol)?
 
     // MARK: - Service instances
 
@@ -564,8 +578,11 @@ final class NutritionTabViewModel {
     ///   - Deletes this meal's `MealFeedback` row(s) so a stale "how did it
     ///     feel" / substitute note doesn't linger on a meal that wasn't eaten.
     ///   - Re-credits the pantry IF this meal had decremented it
-    ///     (`didDecrementPantry`), then resets the flag. Approximate inverse
-    ///     (see `PantryDecrementService.credit`), guarded so it runs once.
+    ///     (`didDecrementPantry`), then resets the flag. Prefers the EXACT
+    ///     inverse (`PantryDecrementService.creditExact`, using the recorded
+    ///     `decrementDetail`); falls back to the approximate re-derivation
+    ///     (`credit(foods:)`) for meals decremented before that detail was
+    ///     recorded. Guarded so it runs once.
     ///
     /// Deliberately does NOT try to un-shift sibling meals or reverse the
     /// macro rebalance that `markMealEaten` applied — that state-machine
@@ -584,9 +601,15 @@ final class NutritionTabViewModel {
         // Re-credit pantry before flipping state, while didDecrementPantry
         // still tells us whether stock was pulled.
         if meal.didDecrementPantry {
-            _ = PantryDecrementService.credit(
-                foods: meal.foods, label: meal.mealName, modelContext: modelContext
-            )
+            let detail = meal.decrementDetail
+            if !detail.isEmpty {
+                _ = PantryDecrementService.creditExact(details: detail, modelContext: modelContext)
+            } else {
+                _ = PantryDecrementService.credit(
+                    foods: meal.foods, label: meal.mealName, modelContext: modelContext
+                )
+            }
+            meal.decrementDetail = []
             meal.didDecrementPantry = false
         }
 
@@ -1035,7 +1058,8 @@ final class NutritionTabViewModel {
                     if Task.isCancelled {
                         return
                     }
-                    Logger.nutrition.info("[Diag.Plan] server plan unavailable (\(error.localizedDescription, privacy: .public)) — building on device")
+                    Logger.nutrition
+                        .info("[Diag.Plan] server plan unavailable (\(error.localizedDescription, privacy: .public)) — building on device")
                     plan = try await generator.generateWeeklyPlan(
                         profile: profile,
                         whoopTDEE: whoopTDEE,

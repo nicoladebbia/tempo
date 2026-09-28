@@ -58,6 +58,13 @@ final class MockPantryService: PantryServiceProtocol {
             if purchaseSource == .receiptScan {
                 existing.purchaseSourceRaw = PantryPurchaseSource.receiptScan.rawValue
             }
+            if existing.useBy == nil {
+                existing.useBy = ShelfLifeEstimator.useByDate(
+                    from: purchaseDate ?? Date(),
+                    canonicalName: canonical,
+                    storageLocation: existing.storageLocation
+                )
+            }
             return existing
         }
         let display = FoodCanonicalizer.displayName(rawName)
@@ -70,7 +77,12 @@ final class MockPantryService: PantryServiceProtocol {
             storageLocation: storageLocation,
             purchaseDate: purchaseDate,
             purchaseSource: purchaseSource,
-            sourceReceiptLineItemID: sourceReceiptLineItemID
+            sourceReceiptLineItemID: sourceReceiptLineItemID,
+            useBy: ShelfLifeEstimator.useByDate(
+                from: purchaseDate ?? Date(),
+                canonicalName: canonical,
+                storageLocation: storageLocation
+            )
         )
         items.append(new)
         return new
@@ -97,6 +109,13 @@ final class MockPantryService: PantryServiceProtocol {
             if existing.purchaseDate == nil {
                 existing.purchaseDate = purchaseDate
             }
+            if existing.useBy == nil {
+                existing.useBy = ShelfLifeEstimator.useByDate(
+                    from: purchaseDate ?? Date(),
+                    canonicalName: canonical,
+                    storageLocation: existing.storageLocation
+                )
+            }
             return existing
         }
         let display = FoodCanonicalizer.displayName(rawName)
@@ -109,7 +128,12 @@ final class MockPantryService: PantryServiceProtocol {
             storageLocation: storageLocation,
             purchaseDate: purchaseDate,
             purchaseSource: purchaseSource,
-            sourceReceiptLineItemID: nil
+            sourceReceiptLineItemID: nil,
+            useBy: ShelfLifeEstimator.useByDate(
+                from: purchaseDate ?? Date(),
+                canonicalName: canonical,
+                storageLocation: storageLocation
+            )
         )
         items.append(new)
         return new
@@ -121,6 +145,43 @@ final class MockPantryService: PantryServiceProtocol {
         } else {
             item.decrement(by: -delta)
         }
+    }
+
+    @discardableResult
+    func updateItem(
+        _ item: PantryItem,
+        quantity: Double?,
+        unit: PantryUnit?,
+        storageLocation: PantryStorageLocation?,
+        useBy: Date?,
+        brand: String?
+    ) throws -> PantryItem {
+        if let quantity {
+            item.quantity = max(0, quantity)
+        }
+        if let unit {
+            item.unit = unit
+        }
+        let locationChanged = storageLocation != nil && storageLocation != item.storageLocation
+        if let storageLocation {
+            item.storageLocation = storageLocation
+        }
+        if let brand {
+            item.brand = brand
+        }
+        if let useBy {
+            item.useBy = useBy
+        } else if locationChanged {
+            item.useBy = ShelfLifeEstimator.useByDate(
+                from: Date(),
+                canonicalName: item.canonicalName,
+                storageLocation: item.storageLocation,
+                isCooked: item.isCooked,
+                isPrepped: item.isPrepped
+            )
+        }
+        item.updatedAt = Date()
+        return item
     }
 
     func archive(_ item: PantryItem) throws {

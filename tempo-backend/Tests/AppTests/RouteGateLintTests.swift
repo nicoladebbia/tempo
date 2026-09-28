@@ -1,7 +1,8 @@
-import Testing
 import Foundation
+import Testing
 
 // MARK: - Route Gate Lint
+
 //
 // Asserts that every controller registered in routes.swift is hung off
 // `protected` (which composes JWTAuthMiddleware + ToSGateMiddleware) UNLESS
@@ -17,13 +18,13 @@ import Foundation
 // `permittedV1Controllers` below. The test failure will tell you to.
 
 struct RouteGateLintTests {
-
     /// Controllers that are intentionally registered outside `protected`.
     /// Every entry needs a one-line justification right next to it.
     static let permittedV1Controllers: Set<String> = [
-        "AuthController",         // pre-auth: sign-in / refresh / logout
+        "AuthController", // pre-auth: sign-in / refresh / logout
         "SubscriptionController", // Apple's V2 webhook — verified by JWS not JWT
-        "WhoopWebhookController"  // Whoop's webhook — verified by HMAC not JWT
+        "WhoopWebhookController", // Whoop's webhook — verified by HMAC not JWT
+        "PublicGroceryShareController", // shopper has no Tempo account — scoped by unguessable token, not JWT; IP rate-limited
     ]
 
     @Test func everyControllerIsBehindProtectedOrPermitted() throws {
@@ -47,7 +48,9 @@ struct RouteGateLintTests {
         #expect(!seen.isEmpty, "Found zero controllers in routes.swift — pattern probably broke")
 
         for (controller, root) in seen {
-            if root == "protected" { continue }
+            if root == "protected" {
+                continue
+            }
             #expect(
                 Self.permittedV1Controllers.contains(controller),
                 """
@@ -90,9 +93,9 @@ struct RouteGateLintTests {
         // .../tempo-backend/Tests/AppTests/RouteGateLintTests.swift
         //    ^ go up 3 levels to tempo-backend/
         let backendRoot = here
-            .deletingLastPathComponent()  // AppTests/
-            .deletingLastPathComponent()  // Tests/
-            .deletingLastPathComponent()  // tempo-backend/
+            .deletingLastPathComponent() // AppTests/
+            .deletingLastPathComponent() // Tests/
+            .deletingLastPathComponent() // tempo-backend/
         return backendRoot
             .appendingPathComponent("Sources")
             .appendingPathComponent("App")

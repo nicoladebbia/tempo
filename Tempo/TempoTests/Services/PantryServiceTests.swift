@@ -7,8 +7,8 @@
 // increment) are the critical contract for Phase 3 receipt ingestion.
 //
 
-@testable import Tempo
 import SwiftData
+@testable import Tempo
 import XCTest
 
 @MainActor
@@ -280,8 +280,11 @@ final class PantryServiceTests: XCTestCase {
             purchaseDate: nil, purchaseSource: .manual, sourceReceiptLineItemID: nil,
             brand: "Kerrygold"
         )
-        XCTAssertEqual(try service.fetchAll().count, 2,
-                       "Same food + unit but different brand → two separate rows")
+        XCTAssertEqual(
+            try service.fetchAll().count,
+            2,
+            "Same food + unit but different brand → two separate rows"
+        )
     }
 
     func testBrand_sameBrandMerges() throws {
@@ -327,8 +330,11 @@ final class PantryServiceTests: XCTestCase {
             rawName: "Pasta", quantity: 250, unit: .grams, storageLocation: .pantry,
             purchaseDate: nil, purchaseSource: .receiptScan, sourceReceiptLineItemID: nil
         )
-        XCTAssertEqual(try service.fetchAll().count, 1,
-                       "Empty-brand adds merge exactly as before the brand field existed")
+        XCTAssertEqual(
+            try service.fetchAll().count,
+            1,
+            "Empty-brand adds merge exactly as before the brand field existed"
+        )
         XCTAssertEqual(merged.quantity, 750)
     }
 
@@ -403,7 +409,7 @@ final class PantryServiceTests: XCTestCase {
             displayName: "Milk",
             quantity: 1,
             unit: .liters,
-            useBy: Date().addingTimeInterval(-86_400) // yesterday
+            useBy: Date().addingTimeInterval(-86400) // yesterday
         )
         XCTAssertTrue(item.isExpired)
     }
@@ -414,7 +420,7 @@ final class PantryServiceTests: XCTestCase {
             displayName: "Chicken Breast",
             quantity: 400,
             unit: .grams,
-            useBy: Date().addingTimeInterval(2 * 86_400) // 2 days out
+            useBy: Date().addingTimeInterval(2 * 86400) // 2 days out
         )
         XCTAssertTrue(item.isExpiringSoon)
         XCTAssertFalse(item.isExpired)
@@ -426,8 +432,162 @@ final class PantryServiceTests: XCTestCase {
             displayName: "Rice",
             quantity: 1000,
             unit: .grams,
-            useBy: Date().addingTimeInterval(10 * 86_400)
+            useBy: Date().addingTimeInterval(10 * 86400)
         )
         XCTAssertFalse(item.isExpiringSoon)
+    }
+
+    // MARK: - isDepleted
+
+    func testIsDepleted_zeroQuantityNotArchived() {
+        let item = PantryItem(canonicalName: "milk", displayName: "Milk", quantity: 0, unit: .liters)
+        XCTAssertTrue(item.isDepleted)
+    }
+
+    func testIsDepleted_falseWhenArchived() {
+        let item = PantryItem(canonicalName: "milk", displayName: "Milk", quantity: 0, unit: .liters, isArchived: true)
+        XCTAssertFalse(item.isDepleted, "An archived row is gone, not 'used up' — no chip to show")
+    }
+
+    func testIsDepleted_falseWhenStillStocked() {
+        let item = PantryItem(canonicalName: "milk", displayName: "Milk", quantity: 1, unit: .liters)
+        XCTAssertFalse(item.isDepleted)
+    }
+
+    // MARK: - Auto-expiry: add/merge/set paths all populate useBy
+
+    func testAdd_setsUseByFromShelfLifeEstimator() throws {
+        let item = PantryItem(
+            canonicalName: "chicken breast",
+            displayName: "Chicken Breast",
+            quantity: 400,
+            unit: .grams,
+            storageLocation: .fridge
+        )
+        try service.add(item)
+        XCTAssertNotNil(item.useBy, "add() must populate useBy when the caller didn't set one")
+        let days = try Calendar.current.dateComponents([.day], from: Date(), to: XCTUnwrap(item.useBy)).day ?? -1
+        XCTAssertEqual(Double(days), 2, accuracy: 1)
+    }
+
+    func testMergeOrCreate_setsUseByOnNewRow() throws {
+        let item = try service.mergeOrCreate(
+            rawName: "rice", quantity: 500, unit: .grams, storageLocation: .pantry,
+            purchaseDate: Date(), purchaseSource: .manual, sourceReceiptLineItemID: nil
+        )
+        XCTAssertNotNil(item.useBy)
+    }
+
+    func testMergeOrCreate_keepsEarliestUseBy() throws {
+        // First batch, purchased today → far-future useBy (rice keeps ~2 years).
+        let first = try service.mergeOrCreate(
+            rawName: "rice", quantity: 500, unit: .grams, storageLocation: .pantry,
+            purchaseDate: Date(), purchaseSource: .manual, sourceReceiptLineItemID: nil
+        )
+        let earlierUseBy = Date().addingTimeInterval(3 * 86400) // 3 days out — deliberately earlier
+        first.useBy = earlierUseBy
+
+        // Second batch merges into the same row (same canonical + unit + brand).
+        let merged = try service.mergeOrCreate(
+            rawName: "rice", quantity: 200, unit: .grams, storageLocation: .pantry,
+            purchaseDate: Date(), purchaseSource: .manual, sourceReceiptLineItemID: nil
+        )
+
+        XCTAssertEqual(merged.id, first.id, "Sanity: same row")
+        XCTAssertEqual(
+            try XCTUnwrap(merged.useBy).timeIntervalSince1970,
+            earlierUseBy.timeIntervalSince1970,
+            accuracy: 2,
+            "Merging must keep the EARLIER of the two use-by dates — the stack spoils as fast as its oldest portion"
+        )
+    }
+
+    func testSetOrCreate_setsUseByOnNewRow() throws {
+        let item = try service.setOrCreate(
+            rawName: "pasta", quantity: 500, unit: .grams, storageLocation: .pantry,
+            purchaseDate: Date(), purchaseSource: .manual
+        )
+        XCTAssertNotNil(item.useBy)
+    }
+
+    func testSetOrCreate_doesNotResetExistingUseBy() throws {
+        let first = try service.setOrCreate(
+            rawName: "pasta", quantity: 500, unit: .grams, storageLocation: .pantry,
+            purchaseDate: Date(), purchaseSource: .manual
+        )
+        let customUseBy = Date().addingTimeInterval(999 * 86400)
+        first.useBy = customUseBy
+
+        let updated = try service.setOrCreate(
+            rawName: "pasta", quantity: 300, unit: .grams, storageLocation: .pantry,
+            purchaseDate: Date(), purchaseSource: .manual
+        )
+
+        XCTAssertEqual(updated.useBy, customUseBy, "A stock-take on a row with an existing useBy must not reset it")
+    }
+
+    // MARK: - updateItem (tap-edit / voice-edit)
+
+    func testUpdateItem_quantityAndUnitChange() throws {
+        let item = PantryItem(canonicalName: "flour", displayName: "Flour", quantity: 500, unit: .grams, storageLocation: .pantry)
+        try service.add(item)
+
+        _ = try service.updateItem(item, quantity: 1, unit: .kilograms, storageLocation: nil, useBy: nil, brand: nil)
+
+        XCTAssertEqual(item.quantity, 1)
+        XCTAssertEqual(item.unit, .kilograms)
+    }
+
+    func testUpdateItem_locationChangeRecomputesUseBy() throws {
+        let item = PantryItem(
+            canonicalName: "chicken breast",
+            displayName: "Chicken Breast",
+            quantity: 400,
+            unit: .grams,
+            storageLocation: .fridge
+        )
+        try service.add(item)
+        let fridgeUseBy = try XCTUnwrap(item.useBy)
+
+        _ = try service.updateItem(item, quantity: nil, unit: nil, storageLocation: .freezer, useBy: nil, brand: nil)
+
+        XCTAssertEqual(item.storageLocation, .freezer)
+        XCTAssertNotEqual(item.useBy, fridgeUseBy, "Moving to the freezer must recompute useBy from the new location")
+        let daysOut = try Calendar.current.dateComponents([.day], from: Date(), to: XCTUnwrap(item.useBy)).day ?? 0
+        XCTAssertGreaterThan(daysOut, 30, "Freezer chicken keeps far longer than fridge chicken")
+    }
+
+    func testUpdateItem_explicitUseByAlwaysWins() throws {
+        let item = PantryItem(
+            canonicalName: "chicken breast",
+            displayName: "Chicken Breast",
+            quantity: 400,
+            unit: .grams,
+            storageLocation: .fridge
+        )
+        try service.add(item)
+        let explicitDate = Date().addingTimeInterval(5 * 86400)
+
+        _ = try service.updateItem(item, quantity: nil, unit: nil, storageLocation: .freezer, useBy: explicitDate, brand: nil)
+
+        let useBy = try XCTUnwrap(item.useBy)
+        XCTAssertEqual(useBy.timeIntervalSince1970, explicitDate.timeIntervalSince1970, accuracy: 1)
+    }
+
+    func testUpdateItem_noLocationChange_leavesUseByAlone() throws {
+        let item = PantryItem(
+            canonicalName: "chicken breast",
+            displayName: "Chicken Breast",
+            quantity: 400,
+            unit: .grams,
+            storageLocation: .fridge
+        )
+        try service.add(item)
+        let original = try XCTUnwrap(item.useBy)
+
+        _ = try service.updateItem(item, quantity: 300, unit: nil, storageLocation: nil, useBy: nil, brand: nil)
+
+        XCTAssertEqual(item.useBy, original, "No location change + no explicit useBy → useBy must be untouched")
+        XCTAssertEqual(item.quantity, 300)
     }
 }
