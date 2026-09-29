@@ -476,6 +476,15 @@ extension FoodProduct {
         return Self.allergenDisplayOrder.filter { matched.contains($0) }
     }
 
+    /// "May contain" traces, same EU-14/US-major mapping as `displayAllergens`
+    /// — shown as secondary chips, and excludes anything already a confirmed
+    /// allergen (no point flagging both "contains milk" and "may contain milk").
+    var displayTraces: [String] {
+        let confirmed = Set(displayAllergens)
+        let matched = Set(traces.compactMap(Self.displayAllergenName(for:)))
+        return Self.allergenDisplayOrder.filter { matched.contains($0) && !confirmed.contains($0) }
+    }
+
     private static let allergenDisplayOrder = [
         "Milk", "Eggs", "Fish", "Crustaceans", "Molluscs", "Tree nuts", "Peanuts",
         "Gluten", "Soy", "Sesame", "Celery", "Mustard", "Lupin", "Sulphites",
@@ -582,10 +591,12 @@ extension FoodCatalog {
     }
 
     /// Scores every candidate, drops the product itself and duplicates
-    /// (same barcode, or same name+brand), then prefers items that score
-    /// higher than `currentTotal`; failing that, peers within 5 points or
-    /// the same rating tier; failing that, whatever scored at all. Items
-    /// with a photo sort first within each tier.
+    /// (same barcode, same name+brand, or a near-identical name — "Coca-Cola
+    /// by Coke" showing up as a swap for "Coca-Cola" is the same product, not
+    /// a suggestion), then requires a *meaningful* improvement to call
+    /// something "healthier" (see `isMeaningfulImprovement`); failing that,
+    /// peers within 5 points or the same rating tier; failing that, whatever
+    /// scored at all. Items with a photo sort first within each tier.
     private static func rank(candidates: [FoodProduct], excluding product: FoodProduct, currentTotal: Int?, limit: Int) -> FoodSuggestions {
         struct Scored {
             let product: FoodProduct
@@ -595,6 +606,7 @@ extension FoodCatalog {
         // Seeded with the product's own name+brand so a peer that's really
         // just the same product under a different id/barcode is excluded too.
         var seenKey = Set<String>(["\(product.name.lowercased())|\(product.brand?.lowercased() ?? "")"])
+        let productTokens = nameTokens(product)
         let scored: [Scored] = candidates.compactMap { candidate in
             guard candidate.id != product.id, !candidate.name.isEmpty else {
                 return nil
@@ -604,6 +616,11 @@ extension FoodCatalog {
             }
             let key = "\(candidate.name.lowercased())|\(candidate.brand?.lowercased() ?? "")"
             guard seenKey.insert(key).inserted else {
+                return nil
+            }
+            // Same product, different listing ("Coca-Cola" vs "Coca-Cola by
+            // Coke"): near-identical normalized name, regardless of brand.
+            guard jaccard(nameTokens(candidate), productTokens) < 0.8 else {
                 return nil
             }
             guard let score = FoodScore.evaluate(candidate) else {
@@ -627,16 +644,42 @@ extension FoodCatalog {
         }
 
         if let currentTotal {
-            let healthier = scored.filter { $0.total > currentTotal }
+            let currentRating = FoodScore.Rating(score: currentTotal)
+            // Already excellent → a peer needs to clear a higher bar (+8, not
+            // +5) before "Also great" gets upgraded to a real swap.
+            let requiredGain = currentRating == .excellent ? 8 : 5
+            let healthier = scored.filter { $0.total >= currentTotal + requiredGain }
             if !healthier.isEmpty {
                 return FoodSuggestions(kind: .healthier, items: take(healthier))
             }
-            let currentRating = FoodScore.Rating(score: currentTotal)
             let similar = scored.filter { $0.total >= currentTotal - 5 || $0.rating == currentRating }
             if !similar.isEmpty {
                 return FoodSuggestions(kind: .similar, items: take(similar))
             }
         }
         return FoodSuggestions(kind: .similar, items: take(scored))
+    }
+
+    /// Lowercased alphanumeric word tokens from the product's *name* only
+    /// (brand deliberately excluded — that's exactly what let "Coca-Cola by
+    /// Coke" slip past the old name+brand key as a "swap" for "Coca-Cola":
+    /// same name, different brand string). Catches a near-duplicate listing
+    /// of the same product under a different id/barcode/brand.
+    static func nameTokens(_ product: FoodProduct) -> Set<String> {
+        let words = product.name.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+        return Set(words.map(String.init).filter { $0.count > 1 })
+    }
+
+    /// Intersection over union — 1.0 for identical token sets, 0 for no
+    /// overlap at all.
+    static func jaccard(_ a: Set<String>, _ b: Set<String>) -> Double {
+        guard !a.isEmpty, !b.isEmpty else {
+            return 0
+        }
+        let union = a.union(b).count
+        guard union > 0 else {
+            return 0
+        }
+        return Double(a.intersection(b).count) / Double(union)
     }
 }
