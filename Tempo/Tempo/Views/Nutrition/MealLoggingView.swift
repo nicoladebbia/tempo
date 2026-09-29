@@ -47,6 +47,11 @@ struct MealLoggingView: View {
     private var searchPrefill: String?
     @State
     private var toast: ToastData?
+    @State
+    private var catalog: FoodCatalog?
+    /// The item whose portion editor sheet is open.
+    @State
+    private var editingItem: FoodItem?
 
     var onMealLogged: (([FoodItem], MealType) -> Void)?
 
@@ -168,7 +173,17 @@ struct MealLoggingView: View {
                     addFoodItem(item)
                 }
             }
+            .sheet(item: $editingItem) { item in
+                PortionEditorView(item: item) { updated in
+                    updateFoodItem(updated)
+                }
+            }
             .tempoToast($toast)
+            .task {
+                if catalog == nil {
+                    catalog = FoodCatalog(services: services)
+                }
+            }
         }
     }
 
@@ -254,28 +269,40 @@ struct MealLoggingView: View {
 
     private func foodItemRow(_ item: FoodItem) -> some View {
         HStack(spacing: TempoSpacing.md) {
-            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                Text(item.name)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                    .lineLimit(1)
+            // Tapping the row opens the portion editor — logged items used
+            // to be locked to whatever grams they arrived with (picky-QA
+            // item 4).
+            Button {
+                editingItem = item
+            } label: {
+                HStack(spacing: TempoSpacing.md) {
+                    VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+                        Text(item.name)
+                            .font(.tempoBody)
+                            .foregroundStyle(Color.tempoTextPrimary)
+                            .lineLimit(1)
 
-                Text(item.portionDescription)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                        Text(item.portionDescription)
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                    }
+
+                    Spacer()
+
+                    VStack(alignment: .trailing, spacing: TempoSpacing.xxs) {
+                        Text("\(item.calories) kcal")
+                            .font(.tempoCallout)
+                            .foregroundStyle(Color.tempoTextPrimary)
+
+                        Text("P: \(Int(item.protein))g")
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                    }
+                }
+                .contentShape(Rectangle())
             }
-
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: TempoSpacing.xxs) {
-                Text("\(item.calories) kcal")
-                    .font(.tempoCallout)
-                    .foregroundStyle(Color.tempoTextPrimary)
-
-                Text("P: \(Int(item.protein))g")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextSecondary)
-            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("mealItemRow")
 
             // Delete button
             Button {
@@ -395,6 +422,21 @@ struct MealLoggingView: View {
         HapticManager.lightImpact()
     }
 
+    /// Replaces a logged item with its re-portioned version and remembers
+    /// the chosen grams for next time this product gets added.
+    private func updateFoodItem(_ updated: FoodItem) {
+        withAnimation(TempoAnimation.springMedium) {
+            if let index = foodItems.firstIndex(where: { $0.id == updated.id }) {
+                foodItems[index] = updated
+            }
+        }
+        HapticManager.lightImpact()
+        if let barcode = updated.barcode, let catalog {
+            let grams = EatenMealRecorder.gramsFromServingSize(updated.servingSize) * updated.servingQuantity
+            catalog.rememberPortion(grams, forBarcode: barcode, in: modelContext)
+        }
+    }
+
     private func logMeal() {
         guard !foodItems.isEmpty, !didLog else {
             return
@@ -477,6 +519,215 @@ struct FoodItem: Identifiable, Equatable {
             source: source,
             barcode: barcode
         )
+    }
+}
+
+// MARK: - PortionEditorView
+
+/// Lets you resize a logged item's portion before saving — a grams field
+/// plus quick chips for ½ / 1 / 2× the original serving and a flat 100 g/ml,
+/// with calories and macros recalculated live from the item's own density
+/// (its label kcal per gram), never reset to a generic default. Falls back
+/// to a plain servings stepper when the serving size has no parseable
+/// gram/ml amount (e.g. "1 slice") — picky-QA item 4.
+struct PortionEditorView: View {
+    let item: FoodItem
+    let onSave: (FoodItem) -> Void
+
+    @Environment(\.dismiss)
+    private var dismiss
+
+    @State
+    private var grams: Double
+    @State
+    private var gramsText: String
+
+    /// Grams (or ml) for one serving as originally logged — the basis for
+    /// the quick chips and the density used to rescale macros. `0` when the
+    /// serving size has no parseable amount, in which case `grams` instead
+    /// tracks a plain serving COUNT (e.g. "2.0" for "2 slices") and the
+    /// densities below are per one serving, not per gram.
+    private let unitGrams: Double
+    private let densityKcal: Double
+    private let densityProtein: Double
+    private let densityCarbs: Double
+    private let densityFat: Double
+
+    init(item: FoodItem, onSave: @escaping (FoodItem) -> Void) {
+        self.item = item
+        self.onSave = onSave
+        let parsedUnit = EatenMealRecorder.gramsFromServingSize(item.servingSize)
+        unitGrams = parsedUnit
+        if parsedUnit > 0 {
+            let currentGrams = parsedUnit * item.servingQuantity
+            let baseline = currentGrams > 0 ? currentGrams : parsedUnit
+            densityKcal = baseline > 0 ? Double(item.calories) / baseline : 0
+            densityProtein = baseline > 0 ? item.protein / baseline : 0
+            densityCarbs = baseline > 0 ? item.carbs / baseline : 0
+            densityFat = baseline > 0 ? item.fat / baseline : 0
+            _grams = State(initialValue: baseline)
+            _gramsText = State(initialValue: Self.format(baseline))
+        } else {
+            // No parseable gram amount (e.g. "1 slice") — seed with the
+            // item's own serving count so opening the sheet with no changes
+            // doesn't silently reset it to 1 (it used to, via a hard-coded
+            // 100 g/ml stand-in baseline unrelated to the real quantity).
+            let servings = item.servingQuantity > 0 ? item.servingQuantity : 1
+            densityKcal = servings > 0 ? Double(item.calories) / servings : 0
+            densityProtein = servings > 0 ? item.protein / servings : 0
+            densityCarbs = servings > 0 ? item.carbs / servings : 0
+            densityFat = servings > 0 ? item.fat / servings : 0
+            _grams = State(initialValue: servings)
+            _gramsText = State(initialValue: Self.format(servings))
+        }
+    }
+
+    private var unitLabel: String {
+        item.servingSize.lowercased().contains("ml") ? "ml" : "g"
+    }
+
+    private var previewCalories: Int {
+        Int((densityKcal * grams).rounded())
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: TempoSpacing.xl) {
+                VStack(spacing: TempoSpacing.xxs) {
+                    Text(item.name)
+                        .font(.tempoTitle3)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                        .multilineTextAlignment(.center)
+                    if let brand = item.brand {
+                        Text(brand)
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                    }
+                }
+                .padding(.top, TempoSpacing.lg)
+
+                if unitGrams > 0 {
+                    gramsField
+                    quickChips
+                } else {
+                    servingsStepper
+                }
+
+                VStack(spacing: TempoSpacing.xxs) {
+                    Text("\(previewCalories) kcal")
+                        .font(.tempoTitle2)
+                        .monospacedDigit()
+                        .foregroundStyle(Color.tempoTextPrimary)
+                    Text(
+                        "P \(Int((densityProtein * grams).rounded()))g · " +
+                            "C \(Int((densityCarbs * grams).rounded()))g · " +
+                            "F \(Int((densityFat * grams).rounded()))g"
+                    )
+                    .font(.tempoCaption1)
+                    .monospacedDigit()
+                    .foregroundStyle(Color.tempoTextSecondary)
+                }
+
+                Spacer(minLength: 0)
+
+                Button {
+                    save()
+                } label: {
+                    Text("Save").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.tempoPrimary)
+                .disabled(grams <= 0)
+            }
+            .padding(.horizontal, TempoSpacing.screenEdge)
+            .padding(.bottom, TempoSpacing.lg)
+            .background(Color.tempoBgPrimary)
+            .navigationTitle("Edit portion")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") { dismiss() }
+                        .foregroundStyle(Color.tempoTextSecondary)
+                }
+            }
+        }
+    }
+
+    private var gramsField: some View {
+        HStack(spacing: TempoSpacing.xxs) {
+            TextField(unitLabel, text: $gramsText)
+                .keyboardType(.decimalPad)
+                .multilineTextAlignment(.trailing)
+                .font(.tempoTitle2)
+                .monospacedDigit()
+                .frame(width: 90)
+                .accessibilityIdentifier("portionEditorGrams")
+                .onChange(of: gramsText) { _, text in
+                    if let value = Double(text.replacingOccurrences(of: ",", with: ".")), value > 0, value <= 5000 {
+                        grams = value
+                    }
+                }
+            Text(unitLabel)
+                .font(.tempoBody)
+                .foregroundStyle(Color.tempoTextSecondary)
+        }
+        .padding(.horizontal, TempoSpacing.md)
+        .padding(.vertical, TempoSpacing.sm)
+        .background(Color.tempoBgTertiary)
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+    }
+
+    private var quickChips: some View {
+        HStack(spacing: TempoSpacing.sm) {
+            chip("½ serving", grams: unitGrams * 0.5)
+            chip("1 serving", grams: unitGrams)
+            chip("2 servings", grams: unitGrams * 2)
+            chip("100 \(unitLabel)", grams: 100)
+        }
+    }
+
+    private func chip(_ label: String, grams value: Double) -> some View {
+        let selected = abs(grams - value) < 0.5
+        return Button {
+            grams = value
+            gramsText = Self.format(value)
+        } label: {
+            Text(label)
+                .font(.tempoCaption1)
+                .foregroundStyle(selected ? Color.tempoTextInverse : Color.tempoTextPrimary)
+                .lineLimit(1)
+                .padding(.horizontal, TempoSpacing.md)
+                .padding(.vertical, TempoSpacing.xs)
+                .background(selected ? Color.tempoSignal : Color.tempoBgTertiary)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Serving size with no parseable gram/ml amount (e.g. "1 slice") —
+    /// falls back to a plain servings count instead of a grams field;
+    /// `grams` here already IS that count (see `init`).
+    private var servingsStepper: some View {
+        Stepper(value: $grams, in: 0.5 ... 10, step: 0.5) {
+            Text("\(Self.format(grams)) × \(item.servingSize)")
+                .font(.tempoBody)
+                .foregroundStyle(Color.tempoTextPrimary)
+        }
+    }
+
+    private func save() {
+        HapticManager.selection()
+        var updated = item
+        updated.servingQuantity = unitGrams > 0 ? grams / unitGrams : grams
+        updated.calories = previewCalories
+        updated.protein = densityProtein * grams
+        updated.carbs = densityCarbs * grams
+        updated.fat = densityFat * grams
+        onSave(updated)
+        dismiss()
+    }
+
+    static func format(_ value: Double) -> String {
+        value == value.rounded() ? "\(Int(value))" : String(format: "%.1f", value)
     }
 }
 
