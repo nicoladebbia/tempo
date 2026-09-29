@@ -27,6 +27,14 @@ final class TrainerProgramImport: Model, Content, @unchecked Sendable {
     @Field(key: "year_month")
     var yearMonth: String
 
+    /// Per-session call counters (AddCallCountsToTrainerProgramImports) —
+    /// cap how many transcribe / structure Claude calls one quota slot buys.
+    @Field(key: "transcribe_calls")
+    var transcribeCalls: Int
+
+    @Field(key: "structure_calls")
+    var structureCalls: Int
+
     @Timestamp(key: "created_at", on: .create)
     var createdAt: Date?
 
@@ -37,5 +45,7 @@ final class TrainerProgramImport: Model, Content, @unchecked Sendable {
         $user.id = userID
         self.sessionID = sessionID
         self.yearMonth = yearMonth
+        transcribeCalls = 0
+        structureCalls = 0
     }
 }

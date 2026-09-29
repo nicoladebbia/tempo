@@ -1,5 +1,7 @@
 import Fluent
 import Foundation
+import Redis
+import SQLKit
 import Vapor
 
 // MARK: - TrainerProgramImportQuotaService
@@ -10,52 +12,99 @@ import Vapor
 // Pro/allowlisted users are unlimited. An "import" is one client-generated
 // `sessionID` sent on every network call of that import (every transcribe
 // batch + the structure call) — the FIRST call of a new session consumes a
-// quota slot, every later call with the same session_id is a free
-// retry/continuation (so a 429 retry or a multi-batch import never burns
-// more than one slot).
+// quota slot; later calls with the same session_id are free retries or
+// continuations, but ONLY within the same calendar month and only up to a
+// per-kind call cap (so one slot cannot buy unlimited Claude calls).
 //
-// Table: `trainer_program_imports` (CreateTrainerProgramImports migration),
-// unique on (user_id, session_id).
+// Table: `trainer_program_imports` (CreateTrainerProgramImports +
+// AddCallCountsToTrainerProgramImports), unique on (user_id, session_id).
 
 enum TrainerProgramImportQuotaService {
     /// Free-tier sessions allowed per calendar month.
     static let freeMonthlyLimit = 2
+    /// Max structure calls one session may make (1 real call + 2 client
+    /// retries + slack).
+    static let maxStructureCallsPerSession = 4
+    /// Max transcribe batches per session (5 images each -> 100 pages).
+    static let maxTranscribeCallsPerSession = 20
+
+    enum CallKind: Equatable {
+        case transcribe
+        case structure
+    }
 
     enum GateResult: Equatable {
         case allowed
         case exceeded(limit: Int, used: Int, resetsAt: Date)
+        /// Session id was registered in an earlier month — no reuse.
+        case sessionExpired
+        /// This session already made its maximum calls of this kind.
+        case sessionCallLimit(limit: Int)
     }
 
-    /// Runs the full gate: entitlement check, session-dedup check, quota
-    /// count, and (if this is a new session under the limit) atomically
-    /// records the session so it counts against this month's quota.
-    static func gate(userID: String, sessionID: String, on req: Request) async throws -> GateResult {
+    /// Runs the full gate ATOMICALLY: entitlement check, then — inside one
+    /// transaction holding a per-user Postgres advisory lock — the session
+    /// lookup, month check, per-session call cap, quota count and insert.
+    /// The lock serialises concurrent requests of the same user, so parallel
+    /// requests with fresh UUIDs can no longer all pass the count check.
+    static func gate(
+        userID: String,
+        sessionID: String,
+        kind: CallKind = .transcribe,
+        on req: Request
+    ) async throws -> GateResult {
         if try await ProEntitlement.isEntitled(userID: userID, on: req) {
             return .allowed
         }
 
-        // Already-registered session (any month) → free retry/continuation,
-        // regardless of the current count.
-        if try await TrainerProgramImport.query(on: req.db)
-            .filter(\.$user.$id == userID)
-            .filter(\.$sessionID == sessionID)
-            .first() != nil
-        {
+        let yearMonth = currentYearMonth()
+        let lockKey = "trainer_program_import:" + userID
+        return try await req.db.transaction { db in
+            guard let sql = db as? any SQLDatabase else {
+                throw Abort(.internalServerError, reason: "Quota gate requires an SQL database.")
+            }
+            try await sql.raw("SELECT pg_advisory_xact_lock(hashtext(\(bind: lockKey)))").run()
+
+            if let existing = try await TrainerProgramImport.query(on: db)
+                .filter(\.$user.$id == userID)
+                .filter(\.$sessionID == sessionID)
+                .first()
+            {
+                guard existing.yearMonth == yearMonth else {
+                    return .sessionExpired
+                }
+                switch kind {
+                case .structure:
+                    guard existing.structureCalls < maxStructureCallsPerSession else {
+                        return .sessionCallLimit(limit: maxStructureCallsPerSession)
+                    }
+                    existing.structureCalls += 1
+                case .transcribe:
+                    guard existing.transcribeCalls < maxTranscribeCallsPerSession else {
+                        return .sessionCallLimit(limit: maxTranscribeCallsPerSession)
+                    }
+                    existing.transcribeCalls += 1
+                }
+                try await existing.update(on: db)
+                return .allowed
+            }
+
+            let used = try await TrainerProgramImport.query(on: db)
+                .filter(\.$user.$id == userID)
+                .filter(\.$yearMonth == yearMonth)
+                .count()
+            guard used < freeMonthlyLimit else {
+                return .exceeded(limit: freeMonthlyLimit, used: used, resetsAt: nextMonthStartUTC())
+            }
+
+            let row = TrainerProgramImport(userID: userID, sessionID: sessionID, yearMonth: yearMonth)
+            switch kind {
+            case .structure: row.structureCalls = 1
+            case .transcribe: row.transcribeCalls = 1
+            }
+            try await row.create(on: db)
             return .allowed
         }
-
-        let yearMonth = currentYearMonth()
-        let used = try await TrainerProgramImport.query(on: req.db)
-            .filter(\.$user.$id == userID)
-            .filter(\.$yearMonth == yearMonth)
-            .count()
-
-        guard used < freeMonthlyLimit else {
-            return .exceeded(limit: freeMonthlyLimit, used: used, resetsAt: nextMonthStartUTC())
-        }
-
-        try await recordSession(userID: userID, sessionID: sessionID, yearMonth: yearMonth, on: req)
-        return .allowed
     }
 
     /// Read-only snapshot for `GET /v1/training/program-import/quota`. Does
@@ -88,44 +137,38 @@ enum TrainerProgramImportQuotaService {
         let resetsAt: Date
     }
 
-    // MARK: - Recording (idempotent under races)
+    // MARK: - Feedback daily quota
 
-    /// Inserts the session row. If a CONCURRENT request for the SAME new
-    /// session_id already inserted it (the unique index on
-    /// (user_id, session_id) fires), that's treated as success — the
-    /// session is registered either way and the slot was only ever meant to
-    /// be consumed once. A genuinely different error propagates.
-    private static func recordSession(
-        userID: String,
-        sessionID: String,
-        yearMonth: String,
-        on req: Request
-    ) async throws {
-        let row = TrainerProgramImport(userID: userID, sessionID: sessionID, yearMonth: yearMonth)
-        do {
-            try await row.create(on: req.db)
-        } catch {
-            if isUniqueConstraintViolation(error) {
-                req.logger.info(
-                    "[trainer_program_import_quota] concurrent duplicate session insert for user=\(userID) — treating as already-registered"
-                )
-                return
-            }
-            throw error
-        }
-    }
+    /// "Trainer sent changes" edits per user per UTC day. Redis INCR is
+    /// atomic, so parallel requests cannot overshoot the cap.
+    static let freeDailyFeedbackLimit = 5
+    static let proDailyFeedbackLimit = 30
 
-    private static func isUniqueConstraintViolation(_ error: Error) -> Bool {
-        if let dbError = error as? any DatabaseError, dbError.isConstraintFailure {
-            return true
+    /// Returns nil when allowed, or the daily limit that was hit.
+    static func consumeFeedback(userID: String, on req: Request) async throws -> Int? {
+        let isEntitled = try await ProEntitlement.isEntitled(userID: userID, on: req)
+        let limit = isEntitled ? proDailyFeedbackLimit : freeDailyFeedbackLimit
+        let day = currentDay()
+        let key = RedisKey("trainer_feedback:\(userID):\(day)")
+        let count = try await req.redis.increment(key).get()
+        if count == 1 {
+            _ = try? await req.redis.expire(key, after: .seconds(48 * 3600)).get()
         }
-        // Fallback for drivers/wrappers that don't conform to DatabaseError:
-        // Postgres unique_violation is SQLSTATE 23505.
-        let description = String(describing: error)
-        return description.contains("23505") || description.localizedCaseInsensitiveContains("duplicate key")
+        return count > limit ? limit : nil
     }
 
     // MARK: - Time helpers
+
+    static func currentDay(date: Date = .init()) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC") ?? .init(secondsFromGMT: 0)!
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
 
     static func currentYearMonth(date: Date = .init()) -> String {
         var calendar = Calendar(identifier: .gregorian)

@@ -61,6 +61,52 @@ enum ProEntitlement {
         return lowerEntries.contains(user.username.lowercased())
     }
 
+    /// True if the user has recorded AI consent (`users.ai_consent_at`).
+    /// Redis-cached for 5 minutes; invalidated with the subscription cache
+    /// (`Request.invalidateSubscriptionCache`). Shared by SubscriptionMiddleware
+    /// and the trainer program-import routes, which do not sit behind it.
+    static func userHasAIConsent(userID: String, on req: Request) async throws -> Bool {
+        let cacheKey = RedisKey("ai_consent:\(userID)")
+        if let cached = try await req.redis.get(cacheKey, as: String.self).get() {
+            return cached == "1"
+        }
+
+        guard let user = try await User.find(userID, on: req.db) else {
+            return false
+        }
+        let hasConsent = user.aiConsentAt != nil
+
+        try await req.redis.setex(
+            cacheKey,
+            to: hasConsent ? "1" : "0",
+            expirationInSeconds: cacheTTLSeconds
+        ).get()
+
+        return hasConsent
+    }
+
+    /// 402 `ai_consent_required` — the one error every AI route returns
+    /// when the user has not granted AI consent.
+    static var aiConsentRequired: Abort {
+        Abort(
+            .paymentRequired,
+            headers: [:],
+            reason: "AI consent is required before using AI features.",
+            identifier: "ai_consent_required"
+        )
+    }
+
+    /// Throws `aiConsentRequired` unless the user is allowlisted (the
+    /// operator bypass SubscriptionMiddleware also honours) or has consented.
+    static func requireAIConsent(userID: String, on req: Request) async throws {
+        if try await isAllowlisted(userID: userID, on: req) {
+            return
+        }
+        guard try await userHasAIConsent(userID: userID, on: req) else {
+            throw aiConsentRequired
+        }
+    }
+
     /// True if the user has an active, non-expired Pro subscription.
     /// Redis-cached for 5 minutes; invalidated by
     /// `Request.invalidateSubscriptionCache(userID:)` on verify/webhook.

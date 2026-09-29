@@ -178,6 +178,7 @@ func configure(
     app.migrations.add(CreateAIResponseCache())
     app.migrations.add(CreateUserDailyPlanProfiles())
     app.migrations.add(CreateTrainerProgramImports())
+    app.migrations.add(AddCallCountsToTrainerProgramImports())
     app.migrations.add(CreateExerciseImages())
     app.migrations.add(CreateExerciseImageMonthlySpend())
     app.migrations.add(CreateFoodNutritionCache())
