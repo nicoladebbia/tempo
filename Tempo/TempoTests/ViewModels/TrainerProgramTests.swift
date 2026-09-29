@@ -792,6 +792,9 @@ final class TrainerProgramTests: XCTestCase {
     }
 
     func testSwapInMissedSessionReplacesTodaysPlannedRow() throws {
+        // The program's only session is Monday; on a real Monday today holds
+        // that lift and the swap is (correctly) refused.
+        try XCTSkipIf(Calendar(identifier: .iso8601).component(.weekday, from: Date()) == 2, "today is the program's own lift day")
         let container = try TempoModelContainer.create(inMemory: true)
         let context = container.mainContext
         let bench = Exercise(
