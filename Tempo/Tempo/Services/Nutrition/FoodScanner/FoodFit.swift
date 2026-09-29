@@ -188,7 +188,14 @@ enum FoodFit {
     /// or an alcohol-derived ingredient; a good mark when a halal label is
     /// present; silent otherwise (most products carry neither signal).
     static func halalCheck(for product: FoodProduct) -> FoodFitCheck? {
+        // "sugar alcohol" (erythritol…) and wine vinegar aren't intoxicants.
         let ingredients = (product.ingredientsText ?? "").lowercased()
+            .replacingOccurrences(of: #"sugar alcohols?"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: "wine vinegar", with: "")
+        // Whole words only — "chamomile" must not read as "ham", "collard" as "lard".
+        func mentions(_ term: String) -> Bool {
+            ingredients.range(of: "\\b\(NSRegularExpression.escapedPattern(for: term))\\b", options: .regularExpression) != nil
+        }
         let porkTerms = ["pork", "bacon", "lard", "ham", "prosciutto", "salami", "pepperoni", "chorizo", "pancetta"]
         let alcoholTerms = ["alcohol", "ethanol", "wine", "rum", "beer", "liqueur", "brandy"]
         let gelatinSourced = [
@@ -201,10 +208,10 @@ enum FoodFit {
             "kosher gelatin",
         ]
 
-        if let term = porkTerms.first(where: { ingredients.contains($0) }) {
+        if let term = porkTerms.first(where: mentions) {
             return FoodFitCheck(kind: .conflict, text: "May not be halal — contains \(term)")
         }
-        if alcoholTerms.contains(where: { ingredients.contains($0) }) {
+        if alcoholTerms.contains(where: mentions) {
             return FoodFitCheck(kind: .conflict, text: "May not be halal — contains alcohol")
         }
         if ingredients.contains("gelatin") || ingredients.contains("gelatine"),

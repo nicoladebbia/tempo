@@ -259,6 +259,21 @@ final class FoodFitHalalAndGoalTests: XCTestCase {
         XCTAssertNil(FoodFit.halalCheck(for: product))
     }
 
+    func testWordsContainingPorkTermsDoNotConflict() {
+        let product = FoodProduct.sample(ingredientsText: "Chamomile, collard greens, serum whey, graham flour")
+        XCTAssertNil(FoodFit.halalCheck(for: product))
+    }
+
+    func testHamAsAWordStillConflicts() {
+        let product = FoodProduct.sample(ingredientsText: "Cooked ham (pork), water")
+        XCTAssertEqual(FoodFit.halalCheck(for: product)?.kind, .conflict)
+    }
+
+    func testSugarAlcoholAndWineVinegarDoNotConflict() {
+        let product = FoodProduct.sample(ingredientsText: "Erythritol (sugar alcohol), red wine vinegar, salt")
+        XCTAssertNil(FoodFit.halalCheck(for: product))
+    }
+
     func testHalalLabelIsGood() {
         let product = FoodProduct.sample(labels: ["halal", "certified-halal"])
         XCTAssertEqual(FoodFit.halalCheck(for: product)?.kind, .good)

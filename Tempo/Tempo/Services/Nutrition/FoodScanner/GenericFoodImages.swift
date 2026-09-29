@@ -59,14 +59,34 @@ enum GenericFoodImages {
             return nil
         }
         let directory = cacheDirectory ?? defaultCacheDirectory()
-        var cache = readCache(directory: directory)
-        if let entry = cache[title] {
-            return entry.urlString.flatMap(URL.init(string:))
+        return await Resolver.shared.resolve(title: title, directory: directory, fetcher: fetcher)
+    }
+
+    /// Serializes the read → fetch → write cycle so rows rendering together
+    /// share one request per title and never overwrite each other's entries.
+    private actor Resolver {
+        static let shared = Resolver()
+
+        private var inFlight: [String: Task<URL?, Never>] = [:]
+
+        func resolve(title: String, directory: URL, fetcher: Fetcher) async -> URL? {
+            let key = directory.path + "|" + title
+            if let pending = inFlight[key] {
+                return await pending.value
+            }
+            if let entry = GenericFoodImages.readCache(directory: directory)[title] {
+                return entry.urlString.flatMap(URL.init(string:))
+            }
+            let task = Task { await GenericFoodImages.fetchFromWikipedia(title: title, fetcher: fetcher) }
+            inFlight[key] = task
+            let resolved = await task.value
+            inFlight[key] = nil
+            // Re-read after the await: other titles may have landed meanwhile.
+            var cache = GenericFoodImages.readCache(directory: directory)
+            cache[title] = CacheEntry(urlString: resolved?.absoluteString, checkedAt: Date())
+            GenericFoodImages.writeCache(cache, directory: directory)
+            return resolved
         }
-        let resolved = await fetchFromWikipedia(title: title, fetcher: fetcher)
-        cache[title] = CacheEntry(urlString: resolved?.absoluteString, checkedAt: Date())
-        writeCache(cache, directory: directory)
-        return resolved
     }
 
     /// "Greek yogurt 0%" → "Greek_yogurt" — good enough for most built-in
@@ -146,7 +166,7 @@ enum GenericFoodImages {
 
     // MARK: - Private
 
-    private struct CacheEntry: Codable {
+    fileprivate struct CacheEntry: Codable {
         var urlString: String?
         var checkedAt: Date
     }
@@ -160,7 +180,7 @@ enum GenericFoodImages {
         let originalimage: Image?
     }
 
-    private static func fetchFromWikipedia(title: String, fetcher: Fetcher) async -> URL? {
+    fileprivate static func fetchFromWikipedia(title: String, fetcher: Fetcher) async -> URL? {
         guard let encoded = title.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
               let url = URL(string: "https://en.wikipedia.org/api/rest_v1/page/summary/\(encoded)")
         else {
@@ -182,7 +202,7 @@ enum GenericFoodImages {
         return base.appendingPathComponent("GenericFoodImages", isDirectory: true)
     }
 
-    private static func readCache(directory: URL) -> [String: CacheEntry] {
+    fileprivate static func readCache(directory: URL) -> [String: CacheEntry] {
         let url = directory.appendingPathComponent(cacheFileName)
         guard let data = try? Data(contentsOf: url) else {
             return [:]
@@ -190,7 +210,7 @@ enum GenericFoodImages {
         return (try? JSONDecoder().decode([String: CacheEntry].self, from: data)) ?? [:]
     }
 
-    private static func writeCache(_ cache: [String: CacheEntry], directory: URL) {
+    fileprivate static func writeCache(_ cache: [String: CacheEntry], directory: URL) {
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             let data = try JSONEncoder().encode(cache)
