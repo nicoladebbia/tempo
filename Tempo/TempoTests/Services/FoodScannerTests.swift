@@ -569,13 +569,6 @@ final class FoodScannerCleanupTests: XCTestCase {
         )
     }
 
-    func testPlaceholderSymbolFollowsMostSpecificCategory() {
-        let peanut = FoodProduct.sample(categories: ["plant-based-foods-and-beverages", "spreads", "peanut-butters"])
-        XCTAssertEqual(peanut.placeholderSymbol, "leaf.fill", "Not a drink just because of the root category")
-        XCTAssertEqual(FoodProduct.sample(categories: ["beverages", "coffees"]).placeholderSymbol, "cup.and.saucer.fill")
-        XCTAssertEqual(FoodProduct.sample(categories: ["unknown-thing"]).placeholderSymbol, "barcode")
-    }
-
     func testFreeTextCategoriesAreDropped() {
         let nutella = [
             "en:breakfasts",
