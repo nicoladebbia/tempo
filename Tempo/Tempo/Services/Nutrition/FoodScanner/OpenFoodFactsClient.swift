@@ -20,8 +20,26 @@ import os
 protocol FoodProductProviding: Sendable {
     func product(barcode: String) async throws -> FoodProduct?
     func search(_ query: String, limit: Int) async throws -> [FoodProduct]
+    /// Next page of `search`, for "show more" — 1-based, page 1 == `search`.
+    /// Default: no more pages (only Open Food Facts paginates today).
+    func search(_ query: String, limit: Int, page: Int) async throws -> [FoodProduct]
     /// Better-graded products from the product's most specific category.
     func alternatives(for product: FoodProduct, limit: Int) async throws -> [FoodProduct]
+    /// Peers from the same category (or name, when there's no category) —
+    /// unfiltered by grade, the raw material `FoodCatalog.suggestions(for:)`
+    /// ranks into "healthier" or "similar" itself.
+    /// Default: reuses `alternatives`, i.e. peers that already grade better.
+    func peers(for product: FoodProduct, limit: Int) async throws -> [FoodProduct]
+}
+
+extension FoodProductProviding {
+    func search(_ query: String, limit: Int, page: Int) async throws -> [FoodProduct] {
+        page <= 1 ? try await search(query, limit: limit) : []
+    }
+
+    func peers(for product: FoodProduct, limit: Int) async throws -> [FoodProduct] {
+        try await alternatives(for: product, limit: limit)
+    }
 }
 
 // MARK: - FoodLookupError
@@ -52,6 +70,7 @@ struct OpenFoodFactsClient: FoodProductProviding {
         "nova_group", "additives_tags", "allergens_tags", "labels_tags", "categories_tags",
         "categories_hierarchy", "ingredients_analysis_tags", "ingredients_text", "ingredients_text_it",
         "ingredients_text_en", "image_front_url", "image_front_small_url", "images", "countries_tags",
+        "selected_images", "image_ingredients_url", "image_nutrition_url", "image_packaging_url",
     ].joined(separator: ",")
 
     /// OFF asks every app to identify itself.
@@ -97,12 +116,16 @@ struct OpenFoodFactsClient: FoodProductProviding {
         return product
     }
 
-    func search(_ query: String, limit: Int = 20) async throws -> [FoodProduct] {
+    func search(_ query: String, limit: Int = 40) async throws -> [FoodProduct] {
+        try await search(query, limit: limit, page: 1)
+    }
+
+    func search(_ query: String, limit: Int, page: Int) async throws -> [FoodProduct] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.count >= 2 else {
+        guard trimmed.count >= 2, page >= 1 else {
             return []
         }
-        return try await searchHits(query: trimmed, sortBy: nil, limit: limit)
+        return try await Self.dedupedByIdentity(searchHits(query: trimmed, sortBy: nil, limit: limit, page: page))
     }
 
     func alternatives(for product: FoodProduct, limit: Int = 6) async throws -> [FoodProduct] {
@@ -113,8 +136,13 @@ struct OpenFoodFactsClient: FoodProductProviding {
             if let countryTag {
                 clauses.append("countries_tags:\"\(countryTag)\"")
             }
-            let hits = try await searchHits(query: clauses.joined(separator: " AND "), sortBy: "-unique_scans_n", limit: min(limit + 4, 50))
-                .filter { $0.barcode != product.barcode && $0.per100g.hasCoreMacros }
+            let hits = try await searchHits(
+                query: clauses.joined(separator: " AND "),
+                sortBy: "-unique_scans_n",
+                limit: min(limit + 4, 50),
+                page: 1
+            )
+            .filter { $0.barcode != product.barcode && $0.per100g.hasCoreMacros }
             if !hits.isEmpty {
                 return hits
             }
@@ -122,14 +150,80 @@ struct OpenFoodFactsClient: FoodProductProviding {
         return []
     }
 
+    /// Peers regardless of grade: same category-stepping as `alternatives`,
+    /// minus the grade filter, so callers can rank healthier vs. similar
+    /// themselves. Falls back to a name search when the product has no
+    /// category at all (USDA/built-in products routed through Open Food
+    /// Facts, or an OFF product Open Food Facts never categorised).
+    func peers(for product: FoodProduct, limit: Int = 20) async throws -> [FoodProduct] {
+        for category in product.categories.reversed().prefix(3) {
+            var clauses = ["categories_tags:\"en:\(category)\""]
+            if let countryTag {
+                clauses.append("countries_tags:\"\(countryTag)\"")
+            }
+            let hits = try await searchHits(
+                query: clauses.joined(separator: " AND "),
+                sortBy: "-unique_scans_n",
+                limit: min(limit + 10, 50),
+                page: 1
+            )
+            .filter { $0.barcode != product.barcode && $0.per100g.hasCoreMacros }
+            if !hits.isEmpty {
+                return Self.dedupedByIdentity(hits)
+            }
+        }
+        let query = Self.genericSearchTerms(for: product)
+        guard !query.isEmpty else {
+            return []
+        }
+        return try await search(query, limit: limit)
+    }
+
+    /// A search-friendly generic name: strips the brand, percentages and
+    /// filler words — "Fage Total 0% Greek Yogurt" → "greek yogurt".
+    static func genericSearchTerms(for product: FoodProduct) -> String {
+        var name = product.name.lowercased()
+        if let brand = product.brand?.lowercased(), !brand.isEmpty {
+            name = name.replacingOccurrences(of: brand, with: "")
+        }
+        name = name.replacingOccurrences(of: #"\d+([.,]\d+)?\s?%"#, with: "", options: .regularExpression)
+        name = name.replacingOccurrences(of: #"[()]"#, with: "", options: .regularExpression)
+        let stopWords: Set = ["the", "with", "without", "light", "lite", "original", "classic", "natural", "0"]
+        let words = name.split(separator: " ").map(String.init).filter { !stopWords.contains($0) && !$0.isEmpty }
+        return words.joined(separator: " ").trimmingCharacters(in: .whitespaces)
+    }
+
     /// "a OR b", plus "c" for a D/E product — a C is still a clear step up.
     static func betterGrades(than grade: String?) -> String {
         ["d", "e"].contains(grade?.lowercased()) ? "a OR b OR c" : "a OR b"
     }
 
+    /// Drops rows with no name or no calories, then de-dupes by barcode and
+    /// by name+brand (the same product often comes back under more than one
+    /// barcode/region listing).
+    static func dedupedByIdentity(_ products: [FoodProduct]) -> [FoodProduct] {
+        var seenID = Set<String>()
+        var seenNameBrand = Set<String>()
+        var result: [FoodProduct] = []
+        for product in products {
+            guard !product.name.trimmingCharacters(in: .whitespaces).isEmpty, product.per100g.kcal != nil else {
+                continue
+            }
+            guard seenID.insert(product.id).inserted else {
+                continue
+            }
+            let key = "\(product.name.lowercased())|\(product.brand?.lowercased() ?? "")"
+            guard seenNameBrand.insert(key).inserted else {
+                continue
+            }
+            result.append(product)
+        }
+        return result
+    }
+
     // MARK: - Private
 
-    private func searchHits(query: String, sortBy: String?, limit: Int) async throws -> [FoodProduct] {
+    private func searchHits(query: String, sortBy: String?, limit: Int, page: Int) async throws -> [FoodProduct] {
         var components = URLComponents(url: Self.searchBase, resolvingAgainstBaseURL: false)!
         var items = [
             URLQueryItem(name: "q", value: query),
@@ -139,6 +233,9 @@ struct OpenFoodFactsClient: FoodProductProviding {
         ]
         if let sortBy {
             items.append(URLQueryItem(name: "sort_by", value: sortBy))
+        }
+        if page > 1 {
+            items.append(URLQueryItem(name: "page", value: String(page)))
         }
         components.queryItems = items
         guard let data = try await get(components.url!, allow404: false) else {
@@ -217,6 +314,10 @@ struct OFFRawProduct: Decodable {
     let ingredientsText: [String: String]
     let imageFront: String?
     let imageFrontSmall: String?
+    /// Extra selected photos, when Open Food Facts has them.
+    let imageIngredients: String?
+    let imageNutrition: String?
+    let imagePackaging: String?
     /// Uploaded images: selected ones ("front_it") carry a revision, raw
     /// uploads ("1", "2") don't. Used when no front image is selected.
     let images: [String: String?]
@@ -313,8 +414,11 @@ struct OFFRawProduct: Decodable {
         ingredientsText = ingredients
         imageFront = string("image_front_url")
         imageFrontSmall = string("image_front_small_url")
+        imageIngredients = string("image_ingredients_url")
+        imageNutrition = string("image_nutrition_url")
+        imagePackaging = string("image_packaging_url")
         let imageEntries = try? c.decodeIfPresent([String: ImageEntry].self, forKey: Key("images"))
-        images = imageEntries.flatMap { $0 }?.mapValues(\.rev) ?? [:]
+        images = imageEntries.flatMap(\.self)?.mapValues(\.rev) ?? [:]
     }
 
     /// A picture for products whose front image was never selected: another
@@ -324,9 +428,10 @@ struct OFFRawProduct: Decodable {
         let base = "https://images.openfoodfacts.org/images/products/\(imageFolder(code))"
         let fronts = images.keys.filter { $0.hasPrefix("front_") }
         let preferred = ["front_\(language)", "front_en"].first { fronts.contains($0) } ?? fronts.sorted().first
-        if let key = preferred, let rev = images[key].flatMap({ $0 }),
+        if let key = preferred, let rev = images[key].flatMap(\.self),
            let full = URL(string: "\(base)/\(key).\(rev).400.jpg"),
-           let small = URL(string: "\(base)/\(key).\(rev).200.jpg") {
+           let small = URL(string: "\(base)/\(key).\(rev).200.jpg")
+        {
             return (full, small)
         }
         guard let raw = images.keys.compactMap(Int.init).min(),
@@ -396,6 +501,8 @@ struct OFFRawProduct: Decodable {
         )
         let servingGrams = servingQuantity.flatMap { $0 > 0 ? $0 : nil } ?? FoodProduct.grams(fromLabel: servingSize)
         let fallback = imageFront == nil ? Self.fallbackImage(code: barcode, images: images, language: language) : nil
+        let frontURL = imageFront.flatMap(URL.init(string:)) ?? fallback?.full
+        let gallery = Self.gallery(front: frontURL, extra: [imageIngredients, imageNutrition, imagePackaging])
         return FoodProduct(
             id: barcode,
             barcode: barcode,
@@ -416,9 +523,23 @@ struct OFFRawProduct: Decodable {
             categories: categoryTags,
             ingredientsAnalysis: stripped(ingredientsAnalysis),
             ingredientsText: ingredientsText[language] ?? ingredientsText[""] ?? ingredientsText["en"],
-            imageURL: imageFront.flatMap(URL.init(string:)) ?? fallback?.full,
-            imageSmallURL: imageFrontSmall.flatMap(URL.init(string:)) ?? fallback?.small
+            imageURL: frontURL,
+            imageSmallURL: imageFrontSmall.flatMap(URL.init(string:)) ?? fallback?.small,
+            galleryImageURLs: gallery.isEmpty ? nil : gallery
         )
+    }
+
+    /// Front photo first, then ingredients/nutrition/packaging, de-duped.
+    static func gallery(front: URL?, extra: [String?]) -> [URL] {
+        var seen = Set<String>()
+        var urls: [URL] = []
+        for url in [front] + extra.map({ $0.flatMap(URL.init(string:)) }) {
+            guard let url, seen.insert(url.absoluteString).inserted else {
+                continue
+            }
+            urls.append(url)
+        }
+        return urls
     }
 }
 

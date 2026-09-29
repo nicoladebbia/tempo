@@ -38,9 +38,15 @@ final class FoodCatalog {
         }
     }
 
-    private let products: any FoodProductProviding
-    private let generic: (any GenericFoodSearching)?
-    private let logger = Logger.nutrition
+    // `internal` (not `private`) so FoodSuggestions.swift — same target,
+    // different file — can build `suggestions(for:)` on top of them.
+    let products: any FoodProductProviding
+    let generic: (any GenericFoodSearching)?
+    let logger = Logger.nutrition
+
+    /// Suggestions are stable for a product within a session; skip re-hitting
+    /// the network on every product-screen visit.
+    var suggestionsCache: [String: FoodSuggestions] = [:]
 
     init(products: any FoodProductProviding, generic: (any GenericFoodSearching)?) {
         self.products = products
@@ -105,8 +111,8 @@ final class FoodCatalog {
         }
         let products = products
         let generic = generic
-        async let packaged = Result { try await products.search(trimmed, limit: 20) }
-        async let basics = Result { try await generic?.search(trimmed, limit: 10) ?? [] }
+        async let packaged = Result { try await products.search(trimmed, limit: Self.searchPageSize) }
+        async let basics = Result { try await generic?.search(trimmed, limit: 20) ?? [] }
 
         let known = Set(results.yours.map(\.id))
         switch await packaged {
@@ -130,6 +136,27 @@ final class FoodCatalog {
         }
         return results
     }
+
+    /// Packaged products, one page further than `search` — "show more". The
+    /// caller merges/dedupes against what it already has (Open Food Facts
+    /// already drops nameless/kcal-less rows and de-dupes by barcode and by
+    /// name+brand within the page).
+    func searchMore(_ query: String, page: Int) async -> [FoodProduct] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 2, page >= 2 else {
+            return []
+        }
+        do {
+            return try await products.search(trimmed, limit: Self.searchPageSize, page: page)
+        } catch {
+            logger.warning("[food] OFF search page \(page) failed: \(String(describing: error), privacy: .public)")
+            return []
+        }
+    }
+
+    /// Raised from 20: "more food" — a fuller first screenful before the
+    /// user even has to ask for another page.
+    private static let searchPageSize = 40
 
     // MARK: - Alternatives
 
