@@ -9,6 +9,7 @@
 // when opened from meal logging — "Add to meal".
 //
 
+import Charts
 import SwiftData
 import SwiftUI
 
@@ -44,19 +45,25 @@ struct FoodProductView: View {
     @State
     private var fitContext = FoodFitContext.none
     @State
-    private var alternatives: [FoodProduct] = []
+    private var suggestions = FoodSuggestions.empty
     @State
-    private var isLoadingAlternatives = false
+    private var isLoadingSuggestions = true
     @State
     private var showIngredients = false
     @State
     private var photoSource: PhotoSource?
     @State
     private var isRenderingPhoto = false
+    @State
+    private var heroPage = 0
+    @State
+    private var showGalleryViewer = false
 
     private struct PhotoSource: Identifiable {
         let type: UIImagePickerController.SourceType
-        var id: Int { type.rawValue }
+        var id: Int {
+            type.rawValue
+        }
     }
 
     private let score: FoodScore?
@@ -77,11 +84,12 @@ struct FoodProductView: View {
             VStack(spacing: TempoSpacing.lg) {
                 header
                 scoreCard
+                macroCard
                 forYouCard
                 gradesCard
                 additivesCard
                 nutritionCard
-                alternativesSection
+                suggestionsSection
                 ingredientsCard
                 attribution
             }
@@ -116,20 +124,15 @@ struct FoodProductView: View {
             isFavorite = catalog.isFavorite(product, in: modelContext)
             photo = catalog.photo(for: product, in: modelContext)
             fitContext = FoodFitContext.loadToday(in: modelContext, whoopAvgTDEE: services.whoop.weeklyTDEEAverage)
-            await loadAlternatives()
+            await loadSuggestions()
         }
     }
 
     // MARK: - Header
 
     private var header: some View {
-        HStack(alignment: .top, spacing: TempoSpacing.lg) {
-            FoodProductThumbnail(product: product, photo: photo, size: 96)
-                .overlay {
-                    if isRenderingPhoto {
-                        ProgressView()
-                    }
-                }
+        VStack(alignment: .leading, spacing: TempoSpacing.md) {
+            hero
             VStack(alignment: .leading, spacing: TempoSpacing.xs) {
                 Text(product.name)
                     .font(.tempoTitle3)
@@ -145,11 +148,10 @@ struct FoodProductView: View {
                         .font(.tempoCaption1)
                         .foregroundStyle(Color.tempoTextTertiary)
                 }
-                if product.imageURL == nil, product.imageSmallURL == nil {
+                if !hasAnyHeroImage {
                     addPhotoMenu
                 }
             }
-            Spacer(minLength: 0)
         }
         .fullScreenCover(item: $photoSource) { source in
             FoodImagePicker(sourceType: source.type) { image in
@@ -160,6 +162,81 @@ struct FoodProductView: View {
             }
             .ignoresSafeArea()
         }
+    }
+
+    // MARK: - Hero
+
+    private var hasAnyHeroImage: Bool {
+        photo != nil || product.imageURL != nil || product.imageSmallURL != nil || !(product.galleryImageURLs?.isEmpty ?? true)
+    }
+
+    private var heroHeight: CGFloat {
+        280
+    }
+
+    /// Every page the full-screen viewer can show, in display order.
+    private var heroSources: [FoodHeroSource] {
+        if let photo {
+            return [.local(photo)]
+        }
+        if let gallery = product.galleryImageURLs, !gallery.isEmpty {
+            return gallery.map(FoodHeroSource.remote)
+        }
+        if let main = product.imageURL ?? product.imageSmallURL {
+            return [.remote(main)]
+        }
+        return []
+    }
+
+    private var hero: some View {
+        Group {
+            if let photo, let image = UIImage(data: photo) {
+                heroImage(Image(uiImage: image))
+                    .onTapGesture { showGalleryViewer = true }
+            } else if let gallery = product.galleryImageURLs, !gallery.isEmpty {
+                TabView(selection: $heroPage) {
+                    ForEach(Array(gallery.enumerated()), id: \.offset) { index, url in
+                        FoodRemoteImage(url: url, product: product, contentMode: .fit)
+                            .padding(TempoSpacing.lg)
+                            .tag(index)
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: gallery.count > 1 ? .always : .never))
+                .onTapGesture { showGalleryViewer = true }
+            } else {
+                FoodRemoteImage(url: product.imageURL ?? product.imageSmallURL, product: product, contentMode: .fit)
+                    .padding(TempoSpacing.lg)
+                    .onTapGesture {
+                        if hasAnyHeroImage {
+                            showGalleryViewer = true
+                        }
+                    }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: heroHeight)
+        .background(Color.tempoBgSecondary)
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .overlay {
+            if isRenderingPhoto {
+                ZStack {
+                    Color.black.opacity(TempoOpacity.o40)
+                    ProgressView().tint(.white)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+            }
+        }
+        .fullScreenCover(isPresented: $showGalleryViewer) {
+            FoodImageGalleryViewer(sources: heroSources, product: product, page: $heroPage)
+        }
+    }
+
+    private func heroImage(_ image: Image) -> some View {
+        image
+            .resizable()
+            .scaledToFit()
+            .padding(TempoSpacing.lg)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     /// No picture anywhere → let the user snap one; it gets the same white
@@ -263,6 +340,72 @@ struct FoodProductView: View {
                 .foregroundStyle(Color.tempoTextTertiary)
                 .frame(width: 36, alignment: .trailing)
         }
+    }
+
+    // MARK: - Macros
+
+    @ViewBuilder
+    private var macroCard: some View {
+        let portion = product.nutrients(forGrams: grams)
+        if let split = FoodMacroSplit.compute(proteinGrams: portion.protein, carbsGrams: portion.carbs, fatGrams: portion.fat) {
+            VStack(alignment: .leading, spacing: TempoSpacing.md) {
+                sectionTitle("MACROS · \(Self.format(grams)) \(product.unit)")
+                HStack(spacing: TempoSpacing.xl) {
+                    Chart(split.slices) { slice in
+                        SectorMark(angle: .value("Calories", slice.kcal), innerRadius: .ratio(0.62), angularInset: 1.5)
+                            .foregroundStyle(slice.color)
+                            .cornerRadius(3)
+                    }
+                    .frame(width: 108, height: 108)
+                    .chartLegend(.hidden)
+                    .overlay {
+                        VStack(spacing: 0) {
+                            Text("\(Int(split.totalKcal.rounded()))")
+                                .font(.tempoHeadline)
+                                .monospacedDigit()
+                                .foregroundStyle(Color.tempoTextPrimary)
+                            Text("kcal")
+                                .font(.tempoCaption2)
+                                .foregroundStyle(Color.tempoTextTertiary)
+                        }
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(macroAccessibilityLabel(split))
+                    VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+                        ForEach(split.slices) { slice in
+                            macroLegendRow(slice)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .tempoCard()
+        }
+    }
+
+    private func macroLegendRow(_ slice: FoodMacroSplit.Slice) -> some View {
+        HStack(spacing: TempoSpacing.sm) {
+            Circle()
+                .fill(slice.color)
+                .frame(width: 8, height: 8)
+            Text(slice.label)
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoTextSecondary)
+                .frame(width: 52, alignment: .leading)
+            Text("\(Int(slice.grams.rounded()))g")
+                .font(.tempoBodyBold)
+                .monospacedDigit()
+                .foregroundStyle(Color.tempoTextPrimary)
+            Text("· \(Int((slice.percent * 100).rounded()))%")
+                .font(.tempoCaption2)
+                .monospacedDigit()
+                .foregroundStyle(Color.tempoTextTertiary)
+        }
+    }
+
+    private func macroAccessibilityLabel(_ split: FoodMacroSplit) -> String {
+        split.slices.map { "\($0.label) \(Int((($0.percent) * 100).rounded())) percent" }.joined(separator: ", ")
     }
 
     // MARK: - For you
@@ -472,52 +615,70 @@ struct FoodProductView: View {
         .monospacedDigit()
     }
 
-    // MARK: - Alternatives
+    // MARK: - Suggestions
 
-    @ViewBuilder
-    private var alternativesSection: some View {
-        if isLoadingAlternatives || !alternatives.isEmpty {
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                sectionTitle("BETTER ALTERNATIVES")
-                if isLoadingAlternatives {
-                    HStack(spacing: TempoSpacing.sm) {
-                        ProgressView()
-                        Text("Finding healthier options…")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    }
-                } else {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: TempoSpacing.md) {
-                            ForEach(alternatives) { alternative in
-                                NavigationLink {
-                                    FoodProductView(product: alternative, mode: mode, catalog: catalog)
-                                } label: {
-                                    alternativeCard(alternative)
-                                }
-                                .buttonStyle(.plain)
+    /// Always shown — healthier swaps when they exist, equally good peers
+    /// otherwise. Never disappears: skeleton while loading, a friendly line
+    /// if truly nothing turned up.
+    private var suggestionsSection: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            sectionTitle(isLoadingSuggestions ? "SUGGESTIONS" : suggestions.kind.sectionTitle.uppercased())
+            if isLoadingSuggestions {
+                suggestionsSkeleton
+            } else if suggestions.items.isEmpty {
+                Text("Nothing else on the shelf right now — check back after your next scan.")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextSecondary)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: TempoSpacing.md) {
+                        ForEach(suggestions.items) { item in
+                            NavigationLink {
+                                FoodProductView(product: item, mode: mode, catalog: catalog)
+                            } label: {
+                                suggestionCard(item)
                             }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func alternativeCard(_ alternative: FoodProduct) -> some View {
+    private var suggestionsSkeleton: some View {
+        HStack(spacing: TempoSpacing.md) {
+            ForEach(0 ..< 3, id: \.self) { _ in
+                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+                    RoundedRectangle(cornerRadius: TempoRadius.md)
+                        .fill(Color.tempoTextDisabled.opacity(0.3))
+                        .frame(width: 112, height: 112)
+                    RoundedRectangle(cornerRadius: TempoRadius.sm)
+                        .fill(Color.tempoTextDisabled.opacity(0.3))
+                        .frame(width: 90, height: 12)
+                    RoundedRectangle(cornerRadius: TempoRadius.sm)
+                        .fill(Color.tempoTextDisabled.opacity(0.3))
+                        .frame(width: 60, height: 10)
+                }
+            }
+        }
+        .shimmer()
+    }
+
+    private func suggestionCard(_ item: FoodProduct) -> some View {
         VStack(alignment: .leading, spacing: TempoSpacing.xs) {
             ZStack(alignment: .topTrailing) {
-                FoodProductThumbnail(product: alternative, size: 112)
-                FoodScoreBadge(product: alternative)
+                FoodProductThumbnail(product: item, size: 112)
+                FoodScoreBadge(product: item)
                     .padding(TempoSpacing.xs)
             }
-            Text(alternative.name)
+            Text(item.name)
                 .font(.tempoCaption1)
                 .fontWeight(.semibold)
                 .foregroundStyle(Color.tempoTextPrimary)
                 .lineLimit(2)
-            if let brand = alternative.brand {
+            if let brand = item.brand {
                 Text(brand)
                     .font(.tempoCaption2)
                     .foregroundStyle(Color.tempoTextSecondary)
@@ -527,26 +688,27 @@ struct FoodProductView: View {
         .frame(width: 112, alignment: .leading)
     }
 
-    private func loadAlternatives() async {
-        guard product.source == .openFoodFacts, !product.categories.isEmpty else {
-            return
-        }
-        isLoadingAlternatives = true
-        alternatives = await catalog.alternatives(for: product)
-        isLoadingAlternatives = false
+    private func loadSuggestions() async {
+        isLoadingSuggestions = true
+        suggestions = await catalog.suggestions(for: product)
+        isLoadingSuggestions = false
     }
 
     // MARK: - Ingredients / allergens
 
     @ViewBuilder
     private var ingredientsCard: some View {
-        if product.ingredientsText != nil || !product.allergens.isEmpty {
+        if product.ingredientsText != nil || !product.displayAllergens.isEmpty {
             VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                if !product.allergens.isEmpty {
+                if !product.displayAllergens.isEmpty {
                     sectionTitle("ALLERGENS")
-                    Text(product.allergens.map(Self.humanize).joined(separator: ", "))
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: TempoSpacing.xs) {
+                            ForEach(product.displayAllergens, id: \.self) { allergen in
+                                allergenChip(allergen)
+                            }
+                        }
+                    }
                 }
                 if let ingredients = product.ingredientsText {
                     DisclosureGroup(isExpanded: $showIngredients) {
@@ -564,6 +726,17 @@ struct FoodProductView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .tempoCard()
         }
+    }
+
+    private func allergenChip(_ text: String) -> some View {
+        Text(text)
+            .font(.tempoCaption1)
+            .fontWeight(.semibold)
+            .foregroundStyle(Color.tempoError)
+            .padding(.horizontal, TempoSpacing.md)
+            .padding(.vertical, TempoSpacing.xs)
+            .background(Color.tempoError.opacity(TempoOpacity.o15))
+            .clipShape(Capsule())
     }
 
     // MARK: - Attribution
@@ -666,9 +839,132 @@ struct FoodProductView: View {
         default: "Ultra-processed food"
         }
     }
+}
 
-    static func humanize(_ tag: String) -> String {
-        let name = tag.split(separator: ":").last.map(String.init) ?? tag
-        return name.replacingOccurrences(of: "-", with: " ").capitalized
+// MARK: - FoodHeroSource
+
+/// One page the hero / full-screen viewer can show.
+enum FoodHeroSource: Identifiable, Hashable {
+    case local(Data)
+    case remote(URL)
+
+    var id: String {
+        switch self {
+        case let .local(data): "local-\(data.count)-\(data.hashValue)"
+        case let .remote(url): url.absoluteString
+        }
     }
+}
+
+// MARK: - FoodMacroSplit
+
+/// Calories split three ways from portion grams (protein/carbs 4 kcal/g, fat
+/// 9 kcal/g) — drives the product page's macro donut.
+struct FoodMacroSplit: Equatable {
+    struct Slice: Identifiable, Equatable {
+        enum Macro: String {
+            case protein
+            case carbs
+            case fat
+        }
+
+        let macro: Macro
+        let kcal: Double
+        let grams: Double
+        let percent: Double
+        let color: Color
+        let label: String
+
+        var id: String {
+            macro.rawValue
+        }
+    }
+
+    var proteinKcal: Double
+    var carbsKcal: Double
+    var fatKcal: Double
+
+    var totalKcal: Double {
+        proteinKcal + carbsKcal + fatKcal
+    }
+
+    var slices: [Slice] {
+        guard totalKcal > 0 else {
+            return []
+        }
+        return [
+            Slice(
+                macro: .protein,
+                kcal: proteinKcal,
+                grams: proteinKcal / 4,
+                percent: proteinKcal / totalKcal,
+                color: .tempoMacroProtein,
+                label: "Protein"
+            ),
+            Slice(
+                macro: .carbs,
+                kcal: carbsKcal,
+                grams: carbsKcal / 4,
+                percent: carbsKcal / totalKcal,
+                color: .tempoMacroCarbs,
+                label: "Carbs"
+            ),
+            Slice(macro: .fat, kcal: fatKcal, grams: fatKcal / 9, percent: fatKcal / totalKcal, color: .tempoMacroFat, label: "Fat"),
+        ]
+    }
+
+    /// `nil` when there isn't enough data (any macro missing) or all three are zero.
+    static func compute(proteinGrams: Double?, carbsGrams: Double?, fatGrams: Double?) -> FoodMacroSplit? {
+        guard let proteinGrams, let carbsGrams, let fatGrams,
+              proteinGrams >= 0, carbsGrams >= 0, fatGrams >= 0
+        else {
+            return nil
+        }
+        let split = FoodMacroSplit(proteinKcal: proteinGrams * 4, carbsKcal: carbsGrams * 4, fatKcal: fatGrams * 9)
+        return split.totalKcal > 0 ? split : nil
+    }
+}
+
+// MARK: - FoodSuggestions.Kind copy
+
+extension FoodSuggestions.Kind {
+    /// Section title shown above the suggestions row.
+    var sectionTitle: String {
+        switch self {
+        case .healthier: "Healthier swaps"
+        case .similar: "Also great"
+        }
+    }
+}
+
+// MARK: - Preview
+
+#Preview {
+    NavigationStack {
+        FoodProductView(
+            product: FoodProduct(
+                id: "0000000000017",
+                barcode: "0000000000017",
+                name: "Nonfat Greek Yogurt",
+                brand: "Chobani",
+                source: .openFoodFacts,
+                quantityLabel: "32 oz",
+                servingLabel: "150 g",
+                servingGrams: 150,
+                per100g: .init(kcal: 53, protein: 9.4, carbs: 3.5, sugars: 3.5, fat: 0, saturatedFat: 0, fiber: 0, salt: 0.1),
+                nutriScoreGrade: "a",
+                nutriScorePoints: -3,
+                novaGroup: 3,
+                additives: [],
+                allergens: ["milk"],
+                labels: [],
+                categories: ["dairies", "yogurts"],
+                ingredientsAnalysis: [],
+                ingredientsText: "Cultured pasteurized nonfat milk."
+            ),
+            catalog: FoodCatalog(services: .mock())
+        )
+    }
+    .environment(ServiceContainer.mock())
+    .modelContainer(for: [ScannedFood.self], inMemory: true)
 }
