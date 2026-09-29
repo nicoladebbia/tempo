@@ -16,7 +16,8 @@ import VaporAPNS
 func configure(
     _ app: Application,
     instacartClient: InstacartClient = InstacartAPIClient(),
-    supplementLookupClient: SupplementLookupClient = SupplementLookupAPIClient()
+    supplementLookupClient: SupplementLookupClient = SupplementLookupAPIClient(),
+    brandCatalogRefresher: BrandCatalogRefreshing = NullBrandCatalogRefresher()
 ) async throws {
     // ─────────────────────────────────────────────────
     // 1. Content configuration
@@ -171,6 +172,8 @@ func configure(
     app.migrations.add(DropNutriTrackIntegrations())
     app.migrations.add(CreateReceipts())
     app.migrations.add(CreateReceiptLineItems())
+    app.migrations.add(CreateReceiptItemAliases())
+    app.migrations.add(CreateBrandCatalogItems())
     app.migrations.add(CreateDeviceTokens())
     app.migrations.add(CreateUserSubscriptions())
     app.migrations.add(CreateAIMonthlySpend())
@@ -261,5 +264,10 @@ func configure(
     // ─────────────────────────────────────────────────
     // 9. Routes
     // ─────────────────────────────────────────────────
-    try routes(app, instacartClient: instacartClient, supplementLookupClient: supplementLookupClient)
+    try routes(
+        app,
+        instacartClient: instacartClient,
+        supplementLookupClient: supplementLookupClient,
+        brandCatalogRefresher: brandCatalogRefresher
+    )
 }
