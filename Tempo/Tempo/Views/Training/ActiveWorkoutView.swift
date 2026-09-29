@@ -679,6 +679,10 @@ struct ActiveWorkoutView: View {
             return nil
         }
         let reps = SideRepsFormat.reps(set.targetReps, perSide: viewModel.currentExercise?.perSide == true)
+        // Bodyweight lift with no known bodyweight: 0 is "just bodyweight".
+        if isBodyweightLift, w <= 0 {
+            return "BW × \(reps)"
+        }
         return "\(displayWeight(w)) × \(reps)"
     }
 
