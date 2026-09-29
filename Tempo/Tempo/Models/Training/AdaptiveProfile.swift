@@ -66,7 +66,8 @@ final class AdaptiveProfile {
 
     nonisolated static func decayedFatigue(_ ewma: Double?, lastUpdated: Date, asOf now: Date) -> Double? {
         guard let ewma else { return nil }
-        let days = max(0, now.timeIntervalSince(lastUpdated) / 86_400)
+        // Whole days of rest only — sub-day gaps (back-to-back sessions) leave it untouched.
+        let days = max(0, (now.timeIntervalSince(lastUpdated) / 86_400).rounded(.down))
         let excess = ewma - fatigueBaseline
         return fatigueBaseline + excess * pow(0.5, days / fatigueHalfLifeDays)
     }
