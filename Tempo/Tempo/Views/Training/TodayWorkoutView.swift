@@ -836,7 +836,11 @@ struct TodayWorkoutView: View {
             HStack(spacing: TempoSpacing.xxs) {
                 Image(systemName: "timer")
                     .font(.tempoCaption1)
-                Text("~\(plan.durationMinutes ?? estimatedDuration(plan: plan)) min")
+                // Done day: the real duration, and what was actually done vs
+                // planned — not the plan's estimate ("~0 min · 6 exercises").
+                Text(plan.status == .completed
+                    ? "\(max(1, plan.durationMinutes ?? 0)) min"
+                    : "~\(plan.durationMinutes ?? estimatedDuration(plan: plan)) min")
                     .font(.tempoCaption1)
             }
             .foregroundStyle(Color.tempoTextSecondary)
@@ -844,14 +848,18 @@ struct TodayWorkoutView: View {
             Text("·")
                 .foregroundStyle(Color.tempoTextTertiary)
 
-            Text("\(plan.orderedExercises.count) exercises")
+            Text(plan.status == .completed
+                ? "\(plan.performedExerciseCount)/\(plan.orderedExercises.count) exercises"
+                : "\(plan.orderedExercises.count) exercises")
                 .font(.tempoCaption1)
                 .foregroundStyle(Color.tempoTextSecondary)
 
             Text("·")
                 .foregroundStyle(Color.tempoTextTertiary)
 
-            Text("\(plan.totalSets) sets")
+            Text(plan.status == .completed
+                ? "\(plan.completedSets)/\(plan.totalSets) sets"
+                : "\(plan.totalSets) sets")
                 .font(.tempoCaption1)
                 .foregroundStyle(Color.tempoTextSecondary)
 
@@ -1380,8 +1388,9 @@ struct TodayWorkoutView: View {
 
             Button {
                 HapticManager.impact(.heavy)
-                viewModel.startWorkout()
-                showActiveWorkout = true
+                if viewModel.startWorkout() {
+                    showActiveWorkout = true
+                }
             } label: {
                 HStack(spacing: TempoSpacing.sm) {
                     Image(systemName: "play.fill")

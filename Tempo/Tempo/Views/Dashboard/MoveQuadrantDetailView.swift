@@ -539,7 +539,9 @@ struct MoveQuadrantDetailView: View {
                 )
                 trainingVM = vm
                 await vm.loadToday(modelContext: modelContext)
-                vm.startWorkout()
+                guard vm.startWorkout() else {
+                    return
+                }
                 showActiveWorkout = true
                 HapticManager.notification(.success)
             }

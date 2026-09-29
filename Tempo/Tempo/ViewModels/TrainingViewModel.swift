@@ -432,12 +432,7 @@ final class TrainingViewModel {
         // never read, so turning it off didn't actually stop deload weeks).
         let deloadSettings = loadDeloadSettings(modelContext: modelContext)
         deloadStyle = deloadSettings.style
-        isDeloadWeek = deloadSettings.enabled && trainingEngine.isDeloadWeek(
-            date: Date(),
-            deloadFrequencyWeeks: deloadSettings.frequency,
-            trainingStartDate: deloadSettings.startDate,
-            fatigueEWMA: adaptiveSignals(modelContext: modelContext).fatigueEWMA
-        )
+        isDeloadWeek = trainingEngine.isDeloadWeek(on: Date(), modelContext: modelContext)
 
         isLoading = false
 
@@ -815,12 +810,7 @@ final class TrainingViewModel {
         // Gated on the Auto Deload toggle (§19.3 — it was previously ignored).
         let deloadSettings = loadDeloadSettings(modelContext: modelContext)
         deloadStyle = deloadSettings.style
-        isDeloadWeek = deloadSettings.enabled && trainingEngine.isDeloadWeek(
-            date: Date(),
-            deloadFrequencyWeeks: deloadSettings.frequency,
-            trainingStartDate: deloadSettings.startDate,
-            fatigueEWMA: adaptiveSignals(modelContext: modelContext).fatigueEWMA
-        )
+        isDeloadWeek = trainingEngine.isDeloadWeek(on: Date(), modelContext: modelContext)
 
         // Populate exercises for each gym workout. No-ops for a substituted
         // persisted plan that already carries its exercises (populateExercises
@@ -872,12 +862,23 @@ final class TrainingViewModel {
 
     // Per STATE_MACHINES.md Section 1 — idle → warmup/exercise
 
-    func startWorkout() {
-        guard sessionState == .idle || sessionState == .crashedRecovery else {
-            return
+    /// Returns whether a session actually started. Callers present the
+    /// workout cover ONLY on `true` — presenting it for a refused start left
+    /// an empty, frozen screen with no way out.
+    @discardableResult
+    func startWorkout() -> Bool {
+        // `.saved` / `.discarded` are terminal leftovers of an earlier session
+        // this launch; they must not block a legitimate new start.
+        switch sessionState {
+        case .idle, .crashedRecovery, .saved, .discarded:
+            break
+        default:
+            return false
         }
-        guard let plan = todayPlan else {
-            return
+        // A finished day is not restartable — logging it again would
+        // double-count volume and history.
+        guard let plan = todayPlan, plan.status != .completed else {
+            return false
         }
 
         plan.status = .inProgress
@@ -920,6 +921,7 @@ final class TrainingViewModel {
         startLiveActivity()
         // Move quadrant should flip planned → in-progress on the Dashboard.
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
+        return true
     }
 
     /// True when a plan has logged zero sets — used in `loadToday` to tell a
@@ -983,10 +985,14 @@ final class TrainingViewModel {
             return
         }
         let sets = first.orderedSets
-        let firstWorkingIndex = sets.firstIndex { !$0.isWarmup } ?? 0
+        // Land on the first ramp set when the lift has one (Skip Ramp is one
+        // tap away). Jumping straight to the first WORKING set left the ramp
+        // sets uncompleted behind the cursor, so a crash-resume or any skip on
+        // this exercise later bounced the lifter back onto a warm-up.
+        let firstWorkingIndex = sets.firstIndex { !$0.completed } ?? 0
         #if DEBUG
             print(
-                "\(DebugTrace.prefix)[Workout] advancePastWarmup: totalSets=\(sets.count) warmups=\(sets.filter(\.isWarmup).count) → firstWorkingIndex=\(firstWorkingIndex)"
+                "\(DebugTrace.prefix)[Workout] advancePastWarmup: totalSets=\(sets.count) warmups=\(sets.filter(\.isWarmup).count) → startIndex=\(firstWorkingIndex)"
             )
         #endif
         currentExerciseIndex = 0
@@ -1055,10 +1061,13 @@ final class TrainingViewModel {
         var foundActiveExercise = false
         for (exIdx, ex) in exercises.enumerated() {
             if !ex.isComplete {
-                let completedSetsCount = (ex.sets ?? []).filter(\.completed).count
+                // The first set NOT done — a completed-count cursor landed on
+                // the wrong set whenever an earlier one was skipped/uncompleted.
+                let resumeIndex = firstUncompletedSetIndex(in: ex)
+                    ?? (ex.sets ?? []).filter(\.completed).count
                 currentExerciseIndex = exIdx
-                currentSetIndex = completedSetsCount
-                sessionState = .exercise(.setActive(exerciseIndex: exIdx, setIndex: completedSetsCount))
+                currentSetIndex = resumeIndex
+                sessionState = .exercise(.setActive(exerciseIndex: exIdx, setIndex: resumeIndex))
                 foundActiveExercise = true
                 break
             }
