@@ -480,6 +480,34 @@ enum ReceiptSizeMath {
         return nil
     }
 
+    /// Parses a free-text size label ("500 g", "1 L", "32 fl oz") into a
+    /// (value, unit) pair using the SAME short unit vocabulary as
+    /// `ReceiptItemResolver`'s own size parsing ("g"/"kg"/"ml"/"l"/"oz"/
+    /// "lb"), so a size backfilled from an OFF product's `quantityLabel`
+    /// round-trips through `ReceiptLineItem.sizeUnit`/`ingestPantryUnit`
+    /// exactly like a size the receipt itself printed. Deliberately
+    /// single-unit only (no multipack "6 x 33 cl" support here) — callers
+    /// only use this to backfill when the receipt printed no size at all,
+    /// which is a best-effort nicety, not a load-bearing conversion.
+    static func parseValueAndUnit(fromLabel rawLabel: String) -> (value: Double, unit: String)? {
+        let text = rawLabel.lowercased().replacingOccurrences(of: ",", with: ".")
+        guard !text.trimmingCharacters(in: .whitespaces).isEmpty,
+              let match = firstMatch(in: text, pattern: #"(\d+(?:\.\d+)?)\s*(fl\.?\s?oz|kg|g|ml|l|lb|oz)\b"#),
+              let value = Double(match.groups[0])
+        else {
+            return nil
+        }
+        let unit = switch match.groups[1] {
+        case "kg": "kg"
+        case "g": "g"
+        case "ml": "ml"
+        case "l": "l"
+        case "lb": "lb"
+        default: "oz" // "oz" or "fl oz" / "fl.oz"
+        }
+        return (value, unit)
+    }
+
     private static func firstMatch(in text: String, pattern: String) -> (full: String, groups: [String])? {
         guard let regex = try? NSRegularExpression(pattern: pattern) else {
             return nil

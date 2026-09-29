@@ -19,6 +19,17 @@ protocol ReceiptServiceProtocol: Sendable {
     @discardableResult
     func scan(image: UIImage, storeHint: String?) async throws -> Receipt
 
+    /// Multi-photo variant for long receipts that don't fit one frame: runs
+    /// Vision OCR on every photo, stitches the rows into one reading-order
+    /// stream, and drops rows that are a near-duplicate re-read of the same
+    /// physical line at the seam between two consecutive shots (the user is
+    /// expected to overlap shots slightly so nothing is missed). Only the
+    /// FIRST photo is sent to the backend's image-fallback path — the full
+    /// stitched text from every photo still reaches structuring via
+    /// `rawText`. A single-element array behaves exactly like `scan(image:)`.
+    @discardableResult
+    func scan(images: [UIImage], storeHint: String?) async throws -> Receipt
+
     /// Fetch all receipts (most-recent first).
     func fetchAll() throws -> [Receipt]
 
@@ -42,6 +53,22 @@ protocol ReceiptServiceProtocol: Sendable {
     /// fingerprint (`Receipt.duplicateKey`) — a likely re-scan of the same
     /// physical receipt. Non-blocking: the caller decides whether to warn.
     func isLikelyDuplicate(_ receipt: Receipt) -> Bool
+
+    /// Records a user correction/confirmation of a line's name: learns it as
+    /// a local alias (ReceiptItemResolver layer 2 — wins outright next time
+    /// this exact raw text is seen at this store chain) AND best-effort
+    /// contributes it to the shared backend crowd table
+    /// (POST /v1/nutrition/receipt-aliases/confirm). The backend call is
+    /// fire-and-forget: never blocks, never surfaces an error — the local
+    /// alias is what matters on this device; the backend call only helps
+    /// other users' devices over time.
+    func confirmAlias(
+        rawText: String,
+        storeChain: String?,
+        readableName: String,
+        canonicalFoodName: String,
+        barcode: String?
+    )
 }
 
 // MARK: - ReceiptServiceError

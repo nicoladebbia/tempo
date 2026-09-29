@@ -22,8 +22,6 @@ struct ReceiptReviewView: View {
 
     @Environment(\.dismiss)
     private var dismiss
-    @Environment(\.modelContext)
-    private var modelContext
     @State
     private var ingestError: String?
     @State
@@ -55,23 +53,75 @@ struct ReceiptReviewView: View {
                     ForEach(receipt.orderedLineItems, id: \.id) { line in
                         ReceiptLineCard(
                             line: line,
+                            storeChain: receipt.storeChain,
                             onConfirmToggle: { confirmed in
                                 line.userConfirmed = confirmed
                                 // Confirming a line is the natural "the user
                                 // vouches for this reading" moment — learn it
-                                // as a store-scoped alias so the SAME raw OCR
-                                // text resolves to this exact name next time,
-                                // even if Haiku guesses differently on a
-                                // future rescan (ReceiptItemResolver layer 2).
+                                // as a store-scoped alias (local + backend
+                                // crowd table) so the SAME raw OCR text
+                                // resolves to this exact name next time, even
+                                // if Haiku guesses differently on a future
+                                // rescan (ReceiptItemResolver layer 2).
                                 if confirmed {
-                                    ReceiptItemResolver.learn(
+                                    receiptService.confirmAlias(
                                         rawText: line.rawText,
                                         storeChain: receipt.storeChain,
                                         readableName: line.displayName,
                                         canonicalFoodName: line.canonicalFoodName,
-                                        in: modelContext
+                                        barcode: line.barcode
                                     )
                                 }
+                            },
+                            onPickProduct: { candidate, keptAsTyped in
+                                if keptAsTyped {
+                                    // Explicit rejection of whatever match (auto or
+                                    // manual) was on this line before — clear ALL
+                                    // matched-product state rather than leaving a
+                                    // stale photo/brand/confidence chip showing (and
+                                    // stale size feeding pantry ingest) for a product
+                                    // the user just said isn't this item. Back to
+                                    // plain "food-level" state, same as before any
+                                    // match ever ran.
+                                    line.barcode = nil
+                                    line.brand = nil
+                                    line.imageURL = nil
+                                    line.matchConfidence = nil
+                                    line.sizeValue = nil
+                                    line.sizeUnit = nil
+                                    line.packCount = nil
+                                } else {
+                                    line.displayName = candidate.readableName
+                                    line.canonicalFoodName = candidate.canonicalFoodName
+                                    line.barcode = candidate.barcode
+                                    line.brand = candidate.brand
+                                    line.imageURL = candidate.imageURL
+                                    line.matchConfidence = candidate.matchConfidence
+                                    if let sizeValue = candidate.sizeValue {
+                                        line.sizeValue = sizeValue
+                                        line.sizeUnit = candidate.sizeUnit
+                                    }
+                                    // The picker's candidate never carries a
+                                    // pack count (`ReceiptProductPickerCandidate`
+                                    // has no such field), so this is always a
+                                    // DIFFERENT product than whatever the
+                                    // earlier background auto-match found.
+                                    // Clear any stale packCount from that prior
+                                    // match — ReceiptLineItem.ingestQuantity
+                                    // multiplies sizeValue * packCount *
+                                    // quantity, so a leftover pack count would
+                                    // silently multiply pantry ingest by the
+                                    // wrong factor. Code-review finding,
+                                    // round 2.
+                                    line.packCount = nil
+                                }
+                                receiptService.confirmAlias(
+                                    rawText: line.rawText,
+                                    storeChain: receipt.storeChain,
+                                    readableName: line.displayName,
+                                    canonicalFoodName: line.canonicalFoodName,
+                                    barcode: line.barcode
+                                )
                             }
                         )
                     }
@@ -214,7 +264,9 @@ struct ReceiptReviewView: View {
 
 private struct ReceiptLineCard: View {
     let line: ReceiptLineItem
+    let storeChain: String?
     let onConfirmToggle: (Bool) -> Void
+    let onPickProduct: (ReceiptProductPickerCandidate, Bool) -> Void
 
     @State
     private var displayName: String
@@ -224,10 +276,19 @@ private struct ReceiptLineCard: View {
     private var priceText: String
     @State
     private var unit: ReceiptLineUnit
+    @State
+    private var isPickerPresented = false
 
-    init(line: ReceiptLineItem, onConfirmToggle: @escaping (Bool) -> Void) {
+    init(
+        line: ReceiptLineItem,
+        storeChain: String?,
+        onConfirmToggle: @escaping (Bool) -> Void,
+        onPickProduct: @escaping (ReceiptProductPickerCandidate, Bool) -> Void
+    ) {
         self.line = line
+        self.storeChain = storeChain
         self.onConfirmToggle = onConfirmToggle
+        self.onPickProduct = onPickProduct
         _displayName = State(initialValue: line.displayName)
         _quantityText = State(initialValue: ReceiptQuantityParser.format(line.quantity))
         _priceText = State(initialValue: ReceiptQuantityParser.format(line.totalPrice))
@@ -236,16 +297,25 @@ private struct ReceiptLineCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            HStack {
-                TextField("Item name", text: $displayName)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                    .onChange(of: displayName) { _, newValue in
-                        let trimmed = newValue.trimmingCharacters(in: .whitespaces)
-                        if !trimmed.isEmpty {
-                            line.displayName = trimmed
+            HStack(alignment: .top, spacing: TempoSpacing.sm) {
+                productThumbnail
+                    .onTapGesture { isPickerPresented = true }
+                VStack(alignment: .leading, spacing: 2) {
+                    TextField("Item name", text: $displayName)
+                        .font(.tempoBody)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                        .onChange(of: displayName) { _, newValue in
+                            let trimmed = newValue.trimmingCharacters(in: .whitespaces)
+                            if !trimmed.isEmpty {
+                                line.displayName = trimmed
+                            }
                         }
+                    if let brand = line.brand, !brand.isEmpty {
+                        Text(brand)
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextTertiary)
                     }
+                }
                 Spacer()
                 Toggle("", isOn: Binding(
                     get: { line.userConfirmed },
@@ -254,6 +324,18 @@ private struct ReceiptLineCard: View {
                 .labelsHidden()
                 .disabled(line.isIngested)
             }
+
+            Button {
+                isPickerPresented = true
+            } label: {
+                Label(
+                    line.barcode == nil ? "Find exact product" : "Change matched product",
+                    systemImage: "magnifyingglass"
+                )
+                .font(.tempoCaption2)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Color.tempoSignal)
 
             HStack(spacing: TempoSpacing.md) {
                 TextField("Qty", text: $quantityText)
@@ -296,12 +378,21 @@ private struct ReceiptLineCard: View {
                 }
             }
 
+            if let unitPrice = line.unitPrice, unitPrice > 0 {
+                Text("\(String(format: "$%.2f", unitPrice)) / \(unit.rawValue)")
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextSecondary)
+            }
+
             HStack(spacing: TempoSpacing.sm) {
                 Text("OCR raw: \(line.rawText)")
                     .font(.tempoCaption2)
                     .foregroundStyle(Color.tempoTextTertiary)
                     .lineLimit(1)
                 Spacer()
+                if let matchConfidence = line.matchConfidence {
+                    matchConfidencePill(matchConfidence)
+                }
                 confidencePill
             }
 
@@ -327,6 +418,51 @@ private struct ReceiptLineCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .sheet(isPresented: $isPickerPresented) {
+            ReceiptProductPickerView(
+                line: line,
+                storeChain: storeChain
+            ) { candidate, keptAsTyped in
+                if !keptAsTyped {
+                    displayName = candidate.readableName
+                }
+                onPickProduct(candidate, keptAsTyped)
+                isPickerPresented = false
+            }
+        }
+    }
+
+    /// Product photo when a match already exists; a neutral placeholder
+    /// otherwise (still tappable — that's how the picker is discovered).
+    @ViewBuilder
+    private var productThumbnail: some View {
+        let shape = RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous)
+        Group {
+            if let urlString = line.imageURL, let url = URL(string: urlString) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case let .success(image):
+                        image.resizable().scaledToFill()
+                    default:
+                        thumbnailPlaceholder
+                    }
+                }
+            } else {
+                thumbnailPlaceholder
+            }
+        }
+        .frame(width: 44, height: 44)
+        .clipShape(shape)
+        .overlay(shape.strokeBorder(Color.tempoBorder, lineWidth: 1))
+    }
+
+    private var thumbnailPlaceholder: some View {
+        ZStack {
+            Color.tempoBgSecondary
+            Image(systemName: "cart.fill")
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoTextTertiary)
+        }
     }
 
     private var confidencePill: some View {
@@ -340,6 +476,16 @@ private struct ReceiptLineCard: View {
             .padding(.vertical, 2)
             .background(color.opacity(0.15))
             .foregroundStyle(color)
+            .clipShape(Capsule())
+    }
+
+    private func matchConfidencePill(_ confidence: Double) -> some View {
+        Label("\(Int(confidence * 100))% match", systemImage: "checkmark.seal.fill")
+            .font(.tempoCaption2)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.tempoInfo.opacity(0.15))
+            .foregroundStyle(Color.tempoInfo)
             .clipShape(Capsule())
     }
 }
