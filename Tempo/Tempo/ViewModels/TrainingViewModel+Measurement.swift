@@ -159,7 +159,7 @@ extension TrainingViewModel {
         guard let profile = try? modelContext.fetch(FetchDescriptor<AdaptiveProfile>()).first else {
             return (0, nil, [:])
         }
-        return (profile.clampedThresholdOffset, profile.fatigueEWMA, profile.learnedIncrements)
+        return (profile.clampedThresholdOffset, profile.effectiveFatigueEWMA(), profile.learnedIncrements)
     }
 
     /// Fetch the single AdaptiveProfile, creating it on first use. Internal

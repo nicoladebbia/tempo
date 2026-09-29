@@ -45,6 +45,32 @@ final class AdaptiveProfile {
     /// nil until the first entered-feedback session.
     var fatigueEWMA: Double?
 
+    /// When `fatigueEWMA` last moved (a session with entered RPE). The EWMA
+    /// only updates on lifting sessions, so without a clock a fatigue-triggered
+    /// full-rest deload — which removes every lifting session — could never
+    /// clear. nil on rows created before this field existed.
+    var fatigueUpdatedAt: Date?
+
+    /// Neutral effort the fatigue trend relaxes toward while no sessions are
+    /// logged (matches the default set RPE of 7).
+    static let fatigueBaseline = 7.0
+    /// Days for the fatigue excess over baseline to halve during rest.
+    static let fatigueHalfLifeDays = 5.0
+
+    /// `fatigueEWMA` relaxed toward baseline by the days since it last moved —
+    /// what the deload trigger should read. A week of rest brings even a
+    /// maximal 10 back under the trigger, so a fatigue deload self-clears.
+    func effectiveFatigueEWMA(asOf now: Date = Date()) -> Double? {
+        Self.decayedFatigue(fatigueEWMA, lastUpdated: fatigueUpdatedAt ?? updatedAt, asOf: now)
+    }
+
+    nonisolated static func decayedFatigue(_ ewma: Double?, lastUpdated: Date, asOf now: Date) -> Double? {
+        guard let ewma else { return nil }
+        let days = max(0, now.timeIntervalSince(lastUpdated) / 86_400)
+        let excess = ewma - fatigueBaseline
+        return fatigueBaseline + excess * pow(0.5, days / fatigueHalfLifeDays)
+    }
+
     /// Exercise substitutions the user taught us by swapping: source
     /// `Exercise.id` → the replacement they actually do (e.g. cable pushdown
     /// → the pushdown machine they use). Plan generation prescribes the

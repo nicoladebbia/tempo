@@ -711,8 +711,10 @@ extension TrainingViewModel {
             return nil
         }
         var reasons: [String] = []
-        if recoveryAdjustment < 1.0 {
-            let cutPercent = Int(((1 - recoveryAdjustment) * 100).rounded())
+        // Recovery is a VOLUME cut; only the lower-yellow tier trims weight.
+        let recoveryLoadScale = TrainingEngine.recoveryLoadScale(recoveryAdjustment: recoveryAdjustment)
+        if recoveryLoadScale < 1.0 {
+            let cutPercent = Int(((1 - recoveryLoadScale) * 100).rounded())
             reasons.append("Recovery yellow −\(cutPercent)%")
         }
         if isConservativeNote {

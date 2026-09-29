@@ -354,7 +354,7 @@ final class TrainerProgramTests: XCTestCase {
         let items = [ProgramExercise(name: "Bench Press", sets: 3, repsLow: 5, weightKg: 100)]
         let p = program(weeks: [ProgramWeek(days: [day(1, "push", exercises: items)])])
         context.insert(p)
-        let plan = WorkoutPlan(date: date("2026-09-21"), type: .push, recoveryAdjustment: 0.8)
+        let plan = WorkoutPlan(date: date("2026-09-21"), type: .push, recoveryAdjustment: 0.75)
         plan.programSessionKey = p.sessionKey(weekIndex: 0, dayIndex: 0)
         context.insert(plan)
         try context.save()
@@ -366,9 +366,12 @@ final class TrainerProgramTests: XCTestCase {
 
         let slot = plan.orderedExercises[0]
         XCTAssertEqual(slot.trainerTargetKg, 100, "the trainer's own number, unadjusted")
-        XCTAssertEqual(slot.loadAdjustmentNote, "Recovery yellow −20%")
+        // Updated: recovery is a VOLUME scalar; only the lower-yellow tier
+        // (< 0.8) trims weight, by 5% — the old assertion (0.8 → 80 kg)
+        // encoded the volume cut being applied to the load as well.
+        XCTAssertEqual(slot.loadAdjustmentNote, "Recovery yellow −5%")
         let working = slot.orderedSets.first { !$0.isWarmup }
-        XCTAssertEqual(working?.targetWeight, 80, "100 kg x 0.8 recovery")
+        XCTAssertEqual(working?.targetWeight, 95, "100 kg x 0.95 lower-yellow load trim")
     }
 
     func testPainNoteRecordsCappedAdjustmentNote() throws {
