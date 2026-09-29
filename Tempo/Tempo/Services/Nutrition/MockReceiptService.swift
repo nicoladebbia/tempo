@@ -79,6 +79,11 @@ final class MockReceiptService: ReceiptServiceProtocol {
         return receipt
     }
 
+    @discardableResult
+    func scan(images: [UIImage], storeHint: String?) async throws -> Receipt {
+        try await scan(image: images.first ?? UIImage(), storeHint: storeHint)
+    }
+
     func fetchAll() throws -> [Receipt] {
         receipts
     }
@@ -117,5 +122,24 @@ final class MockReceiptService: ReceiptServiceProtocol {
 
     func delete(_ receipt: Receipt) throws {
         receipts.removeAll { $0.id == receipt.id }
+    }
+
+    func isLikelyDuplicate(_ receipt: Receipt) -> Bool {
+        guard let key = receipt.duplicateKey else {
+            return false
+        }
+        return receipts.contains { $0.id != receipt.id && $0.duplicateKey == key }
+    }
+
+    private(set) var confirmedAliases: [(rawText: String, readableName: String)] = []
+
+    func confirmAlias(
+        rawText: String,
+        storeChain _: String?,
+        readableName: String,
+        canonicalFoodName _: String,
+        barcode _: String?
+    ) {
+        confirmedAliases.append((rawText, readableName))
     }
 }

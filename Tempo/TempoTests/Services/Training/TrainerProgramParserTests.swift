@@ -428,4 +428,14 @@ final class TrainerProgramParserTests: XCTestCase {
         // guess (ProgramScheduler re-places them around football later).
         XCTAssertEqual(days.map(\.weekday), [1, 3, 5])
     }
+
+    // MARK: - Long-source truncation warning
+
+    func testTruncationWarningOnlyForSourcesOverTheCap() {
+        let atCap = String(repeating: "a", count: TrainerProgramParser.maxSourceCharacters)
+        XCTAssertNil(TrainerProgramParser.truncationWarning(forSourceText: atCap))
+        XCTAssertNotNil(TrainerProgramParser.truncationWarning(forSourceText: atCap + "b"))
+        let message = TrainerProgramParser.userMessage(sourceText: atCap + "TAIL")
+        XCTAssertFalse(message.contains("TAIL"), "the cut text really is dropped — hence the warning")
+    }
 }

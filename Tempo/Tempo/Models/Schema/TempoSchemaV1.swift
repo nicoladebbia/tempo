@@ -84,6 +84,7 @@ enum TempoSchemaV1: VersionedSchema {
             KitchenEquipment.self,
             Receipt.self,
             ReceiptLineItem.self,
+            ReceiptItemAlias.self,
             Recipe.self,
             RecipeIngredient.self,
             RecipeStep.self,

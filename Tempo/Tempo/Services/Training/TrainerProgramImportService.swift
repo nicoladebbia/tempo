@@ -68,7 +68,11 @@ final class TrainerProgramImportService: @unchecked Sendable {
                     APIEndpoint<ProgramImportStructureResponseDTO>.trainerProgramImportStructure(),
                     body: body
                 )
-                return try TrainerProgramParser.parse(response.text)
+                var parsed = try TrainerProgramParser.parse(response.text)
+                if let warning = TrainerProgramParser.truncationWarning(forSourceText: sourceText) {
+                    parsed.warnings.append(warning)
+                }
+                return parsed
             } catch is CancellationError {
                 throw CancellationError()
             } catch let error as TrainerProgramParser.ParseError {

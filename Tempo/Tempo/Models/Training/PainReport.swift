@@ -190,4 +190,39 @@ enum PainCaution {
             .filter { $0.exerciseID == exerciseID && $0.date >= cutoff }
             .max { $0.date < $1.date }
     }
+
+    /// Severity at/above which an exercise is dropped from generated sessions
+    /// (moderate tier and up — the pain-free swap the report flow offers).
+    static let excludeSeverity = 4
+
+    /// Highest severity per exercise across reports still inside the caution
+    /// window. Reports without an exercise (general pain) are skipped.
+    nonisolated static func activeSeverities(
+        in reports: [PainReport],
+        asOf now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> [UUID: Int] {
+        guard let cutoff = calendar.date(byAdding: .day, value: -windowDays, to: now) else {
+            return [:]
+        }
+        var out: [UUID: Int] = [:]
+        for report in reports where report.date >= cutoff {
+            guard let id = report.exerciseID else { continue }
+            out[id] = max(out[id] ?? 0, report.severity)
+        }
+        return out
+    }
+
+    /// Weight multiplier for an exercise that is still prescribed despite an
+    /// active report (mild: the -20% `filePainReport` applies on the day;
+    /// moderate/severe only reach here when the movement can't be swapped out,
+    /// e.g. a trainer-program slot).
+    nonisolated static func loadFactor(severity: Int?) -> Double {
+        guard let severity else { return 1.0 }
+        switch PainSeverityTier(severity: severity) {
+        case .mild: return 0.8
+        case .moderate: return 0.7
+        case .severe: return 0.5
+        }
+    }
 }

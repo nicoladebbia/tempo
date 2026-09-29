@@ -1,0 +1,157 @@
+[
+  {
+    "brand": "Publix",
+    "chain": "publix",
+    "familyKey": "publix-greek-yogurt-nonfat-plain",
+    "name": "Publix Greek Nonfat Yogurt Plain",
+    "sizeValue": 5.3,
+    "sizeUnit": "oz",
+    "packCount": null,
+    "barcode": null
+  },
+  {
+    "brand": "Publix",
+    "chain": "publix",
+    "familyKey": "publix-greek-yogurt-nonfat-plain",
+    "name": "Publix Greek Nonfat Yogurt Plain",
+    "sizeValue": 24,
+    "sizeUnit": "oz",
+    "packCount": null,
+    "barcode": null
+  },
+  {
+    "brand": "Publix",
+    "chain": "publix",
+    "familyKey": "publix-greek-yogurt-nonfat-plain",
+    "name": "Publix Greek Nonfat Yogurt Plain",
+    "sizeValue": 32,
+    "sizeUnit": "oz",
+    "packCount": null,
+    "barcode": null
+  },
+
+  {
+    "brand": "Publix",
+    "chain": "publix",
+    "familyKey": "publix-whole-milk",
+    "name": "Publix Whole Milk",
+    "sizeValue": 0.5,
+    "sizeUnit": "gal",
+    "packCount": null,
+    "barcode": null
+  },
+  {
+    "brand": "Publix",
+    "chain": "publix",
+    "familyKey": "publix-whole-milk",
+    "name": "Publix Whole Milk",
+    "sizeValue": 1,
+    "sizeUnit": "gal",
+    "packCount": null,
+    "barcode": null
+  },
+
+  {
+    "brand": "Great Value",
+    "chain": "walmart",
+    "familyKey": "gv-whole-milk",
+    "name": "Great Value Whole Milk",
+    "sizeValue": 0.5,
+    "sizeUnit": "gal",
+    "packCount": null,
+    "barcode": null
+  },
+  {
+    "brand": "Great Value",
+    "chain": "walmart",
+    "familyKey": "gv-whole-milk",
+    "name": "Great Value Whole Milk",
+    "sizeValue": 1,
+    "sizeUnit": "gal",
+    "packCount": null,
+    "barcode": null
+  },
+
+  {
+    "brand": "Kirkland Signature",
+    "chain": "costco",
+    "familyKey": "kirkland-almonds",
+    "name": "Kirkland Signature Whole Almonds",
+    "sizeValue": 1.5,
+    "sizeUnit": "lb",
+    "packCount": null,
+    "barcode": null
+  },
+  {
+    "brand": "Kirkland Signature",
+    "chain": "costco",
+    "familyKey": "kirkland-almonds",
+    "name": "Kirkland Signature Whole Almonds",
+    "sizeValue": 2.5,
+    "sizeUnit": "lb",
+    "packCount": null,
+    "barcode": null
+  },
+  {
+    "brand": "Kirkland Signature",
+    "chain": "costco",
+    "familyKey": "kirkland-almonds",
+    "name": "Kirkland Signature Whole Almonds",
+    "sizeValue": 3,
+    "sizeUnit": "lb",
+    "packCount": null,
+    "barcode": null
+  },
+
+  {
+    "brand": "365 by Whole Foods Market",
+    "chain": "whole_foods",
+    "familyKey": "365-evoo",
+    "name": "365 by Whole Foods Market Organic Extra Virgin Olive Oil",
+    "sizeValue": 16.9,
+    "sizeUnit": "fl oz",
+    "packCount": null,
+    "barcode": null
+  },
+  {
+    "brand": "365 by Whole Foods Market",
+    "chain": "whole_foods",
+    "familyKey": "365-evoo",
+    "name": "365 by Whole Foods Market Organic Extra Virgin Olive Oil",
+    "sizeValue": 25.4,
+    "sizeUnit": "fl oz",
+    "packCount": null,
+    "barcode": null
+  },
+  {
+    "brand": "365 by Whole Foods Market",
+    "chain": "whole_foods",
+    "familyKey": "365-evoo",
+    "name": "365 by Whole Foods Market Organic Extra Virgin Olive Oil",
+    "sizeValue": 33.8,
+    "sizeUnit": "fl oz",
+    "packCount": null,
+    "barcode": null
+  },
+
+  {
+    "brand": "Trader Joe's",
+    "chain": "trader_joes",
+    "familyKey": "tj-peanut-butter",
+    "name": "Trader Joe's Organic Creamy Peanut Butter",
+    "sizeValue": 16,
+    "sizeUnit": "oz",
+    "packCount": null,
+    "barcode": null
+  },
+  {
+    "brand": "Trader Joe's",
+    "chain": "trader_joes",
+    "familyKey": "tj-peanut-butter",
+    "name": "Trader Joe's Organic Creamy Peanut Butter",
+    "sizeValue": 26,
+    "sizeUnit": "oz",
+    "packCount": null,
+    "barcode": null
+  }
+]

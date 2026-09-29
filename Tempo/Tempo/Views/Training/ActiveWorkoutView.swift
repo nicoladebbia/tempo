@@ -43,6 +43,9 @@ struct ActiveWorkoutView: View {
     private var inputAddedLoad: Double = 0
     @State
     private var showFinishConfirmation = false
+    /// Pending "are you sure?" for an implausible set (0 kg / way past best).
+    @State
+    private var setPlausibilityWarning: String?
     /// §11.13 — "How to" sheet: full exercise detail from the set screen.
     @State
     private var showHowTo = false
@@ -74,6 +77,16 @@ struct ActiveWorkoutView: View {
     /// Upper bound in the display unit (≈ 500 kg).
     private var weightRangeMax: Double {
         weightUnit == .kg ? 500 : 1100
+    }
+
+    /// Lower bound in the display unit: the empty bar for bar-loaded lifts
+    /// (you can't lift less than the bar), else 0. A calibration set starts
+    /// blank by design, so it keeps 0.
+    private var weightRangeMin: Double {
+        guard !currentSetIsCalibration, currentEquipment.isBarLoaded else {
+            return 0
+        }
+        return WeightConverter.barWeight(for: currentEquipment, unit: weightUnit)
     }
 
     /// Per-side plate hint for bar-loaded lifts, e.g. "20 kg/side + 20 kg bar".
@@ -347,6 +360,21 @@ struct ActiveWorkoutView: View {
                 }
             }
         }
+        .alert(
+            "Log this set?",
+            isPresented: Binding(
+                get: { setPlausibilityWarning != nil },
+                set: { if !$0 { setPlausibilityWarning = nil } }
+            )
+        ) {
+            Button("Log it") {
+                setPlausibilityWarning = nil
+                commitCurrentSet()
+            }
+            Button("Fix it", role: .cancel) {}
+        } message: {
+            Text(setPlausibilityWarning ?? "")
+        }
         // Centered alert (not a popover/action sheet) for the finish choice.
         .alert("Finish Workout?", isPresented: $showFinishConfirmation) {
             Button("Save what I did") {
@@ -501,13 +529,13 @@ struct ActiveWorkoutView: View {
                             .foregroundStyle(Color.tempoAmber)
                             .multilineTextAlignment(.center)
                     } else {
-                        Text("WEIGHT — total incl. bar")
+                        Text(currentEquipment.isBarLoaded ? "WEIGHT — total incl. bar" : "WEIGHT")
                             .font(.tempoCaption2)
                             .foregroundStyle(Color.tempoTextTertiary)
                     }
                     NumberStepperView(
                         value: $inputWeight,
-                        range: 0 ... weightRangeMax,
+                        range: weightRangeMin ... weightRangeMax,
                         step: weightStep,
                         format: weightUnit == .kg ? "%.1f" : "%.0f",
                         unit: weightUnit.abbreviation,
@@ -651,7 +679,56 @@ struct ActiveWorkoutView: View {
             return nil
         }
         let reps = SideRepsFormat.reps(set.targetReps, perSide: viewModel.currentExercise?.perSide == true)
+        // Bodyweight lift with no known bodyweight: 0 is "just bodyweight".
+        if isBodyweightLift, w <= 0 {
+            return "BW × \(reps)"
+        }
         return "\(displayWeight(w)) × \(reps)"
+    }
+
+    /// Plausibility check for the set about to be logged (display → kg).
+    private var pendingSetWarning: String? {
+        guard !isBodyweightLift else {
+            return nil
+        }
+        let best = (viewModel.currentExercise?.exercise?.history ?? []).compactMap(\.estimated1RM).max()
+        return SetPlausibility.warning(
+            weightKg: weightUnit.convert(inputWeight, to: .kg),
+            reps: Int(inputReps),
+            bestE1RMKg: best,
+            equipment: viewModel.currentExercise?.exercise?.equipment,
+            isWarmup: currentSetIsWarmup
+        )
+    }
+
+    private func commitCurrentSet() {
+        // Inputs are in the user's display unit; persist kg. For a
+        // bodyweight lift the logged weight is the EFFECTIVE load
+        // (bodyweight ± added) and we also record the signed added load.
+        if isBodyweightLift {
+            // §15 — commit the inline prompt to the profile BEFORE
+            // logging, so this and every later bodyweight lift this
+            // session (and beyond) reads a real weight, not 0.
+            persistBodyweightIfNeeded()
+            viewModel.logSet(
+                weight: bodyweightEffectiveKg,
+                reps: Int(inputReps),
+                addedLoadKg: weightUnit.convert(inputAddedLoad, to: .kg),
+                leftReps: splitLeftReps,
+                rightReps: splitRightReps,
+                modelContext: modelContext
+            )
+        } else {
+            let weightKg = weightUnit.convert(inputWeight, to: .kg)
+            viewModel.logSet(
+                weight: weightKg,
+                reps: Int(inputReps),
+                leftReps: splitLeftReps,
+                rightReps: splitRightReps,
+                modelContext: modelContext
+            )
+        }
+        HapticManager.notification(.success)
     }
 
     /// All-time best estimated 1RM for this lift.
@@ -708,7 +785,13 @@ struct ActiveWorkoutView: View {
                 if viewModel.currentSetHasPendingDrop {
                     viewModel.removeTrailingDropSet(modelContext: modelContext)
                 } else {
-                    viewModel.addDropSet(modelContext: modelContext)
+                    // Base the drop on what's dialed in NOW (kg), not the
+                    // set's stale prescribed target. Bodyweight lifts drop
+                    // off their prescribed load — no meaningful entered kg.
+                    viewModel.addDropSet(
+                        enteredWeightKg: isBodyweightLift ? nil : weightUnit.convert(inputWeight, to: .kg),
+                        modelContext: modelContext
+                    )
                 }
                 HapticManager.selection()
             } label: {
@@ -747,33 +830,11 @@ struct ActiveWorkoutView: View {
             }
 
             Button {
-                // Inputs are in the user's display unit; persist kg. For a
-                // bodyweight lift the logged weight is the EFFECTIVE load
-                // (bodyweight ± added) and we also record the signed added load.
-                if isBodyweightLift {
-                    // §15 — commit the inline prompt to the profile BEFORE
-                    // logging, so this and every later bodyweight lift this
-                    // session (and beyond) reads a real weight, not 0.
-                    persistBodyweightIfNeeded()
-                    viewModel.logSet(
-                        weight: bodyweightEffectiveKg,
-                        reps: Int(inputReps),
-                        addedLoadKg: weightUnit.convert(inputAddedLoad, to: .kg),
-                        leftReps: splitLeftReps,
-                        rightReps: splitRightReps,
-                        modelContext: modelContext
-                    )
-                } else {
-                    let weightKg = weightUnit.convert(inputWeight, to: .kg)
-                    viewModel.logSet(
-                        weight: weightKg,
-                        reps: Int(inputReps),
-                        leftReps: splitLeftReps,
-                        rightReps: splitRightReps,
-                        modelContext: modelContext
-                    )
+                if let warning = pendingSetWarning {
+                    setPlausibilityWarning = warning
+                    return
                 }
-                HapticManager.notification(.success)
+                commitCurrentSet()
             } label: {
                 Text(finishButtonLabel)
                     .font(.tempoHeadline)
@@ -1382,7 +1443,7 @@ struct ActiveWorkoutView: View {
                 title: "Weight",
                 unit: weightUnit.abbreviation,
                 initialValue: inputWeight,
-                range: 0 ... weightRangeMax,
+                range: weightRangeMin ... weightRangeMax,
                 wheelValues: NumericEntrySheet.weightWheelValues(step: weightStep, upperBound: weightRangeMax),
                 displayFormat: weightUnit == .kg ? "%.1f" : "%.0f",
                 snap: { displayValue in
@@ -1500,6 +1561,7 @@ struct ActiveWorkoutView: View {
             let display = WeightUnit.kg.convert(kg, to: weightUnit)
             inputWeight = (display / weightStep).rounded() * weightStep
         }
+        inputWeight = max(inputWeight, weightRangeMin)
         if let targetReps = viewModel.currentSet?.targetReps {
             inputReps = Double(targetReps)
         }

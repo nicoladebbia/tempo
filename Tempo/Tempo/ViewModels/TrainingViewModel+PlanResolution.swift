@@ -289,7 +289,9 @@ extension TrainingViewModel {
             let matchDays = Set(fetchUpcomingMatches(modelContext: modelContext).map { cal.startOfDay(for: $0.kickoff) })
             Self.applyTrainerProgram(
                 program, to: [plan], matchDayKeys: matchDays,
-                completedSequenceCount: completedTrainerSessionCount(for: program, modelContext: modelContext),
+                completedSequenceCount: completedTrainerSessionCount(
+                    for: program, before: cal.startOfDay(for: Date()), modelContext: modelContext
+                ),
                 priorDayWasLift: trainerProgramPriorDayWasLift(
                     before: cal.startOfDay(for: Date()), program: program, modelContext: modelContext
                 )

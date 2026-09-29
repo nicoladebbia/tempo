@@ -1,0 +1,393 @@
+//
+// LoggerCursorAndCleanupTests.swift
+// Tempo
+//
+// Regression tests for the active-workout logger QA pass: the cursor must
+// never rest on a missing / already-completed set (set removal, rest, watch
+// collision), an all-skipped session must not leave a zombie plan, discard
+// must undo everything, pauses/calls must not inflate duration, and a
+// finished gym session reaches Apple Health.
+//
+
+import SwiftData
+@testable import Tempo
+import XCTest
+
+@MainActor
+final class LoggerCursorAndCleanupTests: XCTestCase {
+    private var healthKit = MockHealthKitService()
+
+    private func makeContext() throws -> ModelContext {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: Schema(TempoSchemaV1.models), configurations: [config])
+        return ModelContext(container)
+    }
+
+    private func makeVM() -> TrainingViewModel {
+        healthKit = MockHealthKitService()
+        return TrainingViewModel(
+            trainingEngine: MockTrainingEngine(),
+            whoop: MockWhoopService(),
+            healthKit: healthKit
+        )
+    }
+
+    /// One plan, `setCounts.count` exercises ("Bench Press", "Row", …) with N sets each.
+    private func seedPlan(
+        context: ModelContext,
+        setCounts: [Int],
+        equipment: Equipment = .barbell,
+        targetWeight: Double? = 80
+    ) -> WorkoutPlan {
+        let plan = WorkoutPlan(date: Date(), type: .push)
+        plan.status = .inProgress
+        plan.startedAt = Date().addingTimeInterval(-600)
+        context.insert(plan)
+        let names = ["Bench Press", "Barbell Row", "Overhead Press"]
+        for (order, count) in setCounts.enumerated() {
+            let exercise = Exercise(
+                name: names[order], muscleGroup: .chest, equipment: equipment,
+                movementPattern: .horizontalPush, isCompound: true
+            )
+            context.insert(exercise)
+            let slot = PlannedExercise(order: order, workoutPlan: plan, exercise: exercise)
+            slot.sets = (1 ... count).map {
+                PlannedSet(setNumber: $0, targetReps: 8, targetWeight: targetWeight, plannedExercise: slot)
+            }
+        }
+        try? context.save()
+        return plan
+    }
+
+    private func start(_ vm: TrainingViewModel, plan: WorkoutPlan, exercise: Int = 0, set: Int = 0) {
+        vm.todayPlan = plan
+        vm.currentExerciseIndex = exercise
+        vm.currentSetIndex = set
+        vm.sessionState = .exercise(.setActive(exerciseIndex: exercise, setIndex: set))
+    }
+
+    private func assertSetActive(
+        _ vm: TrainingViewModel, exercise: Int, set: Int,
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        guard case let .exercise(.setActive(ex, idx)) = vm.sessionState else {
+            XCTFail("Expected .setActive, got \(vm.sessionState)", file: file, line: line)
+            return
+        }
+        XCTAssertEqual(ex, exercise, file: file, line: line)
+        XCTAssertEqual(idx, set, file: file, line: line)
+        XCTAssertEqual(vm.currentExerciseIndex, exercise, file: file, line: line)
+        XCTAssertEqual(vm.currentSetIndex, set, file: file, line: line)
+    }
+
+    // MARK: - 1. Structural changes never strand the cursor
+
+    func testRemovingTheSetOnScreenReroutesInsteadOfStranding() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [2, 1])
+        start(vm, plan: plan)
+        vm.logSet(weight: 80, reps: 8, modelContext: context)
+        vm.skipRest() // now on ex 0, set 1 (uncompleted, last)
+        assertSetActive(vm, exercise: 0, set: 1)
+
+        vm.removeLastUncompletedSet(from: 0, modelContext: context)
+
+        // The on-screen set is gone → land on the next real work, not at
+        // index == sets.count where Finish Set / Skip silently die.
+        assertSetActive(vm, exercise: 1, set: 0)
+        vm.resetState()
+    }
+
+    func testRemovingSetsDuringRestNeverLeavesCursorOutOfRange() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [3])
+        start(vm, plan: plan)
+        vm.logSet(weight: 80, reps: 8, modelContext: context)
+        guard case .exercise(.resting) = vm.sessionState else {
+            return XCTFail("expected rest")
+        }
+
+        vm.removeLastUncompletedSet(from: 0, modelContext: context)
+        vm.removeLastUncompletedSet(from: 0, modelContext: context)
+        vm.skipRest()
+
+        // Only the completed set is left → session is done, not parked on set 1 of 1.
+        XCTAssertEqual(vm.sessionState, .summary)
+        vm.resetState()
+    }
+
+    func testRemovingLaterSetKeepsCursorOnTheSameSet() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [3])
+        start(vm, plan: plan)
+
+        vm.removeLastUncompletedSet(from: 0, modelContext: context)
+
+        assertSetActive(vm, exercise: 0, set: 0)
+        vm.resetState()
+    }
+
+    func testWatchLoggedSetDuringRestIsSkippedWhenRestEnds() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [3])
+        start(vm, plan: plan)
+        vm.logSet(weight: 80, reps: 8, modelContext: context) // rest starts
+
+        // Watch logs set 2 while the phone is resting (direct path).
+        XCTAssertTrue(vm.applyWatchSetLog(exerciseName: "Bench Press", reps: 8, weightKg: 82.5, modelContext: context))
+        vm.skipRest()
+
+        assertSetActive(vm, exercise: 0, set: 2)
+        vm.resetState()
+    }
+
+    func testSetAddedDuringFinalRestIsVisited() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [1, 1])
+        start(vm, plan: plan)
+        vm.logSet(weight: 80, reps: 8, modelContext: context) // last set of ex 0 → rest → .nextExercise
+        XCTAssertEqual(vm.pendingRestAction, .nextExercise)
+
+        vm.addSet(to: 0, modelContext: context)
+        vm.skipRest()
+
+        assertSetActive(vm, exercise: 0, set: 1)
+        vm.resetState()
+    }
+
+    func testRestEndingOnLastExerciseGoesToSummary() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [1])
+        start(vm, plan: plan)
+        vm.logSet(weight: 80, reps: 8, modelContext: context)
+        // Last set of last exercise → straight to summary (unchanged behaviour).
+        XCTAssertEqual(vm.sessionState, .summary)
+        vm.resetState()
+    }
+
+    // MARK: - 2. Skipping everything is not a workout
+
+    func testSkippingEverySetDoesNotLeaveAZombieInProgressPlan() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [2])
+        start(vm, plan: plan)
+
+        vm.skipCurrentSet(modelContext: context)
+        vm.skipCurrentSet(modelContext: context)
+
+        XCTAssertEqual(vm.sessionState, .discarded)
+        XCTAssertNotEqual(plan.status, .inProgress, "No 'Resume your workout?' forever")
+        XCTAssertEqual(plan.status, .skipped, "Skip deletes the sets, so nothing is left to redo")
+    }
+
+    // MARK: - 3. HealthKit
+
+    func testFinishedGymWorkoutIsWrittenToHealthKit() async throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [2])
+        start(vm, plan: plan)
+        vm.logSet(weight: 80, reps: 8, modelContext: context)
+        vm.skipRest()
+        vm.logSet(weight: 80, reps: 8, modelContext: context)
+        vm.elapsedSeconds = 1800
+
+        XCTAssertTrue(vm.persistCompletion(modelContext: context))
+        await vm.healthKitWriteTask?.value
+
+        let written = healthKit.writtenWorkouts
+        XCTAssertEqual(written.count, 1)
+        XCTAssertEqual(written.first?.workoutType, "strength")
+        XCTAssertEqual(written.first?.totalVolumeKg, 1280)
+        XCTAssertEqual(written.first?.durationMinutes ?? 0, 30, accuracy: 0.01)
+
+        // Idempotent persist must not write a second HK workout.
+        XCTAssertFalse(vm.persistCompletion(modelContext: context))
+        await vm.healthKitWriteTask?.value
+        XCTAssertEqual(healthKit.writtenWorkouts.count, 1)
+        vm.resetState()
+    }
+
+    func testEmptySessionWritesNothingToHealthKit() async throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [1])
+        start(vm, plan: plan)
+
+        XCTAssertFalse(vm.persistCompletion(modelContext: context))
+        await vm.healthKitWriteTask?.value
+        XCTAssertTrue(healthKit.writtenWorkouts.isEmpty)
+    }
+
+    // MARK: - 4. Calls / pauses vs duration
+
+    func testPhoneCallTimeIsCountedAsPauseNotTraining() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [2])
+        start(vm, plan: plan)
+
+        vm.handleCallChange(callEnded: false)
+        XCTAssertNotNil(vm.callStartedAt)
+        vm.callStartedAt = Date().addingTimeInterval(-600) // a 10-minute call
+        vm.handleCallChange(callEnded: true)
+
+        XCTAssertEqual(vm.totalPauseDuration, 600, accuracy: 2)
+        XCTAssertEqual(plan.pausedSeconds, 600, accuracy: 2, "Mirrored on the plan for crash recovery")
+        XCTAssertNil(vm.callStartedAt)
+        vm.resetState()
+    }
+
+    func testCrashResumeRestoresPersistedPauseTime() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [2])
+        plan.startedAt = Date().addingTimeInterval(-1000)
+        plan.pausedSeconds = 600
+        vm.todayPlan = plan
+        vm.sessionState = .crashedRecovery
+
+        vm.resumeFromCrash()
+
+        XCTAssertEqual(vm.totalPauseDuration, 600, accuracy: 0.1)
+        XCTAssertEqual(vm.elapsedSeconds, 400, accuracy: 3)
+        vm.resetState()
+    }
+
+    // MARK: - 5. Watch payloads
+
+    func testWatchSetWithoutWeightUsesPrescriptionNotZero() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [2])
+        vm.todayPlan = plan // no live session → direct path
+
+        XCTAssertTrue(vm.applyWatchSetLog(exerciseName: "Bench Press", reps: 8, weightKg: nil, modelContext: context))
+
+        XCTAssertEqual(plan.orderedExercises[0].orderedSets[0].actualWeight, 80)
+    }
+
+    func testWatchSetWithNoUsableWeightIsRefusedForLoadedLifts() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [2], targetWeight: nil)
+        vm.todayPlan = plan
+
+        XCTAssertFalse(vm.applyWatchSetLog(exerciseName: "Bench Press", reps: 8, weightKg: nil, modelContext: context))
+        XCTAssertFalse(plan.orderedExercises[0].orderedSets[0].completed, "Never log a barbell lift at 0 kg")
+    }
+
+    func testWatchSetWithoutWeightOnBodyweightMoveLogsZero() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [2], equipment: .bodyweight, targetWeight: nil)
+        vm.todayPlan = plan
+
+        XCTAssertTrue(vm.applyWatchSetLog(exerciseName: "Bench Press", reps: 10, weightKg: nil, modelContext: context))
+    }
+
+    // MARK: - 6. Discard leaves nothing behind
+
+    private func seedLoggedSessionWithPR(vm: TrainingViewModel, context: ModelContext) -> WorkoutPlan {
+        let plan = seedPlan(context: context, setCounts: [2])
+        start(vm, plan: plan)
+        vm.logSet(weight: 80, reps: 8, addedLoadKg: 10, leftReps: 8, rightReps: 7, modelContext: context)
+        let exercise = plan.orderedExercises[0].exercise
+        context.insert(PersonalRecord(type: .oneRepMax, value: 100, date: Date(), workoutPlanID: plan.id, exercise: exercise))
+        // A PR from an UNRELATED session must survive.
+        context.insert(PersonalRecord(type: .oneRepMax, value: 90, date: Date(), workoutPlanID: UUID(), exercise: exercise))
+        try? context.save()
+        return plan
+    }
+
+    private func assertRolledBack(_ plan: WorkoutPlan, context: ModelContext, file: StaticString = #filePath, line: UInt = #line) throws {
+        let set = plan.orderedExercises[0].orderedSets[0]
+        XCTAssertFalse(set.completed, file: file, line: line)
+        XCTAssertNil(set.addedLoadKg, file: file, line: line)
+        XCTAssertNil(set.actualRepsLeft, file: file, line: line)
+        XCTAssertNil(set.actualRepsRight, file: file, line: line)
+        let prs = try context.fetch(FetchDescriptor<PersonalRecord>())
+        XCTAssertFalse(prs.contains { $0.workoutPlanID == plan.id }, "Discarded session's PR is gone", file: file, line: line)
+        XCTAssertEqual(prs.count, 1, "Other sessions' PRs are untouched", file: file, line: line)
+    }
+
+    func testDiscardResetsAddedLoadSplitRepsAndPRs() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedLoggedSessionWithPR(vm: vm, context: context)
+
+        vm.discardActiveWorkout(modelContext: context)
+
+        try assertRolledBack(plan, context: context)
+        XCTAssertEqual(plan.status, .planned)
+    }
+
+    func testDiscardCrashedWorkoutRollsBackLoggedSetsAndPRs() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedLoggedSessionWithPR(vm: vm, context: context)
+        vm.sessionState = .crashedRecovery
+
+        vm.discardCrashedWorkout(modelContext: context)
+
+        try assertRolledBack(plan, context: context)
+        XCTAssertEqual(plan.status, .skipped)
+    }
+
+    // MARK: - 8. Delayed inter-exercise hop can't overwrite a newer state
+
+    func testDelayedNextExerciseHopDoesNotOverwriteDiscard() async throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [1, 1])
+        start(vm, plan: plan)
+        plan.orderedExercises[0].orderedSets[0].completed = true
+        vm.pendingRestAction = .nextExercise
+
+        vm.advanceAfterRest()
+        guard case .exercise(.betweenExercises) = vm.sessionState else {
+            return XCTFail("expected betweenExercises, got \(vm.sessionState)")
+        }
+        vm.sessionState = .discarded // user discards inside the 300 ms window
+        try await Task.sleep(for: .milliseconds(600))
+
+        XCTAssertEqual(vm.sessionState, .discarded)
+    }
+
+    func testNextExerciseHopStillLandsOnNextExercise() async throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [1, 2])
+        start(vm, plan: plan)
+        plan.orderedExercises[0].orderedSets[0].completed = true
+        vm.pendingRestAction = .nextExercise
+
+        vm.advanceAfterRest()
+        try await Task.sleep(for: .milliseconds(600))
+
+        assertSetActive(vm, exercise: 1, set: 0)
+        vm.resetState()
+    }
+
+    // MARK: - 10. Drop set bases on the entered weight
+
+    func testDropSetOnUnloggedSetUsesEnteredWeight() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [1]) // target 80
+        start(vm, plan: plan)
+
+        vm.addDropSet(enteredWeightKg: 100, modelContext: context)
+
+        let drop = plan.orderedExercises[0].orderedSets[1]
+        XCTAssertEqual(drop.targetWeight, 80, "100 kg entered × 0.8, not 80 × 0.8 = 64")
+        vm.resetState()
+    }
+}

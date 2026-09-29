@@ -124,7 +124,7 @@ extension TrainingViewModel {
     /// whether the current set is a normal working set (starts a new
     /// sequence) or itself already a drop step (chains a further one) —
     /// either way the new row reduces off THIS set's weight.
-    func addDropSet(modelContext: ModelContext) {
+    func addDropSet(enteredWeightKg: Double? = nil, modelContext: ModelContext) {
         guard let plan = todayPlan else {
             return
         }
@@ -143,7 +143,10 @@ extension TrainingViewModel {
         }
 
         let equipment = plannedExercise.exercise?.equipment ?? .none
-        let baseKg = current.actualWeight ?? current.targetWeight ?? 0
+        // An UNLOGGED current set has no actualWeight yet: the drop must base
+        // on what the athlete has dialed in on screen, not the stale target.
+        let entered = enteredWeightKg.flatMap { $0 > 0 ? $0 : nil }
+        let baseKg = current.actualWeight ?? entered ?? current.targetWeight ?? 0
         let reducedKg = baseKg > 0
             ? WeightConverter.loadableKg(baseKg * 0.8, equipment: equipment, unit: weightUnit)
             : baseKg

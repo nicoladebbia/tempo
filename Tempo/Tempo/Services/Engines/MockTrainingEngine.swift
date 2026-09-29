@@ -41,6 +41,7 @@ final class MockTrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         exercise: Exercise,
         weight: Double,
         reps: Int,
+        rir: Int,
         workoutPlanID: UUID? = nil
     ) -> PersonalRecord? {
         nil

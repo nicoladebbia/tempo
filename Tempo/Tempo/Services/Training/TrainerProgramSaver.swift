@@ -72,13 +72,14 @@ enum TrainerProgramSaver {
             for program in existingPrograms where program.isActive {
                 program.isActive = false
             }
-        } else {
-            // At most ONE program is ever queued at a time — a second queue
-            // replaces the first rather than leaving two due dates for
-            // `activeTrainerProgram`'s promotion check to arbitrate between.
-            for program in existingPrograms where !program.isActive && program.queuedActivationDate != nil {
-                program.queuedActivationDate = nil
-            }
+        }
+        // At most ONE program is ever queued at a time — a second queue
+        // replaces the first rather than leaving two due dates for
+        // `activeTrainerProgram`'s promotion check to arbitrate between. An
+        // immediate save clears any pending queue too: otherwise the older
+        // queued block would later replace this newer, already-active one.
+        for program in existingPrograms where !program.isActive && program.queuedActivationDate != nil {
+            program.queuedActivationDate = nil
         }
 
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -274,6 +275,8 @@ enum TrainerProgramSaver {
             other.isActive = false
         }
         program.isActive = true
+        // Started by hand — a pending queue date must not re-fire later.
+        program.queuedActivationDate = nil
         try? modelContext.save()
         NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
     }
@@ -283,6 +286,8 @@ enum TrainerProgramSaver {
     @MainActor
     static func deactivate(_ program: TrainerProgram, modelContext: ModelContext) {
         program.isActive = false
+        // Stopped by hand — a queued program must not resurrect on its date.
+        program.queuedActivationDate = nil
         try? modelContext.save()
         NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
     }
