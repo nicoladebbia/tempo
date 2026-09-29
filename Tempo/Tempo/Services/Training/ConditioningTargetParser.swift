@@ -83,6 +83,9 @@ enum ConditioningTargetParser {
         if let kind = parseRepsDistance(lower) {
             return ConditioningTarget(kind: kind, rawText: raw)
         }
+        if let kind = parseSetsOfDistance(lower) {
+            return ConditioningTarget(kind: kind, rawText: raw)
+        }
         if let kind = parseIntervalSets(lower) {
             return ConditioningTarget(kind: kind, rawText: raw)
         }
@@ -134,13 +137,33 @@ enum ConditioningTargetParser {
         return parseDouble(match.groups[1])
     }
 
+    // MARK: - sets × distance
+
+    /// "10 x 100m", "4x400m in < 75\"", "6 × 200 yd" — the number after the ×
+    /// is a distance, not a rep count, so it's `reps` repetitions of it.
+    private static func parseSetsOfDistance(_ text: String) -> ConditioningTargetKind? {
+        guard let match = firstMatch(
+            in: text,
+            pattern: #"(\d+)\s*[x×]\s*"# + distanceNumberUnitPattern
+        ),
+            let reps = Int(match.groups[1] ?? ""),
+            let distanceValue = parseDouble(match.groups[2]),
+            let unit = unit(from: match.groups[3])
+        else {
+            return nil
+        }
+        return .repsDistance(reps: reps, distance: distanceValue, unit: unit, capSeconds: parseCapSeconds(text))
+    }
+
     // MARK: - interval sets
 
     /// "2 x 10times (5R-5L) 10m+5m", "3x8", "4 X 6 reps"
     private static func parseIntervalSets(_ text: String) -> ConditioningTargetKind? {
         guard let match = firstMatch(
             in: text,
-            pattern: #"(\d+)\s*[x×]\s*(\d+)\s*(?:times|reps?|x)?"#
+            // The second number must be a bare count: "4 x 1' fast" (minutes)
+            // or "10 x 100m" (distance) are not "4 sets of 1 rep".
+            pattern: #"(\d+)\s*[x×]\s*(\d+)(?!\d|[.,]\d)(?!\s*(?:[′'"”]|min|sec|km|mt|yd|yards?|meters?|metri|[my]\b))\s*(?:times|reps?|x)?"#
         )
         else {
             return nil

@@ -194,4 +194,28 @@ final class ConditioningTargetParserTests: XCTestCase {
         let target = ConditioningTargetParser.parse(detail: "  35' (2' slow - 1' fast)  ")
         XCTAssertEqual(target.rawText, "35' (2' slow - 1' fast)")
     }
+
+    // MARK: - Sets × distance / durations after the ×
+
+    func testSetsTimesDistanceIsRepsOfDistanceNotRepCount() {
+        let target = ConditioningTargetParser.parse(detail: "10 x 100m")
+        XCTAssertEqual(target.kind, .repsDistance(reps: 10, distance: 100, unit: .meters, capSeconds: nil))
+        let compact = ConditioningTargetParser.parse(detail: "4x400m")
+        XCTAssertEqual(compact.kind, .repsDistance(reps: 4, distance: 400, unit: .meters, capSeconds: nil))
+        let capped = ConditioningTargetParser.parse(detail: "6 × 200 m in < 40 sec")
+        XCTAssertEqual(capped.kind, .repsDistance(reps: 6, distance: 200, unit: .meters, capSeconds: 40))
+    }
+
+    func testTotalDurationSurvivesAnIntervalBreakdown() {
+        let target = ConditioningTargetParser.parse(detail: "35' warm-up jog then 4 x 1' fast, 1' easy")
+        XCTAssertEqual(target.kind, .duration(minutes: 35))
+    }
+
+    func testPlainIntervalSetsStillParse() {
+        XCTAssertEqual(ConditioningTargetParser.parse(detail: "3x8").kind, .intervalSets(sets: 3, reps: 8))
+        XCTAssertEqual(
+            ConditioningTargetParser.parse(detail: "2 x 10times (5R-5L) 10m+5m").kind,
+            .intervalSets(sets: 2, reps: 10)
+        )
+    }
 }
