@@ -135,7 +135,7 @@ struct PlannedMealCardView: View {
     /// the plan, ate early, or ran late.
     @ViewBuilder
     private var timeRow: some View {
-        if let eaten = meal.actualEatenAt {
+        if let eaten = meal.actualEatenAt, Self.clockFormatter.string(from: eaten) != meal.scheduledTime {
             HStack(spacing: 4) {
                 Text(meal.scheduledTime)
                     .font(.tempoCaption1)
@@ -150,6 +150,9 @@ struct PlannedMealCardView: View {
                     .foregroundStyle(deltaColor(eaten: eaten))
             }
         } else {
+            // Either not eaten yet, or eaten exactly on the scheduled minute —
+            // a "13:09 → 13:09" struck-through arrow tells you nothing
+            // (picky-QA item 14), so just show the plain time.
             Text(meal.scheduledTime)
                 .font(.tempoCaption1)
                 .foregroundStyle(Color.tempoTextTertiary)
@@ -166,8 +169,12 @@ struct PlannedMealCardView: View {
             return Color.tempoTextSecondary
         }
         let delta = abs(eaten.timeIntervalSince(scheduled))
-        if delta <= 15 * 60 { return Color.tempoSuccess }
-        if delta <= 60 * 60 { return Color.tempoWarning }
+        if delta <= 15 * 60 {
+            return Color.tempoSuccess
+        }
+        if delta <= 60 * 60 {
+            return Color.tempoWarning
+        }
         return Color.tempoError
     }
 
