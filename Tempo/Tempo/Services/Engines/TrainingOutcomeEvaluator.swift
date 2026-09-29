@@ -53,16 +53,28 @@ enum TrainingOutcomeEvaluator {
         }
         let overreach = overreachDays.count
 
-        // Progression: per-exercise, did the most recent best-set load beat the
+        // Progression: per-exercise, did the most recent estimated 1RM beat the
         // earlier one within the week?
         let byExercise = Dictionary(grouping: lastWeek) { $0.exercise?.id }
         var progressionHits = 0
         for (exID, rows) in byExercise where exID != nil {
             let sorted = rows.sorted { $0.date < $1.date }
-            guard let first = sorted.first?.bestSetWeight,
-                  let last = sorted.last?.bestSetWeight,
-                  sorted.count >= 2 else { continue }
-            if last > first { progressionHits += 1 }
+            guard sorted.count >= 2,
+                  let first = sorted.first, let last = sorted.last else { continue }
+            // Compare estimated 1RM, not the heaviest load: a heavy single
+            // (or a drop in reps at a higher weight) is not progress. Rows
+            // without an e1RM (legacy) fall back to best-set weight.
+            let firstValue: Double?
+            let lastValue: Double?
+            if let a = first.estimated1RM, a > 0, let b = last.estimated1RM, b > 0 {
+                firstValue = a
+                lastValue = b
+            } else {
+                firstValue = first.bestSetWeight
+                lastValue = last.bestSetWeight
+            }
+            guard let firstValue, let lastValue else { continue }
+            if lastValue > firstValue { progressionHits += 1 }
         }
 
         let weekVolume = lastWeek.reduce(0.0) { $0 + $1.totalVolume }
