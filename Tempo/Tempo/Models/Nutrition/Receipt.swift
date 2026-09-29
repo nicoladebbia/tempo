@@ -77,6 +77,35 @@ final class Receipt {
     /// `true` once the user has reviewed every line and approved ingest.
     var userReviewed: Bool
 
+    /// Printed subtotal (pre-tax). Optional/additive — nil for receipts
+    /// scanned before this field existed or when the printer omitted it.
+    var subtotalAmount: Double?
+
+    /// Printed total savings line ("SAVINGS: $14.36").
+    var savingsAmount: Double?
+
+    /// 3-letter currency code detected from the receipt ("USD", "EUR"...).
+    var currencyCode: String?
+
+    /// Normalized chain slug ("publix", "walmart", "unknown"...).
+    var storeChain: String?
+
+    /// `ReceiptPreParseResult.duplicateKey` fingerprint ("store|date|total")
+    /// computed at scan time — used to warn the user before they ingest the
+    /// same receipt twice.
+    var duplicateKey: String?
+
+    /// `true` when this receipt was flagged as a likely duplicate of an
+    /// earlier scan at ingest time. The user can dismiss the warning; we
+    /// don't block ingest, only flag it.
+    var duplicateWarningDismissed: Bool = false
+
+    /// Human-readable banner from `ReceiptCrossChecker` when the printed
+    /// totals don't reconcile with the line items ("Check these lines —
+    /// items add up to $145.10 but the receipt subtotal is $142.32...").
+    /// nil when the receipt is consistent or hasn't been checked yet.
+    var crossCheckBanner: String?
+
     /// Timestamps.
     var createdAt: Date
     var updatedAt: Date
@@ -128,7 +157,14 @@ final class Receipt {
         ocrStatus: ReceiptOCRStatus = .pending,
         ocrRawText: String? = nil,
         ocrProvider: ReceiptOCRProvider = .visionAndHaiku,
-        userReviewed: Bool = false
+        userReviewed: Bool = false,
+        subtotalAmount: Double? = nil,
+        savingsAmount: Double? = nil,
+        currencyCode: String? = nil,
+        storeChain: String? = nil,
+        duplicateKey: String? = nil,
+        duplicateWarningDismissed: Bool = false,
+        crossCheckBanner: String? = nil
     ) {
         self.id = id
         self.store = store
@@ -142,6 +178,13 @@ final class Receipt {
         self.ocrRawText = ocrRawText
         self.ocrProviderRaw = ocrProvider.rawValue
         self.userReviewed = userReviewed
+        self.subtotalAmount = subtotalAmount
+        self.savingsAmount = savingsAmount
+        self.currencyCode = currencyCode
+        self.storeChain = storeChain
+        self.duplicateKey = duplicateKey
+        self.duplicateWarningDismissed = duplicateWarningDismissed
+        self.crossCheckBanner = crossCheckBanner
         let now = Date()
         self.createdAt = now
         self.updatedAt = now
@@ -164,6 +207,12 @@ extension Receipt {
         let ocr_raw_text: String?
         let ocr_provider: String
         let user_reviewed: Bool
+        let subtotal_amount: Double?
+        let savings_amount: Double?
+        let currency_code: String?
+        let store_chain: String?
+        let duplicate_key: String?
+        let cross_check_banner: String?
         let created_at: Date
         let updated_at: Date
         let line_items: [ReceiptLineItem.DTO]
@@ -183,6 +232,12 @@ extension Receipt {
             ocr_raw_text: ocrRawText,
             ocr_provider: ocrProviderRaw,
             user_reviewed: userReviewed,
+            subtotal_amount: subtotalAmount,
+            savings_amount: savingsAmount,
+            currency_code: currencyCode,
+            store_chain: storeChain,
+            duplicate_key: duplicateKey,
+            cross_check_banner: crossCheckBanner,
             created_at: createdAt,
             updated_at: updatedAt,
             line_items: orderedLineItems.map { $0.toDTO() }

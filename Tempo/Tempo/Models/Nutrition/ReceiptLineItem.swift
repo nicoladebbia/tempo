@@ -109,6 +109,23 @@ final class ReceiptLineItem {
     /// Becomes `true` when the user approves this line in the review UI.
     var userConfirmed: Bool
 
+    /// Household/pharmacy/gift-card/etc — not a pantry food item. Shown
+    /// with a "not food" chip in review and excluded from ingest by default.
+    var isNonFood: Bool = false
+
+    /// Deposit/CRV/bag fee line — not food, not a discount.
+    var isFee: Bool = false
+
+    /// Printed tax flag as-is ("F", "T", "FT", "N"...). Free-text, store-specific.
+    var taxFlag: String?
+
+    /// Department/category header seen nearest above this line ("PRODUCE"...).
+    var categoryHint: String?
+
+    /// Per-line discount already folded into totalPrice, surfaced separately
+    /// for display ("−$1.00 coupon applied").
+    var lineDiscount: Double?
+
     /// Pantry item ID created from this line on confirm. Lets us undo the
     /// ingestion (and prevent double-ingest if the user confirms twice).
     var linkedPantryItemID: UUID?
@@ -144,7 +161,9 @@ final class ReceiptLineItem {
     /// the honest semantic for those foods.
     var resolvedPantryUnit: PantryUnit {
         let base = unit.asPantryUnit
-        guard base == .pieces else { return base }
+        guard base == .pieces else {
+            return base
+        }
         guard let portion = FoodMacroDatabase.naturalPortions[canonicalFoodName.lowercased()] else {
             return base
         }
@@ -157,10 +176,18 @@ final class ReceiptLineItem {
     /// one banana, one breast).
     private static func containerPantryUnit(for purchaseUnit: String) -> PantryUnit? {
         let word = purchaseUnit.lowercased()
-        if word.contains("can") { return .cans }
-        if word.contains("bottle") { return .bottles }
-        if word.contains("jar") { return .jars }
-        if word.contains("pack") || word.contains("box") || word.contains("bag") || word.contains("tub") || word.contains("tube") || word.contains("tin") {
+        if word.contains("can") {
+            return .cans
+        }
+        if word.contains("bottle") {
+            return .bottles
+        }
+        if word.contains("jar") {
+            return .jars
+        }
+        if word.contains("pack") || word.contains("box") || word.contains("bag") || word.contains("tub") || word.contains("tube") || word
+            .contains("tin")
+        {
             return .packs
         }
         return nil
@@ -184,7 +211,12 @@ final class ReceiptLineItem {
         saleNote: String? = nil,
         confidence: Double = 1.0,
         userConfirmed: Bool = false,
-        linkedPantryItemID: UUID? = nil
+        linkedPantryItemID: UUID? = nil,
+        isNonFood: Bool = false,
+        isFee: Bool = false,
+        taxFlag: String? = nil,
+        categoryHint: String? = nil,
+        lineDiscount: Double? = nil
     ) {
         self.id = id
         self.receipt = receipt
@@ -203,6 +235,11 @@ final class ReceiptLineItem {
         self.confidence = max(0, min(1, confidence))
         self.userConfirmed = userConfirmed
         self.linkedPantryItemID = linkedPantryItemID
+        self.isNonFood = isNonFood
+        self.isFee = isFee
+        self.taxFlag = taxFlag
+        self.categoryHint = categoryHint
+        self.lineDiscount = lineDiscount
         self.createdAt = Date()
     }
 }
@@ -226,6 +263,11 @@ extension ReceiptLineItem {
         let confidence: Double
         let user_confirmed: Bool
         let linked_pantry_item_id: UUID?
+        let is_non_food: Bool
+        let is_fee: Bool
+        let tax_flag: String?
+        let category_hint: String?
+        let line_discount: Double?
         let created_at: Date
     }
 
@@ -246,6 +288,11 @@ extension ReceiptLineItem {
             confidence: confidence,
             user_confirmed: userConfirmed,
             linked_pantry_item_id: linkedPantryItemID,
+            is_non_food: isNonFood,
+            is_fee: isFee,
+            tax_flag: taxFlag,
+            category_hint: categoryHint,
+            line_discount: lineDiscount,
             created_at: createdAt
         )
     }
