@@ -67,7 +67,7 @@ struct OpenFoodFactsClient: FoodProductProviding {
     static let fields = [
         "code", "product_name", "product_name_en", "product_name_it", "brands", "quantity",
         "serving_size", "serving_quantity", "nutriments", "nutriscore_grade", "nutriscore_score",
-        "nova_group", "additives_tags", "allergens_tags", "labels_tags", "categories_tags",
+        "nova_group", "additives_tags", "allergens_tags", "traces_tags", "labels_tags", "categories_tags",
         "categories_hierarchy", "ingredients_analysis_tags", "ingredients_text", "ingredients_text_it",
         "ingredients_text_en", "image_front_url", "image_front_small_url", "images", "countries_tags",
         "selected_images", "image_ingredients_url", "image_nutrition_url", "image_packaging_url",
@@ -242,7 +242,57 @@ struct OpenFoodFactsClient: FoodProductProviding {
             return []
         }
         let response = try JSONDecoder().decode(OFFSearchResponse.self, from: data)
-        return response.hits.compactMap { $0.toProduct(fallbackCode: nil, language: language) }
+        let mapped = response.hits.compactMap { $0.toProduct(fallbackCode: nil, language: language) }
+        // A Latin-script device (English, Italian, …) shouldn't see a result
+        // whose only name Open Food Facts indexed is in another script (a
+        // Hebrew-only "קוקה קולה" for a "Coca-Cola" search) ranked alongside
+        // normal results — de-rank rather than drop, in case it's genuinely
+        // the best/only match.
+        guard Self.isLatinScriptLanguage(language) else {
+            return mapped
+        }
+        return Self.deprioritized(mapped) { Self.isMostlyNonLatinScript($0.name) }
+    }
+
+    /// Stable partition: items `deprioritize` doesn't flag keep their
+    /// relative order first, flagged ones are pushed after.
+    static func deprioritized(_ items: [FoodProduct], where deprioritize: (FoodProduct) -> Bool) -> [FoodProduct] {
+        items.filter { !deprioritize($0) } + items.filter(deprioritize)
+    }
+
+    /// True when the device's language uses the Latin script — gates the
+    /// non-Latin de-rank so a device set to Hebrew, Japanese, etc. doesn't
+    /// have its own language's results punished.
+    static func isLatinScriptLanguage(_ code: String) -> Bool {
+        latinScriptLanguages.contains(code.lowercased())
+    }
+
+    static let latinScriptLanguages: Set<String> = [
+        "en", "it", "fr", "de", "es", "pt", "nl", "sv", "da", "no", "nb", "nn", "fi",
+        "pl", "cs", "sk", "ro", "hu", "hr", "sl", "et", "lv", "lt", "tr", "ca", "eu", "gl", "id", "vi", "af",
+    ]
+
+    /// True when more than half of a string's letters fall outside the Latin
+    /// script — testable in isolation from any network/locale plumbing.
+    static func isMostlyNonLatinScript(_ text: String) -> Bool {
+        let letters = text.unicodeScalars.filter { CharacterSet.letters.contains($0) }
+        guard !letters.isEmpty else {
+            return false
+        }
+        let nonLatin = letters.filter { !isLatinScalar($0) }
+        return Double(nonLatin.count) / Double(letters.count) > 0.5
+    }
+
+    private static func isLatinScalar(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.value {
+        case 0x0041 ... 0x005A, // A-Z
+             0x0061 ... 0x007A, // a-z
+             0x00C0 ... 0x024F, // Latin-1 Supplement + Extended A/B
+             0x1E00 ... 0x1EFF: // Latin Extended Additional
+            true
+        default:
+            false
+        }
     }
 
     private func get(_ url: URL, allow404: Bool) async throws -> Data? {
@@ -308,6 +358,7 @@ struct OFFRawProduct: Decodable {
     let novaGroup: Int?
     let additives: [String]
     let allergens: [String]
+    let traces: [String]
     let labels: [String]
     let categories: [String]
     let ingredientsAnalysis: [String]
@@ -401,6 +452,7 @@ struct OFFRawProduct: Decodable {
         novaGroup = double("nova_group").map { Int($0) }
         additives = tags("additives_tags")
         allergens = tags("allergens_tags")
+        traces = tags("traces_tags")
         labels = tags("labels_tags")
         let hierarchy = tags("categories_hierarchy")
         categories = hierarchy.isEmpty ? tags("categories_tags") : hierarchy
@@ -479,8 +531,12 @@ struct OFFRawProduct: Decodable {
     }
 
     func toProduct(fallbackCode: String?, language: String) -> FoodProduct? {
+        // Prefer the device-language name, then explicit English
+        // (`product_name_en`) over the generic `product_name` field — OFF's
+        // generic field is whatever the last editor happened to type, which
+        // can be in any script; `product_name_en` is deliberately English.
         guard let barcode = code ?? fallbackCode,
-              let name = names[language] ?? names[""] ?? names["en"] ?? names.values.first
+              let name = names[language] ?? names["en"] ?? names[""] ?? names.values.first
         else {
             return nil
         }
@@ -519,6 +575,7 @@ struct OFFRawProduct: Decodable {
             novaGroup: novaGroup.flatMap { (1 ... 4).contains($0) ? $0 : nil },
             additives: additives.map { FoodAdditiveTable.normalize($0) },
             allergens: stripped(allergens),
+            traces: stripped(traces),
             labels: stripped(labels),
             categories: categoryTags,
             ingredientsAnalysis: stripped(ingredientsAnalysis),

@@ -117,7 +117,11 @@ final class FoodCatalog {
         let known = Set(results.yours.map(\.id))
         switch await packaged {
         case let .success(found):
-            results.products = found.filter { !known.contains($0.id) && $0.per100g.hasCoreMacros }
+            let filtered = found.filter { !known.contains($0.id) && $0.per100g.hasCoreMacros }
+            // Implausible numbers (a "Coke Zero" read as 108 kcal/100 ml) are
+            // still shown — just not with the same confidence as everything
+            // else, so they sort after the rows that check out.
+            results.products = Self.deprioritized(filtered) { $0.hasImplausibleNutrition }
         case let .failure(error):
             logger.warning("[food] OFF search failed: \(String(describing: error), privacy: .public)")
             results.notices.append(Self.notice("Packaged products", error))
@@ -158,6 +162,29 @@ final class FoodCatalog {
     /// user even has to ask for another page.
     private static let searchPageSize = 40
 
+    /// Search-a-licious (the endpoint `search(_:)` hits) frequently omits
+    /// `allergens_tags`/`ingredients_text` for a hit even when the full
+    /// product record has them — that's why a product opened straight from
+    /// search could show no allergen info at all even though Open Food
+    /// Facts' own page for the same barcode lists it. Re-fetches the full
+    /// `/product/{barcode}` record — which always carries every field — only
+    /// when the search hit came back with nothing to show, so this never
+    /// spends the tighter product-read rate limit on a hit that already has
+    /// what it needs.
+    func enrichAllergensIfMissing(for product: FoodProduct) async -> FoodProduct? {
+        guard product.source == .openFoodFacts, let barcode = product.barcode,
+              product.displayAllergens.isEmpty, product.displayTraces.isEmpty, product.ingredientsText == nil
+        else {
+            return nil
+        }
+        do {
+            return try await products.product(barcode: barcode)
+        } catch {
+            logger.warning("[food] allergen re-fetch failed: \(String(describing: error), privacy: .public)")
+            return nil
+        }
+    }
+
     // MARK: - Alternatives
 
     /// Up to `limit` products from the same category that score higher —
@@ -181,6 +208,46 @@ final class FoodCatalog {
             logger.warning("[food] alternatives failed: \(String(describing: error), privacy: .public)")
             return []
         }
+    }
+
+    /// Stable partition: items `deprioritize` doesn't flag keep their
+    /// relative order first, flagged ones are pushed after — nothing else
+    /// about the ordering changes.
+    static func deprioritized(_ items: [FoodProduct], where deprioritize: (FoodProduct) -> Bool) -> [FoodProduct] {
+        items.filter { !deprioritize($0) } + items.filter(deprioritize)
+    }
+
+    // MARK: - Portion memory
+
+    /// Grams (or ml) the user picked last time they added this product to a
+    /// meal — prefills the portion field instead of always defaulting to the
+    /// printed serving. `nil` until they've logged it at least once.
+    func lastPortionGrams(for product: FoodProduct, in context: ModelContext) -> Double? {
+        record(for: product.id, in: context)?.lastLoggedGrams
+    }
+
+    func rememberPortion(_ grams: Double, for product: FoodProduct, in context: ModelContext) {
+        guard grams > 0 else {
+            return
+        }
+        let row = record(for: product.id, in: context) ?? {
+            let new = ScannedFood(product: product)
+            context.insert(new)
+            return new
+        }()
+        row.lastLoggedGrams = grams
+        save(context)
+    }
+
+    /// Same, keyed by barcode — for a portion edited after the fact in
+    /// meal logging, where only the barcode (not the full `FoodProduct`)
+    /// survives on the logged `FoodItem`.
+    func rememberPortion(_ grams: Double, forBarcode barcode: String, in context: ModelContext) {
+        guard grams > 0, let row = record(for: barcode, in: context) else {
+            return
+        }
+        row.lastLoggedGrams = grams
+        save(context)
     }
 
     // MARK: - History & favourites
