@@ -107,7 +107,10 @@ extension TrainingViewModel {
         // resolve to 0; anything else with no usable number is refused.
         let lastLoggedKg = slot.orderedSets.last { $0.completed && ($0.actualWeight ?? 0) > 0 }?.actualWeight
         let fallbackKg = [set.targetWeight, lastLoggedKg].compactMap { $0 }.first { $0 > 0 }
-        let isBodyweightMove = slot.exercise?.equipment == .bodyweight || slot.exercise?.equipment == .none
+        // `Equipment.none` must be spelled out — a bare `.none` on the optional
+        // compares against Optional.none (nil exercise), not "no equipment".
+        let equipment = slot.exercise?.equipment
+        let isBodyweightMove = equipment == .bodyweight || equipment == Equipment.none
         let reportedKg = weightKg.flatMap { $0 > 0 || isBodyweightMove ? $0 : nil }
         guard let resolvedWeight = reportedKg ?? fallbackKg ?? (isBodyweightMove ? 0 : nil) else {
             return false
@@ -140,7 +143,7 @@ extension TrainingViewModel {
         if !set.isWarmup, !set.isDropStep, let exercise = slot.exercise,
            let pr = trainingEngine.detectPersonalRecord(
                exercise: exercise, weight: resolvedWeight, reps: resolvedReps,
-               workoutPlanID: plan.id
+               rir: set.effectiveRIR(reps: resolvedReps), workoutPlanID: plan.id
            )
         {
             modelContext.insert(pr)

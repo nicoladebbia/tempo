@@ -1248,6 +1248,7 @@ final class TrainingViewModel {
                 exercise: exercise,
                 weight: weight,
                 reps: reps,
+                rir: set.effectiveRIR(reps: reps),
                 workoutPlanID: plan.id // §13 fix — stamp so history-delete can match this PR exactly
             ) {
                 modelContext.insert(pr)

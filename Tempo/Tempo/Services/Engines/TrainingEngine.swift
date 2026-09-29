@@ -272,6 +272,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         exercise: Exercise,
         weight: Double,
         reps: Int,
+        rir: Int,
         workoutPlanID: UUID? = nil
     ) -> PersonalRecord? {
         guard weight > 0, reps > 0 else {
@@ -283,13 +284,26 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         // the Epley formula every other e1RM in the app uses (PlannedSet.
         // estimated1RM, StrengthStandards.epleyE1RM). Now the single shared
         // formula, so a PR and the progress chart never silently disagree.
-        let estimated1RM = StrengthStandards.epleyE1RM(weight: weight, reps: reps)
+        // RIR-aware like PlannedSet.estimated1RM, so the PR list and the
+        // history-fed "BEST e1RM"/charts show the same number.
+        let estimated1RM = StrengthStandards.e1RM(weight: weight, reps: reps, rir: rir)
 
         // Compare to all-time PR — only reps within the rep cap are trusted to
         // estimate a 1RM at all (see e1RMPersonalRecordRepCap).
         if reps <= Self.e1RMPersonalRecordRepCap {
             let currentPR = exercise.allTimePR ?? 0
-            if estimated1RM > currentPR {
+            // A PR must also be a better PERFORMANCE than the best set on
+            // record — a higher RIR assumption alone (or a PR stored before
+            // e1RM became RIR-aware) must never celebrate the same lift.
+            let bestPerformance = (exercise.personalRecords ?? [])
+                .filter { $0.type == .oneRepMax }
+                .map { pr -> Double in
+                    guard let w = pr.contextWeightKg, let r = pr.contextReps else { return pr.value }
+                    return StrengthStandards.epleyE1RM(weight: w, reps: r)
+                }
+                .max() ?? 0
+            let performance = StrengthStandards.epleyE1RM(weight: weight, reps: reps)
+            if estimated1RM > currentPR, performance > bestPerformance {
                 return PersonalRecord(
                     type: .oneRepMax,
                     value: estimated1RM,

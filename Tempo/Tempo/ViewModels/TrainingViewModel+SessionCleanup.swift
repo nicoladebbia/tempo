@@ -70,7 +70,10 @@ extension TrainingViewModel {
     /// gym session, so it is left 0 (HealthKit then estimates none).
     func writeStrengthWorkoutToHealthKit(plan: WorkoutPlan, totalVolumeKg: Double) {
         let end = plan.finishedAt ?? Date()
-        let durationSeconds = max(60, elapsedSeconds)
+        // The live session clock; if it never ran in this VM (0), fall back
+        // to wall-clock minus recorded pauses.
+        let wallClock = plan.startedAt.map { end.timeIntervalSince($0) - plan.pausedSeconds } ?? 0
+        let durationSeconds = max(60, elapsedSeconds > 0 ? elapsedSeconds : wallClock)
         let start = plan.startedAt ?? end.addingTimeInterval(-durationSeconds)
         let sample = WorkoutSample(
             startDate: start,
