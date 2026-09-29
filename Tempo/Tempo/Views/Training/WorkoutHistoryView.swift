@@ -468,7 +468,7 @@ struct WorkoutHistoryView: View {
                             HStack(spacing: TempoSpacing.xxs) {
                                 Image(systemName: "figure.strengthtraining.traditional")
                                     .font(.system(size: 11))
-                                Text("\(exerciseCount) exercises")
+                                Text("\(exerciseCount) \(exerciseCount == 1 ? "exercise" : "exercises")")
                                     .font(.tempoCaption1)
                                     .lineLimit(1)
                                     .fixedSize()
