@@ -254,7 +254,16 @@ extension TrainingViewModel {
             // the load and halves the sets instead (§19.3).
             let deloadMultiplier = (isDeloadWeek && deloadStyle == .intensityCut)
                 ? trainingEngine.deloadWeightMultiplier() : 1.0
-            let adjustedWeight = weight * plan.recoveryAdjustment * deloadMultiplier
+            let loadScale = plan.recoveryAdjustment * deloadMultiplier
+            let isBodyweightLift = StrengthStandards.isBodyweightLoaded(exercise.equipment)
+            // Bodyweight lifts: recovery/deload scale only the ADDED load — you
+            // can't lift 60% of yourself, so scaling the effective load turned a
+            // deload pull-up into a -32 kg "assist".
+            let adjustedWeight: Double = if isBodyweightLift, let bw = bodyweightKg, bw > 0, weight > 0 {
+                bw + (weight > bw ? (weight - bw) * loadScale : weight - bw)
+            } else {
+                weight * loadScale
+            }
             // Snap to a weight that physically loads in the user's unit —
             // barbell plate math, machine stack pins, dumbbell rack steps.
             let roundedWeight = WeightConverter.loadableKg(
@@ -265,7 +274,6 @@ extension TrainingViewModel {
             // EFFECTIVE load; the per-set added-load suggestion is the signed
             // difference from bodyweight (negative = assistance needed). nil when
             // bodyweight is unknown so the UI just treats it as bodyweight+0.
-            let isBodyweightLift = StrengthStandards.isBodyweightLoaded(exercise.equipment)
             let plannedAddedLoad: Double? = {
                 guard isBodyweightLift, let bw = bodyweightKg else {
                     return nil
@@ -295,10 +303,19 @@ extension TrainingViewModel {
                 // 75% feel set — the muscle is already warm.
                 let fractions = rampGiven ? [0.75] : [0.5, 0.75]
                 rampGiven = true
+                // Only ramp steps genuinely lighter than the working weight and
+                // distinct from each other — at an empty-bar working weight the
+                // 50%/75% steps both floor to the bar and were 3 identical sets.
+                var warmupWeights: [Double] = []
                 for fraction in fractions {
-                    let warmupWeight = WeightConverter.loadableKg(
+                    let w = WeightConverter.loadableKg(
                         roundedWeight * fraction, equipment: exercise.equipment, unit: unit
                     )
+                    if w < roundedWeight, !warmupWeights.contains(w) {
+                        warmupWeights.append(w)
+                    }
+                }
+                for warmupWeight in warmupWeights {
                     plannedSets.append(PlannedSet(
                         setNumber: setNum,
                         targetReps: reps,
@@ -612,7 +629,19 @@ extension TrainingViewModel {
         let bodyweight = currentBodyweightKg(modelContext: modelContext)
         let experience = currentExperienceLevel(modelContext: modelContext)
 
-        let e1RM = crossExerciseE1RM(for: exercise, allExercises: allExercises)
+        let sibling = crossExerciseE1RM(for: exercise, allExercises: allExercises)
+
+        // Bodyweight-loaded lift (pull-up/dip) never trained and no trained
+        // sibling: start at plain bodyweight reps (added load 0). The BW-multiple
+        // model prescribed an unloadable "Pull-Up @ 7 kg" when bodyweight was
+        // unknown, and an assisted (negative) load for nearly everyone at 8 reps
+        // when it was known. Returns the EFFECTIVE load (= bodyweight), or 0
+        // when bodyweight is unknown so the plan reads "(BW)".
+        if sibling == nil, StrengthStandards.isBodyweightLoaded(exercise.equipment) {
+            return bodyweight ?? 0
+        }
+
+        let e1RM = sibling
             ?? StrengthStandards.baselineE1RM(
                 for: exercise,
                 bodyweightKg: bodyweight,
