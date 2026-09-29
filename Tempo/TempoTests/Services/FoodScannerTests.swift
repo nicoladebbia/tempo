@@ -248,6 +248,17 @@ final class OpenFoodFactsDecodingTests: XCTestCase {
         XCTAssertEqual(product.displayTraces, ["Eggs", "Gluten"], "Same stable EU-14 order as displayAllergens")
     }
 
+    /// Favourites/history rows store FoodProduct as JSON; rows saved before
+    /// newer fields existed must still decode or they vanish from the app.
+    func testProductSavedBeforeNewerFieldsStillDecodes() throws {
+        let product = FoodProduct(id: "123", name: "Skyr", source: .openFoodFacts, per100g: .init(kcal: 60))
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(product)) as? [String: Any])
+        json.removeValue(forKey: "traces")
+        json.removeValue(forKey: "galleryImageURLs")
+        let old = try JSONSerialization.data(withJSONObject: json)
+        XCTAssertEqual(try JSONDecoder().decode(FoodProduct.self, from: old).name, "Skyr")
+    }
+
     func testTracesAlreadyConfirmedAsAllergensAreNotDoubleListed() throws {
         let json = """
         {"code":"1","status":1,"product":{"code":"1","product_name":"Bar",

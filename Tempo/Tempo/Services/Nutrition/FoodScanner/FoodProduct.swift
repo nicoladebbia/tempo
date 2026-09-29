@@ -49,7 +49,9 @@ struct FoodProduct: Codable, Equatable, Hashable, Sendable, Identifiable {
     var allergens: [String] = []
     /// "May contain" trace tags without prefix — shared-line/equipment risk,
     /// shown as secondary chips, never conflated with a confirmed allergen.
-    var traces: [String] = []
+    /// Optional so products saved before this field existed still decode
+    /// (a missing key throws for a non-optional, even with a default).
+    var traces: [String]?
     /// Label tags without prefix ("organic", "eu-organic", "vegan").
     var labels: [String] = []
     /// Category tags without prefix, most specific LAST ("yogurts", "skyr").

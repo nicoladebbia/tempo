@@ -481,7 +481,7 @@ extension FoodProduct {
     /// allergen (no point flagging both "contains milk" and "may contain milk").
     var displayTraces: [String] {
         let confirmed = Set(displayAllergens)
-        let matched = Set(traces.compactMap(Self.displayAllergenName(for:)))
+        let matched = Set((traces ?? []).compactMap(Self.displayAllergenName(for:)))
         return Self.allergenDisplayOrder.filter { matched.contains($0) && !confirmed.contains($0) }
     }
 
