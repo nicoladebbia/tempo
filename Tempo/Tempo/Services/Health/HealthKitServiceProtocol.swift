@@ -64,6 +64,9 @@ struct WorkoutSample {
     let averageHeartRate: Double?
     let maxHeartRate: Double?
     let distanceMeters: Double?
+    /// Total lifted volume (kg) for a strength session — written as workout
+    /// metadata. nil for everything else.
+    var totalVolumeKg: Double?
 }
 
 // MARK: - BodyCompositionData

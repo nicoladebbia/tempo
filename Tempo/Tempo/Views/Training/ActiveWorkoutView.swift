@@ -781,7 +781,13 @@ struct ActiveWorkoutView: View {
                 if viewModel.currentSetHasPendingDrop {
                     viewModel.removeTrailingDropSet(modelContext: modelContext)
                 } else {
-                    viewModel.addDropSet(modelContext: modelContext)
+                    // Base the drop on what's dialed in NOW (kg), not the
+                    // set's stale prescribed target. Bodyweight lifts drop
+                    // off their prescribed load — no meaningful entered kg.
+                    viewModel.addDropSet(
+                        enteredWeightKg: isBodyweightLift ? nil : weightUnit.convert(inputWeight, to: .kg),
+                        modelContext: modelContext
+                    )
                 }
                 HapticManager.selection()
             } label: {
