@@ -155,6 +155,67 @@ final class ReceiptPreParserTests: XCTestCase {
         XCTAssertTrue(result.candidateItems.first?.feeHint ?? false)
     }
 
+    // MARK: - Bare store-name line (row 0 only)
+
+    func test_bareStoreNameLine_atRowZero_notCountedAsItem() {
+        let result = ReceiptPreParser.parse(rows: rows([
+            "Publix.",
+            "BANANAS|0.69",
+            "Subtotal|0.69",
+        ]), storeHint: nil)
+
+        XCTAssertEqual(result.candidateItems.count, 1)
+        XCTAssertTrue(result.candidateItems.first?.rawText.contains("BANANAS") ?? false)
+    }
+
+    func test_titleCaseItemName_atRowZero_notFilteredAsStoreName_whenFollowedByPrice() {
+        // A genuine item as the very first row (no store letterhead OCR'd
+        // above it) still has its own price on the SAME row, so it's never
+        // shape-matched by the store-name filter (which requires the row to
+        // carry no price at all).
+        let result = ReceiptPreParser.parse(rows: rows([
+            "Bananas|0.69",
+        ]), storeHint: nil)
+
+        XCTAssertEqual(result.candidateItems.count, 1)
+    }
+
+    // MARK: - Near-duplicate OCR reading dedup
+
+    func test_nearDuplicateReading_sameLineTwice_collapsedToOne() {
+        let result = ReceiptPreParser.parse(rows: rows([
+            "Hazelnuts|5.99",
+            "HazP nUTS|5.99",
+        ]), storeHint: nil)
+
+        XCTAssertEqual(result.candidateItems.count, 1)
+    }
+
+    func test_differentItemsSamePriceFarApart_bothKept_notCollapsed() {
+        // Code-review finding, round 2: two DIFFERENT items that merely
+        // share a common price point must not be silently collapsed into
+        // one just because they're far apart on the receipt and happen to
+        // overlap a few letters. The near-duplicate dedup is windowed
+        // (adjacent rows only) specifically to prevent this.
+        let fillerNames = [
+            "Bananas", "Carrots", "Onions", "Potatoes", "Lettuce",
+            "Tomatoes", "Cucumbers", "Peppers", "Zucchini", "Broccoli",
+        ]
+        var lines = ["Chicken Breast|4.99"]
+        for (i, name) in fillerNames.enumerated() {
+            // Distinct name AND distinct price per filler row, so none of
+            // them are near-duplicates of EACH OTHER either — isolates the
+            // thing this test actually checks: the two same-priced,
+            // dissimilar-text bookend rows, 11 rows apart, are not wrongly
+            // collapsed just for sharing a price.
+            lines.append("\(name)|\(String(format: "%.2f", 1.00 + Double(i) * 0.10))")
+        }
+        lines.append("Cheddar Cheese|4.99")
+        let result = ReceiptPreParser.parse(rows: rows(lines), storeHint: nil)
+
+        XCTAssertEqual(result.candidateItems.count, lines.count)
+    }
+
     // MARK: - Department headers
 
     func test_departmentHeader_collectedAsHint_notAsItem() {

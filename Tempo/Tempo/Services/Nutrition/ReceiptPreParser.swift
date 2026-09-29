@@ -51,6 +51,10 @@ struct ReceiptPreParseItemRow: Sendable, Equatable {
     var nonFoodHint: Bool = false
     /// Heuristic: deposit/bottle/bag fee keyword matched.
     var feeHint: Bool = false
+    /// The source row's Vision OCR confidence — used only to pick the
+    /// better reading when the same physical line was detected twice
+    /// (see the near-duplicate dedup pass in `parse`).
+    var confidence: Double = 1.0
 }
 
 // MARK: - ReceiptPreParseResult
@@ -116,6 +120,17 @@ enum ReceiptPreParser {
         "receipt id",
         "www.",
         ".com",
+        // Payment/card detail block — these lines were leaking through as
+        // spurious candidate items on real receipts (Auth/Trace, Reference,
+        // EMV AID, card network/entry-method lines all sit between the
+        // "SAVINGS" banner and the true footer boilerplate, none of which
+        // the markers above catch).
+        "auth/trace",
+        "reference:",
+        "debit mastercard",
+        "credit card",
+        "entry method",
+        "a0000000",
     ]
 
     private static let nonFoodKeywords = [
@@ -203,14 +218,42 @@ enum ReceiptPreParser {
             if lower.contains(voidedSectionMarkers[0]) {
                 i += 1; continue // the "Voided Items" header row itself
             }
+            // "Change    6.68" — the summary block's change-due line, not a
+            // product. "cash"/"credit"/"debit" above already catch the rest
+            // of that block; this one slipped through as a false item since
+            // "change" isn't in paymentKeywords (deliberately, to keep
+            // paymentAmount meaning "what was tendered", not the change).
+            if lower.hasPrefix("change") {
+                i += 1; continue
+            }
             if pastFooter {
+                i += 1; continue
+            }
+            // Store header block (address/phone/manager line) — only
+            // before the first real item has been found, since these
+            // phrases never legitimately recur mid-receipt. Confirmed as a
+            // real false-item source on all 3 real receipts (street
+            // address, city/state/zip, phone number, and "Store Manager:"
+            // lines all had no price and no other exclusion rule).
+            if items.isEmpty, isLikelyStoreHeaderLine(row.text) {
+                i += 1; continue
+            }
+            // Row 0 only — see isLikelyBareStoreNameLine's doc comment.
+            if i == 0, items.isEmpty,
+               isLikelyBareStoreNameLine(row.text, nextRowText: rows.indices.contains(i + 1) ? rows[i + 1].text : nil)
+            {
                 i += 1; continue
             }
 
             // "You saved: $X" — attach to the previous item. Also accumulate
             // into the running total-savings figure (summed, not maxed) —
             // voided items don't count since they were never purchased.
-            if lower.hasPrefix(youSavedPrefix) || lower.contains("you saved") {
+            // Matched on "saved" alone (not the full "you saved" phrase):
+            // OCR regularly misreads the leading "You" as "fou", "Vou", or
+            // drops it to "ou" (confirmed on 2 real receipts), and a
+            // standalone "saved: $X.XX" line is never anything else on a
+            // Publix receipt.
+            if lower.hasPrefix(youSavedPrefix) || lower.contains("you saved") || lower.contains("saved") {
                 if let value = firstAmount(in: row.text) {
                     if inVoidedSection {
                         if !voided.isEmpty {
@@ -224,9 +267,15 @@ enum ReceiptPreParser {
                 i += 1; continue
             }
 
-            // "Promotion  -5.35" — a standalone discount line, attach to the
-            // item(s) immediately above and don't treat as a product. Also
-            // rolls into the running total-savings figure, same as above.
+            // "Promotion  -5.35" — a standalone discount line. Attaches its
+            // adjustment to the item immediately above (for display) AND is
+            // itself appended as its own `isDiscountLine`-flagged row — the
+            // truth data for receipt r3 confirms a printed "Promotion" line
+            // is a real row the store itself prints as one of its N listed
+            // lines (subtotal reconciles only when it's included), so
+            // dropping it entirely mis-modeled the receipt rather than
+            // fixing an over-count. Also rolls into the running
+            // total-savings figure, same as "You saved".
             if lower.hasPrefix(promotionKeyword) {
                 if let value = firstAmount(in: row.text) {
                     let magnitude = abs(value)
@@ -238,6 +287,7 @@ enum ReceiptPreParser {
                     }
                     var discountRow = ReceiptPreParseItemRow(rawText: row.text, totalPrice: -magnitude)
                     discountRow.isDiscountLine = true
+                    discountRow.confidence = row.confidence
                     if inVoidedSection {
                         voided.append(discountRow)
                     } else {
@@ -267,17 +317,35 @@ enum ReceiptPreParser {
 
             // Continuation-only rows (weight/qty lines with no leading item
             // name of their own) attach to the PREVIOUS row when that row
-            // had no price yet.
-            if isContinuationLine(row.text), let price = firstAmount(in: row.text, requireDollarOrTrailing: true) {
-                if inVoidedSection {
-                    if !voided.isEmpty, voided[voided.count - 1].totalPrice == nil {
-                        voided[voided.count - 1].totalPrice = price
-                        voided[voided.count - 1].saleNote = row.text.trimmingCharacters(in: .whitespaces)
+            // had no price yet. Matched on shape alone (not requiring a
+            // parseable price too) and ALWAYS consumed here — a continuation
+            // line whose price regex happens to fail (OCR noise) must still
+            // never fall through to the generic item bucket below, or it
+            // becomes a spurious candidate item with a garbled name and no
+            // real price (a confirmed over-count source on real receipts).
+            if isContinuationLine(row.text) {
+                if let price = firstAmount(in: row.text, requireDollarOrTrailing: true) {
+                    if inVoidedSection {
+                        if !voided.isEmpty, voided[voided.count - 1].totalPrice == nil {
+                            voided[voided.count - 1].totalPrice = price
+                            voided[voided.count - 1].saleNote = row.text.trimmingCharacters(in: .whitespaces)
+                        }
+                    } else if !items.isEmpty, items[items.count - 1].totalPrice == nil {
+                        items[items.count - 1].totalPrice = price
+                        items[items.count - 1].saleNote = row.text.trimmingCharacters(in: .whitespaces)
                     }
-                } else if !items.isEmpty, items[items.count - 1].totalPrice == nil {
-                    items[items.count - 1].totalPrice = price
-                    items[items.count - 1].saleNote = row.text.trimmingCharacters(in: .whitespaces)
                 }
+                i += 1; continue
+            }
+
+            // A row with no letters at all (just digits/currency/punctuation)
+            // is never a real item on its own — it's almost always a price
+            // fragment split off during row reconstruction (confirmed as a
+            // false-item source on real receipts: bare "5.15", "150.00"
+            // rows). Any legitimate bare-number line (weight/qty
+            // continuations) was already consumed by `isContinuationLine`
+            // above, so anything reaching here with no letters is noise.
+            if !row.text.contains(where: \.isLetter) {
                 i += 1; continue
             }
 
@@ -288,6 +356,7 @@ enum ReceiptPreParser {
             itemRow.taxFlag = detectTaxFlag(row.text)
             itemRow.nonFoodHint = nonFoodKeywords.contains { lower.contains($0) }
             itemRow.feeHint = feeKeywords.contains { lower.contains($0) }
+            itemRow.confidence = row.confidence
             if inVoidedSection {
                 voided.append(itemRow)
             } else {
@@ -296,11 +365,105 @@ enum ReceiptPreParser {
             i += 1
         }
 
-        result.candidateItems = items
+        result.candidateItems = Self.dedupeNearDuplicateReadings(items)
         result.voidedItems = voided
         result.hintsBlock = buildHintsBlock(result)
         result.duplicateKey = buildDuplicateKey(store: result.storeNameGuess, total: result.totalAmount, fullText: fullText)
         return result
+    }
+
+    // MARK: - Near-duplicate dedup
+
+    /// Row reconstruction can occasionally emit the SAME physical receipt
+    /// line twice with different OCR garbling (e.g. Vision reads a partly
+    /// shadowed line once cleanly and once as noise from an overlapping
+    /// text box). Confirmed on real receipts: "Hazelnuts...5.99" also
+    /// appearing as "HazP nUTS 5.99". Both copies carry the same printed
+    /// price and highly overlapping letters, so: when two candidate items
+    /// share an exact non-nil `totalPrice` AND their lowercase-letters-only
+    /// text is a strong match (Jaccard over character bigrams), keep only
+    /// the higher-OCR-confidence reading and drop the other as a duplicate
+    /// rather than a second, false item.
+    /// Only rows within this many positions of each other are considered —
+    /// a genuine duplicate OCR reading of one physical text box lands
+    /// immediately adjacent in the row list (Vision emits both boxes back
+    /// to back). Without this window, two DIFFERENT items that merely
+    /// happen to share a common price point (very common: $2.99, $4.99…)
+    /// and a few overlapping words could be wrongly collapsed into one,
+    /// silently dropping a real purchased item — the opposite failure mode
+    /// from the over-counting bug this round set out to fix, and worse
+    /// (silent data loss vs. a visible extra row). Code-review finding,
+    /// round 2.
+    private static let nearDuplicateWindow = 3
+
+    private static func dedupeNearDuplicateReadings(_ rows: [ReceiptPreParseItemRow]) -> [ReceiptPreParseItemRow] {
+        guard rows.count > 1 else {
+            return rows
+        }
+        var dropped = Set<Int>()
+        for i in 0 ..< rows.count {
+            if dropped.contains(i) {
+                continue
+            }
+            guard let priceI = rows[i].totalPrice else {
+                continue
+            }
+            for j in (i + 1) ..< min(i + 1 + nearDuplicateWindow, rows.count) {
+                if dropped.contains(j) {
+                    continue
+                }
+                guard let priceJ = rows[j].totalPrice, abs(priceI - priceJ) < 0.005 else {
+                    continue
+                }
+                guard letterBigramSimilarity(rows[i].rawText, rows[j].rawText) >= 0.5 else {
+                    continue
+                }
+                // Same price, similar text -> near-duplicate OCR reading of
+                // one physical line. Drop the lower-confidence copy.
+                if rows[i].confidence >= rows[j].confidence {
+                    dropped.insert(j)
+                } else {
+                    dropped.insert(i)
+                }
+            }
+        }
+        guard !dropped.isEmpty else {
+            return rows
+        }
+        return rows.enumerated().filter { !dropped.contains($0.offset) }.map(\.element)
+    }
+
+    /// Character-bigram Jaccard similarity over lowercase-letters-only text
+    /// (digits/punctuation/spacing stripped so OCR noise in those positions
+    /// doesn't affect the score). Cheap and order-sensitive enough to avoid
+    /// matching two genuinely different short item names that merely share
+    /// a few letters.
+    /// Not private: reused by `ReceiptMultiPhotoStitcher` to detect
+    /// near-duplicate row re-reads at the seam between two shots of the
+    /// same long receipt.
+    static func letterBigramSimilarity(_ a: String, _ b: String) -> Double {
+        func bigrams(_ s: String) -> Set<String> {
+            let letters = Array(s.lowercased().filter(\.isLetter))
+            guard letters.count >= 2 else {
+                return letters.isEmpty ? [] : [String(letters)]
+            }
+            var result = Set<String>()
+            for i in 0 ..< (letters.count - 1) {
+                result.insert(String(letters[i ... i + 1]))
+            }
+            return result
+        }
+        let ba = bigrams(a)
+        let bb = bigrams(b)
+        if ba.isEmpty || bb.isEmpty {
+            return ba == bb ? 1.0 : 0.0
+        }
+        let intersection = ba.intersection(bb).count
+        let union = ba.union(bb).count
+        guard union > 0 else {
+            return 0
+        }
+        return Double(intersection) / Double(union)
     }
 
     // MARK: - Amount parsing
@@ -381,14 +544,101 @@ enum ReceiptPreParser {
         return known.contains(trimmed) || (trimmed.split(separator: " ").count == 1 && trimmed.count < 12)
     }
 
+    /// Store address/phone/manager block lines — confirmed false-item
+    /// sources on all 3 real receipts ("1100 6th St", "Miami Beach, FL
+    /// 33139-6312", "(305) 535-2212", "Store Manager: Anthony Padilla").
+    /// Only ever meaningful before the first real item, so callers should
+    /// gate this on `items.isEmpty`.
+    private static func isLikelyStoreHeaderLine(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        if lower.contains("store manager") {
+            return true
+        }
+        // Phone: "(305) 535-2212", "305-535-2212", or a bare "(305)".
+        if text.range(of: #"\(?\d{3}\)?[\s.-]?\d{3}[\s.-]\d{4}"#, options: .regularExpression) != nil {
+            return true
+        }
+        if text.range(of: #"^\(\d{3}\)\s*$"#, options: .regularExpression) != nil {
+            return true
+        }
+        // Street address: "1100 6th St", "1100 Gth St" (OCR misread of "6th").
+        if text.range(
+            of: #"^\d{1,6}\s+\S+\s+(St|Street|Ave|Avenue|Blvd|Rd|Dr|Way|Ct|Hwy)\.?$"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) != nil {
+            return true
+        }
+        // "Miami Beach, FL 33139-6312" / "Miami Beach. FL 33139"
+        if text.range(of: #"[,.]\s*[A-Za-z]{2}\s*\d{5}"#, options: .regularExpression) != nil {
+            return true
+        }
+        // Store cross-street nickname, e.g. "Fifth & Alton" (some Publix
+        // branches are named by their intersection rather than a street
+        // address). Matched on genuine Title Case words only (each word
+        // capitalized, rest lowercase) so it never catches an all-caps
+        // abbreviated item name that happens to contain "&" (e.g.
+        // "Dwny Sht Lav & Van" — a real truth item on receipt r3).
+        if text.range(
+            of: #"^[A-Z][a-z]+\s*&\s*[A-Z][a-z]+$"#,
+            options: .regularExpression
+        ) != nil {
+            return true
+        }
+        return false
+    }
+
+    /// Bare store name/logo line — the VERY FIRST row of the receipt only
+    /// ("Publix.", "Target", "Walmart"): a short word/phrase, letters only,
+    /// no digits, no price, no continuation line following it (so it can't
+    /// be an item whose price is on the next row). Deliberately NOT part of
+    /// `isLikelyStoreHeaderLine` (which is shape-based and would just as
+    /// happily match a department header like "PRODUCE" or a single-word
+    /// item like "BANANAS" wherever they occur) — restricted to `i == 0` at
+    /// the call site instead, which a department header or item name is
+    /// never at on a real receipt (something always prints above them).
+    /// Confirmed false-item source on r1: a bare "Publix." row at index 0
+    /// slipped through every other filter and became item #1, which then
+    /// disabled the `items.isEmpty`-gated header-line filter for every
+    /// genuine header line that followed it (the real address/phone/
+    /// manager block right after it).
+    ///
+    /// Excludes ALL-CAPS text deliberately: a store's printed logo line is
+    /// virtually always Title Case ("Publix.", "Target"), while a bare
+    /// ALL-CAPS word at row 0 is indistinguishable from — and in practice
+    /// usually IS — a department header ("PRODUCE") or single-word item
+    /// name, which this helper must not swallow (confirmed regression:
+    /// `test_departmentHeader_collectedAsHint_notAsItem` uses "PRODUCE" as
+    /// its first row).
+    private static func isLikelyBareStoreNameLine(_ text: String, nextRowText: String?) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard trimmed.range(of: #"^[A-Za-z][A-Za-z' ]{0,23}[.,]?$"#, options: .regularExpression) != nil else {
+            return false
+        }
+        guard trimmed.split(separator: " ").count <= 2 else {
+            return false
+        }
+        guard trimmed != trimmed.uppercased() else {
+            return false
+        }
+        if let nextRowText, isContinuationLine(nextRowText) {
+            return false
+        }
+        return true
+    }
+
     /// A row like "$2.99/lb x 1.64 lb" or "1 @ 2 for $7.00" or "3 @ 6.71"
     /// that continues the PREVIOUS item rather than naming a new one.
+    /// `[l1]b` throughout matches "lb" OR Vision's very common OCR misread
+    /// of it as "1b" (lowercase L -> digit 1) — confirmed on 2 real
+    /// receipts ("$2.99/1b x 1.64 lb"). Similarly `[il1]` in the qty
+    /// position tolerates "1" being misread as "i"/"l" ("i @ 2 for $7.19").
     private static func isContinuationLine(_ text: String) -> Bool {
         let patterns = [
-            #"^\s*\$?\d+(\.\d+)?\s*/\s*(lb|kg)\s*x\s*\d"#, // "$2.99/lb x 1.64 lb"
-            #"^\s*\d+(\.\d+)?\s*(lb|kg)\s*@\s*\$?\d"#, // "2.36 lb @ 2.99/lb"
-            #"^\s*\d+\s*@\s*\d"#, // "3 @ 6.71" / "1 @ 2 for $7.00"
-            #"^\s*\d+(\.\d+)?\s*lb\s*@"#,
+            #"^\s*\$?\d+(\.\d+)?\s*/\s*[l1]b\s*x\s*\d"#, // "$2.99/lb x 1.64 lb" (or "/1b")
+            #"^\s*\d+(\.\d+)?\s*[l1]b\s*@\s*\$?\d"#, // "2.36 lb @ 2.99/lb"
+            #"^\s*[il\d]+\s*@\s*\d"#, // "3 @ 6.71" / "1 @ 2 for $7.00" / "i @ 2 for $7.19"
+            #"^\s*\d+(\.\d+)?\s*[l1]b\s*@"#,
+            #"^\s*\$?\d+[.,]\d{2}\s*x\s*\d+\b"#, // "$7.49 x 3" / "$7,49 x 3" multi-buy unit price
         ]
         let lower = text.lowercased()
         return patterns.contains { lower.range(of: $0, options: .regularExpression) != nil }
