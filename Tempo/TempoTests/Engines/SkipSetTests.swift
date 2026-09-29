@@ -106,14 +106,20 @@ final class SkipSetTests: XCTestCase {
     func testSkipLastSetOfLastExerciseEndsInSummary() throws {
         let context = try makeContext()
         let vm = makeVM()
-        let plan = seed(warmups: 0, working: 1, context: context)
+        // Two sets: log the first, skip the last → a real (non-empty) session
+        // ends in the summary. Skipping EVERYTHING is covered separately
+        // (LoggerCursorAndCleanupTests) — that one must not reach summary.
+        let plan = seed(warmups: 0, working: 2, context: context)
         vm.todayPlan = plan
         enterSetActive(vm)
+        vm.logSet(weight: 60, reps: 8, modelContext: context)
+        vm.skipRest()
 
         vm.skipCurrentSet(modelContext: context)
 
         XCTAssertEqual(vm.sessionState, .summary)
-        XCTAssertTrue(plan.orderedExercises[0].orderedSets.isEmpty)
+        XCTAssertEqual(plan.orderedExercises[0].orderedSets.count, 1)
+        vm.resetState()
     }
 
     func testSkipAdvancesToNextExerciseWhenCurrentEmpties() throws {
