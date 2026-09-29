@@ -272,6 +272,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         exercise: Exercise,
         weight: Double,
         reps: Int,
+        rir: Int,
         workoutPlanID: UUID? = nil
     ) -> PersonalRecord? {
         guard weight > 0, reps > 0 else {
@@ -283,13 +284,26 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         // the Epley formula every other e1RM in the app uses (PlannedSet.
         // estimated1RM, StrengthStandards.epleyE1RM). Now the single shared
         // formula, so a PR and the progress chart never silently disagree.
-        let estimated1RM = StrengthStandards.epleyE1RM(weight: weight, reps: reps)
+        // RIR-aware like PlannedSet.estimated1RM, so the PR list and the
+        // history-fed "BEST e1RM"/charts show the same number.
+        let estimated1RM = StrengthStandards.e1RM(weight: weight, reps: reps, rir: rir)
 
         // Compare to all-time PR — only reps within the rep cap are trusted to
         // estimate a 1RM at all (see e1RMPersonalRecordRepCap).
         if reps <= Self.e1RMPersonalRecordRepCap {
             let currentPR = exercise.allTimePR ?? 0
-            if estimated1RM > currentPR {
+            // A PR must also be a better PERFORMANCE than the best set on
+            // record — a higher RIR assumption alone (or a PR stored before
+            // e1RM became RIR-aware) must never celebrate the same lift.
+            let bestPerformance = (exercise.personalRecords ?? [])
+                .filter { $0.type == .oneRepMax }
+                .map { pr -> Double in
+                    guard let w = pr.contextWeightKg, let r = pr.contextReps else { return pr.value }
+                    return StrengthStandards.epleyE1RM(weight: w, reps: r)
+                }
+                .max() ?? 0
+            let performance = StrengthStandards.epleyE1RM(weight: weight, reps: reps)
+            if estimated1RM > currentPR, performance > bestPerformance {
                 return PersonalRecord(
                     type: .oneRepMax,
                     value: estimated1RM,
@@ -666,8 +680,15 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
     ) -> Bool {
         let cal = Calendar.current
         let startDate = trainingStartDate ?? cal.date(byAdding: .month, value: -3, to: date) ?? date
-        let weeksSinceStart = cal.dateComponents([.weekOfYear], from: cal.startOfDay(for: startDate), to: cal.startOfDay(for: date))
-            .weekOfYear ?? 0
+        // Calendar-week (Monday) aligned: the plan week is Mon–Sun, so every
+        // day of one plan week must agree on deload status. Counting rolling
+        // 7-day spans from the start DATE split a week in two whenever the
+        // start wasn't a Monday.
+        let weeksSinceStart = cal.dateComponents(
+            [.weekOfYear],
+            from: Self.mondayStart(of: startDate, calendar: cal),
+            to: Self.mondayStart(of: date, calendar: cal)
+        ).weekOfYear ?? 0
         let frequency = max(1, deloadFrequencyWeeks)
         // Periodic baseline: week N, 2N, 3N… are deload weeks.
         let periodic = weeksSinceStart > 0 && (weeksSinceStart % frequency) == 0
@@ -681,6 +702,16 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         return periodic || fatigueTriggered
     }
 
+    /// Start of the Monday-based week containing `date`.
+    static func mondayStart(of date: Date, calendar: Calendar) -> Date {
+        var cal = calendar
+        cal.firstWeekday = 2
+        let day = cal.startOfDay(for: date)
+        let weekday = cal.component(.weekday, from: day) // 1 = Sunday … 7 = Saturday
+        let daysFromMonday = (weekday + 5) % 7
+        return cal.date(byAdding: .day, value: -daysFromMonday, to: day) ?? day
+    }
+
     /// Mean-RPE fatigue level at/above which an early deload is triggered. 8.5
     /// = sessions consistently feeling near-maximal — a clear over-reaching
     /// signal independent of the calendar.
@@ -688,6 +719,36 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
 
     func deloadWeightMultiplier() -> Double {
         0.6 // 40% reduction
+    }
+
+    // MARK: - Load scaling (recovery × deload)
+
+    /// Lowest combined weight multiplier recovery + deload may ever produce —
+    /// the deload value itself. Stacking a yellow day on a deload week (or an
+    /// AI-trimmed recovery value) must never cut a load below a deload.
+    static let minCombinedLoadScale = 0.6
+
+    /// Weight multiplier implied by a plan's `recoveryAdjustment`. That value is
+    /// a VOLUME scalar: upper-yellow (0.8) is "-20% volume only" and keeps the
+    /// load; lower-yellow (< 0.8) is "-20% volume, -5% weight"
+    /// (EXERCISE_SCIENCE.md §recovery table). Volume itself is cut in the set
+    /// count, so it is never applied to the weight a second time.
+    static func recoveryLoadScale(recoveryAdjustment: Double) -> Double {
+        recoveryAdjustment >= 0.8 ? 1.0 : 0.95
+    }
+
+    /// Recovery load scale × deload multiplier, floored at
+    /// `minCombinedLoadScale`.
+    static func combinedLoadScale(recoveryAdjustment: Double, deloadMultiplier: Double) -> Double {
+        max(minCombinedLoadScale, recoveryLoadScale(recoveryAdjustment: recoveryAdjustment) * deloadMultiplier)
+    }
+
+    /// Working sets dropped from each compound on a recovery-reduced day
+    /// (isolations keep theirs). One set for a normal yellow; two when the AI
+    /// trimmed volume to 0.6 or below.
+    static func recoverySetsDropped(recoveryAdjustment: Double) -> Int {
+        guard recoveryAdjustment < 1.0 else { return 0 }
+        return recoveryAdjustment <= 0.6 ? 2 : 1
     }
 
     // MARK: - Private Helpers

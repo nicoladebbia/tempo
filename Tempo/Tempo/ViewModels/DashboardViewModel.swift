@@ -45,13 +45,18 @@ final class DashboardViewModel {
         let color: Color
     }
 
+    /// "Resume" for a session that was started and not finished, else "Start".
+    static func workoutActionTitle(name: String, inProgress: Bool) -> String {
+        "\(inProgress ? "Resume" : "Start") \(name) Workout"
+    }
+
     var quickActions: [QuickAction] {
         var actions: [QuickAction] = []
 
         // Workout planned but not done
         if move.workoutStatus == .planned, let name = move.workoutName {
             actions.append(QuickAction(
-                title: "Start \(name) Workout",
+                title: Self.workoutActionTitle(name: name, inProgress: move.workoutInProgress),
                 icon: "dumbbell.fill",
                 targetTab: .training,
                 color: .tempoAmber
@@ -706,7 +711,10 @@ final class DashboardViewModel {
             strain: whoopStrain,
             heartRateCurrent: latestHR,
             isConnected: healthKitConnected || !workouts.isEmpty,
-            lastSync: now
+            lastSync: now,
+            // Owned by refreshTrainingStatus (plan state, not HealthKit) —
+            // carry it so a full refresh doesn't flip "Resume" back to "Start".
+            workoutInProgress: move.workoutInProgress
         )
 
         // Non-negotiables are populated by refreshAccountability() from real data.
@@ -901,7 +909,8 @@ final class DashboardViewModel {
             strain: move.strain,
             heartRateCurrent: move.heartRateCurrent,
             isConnected: move.isConnected,
-            lastSync: move.lastSync
+            lastSync: move.lastSync,
+            workoutInProgress: todayPlan.status == .inProgress
         )
 
         // Generate meal timing suggestions based on training status (Task 3)
@@ -1658,20 +1667,12 @@ final class DashboardViewModel {
         }
     }
 
-    /// Deload week detection. Uses deload frequency from settings (defaults to every 5 weeks).
-    /// Approximation based on week-of-year modulo.
-    private(set) var deloadFrequencyWeeks: Int = 5
+    /// Deload week — resolved by `TrainingEngineProtocol.isDeloadWeek(on:modelContext:)`,
+    /// the same rule Training prescribes with, so the two tabs never disagree.
+    private(set) var isDeloadWeek = false
 
-    private var isDeloadWeek: Bool {
-        guard deloadFrequencyWeeks > 0 else {
-            return false
-        }
-        let weekOfYear = Calendar.current.component(.weekOfYear, from: Date())
-        return weekOfYear % deloadFrequencyWeeks == 0
-    }
-
-    func setDeloadFrequency(_ weeks: Int) {
-        deloadFrequencyWeeks = weeks
+    func setDeloadWeek(_ isDeload: Bool) {
+        isDeloadWeek = isDeload
     }
 
     // MARK: - Preview Helper

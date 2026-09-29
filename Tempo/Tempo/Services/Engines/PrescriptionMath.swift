@@ -5,7 +5,7 @@
 // §11.12 — the set-level prescription brain, pure and unit-tested.
 //
 // Anchors every working prescription to the lift's CURRENT estimated 1RM
-// (recency-decayed rolling max) instead of last-session weight + increment:
+// (recency-decayed rolling max; no decay inside a 14-day grace) instead of last-session weight + increment:
 //
 //   weight for (reps @ RIR) = e1RM / (1 + (reps + RIR) / 30)     [reverse Epley]
 //
@@ -49,6 +49,10 @@ enum PrescriptionMath {
     /// Recency decay per day of age on a history e1RM — an 85 kg session
     /// three weeks ago outranks a stale 90 from three months back.
     static let dailyDecay = 0.995
+    /// Days a sample is fully trusted before the recency decay starts. Without
+    /// a grace, a session that hit its prescription exactly re-logged the
+    /// decayed anchor, and the loss compounded session over session.
+    static let decayGraceDays = 14.0
     /// History window considered for the rolling e1RM.
     static let windowDays = 60
     /// Minimum scored sessions before the e1RM path takes over from the
@@ -65,7 +69,9 @@ enum PrescriptionMath {
         guard e1RM > 0, reps > 0, rir >= 0 else {
             return 0
         }
-        return e1RM / (1 + Double(reps + rir) / 30.0)
+        // Same rep cap as the e1RM estimate (StrengthStandards.e1RMRepCap) so
+        // hitting any scheme round-trips to the anchor it came from.
+        return e1RM / (1 + Double(min(reps, StrengthStandards.e1RMRepCap) + rir) / 30.0)
     }
 
     /// Rolling e1RM: recency-decayed max over the trailing window.
@@ -79,7 +85,7 @@ enum PrescriptionMath {
             else {
                 return nil
             }
-            let ageDays = max(0, now.timeIntervalSince(sample.date) / 86_400)
+            let ageDays = max(0, now.timeIntervalSince(sample.date) / 86_400 - decayGraceDays)
             return e1RM * pow(dailyDecay, ageDays)
         }
         guard scored.count >= minSamples else {

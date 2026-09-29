@@ -21,6 +21,13 @@ enum TrainerTestDayDetector {
     /// unrelated "RM" abbreviation elsewhere can't false-positive.
     private static let repMaxPattern = #"\b\d+\s?rm\b"#
 
+    /// Percentage-of-max PRESCRIPTIONS ("75% 1RM", "70% of your 5RM", "80% del
+    /// massimale") name a max as the load reference — that's a working set
+    /// at a fraction of a known max, the opposite of a test. Stripped from
+    /// the text before matching so only genuine test wording is left.
+    private static let percentOfMaxPattern =
+        #"\d+(?:[.,]\d+)?\s*%\s*(?:(?:of|del|dello|della|dei|di|dell['’]?)\s*)?(?:(?:your|the|il|lo|un)\s+)?(?:\d+\s?rm\b|massimal[ei]\b)"#
+
     /// Whole-word/phrase markers, English + Italian. Matched case-insensitive
     /// against title/notes/name/detail text combined. "test" alone is
     /// included — every example in the brief except "5RM"/"Yo-Yo" contains
@@ -43,7 +50,10 @@ enum TrainerTestDayDetector {
     }
 
     static func isTest(_ texts: [String]) -> Bool {
-        let combined = texts.filter { !$0.isEmpty }.joined(separator: " \u{2022} ")
+        let joined = texts.filter { !$0.isEmpty }.joined(separator: " \u{2022} ")
+        let combined = joined.replacingOccurrences(
+            of: percentOfMaxPattern, with: " ", options: [.regularExpression, .caseInsensitive]
+        )
         guard !combined.isEmpty else {
             return false
         }

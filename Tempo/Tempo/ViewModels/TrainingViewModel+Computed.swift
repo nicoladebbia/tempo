@@ -42,6 +42,10 @@ extension TrainingViewModel {
         todayPlan?.orderedExercises.count ?? 0
     }
 
+    var performedExercises: Int {
+        todayPlan?.performedExerciseCount ?? 0
+    }
+
     var totalSets: Int {
         todayPlan?.totalSets ?? 0
     }
@@ -102,19 +106,23 @@ extension TrainingViewModel {
         let sets = exercise.orderedSets
         let total = sets.count
 
-        // Indicate if current set is a warmup
-        if currentSetIndex < sets.count, sets[currentSetIndex].isWarmup {
-            let warmupCount = sets.filter(\.isWarmup).count
-            let warmupIndex = sets.prefix(currentSetIndex + 1).filter(\.isWarmup).count
-            return "Warmup \(warmupIndex) of \(warmupCount)"
+        guard total > 0 else {
+            return ""
         }
+        return Self.setPositionText(in: sets, at: currentSetIndex)
+    }
 
-        let workingSets = sets.filter { !$0.isWarmup }
-        let workingIndex = currentSetIndex - sets.filter(\.isWarmup).count + 1
-        if workingSets.count < total {
-            return "Set \(workingIndex) of \(workingSets.count)"
-        }
-        return "Set \(currentSetIndex + 1) of \(total)"
+    /// "Warmup 1 of 2" / "Set 3 of 4" for the set at `index` — warm-ups and
+    /// working sets are numbered separately. The ONE rule every counter uses:
+    /// the rest screen used to count warm-ups as sets ("next: set 4 of 6")
+    /// while the set screen didn't ("Set 1 of 4").
+    static func setPositionText(in sets: [PlannedSet], at index: Int, capitalized: Bool = true) -> String {
+        let i = min(max(index, 0), max(sets.count - 1, 0))
+        let isWarmup = i < sets.count && sets[i].isWarmup
+        let group = sets.filter { $0.isWarmup == isWarmup }
+        let number = sets.prefix(i + 1).filter { $0.isWarmup == isWarmup }.count
+        let noun = isWarmup ? "Warmup" : "Set"
+        return "\(capitalized ? noun : noun.lowercased()) \(max(number, 1)) of \(group.count)"
     }
 
     /// Context for the rest screen: what the user is resting *toward*.
@@ -138,12 +146,12 @@ extension TrainingViewModel {
         if case let .supersetJump(exIdx, setIdx) = pendingRestAction {
             let target = exIdx < exercises.count ? exercises[exIdx] : nil
             let ex = target?.exercise
-            let total = target?.orderedSets.count ?? 0
+            let targetSets = target?.orderedSets ?? []
             let isTransition = exIdx != currentExerciseIndex
             return RestContext(
                 exercise: ex,
                 isExerciseTransition: isTransition,
-                label: ex.map { "Next: \($0.name) · set \(min(setIdx + 1, max(total, 1))) of \(total)" }
+                label: ex.map { "Next: \($0.name) · \(Self.setPositionText(in: targetSets, at: setIdx, capitalized: false))" }
                     ?? "Up next",
                 instructions: isTransition ? ex?.instructions : nil,
                 cues: isTransition ? (ex?.cues ?? []) : []
@@ -162,13 +170,14 @@ extension TrainingViewModel {
             )
         } else {
             let ex = currentExercise?.exercise
-            // Resting between sets — the next set is currentSetIndex + 1.
-            let total = currentExercise?.orderedSets.count ?? 0
-            let nextSetNumber = min(currentSetIndex + 2, total)
+            // Resting between sets — toward the next uncompleted set.
+            let sets = currentExercise?.orderedSets ?? []
+            let nextIndex = sets.indices.first { $0 > currentSetIndex && !sets[$0].completed }
+                ?? min(currentSetIndex + 1, max(sets.count - 1, 0))
             return RestContext(
                 exercise: ex,
                 isExerciseTransition: false,
-                label: ex.map { "\($0.name) · next: set \(nextSetNumber) of \(total)" } ?? "",
+                label: ex.map { "\($0.name) · next: \(Self.setPositionText(in: sets, at: nextIndex, capitalized: false))" } ?? "",
                 instructions: nil,
                 cues: []
             )
@@ -220,7 +229,7 @@ extension TrainingViewModel {
         guard let plan = todayPlan else {
             return false
         }
-        return plan.type.isGymWorkout
+        return plan.type.isGymWorkout && plan.status != .completed
     }
 
     var recoveryAdjustmentText: String? {

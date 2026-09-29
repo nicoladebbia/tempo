@@ -124,11 +124,8 @@ struct DashboardView: View {
                     vm.setUserName(fullName)
                 }
 
-                // Load deload frequency from settings
-                let settingsDescriptor = FetchDescriptor<UserSettings>()
-                if let settings = try? modelContext.fetch(settingsDescriptor).first {
-                    vm.setDeloadFrequency(settings.deloadFrequencyWeeks)
-                }
+                // Same deload rule as Training (start date, Auto Deload, fatigue).
+                vm.setDeloadWeek(services.trainingEngine.isDeloadWeek(on: Date(), modelContext: modelContext))
 
                 // Load persisted score history for sparkline
                 vm.loadScoreHistory(modelContext: modelContext)

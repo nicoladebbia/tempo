@@ -112,6 +112,11 @@ struct MoveQuadrantDetailView: View {
                 // its screen — otherwise timers run behind the Today view.
                 showActiveWorkout = true
             } else if case .summary = newState {
+                // Persist the moment the session reaches summary, exactly
+                // like TrainingTabView — without this a session started from
+                // the Dashboard was only saved if the user tapped SAVE, and
+                // swiping the summary away lost the whole workout. Idempotent.
+                trainingVM?.persistCompletion(modelContext: modelContext)
                 showActiveWorkout = false
                 showSummary = true
             } else if case .discarded = newState {
@@ -539,7 +544,9 @@ struct MoveQuadrantDetailView: View {
                 )
                 trainingVM = vm
                 await vm.loadToday(modelContext: modelContext)
-                vm.startWorkout()
+                guard vm.startWorkout() else {
+                    return
+                }
                 showActiveWorkout = true
                 HapticManager.notification(.success)
             }

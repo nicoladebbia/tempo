@@ -462,12 +462,13 @@ struct WorkoutHistoryView: View {
 
                         // Exercise count — keep on one line (don't let "6
                         // exercises" wrap to a second row).
-                        let exerciseCount = workout.orderedExercises.count
+                        let exerciseCount = workout.status == .completed
+                            ? workout.performedExerciseCount : workout.orderedExercises.count
                         if exerciseCount > 0 {
                             HStack(spacing: TempoSpacing.xxs) {
                                 Image(systemName: "figure.strengthtraining.traditional")
                                     .font(.system(size: 11))
-                                Text("\(exerciseCount) exercises")
+                                Text("\(exerciseCount) \(exerciseCount == 1 ? "exercise" : "exercises")")
                                     .font(.tempoCaption1)
                                     .lineLimit(1)
                                     .fixedSize()

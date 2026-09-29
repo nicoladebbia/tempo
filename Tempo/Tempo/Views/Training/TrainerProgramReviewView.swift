@@ -65,6 +65,8 @@ struct TrainerProgramReviewView: View {
     private var weeks: [ProgramWeek]
     @State
     private var autoAssignedWeekdays: Bool
+    /// Import warnings from the parser (e.g. a long source that was cut off).
+    private var importWarnings: [String] = []
     @State
     private var saveError: String?
     /// Weekday-less sessions are placed around football once, on appear
@@ -95,6 +97,7 @@ struct TrainerProgramReviewView: View {
         _startDate = State(initialValue: TrainingCalendar.mondayOfWeek(containing: Date()))
         _weeks = State(initialValue: parsed.weeks)
         _autoAssignedWeekdays = State(initialValue: parsed.autoAssignedWeekdays)
+        importWarnings = parsed.warnings
         // Weekly-upload feature — pre-select weekly for a single-week import
         // (the common "trainer sends one week at a time" shape), block
         // otherwise. Always editable below before saving.
@@ -167,6 +170,15 @@ struct TrainerProgramReviewView: View {
         NavigationStack {
             Form {
                 programSection
+                if !importWarnings.isEmpty {
+                    Section {
+                        ForEach(importWarnings, id: \.self) { warning in
+                            Text(warning)
+                                .font(.tempoCaption1)
+                                .foregroundStyle(Color.tempoWarning)
+                        }
+                    }
+                }
                 if autoAssignedWeekdays {
                     Section {
                         Text("We placed these around your football — change any day.")

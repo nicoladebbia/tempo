@@ -9,6 +9,16 @@
 import Foundation
 
 final class MockHealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
+    private let lock = NSLock()
+    private var _writtenWorkouts: [WorkoutSample] = []
+
+    /// Every workout handed to `writeWorkout`, in order (tests assert on this).
+    var writtenWorkouts: [WorkoutSample] {
+        lock.lock()
+        defer { lock.unlock() }
+        return _writtenWorkouts
+    }
+
     func requestAuthorization() async throws {
         // No-op in mock
     }
@@ -81,8 +91,12 @@ final class MockHealthKitService: HealthKitServiceProtocol, @unchecked Sendable 
         ]
     }
 
+    private func record(_ workout: WorkoutSample) {
+        lock.withLock { _writtenWorkouts.append(workout) }
+    }
+
     func writeWorkout(_ workout: WorkoutSample) async throws {
-        // No-op in mock
+        record(workout)
     }
 
     func writeNutrition(_ nutrition: NutritionSample) async throws {

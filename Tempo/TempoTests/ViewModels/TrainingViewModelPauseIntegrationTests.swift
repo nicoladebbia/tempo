@@ -43,7 +43,7 @@ final class TrainingViewModelPauseIntegrationTests: XCTestCase {
         TrainerProgram(
             name: "PT", startDate: date("2026-09-21"),
             weeks: [ProgramWeek(days: [day(1), day(2), day(3), day(4), day(5)])],
-            sourceKind: "text", scheduleMode: .fixed
+            sourceKind: "text", scheduleMode: .fixed, createdAt: date("2026-09-21")
         )
     }
 
@@ -104,7 +104,8 @@ final class TrainingViewModelPauseIntegrationTests: XCTestCase {
         // legitimately surface instead — this test is specifically about
         // Tuesday itself never counting as missed.
         let program = TrainerProgram(
-            name: "PT", startDate: date("2026-09-21"), weeks: [ProgramWeek(days: [day(2)])], sourceKind: "text"
+            name: "PT", startDate: date("2026-09-21"), weeks: [ProgramWeek(days: [day(2)])], sourceKind: "text",
+            createdAt: date("2026-09-21")
         )
         context.insert(program)
         // Tuesday's session was never touched — but Tuesday was paused.
