@@ -182,10 +182,14 @@ struct FoodProductRow: View {
                     .font(.tempoBodyBold)
                     .foregroundStyle(Color.tempoTextPrimary)
                     .lineLimit(2)
-                Text(subtitle ?? detailLine)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .lineLimit(1)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                        .lineLimit(1)
+                } else {
+                    detailLine
+                }
             }
             Spacer(minLength: TempoSpacing.sm)
             FoodScoreBadge(product: product)
@@ -193,15 +197,32 @@ struct FoodProductRow: View {
         .contentShape(Rectangle())
     }
 
-    private var detailLine: String {
-        var parts: [String] = []
-        if let brand = product.brand, !brand.isEmpty {
-            parts.append(brand)
+    /// Brand + kcal on one line. When space is tight, the brand truncates —
+    /// the kcal figure never does, so a row never reads as "82 kcal / 10…"
+    /// (picky-QA item 13).
+    @ViewBuilder
+    private var detailLine: some View {
+        let brand = product.brand?.isEmpty == false ? product.brand : nil
+        let kcalText = product.per100g.kcal.map { "\(Int($0.rounded())) kcal / 100 \(product.unit)" }
+        HStack(spacing: TempoSpacing.xxs) {
+            if let brand {
+                Text(brand)
+                    .lineLimit(1)
+                    .layoutPriority(0)
+            }
+            if let kcalText {
+                if brand != nil {
+                    Text("·")
+                        .layoutPriority(1)
+                }
+                Text(kcalText)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .layoutPriority(1)
+            }
         }
-        if let kcal = product.per100g.kcal {
-            parts.append("\(Int(kcal.rounded())) kcal / 100 \(product.unit)")
-        }
-        return parts.joined(separator: " · ")
+        .font(.tempoCaption1)
+        .foregroundStyle(Color.tempoTextSecondary)
     }
 }
 

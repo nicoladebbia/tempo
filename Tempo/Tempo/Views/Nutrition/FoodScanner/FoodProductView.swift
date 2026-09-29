@@ -58,6 +58,10 @@ struct FoodProductView: View {
     private var heroPage = 0
     @State
     private var showGalleryViewer = false
+    /// Filled in when the search hit that opened this page came back with no
+    /// allergen/ingredient data — see `FoodCatalog.enrichAllergensIfMissing`.
+    @State
+    private var enrichedAllergenSource: FoodProduct?
 
     private struct PhotoSource: Identifiable {
         let type: UIImagePickerController.SourceType
@@ -83,6 +87,9 @@ struct FoodProductView: View {
         ScrollView {
             VStack(spacing: TempoSpacing.lg) {
                 header
+                if let reason = product.implausibilityReason {
+                    implausibilityBanner(reason)
+                }
                 scoreCard
                 macroCard
                 forYouCard
@@ -124,8 +131,38 @@ struct FoodProductView: View {
             isFavorite = catalog.isFavorite(product, in: modelContext)
             photo = catalog.photo(for: product, in: modelContext)
             fitContext = FoodFitContext.loadToday(in: modelContext, whoopAvgTDEE: services.whoop.weeklyTDEEAverage)
-            await loadSuggestions()
+            if let remembered = catalog.lastPortionGrams(for: product, in: modelContext), remembered > 0 {
+                grams = remembered
+                gramsText = Self.format(remembered)
+            }
+            async let suggestionsTask: Void = loadSuggestions()
+            async let enrichTask = catalog.enrichAllergensIfMissing(for: product)
+            _ = await suggestionsTask
+            enrichedAllergenSource = await enrichTask
         }
+    }
+
+    // MARK: - Implausible data
+
+    private func implausibilityBanner(_ reason: String) -> some View {
+        HStack(alignment: .top, spacing: TempoSpacing.sm) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(Color.tempoAmber)
+            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+                Text("These numbers look off — check the label")
+                    .font(.tempoBodyBold)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                Text(reason)
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(TempoSpacing.cardPadding)
+        .background(Color.tempoAmber.opacity(TempoOpacity.o15))
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+        .accessibilityIdentifier("foodImplausibilityBanner")
     }
 
     // MARK: - Header
@@ -196,21 +233,24 @@ struct FoodProductView: View {
             } else if let gallery = product.galleryImageURLs, !gallery.isEmpty {
                 TabView(selection: $heroPage) {
                     ForEach(Array(gallery.enumerated()), id: \.offset) { index, url in
-                        FoodRemoteImage(url: url, product: product, contentMode: .fit)
-                            .padding(TempoSpacing.lg)
+                        FoodRemoteImage(url: url, product: product, contentMode: .fit, showsBlurredBackdrop: true)
                             .tag(index)
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: gallery.count > 1 ? .always : .never))
                 .onTapGesture { showGalleryViewer = true }
             } else {
-                FoodRemoteImage(url: product.imageURL ?? product.imageSmallURL, product: product, contentMode: .fit)
-                    .padding(TempoSpacing.lg)
-                    .onTapGesture {
-                        if hasAnyHeroImage {
-                            showGalleryViewer = true
-                        }
+                FoodRemoteImage(
+                    url: product.imageURL ?? product.imageSmallURL,
+                    product: product,
+                    contentMode: .fit,
+                    showsBlurredBackdrop: true
+                )
+                .onTapGesture {
+                    if hasAnyHeroImage {
+                        showGalleryViewer = true
                     }
+                }
             }
         }
         .frame(maxWidth: .infinity)
@@ -231,12 +271,23 @@ struct FoodProductView: View {
         }
     }
 
+    /// Aspect-fit photo over a blurred, scaled-to-fill copy of the same
+    /// image as the backdrop (Apple-Music-style) instead of flat-colour
+    /// letterboxing either side of a tall/narrow photo.
     private func heroImage(_ image: Image) -> some View {
-        image
-            .resizable()
-            .scaledToFit()
-            .padding(TempoSpacing.lg)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        ZStack {
+            image
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .blur(radius: 24)
+                .overlay(Color.black.opacity(TempoOpacity.o40))
+                .clipped()
+            image
+                .resizable()
+                .scaledToFit()
+                .padding(TempoSpacing.lg)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     /// No picture anywhere → let the user snap one; it gets the same white
@@ -360,7 +411,12 @@ struct FoodProductView: View {
                     .chartLegend(.hidden)
                     .overlay {
                         VStack(spacing: 0) {
-                            Text("\(Int(split.totalKcal.rounded()))")
+                            // Ring segments are macro shares (Atwater), but the
+                            // number shown must always be the product's label
+                            // kcal — the same figure as the nutrition table and
+                            // the add bar — so the two never disagree (picky-QA
+                            // item 2).
+                            Text("\(Int((portion.kcal ?? split.totalKcal).rounded()))")
                                 .font(.tempoHeadline)
                                 .monospacedDigit()
                                 .foregroundStyle(Color.tempoTextPrimary)
@@ -370,7 +426,7 @@ struct FoodProductView: View {
                         }
                     }
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(macroAccessibilityLabel(split))
+                    .accessibilityLabel(macroAccessibilityLabel(split, labelKcal: portion.kcal))
                     VStack(alignment: .leading, spacing: TempoSpacing.sm) {
                         ForEach(split.slices) { slice in
                             macroLegendRow(slice)
@@ -404,8 +460,12 @@ struct FoodProductView: View {
         }
     }
 
-    private func macroAccessibilityLabel(_ split: FoodMacroSplit) -> String {
-        split.slices.map { "\($0.label) \(Int((($0.percent) * 100).rounded())) percent" }.joined(separator: ", ")
+    private func macroAccessibilityLabel(_ split: FoodMacroSplit, labelKcal: Double?) -> String {
+        let macros = split.slices.map { "\($0.label) \(Int((($0.percent) * 100).rounded())) percent" }.joined(separator: ", ")
+        guard let labelKcal else {
+            return macros
+        }
+        return "\(Int(labelKcal.rounded())) kcal — \(macros)"
     }
 
     // MARK: - For you
@@ -629,6 +689,16 @@ struct FoodProductView: View {
                 Text("Nothing else on the shelf right now — check back after your next scan.")
                     .font(.tempoCaption1)
                     .foregroundStyle(Color.tempoTextSecondary)
+            } else if suggestions.items.count == 1, let item = suggestions.items.first {
+                // A single tile in a horizontal scroller reads as an orphaned
+                // left-aligned card with dead space beside it — give it the
+                // full row instead (picky-QA item 7).
+                NavigationLink {
+                    FoodProductView(product: item, mode: mode, catalog: catalog)
+                } label: {
+                    suggestionCardWide(item)
+                }
+                .buttonStyle(.plain)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: TempoSpacing.md) {
@@ -688,6 +758,34 @@ struct FoodProductView: View {
         .frame(width: 112, alignment: .leading)
     }
 
+    private func suggestionCardWide(_ item: FoodProduct) -> some View {
+        HStack(spacing: TempoSpacing.md) {
+            ZStack(alignment: .topTrailing) {
+                FoodProductThumbnail(product: item, size: 72)
+                FoodScoreBadge(product: item)
+                    .padding(TempoSpacing.xxs)
+            }
+            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+                Text(item.name)
+                    .font(.tempoBodyBold)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                    .lineLimit(2)
+                if let brand = item.brand {
+                    Text(brand)
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right")
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoTextTertiary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tempoCard()
+    }
+
     private func loadSuggestions() async {
         isLoadingSuggestions = true
         suggestions = await catalog.suggestions(for: product)
@@ -696,21 +794,69 @@ struct FoodProductView: View {
 
     // MARK: - Ingredients / allergens
 
+    /// The search index (search-a-licious) frequently omits allergen/trace/
+    /// ingredient fields that the full OFF record actually has — when that
+    /// happened, `enrichedAllergenSource` carries the re-fetched record.
+    /// Falls back to `product` once there's nothing left to fill in.
+    private var effectiveAllergenSource: FoodProduct {
+        enrichedAllergenSource ?? product
+    }
+
+    /// Only sources that plausibly ship allergen data at all (OFF and
+    /// user-added labels) — a built-in/USDA table entry was never asked, so
+    /// don't warn about it as if the maker stayed silent.
+    private var claimsAllergenData: Bool {
+        product.source == .openFoodFacts || product.source == .userAdded
+    }
+
     @ViewBuilder
     private var ingredientsCard: some View {
-        if product.ingredientsText != nil || !product.displayAllergens.isEmpty {
+        let source = effectiveAllergenSource
+        let allergens = source.displayAllergens
+        let traces = source.displayTraces
+        let ingredients = source.ingredientsText ?? product.ingredientsText
+        if claimsAllergenData || ingredients != nil {
             VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                if !product.displayAllergens.isEmpty {
+                if claimsAllergenData {
                     sectionTitle("ALLERGENS")
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: TempoSpacing.xs) {
-                            ForEach(product.displayAllergens, id: \.self) { allergen in
-                                allergenChip(allergen)
+                    if allergens.isEmpty, traces.isEmpty, ingredients == nil {
+                        // Never silently omit the section — say plainly that
+                        // the maker gave us nothing to go on (picky-QA item 3).
+                        Text("No allergen info from the maker — check the pack.")
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                    } else {
+                        if !allergens.isEmpty {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: TempoSpacing.xs) {
+                                    ForEach(allergens, id: \.self) { allergen in
+                                        allergenChip(allergen)
+                                    }
+                                }
                             }
+                        }
+                        if !traces.isEmpty {
+                            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+                                Text("MAY CONTAIN")
+                                    .font(.tempoCaption2)
+                                    .foregroundStyle(Color.tempoTextTertiary)
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: TempoSpacing.xs) {
+                                        ForEach(traces, id: \.self) { trace in
+                                            traceChip(trace)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if allergens.isEmpty, traces.isEmpty {
+                            Text("No allergens declared by the maker.")
+                                .font(.tempoCaption1)
+                                .foregroundStyle(Color.tempoTextSecondary)
                         }
                     }
                 }
-                if let ingredients = product.ingredientsText {
+                if let ingredients {
                     DisclosureGroup(isExpanded: $showIngredients) {
                         Text(ingredients)
                             .font(.tempoCaption1)
@@ -725,6 +871,7 @@ struct FoodProductView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .tempoCard()
+            .accessibilityIdentifier("foodAllergensCard")
         }
     }
 
@@ -736,6 +883,19 @@ struct FoodProductView: View {
             .padding(.horizontal, TempoSpacing.md)
             .padding(.vertical, TempoSpacing.xs)
             .background(Color.tempoError.opacity(TempoOpacity.o15))
+            .clipShape(Capsule())
+    }
+
+    /// "May contain" trace chips — a softer, secondary treatment than a
+    /// confirmed allergen: same shape, amber instead of red.
+    private func traceChip(_ text: String) -> some View {
+        Text(text)
+            .font(.tempoCaption1)
+            .fontWeight(.semibold)
+            .foregroundStyle(Color.tempoAmber)
+            .padding(.horizontal, TempoSpacing.md)
+            .padding(.vertical, TempoSpacing.xs)
+            .background(Color.tempoAmber.opacity(TempoOpacity.o15))
             .clipShape(Capsule())
     }
 
@@ -774,6 +934,7 @@ struct FoodProductView: View {
         let kcal = Int((product.nutrients(forGrams: grams).kcal ?? 0).rounded())
         return Button {
             HapticManager.success()
+            catalog.rememberPortion(grams, for: product, in: modelContext)
             onAdd(product.foodItem(grams: grams))
         } label: {
             Text("Add \(Self.format(grams)) \(product.unit) · \(kcal) kcal")

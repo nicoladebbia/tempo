@@ -20,6 +20,11 @@ struct FoodRemoteImage: View {
     /// Used for the placeholder art and the generic-photo fallback.
     var product: FoodProduct?
     var contentMode: ContentMode = .fit
+    /// A blurred, scaled-to-fill copy of the same image behind the
+    /// scaled-to-fit foreground — Apple-Music-style — instead of flat colour
+    /// letterboxing either side of a tall/narrow product photo. Only makes
+    /// sense with `contentMode == .fit`; callers opt in for hero-sized art.
+    var showsBlurredBackdrop = false
 
     @State
     private var image: UIImage?
@@ -29,12 +34,23 @@ struct FoodRemoteImage: View {
     var body: some View {
         ZStack {
             if let image {
+                if showsBlurredBackdrop, contentMode == .fit {
+                    Image(uiImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .blur(radius: 24)
+                        .overlay(Color.black.opacity(TempoOpacity.o40))
+                        .clipped()
+                        .transition(.opacity)
+                }
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: contentMode)
+                    .padding(showsBlurredBackdrop ? TempoSpacing.lg : 0)
                     .transition(.opacity)
             } else if let product {
-                FoodGroupArt(group: product.foodGroup)
+                FoodGroupArt(group: product.foodGroup, name: product.name)
+                    .padding(showsBlurredBackdrop ? TempoSpacing.lg : 0)
                     .overlay {
                         if isLoading {
                             ProgressView()

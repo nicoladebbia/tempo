@@ -25,7 +25,7 @@ extension FoodGroup {
         case .pasta: "fork.knife"
         case .legumes: "carrot.fill"
         case .nuts: "leaf.fill"
-        case .fruit: "applelogo"
+        case .fruit: "basket.fill"
         case .vegetables: "carrot.fill"
         case .snacks: "popcorn.fill"
         case .sweets: "birthday.cake.fill"
@@ -65,9 +65,39 @@ extension FoodGroup {
 // MARK: - FoodGroupArt
 
 /// A tinted gradient tile with a centred SF Symbol — the placeholder shown
-/// for any product with no photo, sized to fill its container.
+/// for any product with no photo, sized to fill its container. Takes the
+/// food's name (optional) purely for cosmetic variety — a search result full
+/// of same-shelf placeholders (20 dairy tiles) isn't visually identical: a
+/// subtle per-name hue shift on the gradient, plus the food's initial under
+/// the symbol on tiles big enough to read it.
 struct FoodGroupArt: View {
     let group: FoodGroup
+    var name: String = ""
+
+    /// Stable, deterministic per-name shift in roughly [-16°, 16°] — same
+    /// product always renders the same, different products in the same
+    /// group rarely land on the exact same tint. Uses a plain content hash
+    /// (not `String.hashValue`, which Swift randomizes per process launch)
+    /// so the tint is stable across app relaunches, not just within one.
+    private var hueShift: Angle {
+        guard !name.isEmpty else {
+            return .zero
+        }
+        var hash: UInt64 = 5381
+        for scalar in name.lowercased().unicodeScalars {
+            hash = 33 &* hash &+ UInt64(scalar.value)
+        }
+        let degrees = Int(hash % 33) - 16
+        return .degrees(Double(degrees))
+    }
+
+    private var initial: String? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let first = trimmed.first, first.isLetter || first.isNumber else {
+            return nil
+        }
+        return String(first).uppercased()
+    }
 
     var body: some View {
         GeometryReader { geometry in
@@ -78,9 +108,17 @@ struct FoodGroupArt: View {
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
-                Image(systemName: group.artSymbol)
-                    .font(.system(size: side * 0.36, weight: .light))
-                    .foregroundStyle(group.artTint.opacity(TempoOpacity.o70))
+                .hueRotation(hueShift)
+                VStack(spacing: side * 0.05) {
+                    Image(systemName: group.artSymbol)
+                        .font(.system(size: side * 0.34, weight: .light))
+                        .foregroundStyle(group.artTint.opacity(TempoOpacity.o70))
+                    if side > 56, let initial {
+                        Text(initial)
+                            .font(.system(size: max(side * 0.13, 10), weight: .semibold, design: .rounded))
+                            .foregroundStyle(group.artTint.opacity(TempoOpacity.o50))
+                    }
+                }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
         }

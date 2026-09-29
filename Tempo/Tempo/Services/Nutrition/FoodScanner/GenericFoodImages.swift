@@ -20,9 +20,24 @@ import os
 // MARK: - GenericFoodImages
 
 enum GenericFoodImages {
+    /// A fetch attempt's outcome, distinguishing a *definitive* miss (safe to
+    /// remember forever) from a transient one (must be retried, never cached
+    /// as permanent) — collapsing both into a plain `nil` was the bug behind
+    /// built-in "Banana" permanently showing no photo after a single 429 or
+    /// timeout: that failure got written to disk as "no image exists" and
+    /// every later visit trusted the stale miss instead of asking again.
+    enum FetchOutcome: Equatable, Sendable {
+        /// Got a page (200) with no usable image, or a real 404 — this title
+        /// genuinely has no photo.
+        case definitiveMiss
+        /// Network/rate-limit/decoding trouble — try again next time.
+        case transientFailure
+        case success(Data)
+    }
+
     /// Injectable so tests never touch the network.
     struct Fetcher: Sendable {
-        var fetch: @Sendable (URL) async -> Data?
+        var fetch: @Sendable (URL) async -> FetchOutcome
 
         static let live = Fetcher { url in
             var request = URLRequest(url: url, timeoutInterval: 8)
@@ -30,12 +45,19 @@ enum GenericFoodImages {
             request.setValue("application/json", forHTTPHeaderField: "Accept")
             do {
                 let (data, response) = try await URLSession.shared.data(for: request)
-                guard (response as? HTTPURLResponse)?.statusCode == 200 else {
-                    return nil
+                let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                switch status {
+                case 200:
+                    return .success(data)
+                case 404:
+                    return .definitiveMiss
+                default:
+                    // 429 (rate limited), 5xx, or anything unexpected — the
+                    // page may well exist, Wikipedia just didn't answer.
+                    return .transientFailure
                 }
-                return data
             } catch {
-                return nil
+                return .transientFailure
             }
         }
     }
@@ -52,14 +74,15 @@ enum GenericFoodImages {
     static func imageURL(
         for product: FoodProduct,
         fetcher: Fetcher = .live,
-        cacheDirectory: URL? = nil
+        cacheDirectory: URL? = nil,
+        retryAfter: TimeInterval = Resolver.retryAfter
     ) async -> URL? {
         let title = titleOverrides[product.name.lowercased()] ?? deriveTitle(from: product.name)
         guard !title.isEmpty else {
             return nil
         }
         let directory = cacheDirectory ?? defaultCacheDirectory()
-        return await Resolver.shared.resolve(title: title, directory: directory, fetcher: fetcher)
+        return await Resolver.shared.resolve(title: title, directory: directory, fetcher: fetcher, retryAfter: retryAfter)
     }
 
     /// Serializes the read → fetch → write cycle so rows rendering together
@@ -67,26 +90,69 @@ enum GenericFoodImages {
     private actor Resolver {
         static let shared = Resolver()
 
+        /// How long a *transient* failure (429/timeout/5xx) is trusted before
+        /// the next visit is allowed to ask Wikipedia again. A *definitive*
+        /// miss (200 with no image, or a real 404) has no expiry — that
+        /// title just has no photo.
+        static let retryAfter: TimeInterval = 30 * 60
+
         private var inFlight: [String: Task<URL?, Never>] = [:]
 
-        func resolve(title: String, directory: URL, fetcher: Fetcher) async -> URL? {
+        func resolve(title: String, directory: URL, fetcher: Fetcher, retryAfter: TimeInterval) async -> URL? {
             let key = directory.path + "|" + title
             if let pending = inFlight[key] {
                 return await pending.value
             }
             if let entry = GenericFoodImages.readCache(directory: directory)[title] {
-                return entry.urlString.flatMap(URL.init(string:))
+                let transientAndStale = !entry.isDefinitive && Date().timeIntervalSince(entry.checkedAt) > retryAfter
+                if !transientAndStale {
+                    return entry.urlString.flatMap(URL.init(string:))
+                }
             }
-            let task = Task { await GenericFoodImages.fetchFromWikipedia(title: title, fetcher: fetcher) }
+            let task = Task { () -> URL? in
+                let outcome = await fetcher.fetch(GenericFoodImages.wikipediaURL(title: title))
+                return GenericFoodImages.handle(outcome, title: title, directory: directory)
+            }
             inFlight[key] = task
             let resolved = await task.value
             inFlight[key] = nil
-            // Re-read after the await: other titles may have landed meanwhile.
-            var cache = GenericFoodImages.readCache(directory: directory)
-            cache[title] = CacheEntry(urlString: resolved?.absoluteString, checkedAt: Date())
-            GenericFoodImages.writeCache(cache, directory: directory)
             return resolved
         }
+    }
+
+    /// Writes the outcome to the shared cache (definitive vs. transient) and
+    /// returns the resolved URL, if any.
+    fileprivate static func handle(_ outcome: FetchOutcome, title: String, directory: URL) -> URL? {
+        let url: URL?
+        let isDefinitive: Bool
+        switch outcome {
+        case .definitiveMiss:
+            url = nil
+            isDefinitive = true
+        case .transientFailure:
+            url = nil
+            isDefinitive = false
+        case let .success(data):
+            switch parseImageURL(from: data) {
+            case let .image(found):
+                url = found
+                isDefinitive = true
+            case .noImage:
+                // A real Wikipedia page, just no thumbnail — genuinely has no photo.
+                url = nil
+                isDefinitive = true
+            case .decodeFailed:
+                // A 200 with a body we couldn't parse is Wikipedia's shape
+                // changing (or a transient CDN error page), not "no photo".
+                url = nil
+                isDefinitive = false
+            }
+        }
+        // Re-read after the await: other titles may have landed meanwhile.
+        var cache = readCache(directory: directory)
+        cache[title] = CacheEntry(urlString: url?.absoluteString, checkedAt: Date(), isDefinitive: isDefinitive)
+        writeCache(cache, directory: directory)
+        return url
     }
 
     /// "Greek yogurt 0%" → "Greek_yogurt" — good enough for most built-in
@@ -169,6 +235,37 @@ enum GenericFoodImages {
     fileprivate struct CacheEntry: Codable {
         var urlString: String?
         var checkedAt: Date
+        /// `true` for a genuine "this title has no photo" (200 with no
+        /// thumbnail, or a real 404) — trusted forever. `false` for a
+        /// network/rate-limit/decode hiccup — retried after `Resolver.retryAfter`.
+        var isDefinitive: Bool
+
+        init(urlString: String?, checkedAt: Date, isDefinitive: Bool = true) {
+            self.urlString = urlString
+            self.checkedAt = checkedAt
+            self.isDefinitive = isDefinitive
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case urlString
+            case checkedAt
+            case isDefinitive
+        }
+
+        /// Swift's synthesized `Decodable` does NOT fall back to a stored
+        /// property's default value when the JSON key is simply absent — it
+        /// throws `keyNotFound`. `readCache` decodes the whole cache
+        /// dictionary in one shot, so a single old-format entry (written
+        /// before this field existed) would otherwise fail the entire file
+        /// and silently wipe every cached hit and miss on first launch after
+        /// this update. This custom init is what actually makes missing
+        /// `isDefinitive` default to `true`, as already-settled entries.
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            urlString = try container.decodeIfPresent(String.self, forKey: .urlString)
+            checkedAt = try container.decode(Date.self, forKey: .checkedAt)
+            isDefinitive = try container.decodeIfPresent(Bool.self, forKey: .isDefinitive) ?? true
+        }
     }
 
     private struct WikiSummary: Decodable {
@@ -180,21 +277,34 @@ enum GenericFoodImages {
         let originalimage: Image?
     }
 
-    fileprivate static func fetchFromWikipedia(title: String, fetcher: Fetcher) async -> URL? {
-        guard let encoded = title.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let url = URL(string: "https://en.wikipedia.org/api/rest_v1/page/summary/\(encoded)")
-        else {
-            return nil
+    fileprivate enum ParseResult {
+        case image(URL)
+        /// Decoded fine, genuinely no thumbnail on the page.
+        case noImage
+        /// Not decodable as a Wikipedia summary at all.
+        case decodeFailed
+    }
+
+    fileprivate static func wikipediaURL(title: String) -> URL {
+        let encoded = title.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? title
+        // Falls back to a URL that will 404 rather than crash if `title`
+        // somehow can't be encoded — vanishingly rare (only empty titles,
+        // already guarded by the caller).
+        return URL(string: "https://en.wikipedia.org/api/rest_v1/page/summary/\(encoded)")
+            ?? URL(string: "https://en.wikipedia.org/api/rest_v1/page/summary/_")!
+    }
+
+    fileprivate static func parseImageURL(from data: Data) -> ParseResult {
+        guard let summary = try? JSONDecoder().decode(WikiSummary.self, from: data) else {
+            return .decodeFailed
         }
-        guard let data = await fetcher.fetch(url) else {
-            return nil
+        guard let raw = summary.thumbnail?.source ?? summary.originalimage?.source else {
+            return .noImage
         }
-        guard let summary = try? JSONDecoder().decode(WikiSummary.self, from: data),
-              let raw = summary.thumbnail?.source ?? summary.originalimage?.source
-        else {
-            return nil
+        guard let url = URL(string: rewriteThumbnailWidth(raw, to: thumbnailWidth)) else {
+            return .noImage
         }
-        return URL(string: rewriteThumbnailWidth(raw, to: thumbnailWidth))
+        return .image(url)
     }
 
     private static func defaultCacheDirectory() -> URL {
