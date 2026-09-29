@@ -30,11 +30,18 @@ extension TrainingViewModel {
         existingStatus: WorkoutStatus,
         existingType: WorkoutType,
         existingPlannedTypeRaw: String? = nil,
+        existingCompanionTypeRaw: String? = nil,
         templateType: WorkoutType
     ) -> PlanResolution {
         switch existingStatus {
         case .planned:
             if existingType == templateType {
+                return .keep
+            }
+            // Extra gym session on a soccer day: the row is the gym anchor and
+            // its completed football companion IS the template's type. The
+            // mismatch is deliberate — replacing would delete the gym part.
+            if existingCompanionTypeRaw == templateType.rawValue {
                 return .keep
             }
             // §8 connect — the row WAS the template type before the daily
@@ -169,6 +176,7 @@ extension TrainingViewModel {
                    existingStatus: existing.status,
                    existingType: existing.type,
                    existingPlannedTypeRaw: existing.plannedTypeRaw,
+                   existingCompanionTypeRaw: existing.companionTypeRaw,
                    templateType: canonical.type
                ) == .replace
                // A trainer program was started/changed/stopped: a still-

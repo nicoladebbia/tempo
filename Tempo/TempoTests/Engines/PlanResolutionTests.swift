@@ -202,4 +202,26 @@ final class PlanResolutionTests: XCTestCase {
 
         XCTAssertEqual(merged.first?.id, transientThursday.id)
     }
+
+    // MARK: - Extra gym session on a soccer day
+
+    func testCompositeRowKeptWhenCompanionMatchesTemplate() {
+        // Push anchor + completed football companion; the template still says
+        // football. Replacing would delete the gym part.
+        let r = TrainingViewModel.planResolution(
+            existingStatus: .planned, existingType: .push,
+            existingCompanionTypeRaw: WorkoutType.football.rawValue,
+            templateType: .football
+        )
+        XCTAssertEqual(r, .keep)
+    }
+
+    func testPlannedRowWithUnrelatedCompanionStillReplaced() {
+        let r = TrainingViewModel.planResolution(
+            existingStatus: .planned, existingType: .push,
+            existingCompanionTypeRaw: WorkoutType.football.rawValue,
+            templateType: .legs
+        )
+        XCTAssertEqual(r, .replace)
+    }
 }

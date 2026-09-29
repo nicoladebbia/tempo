@@ -67,7 +67,17 @@ extension TrainingViewModel {
 
     // Populates a WorkoutPlan with exercises from the library based on workout type.
 
-    func populateExercises(for plan: WorkoutPlan, modelContext: ModelContext) {
+    /// `excludeHeavyLower` — extra gym session on a soccer day: drop squat /
+    /// hinge / lunge-pattern compounds from the pool (legs already took the
+    /// soccer). `recordPrediction: false` for plans that are NOT persisted
+    /// today (week template, tomorrow preview) so no orphan PredictionLog rows
+    /// accumulate for days that may never be trained as generated.
+    func populateExercises(
+        for plan: WorkoutPlan,
+        modelContext: ModelContext,
+        excludeHeavyLower: Bool = false,
+        recordPrediction: Bool = true
+    ) {
         guard plan.type.isGymWorkout else {
             return
         }
@@ -99,9 +109,12 @@ extension TrainingViewModel {
         // Fetch all exercises from library
         var descriptor = FetchDescriptor<Exercise>()
         descriptor.sortBy = [SortDescriptor(\Exercise.name)]
-        guard let allExercises = try? modelContext.fetch(descriptor) else {
+        guard let fetchedExercises = try? modelContext.fetch(descriptor) else {
             return
         }
+        let allExercises = excludeHeavyLower
+            ? fetchedExercises.filter { !Self.isHeavyLower($0) }
+            : fetchedExercises
 
         // Select exercises: priority-ordered compounds first, then isolations
         // — then substitute any movement the user has taught us they swap
@@ -366,16 +379,30 @@ extension TrainingViewModel {
                 .first?.bestSetWeight
             let baselineWeight: Double? = lastLoggedWeight.map { $0 + 2.5 }
 
-            logPrediction(
-                planID: plan.id,
-                exercise: exercise,
-                predictedWeight: roundedWeight,
-                predictedReps: reps,
-                rationale: rationale,
-                learnedIncrement: learnedIncrements[exercise.id],
-                baselineWeight: baselineWeight,
-                modelContext: modelContext
-            )
+            if recordPrediction {
+                logPrediction(
+                    planID: plan.id,
+                    exercise: exercise,
+                    predictedWeight: roundedWeight,
+                    predictedReps: reps,
+                    rationale: rationale,
+                    learnedIncrement: learnedIncrements[exercise.id],
+                    baselineWeight: baselineWeight,
+                    modelContext: modelContext
+                )
+            }
+        }
+    }
+
+    /// Squat / hinge / lunge-pattern compounds — the lifts that would stack on
+    /// a soccer day's leg load.
+    static func isHeavyLower(_ exercise: Exercise) -> Bool {
+        guard exercise.isCompound else {
+            return false
+        }
+        switch exercise.movementPattern {
+        case .squat, .hinge, .lunge: return true
+        default: return false
         }
     }
 

@@ -103,6 +103,31 @@ final class WorkoutPlan {
     /// Optional → lightweight SwiftData migration.
     var pausedReasonRaw: String?
 
+    // MARK: - Extra gym session on a soccer day (composite day)
+
+    //
+    // One row per day. The gym part is the ANCHOR (`typeRaw` = the focus,
+    // `status` = the gym part's status); the day's earlier football session
+    // becomes a completed, timed companion. All optional/defaulted →
+    // lightweight SwiftData migration.
+
+    /// Planned gym start, minutes since midnight. nil = untimed.
+    var scheduledStartMin: Int?
+
+    /// The completed companion session's modality (football). nil = not a composite day.
+    var companionTypeRaw: String?
+    var companionStartMin: Int?
+    var companionDurationMin: Int?
+    var companionCompleted: Bool = false
+    /// The companion's own sRPE (moved off `sessionRPE` when the gym part was added).
+    var companionSessionRPE: Int?
+    var companionFinishedAt: Date?
+
+    /// Intensity the planner chose for the added gym part (`SessionIntensity.rawValue`).
+    var addedPartIntensityRaw: String?
+    /// Plain-language WHY behind the added part's focus + intensity.
+    var addedPartRationale: String?
+
     // MARK: - Relationships
 
     @Relationship(deleteRule: .cascade, inverse: \PlannedExercise.workoutPlan)
@@ -143,6 +168,27 @@ final class WorkoutPlan {
     var pauseReason: PauseReason? {
         get { pausedReasonRaw.flatMap(PauseReason.init(rawValue:)) }
         set { pausedReasonRaw = newValue?.rawValue }
+    }
+
+    /// The completed companion session (football) of a composite day, or nil.
+    @Transient
+    var companionType: WorkoutType? {
+        get { companionTypeRaw.flatMap(WorkoutType.init(rawValue:)) }
+        set { companionTypeRaw = newValue?.rawValue }
+    }
+
+    /// True when an extra gym session was added after a completed companion
+    /// (soccer) session the same day.
+    @Transient
+    var isCompositeDay: Bool {
+        companionTypeRaw != nil
+    }
+
+    /// Whether ANY part of the day was trained — the gym anchor completed OR
+    /// the companion session done. Readers counting "did he train" use this.
+    @Transient
+    var dayTrained: Bool {
+        status == .completed || companionCompleted
     }
 
     /// True when this day carries a gym lift AND an easy cardio second session.
