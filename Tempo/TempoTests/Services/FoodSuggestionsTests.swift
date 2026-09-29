@@ -297,6 +297,17 @@ final class FoodFitHalalAndGoalTests: XCTestCase {
         XCTAssertNil(FoodFit.halalCheck(for: product))
     }
 
+    @MainActor
+    func testPluralListingCountsAsTheSameFood() {
+        let banana = FoodProduct(id: "builtin:banana", name: "Banana", source: .builtIn, per100g: .init(kcal: 89))
+        let bananas = FoodProduct(id: "usda:1", name: "Bananas", source: .usda, per100g: .init(kcal: 89))
+        XCTAssertEqual(FoodCatalog.jaccard(FoodCatalog.nameTokens(banana), FoodCatalog.nameTokens(bananas)), 1)
+        XCTAssertEqual(FoodCatalog.singular("tomatoes"), "tomato")
+        XCTAssertEqual(FoodCatalog.singular("peaches"), "peach")
+        XCTAssertEqual(FoodCatalog.singular("hummus"), "hummu")
+        XCTAssertEqual(FoodCatalog.singular("glass"), "glass")
+    }
+
     func testWordsContainingPorkTermsDoNotConflict() {
         let product = FoodProduct.sample(ingredientsText: "Chamomile, collard greens, serum whey, graham flour")
         XCTAssertNil(FoodFit.halalCheck(for: product))

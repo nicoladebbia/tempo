@@ -347,6 +347,8 @@ final class FoodImplausibilityTests: XCTestCase {
         let reason = item.implausibilityReason
         XCTAssertNotNil(reason)
         XCTAssertTrue(reason?.contains("108") ?? false)
+        // No confident score from contradictory numbers.
+        XCTAssertNil(FoodScore.evaluate(item))
     }
 
     func testTrulyZeroCalorieDietBeverageIsNotFlagged() {

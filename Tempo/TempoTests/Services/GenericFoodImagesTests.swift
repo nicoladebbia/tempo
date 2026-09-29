@@ -81,7 +81,19 @@ final class GenericFoodImagesTests: XCTestCase {
         let product = FoodProduct(id: "builtin:chicken breast", name: "Chicken breast", source: .builtIn, per100g: .init(kcal: 165))
 
         let url = await GenericFoodImages.imageURL(for: product, fetcher: fetcher, cacheDirectory: tempDir)
-        XCTAssertEqual(url?.absoluteString, "https://upload.wikimedia.org/wikipedia/commons/thumb/a/b/Chicken.jpg/640px-Chicken.jpg")
+        XCTAssertEqual(url?.absoluteString, "https://upload.wikimedia.org/wikipedia/commons/thumb/a/b/Chicken.jpg/500px-Chicken.jpg")
+    }
+
+    func testUsesTheOriginalWhenItIsNarrowerThanTheThumbnailStep() async {
+        let json = """
+        {"thumbnail":{"source":"https://upload.wikimedia.org/wikipedia/commons/thumb/a/b/Kiwi.jpg/330px-Kiwi.jpg","width":330},
+         "originalimage":{"source":"https://upload.wikimedia.org/wikipedia/commons/a/b/Kiwi.jpg","width":400}}
+        """
+        let fetcher = GenericFoodImages.Fetcher { _ in .success(Data(json.utf8)) }
+        let product = FoodProduct(id: "builtin:kiwi", name: "Kiwi", source: .builtIn, per100g: .init(kcal: 61))
+
+        let url = await GenericFoodImages.imageURL(for: product, fetcher: fetcher, cacheDirectory: tempDir)
+        XCTAssertEqual(url?.absoluteString, "https://upload.wikimedia.org/wikipedia/commons/a/b/Kiwi.jpg")
     }
 
     func testFallsBackToOriginalImageWhenNoThumbnail() async {
@@ -106,7 +118,7 @@ final class GenericFoodImagesTests: XCTestCase {
         let product = FoodProduct(id: "builtin:banana", name: "Banana", source: .builtIn, per100g: .init(kcal: 89))
 
         let url = await GenericFoodImages.imageURL(for: product, fetcher: fetcher, cacheDirectory: tempDir)
-        XCTAssertEqual(url?.absoluteString, "https://upload.wikimedia.org/wikipedia/commons/thumb/a/b/Banana.jpg/640px-Banana.jpg")
+        XCTAssertEqual(url?.absoluteString, "https://upload.wikimedia.org/wikipedia/commons/thumb/a/b/Banana.jpg/500px-Banana.jpg")
     }
 
     /// The USDA plural "Bananas" must resolve the same as the built-in
@@ -167,7 +179,7 @@ final class GenericFoodImagesTests: XCTestCase {
         {"\(title)":{"urlString":null,"checkedAt":\(Date().timeIntervalSinceReferenceDate)}}
         """
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        try Data(json.utf8).write(to: tempDir.appendingPathComponent("wikipedia-titles.json"))
+        try Data(json.utf8).write(to: tempDir.appendingPathComponent("wikipedia-titles-v2.json"))
 
         let callCount = CallCounter()
         let fetcher = GenericFoodImages.Fetcher { _ in
@@ -236,7 +248,7 @@ final class GenericFoodImagesTests: XCTestCase {
         let first = await GenericFoodImages.imageURL(for: product, fetcher: fetcher, cacheDirectory: tempDir, retryAfter: 0)
         let second = await GenericFoodImages.imageURL(for: product, fetcher: fetcher, cacheDirectory: tempDir, retryAfter: 0)
         XCTAssertNil(first)
-        XCTAssertEqual(second?.absoluteString, "https://upload.wikimedia.org/x/640px-Banana.jpg")
+        XCTAssertEqual(second?.absoluteString, "https://upload.wikimedia.org/x/500px-Banana.jpg")
         XCTAssertEqual(callCount.count, 2)
     }
 

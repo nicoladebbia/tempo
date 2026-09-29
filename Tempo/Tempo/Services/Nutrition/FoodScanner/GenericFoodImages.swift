@@ -65,8 +65,10 @@ enum GenericFoodImages {
     static let userAgent = "Tempo/1.0 (iOS app)"
 
     private static let logger = Logger.nutrition
-    private static let cacheFileName = "wikipedia-titles.json"
-    private static let thumbnailWidth = 640
+    private static let cacheFileName = "wikipedia-titles-v2.json"
+    /// Wikimedia only serves thumbnails at its standard steps (…330, 500,
+    /// 960…); any other width, e.g. 640, is a 400 and the photo never loads.
+    static let thumbnailWidth = 500
 
     /// A photo for `product`, resolved by its name via Wikipedia. `nil` when
     /// nothing could be found — a confirmed miss is remembered too, so the
@@ -168,7 +170,7 @@ enum GenericFoodImages {
         return words.joined(separator: "_")
     }
 
-    /// ".../220px-Foo.jpg" → ".../640px-Foo.jpg" (Wikipedia thumbnail URLs
+    /// ".../220px-Foo.jpg" → ".../500px-Foo.jpg" (Wikipedia thumbnail URLs
     /// encode the width as a path segment).
     static func rewriteThumbnailWidth(_ urlString: String, to width: Int) -> String {
         guard let range = urlString.range(of: #"/\d+px-"#, options: .regularExpression) else {
@@ -271,6 +273,7 @@ enum GenericFoodImages {
     private struct WikiSummary: Decodable {
         struct Image: Decodable {
             let source: String
+            let width: Int?
         }
 
         let thumbnail: Image?
@@ -298,10 +301,18 @@ enum GenericFoodImages {
         guard let summary = try? JSONDecoder().decode(WikiSummary.self, from: data) else {
             return .decodeFailed
         }
-        guard let raw = summary.thumbnail?.source ?? summary.originalimage?.source else {
+        let raw: String
+        if let original = summary.originalimage, let width = original.width, width <= thumbnailWidth {
+            // Asking for a thumbnail wider than the original is also a 400.
+            raw = original.source
+        } else if let thumbnail = summary.thumbnail?.source {
+            raw = rewriteThumbnailWidth(thumbnail, to: thumbnailWidth)
+        } else if let original = summary.originalimage?.source {
+            raw = original
+        } else {
             return .noImage
         }
-        guard let url = URL(string: rewriteThumbnailWidth(raw, to: thumbnailWidth)) else {
+        guard let url = URL(string: raw) else {
             return .noImage
         }
         return .image(url)

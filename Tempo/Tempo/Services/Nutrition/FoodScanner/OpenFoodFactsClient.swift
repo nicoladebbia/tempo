@@ -251,7 +251,16 @@ struct OpenFoodFactsClient: FoodProductProviding {
         guard Self.isLatinScriptLanguage(language) else {
             return mapped
         }
-        return Self.deprioritized(mapped) { Self.isMostlyNonLatinScript($0.name) }
+        // A foreign-script brand under a Latin name ("บานาน่าโซไซตี้") reads as
+        // garbage in the subtitle — drop just the brand.
+        let cleaned = mapped.map { product -> FoodProduct in
+            var product = product
+            if let brand = product.brand, Self.isMostlyNonLatinScript(brand) {
+                product.brand = nil
+            }
+            return product
+        }
+        return Self.deprioritized(cleaned) { Self.isMostlyNonLatinScript($0.name) }
     }
 
     /// Stable partition: items `deprioritize` doesn't flag keep their

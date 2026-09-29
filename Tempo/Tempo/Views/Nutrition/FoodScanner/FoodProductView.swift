@@ -89,8 +89,9 @@ struct FoodProductView: View {
                 header
                 if let reason = product.implausibilityReason {
                     implausibilityBanner(reason)
+                } else {
+                    scoreCard
                 }
-                scoreCard
                 macroCard
                 forYouCard
                 gradesCard
@@ -149,7 +150,7 @@ struct FoodProductView: View {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(Color.tempoAmber)
             VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                Text("These numbers look off — check the label")
+                Text("Not scored — these numbers look wrong")
                     .font(.tempoBodyBold)
                     .foregroundStyle(Color.tempoTextPrimary)
                 Text(reason)
@@ -568,6 +569,10 @@ struct FoodProductView: View {
 
     // MARK: - Nutrition
 
+    private var showsPortionColumn: Bool {
+        abs(grams - 100) >= 0.5
+    }
+
     private var nutritionCard: some View {
         let per100 = product.per100g
         let portion = product.nutrients(forGrams: grams)
@@ -580,8 +585,11 @@ struct FoodProductView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Text("100 \(product.unit)")
                         .gridColumnAlignment(.trailing)
-                    Text("\(Self.format(grams)) \(product.unit)")
-                        .gridColumnAlignment(.trailing)
+                    // At exactly 100 g the portion column would repeat the first.
+                    if showsPortionColumn {
+                        Text("\(Self.format(grams)) \(product.unit)")
+                            .gridColumnAlignment(.trailing)
+                    }
                 }
                 .font(.tempoCaption1)
                 .foregroundStyle(Color.tempoTextTertiary)
@@ -665,11 +673,17 @@ struct FoodProductView: View {
             .font(.tempoBody)
             .foregroundStyle(Color.tempoTextPrimary)
             .frame(maxWidth: .infinity, alignment: .leading)
-            Text(Self.amount(per100, unit: unit))
-                .foregroundStyle(Color.tempoTextSecondary)
-            Text(Self.amount(portion, unit: unit))
-                .fontWeight(.semibold)
-                .foregroundStyle(Color.tempoTextPrimary)
+            if showsPortionColumn {
+                Text(Self.amount(per100, unit: unit))
+                    .foregroundStyle(Color.tempoTextSecondary)
+                Text(Self.amount(portion, unit: unit))
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.tempoTextPrimary)
+            } else {
+                Text(Self.amount(per100, unit: unit))
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.tempoTextPrimary)
+            }
         }
         .font(.tempoBody)
         .monospacedDigit()

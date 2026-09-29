@@ -177,6 +177,7 @@ struct MealLoggingView: View {
                 PortionEditorView(item: item) { updated in
                     updateFoodItem(updated)
                 }
+                .presentationDetents([.medium])
             }
             .tempoToast($toast)
             .task {
@@ -678,10 +679,18 @@ struct PortionEditorView: View {
 
     private var quickChips: some View {
         HStack(spacing: TempoSpacing.sm) {
-            chip("½ serving", grams: unitGrams * 0.5)
-            chip("1 serving", grams: unitGrams)
-            chip("2 servings", grams: unitGrams * 2)
-            chip("100 \(unitLabel)", grams: 100)
+            // A 100 g "serving" is just the default, not a real one — offer
+            // plain amounts instead of three chips that mean 50/100/200 anyway.
+            if abs(unitGrams - 100) < 0.5 {
+                ForEach([50.0, 100, 150, 200], id: \.self) { amount in
+                    chip("\(Self.format(amount)) \(unitLabel)", grams: amount)
+                }
+            } else {
+                chip("½ serving", grams: unitGrams * 0.5)
+                chip("1 serving", grams: unitGrams)
+                chip("2 servings", grams: unitGrams * 2)
+                chip("100 \(unitLabel)", grams: 100)
+            }
         }
     }
 

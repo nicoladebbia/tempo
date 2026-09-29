@@ -60,6 +60,11 @@ struct FoodScore: Equatable, Sendable {
 
     /// nil when there isn't enough nutrition data to judge the product.
     static func evaluate(_ product: FoodProduct, additiveTable: FoodAdditiveTable = .shared) -> FoodScore? {
+        // A score computed from numbers that contradict themselves is a
+        // confident wrong answer — show "not scored" instead.
+        guard product.implausibilityReason == nil else {
+            return nil
+        }
         let official = product.nutriScorePoints.flatMap { points in
             product.nutriScoreGrade.map { (points: points, grade: $0.lowercased()) }
         }

@@ -667,7 +667,22 @@ extension FoodCatalog {
     /// of the same product under a different id/barcode/brand.
     static func nameTokens(_ product: FoodProduct) -> Set<String> {
         let words = product.name.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber })
-        return Set(words.map(String.init).filter { $0.count > 1 })
+        return Set(words.map(String.init).filter { $0.count > 1 }.map(singular))
+    }
+
+    /// "bananas" → "banana", "tomatoes" → "tomato", so a USDA "Bananas" isn't
+    /// offered as a swap for the built-in "Banana".
+    static func singular(_ word: String) -> String {
+        guard word.count > 3 else {
+            return word
+        }
+        for suffix in ["oes", "xes", "ches", "shes"] where word.hasSuffix(suffix) {
+            return String(word.dropLast(2))
+        }
+        if word.hasSuffix("s"), !word.hasSuffix("ss") {
+            return String(word.dropLast())
+        }
+        return word
     }
 
     /// Intersection over union — 1.0 for identical token sets, 0 for no
