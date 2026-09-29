@@ -23,7 +23,12 @@ enum SetPlausibility {
         isWarmup: Bool
     ) -> String? {
         let bodyweightLoaded = equipment.map(StrengthStandards.isBodyweightLoaded) ?? false
-        let externallyLoaded = !bodyweightLoaded && equipment != .resistanceBand
+        // Only kit that always carries a load. `.none`/`.bench`/nil cover
+        // unmatched trainer/CSV moves (planks, burpees) where 0 kg is normal.
+        let externallyLoaded: Bool = switch equipment {
+        case .barbell, .dumbbell, .cable, .machine, .kettlebell, .smithMachine, .ezBar, .trapBar: true
+        default: false
+        }
         if externallyLoaded, weightKg <= 0 {
             return "0 kg logged. That set won't count toward your progress."
         }

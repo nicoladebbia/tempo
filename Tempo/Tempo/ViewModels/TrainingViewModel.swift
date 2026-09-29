@@ -880,6 +880,18 @@ final class TrainingViewModel {
         guard let plan = todayPlan, plan.status != .completed else {
             return false
         }
+        // Sets already logged today (e.g. Start tapped from the Dashboard
+        // after a crash) — resume at the first open set instead of resetting
+        // the cursor to exercise 0, which landed on a completed set and froze
+        // Finish Set.
+        let hasLoggedSets = plan.orderedExercises.contains { ex in
+            (ex.sets ?? []).contains { $0.completed }
+        }
+        if hasLoggedSets {
+            sessionState = .crashedRecovery
+            resumeFromCrash()
+            return true
+        }
 
         plan.status = .inProgress
         elapsedSeconds = 0
@@ -966,9 +978,9 @@ final class TrainingViewModel {
     // MARK: - Advance Past Warmup
 
     // Per STATE_MACHINES.md §1 line 158 — warmup → exercise.setActive once
-    // the user taps "Ready — Start Working Sets". Warmup sets are display-only
-    // guidance (info-screen-then-skip): we jump to the first non-warmup set so
-    // warmup is never logged and never counts toward volume/history.
+    // the user taps "Ready — Start Working Sets". The cursor lands on the
+    // first uncompleted set of exercise 0 — its ramp sets when it has them
+    // (loggable, Skip Ramp one tap away). Ramp sets never count as volume.
 
     func advancePastWarmup() {
         guard case .warmup = sessionState, let plan = todayPlan else {
@@ -1012,7 +1024,7 @@ final class TrainingViewModel {
         startElapsedTimer()
         // §11.13 — never land on an exercise with no sets (Finish Set would
         // have nothing to log and the session would freeze).
-        if sets.isEmpty {
+        if firstUncompletedSetIndex(in: first) == nil {
             recoverFromEmptyExercise(startingAt: 0)
         } else {
             sessionState = .exercise(.setActive(exerciseIndex: 0, setIndex: firstWorkingIndex))

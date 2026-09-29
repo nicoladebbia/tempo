@@ -80,6 +80,25 @@ final class SetCursorTests: XCTestCase {
         vm.resetState()
     }
 
+    func testStartWithLoggedSetsResumesInsteadOfResetting() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedRampedPlan(context: context)
+        for set in plan.orderedExercises[0].orderedSets.prefix(3) {
+            set.completed = true
+        }
+        plan.startedAt = Date().addingTimeInterval(-300)
+        try context.save()
+        vm.todayPlan = plan
+        vm.sessionState = .crashedRecovery
+
+        XCTAssertTrue(vm.startWorkout())
+
+        XCTAssertEqual(vm.sessionState, .exercise(.setActive(exerciseIndex: 0, setIndex: 3)),
+                       "Start after a crash must continue at the first open set, not re-run the warm-up onto a done set")
+        vm.resetState()
+    }
+
     func testCountersAgreeOnWorkingSetNumbering() throws {
         let context = try makeContext()
         let sets = seedRampedPlan(context: context).orderedExercises[0].orderedSets

@@ -20,6 +20,14 @@ final class SetPlausibilityTests: XCTestCase {
         XCTAssertNil(SetPlausibility.warning(weightKg: 0, reps: 15, bestE1RMKg: nil, equipment: .resistanceBand, isWarmup: false))
     }
 
+    func testUnloadedTrainerMovesNeverFlaggedForZero() {
+        // Unmatched trainer/CSV moves (planks, burpees) import as `.none`.
+        for kit in [Equipment.none, .bench] {
+            XCTAssertNil(SetPlausibility.warning(weightKg: 0, reps: 10, bestE1RMKg: nil, equipment: kit, isWarmup: false))
+        }
+        XCTAssertNil(SetPlausibility.warning(weightKg: 0, reps: 10, bestE1RMKg: nil, equipment: nil, isWarmup: false))
+    }
+
     func testFarBeyondBestAsks() {
         // best e1RM 100 → 300 × 1 is a typo.
         XCTAssertNotNil(SetPlausibility.warning(weightKg: 300, reps: 1, bestE1RMKg: 100, equipment: .barbell, isWarmup: false))

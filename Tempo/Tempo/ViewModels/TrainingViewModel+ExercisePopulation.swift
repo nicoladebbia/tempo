@@ -302,7 +302,6 @@ extension TrainingViewModel {
                 // First compound: full 50%/75% ramp. Later compounds: one
                 // 75% feel set — the muscle is already warm.
                 let fractions = rampGiven ? [0.75] : [0.5, 0.75]
-                rampGiven = true
                 // Only ramp steps genuinely lighter than the working weight and
                 // distinct from each other — at an empty-bar working weight the
                 // 50%/75% steps both floor to the bar and were 3 identical sets.
@@ -315,6 +314,9 @@ extension TrainingViewModel {
                         warmupWeights.append(w)
                     }
                 }
+                // Only a ramp that actually exists counts — a bar-weight first
+                // compound gets none, so the next compound still gets 50%/75%.
+                if !warmupWeights.isEmpty { rampGiven = true }
                 for warmupWeight in warmupWeights {
                     plannedSets.append(PlannedSet(
                         setNumber: setNum,
