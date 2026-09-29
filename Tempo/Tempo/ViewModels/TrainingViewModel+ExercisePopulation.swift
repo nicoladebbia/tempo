@@ -106,11 +106,18 @@ extension TrainingViewModel {
         // Select exercises: priority-ordered compounds first, then isolations
         // — then substitute any movement the user has taught us they swap
         // (e.g. cable pushdown → their pushdown machine).
+        // Structured pain reports (moderate+) drop the movement from the pool so
+        // the group's next-best exercise takes the slot; mild ones stay in at a
+        // reduced load (below).
+        let painSeverities = activePainSeverities(modelContext: modelContext)
+        let painExcluded = Set(painSeverities.filter { $0.value >= PainCaution.excludeSeverity }.keys)
         let selected = applyPreferredSwaps(
             to: selectExercises(
                 from: allExercises,
                 targetGroups: targetGroups,
-                workoutType: plan.type
+                workoutType: plan.type,
+                excluding: painExcluded,
+                date: plan.date
             ),
             library: allExercises,
             modelContext: modelContext
@@ -125,7 +132,7 @@ extension TrainingViewModel {
         // up. Pain subset is cached for the session UI. Scanned fresh each build
         // (no stored flag, no migration).
         let signals = noteSignals(modelContext: modelContext)
-        let painFlagged = Set(signals.filter(\.value.pain).map(\.key))
+        let painFlagged = Set(signals.filter(\.value.pain).map(\.key)).union(painSeverities.keys)
         painFlaggedExercises = painFlagged
 
         // Build PlannedExercise + PlannedSet objects with target weights
@@ -159,9 +166,10 @@ extension TrainingViewModel {
                 baseNumSets = (isolationIndex == 0) ? 3 : 2
             }
 
-            // Recovery-adjusted: drop 1 set from compounds, keep isolations as-is
+            // Recovery-adjusted: the volume cut lives HERE (sets), not in the
+            // weight. Drop set(s) from compounds, keep isolations as-is.
             let recoverySets: Int = if isRecoveryReduced && exercise.isCompound {
-                max(2, baseNumSets - 1)
+                max(2, baseNumSets - TrainingEngine.recoverySetsDropped(recoveryAdjustment: plan.recoveryAdjustment))
             } else {
                 baseNumSets
             }
@@ -254,7 +262,9 @@ extension TrainingViewModel {
             // the load and halves the sets instead (§19.3).
             let deloadMultiplier = (isDeloadWeek && deloadStyle == .intensityCut)
                 ? trainingEngine.deloadWeightMultiplier() : 1.0
-            let loadScale = plan.recoveryAdjustment * deloadMultiplier
+            let loadScale = TrainingEngine.combinedLoadScale(
+                recoveryAdjustment: plan.recoveryAdjustment, deloadMultiplier: deloadMultiplier
+            ) * PainCaution.loadFactor(severity: painSeverities[exercise.id])
             let isBodyweightLift = StrengthStandards.isBodyweightLoaded(exercise.equipment)
             // Bodyweight lifts: recovery/deload scale only the ADDED load — you
             // can't lift 60% of yourself, so scaling the effective load turned a
@@ -483,9 +493,13 @@ extension TrainingViewModel {
     func selectExercises(
         from allExercises: [Exercise],
         targetGroups: [MuscleGroup],
-        workoutType: WorkoutType
+        workoutType: WorkoutType,
+        excluding excludedIDs: Set<UUID> = [],
+        date: Date = Date()
     ) -> [Exercise] {
-        let matching = allExercises.filter { targetGroups.contains($0.muscleGroup) }
+        let matching = allExercises.filter {
+            targetGroups.contains($0.muscleGroup) && !excludedIDs.contains($0.id)
+        }
         let compounds = matching.filter(\.isCompound)
         let isolations = matching.filter { !$0.isCompound }
 
@@ -493,7 +507,7 @@ extension TrainingViewModel {
         let priorityOrder = exercisePriorityOrder(for: workoutType)
 
         // Day-of-week seed for variation (so Monday Push != Thursday Push)
-        let dayOfYear = Calendar.current.ordinality(of: .day, in: .year, for: Date()) ?? 0
+        let dayOfYear = Calendar.current.ordinality(of: .day, in: .year, for: date) ?? 0
         let variationSeed = dayOfYear
 
         var selected: [Exercise] = []
@@ -951,7 +965,9 @@ extension TrainingViewModel {
             ? trainingEngine.deloadWeightMultiplier() : 1.0
         let effectiveWorkingSets = (deloading && deloadStyle == .volumeCut)
             ? max(1, (workingSets + 1) / 2) : workingSets
-        let adjusted = weight * plan.recoveryAdjustment * deloadMultiplier
+        let adjusted = weight * TrainingEngine.combinedLoadScale(
+            recoveryAdjustment: plan.recoveryAdjustment, deloadMultiplier: deloadMultiplier
+        ) * PainCaution.loadFactor(severity: activePainSeverities(modelContext: modelContext)[exercise.id])
         let unit = currentWeightUnit(modelContext: modelContext)
         let rounded = WeightConverter.loadableKg(adjusted, equipment: exercise.equipment, unit: unit)
 

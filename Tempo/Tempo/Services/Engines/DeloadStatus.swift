@@ -21,7 +21,7 @@ extension TrainingEngineProtocol {
         guard settings?.autoDeload ?? true else {
             return false
         }
-        let fatigue = (try? modelContext.fetch(FetchDescriptor<AdaptiveProfile>()).first)?.fatigueEWMA
+        let fatigue = (try? modelContext.fetch(FetchDescriptor<AdaptiveProfile>()).first)?.effectiveFatigueEWMA(asOf: date)
         return isDeloadWeek(
             date: date,
             deloadFrequencyWeeks: settings?.deloadFrequencyWeeks ?? 5,

@@ -33,12 +33,14 @@ final class PrescriptionMathTests: XCTestCase {
     // MARK: - Rolling e1RM
 
     func testCurrentE1RMDecaysOldSessions() {
-        // 100 ten days ago decays to ~95.1 and still beats a fresh 92.
+        // 100 thirty days ago decays (after the 14-day grace) to ~92.3 and
+        // still edges out a fresh 92. Updated: the old assertion decayed from
+        // day 0, which compounded a maintained e1RM downward every session.
         let value = PrescriptionMath.currentE1RM(
-            samples: [sample(daysAgo: 10, e1RM: 100), sample(daysAgo: 2, e1RM: 92)],
+            samples: [sample(daysAgo: 30, e1RM: 100), sample(daysAgo: 2, e1RM: 92)],
             now: now
         )
-        XCTAssertEqual(value ?? 0, 100 * pow(0.995, 10), accuracy: 0.01)
+        XCTAssertEqual(value ?? 0, 100 * pow(0.995, 30 - PrescriptionMath.decayGraceDays), accuracy: 0.01)
     }
 
     func testCurrentE1RMNeedsTwoScoredSessionsInWindow() {

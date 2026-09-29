@@ -1205,7 +1205,9 @@ final class TrainingViewModel {
         } else {
             let feedback = SetFeedback(plannedSet: set, rpe: 7)
             modelContext.insert(feedback)
-            set.rpe = feedback.rpe
+            // set.rpe stays nil until the athlete actually enters an RPE
+            // (updateFeedback mirrors it): the neutral default 7 is not an
+            // effort reading and must not skew the e1RM estimate.
             currentFeedback = feedback
         }
 

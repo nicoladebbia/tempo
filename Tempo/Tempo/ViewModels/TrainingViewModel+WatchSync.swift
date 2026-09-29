@@ -136,7 +136,6 @@ extension TrainingViewModel {
         if !set.isWarmup {
             let feedback = SetFeedback(plannedSet: set, rpe: 7)
             modelContext.insert(feedback)
-            set.rpe = feedback.rpe
         }
 
         guard saveGuarded(modelContext, operation: "watch set") else {
