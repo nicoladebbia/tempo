@@ -711,7 +711,10 @@ final class DashboardViewModel {
             strain: whoopStrain,
             heartRateCurrent: latestHR,
             isConnected: healthKitConnected || !workouts.isEmpty,
-            lastSync: now
+            lastSync: now,
+            // Owned by refreshTrainingStatus (plan state, not HealthKit) —
+            // carry it so a full refresh doesn't flip "Resume" back to "Start".
+            workoutInProgress: move.workoutInProgress
         )
 
         // Non-negotiables are populated by refreshAccountability() from real data.
