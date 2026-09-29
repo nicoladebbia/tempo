@@ -57,6 +57,9 @@ struct FoodProduct: Codable, Equatable, Hashable, Sendable, Identifiable {
 
     var imageURL: URL?
     var imageSmallURL: URL?
+    /// Extra photos (front, ingredients, nutrition, packaging) — optional so
+    /// older saved products still decode.
+    var galleryImageURLs: [URL]?
 
     struct Nutrients: Codable, Equatable, Hashable, Sendable {
         var kcal: Double?
