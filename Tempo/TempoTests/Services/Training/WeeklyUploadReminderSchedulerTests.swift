@@ -215,4 +215,37 @@ final class WeeklyUploadReminderSchedulerTests: XCTestCase {
         XCTAssertEqual(sundayReminders(mock).count, 1)
         XCTAssertEqual(mondayReminders(mock).count, 1)
     }
+
+    // MARK: - Training pause
+
+    func testReminderFiringOnAPausedDayIsSkipped() throws {
+        let container = try TempoModelContainer.create(inMemory: true)
+        let context = container.mainContext
+        context.insert(UserSettings())
+        context.insert(weeklyProgram(startDate: date(2026, 9, 21)))
+        // Sunday 27 only.
+        context.insert(TrainingPause(reason: .sick, startDate: date(2026, 9, 27), plannedEndDate: date(2026, 9, 27)))
+        try context.save()
+
+        let mock = MockNotificationService()
+        reschedule(mock, context: context, now: date(2026, 9, 22))
+
+        XCTAssertTrue(sundayReminders(mock).isEmpty, "Sunday 19:00 falls inside the pause")
+        XCTAssertEqual(mondayReminders(mock).count, 1, "Monday is after the pause")
+    }
+
+    func testPauseCoveringTheWholeUploadWeekSchedulesNothing() throws {
+        let container = try TempoModelContainer.create(inMemory: true)
+        let context = container.mainContext
+        context.insert(UserSettings())
+        context.insert(weeklyProgram(startDate: date(2026, 9, 21)))
+        context.insert(TrainingPause(reason: .travel, startDate: date(2026, 9, 26), plannedEndDate: date(2026, 10, 5)))
+        try context.save()
+
+        let mock = MockNotificationService()
+        reschedule(mock, context: context, now: date(2026, 9, 22))
+
+        XCTAssertTrue(sundayReminders(mock).isEmpty)
+        XCTAssertTrue(mondayReminders(mock).isEmpty)
+    }
 }

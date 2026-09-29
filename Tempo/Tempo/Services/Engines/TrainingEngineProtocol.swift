@@ -76,10 +76,13 @@ protocol TrainingEngineProtocol: Sendable {
     /// Returns 1.0 when there's no conditioning-debt signal.
     func restMultiplier(history: [ExerciseHistory]) -> Double
 
+    /// `rir` = reps in reserve behind the set, so the stored e1RM uses the
+    /// same RIR-aware formula as PlannedSet.estimated1RM / history.
     func detectPersonalRecord(
         exercise: Exercise,
         weight: Double,
         reps: Int,
+        rir: Int,
         workoutPlanID: UUID?
     ) -> PersonalRecord?
 
@@ -125,4 +128,16 @@ protocol TrainingEngineProtocol: Sendable {
 
     /// Returns the deload weight multiplier (e.g., 0.6 for 40% reduction).
     func deloadWeightMultiplier() -> Double
+}
+
+extension TrainingEngineProtocol {
+    /// A set taken to failure (RIR 0).
+    func detectPersonalRecord(
+        exercise: Exercise,
+        weight: Double,
+        reps: Int,
+        workoutPlanID: UUID?
+    ) -> PersonalRecord? {
+        detectPersonalRecord(exercise: exercise, weight: weight, reps: reps, rir: 0, workoutPlanID: workoutPlanID)
+    }
 }

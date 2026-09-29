@@ -231,6 +231,14 @@ final class TrainingViewModel {
     var workoutStartTime: Date?
     var elapsedSeconds: TimeInterval = 0
     var totalPauseDuration: TimeInterval = 0
+    /// When the current phone-call interruption began (nil outside a call).
+    /// `handleCallChange` needs it so the call's length is added to
+    /// `totalPauseDuration` on restore — otherwise a 10-minute call inflated
+    /// the workout's duration by 10 minutes.
+    var callStartedAt: Date?
+    /// The fire-and-forget HealthKit write `persistCompletion` launches;
+    /// kept so callers/tests can await it.
+    var healthKitWriteTask: Task<Void, Never>?
     var detectedPRs: [PersonalRecord] = []
     /// trainer-feedback-tests — "New max: Squat 120 kg — your trainer's 75%
     /// is now 90 kg." style lines, populated in `persistCompletion` for any
@@ -432,12 +440,7 @@ final class TrainingViewModel {
         // never read, so turning it off didn't actually stop deload weeks).
         let deloadSettings = loadDeloadSettings(modelContext: modelContext)
         deloadStyle = deloadSettings.style
-        isDeloadWeek = deloadSettings.enabled && trainingEngine.isDeloadWeek(
-            date: Date(),
-            deloadFrequencyWeeks: deloadSettings.frequency,
-            trainingStartDate: deloadSettings.startDate,
-            fatigueEWMA: adaptiveSignals(modelContext: modelContext).fatigueEWMA
-        )
+        isDeloadWeek = trainingEngine.isDeloadWeek(on: Date(), modelContext: modelContext)
 
         isLoading = false
 
@@ -734,10 +737,16 @@ final class TrainingViewModel {
         // Fix #6 — sequence mode needs real progress as of `monday` to
         // resolve "today's session"; see TrainingViewModel+TrainerProgram.
         if let program = activeTrainerProgram(modelContext: modelContext) {
+            // Cursor = sessions done BEFORE this week; the week's own completed
+            // days are walked in order, missed past days carry forward.
+            let weekEnd = cal.date(byAdding: .day, value: 7, to: monday) ?? monday
             Self.applyTrainerProgram(
                 program, to: plans, matchDayKeys: matchDayKeys,
-                completedSequenceCount: completedTrainerSessionCount(for: program, modelContext: modelContext),
-                priorDayWasLift: trainerProgramPriorDayWasLift(before: monday, program: program, modelContext: modelContext)
+                completedSequenceCount: completedTrainerSessionCount(for: program, before: monday, modelContext: modelContext),
+                priorDayWasLift: trainerProgramPriorDayWasLift(before: monday, program: program, modelContext: modelContext),
+                // A snapshot/preview of a FUTURE week has no past days in it.
+                today: min(referenceDate, Date()),
+                completedDayKeys: completedTrainerSessionDays(for: program, from: monday, to: weekEnd, modelContext: modelContext)
             )
         }
 
@@ -815,12 +824,7 @@ final class TrainingViewModel {
         // Gated on the Auto Deload toggle (§19.3 — it was previously ignored).
         let deloadSettings = loadDeloadSettings(modelContext: modelContext)
         deloadStyle = deloadSettings.style
-        isDeloadWeek = deloadSettings.enabled && trainingEngine.isDeloadWeek(
-            date: Date(),
-            deloadFrequencyWeeks: deloadSettings.frequency,
-            trainingStartDate: deloadSettings.startDate,
-            fatigueEWMA: adaptiveSignals(modelContext: modelContext).fatigueEWMA
-        )
+        isDeloadWeek = trainingEngine.isDeloadWeek(on: Date(), modelContext: modelContext)
 
         // Populate exercises for each gym workout. No-ops for a substituted
         // persisted plan that already carries its exercises (populateExercises
@@ -872,15 +876,39 @@ final class TrainingViewModel {
 
     // Per STATE_MACHINES.md Section 1 — idle → warmup/exercise
 
-    func startWorkout() {
-        guard sessionState == .idle || sessionState == .crashedRecovery else {
-            return
+    /// Returns whether a session actually started. Callers present the
+    /// workout cover ONLY on `true` — presenting it for a refused start left
+    /// an empty, frozen screen with no way out.
+    @discardableResult
+    func startWorkout() -> Bool {
+        // `.saved` / `.discarded` are terminal leftovers of an earlier session
+        // this launch; they must not block a legitimate new start.
+        switch sessionState {
+        case .idle, .crashedRecovery, .saved, .discarded:
+            break
+        default:
+            return false
         }
-        guard let plan = todayPlan else {
-            return
+        // A finished day is not restartable — logging it again would
+        // double-count volume and history.
+        guard let plan = todayPlan, plan.status != .completed else {
+            return false
+        }
+        // Sets already logged today (e.g. Start tapped from the Dashboard
+        // after a crash) — resume at the first open set instead of resetting
+        // the cursor to exercise 0, which landed on a completed set and froze
+        // Finish Set.
+        let hasLoggedSets = plan.orderedExercises.contains { ex in
+            (ex.sets ?? []).contains { $0.completed }
+        }
+        if hasLoggedSets {
+            sessionState = .crashedRecovery
+            resumeFromCrash()
+            return true
         }
 
         plan.status = .inProgress
+        plan.pausedSeconds = 0
         elapsedSeconds = 0
         totalPauseDuration = 0
         currentExerciseIndex = 0
@@ -920,6 +948,7 @@ final class TrainingViewModel {
         startLiveActivity()
         // Move quadrant should flip planned → in-progress on the Dashboard.
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
+        return true
     }
 
     /// True when a plan has logged zero sets — used in `loadToday` to tell a
@@ -964,9 +993,9 @@ final class TrainingViewModel {
     // MARK: - Advance Past Warmup
 
     // Per STATE_MACHINES.md §1 line 158 — warmup → exercise.setActive once
-    // the user taps "Ready — Start Working Sets". Warmup sets are display-only
-    // guidance (info-screen-then-skip): we jump to the first non-warmup set so
-    // warmup is never logged and never counts toward volume/history.
+    // the user taps "Ready — Start Working Sets". The cursor lands on the
+    // first uncompleted set of exercise 0 — its ramp sets when it has them
+    // (loggable, Skip Ramp one tap away). Ramp sets never count as volume.
 
     func advancePastWarmup() {
         guard case .warmup = sessionState, let plan = todayPlan else {
@@ -983,10 +1012,14 @@ final class TrainingViewModel {
             return
         }
         let sets = first.orderedSets
-        let firstWorkingIndex = sets.firstIndex { !$0.isWarmup } ?? 0
+        // Land on the first ramp set when the lift has one (Skip Ramp is one
+        // tap away). Jumping straight to the first WORKING set left the ramp
+        // sets uncompleted behind the cursor, so a crash-resume or any skip on
+        // this exercise later bounced the lifter back onto a warm-up.
+        let firstWorkingIndex = sets.firstIndex { !$0.completed } ?? 0
         #if DEBUG
             print(
-                "\(DebugTrace.prefix)[Workout] advancePastWarmup: totalSets=\(sets.count) warmups=\(sets.filter(\.isWarmup).count) → firstWorkingIndex=\(firstWorkingIndex)"
+                "\(DebugTrace.prefix)[Workout] advancePastWarmup: totalSets=\(sets.count) warmups=\(sets.filter(\.isWarmup).count) → startIndex=\(firstWorkingIndex)"
             )
         #endif
         currentExerciseIndex = 0
@@ -1000,13 +1033,14 @@ final class TrainingViewModel {
         // start time and crash-recovery elapsed math both exclude warm-up.
         let now = Date()
         todayPlan?.startedAt = now
+        todayPlan?.pausedSeconds = 0
         workoutStartTime = now
         elapsedSeconds = 0
         totalPauseDuration = 0
         startElapsedTimer()
         // §11.13 — never land on an exercise with no sets (Finish Set would
         // have nothing to log and the session would freeze).
-        if sets.isEmpty {
+        if firstUncompletedSetIndex(in: first) == nil {
             recoverFromEmptyExercise(startingAt: 0)
         } else {
             sessionState = .exercise(.setActive(exerciseIndex: 0, setIndex: firstWorkingIndex))
@@ -1046,8 +1080,11 @@ final class TrainingViewModel {
         // Restore state from plan
         if let startedAt = plan.startedAt {
             workoutStartTime = startedAt
-            // Approximate elapsed time
-            elapsedSeconds = Date().timeIntervalSince(startedAt)
+            // Pauses / calls before the crash were persisted on the plan —
+            // restore them so the elapsed clock (and the saved duration)
+            // doesn't count that time as training.
+            totalPauseDuration = max(0, plan.pausedSeconds)
+            elapsedSeconds = max(0, Date().timeIntervalSince(startedAt) - totalPauseDuration)
         }
 
         // Find current position
@@ -1055,10 +1092,13 @@ final class TrainingViewModel {
         var foundActiveExercise = false
         for (exIdx, ex) in exercises.enumerated() {
             if !ex.isComplete {
-                let completedSetsCount = (ex.sets ?? []).filter(\.completed).count
+                // The first set NOT done — a completed-count cursor landed on
+                // the wrong set whenever an earlier one was skipped/uncompleted.
+                let resumeIndex = firstUncompletedSetIndex(in: ex)
+                    ?? (ex.sets ?? []).filter(\.completed).count
                 currentExerciseIndex = exIdx
-                currentSetIndex = completedSetsCount
-                sessionState = .exercise(.setActive(exerciseIndex: exIdx, setIndex: completedSetsCount))
+                currentSetIndex = resumeIndex
+                sessionState = .exercise(.setActive(exerciseIndex: exIdx, setIndex: resumeIndex))
                 foundActiveExercise = true
                 break
             }
@@ -1087,7 +1127,12 @@ final class TrainingViewModel {
             return
         }
         if let plan = todayPlan {
+            // Sets/PRs logged before the crash are thrown away with the
+            // session; otherwise they linger on a `.skipped` day and PRs stay
+            // in the record book.
+            rollBackLoggedWork(of: plan, modelContext: modelContext)
             plan.status = .skipped
+            plan.pausedSeconds = 0
         }
         try? modelContext.save()
         sessionState = .discarded
@@ -1184,7 +1229,9 @@ final class TrainingViewModel {
         } else {
             let feedback = SetFeedback(plannedSet: set, rpe: 7)
             modelContext.insert(feedback)
-            set.rpe = feedback.rpe
+            // set.rpe stays nil until the athlete actually enters an RPE
+            // (updateFeedback mirrors it): the neutral default 7 is not an
+            // effort reading and must not skew the e1RM estimate.
             currentFeedback = feedback
         }
 
@@ -1201,6 +1248,7 @@ final class TrainingViewModel {
                 exercise: exercise,
                 weight: weight,
                 reps: reps,
+                rir: set.effectiveRIR(reps: reps),
                 workoutPlanID: plan.id // §13 fix — stamp so history-delete can match this PR exactly
             ) {
                 modelContext.insert(pr)
@@ -1343,7 +1391,7 @@ final class TrainingViewModel {
         }
         modelContext.delete(sets[currentSetIndex])
         saveGuarded(modelContext, operation: "skipped set")
-        advanceAfterSkip(in: slot, plan: plan)
+        advanceAfterSkip(in: slot, plan: plan, modelContext: modelContext)
     }
 
     /// One tap drops the exercise's remaining warmup ramp ("already warm")
@@ -1365,7 +1413,7 @@ final class TrainingViewModel {
             modelContext.delete(set)
         }
         saveGuarded(modelContext, operation: "warm-up skip")
-        advanceAfterSkip(in: slot, plan: plan)
+        advanceAfterSkip(in: slot, plan: plan, modelContext: modelContext)
     }
 
     /// Land on the next real work after a skip: same exercise's next
@@ -1373,7 +1421,7 @@ final class TrainingViewModel {
     /// the old pair-only partner lookup to 2..N members), else the next
     /// exercise that still has one, else summary. Mirrors logSet's routing
     /// minus the rest timer.
-    private func advanceAfterSkip(in slot: PlannedExercise, plan: WorkoutPlan) {
+    func advanceAfterSkip(in slot: PlannedExercise, plan: WorkoutPlan, modelContext: ModelContext) {
         let exercises = plan.orderedExercises
         if let next = firstUncompletedSetIndex(in: slot) {
             currentSetIndex = next
@@ -1404,6 +1452,14 @@ final class TrainingViewModel {
                 return
             }
             candidate += 1
+        }
+        // Nothing left to do. If NOTHING was ever logged (every set skipped),
+        // this is not a finished workout: going to `.summary` left a zombie
+        // `.inProgress` plan (persistCompletion refuses zero-set sessions)
+        // that greeted the next launch with "Resume your workout?" forever.
+        guard hasAnyCompletedWorkingSet else {
+            endSessionWithNothingLogged(plan: plan, modelContext: modelContext)
+            return
         }
         stopElapsedTimer()
         sessionState = .summary
@@ -1547,51 +1603,71 @@ final class TrainingViewModel {
         let exercises = plan.orderedExercises
 
         switch pendingRestAction {
-        case .nextSet:
-            currentSetIndex += 1
-            sessionState = .exercise(.setActive(
-                exerciseIndex: currentExerciseIndex,
-                setIndex: currentSetIndex
-            ))
-            HapticManager.notification(.warning) // rest complete haptic
-        case let .supersetJump(exerciseIndex, setIndex):
-            currentExerciseIndex = exerciseIndex
-            currentSetIndex = setIndex
-            sessionState = .exercise(.setActive(
-                exerciseIndex: exerciseIndex,
-                setIndex: setIndex
-            ))
-            HapticManager.notification(.warning)
-        case .nextExercise:
-            let nextIndex = currentExerciseIndex + 1
-            if nextIndex < exercises.count {
-                sessionState = .exercise(.betweenExercises(
-                    fromIndex: currentExerciseIndex,
-                    toIndex: nextIndex
+        case .nextSet,
+             .nextExercise:
+            // Re-resolve instead of blindly `+= 1` / `+ 1`: during the rest a
+            // set may have been removed (cursor would run off the end), added
+            // (a `.nextExercise` rest would never visit it) or completed from
+            // the watch (Finish Set would hit the "already completed" guard
+            // and silently do nothing). Land on the first set still to do in
+            // the current exercise, else move on.
+            if currentExerciseIndex < exercises.count,
+               let next = firstUncompletedSetIndex(in: exercises[currentExerciseIndex])
+            {
+                currentSetIndex = next
+                sessionState = .exercise(.setActive(
+                    exerciseIndex: currentExerciseIndex,
+                    setIndex: next
                 ))
-                // Short delay for transition animation, then advance
-                Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(300))
-                    // §11.13 — the next slot may hold no sets; land on the
-                    // first one that does instead of freezing there.
-                    if exercises[nextIndex].orderedSets.isEmpty {
-                        recoverFromEmptyExercise(startingAt: nextIndex)
-                    } else {
-                        currentExerciseIndex = nextIndex
-                        currentSetIndex = 0
-                        sessionState = .exercise(.setActive(
-                            exerciseIndex: nextIndex,
-                            setIndex: 0
-                        ))
-                    }
-                }
+                HapticManager.notification(.warning) // rest complete haptic
+                return
+            }
+            advanceToNextExercise(exercises: exercises)
+        case let .supersetJump(exerciseIndex, setIndex):
+            let target = exerciseIndex < exercises.count ? exercises[exerciseIndex].orderedSets : []
+            if target.indices.contains(setIndex), !target[setIndex].completed {
+                currentExerciseIndex = exerciseIndex
+                currentSetIndex = setIndex
+                sessionState = .exercise(.setActive(
+                    exerciseIndex: exerciseIndex,
+                    setIndex: setIndex
+                ))
             } else {
-                // Workout complete after the last inter-exercise rest.
-                stopElapsedTimer()
-                sessionState = .summary
+                // Target vanished or was logged elsewhere meanwhile.
+                recoverFromEmptyExercise(startingAt: exerciseIndex)
             }
             HapticManager.notification(.warning)
         }
+    }
+
+    /// The current exercise has nothing left: rest ends into the next one
+    /// (or the summary after the last).
+    private func advanceToNextExercise(exercises: [PlannedExercise]) {
+        let nextIndex = currentExerciseIndex + 1
+        if nextIndex < exercises.count {
+            sessionState = .exercise(.betweenExercises(
+                fromIndex: currentExerciseIndex,
+                toIndex: nextIndex
+            ))
+            // Short delay for transition animation, then advance
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(300))
+                // The session may have moved on during the delay (finished,
+                // discarded, paused, skipped ahead) — only complete the hop
+                // this task started.
+                guard case let .exercise(.betweenExercises(_, to)) = sessionState, to == nextIndex else {
+                    return
+                }
+                // §11.13 — lands on the first set still to do at/after the
+                // next slot (never an empty or already-logged one).
+                recoverFromEmptyExercise(startingAt: nextIndex)
+            }
+        } else {
+            // Workout complete after the last inter-exercise rest.
+            stopElapsedTimer()
+            sessionState = .summary
+        }
+        HapticManager.notification(.warning)
     }
 
     // MARK: - Finish Workout (manual)
@@ -1674,27 +1750,10 @@ final class TrainingViewModel {
             // Keep the plan .planned (NOT .skipped/.completed) so the day stays
             // OPEN TO REDO, exactly as the dialog promises — and writes no
             // ExerciseHistory.
-            var rolledBackSetIDs: Set<UUID> = []
-            for ex in plan.orderedExercises {
-                for set in ex.orderedSets where set.completed {
-                    rolledBackSetIDs.insert(set.id)
-                    set.completed = false
-                    set.actualWeight = nil
-                    set.actualReps = nil
-                    set.completedAt = nil
-                }
-            }
+            rollBackLoggedWork(of: plan, modelContext: modelContext)
             plan.status = .planned
             plan.startedAt = nil
-            // A rolled-back set's SetFeedback row would otherwise linger and
-            // shadow the redo (the inline panel would show stale RPE/notes
-            // from the discarded attempt on the very first re-log).
-            if !rolledBackSetIDs.isEmpty {
-                let allFeedback = (try? modelContext.fetch(FetchDescriptor<SetFeedback>())) ?? []
-                for feedback in allFeedback where rolledBackSetIDs.contains(feedback.setID) {
-                    modelContext.delete(feedback)
-                }
-            }
+            plan.pausedSeconds = 0
         }
         try? modelContext.save()
         currentFeedback = nil
@@ -1881,6 +1940,7 @@ final class TrainingViewModel {
         // avoid re-running `activeTrainerProgram`'s queued-promotion check
         // (idempotent, but pointless work) once per completed exercise.
         let activeProgramForTestMessages = activeTrainerProgram(modelContext: modelContext)
+        var insertedHistory: [ExerciseHistory] = []
         for snap in snapshots {
             let history = ExerciseHistory(
                 date: sessionDate,
@@ -1898,6 +1958,7 @@ final class TrainingViewModel {
                 exercise: snap.exercise
             )
             modelContext.insert(history)
+            insertedHistory.append(history)
             // trainer-feedback-tests — a test just produced (or matched) a
             // real max: tell the athlete what changed and what it means for
             // the trainer's %-based prescriptions from now on.
@@ -1961,16 +2022,17 @@ final class TrainingViewModel {
         // into the on-device AdaptiveProfile so the engine learns THIS user's
         // increments / recovery tolerance / fatigue trend over time. Bounded
         // online updates; the deterministic floor is unaffected.
-        let sessionRows = snapshots.map { snap in
-            ExerciseHistory(
-                date: sessionDate,
-                avgRPE: snap.avgRPE,
-                worstFormRaw: snap.worstFormRaw,
-                feedbackSampleCount: snap.feedbackSampleCount,
-                exercise: snap.exercise
-            )
-        }
-        updateAdaptiveProfile(with: sessionRows, modelContext: modelContext)
+        //
+        // Feed it the rows we ACTUALLY inserted. It used to get throwaway
+        // `ExerciseHistory(…, exercise: snap.exercise)` copies built only for
+        // this call — SwiftData auto-inserts a @Model bound to a live
+        // relationship, leaving a phantom duplicate history row per exercise.
+        // The updater reads only avgRPE / worstFormRaw / feedbackSampleCount /
+        // exercise, all identical on the real rows.
+        updateAdaptiveProfile(with: insertedHistory, modelContext: modelContext)
+
+        // Best-effort Apple Health write — never blocks or fails the save.
+        writeStrengthWorkoutToHealthKit(plan: plan, totalVolumeKg: snapshots.reduce(0) { $0 + $1.totalVolume })
 
         // Day-plan engine signal — a logged workout means subsequent
         // blocks (especially recovery + meals) may shift. DayPlanScheduler
@@ -2002,7 +2064,8 @@ final class TrainingViewModel {
             return
         }
 
-        // Write to HealthKit (via step 5.7) — best-effort, Phase 5.
+        // HealthKit: written by persistCompletion (first successful persist),
+        // so a summary swiped away without tapping SAVE still reaches Health.
 
         sessionState = .saved
         resetState()
@@ -2290,9 +2353,17 @@ final class TrainingViewModel {
 
         // Remove the last uncompleted set
         if let lastUncompleted = sets.last(where: { !$0.completed }) {
+            // Remember which set the cursor is on: removal shifts indices, and
+            // the doomed set may BE the one on screen.
+            let onCursorExercise = exerciseIndex == currentExerciseIndex
+            let cursorSetID = onCursorExercise && currentSetIndex < sets.count
+                ? sets[currentSetIndex].id : nil
             plannedExercise.sets?.removeAll { $0.id == lastUncompleted.id }
             modelContext.delete(lastUncompleted)
             saveGuarded(modelContext, operation: "set change")
+            if onCursorExercise {
+                reanchorCursor(keeping: cursorSetID, in: plannedExercise, plan: plan, modelContext: modelContext)
+            }
             HapticManager.selection()
         }
     }

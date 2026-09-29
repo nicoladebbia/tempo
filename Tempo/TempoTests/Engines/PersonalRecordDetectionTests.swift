@@ -93,4 +93,33 @@ final class PersonalRecordDetectionTests: XCTestCase {
         XCTAssertEqual(pr.contextWeightKg, 100)
         XCTAssertEqual(pr.contextReps, 5)
     }
+
+    // MARK: - RIR-aware e1RM (matches PlannedSet.estimated1RM / history)
+
+    func testPRValueUsesSameRIRAwareFormulaAsHistory() throws {
+        let pr = try XCTUnwrap(engine.detectPersonalRecord(
+            exercise: exercise(), weight: 100, reps: 5, rir: 2, workoutPlanID: nil
+        ))
+        XCTAssertEqual(pr.value, StrengthStandards.e1RM(weight: 100, reps: 5, rir: 2), accuracy: 0.001)
+    }
+
+    func testSamePerformanceAsLegacyPRIsNotANewPR() throws {
+        let container = try TempoModelContainer.create(inMemory: true)
+        let context = container.mainContext
+        let bench = exercise()
+        context.insert(bench)
+        // Stored before e1RM became RIR-aware: plain Epley of 100 x 5.
+        let legacy = PersonalRecord(
+            type: .oneRepMax, value: StrengthStandards.epleyE1RM(weight: 100, reps: 5), date: Date(),
+            context: "100 x 5 reps", contextWeightKg: 100, contextReps: 5, exercise: bench
+        )
+        context.insert(legacy)
+        try context.save()
+
+        let same = engine.detectPersonalRecord(exercise: bench, weight: 100, reps: 5, rir: 2, workoutPlanID: nil)
+        XCTAssertNotEqual(same?.type, .oneRepMax, "Same lift, only a higher RIR assumption — no e1RM PR")
+
+        let better = engine.detectPersonalRecord(exercise: bench, weight: 102.5, reps: 5, rir: 2, workoutPlanID: nil)
+        XCTAssertEqual(better?.type, .oneRepMax)
+    }
 }

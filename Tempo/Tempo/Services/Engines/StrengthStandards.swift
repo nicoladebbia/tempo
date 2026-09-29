@@ -33,12 +33,29 @@
 enum StrengthStandards {
     // MARK: - Epley (forward + inverse)
 
+    /// Epley is unreliable past ~12 reps — a light 60-rep set says nothing
+    /// about a max. Every e1RM estimate (history, PR, trainer %) and the
+    /// reverse prescription in `PrescriptionMath` count at most this many reps.
+    static let e1RMRepCap = 12
+    /// Reps in reserve beyond this are guesswork (RPE ≤ 6 reads as "easy").
+    static let e1RMRIRCap = 4
+
     /// e1RM for a set of `weight × reps` — the SAME Epley form used by
     /// `PlannedSet.estimated1RM`, so estimates round-trip with stored history.
+    /// Reps are capped at `e1RMRepCap`.
     static func epleyE1RM(weight: Double, reps: Int) -> Double {
+        e1RM(weight: weight, reps: reps, rir: 0)
+    }
+
+    /// RIR-aware e1RM: the exact forward twin of `PrescriptionMath.weight`
+    /// (`weight = e1RM / (1 + (reps + rir) / 30)`). A set of `reps` with `rir`
+    /// left is a (reps + rir)-rep max, so hitting a prescription reproduces the
+    /// e1RM it was derived from instead of decaying it by the RIR share.
+    static func e1RM(weight: Double, reps: Int, rir: Int) -> Double {
         guard reps > 0 else { return 0 }
-        if reps == 1 { return weight }
-        return weight * (1 + Double(reps) / 30.0)
+        let effective = min(reps, e1RMRepCap) + max(0, min(rir, e1RMRIRCap))
+        if effective <= 1 { return weight }
+        return weight * (1 + Double(effective) / 30.0)
     }
 
     /// Working weight that should yield `reps` reps given an `e1RM`. Exact

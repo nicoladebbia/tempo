@@ -21,12 +21,32 @@ extension TrainingViewModel {
         guard let key = MonthlyReviewSchedule.dueMonthKey(on: now) else {
             return nil
         }
+        // A debrief needs a month to debrief — a new user (or one who barely
+        // trained) was asked to review an empty month.
+        guard completedSessionCount(monthKey: key, modelContext: modelContext) >= Self.monthlyReviewMinSessions else {
+            return nil
+        }
         if let existing = fetchMonthlyReview(monthKey: key, modelContext: modelContext),
            existing.summaryText != nil
         {
             return nil
         }
         return key
+    }
+
+    static let monthlyReviewMinSessions = 4
+
+    func completedSessionCount(monthKey: String, modelContext: ModelContext) -> Int {
+        guard let interval = MonthlyReviewSchedule.monthInterval(forKey: monthKey) else {
+            return 0
+        }
+        let start = interval.start
+        let end = interval.end
+        let completed = WorkoutStatus.completed.rawValue
+        let descriptor = FetchDescriptor<WorkoutPlan>(
+            predicate: #Predicate { $0.date >= start && $0.date < end && $0.statusRaw == completed }
+        )
+        return (try? modelContext.fetchCount(descriptor)) ?? 0
     }
 
     func fetchMonthlyReview(monthKey: String, modelContext: ModelContext) -> MonthlyReview? {

@@ -697,6 +697,10 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
 
         try await builder.beginCollection(at: workout.startDate)
 
+        if let volume = workout.totalVolumeKg, volume > 0 {
+            try await builder.addMetadata(["TempoTotalVolumeKg": volume])
+        }
+
         // Add energy burned
         if workout.activeCalories > 0 {
             let energySample = HKQuantitySample(

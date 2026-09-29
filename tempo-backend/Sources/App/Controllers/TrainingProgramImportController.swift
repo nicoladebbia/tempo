@@ -28,11 +28,13 @@ import Vapor
 // `feedback` (trainer-feedback-tests) — "trainer sent changes": the athlete
 // pastes/screenshots a WhatsApp reply and it's turned into structured edits
 // against their CURRENT program (TrainerFeedbackParser/TrainerFeedbackApplier
-// on iOS). Deliberately NOT gated by TrainerProgramImportQuotaService — a
-// feedback edit is a small text-only Sonnet call, not a full program import,
-// and burning one of the athlete's few free monthly imports on it would be
-// wrong. Same JWT auth + this controller's own rate limit as every other
-// route here.
+// on iOS). Not charged against the monthly IMPORT quota (a feedback edit is a
+// small text-only call), but it has its own daily cap
+// (TrainerProgramImportQuotaService.consumeFeedback) plus the AI-consent gate.
+//
+// Every route here enforces `ai_consent_required` itself (these routes are not
+// behind SubscriptionMiddleware) and runs Claude with a server-owned model /
+// system prompt / token budget (ProgramImportPolicy).
 
 struct TrainingProgramImportController: RouteCollection {
     /// 1–5 images per transcribe request.
@@ -67,7 +69,18 @@ struct TrainingProgramImportController: RouteCollection {
             throw Abort(.badRequest, reason: error.reason)
         }
 
-        if let quotaResponse = try await gateOrQuotaResponse(userID: userID, sessionID: input.sessionID, on: req) {
+        do {
+            try ProgramImportPolicy.validateUserMessage(input.userMessage, max: ProgramImportPolicy.transcribeMaxUserMessageChars)
+            try ProgramImportPolicy.validateHints(input.hintTexts)
+            for image in input.images {
+                try ProgramImportPolicy.validateImage(mediaType: image.mediaType, base64: image.base64)
+            }
+        } catch let error as ProgramImportPolicy.PolicyError {
+            throw Abort(.badRequest, reason: error.reason)
+        }
+
+        try await ProEntitlement.requireAIConsent(userID: userID, on: req)
+        if let quotaResponse = try await gateOrQuotaResponse(userID: userID, sessionID: input.sessionID, kind: .transcribe, on: req) {
             return quotaResponse
         }
 
@@ -78,13 +91,13 @@ struct TrainingProgramImportController: RouteCollection {
         let proxyResponse = try await NutritionClaudeProxyService.shared.sendMultiImage(
             input: NutritionProxyMultiImageRequest(
                 model: "sonnet",
-                system: input.system,
+                system: ProgramImportPolicy.transcribeSystemPrompt,
                 userMessage: input.userMessage,
                 images: input.images.map { NutritionProxyImageInput(mediaType: $0.mediaType, base64: $0.base64) },
                 hintTexts: hintTexts,
                 maxTokens: min(8000, max(2000, input.images.count * 1800)),
                 temperature: 0,
-                caller: "trainer_program_transcribe"
+                caller: ProgramImportPolicy.transcribeCaller
             ),
             on: req
         )
@@ -108,18 +121,27 @@ struct TrainingProgramImportController: RouteCollection {
             throw Abort(.badRequest, reason: error.reason)
         }
 
-        if let quotaResponse = try await gateOrQuotaResponse(userID: userID, sessionID: input.sessionID, on: req) {
+        do {
+            try ProgramImportPolicy.validateModel(input.model)
+            try ProgramImportPolicy.validateUserMessage(input.userMessage, max: ProgramImportPolicy.structureMaxUserMessageChars)
+        } catch let error as ProgramImportPolicy.PolicyError {
+            throw Abort(.badRequest, reason: error.reason)
+        }
+
+        try await ProEntitlement.requireAIConsent(userID: userID, on: req)
+        if let quotaResponse = try await gateOrQuotaResponse(userID: userID, sessionID: input.sessionID, kind: .structure, on: req) {
             return quotaResponse
         }
 
+        // Model/prompt/budget are server-controlled — see ProgramImportPolicy.
         let proxyResponse = try await NutritionClaudeProxyService.shared.sendText(
             input: NutritionProxyTextRequest(
-                model: input.model,
-                system: input.system,
+                model: "sonnet",
+                system: ProgramImportPolicy.structureSystemPrompt,
                 userMessage: input.userMessage,
-                maxTokens: input.maxTokens,
-                temperature: input.temperature,
-                caller: input.caller
+                maxTokens: ProgramImportPolicy.clampedMaxTokens(input.maxTokens, cap: ProgramImportPolicy.structureMaxTokens),
+                temperature: 0,
+                caller: ProgramImportPolicy.structureCaller
             ),
             on: req
         )
@@ -138,17 +160,33 @@ struct TrainingProgramImportController: RouteCollection {
     /// without the quota gate (see the type-level doc comment above).
     @Sendable
     func feedback(req: Request) async throws -> Response {
-        _ = try req.auth.requireUserID()
+        let userID = try req.auth.requireUserID()
         let input = try req.content.decode(ProgramFeedbackRequest.self)
+        do {
+            try ProgramImportPolicy.validateModel(input.model)
+            try ProgramImportPolicy.validateUserMessage(input.userMessage, max: ProgramImportPolicy.feedbackMaxUserMessageChars)
+        } catch let error as ProgramImportPolicy.PolicyError {
+            throw Abort(.badRequest, reason: error.reason)
+        }
+
+        try await ProEntitlement.requireAIConsent(userID: userID, on: req)
+        if let limit = try await TrainerProgramImportQuotaService.consumeFeedback(userID: userID, on: req) {
+            throw Abort(
+                .tooManyRequests,
+                headers: [:],
+                reason: "You've used your \(limit) trainer-feedback edits for today. Try again tomorrow.",
+                identifier: "trainer_feedback_quota"
+            )
+        }
 
         let proxyResponse = try await NutritionClaudeProxyService.shared.sendText(
             input: NutritionProxyTextRequest(
-                model: input.model,
-                system: input.system,
+                model: "sonnet",
+                system: ProgramImportPolicy.feedbackSystemPrompt,
                 userMessage: input.userMessage,
-                maxTokens: input.maxTokens,
-                temperature: input.temperature,
-                caller: input.caller
+                maxTokens: ProgramImportPolicy.clampedMaxTokens(input.maxTokens, cap: ProgramImportPolicy.feedbackMaxTokens),
+                temperature: 0,
+                caller: ProgramImportPolicy.feedbackCaller
             ),
             on: req
         )
@@ -183,11 +221,30 @@ struct TrainingProgramImportController: RouteCollection {
     /// returns a fully-formed 402 Response (bypassing TempoErrorMiddleware
     /// entirely, so it can carry the structured {limit, used, resets_at}
     /// fields the iOS client needs) when the free monthly quota is exhausted.
-    private func gateOrQuotaResponse(userID: String, sessionID: String, on req: Request) async throws -> Response? {
-        let result = try await TrainerProgramImportQuotaService.gate(userID: userID, sessionID: sessionID, on: req)
+    private func gateOrQuotaResponse(
+        userID: String,
+        sessionID: String,
+        kind: TrainerProgramImportQuotaService.CallKind,
+        on req: Request
+    ) async throws -> Response? {
+        let result = try await TrainerProgramImportQuotaService.gate(userID: userID, sessionID: sessionID, kind: kind, on: req)
         switch result {
         case .allowed:
             return nil
+        case .sessionExpired:
+            throw Abort(
+                .badRequest,
+                headers: [:],
+                reason: "This import session is from an earlier month. Start a new import.",
+                identifier: "program_import_session_expired"
+            )
+        case .sessionCallLimit:
+            throw Abort(
+                .tooManyRequests,
+                headers: [:],
+                reason: "This import has reached its request limit. Start a new import.",
+                identifier: "program_import_session_limit"
+            )
         case let .exceeded(limit, used, resetsAt):
             let body = ProgramImportQuotaErrorBody(
                 error: true,

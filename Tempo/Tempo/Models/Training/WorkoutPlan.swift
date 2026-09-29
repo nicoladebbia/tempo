@@ -52,6 +52,13 @@ final class WorkoutPlan {
 
     var finishedAt: Date?
 
+    /// Seconds spent paused / on a phone call so far this session. Mirrors the
+    /// view-model's in-memory `totalPauseDuration` so crash recovery can
+    /// subtract it from the elapsed clock (otherwise a recovered session
+    /// counts every earlier pause as training time). Defaulted, so SwiftData
+    /// migrates it automatically (no manual migration).
+    var pausedSeconds: Double = 0
+
     /// §8 connect — when the daily brain's final prescription moves the day to
     /// a DIFFERENT modality (e.g. planned pool → prescribed rest at yellow
     /// recovery), the plan row is reshaped to match and the ORIGINAL template
@@ -162,6 +169,16 @@ final class WorkoutPlan {
         // Working sets only, to match totalSets.
         (exercises ?? []).reduce(0) { total, ex in
             total + (ex.sets ?? []).filter { !$0.isWarmup && $0.completed }.count
+        }
+    }
+
+    /// Exercises with at least one logged working set — what was actually
+    /// trained. `orderedExercises.count` is what was PLANNED (a 1-set session
+    /// used to report "6 exercises").
+    @Transient
+    var performedExerciseCount: Int {
+        (exercises ?? []).count { ex in
+            (ex.sets ?? []).contains { !$0.isWarmup && $0.completed }
         }
     }
 

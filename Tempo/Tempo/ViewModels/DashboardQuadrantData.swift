@@ -409,6 +409,10 @@ struct MoveQuadrantData {
     var heartRateCurrent: Int?
     var isConnected: Bool
     var lastSync: Date?
+    /// Today's session was started and not finished (app killed / backgrounded
+    /// mid-workout). `workoutStatus` stays `.planned` for its many readers;
+    /// this only changes the Dashboard CTA to "Resume".
+    var workoutInProgress: Bool = false
 
     var stepsProgress: Double {
         guard let steps, stepsTarget > 0 else {

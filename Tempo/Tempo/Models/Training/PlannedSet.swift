@@ -125,10 +125,22 @@ final class PlannedSet {
         guard completed, dropStepIndex == nil, let w = actualWeight, let r = actualReps, r > 0 else {
             return nil
         }
-        if r == 1 {
-            return w
+        return StrengthStandards.e1RM(weight: w, reps: r, rir: effectiveRIR(reps: r))
+    }
+
+    /// Reps in reserve behind this set, for the e1RM estimate. The athlete's
+    /// logged RPE wins (RIR = 10 − RPE); without one, a set that reached its
+    /// rep target is assumed to have left the PRESCRIBED RIR (so hitting the
+    /// prescription reproduces the anchor e1RM); a set that fell short of its
+    /// target is assumed to have been taken to failure (RIR 0).
+    func effectiveRIR(reps: Int) -> Int {
+        if let rpe {
+            return max(0, 10 - rpe)
         }
-        return w * (1 + Double(r) / 30.0)
+        guard let targetRIR, reps >= targetReps else {
+            return 0
+        }
+        return targetRIR
     }
 
     /// Whether this row is a reduced-weight drop step chained onto the set

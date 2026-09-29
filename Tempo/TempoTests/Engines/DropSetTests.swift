@@ -222,7 +222,7 @@ final class DropSetTests: XCTestCase {
         }
 
         func detectPersonalRecord(
-            exercise: Exercise, weight: Double, reps: Int, workoutPlanID: UUID?
+            exercise: Exercise, weight: Double, reps: Int, rir: Int, workoutPlanID: UUID?
         ) -> PersonalRecord? {
             recordedWeights.append(weight)
             guard weight > 0 else {

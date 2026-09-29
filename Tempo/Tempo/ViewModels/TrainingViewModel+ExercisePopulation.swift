@@ -106,11 +106,18 @@ extension TrainingViewModel {
         // Select exercises: priority-ordered compounds first, then isolations
         // — then substitute any movement the user has taught us they swap
         // (e.g. cable pushdown → their pushdown machine).
+        // Structured pain reports (moderate+) drop the movement from the pool so
+        // the group's next-best exercise takes the slot; mild ones stay in at a
+        // reduced load (below).
+        let painSeverities = activePainSeverities(modelContext: modelContext)
+        let painExcluded = Set(painSeverities.filter { $0.value >= PainCaution.excludeSeverity }.keys)
         let selected = applyPreferredSwaps(
             to: selectExercises(
                 from: allExercises,
                 targetGroups: targetGroups,
-                workoutType: plan.type
+                workoutType: plan.type,
+                excluding: painExcluded,
+                date: plan.date
             ),
             library: allExercises,
             modelContext: modelContext
@@ -125,7 +132,7 @@ extension TrainingViewModel {
         // up. Pain subset is cached for the session UI. Scanned fresh each build
         // (no stored flag, no migration).
         let signals = noteSignals(modelContext: modelContext)
-        let painFlagged = Set(signals.filter(\.value.pain).map(\.key))
+        let painFlagged = Set(signals.filter(\.value.pain).map(\.key)).union(painSeverities.keys)
         painFlaggedExercises = painFlagged
 
         // Build PlannedExercise + PlannedSet objects with target weights
@@ -159,9 +166,10 @@ extension TrainingViewModel {
                 baseNumSets = (isolationIndex == 0) ? 3 : 2
             }
 
-            // Recovery-adjusted: drop 1 set from compounds, keep isolations as-is
+            // Recovery-adjusted: the volume cut lives HERE (sets), not in the
+            // weight. Drop set(s) from compounds, keep isolations as-is.
             let recoverySets: Int = if isRecoveryReduced && exercise.isCompound {
-                max(2, baseNumSets - 1)
+                max(2, baseNumSets - TrainingEngine.recoverySetsDropped(recoveryAdjustment: plan.recoveryAdjustment))
             } else {
                 baseNumSets
             }
@@ -254,7 +262,18 @@ extension TrainingViewModel {
             // the load and halves the sets instead (§19.3).
             let deloadMultiplier = (isDeloadWeek && deloadStyle == .intensityCut)
                 ? trainingEngine.deloadWeightMultiplier() : 1.0
-            let adjustedWeight = weight * plan.recoveryAdjustment * deloadMultiplier
+            let loadScale = TrainingEngine.combinedLoadScale(
+                recoveryAdjustment: plan.recoveryAdjustment, deloadMultiplier: deloadMultiplier
+            ) * PainCaution.loadFactor(severity: painSeverities[exercise.id])
+            let isBodyweightLift = StrengthStandards.isBodyweightLoaded(exercise.equipment)
+            // Bodyweight lifts: recovery/deload scale only the ADDED load — you
+            // can't lift 60% of yourself, so scaling the effective load turned a
+            // deload pull-up into a -32 kg "assist".
+            let adjustedWeight: Double = if isBodyweightLift, let bw = bodyweightKg, bw > 0, weight > 0 {
+                bw + (weight > bw ? (weight - bw) * loadScale : weight - bw)
+            } else {
+                weight * loadScale
+            }
             // Snap to a weight that physically loads in the user's unit —
             // barbell plate math, machine stack pins, dumbbell rack steps.
             let roundedWeight = WeightConverter.loadableKg(
@@ -265,7 +284,6 @@ extension TrainingViewModel {
             // EFFECTIVE load; the per-set added-load suggestion is the signed
             // difference from bodyweight (negative = assistance needed). nil when
             // bodyweight is unknown so the UI just treats it as bodyweight+0.
-            let isBodyweightLift = StrengthStandards.isBodyweightLoaded(exercise.equipment)
             let plannedAddedLoad: Double? = {
                 guard isBodyweightLift, let bw = bodyweightKg else {
                     return nil
@@ -294,11 +312,22 @@ extension TrainingViewModel {
                 // First compound: full 50%/75% ramp. Later compounds: one
                 // 75% feel set — the muscle is already warm.
                 let fractions = rampGiven ? [0.75] : [0.5, 0.75]
-                rampGiven = true
+                // Only ramp steps genuinely lighter than the working weight and
+                // distinct from each other — at an empty-bar working weight the
+                // 50%/75% steps both floor to the bar and were 3 identical sets.
+                var warmupWeights: [Double] = []
                 for fraction in fractions {
-                    let warmupWeight = WeightConverter.loadableKg(
+                    let w = WeightConverter.loadableKg(
                         roundedWeight * fraction, equipment: exercise.equipment, unit: unit
                     )
+                    if w < roundedWeight, !warmupWeights.contains(w) {
+                        warmupWeights.append(w)
+                    }
+                }
+                // Only a ramp that actually exists counts — a bar-weight first
+                // compound gets none, so the next compound still gets 50%/75%.
+                if !warmupWeights.isEmpty { rampGiven = true }
+                for warmupWeight in warmupWeights {
                     plannedSets.append(PlannedSet(
                         setNumber: setNum,
                         targetReps: reps,
@@ -464,9 +493,13 @@ extension TrainingViewModel {
     func selectExercises(
         from allExercises: [Exercise],
         targetGroups: [MuscleGroup],
-        workoutType: WorkoutType
+        workoutType: WorkoutType,
+        excluding excludedIDs: Set<UUID> = [],
+        date: Date = Date()
     ) -> [Exercise] {
-        let matching = allExercises.filter { targetGroups.contains($0.muscleGroup) }
+        let matching = allExercises.filter {
+            targetGroups.contains($0.muscleGroup) && !excludedIDs.contains($0.id)
+        }
         let compounds = matching.filter(\.isCompound)
         let isolations = matching.filter { !$0.isCompound }
 
@@ -474,7 +507,7 @@ extension TrainingViewModel {
         let priorityOrder = exercisePriorityOrder(for: workoutType)
 
         // Day-of-week seed for variation (so Monday Push != Thursday Push)
-        let dayOfYear = Calendar.current.ordinality(of: .day, in: .year, for: Date()) ?? 0
+        let dayOfYear = Calendar.current.ordinality(of: .day, in: .year, for: date) ?? 0
         let variationSeed = dayOfYear
 
         var selected: [Exercise] = []
@@ -612,7 +645,19 @@ extension TrainingViewModel {
         let bodyweight = currentBodyweightKg(modelContext: modelContext)
         let experience = currentExperienceLevel(modelContext: modelContext)
 
-        let e1RM = crossExerciseE1RM(for: exercise, allExercises: allExercises)
+        let sibling = crossExerciseE1RM(for: exercise, allExercises: allExercises)
+
+        // Bodyweight-loaded lift (pull-up/dip) never trained and no trained
+        // sibling: start at plain bodyweight reps (added load 0). The BW-multiple
+        // model prescribed an unloadable "Pull-Up @ 7 kg" when bodyweight was
+        // unknown, and an assisted (negative) load for nearly everyone at 8 reps
+        // when it was known. Returns the EFFECTIVE load (= bodyweight), or 0
+        // when bodyweight is unknown so the plan reads "(BW)".
+        if sibling == nil, StrengthStandards.isBodyweightLoaded(exercise.equipment) {
+            return bodyweight ?? 0
+        }
+
+        let e1RM = sibling
             ?? StrengthStandards.baselineE1RM(
                 for: exercise,
                 bodyweightKg: bodyweight,
@@ -920,7 +965,9 @@ extension TrainingViewModel {
             ? trainingEngine.deloadWeightMultiplier() : 1.0
         let effectiveWorkingSets = (deloading && deloadStyle == .volumeCut)
             ? max(1, (workingSets + 1) / 2) : workingSets
-        let adjusted = weight * plan.recoveryAdjustment * deloadMultiplier
+        let adjusted = weight * TrainingEngine.combinedLoadScale(
+            recoveryAdjustment: plan.recoveryAdjustment, deloadMultiplier: deloadMultiplier
+        ) * PainCaution.loadFactor(severity: activePainSeverities(modelContext: modelContext)[exercise.id])
         let unit = currentWeightUnit(modelContext: modelContext)
         let rounded = WeightConverter.loadableKg(adjusted, equipment: exercise.equipment, unit: unit)
 

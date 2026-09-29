@@ -134,6 +134,15 @@ extension TrainingViewModel {
     /// existing call sites.
     func painFlaggedExerciseIDs(within days: Int = 21, modelContext: ModelContext) -> Set<UUID> {
         Set(noteSignals(within: days, modelContext: modelContext).filter(\.value.pain).map(\.key))
+            .union(activePainSeverities(modelContext: modelContext).keys)
+    }
+
+    /// Highest severity per exercise from STRUCTURED "This hurts" reports still
+    /// inside the 7-day caution window (`PainCaution`). The free-text note scan
+    /// above only sees keywords in set notes; these reports were previously
+    /// shown as a chip but never reached prescription or selection.
+    func activePainSeverities(modelContext: ModelContext, now: Date = Date()) -> [UUID: Int] {
+        PainCaution.activeSeverities(in: fetchPainReports(modelContext: modelContext), asOf: now)
     }
 
     // MARK: - Feedback Aggregation (Tier 2.1, pure + unit-tested)

@@ -32,11 +32,18 @@ final class StrengthStandardsTests: XCTestCase {
     // MARK: - Epley round-trip (the anchor of the whole system)
 
     func testInverseEpleyIsExactInverseOfEpley() {
-        for reps in [1, 3, 5, 8, 12, 15] {
+        // Updated: epleyE1RM now caps reps at 12 (Epley is unreliable beyond),
+        // so the exact round trip holds up to the cap; 15 reps count as 12.
+        for reps in [1, 3, 5, 8, 12] {
             let e1RM = StrengthStandards.epleyE1RM(weight: 100, reps: reps)
             let back = StrengthStandards.inverseEpleyWeight(e1RM: e1RM, reps: reps)
             XCTAssertEqual(back, 100, accuracy: 0.0001, "reps=\(reps): weight must round-trip through e1RM")
         }
+    }
+
+    func testEpleyCapsRepsAtTwelve() {
+        XCTAssertEqual(StrengthStandards.epleyE1RM(weight: 100, reps: 15),
+                       StrengthStandards.epleyE1RM(weight: 100, reps: 12), accuracy: 0.0001)
     }
 
     func testEpleyKnownValues() {

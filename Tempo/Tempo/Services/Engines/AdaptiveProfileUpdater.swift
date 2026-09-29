@@ -75,13 +75,17 @@ enum AdaptiveProfileUpdater {
 
         guard sawSignal else { return }
 
-        // Fatigue EWMA across the session's mean RPE.
+        // Fatigue EWMA across the session's mean RPE. The prior is first
+        // relaxed by the rest since the last session (same decay the deload
+        // trigger reads), so a session after a rest week isn't blended with a
+        // stale peak.
         let sessionMeanRPE = sessionRPEs.reduce(0, +) / Double(sessionRPEs.count)
-        if let prior = profile.fatigueEWMA {
+        if let prior = profile.effectiveFatigueEWMA() {
             profile.fatigueEWMA = fatigueAlpha * sessionMeanRPE + (1 - fatigueAlpha) * prior
         } else {
             profile.fatigueEWMA = sessionMeanRPE
         }
+        profile.fatigueUpdatedAt = Date()
 
         // Threshold offset: a string of easy sessions earns a small NEGATIVE
         // offset (this user handles lower recovery well → green starts lower);

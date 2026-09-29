@@ -142,34 +142,14 @@ enum TrainingSafetyFloor {
         p.hasRecoveryScore && p.recoveryScore < recoveryGreen
     }
 
-    /// MODERATE = NOT severe, recovery yellow, with ≥1 moderate flag.
+    /// MODERATE = NOT severe AND recovery yellow. Per INTELLIGENT_TRAINING_SYSTEM
+    /// §6.2 the yellow band (34–66) is itself the base moderate signal, so
+    /// yellow alone clamps — the HRV / RHR / resp / sleep flags only ever add
+    /// reasons to the same tier (they can't change the outcome), and are
+    /// therefore not re-evaluated here. Green and red (red is handled as
+    /// SEVERE upstream) are never moderate.
     static func isModerate(_ p: ReadinessPicture) -> Bool {
-        guard p.recoveryScore >= recoveryRed, p.recoveryScore < recoveryGreen else {
-            return false
-        }
-
-        // Sleep-debt moderate flag is available without a baseline.
-        if let debt = p.sleepDebt, debt >= sleepDebtModerateLow, debt < sleepDebtSevere {
-            return true
-        }
-
-        guard p.hasBaselineForFloor else {
-            // Cold-start: only Route A (yellow) + sleep. Yellow alone is moderate
-            // only if a sleep flag is present; bare yellow with no flag = NORMAL-ish
-            // but we keep the conservative "yellow = clamp" stance.
-            return true
-        }
-
-        if let z = p.hrvZScore, z <= hrvModerateZ {
-            return true
-        }
-        if let d = p.rhrDeltaBpm, d >= rhrModerateBpmLow, d < rhrSevereBpm {
-            return true
-        }
-        if let rd = p.respDeltaBrMin, rd >= respModerateBrMin {
-            return true
-        }
-        return true // yellow recovery itself warrants a clamp (conservative)
+        p.recoveryScore >= recoveryRed && p.recoveryScore < recoveryGreen
     }
 
     /// RHR is elevated past the severe bpm cutoff OR its z backstop fires.
@@ -235,20 +215,58 @@ enum TrainingSafetyFloor {
         .recovery: 0, .easy: 1, .moderate: 2, .hard: 3, .max: 4,
     ]
 
-    /// Caps a session's intensity at `cap`, leaving everything else intact.
+    /// Relative training load of each intensity — the ratio between two ranks
+    /// is how far a clamp scales the numbers underneath the label.
+    private static let intensityLoad: [SessionIntensity: Double] = [
+        .recovery: 0.3, .easy: 0.5, .moderate: 0.7, .hard: 0.85, .max: 1.0,
+    ]
+    /// Highest session RPE each intensity can expect.
+    private static let intensityRPECap: [SessionIntensity: Int] = [
+        .recovery: 2, .easy: 4, .moderate: 6, .hard: 8, .max: 10,
+    ]
+
+    /// Caps a session's intensity at `cap`. The label AND the numbers under it
+    /// move: block `intensityPct` scales by the load ratio, and the volume
+    /// fields (`sets`, `reps`) shrink with it (never below 1), so a "capped"
+    /// max-effort field session is genuinely lighter rather than relabelled.
     static func clampIntensity(_ s: DailySessionDTO, to cap: SessionIntensity) -> DailySessionDTO {
-        guard let cur = intensityRank[s.intensity], let capR = intensityRank[cap], cur > capR else {
+        guard let cur = intensityRank[s.intensity], let capR = intensityRank[cap], cur > capR,
+              let curLoad = intensityLoad[s.intensity], let capLoad = intensityLoad[cap]
+        else {
             return s
+        }
+        let factor = capLoad / curLoad
+        func scaledCount(_ n: Int?) -> Int? {
+            n.map { max(1, Int((Double($0) * factor).rounded())) }
+        }
+        let blocks = s.blocks.map { b in
+            SessionBlockDTO(
+                kind: b.kind,
+                label: b.label,
+                notes: b.notes,
+                cue: b.cue,
+                scheduledMin: b.scheduledMin,
+                split: b.split,
+                reps: scaledCount(b.reps),
+                distanceM: b.distanceM,
+                restSec: b.restSec,
+                intensityPct: b.intensityPct.map { $0 * factor },
+                durationSec: b.durationSec,
+                stroke: b.stroke,
+                runType: b.runType,
+                paceSecPerKm: b.paceSecPerKm,
+                sets: scaledCount(b.sets)
+            )
         }
         return DailySessionDTO(
             modality: s.modality,
             intensity: cap,
             durationMin: s.durationMin,
-            blocks: s.blocks,
+            blocks: blocks,
             shortWhy: s.shortWhy,
             fullWhy: s.fullWhy,
-            expectedStrain: s.expectedStrain,
-            expectedSessionRPE: s.expectedSessionRPE
+            expectedStrain: s.expectedStrain.map { $0 * factor },
+            expectedSessionRPE: s.expectedSessionRPE.map { min($0, intensityRPECap[cap] ?? $0) }
         )
     }
 
