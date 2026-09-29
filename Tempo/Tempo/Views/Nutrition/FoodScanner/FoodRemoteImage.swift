@@ -35,10 +35,16 @@ struct FoodRemoteImage: View {
         ZStack {
             if let image {
                 if showsBlurredBackdrop, contentMode == .fit {
-                    Image(uiImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .blur(radius: 24)
+                    // In an overlay on Color.clear so the fill image can't
+                    // widen the layout past the screen (it would push every
+                    // card on the product page off the left edge).
+                    Color.clear
+                        .overlay {
+                            Image(uiImage: image)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .blur(radius: 24)
+                        }
                         .overlay(Color.black.opacity(TempoOpacity.o40))
                         .clipped()
                         .transition(.opacity)

@@ -277,10 +277,13 @@ struct FoodProductView: View {
     /// letterboxing either side of a tall/narrow photo.
     private func heroImage(_ image: Image) -> some View {
         ZStack {
-            image
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-                .blur(radius: 24)
+            Color.clear
+                .overlay {
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .blur(radius: 24)
+                }
                 .overlay(Color.black.opacity(TempoOpacity.o40))
                 .clipped()
             image

@@ -36,6 +36,9 @@ struct FoodSearchView: View {
 
     @State
     private var searchText = ""
+    /// Opens straight into typing — the user came here to search.
+    @State
+    private var isSearchPresented = false
     @State
     private var selectedTab: SearchTab = .all
     @State
@@ -96,6 +99,7 @@ struct FoodSearchView: View {
             .navigationBarTitleDisplayMode(.inline)
             .searchable(
                 text: $searchText,
+                isPresented: $isSearchPresented,
                 placement: .navigationBarDrawer(displayMode: .always),
                 prompt: "Foods or brands — e.g. skyr, Barilla"
             )
@@ -133,6 +137,8 @@ struct FoodSearchView: View {
                 }
                 if searchText.isEmpty, let initialQuery, !initialQuery.isEmpty {
                     searchText = initialQuery
+                } else if searchText.isEmpty {
+                    isSearchPresented = true
                 }
             }
         }
