@@ -61,10 +61,22 @@ enum WeeklyUploadReminderScheduler {
         let sundayFire = TrainerProgramWeeklyUpload.sundayDeadline(afterWeekStarting: anchorWeekMonday)
         let mondayFire = TrainerProgramWeeklyUpload.mondayNudge(afterWeekStarting: anchorWeekMonday)
 
-        if sundayFire > now {
+        // Pause/travel-pain feature — no nagging to upload while away/sick: a
+        // reminder that would fire ON a paused day is dropped, and a pause
+        // covering the whole week being uploaded for drops both (same rule
+        // as `weeklyUploadDue`'s in-app prompt).
+        let pauses = vm.fetchTrainingPauses(modelContext: modelContext)
+        let nextWeekMonday = TrainingCalendar.iso8601.date(byAdding: .day, value: 7, to: anchorWeekMonday) ?? anchorWeekMonday
+        if TrainingPauseSchedule.pausesCoverWholeWeek(pauses: pauses, weekMonday: nextWeekMonday) {
+            return
+        }
+        let sundayPaused = TrainingPauseSchedule.coveringPause(pauses, on: sundayFire) != nil
+        let mondayPaused = TrainingPauseSchedule.coveringPause(pauses, on: mondayFire) != nil
+
+        if sundayFire > now, !sundayPaused {
             notifications.scheduleWeeklyUploadSundayReminder(programName: program.name, fireDate: sundayFire)
         }
-        if mondayFire > now {
+        if mondayFire > now, !mondayPaused {
             notifications.scheduleWeeklyUploadMondayReminder(programName: program.name, fireDate: mondayFire)
         }
     }

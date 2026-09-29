@@ -389,4 +389,51 @@ final class TrainerProgramSaverTests: XCTestCase {
         XCTAssertFalse(a.isActive)
         XCTAssertTrue(b.isActive)
     }
+
+    // MARK: - Queued programs
+
+    private func plainProgram(_ name: String, active: Bool, queued: Date? = nil) -> TrainerProgram {
+        TrainerProgram(
+            name: name, startDate: Date(), weeks: [ProgramWeek(days: [])],
+            isActive: active, sourceKind: "text", queuedActivationDate: queued
+        )
+    }
+
+    func testImmediateSaveClearsAnExistingQueuedProgram() throws {
+        let context = try makeContext()
+        let later = Date().addingTimeInterval(7 * 86400)
+        let active = plainProgram("A", active: true)
+        let queued = plainProgram("B", active: false, queued: later)
+        context.insert(active)
+        context.insert(queued)
+        try context.save()
+
+        let fresh = try TrainerProgramSaver.save(
+            name: "C", startDate: Date(),
+            weeks: [ProgramWeek(days: [
+                ProgramDay(weekday: 1, title: nil, focus: nil, exercises: [exercise(named: "Squat")], notes: nil),
+            ])],
+            repeats: true, sourceKind: "text", sourceText: nil, modelContext: context
+        )
+
+        XCTAssertTrue(fresh.isActive)
+        XCTAssertNil(queued.queuedActivationDate, "B must not replace the newer, already-active C later")
+    }
+
+    func testActivateAndDeactivateClearTheProgramsQueueDate() throws {
+        let context = try makeContext()
+        let later = Date().addingTimeInterval(7 * 86400)
+        let queued = plainProgram("B", active: false, queued: later)
+        context.insert(queued)
+        try context.save()
+
+        TrainerProgramSaver.activate(queued, modelContext: context)
+        XCTAssertTrue(queued.isActive)
+        XCTAssertNil(queued.queuedActivationDate)
+
+        queued.queuedActivationDate = later
+        TrainerProgramSaver.deactivate(queued, modelContext: context)
+        XCTAssertFalse(queued.isActive)
+        XCTAssertNil(queued.queuedActivationDate, "a deactivated program must not resurrect on its old date")
+    }
 }

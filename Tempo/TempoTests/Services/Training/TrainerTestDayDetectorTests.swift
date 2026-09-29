@@ -118,4 +118,23 @@ final class TrainerTestDayDetectorTests: XCTestCase {
         XCTAssertEqual(day.exercises[0].isTest, false)
         XCTAssertEqual(day.exercises[1].isTest, true)
     }
+
+    // MARK: - Percentage-of-max is a load, not a test
+
+    func testPercentOfOneRepMaxIsNotATest() {
+        XCTAssertFalse(TrainerTestDayDetector.isTestExercise(name: "Squat", detail: "4x5 @ 75% 1RM", notes: nil))
+        XCTAssertFalse(TrainerTestDayDetector.isTestExercise(name: "Bench", detail: nil, notes: "70% of your 1RM"))
+        XCTAssertFalse(TrainerTestDayDetector.isTestExercise(name: "Deadlift", detail: nil, notes: "80% 5RM"))
+    }
+
+    func testItalianPercentOfMassimaleIsNotATest() {
+        XCTAssertFalse(TrainerTestDayDetector.isTestExercise(name: "Squat", detail: "80% del massimale", notes: nil))
+        XCTAssertFalse(TrainerTestDayDetector.isTestExercise(name: "Panca", detail: "75% dell'massimale", notes: nil))
+    }
+
+    func testRealTestStillDetectedNextToAPercentage() {
+        XCTAssertTrue(TrainerTestDayDetector.isTestExercise(name: "Squat", detail: "work up to a 1RM, then 5x3 @ 70% 1RM", notes: nil))
+        XCTAssertTrue(TrainerTestDayDetector.isTestDay(title: "Test 1RM", notes: "warm-up at 60% 1RM"))
+        XCTAssertTrue(TrainerTestDayDetector.isTestExercise(name: "Squat", detail: "lavora al massimale", notes: nil))
+    }
 }

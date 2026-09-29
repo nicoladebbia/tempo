@@ -729,10 +729,16 @@ final class TrainingViewModel {
         // Fix #6 — sequence mode needs real progress as of `monday` to
         // resolve "today's session"; see TrainingViewModel+TrainerProgram.
         if let program = activeTrainerProgram(modelContext: modelContext) {
+            // Cursor = sessions done BEFORE this week; the week's own completed
+            // days are walked in order, missed past days carry forward.
+            let weekEnd = cal.date(byAdding: .day, value: 7, to: monday) ?? monday
             Self.applyTrainerProgram(
                 program, to: plans, matchDayKeys: matchDayKeys,
-                completedSequenceCount: completedTrainerSessionCount(for: program, modelContext: modelContext),
-                priorDayWasLift: trainerProgramPriorDayWasLift(before: monday, program: program, modelContext: modelContext)
+                completedSequenceCount: completedTrainerSessionCount(for: program, before: monday, modelContext: modelContext),
+                priorDayWasLift: trainerProgramPriorDayWasLift(before: monday, program: program, modelContext: modelContext),
+                // A snapshot/preview of a FUTURE week has no past days in it.
+                today: min(referenceDate, Date()),
+                completedDayKeys: completedTrainerSessionDays(for: program, from: monday, to: weekEnd, modelContext: modelContext)
             )
         }
 
