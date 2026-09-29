@@ -39,34 +39,12 @@ struct SubscriptionMiddleware: AsyncMiddleware {
         }
 
         // 2. Enforce AI consent (AI_INTELLIGENCE_ENGINE.md §11.3).
-        let hasConsent = try await userHasAIConsent(userID: userID, on: request)
+        let hasConsent = try await ProEntitlement.userHasAIConsent(userID: userID, on: request)
         guard hasConsent else {
             throw aiConsentRequired
         }
 
         return try await next.respond(to: request)
-    }
-
-    // MARK: - AI consent lookup
-
-    private func userHasAIConsent(userID: String, on req: Request) async throws -> Bool {
-        let cacheKey = RedisKey("ai_consent:\(userID)")
-        if let cached = try await req.redis.get(cacheKey, as: String.self).get() {
-            return cached == "1"
-        }
-
-        guard let user = try await User.find(userID, on: req.db) else {
-            return false
-        }
-        let hasConsent = user.aiConsentAt != nil
-
-        try await req.redis.setex(
-            cacheKey,
-            to: hasConsent ? "1" : "0",
-            expirationInSeconds: Self.cacheTTLSeconds
-        ).get()
-
-        return hasConsent
     }
 
     // MARK: - Structured errors
@@ -81,12 +59,7 @@ struct SubscriptionMiddleware: AsyncMiddleware {
     }
 
     private var aiConsentRequired: Abort {
-        Abort(
-            .paymentRequired,
-            headers: [:],
-            reason: "AI consent is required before using AI features.",
-            identifier: "ai_consent_required"
-        )
+        ProEntitlement.aiConsentRequired
     }
 }
 
