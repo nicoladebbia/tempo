@@ -165,6 +165,16 @@ final class WorkoutPlan {
         }
     }
 
+    /// Exercises with at least one logged working set — what was actually
+    /// trained. `orderedExercises.count` is what was PLANNED (a 1-set session
+    /// used to report "6 exercises").
+    @Transient
+    var performedExerciseCount: Int {
+        (exercises ?? []).count { ex in
+            (ex.sets ?? []).contains { !$0.isWarmup && $0.completed }
+        }
+    }
+
     @Transient
     var completionPercentage: Double {
         guard totalSets > 0 else {

@@ -716,7 +716,10 @@ struct WeekPlanView: View {
                                     .foregroundStyle(Color.tempoTextPrimary)
 
                                 if isCompleted {
-                                    Text("— Completed")
+                                    // A session saved early reads as partial, not "Completed".
+                                    Text(plan.completedSets < plan.totalSets && plan.totalSets > 0
+                                        ? "— Done \(plan.completedSets)/\(plan.totalSets) sets"
+                                        : "— Completed")
                                         .font(.tempoCaption1)
                                         .foregroundStyle(Color.tempoRecoveryGreen)
                                 }

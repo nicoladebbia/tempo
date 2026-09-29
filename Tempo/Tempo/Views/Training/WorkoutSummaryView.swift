@@ -268,7 +268,7 @@ struct WorkoutSummaryView: View {
             statCell(
                 icon: "flame",
                 label: "Exercises",
-                value: "\(viewModel.totalExercises)"
+                value: "\(viewModel.performedExercises)"
             )
         }
     }

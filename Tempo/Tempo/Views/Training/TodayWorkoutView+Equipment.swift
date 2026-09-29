@@ -17,7 +17,11 @@ extension TodayWorkoutView {
         case .machine: "Machine"
         case .bodyweight: "Bodyweight"
         case .kettlebell: "Kettlebell"
-        default: equipment.rawValue.capitalized
+        case .pullUpBar: "Pull-Up Bar"
+        case .ezBar: "EZ Bar"
+        case .none: "No equipment"
+        // Raw values are snake_case ("pull_up_bar" rendered "Pull_Up_Bar").
+        default: equipment.rawValue.replacingOccurrences(of: "_", with: " ").capitalized
         }
     }
 
