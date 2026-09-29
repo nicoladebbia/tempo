@@ -108,7 +108,8 @@ extension TrainingViewModel {
         let lastLoggedKg = slot.orderedSets.last { $0.completed && ($0.actualWeight ?? 0) > 0 }?.actualWeight
         let fallbackKg = [set.targetWeight, lastLoggedKg].compactMap { $0 }.first { $0 > 0 }
         let isBodyweightMove = slot.exercise?.equipment == .bodyweight || slot.exercise?.equipment == .none
-        guard let resolvedWeight = weightKg ?? fallbackKg ?? (isBodyweightMove ? 0 : nil) else {
+        let reportedKg = weightKg.flatMap { $0 > 0 || isBodyweightMove ? $0 : nil }
+        guard let resolvedWeight = reportedKg ?? fallbackKg ?? (isBodyweightMove ? 0 : nil) else {
             return false
         }
         let resolvedReps = reps ?? set.targetReps

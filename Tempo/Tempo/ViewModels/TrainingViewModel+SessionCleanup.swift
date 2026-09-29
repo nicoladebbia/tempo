@@ -13,11 +13,11 @@ import SwiftData
 extension TrainingViewModel {
     /// Every set was skipped or removed and none logged: same rollback as
     /// `finishWorkout`'s zero-set guard. Skipping DELETES sets, so if the plan
-    /// has no sets left there is nothing to redo either — resolve the day as a
+    /// has no working sets left there is nothing to redo either — resolve the day as a
     /// user skip rather than leaving a hollow, restartable plan.
     func endSessionWithNothingLogged(plan: WorkoutPlan, modelContext: ModelContext) {
         discardActiveWorkout(modelContext: modelContext)
-        if plan.orderedExercises.allSatisfy({ $0.orderedSets.isEmpty }) {
+        if plan.orderedExercises.allSatisfy({ $0.orderedSets.allSatisfy(\.isWarmup) }) {
             plan.status = .skipped
             plan.skipReason = .userSkipped
             saveGuarded(modelContext, operation: "skipped workout")

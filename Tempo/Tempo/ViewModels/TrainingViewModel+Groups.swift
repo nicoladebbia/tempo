@@ -145,7 +145,8 @@ extension TrainingViewModel {
         let equipment = plannedExercise.exercise?.equipment ?? .none
         // An UNLOGGED current set has no actualWeight yet: the drop must base
         // on what the athlete has dialed in on screen, not the stale target.
-        let baseKg = current.actualWeight ?? enteredWeightKg ?? current.targetWeight ?? 0
+        let entered = enteredWeightKg.flatMap { $0 > 0 ? $0 : nil }
+        let baseKg = current.actualWeight ?? entered ?? current.targetWeight ?? 0
         let reducedKg = baseKg > 0
             ? WeightConverter.loadableKg(baseKg * 0.8, equipment: equipment, unit: weightUnit)
             : baseKg

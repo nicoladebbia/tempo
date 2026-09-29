@@ -68,6 +68,12 @@ extension TrainingViewModel {
             if case .resting = sub, let remaining = pausedRestRemaining {
                 startRestTimer(duration: remaining, nextAction: pendingRestAction)
             }
+            // A pause/call that caught the 300 ms inter-exercise hop would
+            // otherwise resume into `.betweenExercises` with nothing left to
+            // finish it (the hop task bails once the state changed).
+            if case let .betweenExercises(_, to) = sub {
+                recoverFromEmptyExercise(startingAt: to)
+            }
         case .cooldown:
             sessionState = .cooldown
         }
