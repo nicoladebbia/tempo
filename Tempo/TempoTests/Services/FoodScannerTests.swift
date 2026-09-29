@@ -396,7 +396,16 @@ final class FoodLoggingTests: XCTestCase {
     }
 
     func testDrinkKeepsItsServingSize() {
-        var cola = FoodProduct.sample(per100g: FoodProduct.Nutrients(kcal: 42, protein: 0, carbs: 10.6, sugars: 10.6, fat: 0, saturatedFat: 0, fiber: 0, salt: 0))
+        var cola = FoodProduct.sample(per100g: FoodProduct.Nutrients(
+            kcal: 42,
+            protein: 0,
+            carbs: 10.6,
+            sugars: 10.6,
+            fat: 0,
+            saturatedFat: 0,
+            fiber: 0,
+            salt: 0
+        ))
         cola.isBeverage = true
         let item = cola.foodItem(grams: 330)
         XCTAssertEqual(item.servingSize, "330 ml")
@@ -406,7 +415,10 @@ final class FoodLoggingTests: XCTestCase {
     }
 
     func testBuiltInFoodLogsAsCachedWithoutBarcode() {
-        let product = FoodCatalog.builtInProduct(name: "chicken breast", macros: FoodMacros(calories: 165, protein: 31, carbs: 0, fat: 3.6, fiber: 0))
+        let product = FoodCatalog.builtInProduct(
+            name: "chicken breast",
+            macros: FoodMacros(calories: 165, protein: 31, carbs: 0, fat: 3.6, fiber: 0)
+        )
         let stored = MealFoodItem(from: product.foodItem(grams: 200).mealFoodInput)
         XCTAssertNil(stored.barcode)
         XCTAssertNil(stored.offProductCode)
@@ -480,16 +492,16 @@ final class FoodScannerCleanupTests: XCTestCase {
         )
     }
 
-    func testPlaceholderSymbolFollowsMostSpecificCategory() {
-        let peanut = FoodProduct.sample(categories: ["plant-based-foods-and-beverages", "spreads", "peanut-butters"])
-        XCTAssertEqual(peanut.placeholderSymbol, "leaf.fill", "Not a drink just because of the root category")
-        XCTAssertEqual(FoodProduct.sample(categories: ["beverages", "coffees"]).placeholderSymbol, "cup.and.saucer.fill")
-        XCTAssertEqual(FoodProduct.sample(categories: ["unknown-thing"]).placeholderSymbol, "barcode")
-    }
-
     func testFreeTextCategoriesAreDropped() {
-        let nutella = ["en:breakfasts", "en:spreads", "en:sweet-spreads", "en:confectionary-based-spreads",
-                       "en:Pâtes à tartiner", "fr:Nutella", "fr:Nuttela"]
+        let nutella = [
+            "en:breakfasts",
+            "en:spreads",
+            "en:sweet-spreads",
+            "en:confectionary-based-spreads",
+            "en:Pâtes à tartiner",
+            "fr:Nutella",
+            "fr:Nuttela",
+        ]
         XCTAssertEqual(
             OFFRawProduct.taxonomyCategories(nutella),
             ["breakfasts", "spreads", "sweet-spreads", "confectionary-based-spreads"],
