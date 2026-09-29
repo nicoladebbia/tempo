@@ -37,6 +37,11 @@ protocol ReceiptServiceProtocol: Sendable {
     /// Delete a receipt (cascade-deletes its line items, but does NOT undo
     /// pantry ingestions — those are independent rows once created).
     func delete(_ receipt: Receipt) throws
+
+    /// `true` when another receipt on file shares this one's store|date|total
+    /// fingerprint (`Receipt.duplicateKey`) — a likely re-scan of the same
+    /// physical receipt. Non-blocking: the caller decides whether to warn.
+    func isLikelyDuplicate(_ receipt: Receipt) -> Bool
 }
 
 // MARK: - ReceiptServiceError

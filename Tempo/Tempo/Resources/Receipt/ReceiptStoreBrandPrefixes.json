@@ -1,0 +1,50 @@
+[
+  {
+    "chain": "publix",
+    "prefixes": ["PBX", "PUB", "PUBLIX"],
+    "displayBrand": "Publix"
+  },
+  {
+    "chain": "publix_greenwise",
+    "prefixes": ["GW", "GREENWISE"],
+    "displayBrand": "GreenWise",
+    "note": "GW is context-dependent: it means Great Value on a Walmart receipt but GreenWise (Publix's organic/premium line) on a Publix receipt. The resolver must special-case GW using the storeChain parameter rather than relying on this dictionary alone — when storeChain is publix (or unset), GW should resolve to this GreenWise entry, not to walmart's Great Value entry."
+  },
+  {
+    "chain": "walmart",
+    "prefixes": ["GV", "GREAT VALUE"],
+    "displayBrand": "Great Value",
+    "note": "GW overlaps with Publix's GreenWise — see the publix_greenwise entry's note. Only GV (not GW) should be treated as unambiguously Great Value."
+  },
+  {
+    "chain": "costco",
+    "prefixes": ["KS", "KIRKLAND"],
+    "displayBrand": "Kirkland Signature"
+  },
+  {
+    "chain": "whole_foods",
+    "prefixes": ["365", "WFM"],
+    "displayBrand": "365 by Whole Foods Market"
+  },
+  {
+    "chain": "trader_joes",
+    "prefixes": ["TJ", "TRADER JOES", "TRADERJOES"],
+    "displayBrand": "Trader Joe's"
+  },
+  {
+    "chain": "target",
+    "prefixes": ["GG", "GOOD & GATHER", "GOOD AND GATHER"],
+    "displayBrand": "Good & Gather"
+  },
+  {
+    "chain": "kroger",
+    "prefixes": ["ST", "SIMPLE TRUTH"],
+    "displayBrand": "Simple Truth"
+  },
+  {
+    "chain": "aldi",
+    "prefixes": [],
+    "displayBrand": "Aldi",
+    "note": "Aldi private-label items usually don't carry a distinguishing leading prefix token on the receipt, so prefixes is intentionally empty — plausible guess pending real receipt samples."
+  }
+]

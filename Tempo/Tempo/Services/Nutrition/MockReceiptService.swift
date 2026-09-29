@@ -118,4 +118,11 @@ final class MockReceiptService: ReceiptServiceProtocol {
     func delete(_ receipt: Receipt) throws {
         receipts.removeAll { $0.id == receipt.id }
     }
+
+    func isLikelyDuplicate(_ receipt: Receipt) -> Bool {
+        guard let key = receipt.duplicateKey else {
+            return false
+        }
+        return receipts.contains { $0.id != receipt.id && $0.duplicateKey == key }
+    }
 }

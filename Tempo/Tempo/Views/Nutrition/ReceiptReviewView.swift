@@ -6,6 +6,7 @@
 //
 //
 
+import SwiftData
 import SwiftUI
 import UIKit
 
@@ -21,15 +22,33 @@ struct ReceiptReviewView: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.modelContext)
+    private var modelContext
     @State
     private var ingestError: String?
     @State
     private var isIngesting = false
+    /// Computed once on appear, not on every render — `isLikelyDuplicate`
+    /// does a full `fetchAll()` over every stored receipt, which is too
+    /// expensive to re-run on each line-confirm toggle if called directly
+    /// from `body`.
+    @State
+    private var isLikelyDuplicate = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TempoSpacing.lg) {
                 receiptHeader
+                if isLikelyDuplicate {
+                    banner(
+                        text: "You may have already scanned this receipt — same store, date and total as another one on file.",
+                        icon: "doc.on.doc.fill",
+                        color: .tempoWarning
+                    )
+                }
+                if let crossCheckBanner = receipt.crossCheckBanner {
+                    banner(text: crossCheckBanner, icon: "exclamationmark.triangle.fill", color: .tempoWarning)
+                }
                 if receipt.orderedLineItems.isEmpty {
                     emptyState
                 } else {
@@ -38,6 +57,21 @@ struct ReceiptReviewView: View {
                             line: line,
                             onConfirmToggle: { confirmed in
                                 line.userConfirmed = confirmed
+                                // Confirming a line is the natural "the user
+                                // vouches for this reading" moment — learn it
+                                // as a store-scoped alias so the SAME raw OCR
+                                // text resolves to this exact name next time,
+                                // even if Haiku guesses differently on a
+                                // future rescan (ReceiptItemResolver layer 2).
+                                if confirmed {
+                                    ReceiptItemResolver.learn(
+                                        rawText: line.rawText,
+                                        storeChain: receipt.storeChain,
+                                        readableName: line.displayName,
+                                        canonicalFoodName: line.canonicalFoodName,
+                                        in: modelContext
+                                    )
+                                }
                             }
                         )
                     }
@@ -86,6 +120,9 @@ struct ReceiptReviewView: View {
                 .fontWeight(.semibold)
             }
         }
+        .task {
+            isLikelyDuplicate = receiptService.isLikelyDuplicate(receipt)
+        }
     }
 
     private var receiptHeader: some View {
@@ -107,11 +144,37 @@ struct ReceiptReviewView: View {
                     .font(.tempoCaption1)
                     .foregroundStyle(Color.tempoTextSecondary)
             }
+            if receipt.subtotalAmount != nil || receipt.taxAmount != nil || receipt.savingsAmount != nil {
+                HStack(spacing: TempoSpacing.md) {
+                    if let subtotal = receipt.subtotalAmount {
+                        Text("Subtotal \(String(format: "$%.2f", subtotal))")
+                    }
+                    if let tax = receipt.taxAmount {
+                        Text("Tax \(String(format: "$%.2f", tax))")
+                    }
+                    if let savings = receipt.savingsAmount, savings > 0 {
+                        Text("Saved \(String(format: "$%.2f", savings))")
+                            .foregroundStyle(Color.tempoSignal)
+                    }
+                }
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextTertiary)
+            }
         }
         .padding(TempoSpacing.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+    }
+
+    private func banner(text: String, icon: String, color: Color) -> some View {
+        Label(text, systemImage: icon)
+            .font(.tempoCaption1)
+            .foregroundStyle(color)
+            .padding(TempoSpacing.cardPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(color.opacity(0.12))
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
     }
 
     private var emptyState: some View {
@@ -246,6 +309,12 @@ private struct ReceiptLineCard: View {
                 Label(note, systemImage: "tag.fill")
                     .font(.tempoCaption2)
                     .foregroundStyle(Color.tempoSignal)
+            }
+
+            if line.isNonFood || line.isFee {
+                Label(line.isFee ? "Fee/deposit — not food" : "Not food", systemImage: "cart.badge.minus")
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextTertiary)
             }
 
             if line.isIngested {

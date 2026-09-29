@@ -32,14 +32,32 @@ final class LiveReceiptService: ReceiptServiceProtocol {
         // 1) On-device Vision OCR. If it fails outright we fall through to the
         // image-only Haiku path; if it succeeds with low confidence we still
         // send both raw_text + image so the backend can choose.
+        // `.tooLowQuality` is a distinct, user-actionable failure (blurry/
+        // glare/faded photo even after the contrast retry) — surfaced to the
+        // caller (ReceiptCaptureView) with a specific retake prompt instead
+        // of silently falling back to the image-only path, since a photo bad
+        // enough to fail Vision's own quality gate is usually bad enough to
+        // fail Haiku Vision too.
         var rawText: String?
         var visionAvgConfidence: Double = 0
+        var preParse: ReceiptPreParseResult?
         do {
             let visionResult = try await VisionReceiptOCR.recognize(image: image)
             rawText = visionResult.rawText
             visionAvgConfidence = visionResult.averageConfidence
+            preParse = ReceiptPreParser.parse(rows: visionResult.rows, storeHint: storeHint)
+        } catch let VisionReceiptOCRError.tooLowQuality(hint) {
+            logger.warning("Receipt photo failed quality gate: \(hint, privacy: .public)")
+            throw ReceiptServiceError.visionFailed(hint)
         } catch {
             logger.warning("Vision OCR failed, falling back to image-only Haiku: \(error.localizedDescription, privacy: .public)")
+        }
+
+        // Strip payment-card/auth/loyalty PII from the raw OCR text before it
+        // is either sent to the backend or persisted to SwiftData. Safe to
+        // run even when rawText is nil.
+        if let text = rawText {
+            rawText = ReceiptPrivacyRedactor.redact(text)
         }
 
         // 2) Prepare the structuring request. We always send the image so the
@@ -71,6 +89,19 @@ final class LiveReceiptService: ReceiptServiceProtocol {
         // the user never re-shoots the receipt. Best-effort: a failed write
         // only costs the retry affordance, not the scan itself.
         stubReceipt.photoPath = ReceiptPhotoStore.save(downsampled, for: stubReceipt.id)
+
+        // Duplicate-scan detection: compare this scan's store|date|total
+        // fingerprint against every other receipt already on file. We don't
+        // block the scan — just flag it so the review screen can warn before
+        // the user ingests the same trip twice.
+        if let key = preParse?.duplicateKey {
+            stubReceipt.duplicateKey = key
+            if let existing = try? fetchAll(),
+               existing.contains(where: { $0.id != stubReceipt.id && $0.duplicateKey == key })
+            {
+                logger.warning("Possible duplicate receipt scan detected (key=\(key, privacy: .private))")
+            }
+        }
         try modelContext.save()
 
         // 4) Structure it (network + apply). Shared with retryStructuring().
@@ -78,9 +109,21 @@ final class LiveReceiptService: ReceiptServiceProtocol {
             to: stubReceipt,
             rawText: rawText,
             jpeg: downsampled,
-            storeHint: storeHint
+            storeHint: storeHint,
+            preParse: preParse
         )
         return stubReceipt
+    }
+
+    /// `true` when another receipt on file shares this one's store|date|total
+    /// fingerprint — surfaced by the review UI as a "you may have already
+    /// scanned this receipt" warning. Non-blocking by design.
+    func isLikelyDuplicate(_ receipt: Receipt) -> Bool {
+        guard let key = receipt.duplicateKey else {
+            return false
+        }
+        let others = (try? fetchAll()) ?? []
+        return others.contains { $0.id != receipt.id && $0.duplicateKey == key }
     }
 
     // MARK: - Structuring (shared by scan + retry)
@@ -93,16 +136,33 @@ final class LiveReceiptService: ReceiptServiceProtocol {
         to receipt: Receipt,
         rawText: String?,
         jpeg: Data,
-        storeHint: String?
+        storeHint: String?,
+        preParse: ReceiptPreParseResult? = nil
     ) async throws {
         let base64 = jpeg.base64EncodedString()
-        logger.info("[Diag.Receipt] upload payload jpeg=\(jpeg.count / 1024)KB base64=\(base64.count / 1024)KB hasOCRText=\(rawText != nil)")
+        logger
+            .info("[Diag.Receipt] upload payload jpeg=\(jpeg.count / 1024)KB base64=\(base64.count / 1024)KB hasOCRText=\(rawText != nil)")
+
+        // Fold the deterministic pre-parse's "DETECTED totals" block into the
+        // raw text so the structuring prompt can lean on numbers we already
+        // trust (subtotal/tax/total/savings/voided-items boundary) instead of
+        // re-deriving them from scratch. Additive — an old backend that
+        // ignores the extra lines still works exactly as before.
+        var textForRequest = rawText
+        if let hints = preParse?.hintsBlock, !hints.isEmpty {
+            textForRequest = [rawText, hints].compactMap(\.self).joined(separator: "\n\n")
+        }
+
+        let chainHint = Self.storeChainSlug(from: preParse?.storeNameGuess ?? storeHint)
+        let dictionaryHints = preParse?.departmentHints.isEmpty == false ? preParse?.departmentHints : nil
 
         let request = ReceiptStructuringRequest(
-            rawText: rawText,
+            rawText: textForRequest,
             imageBase64: base64,
             imageMediaType: "image/jpeg",
-            storeHint: storeHint
+            storeHint: storeHint,
+            storeChainHint: chainHint,
+            dictionaryHints: dictionaryHints
         )
 
         let response: ReceiptStructuringResponse
@@ -135,15 +195,66 @@ final class LiveReceiptService: ReceiptServiceProtocol {
         receipt.paymentMethod = response.paymentMethod
         receipt.ocrStatus = .awaitingReview
         receipt.ocrProviderRaw = response.provider
+        // New/optional fields: prefer what the backend sent, fall back to the
+        // deterministic pre-parse's own reading of the printed totals so an
+        // older backend (or a Haiku response that omits them) doesn't leave
+        // these blank.
+        receipt.subtotalAmount = response.subtotalAmount ?? preParse?.subtotalAmount
+        receipt.savingsAmount = response.savingsAmount ?? preParse?.savingsAmount
+        receipt.currencyCode = response.currency ?? preParse?.currencyCode
+        receipt.storeChain = response.storeChain ?? Self.storeChainSlug(from: response.store)
         receipt.updatedAt = Date()
 
+        // Index the pre-parse's candidate items by raw text so per-line
+        // deterministic hints (non-food/fee/tax-flag) can back-fill anything
+        // the structuring response left nil — best-effort exact-text match
+        // only; a miss just means we rely on the response alone for that line.
+        // Keyed by REDACTED text: preParse was built from the unredacted
+        // Vision rows, but itemDTO.rawText reflects what Haiku actually saw
+        // (the redacted textForRequest) — without redacting the key too,
+        // any row with an embedded barcode/reference number would never
+        // match and silently lose its non-food/fee/tax-flag back-fill.
+        let preParseByRawText: [String: ReceiptPreParseItemRow] = Dictionary(
+            (preParse?.candidateItems ?? []).map { (ReceiptPrivacyRedactor.redact($0.rawText), $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+
+        var itemTotals: [Double] = []
         for itemDTO in response.lineItems {
             let unit = ReceiptLineUnit(rawValue: itemDTO.unit) ?? .unit
+            let preParseMatch = preParseByRawText[itemDTO.rawText]
+
+            // Layer 1/2 of ReceiptItemResolver: a learned alias (the user
+            // corrected this exact raw text at this store chain before) wins
+            // outright over whatever Haiku guessed this time — that's the
+            // whole point of "applied automatically with exact confidence".
+            // Dictionary-only resolutions are NOT preferred over Haiku's own
+            // (usually equally good, often better with visual context)
+            // reading — they only fill in when Haiku left the name
+            // unexpanded (still looks like the raw OCR text).
+            let resolved = ReceiptItemResolver.resolve(
+                rawText: itemDTO.rawText,
+                storeChain: receipt.storeChain,
+                in: modelContext
+            )
+            var resolvedDisplayName = itemDTO.displayName
+            var resolvedCanonical = itemDTO.canonicalFoodName
+            if resolved.confidence == .exactProduct {
+                resolvedDisplayName = resolved.readableName
+                resolvedCanonical = resolved.canonicalFoodName
+            } else if resolved.confidence == .foodLevel,
+                      itemDTO.displayName.trimmingCharacters(in: .whitespaces)
+                      .caseInsensitiveCompare(itemDTO.rawText.trimmingCharacters(in: .whitespaces)) == .orderedSame
+            {
+                resolvedDisplayName = resolved.readableName
+                resolvedCanonical = resolved.canonicalFoodName
+            }
+
             let line = ReceiptLineItem(
                 receipt: receipt,
                 rawText: itemDTO.rawText,
-                canonicalFoodName: itemDTO.canonicalFoodName,
-                displayName: itemDTO.displayName,
+                canonicalFoodName: resolvedCanonical,
+                displayName: resolvedDisplayName,
                 quantity: itemDTO.quantity,
                 unit: unit,
                 quantityGrams: itemDTO.quantityGrams,
@@ -152,10 +263,31 @@ final class LiveReceiptService: ReceiptServiceProtocol {
                 pricePerKg: itemDTO.pricePerKg,
                 onSale: itemDTO.onSale,
                 saleNote: itemDTO.saleNote,
-                confidence: itemDTO.confidence
+                confidence: itemDTO.confidence,
+                isNonFood: itemDTO.isNonFood ?? preParseMatch?.nonFoodHint ?? false,
+                isFee: itemDTO.isFee ?? preParseMatch?.feeHint ?? false,
+                taxFlag: itemDTO.taxFlag ?? preParseMatch?.taxFlag,
+                categoryHint: itemDTO.categoryHint,
+                lineDiscount: itemDTO.lineDiscount ?? preParseMatch?.promotionAdjustment
             )
             modelContext.insert(line)
+            itemTotals.append(itemDTO.totalPrice)
         }
+
+        // Post-structuring math cross-check: does sum(items) reconcile with
+        // the printed subtotal/tax/total? Prefer the response's own totals,
+        // fall back to the pre-parse's reading when the response omitted them.
+        let crossCheck = ReceiptCrossChecker.check(
+            itemTotals: itemTotals,
+            subtotal: receipt.subtotalAmount,
+            tax: receipt.taxAmount,
+            total: receipt.totalAmount > 0 ? receipt.totalAmount : preParse?.totalAmount
+        )
+        receipt.crossCheckBanner = crossCheck.bannerMessage
+        if let banner = crossCheck.bannerMessage {
+            logger.warning("[Diag.Receipt] cross-check: \(banner, privacy: .public)")
+        }
+
         try modelContext.save()
         logger
             .info(
@@ -247,11 +379,26 @@ final class LiveReceiptService: ReceiptServiceProtocol {
         receipt.updatedAt = Date()
         try modelContext.save()
 
+        // The original Vision `rows` (column-aware) aren't persisted — only
+        // the flattened rawText survives a retry. Degrade gracefully: wrap
+        // each stored line as a single-column row so ReceiptPreParser can
+        // still extract totals/voided-items/tax-flags, just without the
+        // continuation-line (weight/qty) pairing that needs true column data.
+        let degradedRows = (receipt.ocrRawText ?? "")
+            .components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            .map { VisionReceiptOCRResult.Row(columns: [$0], yPosition: 0, confidence: 1) }
+        let preParse = degradedRows.isEmpty ? nil : ReceiptPreParser.parse(
+            rows: degradedRows,
+            storeHint: receipt.store.isEmpty || receipt.store == "Unknown" ? nil : receipt.store
+        )
+
         try await applyStructuring(
             to: receipt,
             rawText: receipt.ocrRawText,
             jpeg: jpeg,
-            storeHint: receipt.store.isEmpty || receipt.store == "Unknown" ? nil : receipt.store
+            storeHint: receipt.store.isEmpty || receipt.store == "Unknown" ? nil : receipt.store,
+            preParse: preParse
         )
     }
 
@@ -285,6 +432,35 @@ final class LiveReceiptService: ReceiptServiceProtocol {
             return .fridge
         }
         return .pantry
+    }
+
+    /// Best-effort normalized chain slug from a free-text store name/header
+    /// ("Publix Super Market #1234" -> "publix"). Used as a hint for the
+    /// backend's store-brand dictionaries; unknown chains just fall through
+    /// with no hint, which is exactly today's behavior.
+    private static let knownChains: [(slug: String, keywords: [String])] = [
+        ("publix", ["publix"]),
+        ("walmart", ["walmart", "wal-mart"]),
+        ("target", ["target"]),
+        ("costco", ["costco"]),
+        ("kroger", ["kroger"]),
+        ("wholefoods", ["whole foods", "wholefds"]),
+        ("traderjoes", ["trader joe"]),
+        ("aldi", ["aldi"]),
+        ("esselunga", ["esselunga"]),
+        ("conad", ["conad"]),
+        ("coop", ["coop", "ipercoop"]),
+    ]
+
+    static func storeChainSlug(from text: String?) -> String? {
+        guard let text, !text.isEmpty else {
+            return nil
+        }
+        let lower = text.lowercased()
+        for chain in knownChains where chain.keywords.contains(where: lower.contains) {
+            return chain.slug
+        }
+        return nil
     }
 }
 
