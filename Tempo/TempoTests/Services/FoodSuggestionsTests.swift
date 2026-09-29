@@ -183,6 +183,41 @@ final class FoodSuggestionsTests: XCTestCase {
         XCTAssertEqual(result.items.map(\.id), ["2"])
     }
 
+    func testCokeByCokeIsExcludedAsASelfSuggestion() async {
+        // picky-QA item 5: "Coca-Cola by Coke" showed up as a swap for
+        // "Coca-Cola" — same drink, cosmetically different brand string, so
+        // the old exact name+brand dedup key missed it.
+        let fake = FakeProducts()
+        let cocaCola = FoodProduct.sample(id: "1", name: "Coca-Cola", brand: "coca cola", grade: "e", points: 20)
+        let sameDrinkOtherBrandString = FoodProduct.sample(id: "2", name: "Coca-Cola", brand: "Coke", grade: "e", points: 20)
+        let genuineAlternative = FoodProduct.sample(id: "3", name: "Coca-Cola Zero", brand: "Coke", grade: "c", points: 2)
+        fake.peersResult = [sameDrinkOtherBrandString, genuineAlternative]
+        let catalog = FoodCatalog(products: fake, generic: nil)
+
+        let result = await catalog.suggestions(for: cocaCola)
+        XCTAssertFalse(result.items.map(\.id).contains("2"), "Coca-Cola by Coke is the same product as Coca-Cola, not a swap for it")
+        XCTAssertTrue(result.items.map(\.id).contains("3"))
+    }
+
+    func testExcellentProductNeedsAnEightPointGainNotFiveToCountAsHealthier() async {
+        // picky-QA item 6: once a product is already .excellent, a
+        // marginally-better peer (+3) must stay a "similar" suggestion, not
+        // get promoted to "healthier" — only a real (+8) gap does.
+        let fake = FakeProducts()
+        let current = FoodProduct.sample(id: "1", grade: "a", points: -8)
+        guard let currentTotal = FoodScore.evaluate(current)?.total else {
+            XCTFail("Fixture must score")
+            return
+        }
+        XCTAssertEqual(FoodScore.Rating(score: currentTotal), .excellent)
+
+        let marginallyBetter = FoodProduct.sample(id: "2", name: "Marginally better skyr", grade: "a", points: -9)
+        fake.peersResult = [marginallyBetter]
+        let similarCatalog = FoodCatalog(products: fake, generic: nil)
+        let similarResult = await similarCatalog.suggestions(for: current)
+        XCTAssertEqual(similarResult.kind, .similar, "A tiny edge over an already-excellent product isn't a real swap")
+    }
+
     func testNonOpenFoodFactsProductFallsBackToNameSearchThenBuiltIn() async {
         let fake = FakeProducts()
         // No network peers and no search hits: must still fall back to the
@@ -225,10 +260,13 @@ final class FoodSuggestionsTests: XCTestCase {
     func testItemsWithAPhotoSortFirstWithinATier() async {
         let fake = FakeProducts()
         // Both peers score better than the current product and tie with
-        // each other, so only the photo should decide the order.
-        var withPhoto = FoodProduct.sample(id: "2", name: "Skyr with photo", grade: "a", points: -9)
+        // each other, so only the photo should decide the order. The current
+        // product (points -3) already scores as .excellent, so the peers
+        // need a real (+8) gap, not just any improvement — points -15 is the
+        // best of the "a" band.
+        var withPhoto = FoodProduct.sample(id: "2", name: "Skyr with photo", grade: "a", points: -15)
         withPhoto.imageURL = URL(string: "https://images.openfoodfacts.org/x.jpg")
-        let withoutPhoto = FoodProduct.sample(id: "3", name: "Skyr without photo", grade: "a", points: -9)
+        let withoutPhoto = FoodProduct.sample(id: "3", name: "Skyr without photo", grade: "a", points: -15)
         fake.peersResult = [withoutPhoto, withPhoto]
         let catalog = FoodCatalog(products: fake, generic: nil)
 

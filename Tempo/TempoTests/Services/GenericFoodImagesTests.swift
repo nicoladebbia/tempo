@@ -77,7 +77,7 @@ final class GenericFoodImagesTests: XCTestCase {
         let json = """
         {"thumbnail":{"source":"https://upload.wikimedia.org/wikipedia/commons/thumb/a/b/Chicken.jpg/220px-Chicken.jpg"}}
         """
-        let fetcher = GenericFoodImages.Fetcher { _ in Data(json.utf8) }
+        let fetcher = GenericFoodImages.Fetcher { _ in .success(Data(json.utf8)) }
         let product = FoodProduct(id: "builtin:chicken breast", name: "Chicken breast", source: .builtIn, per100g: .init(kcal: 165))
 
         let url = await GenericFoodImages.imageURL(for: product, fetcher: fetcher, cacheDirectory: tempDir)
@@ -88,11 +88,40 @@ final class GenericFoodImagesTests: XCTestCase {
         let json = """
         {"originalimage":{"source":"https://upload.wikimedia.org/wikipedia/commons/a/b/Apple.jpg"}}
         """
-        let fetcher = GenericFoodImages.Fetcher { _ in Data(json.utf8) }
+        let fetcher = GenericFoodImages.Fetcher { _ in .success(Data(json.utf8)) }
         let product = FoodProduct(id: "builtin:apple", name: "Apple", source: .builtIn, per100g: .init(kcal: 52))
 
         let url = await GenericFoodImages.imageURL(for: product, fetcher: fetcher, cacheDirectory: tempDir)
         XCTAssertEqual(url?.absoluteString, "https://upload.wikimedia.org/wikipedia/commons/a/b/Apple.jpg")
+    }
+
+    /// The exact "Banana" case from picky QA: a real, plain, single-word
+    /// built-in name must resolve without any title override.
+    func testBananaResolvesWithNoOverrideNeeded() async {
+        XCTAssertNil(GenericFoodImages.titleOverrides["banana"], "Banana needs no override — 'Banana' is the real Wikipedia title")
+        let json = """
+        {"thumbnail":{"source":"https://upload.wikimedia.org/wikipedia/commons/thumb/a/b/Banana.jpg/220px-Banana.jpg"}}
+        """
+        let fetcher = GenericFoodImages.Fetcher { _ in .success(Data(json.utf8)) }
+        let product = FoodProduct(id: "builtin:banana", name: "Banana", source: .builtIn, per100g: .init(kcal: 89))
+
+        let url = await GenericFoodImages.imageURL(for: product, fetcher: fetcher, cacheDirectory: tempDir)
+        XCTAssertEqual(url?.absoluteString, "https://upload.wikimedia.org/wikipedia/commons/thumb/a/b/Banana.jpg/640px-Banana.jpg")
+    }
+
+    /// The USDA plural "Bananas" must resolve the same as the built-in
+    /// singular "Banana" — both hit the network with whatever title
+    /// `deriveTitle` derives, unaffected by a stale cached miss for the
+    /// other spelling (they're different cache keys).
+    func testUSDAPluralBananasAlsoResolves() async {
+        let json = """
+        {"thumbnail":{"source":"https://upload.wikimedia.org/wikipedia/commons/thumb/a/b/Banana.jpg/220px-Banana.jpg"}}
+        """
+        let fetcher = GenericFoodImages.Fetcher { _ in .success(Data(json.utf8)) }
+        let product = FoodProduct(id: "usda:1234", name: "Bananas", source: .usda, per100g: .init(kcal: 89))
+
+        let url = await GenericFoodImages.imageURL(for: product, fetcher: fetcher, cacheDirectory: tempDir)
+        XCTAssertNotNil(url, "A USDA 'Bananas' result must still resolve a photo")
     }
 
     func testHitsAndMissesAreRememberedOnDisk() async {
@@ -102,7 +131,7 @@ final class GenericFoodImagesTests: XCTestCase {
         """
         let fetcher = GenericFoodImages.Fetcher { _ in
             callCount.increment()
-            return Data(json.utf8)
+            return .success(Data(json.utf8))
         }
         let product = FoodProduct(id: "builtin:banana", name: "Banana", source: .builtIn, per100g: .init(kcal: 89))
 
@@ -111,11 +140,11 @@ final class GenericFoodImagesTests: XCTestCase {
         XCTAssertEqual(callCount.count, 1, "Second lookup should hit the disk cache, not the network")
     }
 
-    func testAMissIsAlsoRememberedOnDisk() async {
+    func testADefinitiveMissIsRememberedOnDisk() async {
         let callCount = CallCounter()
         let fetcher = GenericFoodImages.Fetcher { _ in
             callCount.increment()
-            return nil
+            return .definitiveMiss
         }
         let product = FoodProduct(id: "builtin:mystery food", name: "Mystery food", source: .builtIn, per100g: .init(kcal: 10))
 
@@ -124,6 +153,106 @@ final class GenericFoodImagesTests: XCTestCase {
         XCTAssertNil(first)
         XCTAssertNil(second)
         XCTAssertEqual(callCount.count, 1, "A confirmed miss must not be re-queried")
+    }
+
+    /// Swift's synthesized `Decodable` does NOT fall back to a stored
+    /// property's default value for a merely-absent key — it throws. A cache
+    /// file written before `isDefinitive` existed has no such key at all;
+    /// decoding it must not throw (which would silently wipe the whole
+    /// cache on first launch after the update) and the entry must be
+    /// trusted as already-settled, not re-queried.
+    func testEntryFromBeforeIsDefinitiveExistedIsTrustedNotRetried() async throws {
+        let title = GenericFoodImages.deriveTitle(from: "Mystery food")
+        let json = """
+        {"\(title)":{"urlString":null,"checkedAt":\(Date().timeIntervalSinceReferenceDate)}}
+        """
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        try Data(json.utf8).write(to: tempDir.appendingPathComponent("wikipedia-titles.json"))
+
+        let callCount = CallCounter()
+        let fetcher = GenericFoodImages.Fetcher { _ in
+            callCount.increment()
+            return .definitiveMiss
+        }
+        let product = FoodProduct(id: "builtin:mystery food", name: "Mystery food", source: .builtIn, per100g: .init(kcal: 10))
+
+        let url = await GenericFoodImages.imageURL(for: product, fetcher: fetcher, cacheDirectory: tempDir)
+        XCTAssertNil(url)
+        XCTAssertEqual(
+            callCount.count,
+            0,
+            "An old-format entry must decode successfully and be trusted, not silently dropped and re-queried"
+        )
+    }
+
+    /// The bug behind "Banana never gets its photo": a transient failure
+    /// (429 / timeout / a 200 Wikipedia couldn't be decoded) must NOT be
+    /// memoized as a permanent miss — once the retry window has passed, the
+    /// next lookup tries again. `retryAfter: 0` stands in for "later" so the
+    /// test doesn't need to sleep for real minutes.
+    func testATransientFailureIsNotMemoizedAsAPermanentMiss() async {
+        let callCount = CallCounter()
+        let fetcher = GenericFoodImages.Fetcher { _ in
+            callCount.increment()
+            return .transientFailure
+        }
+        let product = FoodProduct(id: "builtin:banana", name: "Banana", source: .builtIn, per100g: .init(kcal: 89))
+
+        let first = await GenericFoodImages.imageURL(for: product, fetcher: fetcher, cacheDirectory: tempDir, retryAfter: 0)
+        let second = await GenericFoodImages.imageURL(for: product, fetcher: fetcher, cacheDirectory: tempDir, retryAfter: 0)
+        XCTAssertNil(first)
+        XCTAssertNil(second)
+        XCTAssertEqual(callCount.count, 2, "A transient failure (429/timeout) must be retried, not trusted as a permanent miss")
+    }
+
+    /// Within the retry window, a transient miss is trusted rather than
+    /// re-queried on every render — protects Wikipedia from being hammered.
+    func testATransientFailureIsNotRetriedBeforeTheWindowElapses() async {
+        let callCount = CallCounter()
+        let fetcher = GenericFoodImages.Fetcher { _ in
+            callCount.increment()
+            return .transientFailure
+        }
+        let product = FoodProduct(id: "builtin:banana", name: "Banana", source: .builtIn, per100g: .init(kcal: 89))
+
+        _ = await GenericFoodImages.imageURL(for: product, fetcher: fetcher, cacheDirectory: tempDir, retryAfter: 3600)
+        _ = await GenericFoodImages.imageURL(for: product, fetcher: fetcher, cacheDirectory: tempDir, retryAfter: 3600)
+        XCTAssertEqual(callCount.count, 1, "Still within the retry window — must not hit the network again yet")
+    }
+
+    /// Once a transient failure finally succeeds, the good result replaces
+    /// the transient placeholder and is trusted from then on.
+    func testATransientFailureThenSuccessSticks() async {
+        let callCount = CallCounter()
+        let json = """
+        {"thumbnail":{"source":"https://upload.wikimedia.org/x/220px-Banana.jpg"}}
+        """
+        let fetcher = GenericFoodImages.Fetcher { _ in
+            let call = callCount.increment()
+            return call == 1 ? .transientFailure : .success(Data(json.utf8))
+        }
+        let product = FoodProduct(id: "builtin:banana", name: "Banana", source: .builtIn, per100g: .init(kcal: 89))
+
+        let first = await GenericFoodImages.imageURL(for: product, fetcher: fetcher, cacheDirectory: tempDir, retryAfter: 0)
+        let second = await GenericFoodImages.imageURL(for: product, fetcher: fetcher, cacheDirectory: tempDir, retryAfter: 0)
+        XCTAssertNil(first)
+        XCTAssertEqual(second?.absoluteString, "https://upload.wikimedia.org/x/640px-Banana.jpg")
+        XCTAssertEqual(callCount.count, 2)
+    }
+
+    /// A 200 whose body doesn't decode as the expected Wikipedia summary
+    /// shape is treated as transient, not "confirmed no photo".
+    func testAnUndecodableSuccessBodyIsTreatedAsTransient() async {
+        let callCount = CallCounter()
+        let fetcher = GenericFoodImages.Fetcher { _ in
+            callCount.increment()
+            return .success(Data("not json".utf8))
+        }
+        let product = FoodProduct(id: "builtin:banana", name: "Banana", source: .builtIn, per100g: .init(kcal: 89))
+
+        _ = await GenericFoodImages.imageURL(for: product, fetcher: fetcher, cacheDirectory: tempDir, retryAfter: 0)
+        _ = await GenericFoodImages.imageURL(for: product, fetcher: fetcher, cacheDirectory: tempDir, retryAfter: 0)
+        XCTAssertEqual(callCount.count, 2, "An undecodable 200 body must be retried, not memoized as a miss")
     }
 }
 
