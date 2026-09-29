@@ -379,6 +379,7 @@ extension TrainingViewModel {
         workoutStartTime = nil
         elapsedSeconds = 0
         totalPauseDuration = 0
+        callStartedAt = nil
         detectedPRs = []
         warmupRoutine = nil
         warmupMoveIndex = 0

@@ -76,6 +76,13 @@ extension TrainingViewModel {
         startElapsedTimer()
     }
 
+    /// Add paused/on-call seconds to the running total AND mirror it onto the
+    /// plan so crash recovery can restore it.
+    private func addPausedTime(_ seconds: TimeInterval) {
+        totalPauseDuration += max(0, seconds)
+        todayPlan?.pausedSeconds = totalPauseDuration
+    }
+
     func pause() {
         guard sessionState.isActive, let previousState = capturePausedFromState() else {
             return
@@ -94,7 +101,7 @@ extension TrainingViewModel {
         }
 
         // Track pause duration
-        totalPauseDuration += Date().timeIntervalSince(pauseStart)
+        addPausedTime(Date().timeIntervalSince(pauseStart))
 
         restore(previousState)
     }
@@ -110,6 +117,12 @@ extension TrainingViewModel {
             guard case let .interruptedCall(previousState) = sessionState else {
                 return
             }
+            // The call's length is not training time — same accounting as a
+            // manual pause.
+            if let start = callStartedAt {
+                addPausedTime(Date().timeIntervalSince(start))
+            }
+            callStartedAt = nil
             restore(previousState)
             HapticManager.notification(.warning)
         } else {
@@ -122,6 +135,7 @@ extension TrainingViewModel {
             stopRestTimer()
             stopWarmupMoveTimer()
             stopElapsedTimer()
+            callStartedAt = Date()
             sessionState = .interruptedCall(previousState: previousState)
         }
     }

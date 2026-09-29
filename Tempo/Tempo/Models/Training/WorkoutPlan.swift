@@ -52,6 +52,13 @@ final class WorkoutPlan {
 
     var finishedAt: Date?
 
+    /// Seconds spent paused / on a phone call so far this session. Mirrors the
+    /// view-model's in-memory `totalPauseDuration` so crash recovery can
+    /// subtract it from the elapsed clock (otherwise a recovered session
+    /// counts every earlier pause as training time). Defaulted, so SwiftData
+    /// migrates it automatically (no manual migration).
+    var pausedSeconds: Double = 0
+
     /// §8 connect — when the daily brain's final prescription moves the day to
     /// a DIFFERENT modality (e.g. planned pool → prescribed rest at yellow
     /// recovery), the plan row is reshaped to match and the ORIGINAL template

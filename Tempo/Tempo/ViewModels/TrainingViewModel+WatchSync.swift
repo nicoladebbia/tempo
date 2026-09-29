@@ -101,7 +101,16 @@ extension TrainingViewModel {
             return false
         }
         let set = slot.orderedSets[setIndex]
-        let resolvedWeight = weightKg ?? set.targetWeight ?? 0
+        // A payload without a weight must not log 0 kg (that would also
+        // poison PRs/e1RM): fall back to the prescription, then to the load
+        // the athlete last used on this lift. Only a true bodyweight move may
+        // resolve to 0; anything else with no usable number is refused.
+        let lastLoggedKg = slot.orderedSets.last { $0.completed && ($0.actualWeight ?? 0) > 0 }?.actualWeight
+        let fallbackKg = [set.targetWeight, lastLoggedKg].compactMap { $0 }.first { $0 > 0 }
+        let isBodyweightMove = slot.exercise?.equipment == .bodyweight || slot.exercise?.equipment == .none
+        guard let resolvedWeight = weightKg ?? fallbackKg ?? (isBodyweightMove ? 0 : nil) else {
+            return false
+        }
         let resolvedReps = reps ?? set.targetReps
 
         if sessionState.isActive, currentExerciseIndex == exerciseIndex, currentSetIndex == setIndex {
@@ -111,6 +120,8 @@ extension TrainingViewModel {
             return true
         }
 
+        let priorStatus = plan.status
+        let priorStartedAt = plan.startedAt
         if plan.status == .planned {
             plan.status = .inProgress
             plan.startedAt = plan.startedAt ?? Date()
@@ -123,6 +134,8 @@ extension TrainingViewModel {
         // Mirror logSet's PR detection + eager feedback row so a watch-only
         // log (phone not looking at this session) carries the same signal a
         // phone-logged one does.
+        var insertedPR: PersonalRecord?
+        var insertedFeedback: SetFeedback?
         if !set.isWarmup, !set.isDropStep, let exercise = slot.exercise,
            let pr = trainingEngine.detectPersonalRecord(
                exercise: exercise, weight: resolvedWeight, reps: resolvedReps,
@@ -130,21 +143,37 @@ extension TrainingViewModel {
            )
         {
             modelContext.insert(pr)
-            detectedPRs.append(pr)
-            HapticManager.notification(.success)
+            insertedPR = pr
         }
         if !set.isWarmup {
             let feedback = SetFeedback(plannedSet: set, rpe: 7)
             modelContext.insert(feedback)
             set.rpe = feedback.rpe
+            insertedFeedback = feedback
         }
 
         guard saveGuarded(modelContext, operation: "watch set") else {
+            // Undo EVERYTHING the attempt touched — a PR/feedback row for a
+            // set that isn't logged would otherwise stay in the context (and
+            // get saved by the next unrelated save).
             set.completed = false
             set.completedAt = nil
             set.actualReps = nil
             set.actualWeight = nil
+            set.rpe = nil
+            if let insertedPR {
+                modelContext.delete(insertedPR)
+            }
+            if let insertedFeedback {
+                modelContext.delete(insertedFeedback)
+            }
+            plan.status = priorStatus
+            plan.startedAt = priorStartedAt
             return false
+        }
+        if let insertedPR {
+            detectedPRs.append(insertedPR)
+            HapticManager.notification(.success)
         }
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
         pushWorkoutToWatch()
