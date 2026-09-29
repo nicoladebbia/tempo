@@ -108,20 +108,38 @@ extension TrainingViewModel {
     /// locally so the rest of a multi-day batch (e.g. a full week) previews
     /// what happens if the athlete stays on pace, without mutating anything
     /// outside this call.
+    ///
+    /// Sequence mode with a real `today` — `completedSequenceCount` is then
+    /// the count of sessions done BEFORE the first plan's week, and
+    /// `completedDayKeys` are the days in this batch that actually hold a
+    /// completed program session: those consume a step (they're what was
+    /// done), a past day that was NOT completed consumes nothing and shows
+    /// no session (the missed step carries forward to the next cadence day),
+    /// and today/future days walk forward from there. Without `today` (nil)
+    /// the batch is treated as all-future, as before.
     nonisolated static func applyTrainerProgram(
         _ program: TrainerProgram,
         to plans: [WorkoutPlan],
         matchDayKeys: Set<Date>,
         completedSequenceCount: Int = 0,
-        priorDayWasLift: Bool = false
+        priorDayWasLift: Bool = false,
+        today: Date? = nil,
+        completedDayKeys: Set<Date> = []
     ) {
         let cal = Calendar.current
         var sequenceCursor = completedSequenceCount
         var previousDayWasLift = priorDayWasLift
+        let todayStart = today.map { cal.startOfDay(for: $0) }
+        let isSequence = program.scheduleMode == .sequence
         for plan in plans {
             let day = cal.startOfDay(for: plan.date)
+            let wasCompleted = isSequence && completedDayKeys.contains(day)
+            let isPastUnfinished = isSequence && !wasCompleted && (todayStart.map { day < $0 } ?? false)
             // A dated match is a fixed commitment — the match day stays.
             if matchDayKeys.contains(day) {
+                if wasCompleted {
+                    sequenceCursor += 1
+                }
                 // A match day is never a lift — clears the consecutive-lift
                 // guard for tomorrow (it doesn't consume a sequence step).
                 previousDayWasLift = false
@@ -130,12 +148,19 @@ extension TrainingViewModel {
             // Red recovery: the engine already moved the day to mobility with
             // a zero multiplier — Tempo adjusts automatically, so keep it.
             let isRedRecoveryDay = plan.type == .mobility && plan.recoveryAdjustment == 0
-            let resolution = resolveSession(
-                program: program,
-                on: plan.date,
-                sequenceCursor: sequenceCursor,
-                previousDayWasLift: previousDayWasLift
-            )
+            let resolution = isPastUnfinished
+                ? (main: nil, sessions: [])
+                : resolveSession(
+                    program: program,
+                    on: plan.date,
+                    sequenceCursor: sequenceCursor,
+                    previousDayWasLift: previousDayWasLift
+                )
+            // A completed session always consumed its step, even when the
+            // cadence/guard would not have resolved it (extra day, red day).
+            if wasCompleted, resolution.main == nil || isRedRecoveryDay {
+                sequenceCursor += 1
+            }
             plan.programSecondaryKey = nil
             if let main = resolution.main {
                 if isRedRecoveryDay {
@@ -251,13 +276,32 @@ extension TrainingViewModel {
     /// flag isn't tracked separately here, matching `session(on:)`/
     /// `applyTrainerProgram` already treating the main session as the day's
     /// representative.
-    func completedTrainerSessionCount(for program: TrainerProgram, modelContext: ModelContext) -> Int {
+    ///
+    /// `cutoff` limits the count to sessions completed BEFORE that date — the
+    /// cursor for a week starting at `cutoff` (this week's own completions
+    /// are walked day by day in `applyTrainerProgram`, not double-counted).
+    func completedTrainerSessionCount(for program: TrainerProgram, before cutoff: Date? = nil, modelContext: ModelContext) -> Int {
+        completedProgramPlans(for: program, modelContext: modelContext)
+            .filter { plan in cutoff.map { plan.date < $0 } ?? true }
+            .count
+    }
+
+    /// Start-of-day keys of the days in `[start, end)` that hold a completed
+    /// session of `program` (sequence-mode walk input for `applyTrainerProgram`).
+    func completedTrainerSessionDays(for program: TrainerProgram, from start: Date, to end: Date, modelContext: ModelContext) -> Set<Date> {
+        let cal = Calendar.current
+        return Set(completedProgramPlans(for: program, modelContext: modelContext)
+            .filter { $0.date >= start && $0.date < end }
+            .map { cal.startOfDay(for: $0.date) })
+    }
+
+    private func completedProgramPlans(for program: TrainerProgram, modelContext: ModelContext) -> [WorkoutPlan] {
         let prefix = "\(program.id.uuidString)#"
         let descriptor = FetchDescriptor<WorkoutPlan>(
             predicate: #Predicate<WorkoutPlan> { $0.statusRaw == "completed" }
         )
         let completed = (try? modelContext.fetch(descriptor)) ?? []
-        return completed.filter { ($0.programSessionKey?.hasPrefix(prefix)) ?? false }.count
+        return completed.filter { ($0.programSessionKey?.hasPrefix(prefix)) ?? false }
     }
 
     /// Fix #6 (consecutive-lift guard) — whether the persisted plan for the
@@ -295,6 +339,12 @@ extension TrainingViewModel {
     /// match, or a red-recovery pause both already stand as Tempo's own
     /// deliberate call, not a miss). nil when there's no active fixed-mode
     /// program, or nothing was missed in the window.
+    ///
+    /// Not offered when the session was already moved and completed on a
+    /// later day (the same key done after the missed date), for days before
+    /// the program existed for the athlete (`createdAt` — the start date is
+    /// snapped to Monday, so importing on Thursday must not flag Mon–Wed),
+    /// or when Today can't take it (`canSwapMissedSession`).
     func missedFixedSession(asOf today: Date = Date(), modelContext: ModelContext) -> MissedTrainerSession? {
         guard let program = activeTrainerProgram(modelContext: modelContext), program.scheduleMode == .fixed else {
             return nil
@@ -310,11 +360,21 @@ extension TrainingViewModel {
             return nil
         }
         let matchDays = Set(fetchUpcomingMatches(modelContext: modelContext).map { cal.startOfDay(for: $0.kickoff) })
+        // Today itself must be able to take the session (see swapInMissedSession).
+        let todayDescriptor = FetchDescriptor<WorkoutPlan>(predicate: #Predicate<WorkoutPlan> { $0.date == todayStart })
+        if let todayRow = (try? modelContext.fetch(todayDescriptor))?.first,
+           !Self.canSwapMissedSession(into: todayRow, isMatchDay: matchDays.contains(todayStart))
+        {
+            return nil
+        }
+        let firstEligibleDay = max(program.startDate, cal.startOfDay(for: program.createdAt))
+        let completedKeys = completedProgramPlans(for: program, modelContext: modelContext)
+            .compactMap { plan in plan.programSessionKey.map { (key: $0, date: cal.startOfDay(for: plan.date)) } }
         for offset in 1 ... 7 {
             guard let date = cal.date(byAdding: .day, value: -offset, to: todayStart) else {
                 continue
             }
-            guard date >= program.startDate, let session = program.session(on: date) else {
+            guard date >= firstEligibleDay, let session = program.session(on: date) else {
                 continue
             }
             if matchDays.contains(date) {
@@ -324,6 +384,9 @@ extension TrainingViewModel {
                 continue // Paused — Tempo's own deliberate override, not a miss.
             }
             let key = program.sessionKey(weekIndex: session.weekIndex, dayIndex: session.dayIndex)
+            if completedKeys.contains(where: { $0.key == key && $0.date > date }) {
+                continue // already moved to a later day and done.
+            }
             let descriptor = FetchDescriptor<WorkoutPlan>(predicate: #Predicate<WorkoutPlan> { $0.date == date })
             let persisted = (try? modelContext.fetch(descriptor))?.first
             if let persisted {
@@ -339,15 +402,30 @@ extension TrainingViewModel {
         return nil
     }
 
-    /// Swaps a missed fixed-mode session into TODAY, replacing whatever
-    /// Today currently holds (only while still `.planned` — never disturbs a
-    /// started/completed session). Fix #6's "do it today?" action.
+    /// Only a still-`.planned` REST day can take a missed session: today's
+    /// own trainer lift, a football/match day, a deload/recovery mobility
+    /// day or any other planned session is never overwritten (the missed one
+    /// simply waits for the next rest day, inside `missedFixedSession`'s
+    /// 7-day window).
+    nonisolated static func canSwapMissedSession(into today: WorkoutPlan, isMatchDay: Bool) -> Bool {
+        !isMatchDay && today.status == .planned && today.type == .rest && today.programSessionKey == nil
+    }
+
+    /// Swaps a missed fixed-mode session into TODAY when today is a planned
+    /// rest day (`canSwapMissedSession`) — never disturbs a started/completed
+    /// session, today's own trainer session or a football/match day. Fix #6's
+    /// "do it today?" action.
     func swapInMissedSession(_ missed: MissedTrainerSession, modelContext: ModelContext) {
         guard let program = activeTrainerProgram(modelContext: modelContext) else {
             return
         }
         let today = ensureTodayPlanPersisted(modelContext: modelContext).plan
-        guard today.status == .planned else {
+        let cal = Calendar.current
+        let todayStart = cal.startOfDay(for: today.date)
+        let isMatchToday = fetchUpcomingMatches(modelContext: modelContext).contains { cal.startOfDay(for: $0.kickoff) == todayStart }
+        guard Self.canSwapMissedSession(into: today, isMatchDay: isMatchToday),
+              TrainingPauseSchedule.coveringPause(fetchTrainingPauses(modelContext: modelContext), on: todayStart, calendar: cal) == nil
+        else {
             return
         }
         for exercise in today.orderedExercises {

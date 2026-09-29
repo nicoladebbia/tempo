@@ -729,7 +729,8 @@ final class TrainerProgramTests: XCTestCase {
         let context = container.mainContext
         let p = TrainerProgram(
             name: "PT", startDate: date("2026-09-21"),
-            weeks: [ProgramWeek(days: [day(1, "push")])], sourceKind: "text"
+            weeks: [ProgramWeek(days: [day(1, "push")])], sourceKind: "text",
+            createdAt: date("2026-09-21")
         )
         context.insert(p)
         // Monday's session was never touched — it's missed by Tuesday.
@@ -753,7 +754,8 @@ final class TrainerProgramTests: XCTestCase {
         let context = container.mainContext
         let p = TrainerProgram(
             name: "PT", startDate: date("2026-09-21"),
-            weeks: [ProgramWeek(days: [day(1, "push")])], sourceKind: "text"
+            weeks: [ProgramWeek(days: [day(1, "push")])], sourceKind: "text",
+            createdAt: date("2026-09-21")
         )
         context.insert(p)
         let mon = WorkoutPlan(date: date("2026-09-21"), type: .push, status: .completed)
@@ -1076,5 +1078,190 @@ final class TrainerProgramTests: XCTestCase {
         XCTAssertEqual(third?.id, a.id)
         XCTAssertNil(b.queuedActivationDate, "the unchosen due program's queue is cleared, not left to flip-flop later")
         XCTAssertFalse(b.isActive)
+    }
+
+    // MARK: - QA — sequence cursor vs. days already passed this week
+
+    /// Two weeks x Mon/Wed/Fri = steps S0..S5 (S0 = week 0 day 0 …).
+    private func sixStepSequenceProgram() -> TrainerProgram {
+        func week() -> ProgramWeek {
+            ProgramWeek(days: [day(1, "push"), day(3, "pull"), day(5, "legs")])
+        }
+        return TrainerProgram(
+            name: "Six", startDate: date("2026-09-21"), weeks: [week(), week()],
+            repeats: true, sourceKind: "text", scheduleMode: .sequence
+        )
+    }
+
+    /// The full Mon…Sun week (the consecutive-lift guard needs the rest days too).
+    private func weekPlans() -> (all: [WorkoutPlan], mon: WorkoutPlan, wed: WorkoutPlan, fri: WorkoutPlan) {
+        let all = (21 ... 27).map { WorkoutPlan(date: date("2026-09-\($0)"), type: .rest) }
+        return (all, all[0], all[2], all[4])
+    }
+
+    func testSequenceCompletedMondayDoesNotShiftWednesdayOrSkipAStep() {
+        let p = sixStepSequenceProgram()
+        let (all, mon, wed, fri) = weekPlans()
+
+        // Monday S0 was completed; it's now Wednesday. Cursor at week start = 0.
+        TrainingViewModel.applyTrainerProgram(
+            p, to: all, matchDayKeys: [], completedSequenceCount: 0,
+            today: date("2026-09-23"), completedDayKeys: [date("2026-09-21")]
+        )
+
+        XCTAssertEqual(mon.programSessionKey, p.sessionKey(weekIndex: 0, dayIndex: 0), "Monday shows what was done (S0)")
+        XCTAssertEqual(wed.programSessionKey, p.sessionKey(weekIndex: 0, dayIndex: 1), "Wednesday is S1, not S2")
+        XCTAssertEqual(fri.programSessionKey, p.sessionKey(weekIndex: 0, dayIndex: 2))
+    }
+
+    func testSequenceMissedMondayCarriesForwardToWednesday() {
+        let p = sixStepSequenceProgram()
+        let (all, mon, wed, fri) = weekPlans()
+
+        TrainingViewModel.applyTrainerProgram(
+            p, to: all, matchDayKeys: [], completedSequenceCount: 0,
+            today: date("2026-09-23"), completedDayKeys: []
+        )
+
+        XCTAssertNil(mon.programSessionKey, "a missed past day consumes no step")
+        XCTAssertEqual(wed.programSessionKey, p.sessionKey(weekIndex: 0, dayIndex: 0), "S0 is still next-due")
+        XCTAssertEqual(fri.programSessionKey, p.sessionKey(weekIndex: 0, dayIndex: 1))
+    }
+
+    func testSequenceWeekStartCursorIsSessionsCompletedBeforeTheWeek() throws {
+        let container = try TempoModelContainer.create(inMemory: true)
+        let context = container.mainContext
+        let p = sixStepSequenceProgram()
+        context.insert(p)
+        func done(_ day: String, _ dayIndex: Int) {
+            let plan = WorkoutPlan(date: date(day), type: .push, status: .completed)
+            plan.programSessionKey = p.sessionKey(weekIndex: 0, dayIndex: dayIndex)
+            context.insert(plan)
+        }
+        done("2026-09-14", 0) // last week
+        done("2026-09-16", 1)
+        done("2026-09-21", 2) // this week
+        try context.save()
+
+        let vm = TrainingViewModel(
+            trainingEngine: MockTrainingEngine(), whoop: MockWhoopService(), healthKit: MockHealthKitService()
+        )
+        XCTAssertEqual(vm.completedTrainerSessionCount(for: p, before: date("2026-09-21"), modelContext: context), 2)
+        XCTAssertEqual(vm.completedTrainerSessionCount(for: p, modelContext: context), 3, "all-time count unchanged")
+        XCTAssertEqual(
+            vm.completedTrainerSessionDays(for: p, from: date("2026-09-21"), to: date("2026-09-28"), modelContext: context),
+            [date("2026-09-21")]
+        )
+    }
+
+    func testWeekSnapshotOnWednesdayAfterCompletedMondayShowsNextStep() throws {
+        let container = try TempoModelContainer.create(inMemory: true)
+        let context = container.mainContext
+        context.insert(UserSettings())
+        let p = sixStepSequenceProgram()
+        context.insert(p)
+        let mon = WorkoutPlan(date: date("2026-09-21"), type: .push, status: .completed)
+        mon.programSessionKey = p.sessionKey(weekIndex: 0, dayIndex: 0)
+        context.insert(mon)
+        try context.save()
+
+        let vm = TrainingViewModel(
+            trainingEngine: TrainingEngine(), whoop: MockWhoopService(), healthKit: MockHealthKitService()
+        )
+        let plans = vm.weekPlanSnapshot(containing: date("2026-09-23"), modelContext: context)
+        let byDay = Dictionary(uniqueKeysWithValues: plans.map { (TrainingCalendar.iso8601.startOfDay(for: $0.date), $0) })
+        XCTAssertEqual(byDay[date("2026-09-23")]?.programSessionKey, p.sessionKey(weekIndex: 0, dayIndex: 1))
+        XCTAssertEqual(byDay[date("2026-09-25")]?.programSessionKey, p.sessionKey(weekIndex: 0, dayIndex: 2))
+    }
+
+    // MARK: - QA — missed-session swap safety
+
+    func testMissedSessionNotOfferedAgainOnceMovedAndCompletedLater() throws {
+        let container = try TempoModelContainer.create(inMemory: true)
+        let context = container.mainContext
+        let p = TrainerProgram(
+            name: "PT", startDate: date("2026-09-21"),
+            weeks: [ProgramWeek(days: [day(1, "push")])], sourceKind: "text",
+            createdAt: date("2026-09-21")
+        )
+        context.insert(p)
+        let mon = WorkoutPlan(date: date("2026-09-21"), type: .push, status: .planned)
+        mon.programSessionKey = p.sessionKey(weekIndex: 0, dayIndex: 0)
+        context.insert(mon)
+        // Moved to Wednesday and completed there.
+        let wed = WorkoutPlan(date: date("2026-09-23"), type: .push, status: .completed)
+        wed.programSessionKey = p.sessionKey(weekIndex: 0, dayIndex: 0)
+        context.insert(wed)
+        try context.save()
+
+        let vm = TrainingViewModel(
+            trainingEngine: MockTrainingEngine(), whoop: MockWhoopService(), healthKit: MockHealthKitService()
+        )
+        XCTAssertNil(vm.missedFixedSession(asOf: date("2026-09-24"), modelContext: context))
+    }
+
+    func testMissedSessionNotOfferedWhenTodayHoldsItsOwnSession() throws {
+        let container = try TempoModelContainer.create(inMemory: true)
+        let context = container.mainContext
+        let p = TrainerProgram(
+            name: "PT", startDate: date("2026-09-21"),
+            weeks: [ProgramWeek(days: [day(1, "push"), day(3, "pull")])], sourceKind: "text",
+            createdAt: date("2026-09-21")
+        )
+        context.insert(p)
+        let mon = WorkoutPlan(date: date("2026-09-21"), type: .push, status: .planned)
+        mon.programSessionKey = p.sessionKey(weekIndex: 0, dayIndex: 0)
+        context.insert(mon)
+        let wed = WorkoutPlan(date: date("2026-09-23"), type: .pull, status: .planned)
+        wed.programSessionKey = p.sessionKey(weekIndex: 0, dayIndex: 1)
+        context.insert(wed)
+        try context.save()
+
+        let vm = TrainingViewModel(
+            trainingEngine: MockTrainingEngine(), whoop: MockWhoopService(), healthKit: MockHealthKitService()
+        )
+        XCTAssertNil(
+            vm.missedFixedSession(asOf: date("2026-09-23"), modelContext: context),
+            "Wednesday's own pull session must not be overwritten by Monday's push"
+        )
+    }
+
+    func testCanSwapMissedSessionOnlyIntoAPlannedRestDay() {
+        let restDay = WorkoutPlan(date: date("2026-09-23"), type: .rest)
+        XCTAssertTrue(TrainingViewModel.canSwapMissedSession(into: restDay, isMatchDay: false))
+        XCTAssertFalse(TrainingViewModel.canSwapMissedSession(into: restDay, isMatchDay: true))
+
+        XCTAssertFalse(TrainingViewModel.canSwapMissedSession(
+            into: WorkoutPlan(date: date("2026-09-23"), type: .football), isMatchDay: false
+        ))
+        XCTAssertFalse(TrainingViewModel.canSwapMissedSession(
+            into: WorkoutPlan(date: date("2026-09-23"), type: .pull), isMatchDay: false
+        ))
+        XCTAssertFalse(TrainingViewModel.canSwapMissedSession(
+            into: WorkoutPlan(date: date("2026-09-23"), type: .rest, status: .completed), isMatchDay: false
+        ))
+        let trainerRest = WorkoutPlan(date: date("2026-09-23"), type: .rest)
+        trainerRest.programSessionKey = "x#0#d0"
+        XCTAssertFalse(TrainingViewModel.canSwapMissedSession(into: trainerRest, isMatchDay: false))
+    }
+
+    // MARK: - QA — no "missed" sessions from before the import
+
+    func testDaysBeforeProgramWasCreatedAreNotMissed() throws {
+        let container = try TempoModelContainer.create(inMemory: true)
+        let context = container.mainContext
+        // startDate snaps to Monday 09-21, but the athlete imported on Thursday.
+        let p = TrainerProgram(
+            name: "PT", startDate: date("2026-09-24"),
+            weeks: [ProgramWeek(days: [day(1, "push"), day(2, "pull"), day(3, "legs")])], sourceKind: "text",
+            createdAt: date("2026-09-24", hour: 9)
+        )
+        context.insert(p)
+        try context.save()
+
+        let vm = TrainingViewModel(
+            trainingEngine: MockTrainingEngine(), whoop: MockWhoopService(), healthKit: MockHealthKitService()
+        )
+        XCTAssertNil(vm.missedFixedSession(asOf: date("2026-09-24", hour: 10), modelContext: context))
     }
 }
