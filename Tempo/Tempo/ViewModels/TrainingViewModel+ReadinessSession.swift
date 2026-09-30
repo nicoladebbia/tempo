@@ -38,6 +38,9 @@ extension TrainingViewModel {
     @discardableResult
     func invalidateStaleDailySession(for plan: WorkoutPlan, modelContext: ModelContext) -> Bool {
         guard plan.status == .planned,
+              // A composite day's anchor type never matches the football
+              // modality the session may carry — that's deliberate, not stale.
+              !plan.isCompositeDay,
               let session = fetchTodayDailySession(modelContext: modelContext),
               !session.userOverrode,
               let mapped = WorkoutType.fromModality(session.modality),
@@ -169,6 +172,7 @@ extension TrainingViewModel {
             plan.skipReason = .floorForced
         } else if plan.status == .planned,
                   !wasUserOverridden,
+                  !plan.isCompositeDay,
                   let mapped = WorkoutType.fromModality(result.decision.session.modality),
                   mapped != plan.type,
                   // A trainer-program day may be eased to recovery (rest /
@@ -304,7 +308,7 @@ extension TrainingViewModel {
 
     /// Yesterday's real activities (Whoop-detected, imported, or attested) —
     /// the §13.2 enrichment: what the body actually DID feeds today's picture.
-    private func fetchYesterdaySessions(modelContext: ModelContext) -> [ActivitySnapshot] {
+    func fetchYesterdaySessions(modelContext: ModelContext) -> [ActivitySnapshot] {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
         guard let yesterday = cal.date(byAdding: .day, value: -1, to: today) else {
@@ -313,28 +317,46 @@ extension TrainingViewModel {
         let descriptor = FetchDescriptor<ActivitySession>(
             predicate: #Predicate { $0.date >= yesterday && $0.date < today }
         )
-        return ((try? modelContext.fetch(descriptor)) ?? []).map {
+        var snapshots = ((try? modelContext.fetch(descriptor)) ?? []).map {
             ActivitySnapshot(
                 workoutType: $0.workoutType, strain: $0.strain,
                 durationMinutes: $0.durationMinutes, averageHeartRate: $0.averageHeartRate,
                 hardMinutes: $0.hardMinutes
             )
         }
+        // Soccer + extra gym session: the gym part writes no ActivitySession
+        // (its work lives in ExerciseHistory), so add it here or the brain sees
+        // only the football.
+        let planDescriptor = FetchDescriptor<WorkoutPlan>(
+            predicate: #Predicate { $0.date >= yesterday && $0.date < today && $0.companionTypeRaw != nil }
+        )
+        for plan in (try? modelContext.fetch(planDescriptor)) ?? [] where plan.status == .completed && plan.type.isGymWorkout {
+            snapshots.append(ActivitySnapshot(
+                workoutType: plan.typeRaw, strain: nil,
+                durationMinutes: plan.durationMinutes.map(Double.init), averageHeartRate: nil
+            ))
+        }
+        return snapshots
     }
 
     /// §14 #3 — yesterday's one-tap session RPE (the ACTUAL the user reported
     /// on yesterday's completed plan), surfaced into today's picture so the
     /// brain calibrates against felt cost, not just Whoop strain.
-    private func fetchYesterdaySessionRPE(modelContext: ModelContext) -> Int? {
+    func fetchYesterdaySessionRPE(modelContext: ModelContext) -> Int? {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
         guard let yesterday = cal.date(byAdding: .day, value: -1, to: today) else {
             return nil
         }
+        // Composite day (soccer + gym): the felt cost is the harder of the two.
         let descriptor = FetchDescriptor<WorkoutPlan>(
-            predicate: #Predicate { $0.date >= yesterday && $0.date < today && $0.sessionRPE != nil }
+            predicate: #Predicate {
+                $0.date >= yesterday && $0.date < today && ($0.sessionRPE != nil || $0.companionSessionRPE != nil)
+            }
         )
-        return (try? modelContext.fetch(descriptor))?.first?.sessionRPE
+        return (try? modelContext.fetch(descriptor))?.first.flatMap { plan in
+            [plan.sessionRPE, plan.companionSessionRPE].compactMap { $0 }.max()
+        }
     }
 
     /// Today's venue context for the prompt (§16): the user's confirmed answer
@@ -527,6 +549,25 @@ extension TrainingViewModel {
                     blocks: [lift, cardio],
                     shortWhy: "Lift, then an easy \(second.displayName.lowercased()) — you've got the headroom today.",
                     fullWhy: nil, expectedStrain: nil, expectedSessionRPE: nil
+                )
+            }
+            // Soccer + extra gym session: the gym part carries its own start time
+            // and the planner's intensity/why. Only the gym part is emitted (the
+            // football is already done; a two-part day would let the floor's >=6h
+            // composite-gap rule strip the gym block).
+            if plan.isCompositeDay {
+                return DailySessionDTO(
+                    modality: type.rawValue,
+                    intensity: plan.addedPartIntensityRaw.flatMap(SessionIntensity.init(rawValue:)) ?? .moderate,
+                    durationMin: dur,
+                    blocks: [SessionBlockDTO(
+                        kind: .gym, label: type.displayName, notes: nil, cue: nil,
+                        scheduledMin: plan.scheduledStartMin, split: type.rawValue, reps: nil,
+                        distanceM: nil, restSec: nil, intensityPct: nil, durationSec: nil,
+                        stroke: nil, runType: nil, paceSecPerKm: nil, sets: nil
+                    )],
+                    shortWhy: plan.addedPartRationale ?? "Gym after football.", fullWhy: nil,
+                    expectedStrain: nil, expectedSessionRPE: nil
                 )
             }
             return DailySessionDTO(

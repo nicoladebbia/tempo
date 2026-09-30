@@ -754,6 +754,10 @@ final class TrainingViewModel {
         // covered day to rest, AFTER the trainer overlay so a pause always
         // wins. See TrainingPauseSchedule.swift.
         TrainingPauseSchedule.apply(fetchTrainingPauses(modelContext: modelContext), to: plans)
+
+        // A soccer day that took an extra gym session feeds the NEXT day: avoid
+        // the same muscles, account for the combined load (see +ExtraGymRebalance).
+        applyExtraSessionRebalance(to: plans, monday: monday, modelContext: modelContext)
         return plans
     }
 
