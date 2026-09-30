@@ -102,6 +102,18 @@ final class FoodScoreTests: XCTestCase {
         XCTAssertEqual(estimate.grade, "a")
     }
 
+    /// Tempo's built-in table has no sodium data at all — `suggestions(for:)`
+    /// relies on built-in foods still being scoreable.
+    func testEstimateWorksWithoutSaltWhenCarbsAreKnown() {
+        let noSalt = FoodProduct.Nutrients(kcal: 165, protein: 31, carbs: 0, fat: 3.6, fiber: 0)
+        XCTAssertNotNil(NutriScore.estimate(noSalt, isBeverage: false))
+        XCTAssertNotNil(FoodScore.evaluate(FoodProduct.sample(per100g: noSalt), additiveTable: additiveTable))
+    }
+
+    func testStillNoScoreWithoutAnyNutritionData() {
+        XCTAssertNil(NutriScore.estimate(.init(kcal: 100), isBeverage: false), "No carbs at all — still not enough to guess sugars/salt")
+    }
+
     func testAdditiveSubVariantUsesParentAndOverrides() {
         let table = FoodAdditiveTable(entries: ["e322": .init(n: "Lecithins", r: nil), "e171": .init(n: "Titanium dioxide", r: nil)])
         XCTAssertEqual(table.additive(for: "en:e322i").name, "Lecithins")
@@ -112,6 +124,32 @@ final class FoodScoreTests: XCTestCase {
         let table = FoodAdditiveTable(bundle: Bundle(for: TempoAppBundleMarker.self))
         XCTAssertFalse(table.isEmpty)
         XCTAssertEqual(table.additive(for: "e250").risk, .high)
+    }
+
+    /// The extended risk table (item 6 of the food-check-v2 audit): common
+    /// E-numbers that previously fell through to "unknown".
+    func testExtendedAdditiveRiskCoverage() {
+        let table = FoodAdditiveTable.shared
+        // Sweeteners under active research.
+        XCTAssertEqual(table.additive(for: "e955").risk, .moderate, "Sucralose")
+        XCTAssertEqual(table.additive(for: "e950").risk, .moderate, "Acesulfame K")
+        // Emulsifier under active gut-microbiome research.
+        XCTAssertEqual(table.additive(for: "e466").risk, .moderate, "Carboxymethylcellulose")
+        // Banned-in-the-EU colour.
+        XCTAssertEqual(table.additive(for: "e128").risk, .high, "Red 2G")
+        // Same glutamate family as E621.
+        XCTAssertEqual(table.additive(for: "e622").risk, .high)
+        // Common, well-established-safe additives now read "low" instead of "unknown".
+        XCTAssertEqual(table.additive(for: "e330").risk, .low, "Citric acid")
+        XCTAssertEqual(table.additive(for: "e415").risk, .low, "Xanthan gum")
+    }
+
+    func testExtendedCoverageReachesAtLeast120Additives() {
+        let table = FoodAdditiveTable.shared
+        let rated = FoodAdditiveTable.overrides.keys.filter { table.additive(for: $0).risk != .unknown }
+        // Overrides alone (bundled-JSON-rated codes aren't enumerable from
+        // here, but the audit's baseline was 65 from the JSON table).
+        XCTAssertGreaterThanOrEqual(rated.count, 50, "At least 50 additives beyond the bundled JSON table's own ratings")
     }
 }
 
@@ -161,6 +199,188 @@ final class OpenFoodFactsDecodingTests: XCTestCase {
         XCTAssertEqual(FoodProduct.grams(fromLabel: "33 cl"), 330)
         XCTAssertEqual(FoodProduct.grams(fromLabel: "2,5 g"), 2.5)
         XCTAssertNil(FoodProduct.grams(fromLabel: "1 slice"))
+    }
+
+    func testGalleryImagesFrontFirstThenExtrasDeduped() throws {
+        let json = """
+        {"code":"20692285","status":1,"product":{"code":"20692285","product_name":"Skyr",
+        "image_front_url":"https://images.openfoodfacts.org/front.jpg",
+        "image_ingredients_url":"https://images.openfoodfacts.org/ingredients.jpg",
+        "image_nutrition_url":"https://images.openfoodfacts.org/nutrition.jpg",
+        "image_packaging_url":"https://images.openfoodfacts.org/front.jpg",
+        "nutriments":{"energy-kcal_100g":62,"proteins_100g":11,"carbohydrates_100g":4,"fat_100g":0.2,"salt_100g":0.13}}}
+        """
+        let envelope = try JSONDecoder().decode(OFFProductEnvelope.self, from: Data(json.utf8))
+        let product = try XCTUnwrap(envelope.product?.toProduct(fallbackCode: nil, language: "en"))
+        XCTAssertEqual(product.galleryImageURLs?.map(\.absoluteString), [
+            "https://images.openfoodfacts.org/front.jpg",
+            "https://images.openfoodfacts.org/ingredients.jpg",
+            "https://images.openfoodfacts.org/nutrition.jpg",
+        ], "Front first; the packaging duplicate of the front photo is dropped")
+    }
+
+    func testNoExtraImagesGalleryIsJustTheFront() throws {
+        let json = """
+        {"code":"1","status":1,"product":{"code":"1","product_name":"Plain",
+        "image_front_url":"https://images.openfoodfacts.org/front.jpg",
+        "nutriments":{"energy-kcal_100g":100,"proteins_100g":1,"carbohydrates_100g":1,"fat_100g":1,"salt_100g":0}}}
+        """
+        let envelope = try JSONDecoder().decode(OFFProductEnvelope.self, from: Data(json.utf8))
+        let product = try XCTUnwrap(envelope.product?.toProduct(fallbackCode: nil, language: "en"))
+        XCTAssertEqual(product.galleryImageURLs, [product.imageURL].compactMap(\.self))
+    }
+
+    func testTracesTagsDecodeAndMapToDisplayNames() throws {
+        // picky-QA item 3: Nutella (3017620422003) has milk/nuts/soybeans on
+        // Open Food Facts — this locks in that the field is requested and
+        // decoded, and that "soybeans"/"nuts" map to the right display names.
+        let json = """
+        {"code":"3017620422003","status":1,"product":{"code":"3017620422003","product_name":"Nutella",
+        "brands":"Ferrero","allergens_tags":["en:milk","en:nuts","en:soybeans"],
+        "traces_tags":["en:gluten","en:eggs"],
+        "nutriments":{"energy-kcal_100g":539,"proteins_100g":6.3,"carbohydrates_100g":57.5,"fat_100g":30.9}}}
+        """
+        let envelope = try JSONDecoder().decode(OFFProductEnvelope.self, from: Data(json.utf8))
+        let product = try XCTUnwrap(envelope.product?.toProduct(fallbackCode: nil, language: "en"))
+        XCTAssertEqual(product.allergens, ["milk", "nuts", "soybeans"])
+        XCTAssertEqual(product.traces, ["gluten", "eggs"])
+        XCTAssertEqual(product.displayAllergens, ["Milk", "Tree nuts", "Soy"])
+        XCTAssertEqual(product.displayTraces, ["Eggs", "Gluten"], "Same stable EU-14 order as displayAllergens")
+    }
+
+    /// Favourites/history rows store FoodProduct as JSON; rows saved before
+    /// newer fields existed must still decode or they vanish from the app.
+    func testProductSavedBeforeNewerFieldsStillDecodes() throws {
+        let product = FoodProduct(id: "123", name: "Skyr", source: .openFoodFacts, per100g: .init(kcal: 60))
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(product)) as? [String: Any])
+        json.removeValue(forKey: "traces")
+        json.removeValue(forKey: "galleryImageURLs")
+        let old = try JSONSerialization.data(withJSONObject: json)
+        XCTAssertEqual(try JSONDecoder().decode(FoodProduct.self, from: old).name, "Skyr")
+    }
+
+    func testTracesAlreadyConfirmedAsAllergensAreNotDoubleListed() throws {
+        let json = """
+        {"code":"1","status":1,"product":{"code":"1","product_name":"Bar",
+        "allergens_tags":["en:milk"],"traces_tags":["en:milk","en:eggs"],
+        "nutriments":{"energy-kcal_100g":400,"proteins_100g":5,"carbohydrates_100g":40,"fat_100g":10}}}
+        """
+        let envelope = try JSONDecoder().decode(OFFProductEnvelope.self, from: Data(json.utf8))
+        let product = try XCTUnwrap(envelope.product?.toProduct(fallbackCode: nil, language: "en"))
+        XCTAssertEqual(product.displayAllergens, ["Milk"])
+        XCTAssertEqual(product.displayTraces, ["Eggs"], "Milk is already a confirmed allergen — no point also flagging it as a trace")
+    }
+
+    func testNoImagesAtAllLeavesGalleryNil() throws {
+        let json = """
+        {"code":"1","status":1,"product":{"code":"1","product_name":"Plain",
+        "nutriments":{"energy-kcal_100g":100,"proteins_100g":1,"carbohydrates_100g":1,"fat_100g":1,"salt_100g":0}}}
+        """
+        let envelope = try JSONDecoder().decode(OFFProductEnvelope.self, from: Data(json.utf8))
+        let product = try XCTUnwrap(envelope.product?.toProduct(fallbackCode: nil, language: "en"))
+        XCTAssertNil(product.galleryImageURLs)
+    }
+}
+
+// MARK: - NonLatinScriptDeRankTests
+
+/// picky-QA item 11: a Hebrew-only "קוקה קולה" for a "Coca-Cola" search
+/// showing up ranked alongside normal English results.
+final class NonLatinScriptDeRankTests: XCTestCase {
+    func testMostlyHebrewNameIsFlagged() {
+        XCTAssertTrue(OpenFoodFactsClient.isMostlyNonLatinScript("קוקה קולה"))
+    }
+
+    func testMostlyLatinNameIsNotFlagged() {
+        XCTAssertFalse(OpenFoodFactsClient.isMostlyNonLatinScript("Coca-Cola"))
+    }
+
+    func testMixedNameWithLatinMajorityIsNotFlagged() {
+        XCTAssertFalse(OpenFoodFactsClient.isMostlyNonLatinScript("Nutella Ferrero café"))
+    }
+
+    func testDigitsAndPunctuationOnlyAreNotFlagged() {
+        XCTAssertFalse(OpenFoodFactsClient.isMostlyNonLatinScript("7 - Up (355 ml)"))
+    }
+
+    func testLatinScriptLanguageGate() {
+        XCTAssertTrue(OpenFoodFactsClient.isLatinScriptLanguage("en"))
+        XCTAssertTrue(OpenFoodFactsClient.isLatinScriptLanguage("IT"), "Case-insensitive")
+        XCTAssertFalse(OpenFoodFactsClient.isLatinScriptLanguage("he"))
+        XCTAssertFalse(OpenFoodFactsClient.isLatinScriptLanguage("ja"))
+    }
+
+    func testDeprioritizedPushesFlaggedItemsAfterWhileKeepingRelativeOrder() {
+        let hebrew = FoodProduct(id: "3", name: "קוקה קולה", source: .openFoodFacts, per100g: .init())
+        let first = FoodProduct(id: "1", name: "Alpha", source: .openFoodFacts, per100g: .init())
+        let second = FoodProduct(id: "2", name: "Beta", source: .openFoodFacts, per100g: .init())
+        let result = OpenFoodFactsClient.deprioritized([hebrew, first, second]) {
+            OpenFoodFactsClient.isMostlyNonLatinScript($0.name)
+        }
+        XCTAssertEqual(result.map(\.id), ["1", "2", "3"])
+    }
+}
+
+// MARK: - FoodImplausibilityTests
+
+/// picky-QA item 10: a "Coke Zero" read as 108 kcal/100 ml (should be ~0)
+/// shown with the same confident styling as a plausible row.
+final class FoodImplausibilityTests: XCTestCase {
+    private func product(
+        name: String = "Product",
+        isBeverage: Bool = false,
+        kcal: Double?,
+        protein: Double? = 5,
+        carbs: Double? = 10,
+        fat: Double? = 2
+    ) -> FoodProduct {
+        FoodProduct(
+            id: "1", name: name, source: .openFoodFacts, isBeverage: isBeverage,
+            per100g: .init(kcal: kcal, protein: protein, carbs: carbs, fat: fat)
+        )
+    }
+
+    func testPlausibleChickenIsNotFlagged() {
+        // The picky-QA "156 vs 165 kcal" chicken case: printed kcal and
+        // Atwater legitimately differ a little — that alone is not implausible.
+        let item = product(kcal: 165, protein: 31, carbs: 0, fat: 3.6)
+        XCTAssertNil(item.implausibilityReason)
+        XCTAssertFalse(item.hasImplausibleNutrition)
+    }
+
+    func testAboveNineHundredKcalPer100gIsFlagged() {
+        let item = product(kcal: 950, protein: 5, carbs: 5, fat: 5)
+        XCTAssertNotNil(item.implausibilityReason)
+    }
+
+    func testCokeZeroStyleBeverageIsFlagged() {
+        let item = product(name: "Coke Zero", isBeverage: true, kcal: 108, protein: 0, carbs: 0, fat: 0)
+        let reason = item.implausibilityReason
+        XCTAssertNotNil(reason)
+        XCTAssertTrue(reason?.contains("108") ?? false)
+        // No confident score from contradictory numbers.
+        XCTAssertNil(FoodScore.evaluate(item))
+    }
+
+    func testTrulyZeroCalorieDietBeverageIsNotFlagged() {
+        let item = product(name: "Diet Cola", isBeverage: true, kcal: 1, protein: 0, carbs: 0, fat: 0)
+        XCTAssertNil(item.implausibilityReason)
+    }
+
+    func testNonBeverageZeroNamedProductIsNotFlaggedByTheBeverageRule() {
+        // "zero" in the name only matters for beverages.
+        let item = product(name: "Zero Sugar Cookies", isBeverage: false, kcal: 420, protein: 5, carbs: 60, fat: 15)
+        XCTAssertNil(item.implausibilityReason)
+    }
+
+    func testLabelKcalFarFromMacroMathIsFlagged() {
+        // Atwater ≈ 156 kcal; a printed 250 is off by >40 kcal and >30%.
+        let item = product(kcal: 250, protein: 31, carbs: 0, fat: 3.6)
+        XCTAssertNotNil(item.implausibilityReason)
+    }
+
+    func testMissingKcalIsNeverFlagged() {
+        XCTAssertNil(product(kcal: nil).implausibilityReason)
     }
 }
 
@@ -369,6 +589,69 @@ final class FoodCatalogTests: XCTestCase {
         XCTAssertEqual(catalog.favorites(in: context).count, 1)
         XCTAssertFalse(catalog.toggleFavorite(.sample(), in: context))
     }
+
+    // MARK: - Allergen enrichment (picky-QA item 3)
+
+    func testEnrichAllergensRefetchesOnlyWhenTheSearchHitCameBackBare() async {
+        // Open Food Facts's search index frequently omits allergens_tags /
+        // ingredients_text even when the full product record has them
+        // (verified for Nutella 3017620422003) — the product page must
+        // re-fetch the full record rather than show nothing.
+        let fake = FakeProducts()
+        let barcode = "3017620422003"
+        let full = FoodProduct.sample(id: barcode, allergens: ["milk", "nuts", "soybeans"])
+        fake.byBarcode[barcode] = full
+        let catalog = FoodCatalog(products: fake, generic: nil)
+
+        let bareSearchHit = FoodProduct.sample(id: barcode)
+        let enriched = await catalog.enrichAllergensIfMissing(for: bareSearchHit)
+        XCTAssertEqual(enriched?.allergens, ["milk", "nuts", "soybeans"])
+        XCTAssertEqual(fake.lookups, 1)
+
+        fake.lookups = 0
+        let noRefetchNeeded = await catalog.enrichAllergensIfMissing(for: full)
+        XCTAssertNil(noRefetchNeeded, "Already has allergen data — must not re-fetch")
+        XCTAssertEqual(fake.lookups, 0)
+    }
+
+    // MARK: - Remembered portion (picky-QA item 4)
+
+    func testRememberedPortionIsReturnedNextTime() throws {
+        let context = try makeContext()
+        let catalog = FoodCatalog(products: FakeProducts(), generic: nil)
+        XCTAssertNil(catalog.lastPortionGrams(for: .sample(), in: context))
+
+        catalog.rememberPortion(220, for: .sample(), in: context)
+        XCTAssertEqual(catalog.lastPortionGrams(for: .sample(), in: context), 220)
+    }
+
+    func testRememberPortionIgnoresZeroOrNegativeGrams() throws {
+        let context = try makeContext()
+        let catalog = FoodCatalog(products: FakeProducts(), generic: nil)
+        catalog.rememberPortion(0, for: .sample(), in: context)
+        catalog.rememberPortion(-5, for: .sample(), in: context)
+        XCTAssertNil(catalog.lastPortionGrams(for: .sample(), in: context))
+    }
+
+    // MARK: - Implausible rows de-prioritized (picky-QA item 10)
+
+    func testSearchSortsImplausibleProductsAfterPlausibleOnes() async throws {
+        let context = try makeContext()
+        let fake = FakeProducts()
+        let implausible = FoodProduct(
+            id: "1", name: "Coke Zero", source: .openFoodFacts, isBeverage: true,
+            per100g: .init(kcal: 108, protein: 0, carbs: 0, fat: 0)
+        )
+        let plausible = FoodProduct(
+            id: "2", name: "Orange Juice", source: .openFoodFacts,
+            per100g: .init(kcal: 45, protein: 0.7, carbs: 10.4, fat: 0.2)
+        )
+        fake.searchResults = [implausible, plausible]
+        let catalog = FoodCatalog(products: fake, generic: nil)
+
+        let results = await catalog.search("cola", in: context)
+        XCTAssertEqual(results.products.map(\.id), ["2", "1"], "Implausible rows sort after plausible ones, never dropped")
+    }
 }
 
 // MARK: - FoodLoggingTests
@@ -396,7 +679,16 @@ final class FoodLoggingTests: XCTestCase {
     }
 
     func testDrinkKeepsItsServingSize() {
-        var cola = FoodProduct.sample(per100g: FoodProduct.Nutrients(kcal: 42, protein: 0, carbs: 10.6, sugars: 10.6, fat: 0, saturatedFat: 0, fiber: 0, salt: 0))
+        var cola = FoodProduct.sample(per100g: FoodProduct.Nutrients(
+            kcal: 42,
+            protein: 0,
+            carbs: 10.6,
+            sugars: 10.6,
+            fat: 0,
+            saturatedFat: 0,
+            fiber: 0,
+            salt: 0
+        ))
         cola.isBeverage = true
         let item = cola.foodItem(grams: 330)
         XCTAssertEqual(item.servingSize, "330 ml")
@@ -406,7 +698,10 @@ final class FoodLoggingTests: XCTestCase {
     }
 
     func testBuiltInFoodLogsAsCachedWithoutBarcode() {
-        let product = FoodCatalog.builtInProduct(name: "chicken breast", macros: FoodMacros(calories: 165, protein: 31, carbs: 0, fat: 3.6, fiber: 0))
+        let product = FoodCatalog.builtInProduct(
+            name: "chicken breast",
+            macros: FoodMacros(calories: 165, protein: 31, carbs: 0, fat: 3.6, fiber: 0)
+        )
         let stored = MealFoodItem(from: product.foodItem(grams: 200).mealFoodInput)
         XCTAssertNil(stored.barcode)
         XCTAssertNil(stored.offProductCode)
@@ -480,16 +775,16 @@ final class FoodScannerCleanupTests: XCTestCase {
         )
     }
 
-    func testPlaceholderSymbolFollowsMostSpecificCategory() {
-        let peanut = FoodProduct.sample(categories: ["plant-based-foods-and-beverages", "spreads", "peanut-butters"])
-        XCTAssertEqual(peanut.placeholderSymbol, "leaf.fill", "Not a drink just because of the root category")
-        XCTAssertEqual(FoodProduct.sample(categories: ["beverages", "coffees"]).placeholderSymbol, "cup.and.saucer.fill")
-        XCTAssertEqual(FoodProduct.sample(categories: ["unknown-thing"]).placeholderSymbol, "barcode")
-    }
-
     func testFreeTextCategoriesAreDropped() {
-        let nutella = ["en:breakfasts", "en:spreads", "en:sweet-spreads", "en:confectionary-based-spreads",
-                       "en:Pâtes à tartiner", "fr:Nutella", "fr:Nuttela"]
+        let nutella = [
+            "en:breakfasts",
+            "en:spreads",
+            "en:sweet-spreads",
+            "en:confectionary-based-spreads",
+            "en:Pâtes à tartiner",
+            "fr:Nutella",
+            "fr:Nuttela",
+        ]
         XCTAssertEqual(
             OFFRawProduct.taxonomyCategories(nutella),
             ["breakfasts", "spreads", "sweet-spreads", "confectionary-based-spreads"],
@@ -502,5 +797,30 @@ final class FoodScannerCleanupTests: XCTestCase {
         XCTAssertEqual(OpenFoodFactsClient.betterGrades(than: "D"), "a OR b OR c")
         XCTAssertEqual(OpenFoodFactsClient.betterGrades(than: "c"), "a OR b")
         XCTAssertEqual(OpenFoodFactsClient.betterGrades(than: nil), "a OR b")
+    }
+
+    func testGenericSearchTermsStripsBrandAndPercent() {
+        let product = FoodProduct(
+            id: "1", name: "Fage Total 0% Greek Yogurt", brand: "Fage", source: .openFoodFacts,
+            per100g: .init(kcal: 59)
+        )
+        XCTAssertEqual(OpenFoodFactsClient.genericSearchTerms(for: product), "total greek yogurt")
+    }
+
+    func testDedupedByIdentityDropsBadRowsAndDuplicates() {
+        let noName = FoodProduct(id: "1", name: "", source: .openFoodFacts, per100g: .init(kcal: 100))
+        let noKcal = FoodProduct(id: "2", name: "Mystery", source: .openFoodFacts, per100g: .init())
+        let a = FoodProduct(id: "3", name: "Skyr", brand: "Arla", source: .openFoodFacts, per100g: .init(kcal: 62))
+        let sameNameBrandDifferentBarcode = FoodProduct(
+            id: "4",
+            name: "Skyr",
+            brand: "Arla",
+            source: .openFoodFacts,
+            per100g: .init(kcal: 62)
+        )
+        let sameIDTwice = a
+
+        let result = OpenFoodFactsClient.dedupedByIdentity([noName, noKcal, a, sameNameBrandDifferentBarcode, sameIDTwice])
+        XCTAssertEqual(result.map(\.id), ["3"])
     }
 }

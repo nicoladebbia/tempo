@@ -36,6 +36,9 @@ struct FoodSearchView: View {
 
     @State
     private var searchText = ""
+    /// Opens straight into typing — the user came here to search.
+    @State
+    private var isSearchPresented = false
     @State
     private var selectedTab: SearchTab = .all
     @State
@@ -48,6 +51,13 @@ struct FoodSearchView: View {
     private var showScanner = false
     @State
     private var catalog: FoodCatalog?
+    /// Next Open Food Facts page to fetch when the user scrolls to the end.
+    @State
+    private var nextPage = 2
+    @State
+    private var canLoadMore = false
+    @State
+    private var isLoadingMore = false
 
     enum SearchTab: String, CaseIterable, Identifiable {
         case all = "All"
@@ -89,6 +99,7 @@ struct FoodSearchView: View {
             .navigationBarTitleDisplayMode(.inline)
             .searchable(
                 text: $searchText,
+                isPresented: $isSearchPresented,
                 placement: .navigationBarDrawer(displayMode: .always),
                 prompt: "Foods or brands — e.g. skyr, Barilla"
             )
@@ -126,6 +137,8 @@ struct FoodSearchView: View {
                 }
                 if searchText.isEmpty, let initialQuery, !initialQuery.isEmpty {
                     searchText = initialQuery
+                } else if searchText.isEmpty {
+                    isSearchPresented = true
                 }
             }
         }
@@ -161,7 +174,7 @@ struct FoodSearchView: View {
                 resultSection("YOURS", results.yours, catalog: catalog)
                 resultSection("BASIC FOODS", results.basics, catalog: catalog)
                 resultSection("PACKAGED PRODUCTS", results.products, catalog: catalog)
-                if isLoading {
+                if isLoading || isLoadingMore {
                     HStack {
                         Spacer()
                         ProgressView()
@@ -186,6 +199,11 @@ struct FoodSearchView: View {
                         FoodProductRow(product: product)
                     }
                     .listRowBackground(Color.tempoSurfaceCard)
+                    .onAppear {
+                        if product.id == results.products.last?.id {
+                            Task { await loadMorePackaged() }
+                        }
+                    }
                 }
             }
         }
@@ -298,6 +316,29 @@ struct FoodSearchView: View {
         results = found
         hasSearched = true
         isLoading = false
+        nextPage = 2
+        canLoadMore = !found.products.isEmpty
+    }
+
+    /// Infinite scroll: appends the next packaged page when the last row shows.
+    private func loadMorePackaged() async {
+        guard canLoadMore, !isLoadingMore, !isLoading, let catalog else {
+            return
+        }
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        isLoadingMore = true
+        let page = await catalog.searchMore(query, page: nextPage)
+        isLoadingMore = false
+        guard query == searchText.trimmingCharacters(in: .whitespacesAndNewlines) else {
+            return
+        }
+        let known = Set((results.yours + results.basics + results.products).map(\.id))
+        let fresh = page.filter { !known.contains($0.id) }
+        results.products.append(contentsOf: fresh)
+        nextPage += 1
+        // A page of only already-shown rows isn't the end — OFF ranking can
+        // shift between fetches. Only an empty page is.
+        canLoadMore = !page.isEmpty
     }
 }
 

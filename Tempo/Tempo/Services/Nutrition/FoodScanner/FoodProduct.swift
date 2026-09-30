@@ -47,6 +47,11 @@ struct FoodProduct: Codable, Equatable, Hashable, Sendable, Identifiable {
     var additives: [String] = []
     /// Allergen tags without prefix ("milk", "gluten").
     var allergens: [String] = []
+    /// "May contain" trace tags without prefix — shared-line/equipment risk,
+    /// shown as secondary chips, never conflated with a confirmed allergen.
+    /// Optional so products saved before this field existed still decode
+    /// (a missing key throws for a non-optional, even with a default).
+    var traces: [String]?
     /// Label tags without prefix ("organic", "eu-organic", "vegan").
     var labels: [String] = []
     /// Category tags without prefix, most specific LAST ("yogurts", "skyr").
@@ -57,6 +62,9 @@ struct FoodProduct: Codable, Equatable, Hashable, Sendable, Identifiable {
 
     var imageURL: URL?
     var imageSmallURL: URL?
+    /// Extra photos (front, ingredients, nutrition, packaging) — optional so
+    /// older saved products still decode.
+    var galleryImageURLs: [URL]?
 
     struct Nutrients: Codable, Equatable, Hashable, Sendable {
         var kcal: Double?
@@ -110,6 +118,38 @@ struct FoodProduct: Codable, Equatable, Hashable, Sendable, Identifiable {
             return "\(brand) \(name)"
         }
         return name
+    }
+
+    /// A one-line reason the printed numbers don't look physically real —
+    /// nil when they check out. Shown as an amber warning instead of
+    /// trusting a scanned/typo'd label at face value (a "Coke Zero" read as
+    /// 108 kcal/100 ml, five times the real ~1 kcal, is the motivating case).
+    var implausibilityReason: String? {
+        guard let kcal = per100g.kcal else {
+            return nil
+        }
+        if kcal > 900 {
+            return "\(Int(kcal.rounded())) kcal per 100 g is higher than any real food."
+        }
+        let lowered = name.lowercased()
+        let looksZeroCalorie = ["zero", "diet", "light", "lite", "sugar-free", "sugar free", "no sugar"]
+            .contains { lowered.contains($0) }
+        if isBeverage, looksZeroCalorie, kcal > 20 {
+            return "Labelled zero/diet/light but \(Int(kcal.rounded())) kcal per 100 ml."
+        }
+        if let protein = per100g.protein, let carbs = per100g.carbs, let fat = per100g.fat {
+            let atwater = protein * 4 + carbs * 4 + fat * 9
+            let diff = abs(kcal - atwater)
+            if kcal > 0, diff > 40, diff / kcal > 0.3 {
+                return "Printed \(Int(kcal.rounded())) kcal doesn't match the macros (~\(Int(atwater.rounded())) kcal)."
+            }
+        }
+        return nil
+    }
+
+    /// True when `implausibilityReason` has something to say.
+    var hasImplausibleNutrition: Bool {
+        implausibilityReason != nil
     }
 
     /// Grams parsed from a label like "150 g", "1 pot (125 g)", "250ml".

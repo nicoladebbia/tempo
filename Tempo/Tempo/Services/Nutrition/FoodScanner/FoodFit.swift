@@ -46,8 +46,12 @@ struct FoodFitContext: Equatable, Sendable {
     var nutFree = false
     var shellfishAllergy = false
     var avoidAddedSugars = false
+    var halal = false
     /// Free-text allergies from the diet profile ("sesame", "kiwi").
     var allergies: [String] = []
+    /// Cut / lean gain / maintain — frames a couple of checks (calorie
+    /// density, protein density) around what the user is actually doing.
+    var goal: DietaryGoal?
 
     static let none = FoodFitContext()
 
@@ -73,7 +77,9 @@ struct FoodFitContext: Equatable, Sendable {
             nutFree: profile?.isNutFree ?? false,
             shellfishAllergy: profile?.isShellFishAllergy ?? false,
             avoidAddedSugars: profile?.avoidAddedSugars ?? false,
-            allergies: profile?.allergies ?? []
+            halal: profile?.isHalal ?? false,
+            allergies: profile?.allergies ?? [],
+            goal: profile?.primaryGoal
         )
     }
 
@@ -119,6 +125,9 @@ enum FoodFit {
             }
         } else if context.vegetarian, analysis.contains("non-vegetarian") {
             checks.append(.init(kind: .conflict, text: "Not vegetarian"))
+        }
+        if context.halal, let halalCheck = halalCheck(for: product) {
+            checks.append(halalCheck)
         }
         for allergy in context.allergies {
             let term = allergy.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -169,7 +178,78 @@ enum FoodFit {
         if let protein = portion.protein, let remainingProtein = context.remainingProtein, remainingProtein > 0, protein >= 10 {
             checks.append(.init(kind: .good, text: "\(Int(protein.rounded())) g protein toward the \(remainingProtein) g you still need"))
         }
+        if let goalCheck = goalCheck(for: product, context: context) {
+            checks.append(goalCheck)
+        }
         return checks.sorted { $0.kind.rawValue < $1.kind.rawValue }
+    }
+
+    /// Conflict when the ingredients/labels show pork, unspecified gelatin
+    /// or an alcohol-derived ingredient; a good mark when a halal label is
+    /// present; silent otherwise (most products carry neither signal).
+    static func halalCheck(for product: FoodProduct) -> FoodFitCheck? {
+        // "sugar alcohol" (erythritol…) and wine vinegar aren't intoxicants.
+        let ingredients = (product.ingredientsText ?? "").lowercased()
+            .replacingOccurrences(of: #"sugar alcohols?"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: "wine vinegar", with: "")
+        // Whole words only — "chamomile" must not read as "ham", "collard" as "lard".
+        func mentions(_ term: String) -> Bool {
+            ingredients.range(of: "\\b\(NSRegularExpression.escapedPattern(for: term))\\b", options: .regularExpression) != nil
+        }
+        let porkTerms = ["pork", "bacon", "lard", "ham", "prosciutto", "salami", "pepperoni", "chorizo", "pancetta"]
+        let alcoholTerms = ["alcohol", "ethanol", "wine", "rum", "beer", "liqueur", "brandy"]
+        let gelatinSourced = [
+            "beef gelatin",
+            "bovine gelatin",
+            "fish gelatin",
+            "halal gelatin",
+            "vegetable gelatin",
+            "plant-based gelatin",
+            "kosher gelatin",
+        ]
+
+        if let term = porkTerms.first(where: mentions) {
+            return FoodFitCheck(kind: .conflict, text: "May not be halal — contains \(term)")
+        }
+        if alcoholTerms.contains(where: mentions) {
+            return FoodFitCheck(kind: .conflict, text: "May not be halal — contains alcohol")
+        }
+        if ingredients.contains("gelatin") || ingredients.contains("gelatine"),
+           !gelatinSourced.contains(where: { ingredients.contains($0) })
+        {
+            return FoodFitCheck(kind: .conflict, text: "May not be halal — gelatin source not specified")
+        }
+        if product.labels.contains(where: { $0.contains("halal") }) {
+            return FoodFitCheck(kind: .good, text: "Halal certified")
+        }
+        return nil
+    }
+
+    /// A couple of checks framed around what the user is actually training
+    /// for — a cut cares about calorie density, a lean gain welcomes it.
+    static func goalCheck(for product: FoodProduct, context: FoodFitContext) -> FoodFitCheck? {
+        guard let goal = context.goal, let kcal = product.per100g.kcal else {
+            return nil
+        }
+        switch goal {
+        case .cut:
+            if kcal > 350, product.foodGroup != .nuts {
+                return FoodFitCheck(
+                    kind: .warning,
+                    text: "Calorie-dense (\(Int(kcal.rounded())) kcal/100g) — watch the portion while cutting"
+                )
+            }
+            if let density = proteinPer100Kcal(product), density >= 8 {
+                return FoodFitCheck(kind: .good, text: "Protein-dense — solid pick for a cut")
+            }
+        case .leanGain:
+            if kcal > 350 {
+                return FoodFitCheck(kind: .good, text: "Energy-dense (\(Int(kcal.rounded())) kcal/100g) — helps hit your surplus")
+            }
+        case .maintain:
+            return nil
+        }
+        return nil
     }
 
     static func proteinPer100Kcal(_ product: FoodProduct) -> Double? {

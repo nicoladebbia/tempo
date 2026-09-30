@@ -140,47 +140,9 @@ struct FoodScoreRing: View {
 
 // MARK: - FoodProductThumbnail
 
-/// The user's own photo, else the Open Food Facts image, else a symbol.
-extension FoodProduct {
-    /// A symbol for the product's kind, shown when there's no picture.
-    var placeholderSymbol: String {
-        // Most specific category first ("peanut-butters" before "spreads"
-        // before "plant-based-foods-and-beverages").
-        for tag in categories.reversed() {
-            if let symbol = Self.categorySymbols[tag] {
-                return symbol
-            }
-        }
-        if isBeverage {
-            return "takeoutbag.and.cup.and.straw.fill"
-        }
-        return source == .openFoodFacts || source == .userAdded ? "barcode" : "fork.knife"
-    }
-
-    private static let categorySymbols: [String: String] = {
-        let groups: [(tags: [String], symbol: String)] = [
-            (["waters", "mineral-waters", "spring-waters"], "waterbottle.fill"),
-            (["coffees", "teas", "hot-beverages"], "cup.and.saucer.fill"),
-            (["alcoholic-beverages", "wines", "beers"], "wineglass.fill"),
-            (["beverages", "juices", "fruit-juices", "sodas", "carbonated-drinks"], "takeoutbag.and.cup.and.straw.fill"),
-            (["chocolates", "confectioneries", "biscuits", "cakes", "desserts", "pastries", "ice-creams", "sweet-snacks"], "birthday.cake.fill"),
-            (["salty-snacks", "crisps", "chips-and-fries", "popcorn"], "popcorn.fill"),
-            (["fishes", "seafood"], "fish.fill"),
-            (["meats", "sausages", "hams", "poultries"], "frying.pan.fill"),
-            (["dairies", "cheeses", "yogurts", "milks"], "drop.fill"),
-            (["fruits", "vegetables", "legumes", "fruits-and-vegetables-based-foods"], "carrot.fill"),
-            (["nuts", "seeds", "spreads", "nut-butters", "peanut-butters", "breads", "cereals-and-potatoes", "cereals-and-their-products"], "leaf.fill"),
-        ]
-        var map: [String: String] = [:]
-        for group in groups {
-            for tag in group.tags {
-                map[tag] = group.symbol
-            }
-        }
-        return map
-    }()
-}
-
+/// The user's own photo, else the product's picture (cached to disk), else a
+/// generic photo for basics/USDA foods, else `FoodGroupArt` — never a blank
+/// tile.
 struct FoodProductThumbnail: View {
     let product: FoodProduct
     var photo: Data?
@@ -192,33 +154,16 @@ struct FoodProductThumbnail: View {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFit()
-            } else if let url = size > 64 ? (product.imageURL ?? product.imageSmallURL) : (product.imageSmallURL ?? product.imageURL) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case let .success(image):
-                        image.resizable().scaledToFit()
-                    case .empty:
-                        ProgressView()
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    default:
-                        placeholder
-                    }
-                }
+                    .frame(width: size, height: size)
+                    .background(Color.white)
             } else {
-                placeholder
+                let url = size > 64 ? (product.imageURL ?? product.imageSmallURL) : (product.imageSmallURL ?? product.imageURL)
+                FoodRemoteImage(url: url, product: product)
+                    .frame(width: size, height: size)
+                    .background(url == nil ? Color.clear : Color.white)
             }
         }
-        .frame(width: size, height: size)
-        .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
-    }
-
-    private var placeholder: some View {
-        Image(systemName: product.placeholderSymbol)
-            .font(.system(size: size * 0.4))
-            .foregroundStyle(Color.tempoTextTertiary)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.tempoBgTertiary)
     }
 }
 
@@ -237,10 +182,14 @@ struct FoodProductRow: View {
                     .font(.tempoBodyBold)
                     .foregroundStyle(Color.tempoTextPrimary)
                     .lineLimit(2)
-                Text(subtitle ?? detailLine)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .lineLimit(1)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                        .lineLimit(1)
+                } else {
+                    detailLine
+                }
             }
             Spacer(minLength: TempoSpacing.sm)
             FoodScoreBadge(product: product)
@@ -248,15 +197,32 @@ struct FoodProductRow: View {
         .contentShape(Rectangle())
     }
 
-    private var detailLine: String {
-        var parts: [String] = []
-        if let brand = product.brand, !brand.isEmpty {
-            parts.append(brand)
+    /// Brand + kcal on one line. When space is tight, the brand truncates —
+    /// the kcal figure never does, so a row never reads as "82 kcal / 10…"
+    /// (picky-QA item 13).
+    @ViewBuilder
+    private var detailLine: some View {
+        let brand = product.brand?.isEmpty == false ? product.brand : nil
+        let kcalText = product.per100g.kcal.map { "\(Int($0.rounded())) kcal / 100 \(product.unit)" }
+        HStack(spacing: TempoSpacing.xxs) {
+            if let brand {
+                Text(brand)
+                    .lineLimit(1)
+                    .layoutPriority(0)
+            }
+            if let kcalText {
+                if brand != nil {
+                    Text("·")
+                        .layoutPriority(1)
+                }
+                Text(kcalText)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .layoutPriority(1)
+            }
         }
-        if let kcal = product.per100g.kcal {
-            parts.append("\(Int(kcal.rounded())) kcal / 100 \(product.unit)")
-        }
-        return parts.joined(separator: " · ")
+        .font(.tempoCaption1)
+        .foregroundStyle(Color.tempoTextSecondary)
     }
 }
 

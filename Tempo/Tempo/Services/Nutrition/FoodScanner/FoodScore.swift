@@ -60,6 +60,11 @@ struct FoodScore: Equatable, Sendable {
 
     /// nil when there isn't enough nutrition data to judge the product.
     static func evaluate(_ product: FoodProduct, additiveTable: FoodAdditiveTable = .shared) -> FoodScore? {
+        // A score computed from numbers that contradict themselves is a
+        // confident wrong answer — show "not scored" instead.
+        guard product.implausibilityReason == nil else {
+            return nil
+        }
         let official = product.nutriScorePoints.flatMap { points in
             product.nutriScoreGrade.map { (points: points, grade: $0.lowercased()) }
         }
@@ -148,12 +153,15 @@ enum NutriScore {
     static let grades = ["a", "b", "c", "d", "e"]
 
     static func estimate(_ n: FoodProduct.Nutrients, isBeverage: Bool) -> (points: Int, grade: String)? {
-        // Sugars and saturated fat are often missing on small labels: fall
-        // back to 0 sugars when carbs are known, and 40% of fat as saturated.
+        // Sugars, saturated fat and salt are often missing on small labels —
+        // and always missing for Tempo's built-in table, which has no sodium
+        // data at all: fall back to 0 sugars/salt when carbs are known (the
+        // signal that this is real nutrition data, not a stub), and 40% of
+        // fat as saturated.
         guard let kcal = n.kcal,
               let sugars = n.sugars ?? (n.carbs == nil ? nil : 0),
               let satFat = n.saturatedFat ?? n.fat.map({ $0 * 0.4 }),
-              let salt = n.salt
+              let salt = n.salt ?? (n.carbs == nil ? nil : 0)
         else {
             return nil
         }
@@ -275,6 +283,72 @@ final class FoodAdditiveTable: Sendable {
         "e129": (.moderate, "EU requires the warning “may have an adverse effect on activity and attention in children”."),
         "e320": (.moderate, "Classified by IARC as possibly carcinogenic (group 2B)."),
         "e951": (.moderate, "Classified by IARC as possibly carcinogenic (group 2B, 2023)."),
+
+        // Colours — EU restrictions or banned status beyond the JSON table's own data.
+        "e127": (.moderate, "Thyroid-function concerns at high intake; several countries restrict it in children's foods."),
+        "e128": (.high, "Banned in the EU since 2007 — its aniline metabolite is a suspected carcinogen."),
+        "e153": (.low, "Some sourcing carries a PAH-contamination risk; several countries restrict it."),
+        "e173": (.moderate, "EFSA lowered the safe aluminium intake in 2008 — frequent exposure adds up."),
+
+        // Preservatives — same families as the sorbates/benzoates/sulphites/nitrites already rated.
+        "e201": (.high, "Same sorbate family as E200/E202."),
+        "e203": (.high, "Same sorbate family as E200/E202."),
+        "e230": (.moderate, "Fungicide residue on citrus peel; restricted EU use."),
+        "e231": (.moderate, "Fungicide residue on citrus peel; restricted EU use."),
+        "e232": (.moderate, "Fungicide residue on citrus peel; restricted EU use."),
+        "e233": (.moderate, "Fungicide residue on citrus peel; restricted EU use."),
+        "e239": (.moderate, "A formaldehyde-releasing preservative, restricted to specific hard cheeses."),
+        "e280": (.moderate, "Propionates have been linked to migraine and hyperactivity in some studies."),
+        "e281": (.moderate, "Propionates have been linked to migraine and hyperactivity in some studies."),
+        "e282": (.moderate, "Propionates have been linked to migraine and hyperactivity in some studies."),
+        "e283": (.moderate, "Propionates have been linked to migraine and hyperactivity in some studies."),
+
+        // Antioxidants.
+        "e310": (.moderate, "Gallates: EFSA's 2014 re-evaluation flagged possible endocrine effects."),
+        "e311": (.moderate, "Gallates: EFSA's 2014 re-evaluation flagged possible endocrine effects."),
+        "e312": (.moderate, "Gallates: EFSA's 2014 re-evaluation flagged possible endocrine effects."),
+        "e319": (.moderate, "TBHQ — not authorised as a food additive in several countries outside the EU."),
+        "e321": (.moderate, "BHT — like BHA, classified by IARC as possibly carcinogenic (group 2B)."),
+
+        // Emulsifiers under active research (gut-microbiome studies, 2022–23).
+        "e466": (.moderate, "Carboxymethylcellulose — 2022–23 research links it to gut inflammation."),
+        "e468": (.moderate, "Carboxymethylcellulose derivative — same emerging research as E466."),
+        "e469": (.moderate, "Carboxymethylcellulose derivative — same emerging research as E466."),
+
+        // Flavour enhancers — same glutamate family as E621 (MSG).
+        "e622": (.high, "Same glutamate family as E621 (MSG)."),
+        "e623": (.high, "Same glutamate family as E621 (MSG)."),
+        "e624": (.high, "Same glutamate family as E621 (MSG)."),
+        "e625": (.high, "Same glutamate family as E621 (MSG)."),
+
+        // Sweeteners.
+        "e950": (.moderate, "Acesulfame K — EFSA is re-evaluating it after newer metabolic-effect studies."),
+        "e952": (.moderate, "Cyclamate — banned in the US since 1969 over carcinogenicity concerns; the EU permits it with an ADI."),
+        "e954": (.moderate, "Saccharin — historically flagged as a possible carcinogen; still capped by a strict ADI."),
+        "e955": (.moderate, "Sucralose — 2023 research raised gut-microbiome and genotoxicity questions EFSA is reviewing."),
+        "e958": (.moderate, "Glycyrrhizin (licorice extract) — linked to high blood pressure and low potassium at regular intake."),
+        "e962": (.moderate, "Contains aspartame — same IARC group-2B concern as E951."),
+        "e968": (.moderate, "Erythritol — a 2023 Nature Medicine study linked it to higher cardiovascular clotting risk."),
+
+        // Common additives with an established safety record — rated so they read
+        // "Low risk" instead of "not evaluated" (EFSA: ADI not specified / no safety concern).
+        "e296": (.low, "Malic acid — naturally occurring fruit acid, ADI not specified by EFSA."),
+        "e300": (.low, "Vitamin C — EFSA lists no safety concern at food-use levels."),
+        "e322": (.low, "Lecithin — a naturally derived emulsifier with no known overexposure risk."),
+        "e330": (.low, "Citric acid — ADI not specified by EFSA; no known overexposure risk."),
+        "e331": (.low, "Sodium citrate — same profile as citric acid."),
+        "e400": (.low, "Alginic acid — a seaweed-derived thickener with no known overexposure risk."),
+        "e401": (.low, "Sodium alginate — same profile as alginic acid."),
+        "e406": (.low, "Agar — a seaweed-derived gelling agent, ADI not specified."),
+        "e410": (.low, "Locust bean gum — ADI not specified by EFSA."),
+        "e412": (.low, "Guar gum — ADI not specified by EFSA."),
+        "e414": (.low, "Gum arabic — ADI not specified by EFSA."),
+        "e415": (.low, "Xanthan gum — ADI not specified by EFSA."),
+        "e440": (.low, "Pectin — a fruit-derived gelling agent, no known overexposure risk."),
+        "e460": (.low, "Cellulose — plant fibre, no known overexposure risk."),
+        "e500": (.low, "Sodium bicarbonate/carbonate — no known overexposure risk."),
+        "e501": (.low, "Potassium carbonate — no known overexposure risk."),
+        "e575": (.low, "Glucono-delta-lactone — a naturally derived acidifier, no known overexposure risk."),
     ]
 
     init(bundle: Bundle) {

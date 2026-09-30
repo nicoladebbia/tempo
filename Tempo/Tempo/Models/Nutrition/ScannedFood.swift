@@ -31,6 +31,10 @@ final class ScannedFood {
     /// The cleaned-up product photo (white background) for user-added items.
     @Attribute(.externalStorage)
     var photoData: Data?
+    /// Grams (or ml) the user last chose when adding this product to a meal —
+    /// prefills the portion field next time instead of always resetting to
+    /// the printed serving. `nil` until logged at least once.
+    var lastLoggedGrams: Double?
 
     init(product: FoodProduct, isUserAdded: Bool = false, photoData: Data? = nil, now: Date = Date()) {
         productID = product.id
