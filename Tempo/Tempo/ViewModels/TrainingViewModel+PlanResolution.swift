@@ -33,6 +33,11 @@ extension TrainingViewModel {
         existingCompanionTypeRaw: String? = nil,
         templateType: WorkoutType
     ) -> PlanResolution {
+        // A composite day (football + added gym) is the athlete's own edit;
+        // editing football days mid-day must not delete it.
+        if existingCompanionTypeRaw != nil {
+            return .keep
+        }
         switch existingStatus {
         case .planned:
             if existingType == templateType {
@@ -233,7 +238,10 @@ extension TrainingViewModel {
                         modelContext.delete(pe)
                     }
                     existing.exercises = []
-                    populateExercises(for: existing, modelContext: modelContext)
+                    populateExercises(
+                        for: existing, modelContext: modelContext,
+                        excludeHeavyLower: existing.isCompositeDay
+                    )
                     snapPrescribedWeights(for: existing, modelContext: modelContext)
                     try? modelContext.save()
                 }

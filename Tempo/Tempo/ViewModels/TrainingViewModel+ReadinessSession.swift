@@ -167,7 +167,10 @@ extension TrainingViewModel {
         // 6. Resolve the WorkoutPlan state. SEVERE → the planned day is superseded:
         //    mark .skipped with .floorForced so adherence does NOT penalize it
         //    (§8/§15.2 — body said recover, not a user flake).
-        if result.decision.tier == .severe {
+        if result.decision.tier == .severe, plan.isCompositeDay {
+            // Football already happened; the floor only supersedes the gym part.
+            dropGymPart(of: plan, modelContext: modelContext)
+        } else if result.decision.tier == .severe {
             plan.status = .skipped
             plan.skipReason = .floorForced
         } else if plan.status == .planned,

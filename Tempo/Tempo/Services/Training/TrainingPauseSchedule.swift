@@ -78,7 +78,7 @@ enum TrainingPauseSchedule {
             return
         }
         for plan in plans {
-            guard plan.status == .planned, plan.type != .football,
+            guard plan.status == .planned, plan.type != .football, plan.companionTypeRaw == nil,
                   let pause = coveringPause(pauses, on: plan.date, calendar: calendar)
             else {
                 continue

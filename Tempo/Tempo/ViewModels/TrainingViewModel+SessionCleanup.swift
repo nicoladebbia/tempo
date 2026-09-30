@@ -18,6 +18,13 @@ extension TrainingViewModel {
     func endSessionWithNothingLogged(plan: WorkoutPlan, modelContext: ModelContext) {
         discardActiveWorkout(modelContext: modelContext)
         if plan.orderedExercises.allSatisfy({ $0.orderedSets.allSatisfy(\.isWarmup) }) {
+            if plan.isCompositeDay {
+                // Football already happened: drop only the gym part.
+                dropGymPart(of: plan, modelContext: modelContext)
+                saveGuarded(modelContext, operation: "dropped gym part")
+                NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
+                return
+            }
             plan.status = .skipped
             plan.skipReason = .userSkipped
             saveGuarded(modelContext, operation: "skipped workout")

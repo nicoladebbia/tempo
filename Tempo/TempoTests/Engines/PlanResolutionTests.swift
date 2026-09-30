@@ -216,12 +216,12 @@ final class PlanResolutionTests: XCTestCase {
         XCTAssertEqual(r, .keep)
     }
 
-    func testPlannedRowWithUnrelatedCompanionStillReplaced() {
+    func testCompositeRowKeptEvenWhenFootballDaysAreEdited() {
         let r = TrainingViewModel.planResolution(
             existingStatus: .planned, existingType: .push,
             existingCompanionTypeRaw: WorkoutType.football.rawValue,
             templateType: .legs
         )
-        XCTAssertEqual(r, .replace)
+        XCTAssertEqual(r, .keep, "Editing football days mid-day must not delete the composite row")
     }
 }
