@@ -22,6 +22,9 @@ extension TrainingViewModel {
     /// applied by `confirmNonGymActivity` and outranks both.
     func suggestedSoccerStart(modelContext: ModelContext) -> Date? {
         let cal = Calendar.current
+        if case let .foundTagged(summary) = nonGymActivityState {
+            return summary.startTime
+        }
         if let match = fetchUpcomingMatches(modelContext: modelContext)
             .first(where: { cal.isDateInToday($0.kickoff) })
         {
@@ -35,6 +38,22 @@ extension TrainingViewModel {
             return cal.date(byAdding: .minute, value: min, to: today)
         }
         return nil
+    }
+
+    /// The Whoop activity tagged as soccer today, if one was found.
+    var taggedSoccer: WhoopActivitySummary? {
+        if case let .foundTagged(summary) = nonGymActivityState {
+            return summary
+        }
+        return nil
+    }
+
+    /// True when a soccer start is still ahead of now (can't be "played" yet).
+    static func isFuture(_ start: Date?, now: Date = Date()) -> Bool {
+        guard let start else {
+            return false
+        }
+        return start > now
     }
 
     static func minutesSinceMidnight(_ date: Date) -> Int {
@@ -174,7 +193,16 @@ extension TrainingViewModel {
             return false
         }
         if plan.status != .completed {
-            persistNonGymCompletion(whoop: nil, startTime: soccerStart, modelContext: modelContext)
+            // Never mark football played in the future.
+            if Self.isFuture(taggedSoccer?.startTime ?? soccerStart) {
+                return false
+            }
+            if let tagged = taggedSoccer {
+                // Reuse the Whoop activity (strain, HR, calories) as the football log.
+                confirmNonGymActivity(tagged, modelContext: modelContext)
+            } else {
+                persistNonGymCompletion(whoop: nil, startTime: soccerStart, modelContext: modelContext)
+            }
         }
         guard plan.status == .completed else {
             return false
@@ -211,9 +239,7 @@ extension TrainingViewModel {
         plan.recoveryAdjustment = decision.loadScale
         plan.scheduledStartMin = gymStartMin
         plan.addedPartIntensityRaw = decision.intensity.rawValue
-        plan.addedPartRationale = ([decision.headline] + decision.reasons)
-            .map { $0.hasSuffix(".") ? $0 : $0 + "." }
-            .joined(separator: " ")
+        plan.addedPartRationale = decision.reasons.isEmpty ? nil : decision.reasons.joined(separator: ". ") + "."
 
         if decision.focus.isGymWorkout {
             populateExercises(
@@ -253,6 +279,22 @@ extension TrainingViewModel {
         else {
             return false
         }
+        dropGymPart(of: plan, modelContext: modelContext)
+        guard saveGuarded(modelContext, operation: "gym session removal") else {
+            return false
+        }
+        announceChange(modelContext: modelContext)
+        return true
+    }
+
+    /// Drop the gym part and turn the row back into the completed football day.
+    /// Shared by "Remove gym session" and by skip / crash-discard on a composite
+    /// day: football already happened, so it must never become `.skipped`.
+    /// Does not save.
+    func dropGymPart(of plan: WorkoutPlan, modelContext: ModelContext) {
+        guard let companion = plan.companionType else {
+            return
+        }
         for pe in plan.orderedExercises {
             if let id = pe.exercise?.id {
                 deleteUnresolvedPrediction(planID: plan.id, exerciseID: id, modelContext: modelContext)
@@ -262,16 +304,15 @@ extension TrainingViewModel {
         plan.exercises = []
         plan.type = companion
         plan.status = .completed
+        plan.skipReason = nil
+        plan.pausedSeconds = 0
         plan.sessionRPE = plan.companionSessionRPE
         plan.finishedAt = plan.companionFinishedAt
         plan.durationMinutes = plan.companionDurationMin
         plan.recoveryAdjustment = 1.0
         clearCompanion(plan)
-        guard saveGuarded(modelContext, operation: "gym session removal") else {
-            return false
-        }
-        announceChange(modelContext: modelContext)
-        return true
+        // Undo the override addGymSession set; nothing else needs blocking now.
+        dailySession?.userOverrode = false
     }
 
     private func clearCompanion(_ plan: WorkoutPlan) {

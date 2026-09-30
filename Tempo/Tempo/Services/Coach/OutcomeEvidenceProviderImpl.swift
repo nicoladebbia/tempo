@@ -239,7 +239,7 @@ final class OutcomeEvidenceProviderImpl: OutcomeEvidenceProvider, @unchecked Sen
             )
         }
         let summary = "swapDayType → \(args.newType)"
-        if workout.status == .completed {
+        if workout.isDoneForHistory {
             return .followedThrough(
                 summary: "completed (\(workout.type.rawValue))",
                 actionSummary: summary

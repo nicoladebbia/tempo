@@ -15,8 +15,6 @@ import Foundation
 struct ExtraSessionAdjustment: Equatable, Sendable {
     /// Replacement type for tomorrow, nil = keep its type.
     let newType: WorkoutType?
-    /// Multiplier on tomorrow's `recoveryAdjustment` (1.0 = unchanged).
-    let recoveryScale: Double
     /// One line for the Tomorrow card, "Adjusted: ..." tone.
     let note: String
 }
@@ -24,9 +22,6 @@ struct ExtraSessionAdjustment: Equatable, Sendable {
 // MARK: - ExtraSessionRebalancer
 
 nonisolated enum ExtraSessionRebalancer {
-    static let hardCombinedScale = 0.9
-    static let minRecoveryAdjustment = 0.5
-
     static func adjust(
         tomorrow: WorkoutType,
         extraFocus: WorkoutType,
@@ -45,20 +40,16 @@ nonisolated enum ExtraSessionRebalancer {
             newType = tomorrowIsPreMatch ? .mobility : complement(of: tomorrow, after: extraFocus)
         }
 
-        let hardCombined = soccerLoad == .hard && (extraIntensity == .moderate || extraIntensity == .hard)
-        let scale = hardCombined && newType != .mobility ? hardCombinedScale : 1.0
-
-        guard newType != nil || scale < 1.0 else {
+        // No load scaling: the readiness brain already sees football + gym +
+        // the max sRPE next morning, so scaling here would count it twice.
+        guard newType != nil else {
             return nil
         }
         var note = "Adjusted: \(cause)"
         if let newType {
             note += ". \(tomorrow.displayName) became \(newType.displayName.lowercased())"
         }
-        if scale < 1.0 {
-            note += ". Lighter loads"
-        }
-        return ExtraSessionAdjustment(newType: newType, recoveryScale: scale, note: note)
+        return ExtraSessionAdjustment(newType: newType, note: note)
     }
 
     /// Would `tomorrow` hit muscles the extra session just trained?

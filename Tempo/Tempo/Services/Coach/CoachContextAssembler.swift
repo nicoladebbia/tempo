@@ -31,6 +31,17 @@ import SwiftData
 // MARK: - CoachContextAssembler
 
 enum CoachContextAssembler {
+    /// ", push" or, on a composite day, ", football done + push".
+    static func dayTypeText(_ type: WorkoutType?, companion: WorkoutType?) -> String {
+        guard let type else {
+            return ""
+        }
+        if let companion {
+            return ", \(companion.rawValue) done + \(type.rawValue)"
+        }
+        return ", \(type.rawValue)"
+    }
+
     /// Hard token budget at p95 user data per the architecture doc.
     /// `render()` enforces by pruning sections in order on overflow.
     static let targetTokenBudget = 3700
@@ -172,6 +183,7 @@ enum CoachContextAssembler {
                 plannedKcal: plannedKcal,
                 eatenKcal: eatenKcal,
                 workoutStatus: dayWorkout?.status,
+                companion: dayWorkout?.companionType,
                 sleepHours: dayRecovery?.sleepHours,
                 recoveryScore: dayRecovery?.recoveryScore,
                 deviationsFlag: deviations
@@ -217,6 +229,7 @@ enum CoachContextAssembler {
             days.append(ForwardDay(
                 date: cursor,
                 dayType: dayWorkout?.type,
+                companion: dayWorkout?.companionType,
                 plannedMealCount: dayMeals.count,
                 plannedKcal: dayMeals.reduce(0) { $0 + $1.totalCalories }
             ))
@@ -365,6 +378,8 @@ struct BackwardDay: Equatable {
     let plannedKcal: Double
     let eatenKcal: Double
     let workoutStatus: WorkoutStatus?
+    /// Completed football on a composite day (football + added gym part).
+    var companion: WorkoutType?
     let sleepHours: Double?
     let recoveryScore: Double?
     let deviationsFlag: Bool
@@ -373,6 +388,7 @@ struct BackwardDay: Equatable {
 struct ForwardDay: Equatable {
     let date: Date
     let dayType: WorkoutType?
+    var companion: WorkoutType?
     let plannedMealCount: Int
     let plannedKcal: Double
 }
@@ -550,7 +566,7 @@ extension CoachContextSnapshot {
         } else {
             for day in backwardWindow {
                 let dateStr = dayCompactFormatter.string(from: day.date)
-                let typeStr = day.dayType.map { ", \($0.rawValue)" } ?? ""
+                let typeStr = CoachContextAssembler.dayTypeText(day.dayType, companion: day.companion)
                 let workoutStr = day.workoutStatus.map { ". Workout: \($0.rawValue)" } ?? ""
                 let sleepStr = day.sleepHours.map { String(format: ". Sleep %.1fh", $0) } ?? ""
                 let kcalStr = ". Logged \(Int(day.eatenKcal))/\(Int(day.plannedKcal))kcal"
@@ -567,7 +583,7 @@ extension CoachContextSnapshot {
         } else {
             for day in forwardWindow {
                 let dateStr = dayCompactFormatter.string(from: day.date)
-                let typeStr = day.dayType.map { ", \($0.rawValue)" } ?? ""
+                let typeStr = CoachContextAssembler.dayTypeText(day.dayType, companion: day.companion)
                 lines.append("\(dateStr)\(typeStr): \(day.plannedMealCount) meals, \(Int(day.plannedKcal))kcal target")
             }
         }

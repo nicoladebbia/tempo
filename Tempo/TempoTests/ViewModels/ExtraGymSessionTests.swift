@@ -211,4 +211,93 @@ final class ExtraGymSessionTests: XCTestCase {
         let label = WeeklyTrainingSchedule.build(from: [day]).byWeekday[day.weekday]
         XCTAssertEqual(label, "\(plan.type.displayName) + Football")
     }
+
+    // MARK: - Review fixes
+
+    func testEndingGymPartWithNothingLoggedRevertsToFootballDone() {
+        let plan = playedFootballAt10()
+        plan.sessionRPE = 6
+        XCTAssertTrue(vm.addGymSession(decision: decision(), gymStartMin: 18 * 60, modelContext: context))
+        // "Skip all": skipping deletes every working set.
+        for slot in plan.orderedExercises {
+            let working = slot.orderedSets.filter { !$0.isWarmup }
+            slot.sets = slot.orderedSets.filter(\.isWarmup)
+            working.forEach { context.delete($0) }
+        }
+        try? context.save()
+        vm.endSessionWithNothingLogged(plan: plan, modelContext: context)
+        XCTAssertEqual(plan.status, .completed, "Football happened; never .skipped")
+        XCTAssertEqual(plan.type, .football)
+        XCTAssertFalse(plan.isCompositeDay)
+        XCTAssertTrue(plan.orderedExercises.isEmpty)
+        XCTAssertEqual(footballSessions().count, 1)
+    }
+
+    func testDiscardingACrashedGymPartRevertsToFootballDone() {
+        let plan = playedFootballAt10()
+        XCTAssertTrue(vm.addGymSession(decision: decision(), gymStartMin: 18 * 60, modelContext: context))
+        plan.status = .inProgress
+        vm.sessionState = .crashedRecovery
+        vm.discardCrashedWorkout(modelContext: context)
+        XCTAssertEqual(plan.status, .completed)
+        XCTAssertEqual(plan.type, .football)
+        XCTAssertFalse(plan.isCompositeDay)
+    }
+
+    func testRemoveClearsTheOverrideFlagItSet() {
+        _ = playedFootballAt10()
+        let session = DailySession(
+            date: Date(), modality: "football", intensity: .moderate, durationMin: 90, blocksJSON: "[]",
+            shortWhy: "", floorTier: .normal, wasDowngraded: false, source: .brain
+        )
+        vm.dailySession = session
+        XCTAssertTrue(vm.addGymSession(decision: decision(), gymStartMin: 18 * 60, modelContext: context))
+        XCTAssertTrue(session.userOverrode)
+        XCTAssertTrue(vm.removeGymSession(modelContext: context))
+        XCTAssertFalse(session.userOverrode)
+    }
+
+    func testFootballRPEStillLoggableAfterAddingGym() {
+        let plan = playedFootballAt10()
+        XCTAssertTrue(vm.addGymSession(decision: decision(), gymStartMin: 18 * 60, modelContext: context))
+        vm.recordSessionRPE(7, modelContext: context)
+        XCTAssertEqual(plan.companionSessionRPE, 7)
+        XCTAssertNil(plan.sessionRPE)
+    }
+
+    func testCannotAddGymWhileFootballIsStillInTheFuture() throws {
+        let plan = WorkoutPlan(date: today, type: .football)
+        context.insert(plan)
+        try context.save()
+        vm.todayPlan = plan
+        let later = Date().addingTimeInterval(3 * 3600)
+        let ctx = try XCTUnwrap(vm.extraGymContext(gymStartMin: 23 * 60, soccerStart: later, modelContext: context))
+        let d = ExtraGymSessionPlanner.decide(ctx)
+        XCTAssertFalse(vm.addGymSession(decision: d, gymStartMin: 23 * 60, soccerStart: later, modelContext: context))
+        XCTAssertEqual(plan.type, .football)
+        XCTAssertNotEqual(plan.status, .completed)
+        XCTAssertTrue(footballSessions().isEmpty)
+    }
+
+    func testPastCompositeWithGymNeverDoneCountsAsDoneForHistory() {
+        let plan = playedFootballAt10()
+        XCTAssertTrue(vm.addGymSession(decision: decision(), gymStartMin: 18 * 60, modelContext: context))
+        XCTAssertFalse(plan.isDoneForHistory, "Today's gym part is still to do")
+        plan.date = Calendar.current.date(byAdding: .day, value: -1, to: today)!
+        XCTAssertTrue(plan.isDoneForHistory)
+    }
+
+    func testPauseNeverOverlaysRestOnACompositeRow() {
+        let plan = playedFootballAt10()
+        XCTAssertTrue(vm.addGymSession(decision: decision(), gymStartMin: 18 * 60, modelContext: context))
+        let pause = TrainingPause(reason: .sick, startDate: today, plannedEndDate: today.addingTimeInterval(86400))
+        TrainingPauseSchedule.apply([pause], to: [plan])
+        XCTAssertEqual(plan.type, vm.todayPlan?.type)
+        XCTAssertNotEqual(plan.type, .rest)
+    }
+
+    func testCoachContextDescribesBothParts() {
+        XCTAssertEqual(CoachContextAssembler.dayTypeText(.push, companion: .football), ", football done + push")
+        XCTAssertEqual(CoachContextAssembler.dayTypeText(.push, companion: nil), ", push")
+    }
 }

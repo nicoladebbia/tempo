@@ -48,15 +48,12 @@ final class ExtraSessionRebalancerTests: XCTestCase {
             tomorrowIsPreMatch: true
         )
         XCTAssertEqual(a?.newType, .mobility)
-        XCTAssertEqual(a?.recoveryScale, 1.0)
     }
 
-    func testHardCombinedLoadScalesRecoveryEvenWithoutOverlap() {
-        let a = ExtraSessionRebalancer.adjust(
+    func testHardCombinedLoadWithoutOverlapIsNotDoubleCounted() {
+        XCTAssertNil(ExtraSessionRebalancer.adjust(
             tomorrow: .legs, extraFocus: .push, extraIntensity: .moderate, soccerLoad: .hard
-        )
-        XCTAssertNil(a?.newType)
-        XCTAssertEqual(a?.recoveryScale, 0.9)
+        ), "The brain already sees football + gym next morning")
     }
 
     func testEasyAfterEasyIsUntouched() {
@@ -109,8 +106,19 @@ final class ExtraSessionRebalanceIntegrationTests: XCTestCase {
         makeVM().applyExtraSessionRebalance(to: [tomorrowPlan], monday: today, modelContext: context)
 
         XCTAssertEqual(tomorrowPlan.type, .push)
-        XCTAssertLessThan(tomorrowPlan.recoveryAdjustment, 1.0, "sRPE 8 soccer + moderate gym = hard combined")
+        XCTAssertEqual(tomorrowPlan.recoveryAdjustment, 1.0, "No load scaling, only the muscle swap")
         XCTAssertTrue(tomorrowPlan.notes?.hasPrefix("Adjusted") == true)
+    }
+
+    func testPastCompositeWithGymNeverDoneDoesNotRebalance() throws {
+        let context = try makeContext()
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let yesterday = cal.date(byAdding: .day, value: -1, to: today)!
+        _ = composite(context, on: yesterday, focus: .pull) // still .planned, in the past
+        let todayPlan = WorkoutPlan(date: today, type: .pull)
+        makeVM().applyExtraSessionRebalance(to: [todayPlan], monday: yesterday, modelContext: context)
+        XCTAssertEqual(todayPlan.type, .pull)
     }
 
     func testNoCompositeNoChange() throws {

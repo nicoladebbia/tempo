@@ -9,6 +9,15 @@
 import Foundation
 
 extension WorkoutPlan {
+    /// "Done" for history / evidence readers: the gym anchor completed, or a
+    /// PAST composite day whose football happened (the gym part can no longer
+    /// be done, so the day must not read as a miss). Today's still-planned gym
+    /// part is not done.
+    var isDoneForHistory: Bool {
+        status == .completed
+            || (isCompositeDay && companionCompleted && date < Calendar.current.startOfDay(for: Date()))
+    }
+
     /// "10:00" for minutes since midnight (24 h, matches the plan copy).
     static func clockText(_ minutes: Int) -> String {
         String(format: "%02d:%02d", (minutes / 60) % 24, minutes % 60)

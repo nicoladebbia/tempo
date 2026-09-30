@@ -96,4 +96,18 @@ final class TomorrowPreviewTests: XCTestCase {
         let preview = try XCTUnwrap(vm.tomorrowPreview(modelContext: context))
         XCTAssertEqual(preview.note, "Adjusted: yesterday's soccer + pull. Pull became push")
     }
+
+    /// Future days are previews: loading the week must not seed PredictionLog
+    /// rows for them. (SwiftData still implicitly inserts the future WorkoutPlan
+    /// rows once they link to managed Exercises; that pre-dates this feature and
+    /// `mergePersistedIntoWeek` ignores them, so it is left alone.)
+    func testLoadWeekPlanRecordsNoPredictionsForFutureDays() throws {
+        vm.loadWeekPlan(modelContext: context)
+        try context.save()
+        let todayStart = Calendar.current.startOfDay(for: Date())
+        let futureIDs = Set(vm.weekPlans.filter { $0.date > todayStart }.map(\.id))
+        XCTAssertFalse(futureIDs.isEmpty)
+        let preds = try context.fetch(FetchDescriptor<PredictionLog>())
+        XCTAssertTrue(preds.allSatisfy { !futureIDs.contains($0.workoutPlanID) })
+    }
 }

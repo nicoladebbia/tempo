@@ -252,7 +252,7 @@ enum TrainerReportBuilder {
         var occurrences: [(plan: WorkoutPlan, key: String, done: Bool)] = []
         for plan in inScope {
             if let key = plan.programSessionKey {
-                occurrences.append((plan, key, plan.status == .completed))
+                occurrences.append((plan, key, plan.isDoneForHistory))
             }
             if let key = plan.programSecondaryKey {
                 occurrences.append((plan, key, plan.secondaryCompleted))
@@ -323,7 +323,7 @@ enum TrainerReportBuilder {
             }
             let working = plan.orderedExercises.flatMap { $0.sets ?? [] }.filter { !$0.isWarmup }
             guard !working.isEmpty else {
-                return plan.status == .completed ? 1.0 : 0.0
+                return plan.isDoneForHistory ? 1.0 : 0.0
             }
             return Double(working.filter(\.completed).count) / Double(working.count)
         }

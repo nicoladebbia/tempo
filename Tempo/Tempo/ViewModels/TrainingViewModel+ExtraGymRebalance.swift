@@ -32,7 +32,10 @@ extension TrainingViewModel {
 
         for composite in persisted {
             let day = cal.startOfDay(for: composite.date)
-            guard let nextDay = cal.date(byAdding: .day, value: 1, to: day),
+            // Only a gym part that really happened (or is still on for today)
+            // loads the next day; a past, never-done gym part does not.
+            guard composite.status == .completed || (composite.status == .planned && cal.isDateInToday(day)),
+                  let nextDay = cal.date(byAdding: .day, value: 1, to: day),
                   let tomorrow = plans.first(where: { cal.isDate($0.date, inSameDayAs: nextDay) }),
                   tomorrow.status == .planned,
                   tomorrow.programSessionKey == nil,
@@ -59,10 +62,6 @@ extension TrainingViewModel {
                     tomorrow.secondarySessionTypeRaw = nil
                 }
             }
-            tomorrow.recoveryAdjustment = max(
-                ExtraSessionRebalancer.minRecoveryAdjustment,
-                tomorrow.recoveryAdjustment * adjustment.recoveryScale
-            )
             tomorrow.notes = tomorrow.notes.map { "\($0) \(adjustment.note)" } ?? adjustment.note
         }
     }

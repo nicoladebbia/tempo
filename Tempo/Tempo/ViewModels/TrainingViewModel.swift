@@ -528,7 +528,7 @@ final class TrainingViewModel {
 
         // Planned training days last week = distinct non-rest gym days in the
         // current week template (a stable proxy for the cadence).
-        let plannedTrainingDays = weekPlans.filter(\.type.isGymWorkout).count
+        let plannedTrainingDays = weekPlans.filter { $0.type.isGymWorkout && !($0.isCompositeDay && $0.isDoneForHistory && $0.status != .completed) }.count
 
         let outcome = TrainingOutcomeEvaluator.evaluate(
             lastWeek: lastWeekRows,
@@ -833,8 +833,14 @@ final class TrainingViewModel {
         // Populate exercises for each gym workout. No-ops for a substituted
         // persisted plan that already carries its exercises (populateExercises
         // guards on `orderedExercises.isEmpty`).
+        // Only today's plan is a real prescription worth a prediction; future
+        // days are previews and must not seed PredictionLog rows.
+        let todayStart = Calendar.current.startOfDay(for: Date())
         for plan in weekPlans {
-            populateExercises(for: plan, modelContext: modelContext)
+            populateExercises(
+                for: plan, modelContext: modelContext,
+                recordPrediction: Calendar.current.startOfDay(for: plan.date) <= todayStart
+            )
         }
     }
 
@@ -1135,8 +1141,12 @@ final class TrainingViewModel {
             // session; otherwise they linger on a `.skipped` day and PRs stay
             // in the record book.
             rollBackLoggedWork(of: plan, modelContext: modelContext)
-            plan.status = .skipped
-            plan.pausedSeconds = 0
+            if plan.isCompositeDay {
+                dropGymPart(of: plan, modelContext: modelContext)
+            } else {
+                plan.status = .skipped
+                plan.pausedSeconds = 0
+            }
         }
         try? modelContext.save()
         sessionState = .discarded
@@ -2188,7 +2198,13 @@ final class TrainingViewModel {
         guard (1 ... 10).contains(rpe) else {
             return
         }
-        guard let plan = todayPlan, plan.status == .completed else {
+        guard let plan = todayPlan, plan.status == .completed || plan.dayTrained else {
+            return
+        }
+        if plan.isCompositeDay, plan.status != .completed {
+            // Gym part not done yet: this is the football's "how hard was that".
+            plan.companionSessionRPE = rpe
+            saveGuarded(modelContext, operation: "football RPE")
             return
         }
         plan.sessionRPE = rpe
