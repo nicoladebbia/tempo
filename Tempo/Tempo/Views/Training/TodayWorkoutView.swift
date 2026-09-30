@@ -556,7 +556,13 @@ struct TodayWorkoutView: View {
     /// status line at the top of the card.
     @ViewBuilder
     private func dailySessionCard(_ session: DailySession, statusPlan: WorkoutPlan? = nil) -> some View {
-        if session.userOverrode {
+        if viewModel.todayPlan?.isCompositeDay == true {
+            // Football + added gym part: the parts card above IS the day, so the
+            // coach's "called X, you kept Y" line would be wrong.
+            if let statusPlan {
+                recoveryStatusLine(plan: statusPlan)
+            }
+        } else if session.userOverrode {
             // §8 connect — he declined the brain's move. One honest line; the
             // plan row (restored) is the day again.
             HStack(spacing: TempoSpacing.sm) {

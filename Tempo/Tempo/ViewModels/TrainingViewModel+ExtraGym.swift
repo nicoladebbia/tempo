@@ -211,7 +211,9 @@ extension TrainingViewModel {
         plan.recoveryAdjustment = decision.loadScale
         plan.scheduledStartMin = gymStartMin
         plan.addedPartIntensityRaw = decision.intensity.rawValue
-        plan.addedPartRationale = ([decision.headline] + decision.reasons).joined(separator: ". ")
+        plan.addedPartRationale = ([decision.headline] + decision.reasons)
+            .map { $0.hasSuffix(".") ? $0 : $0 + "." }
+            .joined(separator: " ")
 
         if decision.focus.isGymWorkout {
             populateExercises(

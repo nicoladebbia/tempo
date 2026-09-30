@@ -894,8 +894,10 @@ final class DashboardViewModel {
         // Enrich move quadrant with training plan status
         let status = Self.dashboardWorkoutStatus(for: todayPlan)
         let name: String? = switch status {
-        // Soccer + extra gym session reads "Football 10:00 ✓ · Push 18:00".
-        case .completed, .planned: todayPlan.isCompositeDay ? todayPlan.daySummaryText : todayPlan.type.displayName
+        // Composite day (football + added gym): the greeting and "Start X Workout"
+        // talk about the gym part still to do; the full "Football 10:00 ✓ · Push
+        // 18:00" label lives in the Move detail and Today card.
+        case .completed, .planned: todayPlan.type.displayName
         case .restDay, .none: nil
         }
 
@@ -919,8 +921,7 @@ final class DashboardViewModel {
         let settingsDescriptor = FetchDescriptor<UserSettings>()
         let wakeMinutes = (try? modelContext.fetch(settingsDescriptor).first?.wakeTimeMinutes) ?? 420
         fuel.mealTimingSuggestions = NutritionEngine.mealTimingSuggestions(
-            // Meal timing speaks about the upcoming session, not the composite label.
-            workoutName: name == nil ? move.workoutName : todayPlan.type.displayName,
+            workoutName: name ?? move.workoutName,
             workoutStatus: status,
             wakeTimeMinutes: wakeMinutes
         )
