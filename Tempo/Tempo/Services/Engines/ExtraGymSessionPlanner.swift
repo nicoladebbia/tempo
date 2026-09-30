@@ -136,33 +136,33 @@ nonisolated enum ExtraGymSessionPlanner {
         // 1. Hard vetoes.
         if c.floorSevere {
             mobilityOnly = true
-            reasons.append("Your recovery floor says recover today. Mobility only.")
+            reasons.append("your recovery floor says recover today, mobility only")
         } else if let acwr = c.acwr, acwr > 1.3 {
             mobilityOnly = true
-            reasons.append("Your load is spiking (acute:chronic \(String(format: "%.1f", acwr))). Mobility only.")
+            reasons.append("your load is spiking (acute:chronic \(String(format: "%.1f", acwr))), mobility only")
         }
 
         // 2. Gap to soccer sets the ceiling.
         if !mobilityOnly {
             if gymFirst {
                 tier = .easy
-                reasons.append("Gym comes before soccer. Keep it easy and upper so your legs are fresh.")
+                reasons.append("gym comes before soccer, so keep it easy and upper to save your legs")
             } else if gapHours < 3 {
                 tier = load == .hard ? .recovery : .easy
                 if tier == .recovery {
                     mobilityOnly = true
                 }
                 reasons.append(String(
-                    format: "Only %.1f h after soccer. %@",
+                    format: "only %.1f h after soccer, %@",
                     max(0, gapHours),
-                    tier == .recovery ? "Soccer was hard, so mobility only." : "Easy upper work only."
+                    tier == .recovery ? "soccer was hard so mobility only" : "easy upper work only"
                 ))
             } else if gapHours < 6 {
                 tier = .moderate
-                reasons.append(String(format: "%.1f h after soccer. Moderate upper work is fine.", gapHours))
+                reasons.append(String(format: "%.1f h after soccer, moderate upper work is fine", gapHours))
             } else {
                 tier = .moderate
-                reasons.append(String(format: "%.0f h after soccer. Enough rest for a moderate session.", gapHours))
+                reasons.append(String(format: "%.0f h after soccer, enough rest for a moderate session", gapHours))
             }
         }
 
@@ -170,17 +170,17 @@ nonisolated enum ExtraGymSessionPlanner {
         // (already the ceiling); a very hard match drops the gym one more tier.
         if !mobilityOnly {
             if load == .hard {
-                reasons.append("Soccer was hard, so the gym part stays capped at moderate.")
+                reasons.append("soccer was hard, so the gym part stays capped at moderate")
             }
             if veryHard {
                 switch tier {
                 case .moderate:
                     tier = .easy
-                    reasons.append("Soccer was very hard. Dropping the gym part one tier to easy.")
+                    reasons.append("soccer was very hard, dropping the gym part one tier to easy")
                 case .easy:
                     tier = .recovery
                     mobilityOnly = true
-                    reasons.append("Soccer was very hard. Mobility only.")
+                    reasons.append("soccer was very hard, mobility only")
                 default: break
                 }
             }
@@ -191,7 +191,7 @@ nonisolated enum ExtraGymSessionPlanner {
             if tier == .moderate {
                 tier = .easy
             }
-            reasons.append("Recovery is red. Going easy.")
+            reasons.append("recovery is red, going easy")
         }
 
         // Options per focus.
@@ -211,7 +211,7 @@ nonisolated enum ExtraGymSessionPlanner {
         } else if let req = c.requestedFocus, options.first(where: { $0.focus == req })?.allowed == true {
             focus = req
             if let warn = options.first(where: { $0.focus == req })?.warning {
-                reasons.append(warn)
+                reasons.append(warn.prefix(1).lowercased() + warn.dropFirst())
             }
         } else {
             focus = defaultFocus(c, options: options)
@@ -223,8 +223,9 @@ nonisolated enum ExtraGymSessionPlanner {
             tier = .recovery
         }
 
-        if !mobilityOnly, focus != .legs {
-            reasons.append("Legs already hit by soccer, so no heavy lower work.")
+        // Folded into the first (gap) reason so the legs point is made once.
+        if !mobilityOnly, focus != .legs, !reasons.isEmpty {
+            reasons[0] += ", legs already worked so no heavy lower"
         }
 
         let scale = switch tier {
@@ -239,7 +240,7 @@ nonisolated enum ExtraGymSessionPlanner {
             loadScale: scale,
             excludeHeavyLower: true,
             headline: headline(focus: focus, tier: tier),
-            reasons: reasons,
+            reasons: reasons.map { $0.prefix(1).uppercased() + $0.dropFirst() },
             options: options,
             soccerLoad: load,
             gapHours: gapHours
@@ -251,17 +252,15 @@ nonisolated enum ExtraGymSessionPlanner {
     private static func headline(focus: WorkoutType, tier: SessionIntensity) -> String {
         switch focus {
         case .mobility:
-            return "Mobility only. Your body needs recovery"
+            return "Mobility only"
         case .legs:
-            return "Light legs, \(tier.rawValue). No squats or deadlifts"
+            return "Light legs, \(tier.rawValue)"
+        case .upper:
+            return "Upper body, \(tier.rawValue)"
+        case .fullBody:
+            return "Full body, \(tier.rawValue)"
         default:
-            let name = switch focus {
-            case .upper: "Upper body"
-            case .fullBody: "Full body, no heavy legs"
-            default: focus.displayName
-            }
-            let tail = focus == .fullBody ? "" : ". Legs already hit by soccer"
-            return "\(name), \(tier.rawValue)\(tail)"
+            return "\(focus.displayName), \(tier.rawValue)"
         }
     }
 

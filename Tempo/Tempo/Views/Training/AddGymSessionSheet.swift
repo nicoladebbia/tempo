@@ -33,6 +33,12 @@ struct AddGymSessionSheet: View {
         viewModel.todayPlan?.status == .completed
     }
 
+    /// Football not logged yet and its time is still ahead of now: it can't be
+    /// marked played, so adding a gym session is blocked with a clear message.
+    private var soccerInFuture: Bool {
+        !footballLogged && TrainingViewModel.isFuture(viewModel.taggedSoccer?.startTime ?? soccerTime)
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -41,6 +47,12 @@ struct AddGymSessionSheet: View {
                     if let decision {
                         decisionCard(decision)
                         focusChips(decision)
+                        if soccerInFuture {
+                            Text("Log your match first. Football can't be marked played before it starts.")
+                                .font(.tempoSubheadline)
+                                .foregroundStyle(Color.tempoWarning)
+                                .accessibilityIdentifier("extragym.futureBlock")
+                        }
                         confirmButton(decision)
                     } else if ready {
                         Text("Gym sessions can be added on a football day.")
@@ -201,6 +213,8 @@ struct AddGymSessionSheet: View {
                 .foregroundStyle(.white)
                 .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
         }
+        .disabled(soccerInFuture)
+        .opacity(soccerInFuture ? 0.4 : 1)
         .accessibilityIdentifier("extragym.confirm")
     }
 

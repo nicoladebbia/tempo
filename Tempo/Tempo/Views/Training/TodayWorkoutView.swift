@@ -525,8 +525,15 @@ struct TodayWorkoutView: View {
                     .foregroundStyle(Color.tempoTextPrimary)
                 Text("·")
                     .foregroundStyle(Color.tempoTextTertiary)
-                Text(adjustmentLabel(plan: plan))
-                    .foregroundStyle(recoveryDotColor(plan: plan))
+                if plan.isCompositeDay {
+                    // The scaling is the gym part's own intensity after soccer,
+                    // not a recovery cut.
+                    Text("\((plan.addedPartIntensityRaw ?? "moderate").capitalized) after soccer")
+                        .foregroundStyle(Color.tempoTextSecondary)
+                } else {
+                    Text(adjustmentLabel(plan: plan))
+                        .foregroundStyle(recoveryDotColor(plan: plan))
+                }
                 if viewModel.isDeloadWeek {
                     Text("·")
                         .foregroundStyle(Color.tempoTextTertiary)

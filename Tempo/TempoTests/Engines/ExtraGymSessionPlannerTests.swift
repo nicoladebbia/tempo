@@ -126,8 +126,10 @@ final class ExtraGymSessionPlannerTests: XCTestCase {
 
     func testHeadlineNamesFocusIntensityAndWhy() {
         let d = ExtraGymSessionPlanner.decide(ctx(gymAt: 16 * 60, requested: .upper))
-        XCTAssertEqual(d.headline, "Upper body, moderate. Legs already hit by soccer")
+        XCTAssertEqual(d.headline, "Upper body, moderate")
         XCTAssertFalse(d.reasons.isEmpty)
+        XCTAssertEqual(d.reasons.filter { $0.lowercased().contains("legs already") }.count, 1)
+        XCTAssertTrue(d.reasons.allSatisfy { !$0.hasSuffix(".") && !$0.contains("..") })
     }
 
     private func rank(_ i: SessionIntensity) -> Int {

@@ -152,7 +152,7 @@ Source: `Models/Training/*.swift`.
 | Model | Source | Status / as-built notes |
 |-------|--------|-------------------------|
 | `Exercise` | `Exercise.swift` | IMPLEMENTED. **Adds `preferredRestSeconds`**. Cascade to `PlannedExercise`/`ExerciseHistory`/`PersonalRecord`. `@Transient`: muscleGroup, secondaryMuscles, equipment, movementPattern, cues, currentEstimated1RM, allTimePR |
-| `WorkoutPlan` | `WorkoutPlan.swift` | IMPLEMENTED. `date`/`typeRaw`/`statusRaw`/`recoveryAdjustment`/`durationMinutes`/`startedAt`/`finishedAt`; cascade `exercises` |
+| `WorkoutPlan` | `WorkoutPlan.swift` | IMPLEMENTED. `date`/`typeRaw`/`statusRaw`/`recoveryAdjustment`/`durationMinutes`/`startedAt`/`finishedAt`; cascade `exercises`. **Composite day** (football + "Add gym session"; one row, gym part is the anchor): `scheduledStartMin` (gym start, minutes since midnight), `companionTypeRaw`/`companionStartMin`/`companionDurationMin`/`companionCompleted`/`companionSessionRPE`/`companionFinishedAt` (the completed football), `addedPartIntensityRaw`/`addedPartRationale` (why the gym part is what it is). Transient: `companionType`, `isCompositeDay`, `dayTrained`, `isDoneForHistory`. Football `ActivitySession.workoutPlanID` stays the row id |
 | `PlannedExercise` | `PlannedExercise.swift` | IMPLEMENTED. `order`, `supersetGroup`, nullify links to plan+exercise, cascade `sets` |
 | `PlannedSet` | `PlannedSet.swift` | IMPLEMENTED. target/actual reps+weight, `rpe`, `completed`, `restSeconds`, `isWarmup` |
 | `ExerciseHistory` | `ExerciseHistory.swift` | IMPLEMENTED. **Adds `setsPerformed`** beyond spec |
