@@ -30,14 +30,27 @@ actor ReceiptStructuringService {
         var contentBlocks: [ReceiptClaudeContentBlock] = []
         if let raw = request.rawText, !raw.isEmpty {
             let storeLine = request.storeHint.map { "Store hint: \($0)\n" } ?? ""
+            let chainHintLine = request.storeChainHint.map { "Store chain hint: \($0)\n" } ?? ""
+            // Dictionary hints are abbreviation->expansion pairs the iOS client
+            // already resolved deterministically (e.g. from a local dictionary).
+            // Told to Claude explicitly so it PREFERS these over guessing —
+            // it should still fall back to its own judgement for anything not
+            // covered by the list.
+            let dictionaryHintsBlock: String = {
+                guard let hints = request.dictionaryHints, !hints.isEmpty else { return "" }
+                let lines = hints.map { "- \($0)" }.joined(separator: "\n")
+                return "\nKnown abbreviation expansions (prefer these when they apply to a raw line):\n\(lines)\n"
+            }()
             let userText = """
-            \(storeLine)Below is the raw text extracted from a grocery receipt photo by Apple Vision (on-device OCR). \
-            Structure it into the JSON shape described in the system prompt. Discard non-food rows (TOTAL, TAX, \
-            CHANGE, store address, loyalty messages). For each food line item include canonical_food_name (lowercase \
-            common name, no brands), display_name (title-case, brand stripped), quantity, unit, total_price, \
-            quantity_grams (estimate when not printed), unit_price, price_per_kg (computed), on_sale, sale_note, \
-            and confidence (0.0–1.0).
-
+            \(storeLine)\(chainHintLine)Below is the raw text extracted from a grocery receipt photo by Apple Vision (on-device OCR). \
+            Structure it into the JSON shape described in the system prompt. Discard non-item rows (subtotal/total/tax \
+            summary lines, payment lines, store address, loyalty messages) — but DO capture voided items separately per \
+            the system prompt's rules (they must NOT appear in line_items). For each item include canonical_food_name \
+            (lowercase common name, no brands — for non-food items use a short lowercase generic name), display_name \
+            (title-case, brand stripped), quantity, unit, total_price, quantity_grams (estimate when not printed and the \
+            item is food), unit_price, price_per_kg (computed for food), on_sale, sale_note, is_non_food, is_fee, \
+            tax_flag, category_hint, line_discount, and confidence (0.0–1.0).
+            \(dictionaryHintsBlock)
             Raw receipt text:
             ---
             \(raw)
@@ -152,7 +165,12 @@ actor ReceiptStructuringService {
                 pricePerKg: item.pricePerKg,
                 onSale: item.onSale ?? false,
                 saleNote: item.saleNote,
-                confidence: item.confidence ?? 0.8
+                confidence: item.confidence ?? 0.8,
+                isNonFood: item.isNonFood,
+                isFee: item.isFee,
+                taxFlag: item.taxFlag,
+                categoryHint: item.categoryHint,
+                lineDiscount: item.lineDiscount
             )
         }
         let avgConfidence: Double = items.isEmpty
@@ -170,7 +188,12 @@ actor ReceiptStructuringService {
             lineItems: items,
             confidence: avgConfidence,
             provider: provider,
-            notes: parsed.notes
+            notes: parsed.notes,
+            subtotalAmount: parsed.subtotalAmount,
+            savingsAmount: parsed.savingsAmount,
+            couponTotal: parsed.couponTotal,
+            currency: parsed.currency,
+            storeChain: parsed.storeChain
         )
     }
 
@@ -190,25 +213,60 @@ actor ReceiptStructuringService {
     // MARK: - Prompt
 
     private static let systemPrompt: String = """
-    You are a grocery RECEIPT extraction system. Convert a grocery receipt (raw text and/or photo) into a structured JSON payload of line items.
+    You are a grocery RECEIPT extraction system. Convert a grocery receipt (raw text and/or photo) into a structured JSON payload of line items. You mostly see Publix (a US chain) but may also see Walmart, Target, Costco, Whole Foods, Trader Joe's, Aldi, Lidl, and Italian chains (Esselunga, Conad, Carrefour) or other regional grocers. Apply the pattern-based rules below generically rather than hard-coding any one chain's layout.
 
-    RULES:
-    1. Use canonical lowercase food names (e.g. "chicken breast", "salmon", "bananas") — never brand names. Strip "GV", "ATL", "USDA", "BNLS", and similar receipt abbreviations.
-    2. For each food line: include `raw_text` exactly as printed.
-    3. Discard non-food rows: subtotals, tax lines, payment lines, store address, loyalty messages, coupons, "THANK YOU" lines.
-    4. Estimate `quantity_grams` when not printed (typical chicken breast ~200g/piece, banana ~120g, salmon fillet ~200g, etc).
-    5. BOGO (buy one get one) → halve `total_price`, set `on_sale = true`, `sale_note = "BOGO"`.
-    6. "2 for $X" deal → divide by 2 for `unit_price`, set `on_sale = true`, `sale_note = "2 for $X"`.
-    7. If both sale and regular price are shown, use the SALE price as `total_price`.
-    8. Compute `price_per_kg` when grams are known: (total_price / quantity_grams) * 1000.
-    9. Per-line `confidence` is your honesty score 0.0–1.0 about how sure you are this line was parsed correctly.
+    BASICS
+    1. Use canonical lowercase food names (e.g. "chicken breast", "salmon", "bananas") — never brand names. Strip "GV", "ATL", "USDA", "BNLS", store-brand prefixes, and item numbers some chains (Walmart, Target, Costco) print before the name.
+    2. For each line include `raw_text` exactly as printed.
+    3. Discard pure summary rows: subtotal/total/tax lines themselves, payment/card lines, store address, loyalty/rewards messages, "THANK YOU" footers. These are NOT line items and have no place in `line_items`.
+    4. Estimate `quantity_grams` when not printed and the item is food (typical chicken breast ~200g/piece, banana ~120g, salmon fillet ~200g, etc). Leave null for non-food items.
+    5. Compute `price_per_kg` when grams are known: (total_price / quantity_grams) * 1000. Null for non-food.
+    6. Per-line `confidence` is your honesty score 0.0–1.0 about how sure you are this line was parsed correctly.
+    7. Negative `total_price` is VALID and expected for a return/refund line — never reject or reinterpret it as an error.
 
-    OUTPUT — return ONLY valid JSON. No markdown, no code fences, no commentary. Shape:
+    VOIDED ITEMS (do not drop this rule)
+    Publix (and others) sometimes print a "Voided Items" section near the end listing items that were scanned then voided BEFORE the sale finalized. These must NOT be returned in `line_items` and must NOT be counted toward `total_amount`/`subtotal_amount` — the printed subtotal already excludes them. Example: a line "GV WHIPPED CREAM 2.79" appearing under a "Voided Items" heading is skipped entirely, not included with a negative price.
+
+    SALES, COUPONS, DISCOUNTS
+    8. BOGO (buy one get one) → halve `total_price`, set `on_sale = true`, `sale_note = "BOGO"`.
+    9. "2 for $X" / "3 for $X" deal → divide by count for `unit_price`, set `on_sale = true`, `sale_note = "2 for $X"`.
+    10. If both sale and regular price are shown, use the SALE price as `total_price`.
+    11. "You saved: $X.XX" printed on the line directly below an item attaches to THAT item: set `line_discount = X.XX` and `sale_note` to something like "Saved $2.00" (`total_price` is already the discounted price as printed — do not subtract the saving again).
+       Example:
+         "BOGO OATLY OAT MILK      4.29 F"
+         "  You saved: $4.29"
+       → one line item, `total_price: 4.29`, `line_discount: 4.29`, `on_sale: true`, `sale_note: "You saved $4.29"`.
+    12. Some discounts instead print as their own line literally named "Promotion" (or "Coupon", "Discount") with a NEGATIVE amount, e.g. `-5.35`, not tied to a specific item above it. Do NOT emit this as a food line item and do NOT drop it — add its absolute value into the top-level `coupon_total` (sum of all such order-level reductions). A per-item coupon that clearly discounts one specific product above it should instead be folded into that item's `line_discount`, same as a "You saved" note.
+    13. Deposits/bottle fees (CRV) and bag fees are fees, not food and not general merchandise: set `is_fee = true` (leave `is_non_food` false/null for these).
+
+    WEIGHTS AND MULTI-QUANTITY LINES
+    14. A weight line printed directly under a produce item ("$2.99/lb x 1.64 lb" or "2.36 lb @ 2.99/lb") belongs to THAT item, not a separate line: set `quantity` = the weight, `unit = "lb"`, `unit_price` = the per-lb price, `total_price` = the printed extended price.
+    15. A multi-quantity line under an item ("3 @ 6.71", "1 @ 2 for $7.00", "1 @ 3 for $10.00") also belongs to that item: derive `quantity` and `unit_price` accordingly, keep `total_price` as printed.
+
+    TAX FLAGS
+    16. Publix prints a per-item tax flag: F (food, tax-exempt), T (taxable non-food or taxed food), FT (food but still taxed, e.g. some beverages). Copy it as printed into `tax_flag` ("F"/"T"/"FT") when present, else null. Report `tax_amount` exactly as printed on the receipt — do NOT try to recompute it or get confused if summing F-flagged items' prices doesn't multiply cleanly to the tax; only T/FT lines are taxed, and that math is the client's problem, not yours.
+
+    NON-FOOD ITEMS
+    17. Household goods, pharmacy items, gift cards, and lottery tickets DO appear on grocery receipts and must still be captured as line items — set `is_non_food = true` and give them a reasonable lowercase `canonical_food_name` (e.g. "dryer sheets", "dish soap", "candle"). Real examples: "Downy Sht Lav & Van" (dryer sheets), "Dawn Pwash Lemon" (dish soap), "Y/C Catching Rays" (a Yankee Candle) — these typically carry tax_flag "T".
+
+    DEPARTMENT HEADERS
+    18. Section-divider lines printed as their own row ("PRODUCE", "DELI", "BAKERY", etc.) are not items — skip them as `line_items`, but set `category_hint` on the items that follow, until the next department header.
+
+    LOCALE AWARENESS
+    19. Non-US receipts may use comma decimals ("2,49"), € or £ symbols, VAT/IVA lines, "TOTALE" (=total), "SCONTO" (=discount), "RESO" (=return), "ANNULLO" (=voided — treat like Voided Items above), and DD/MM/YYYY dates. Infer the 3-letter ISO `currency` code ("USD" default, "EUR", "GBP", …) from symbols/store locale and normalize all amounts to plain decimal numbers regardless of the printed decimal separator.
+    20. Infer a short lowercase `store_chain` slug from the store name (e.g. "publix", "walmart", "costco", "target", "trader_joes", "whole_foods", "aldi", "esselunga", "conad"; use "unknown" if you can't tell).
+
+    OUTPUT — return ONLY valid JSON. No markdown, no code fences, no commentary. Shape (null is fine for anything you can't determine):
     {
       "store": "Publix",
+      "store_chain": "publix",
+      "currency": "USD",
       "purchase_date": "2026-05-11T10:30:00Z",
-      "total_amount": 24.75,
-      "tax_amount": 1.50,
+      "subtotal_amount": 150.82,
+      "total_amount": 153.93,
+      "tax_amount": 3.11,
+      "savings_amount": 14.36,
+      "coupon_total": 5.35,
       "payment_method": "VISA",
       "line_items": [
         {
@@ -223,13 +281,37 @@ actor ReceiptStructuringService {
           "price_per_kg": 11.00,
           "on_sale": false,
           "sale_note": null,
-          "confidence": 0.93
+          "confidence": 0.93,
+          "is_non_food": false,
+          "is_fee": false,
+          "tax_flag": "F",
+          "category_hint": "MEAT",
+          "line_discount": null
+        },
+        {
+          "raw_text": "Downy Sht Lav & Van",
+          "canonical_food_name": "dryer sheets",
+          "display_name": "Dryer Sheets",
+          "quantity": 1,
+          "unit": "unit",
+          "quantity_grams": null,
+          "unit_price": 8.49,
+          "total_price": 8.49,
+          "price_per_kg": null,
+          "on_sale": false,
+          "sale_note": null,
+          "confidence": 0.9,
+          "is_non_food": true,
+          "is_fee": false,
+          "tax_flag": "T",
+          "category_hint": null,
+          "line_discount": null
         }
       ],
-      "notes": "Skipped 2 illegible lines."
+      "notes": "Skipped 2 illegible lines. Excluded 1 voided item per Voided Items section."
     }
 
-    If a field cannot be determined, use null. If the receipt is unreadable, return `line_items: []` and explain in `notes`.
+    If the receipt is unreadable, return `line_items: []` and explain in `notes`.
     """
 }
 
@@ -279,6 +361,16 @@ struct ReceiptStructuringRequestDTO: Content {
     let imageBase64: String?
     let imageMediaType: String?
     let storeHint: String?
+    /// Short normalized chain slug the CLIENT already knows (e.g. "publix") —
+    /// distinct from `storeHint` (a free-text store name/address line). When
+    /// present it's passed straight through to Claude as a hint, same as
+    /// `storeHint`.
+    let storeChainHint: String?
+    /// "ABBREVIATION -> expansion" strings the iOS client already resolved
+    /// deterministically (e.g. from a bundled dictionary) before ever calling
+    /// this endpoint. Optional and backward compatible — an old client that
+    /// never sends this still gets a normal response.
+    let dictionaryHints: [String]?
 }
 
 struct ReceiptStructuringResponseDTO: Content {
@@ -291,6 +383,21 @@ struct ReceiptStructuringResponseDTO: Content {
     let confidence: Double
     let provider: String
     let notes: String?
+    /// Printed subtotal before tax, when Claude can read it.
+    let subtotalAmount: Double?
+    /// Printed total savings line (e.g. "SAVINGS: $14.36"), when present.
+    let savingsAmount: Double?
+    /// Sum of order-level coupons/promotions not tied to a single line item
+    /// (e.g. a "Promotion -5.35" line, or a store-wide coupon). Per-item
+    /// discounts live on `Item.lineDiscount` instead.
+    let couponTotal: Double?
+    /// 3-letter ISO currency code Claude inferred from symbols/locale
+    /// ("USD", "EUR", "GBP", …). Nil when it couldn't tell — clients should
+    /// default to "USD".
+    let currency: String?
+    /// Short normalized chain slug Claude inferred (e.g. "publix", "walmart",
+    /// "costco", "trader_joes", "unknown").
+    let storeChain: String?
 
     struct Item: Content {
         let rawText: String
@@ -305,6 +412,23 @@ struct ReceiptStructuringResponseDTO: Content {
         let onSale: Bool
         let saleNote: String?
         let confidence: Double
+        /// Household/pharmacy/gift-card/lottery etc — not food, but still a
+        /// real line item (not a fee).
+        let isNonFood: Bool?
+        /// Deposits/bottle fees (CRV), bag fees — a fee, not food and not
+        /// "non-food merchandise" (kept distinct so the app can show fees
+        /// separately from groceries).
+        let isFee: Bool?
+        /// Publix-style per-item tax flag as printed: "F" (food, tax-exempt),
+        /// "T" (taxable non-food or taxed food), "FT" (food but still taxed).
+        /// Passed through as printed, never recomputed here.
+        let taxFlag: String?
+        /// Department section header this item fell under on the receipt
+        /// (e.g. "PRODUCE", "DELI"), when one was printed above it.
+        let categoryHint: String?
+        /// Per-line coupon/discount amount already reflected in `totalPrice`
+        /// (i.e. informational — NOT subtracted again by the client).
+        let lineDiscount: Double?
     }
 }
 
@@ -368,20 +492,26 @@ enum ReceiptDateParser {
         guard let raw, !raw.isEmpty else { return nil }
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime]
-        if let d = iso.date(from: raw) { return d }
+        if let d = iso.date(from: raw) {
+            return d
+        }
         iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let d = iso.date(from: raw) { return d }
+        if let d = iso.date(from: raw) {
+            return d
+        }
         let dateOnly = DateFormatter()
         dateOnly.locale = Locale(identifier: "en_US_POSIX")
         dateOnly.timeZone = TimeZone(identifier: "UTC")
         dateOnly.dateFormat = "yyyy-MM-dd"
-        if let d = dateOnly.date(from: raw) { return d }
+        if let d = dateOnly.date(from: raw) {
+            return d
+        }
         return nil
     }
 }
 
-// Non-private so AppTests can decode-test against real Claude JSON — this is
-// the path that has 502'd three times (413, truncation, date typeMismatch).
+/// Non-private so AppTests can decode-test against real Claude JSON — this is
+/// the path that has 502'd three times (413, truncation, date typeMismatch).
 struct HaikuReceiptPayload: Decodable {
     let store: String
     /// Decoded as a raw String (Claude emits ISO 8601 like
@@ -393,6 +523,13 @@ struct HaikuReceiptPayload: Decodable {
     let paymentMethod: String?
     let lineItems: [HaikuLineItem]
     let notes: String?
+    // New, optional — see ReceiptStructuringResponseDTO for meaning. Absent
+    // in old cached/replayed responses decodes fine as nil.
+    let subtotalAmount: Double?
+    let savingsAmount: Double?
+    let couponTotal: Double?
+    let currency: String?
+    let storeChain: String?
 
     enum CodingKeys: String, CodingKey {
         case store
@@ -402,6 +539,11 @@ struct HaikuReceiptPayload: Decodable {
         case paymentMethod
         case lineItems
         case notes
+        case subtotalAmount
+        case savingsAmount
+        case couponTotal
+        case currency
+        case storeChain
     }
 }
 
@@ -418,6 +560,12 @@ struct HaikuLineItem: Decodable {
     let onSale: Bool?
     let saleNote: String?
     let confidence: Double?
+    // New, optional — see ReceiptStructuringResponseDTO.Item for meaning.
+    let isNonFood: Bool?
+    let isFee: Bool?
+    let taxFlag: String?
+    let categoryHint: String?
+    let lineDiscount: Double?
 
     enum CodingKeys: String, CodingKey {
         case rawText
@@ -432,5 +580,10 @@ struct HaikuLineItem: Decodable {
         case onSale
         case saleNote
         case confidence
+        case isNonFood
+        case isFee
+        case taxFlag
+        case categoryHint
+        case lineDiscount
     }
 }

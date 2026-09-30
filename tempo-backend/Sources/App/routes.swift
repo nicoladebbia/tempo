@@ -7,7 +7,8 @@ import Vapor
 func routes(
     _ app: Application,
     instacartClient: InstacartClient = InstacartAPIClient(),
-    supplementLookupClient: SupplementLookupClient = SupplementLookupAPIClient()
+    supplementLookupClient: SupplementLookupClient = SupplementLookupAPIClient(),
+    brandCatalogRefresher: BrandCatalogRefreshing = NullBrandCatalogRefresher()
 ) throws {
     // Health check — no auth, no versioning
     // Per BUILD_PLAN 6.1: GET /health returns {"status":"ok"}
@@ -61,6 +62,21 @@ func routes(
     try protected.grouped("nutrition", "receipts")
         .grouped(RateLimitMiddleware(limit: 30, window: .minutes(1), scope: .user))
         .register(collection: ReceiptController())
+
+    // Crowd-sourced receipt item alias table — feat/receipt-check-v2.
+    // Free for every signed-in user; shared table, not scoped by user.
+    // POST /v1/nutrition/receipt-aliases/lookup, /confirm
+    try protected.grouped("nutrition", "receipt-aliases")
+        .grouped(RateLimitMiddleware(limit: 60, window: .minutes(1), scope: .user))
+        .register(collection: ReceiptItemAliasController())
+
+    // Brand/size catalog for the iOS ReceiptProductMatcher (optional; the
+    // client falls back to a bundled JSON catalog when this is
+    // unreachable) — feat/receipt-check-v2.
+    // GET /v1/nutrition/brand-catalog?brand=&q=
+    try protected.grouped("nutrition", "brand-catalog")
+        .grouped(RateLimitMiddleware(limit: 60, window: .minutes(1), scope: .user))
+        .register(collection: BrandCatalogController(refresher: brandCatalogRefresher))
 
     // Food search — GET /v1/foods/search (USDA FoodData Central proxy; the
     // USDA key stays server-side). Free for every signed-in user.

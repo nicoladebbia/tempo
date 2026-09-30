@@ -109,11 +109,57 @@ final class ReceiptLineItem {
     /// Becomes `true` when the user approves this line in the review UI.
     var userConfirmed: Bool
 
+    /// Household/pharmacy/gift-card/etc — not a pantry food item. Shown
+    /// with a "not food" chip in review and excluded from ingest by default.
+    var isNonFood: Bool = false
+
+    /// Deposit/CRV/bag fee line — not food, not a discount.
+    var isFee: Bool = false
+
+    /// Printed tax flag as-is ("F", "T", "FT", "N"...). Free-text, store-specific.
+    var taxFlag: String?
+
+    /// Department/category header seen nearest above this line ("PRODUCE"...).
+    var categoryHint: String?
+
+    /// Per-line discount already folded into totalPrice, surfaced separately
+    /// for display ("−$1.00 coupon applied").
+    var lineDiscount: Double?
+
     /// Pantry item ID created from this line on confirm. Lets us undo the
     /// ingestion (and prevent double-ingest if the user confirms twice).
     var linkedPantryItemID: UUID?
 
     var createdAt: Date
+
+    // MARK: - Product match (ReceiptProductMatcher, run in the background
+
+    // after structuring; all optional — nil until/unless a confident match
+    // is found, so review never blocks on this and older rows with none of
+    // these set keep working exactly as before).
+
+    /// Open Food Facts barcode of the matched product, when found.
+    var barcode: String?
+
+    /// Matched product's brand, distinct from `ReceiptResolvedItem.matchedBrand`
+    /// (a store-prefix guess) — this one is the OFF product's own brand field.
+    var brand: String?
+
+    /// Package size value inferred or matched, e.g. 32 from "32 oz".
+    var sizeValue: Double?
+
+    /// Package size unit paired with `sizeValue`, e.g. "oz", "l", "kg".
+    var sizeUnit: String?
+
+    /// Pack/multipack count, e.g. 4 from a 4-pack of yogurt cups.
+    var packCount: Int?
+
+    /// Matched product's photo URL (OFF image), for the review row + picker.
+    var imageURL: String?
+
+    /// 0...1 confidence from `ReceiptProductMatcher.compositeScore` — distinct
+    /// from `confidence` (OCR/structuring confidence) above.
+    var matchConfidence: Double?
 
     // MARK: - Computed
 
@@ -144,11 +190,48 @@ final class ReceiptLineItem {
     /// the honest semantic for those foods.
     var resolvedPantryUnit: PantryUnit {
         let base = unit.asPantryUnit
-        guard base == .pieces else { return base }
+        guard base == .pieces else {
+            return base
+        }
         guard let portion = FoodMacroDatabase.naturalPortions[canonicalFoodName.lowercased()] else {
             return base
         }
         return Self.containerPantryUnit(for: portion.purchaseUnit) ?? base
+    }
+
+    /// The pantry unit to ingest with when `ReceiptProductMatcher`/size
+    /// inference found a package size (`sizeValue` + `sizeUnit`) — a more
+    /// specific, product-accurate unit than the receipt's own printed unit
+    /// (which is often just "EA"). Falls back to `resolvedPantryUnit` when
+    /// no size is known, or the size's unit has no `PantryUnit` equivalent.
+    @Transient
+    var ingestPantryUnit: PantryUnit {
+        guard let sizeUnit else {
+            return resolvedPantryUnit
+        }
+        switch sizeUnit.lowercased() {
+        case "g": return .grams
+        case "kg": return .kilograms
+        case "ml": return .milliliters
+        case "l": return .liters
+        case "oz": return .ounces
+        case "lb": return .pounds
+        default: return resolvedPantryUnit
+        }
+    }
+
+    /// The quantity to ingest with, in `ingestPantryUnit`'s terms — "size ×
+    /// count" when a package size is known: e.g. a 4-pack of 5.3oz cups
+    /// bought ×1 (`quantity`) ingests as 4 × 5.3 = 21.2 oz, not "1 piece".
+    /// Falls back to the receipt's own printed `quantity` when no size is
+    /// known (unchanged behavior for lines with no product match).
+    @Transient
+    var ingestQuantity: Double {
+        guard let sizeValue, sizeUnit != nil else {
+            return quantity
+        }
+        let unitsPurchased = quantity > 0 ? quantity : 1
+        return sizeValue * Double(packCount ?? 1) * unitsPurchased
     }
 
     /// Map a natural-portion `purchaseUnit` string → the matching
@@ -157,10 +240,18 @@ final class ReceiptLineItem {
     /// one banana, one breast).
     private static func containerPantryUnit(for purchaseUnit: String) -> PantryUnit? {
         let word = purchaseUnit.lowercased()
-        if word.contains("can") { return .cans }
-        if word.contains("bottle") { return .bottles }
-        if word.contains("jar") { return .jars }
-        if word.contains("pack") || word.contains("box") || word.contains("bag") || word.contains("tub") || word.contains("tube") || word.contains("tin") {
+        if word.contains("can") {
+            return .cans
+        }
+        if word.contains("bottle") {
+            return .bottles
+        }
+        if word.contains("jar") {
+            return .jars
+        }
+        if word.contains("pack") || word.contains("box") || word.contains("bag") || word.contains("tub") || word.contains("tube") || word
+            .contains("tin")
+        {
             return .packs
         }
         return nil
@@ -184,7 +275,19 @@ final class ReceiptLineItem {
         saleNote: String? = nil,
         confidence: Double = 1.0,
         userConfirmed: Bool = false,
-        linkedPantryItemID: UUID? = nil
+        linkedPantryItemID: UUID? = nil,
+        isNonFood: Bool = false,
+        isFee: Bool = false,
+        taxFlag: String? = nil,
+        categoryHint: String? = nil,
+        lineDiscount: Double? = nil,
+        barcode: String? = nil,
+        brand: String? = nil,
+        sizeValue: Double? = nil,
+        sizeUnit: String? = nil,
+        packCount: Int? = nil,
+        imageURL: String? = nil,
+        matchConfidence: Double? = nil
     ) {
         self.id = id
         self.receipt = receipt
@@ -203,6 +306,18 @@ final class ReceiptLineItem {
         self.confidence = max(0, min(1, confidence))
         self.userConfirmed = userConfirmed
         self.linkedPantryItemID = linkedPantryItemID
+        self.isNonFood = isNonFood
+        self.isFee = isFee
+        self.taxFlag = taxFlag
+        self.categoryHint = categoryHint
+        self.lineDiscount = lineDiscount
+        self.barcode = barcode
+        self.brand = brand
+        self.sizeValue = sizeValue
+        self.sizeUnit = sizeUnit
+        self.packCount = packCount
+        self.imageURL = imageURL
+        self.matchConfidence = matchConfidence
         self.createdAt = Date()
     }
 }
@@ -226,6 +341,11 @@ extension ReceiptLineItem {
         let confidence: Double
         let user_confirmed: Bool
         let linked_pantry_item_id: UUID?
+        let is_non_food: Bool
+        let is_fee: Bool
+        let tax_flag: String?
+        let category_hint: String?
+        let line_discount: Double?
         let created_at: Date
     }
 
@@ -246,6 +366,11 @@ extension ReceiptLineItem {
             confidence: confidence,
             user_confirmed: userConfirmed,
             linked_pantry_item_id: linkedPantryItemID,
+            is_non_food: isNonFood,
+            is_fee: isFee,
+            tax_flag: taxFlag,
+            category_hint: categoryHint,
+            line_discount: lineDiscount,
             created_at: createdAt
         )
     }
