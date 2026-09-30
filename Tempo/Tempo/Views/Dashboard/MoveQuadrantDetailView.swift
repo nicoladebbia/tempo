@@ -385,7 +385,7 @@ struct MoveQuadrantDetailView: View {
                     .font(.tempoTitle3)
                     .foregroundStyle(Color.tempoTextPrimary)
                 if let last = completedWorkouts.first {
-                    Text(last.type.displayName + " · " + (last.finishedAt ?? last.date)
+                    Text((last.isCompositeDay ? last.daySummaryText : last.type.displayName) + " · " + (last.finishedAt ?? last.date)
                         .formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
                         .font(.tempoCaption1)
                         .foregroundStyle(Color.tempoTextSecondary)
@@ -432,7 +432,7 @@ struct MoveQuadrantDetailView: View {
                             .foregroundStyle(Color.tempoTextTertiary)
                             .frame(width: 36, alignment: .leading)
 
-                        Text(workout.type.displayName)
+                        Text(workout.isCompositeDay ? workout.daySummaryText : workout.type.displayName)
                             .font(.tempoBody)
                             .foregroundStyle(Color.tempoTextPrimary)
 

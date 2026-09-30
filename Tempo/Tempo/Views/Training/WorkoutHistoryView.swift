@@ -265,7 +265,7 @@ struct WorkoutHistoryView: View {
     /// `workoutPlanID`, not merely nulled elsewhere.
     private func deleteConfirmationMessage(_ workout: WorkoutPlan) -> String {
         let setCount = workout.orderedExercises.reduce(0) { $0 + ($1.sets?.count ?? 0) }
-        let name = workout.type.displayName
+        let name = workout.isCompositeDay ? workout.daySummaryText : workout.type.displayName
         return """
         \(name): permanently removes this session — its \(setCount) set\(setCount == 1 ? "" : "s"), \
         set feedback, and the progress-chart history & PRs it created. Weekly volume and charts \
@@ -435,7 +435,7 @@ struct WorkoutHistoryView: View {
 
                         Spacer()
 
-                        Text(workout.type.displayName.uppercased())
+                        Text((workout.isCompositeDay ? workout.daySummaryText : workout.type.displayName).uppercased())
                             .font(.tempoCaption2)
                             .fontWeight(.bold)
                             .foregroundStyle(Color.tempoSignal)

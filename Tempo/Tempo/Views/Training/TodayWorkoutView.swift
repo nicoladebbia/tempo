@@ -28,13 +28,22 @@ struct TodayWorkoutView: View {
     private var allSettings: [UserSettings]
     @State
     private var showMobilityFlows = false
+    /// Extra gym session on a soccer day (see TodayWorkoutView+ExtraGym.swift).
+    @State
+    var showAddGymSession = false
+    /// Tomorrow card data — non-persisted preview, reloaded on plan changes.
+    @State
+    var tomorrowPreviewData: TomorrowPreview?
+    /// Time picked on "Log that I played" (football).
+    @State
+    var playedTime = Date()
     /// Late-night "Skip for tonight" — persisted (not launch-only): the
     /// timestamp (epoch seconds) until which the bedtime card stays hidden,
     /// today's 05:00 local (`LateNightWindow.skipUntil`). 0 (never skipped
     /// yet, or the persisted value already passed) reads as "not skipped".
     @AppStorage("tempo.latenight.skipUntil")
     private var lateNightSkipUntilRaw: Double = 0
-    private var showSessionTonight: Bool {
+    var showSessionTonight: Bool {
         Date() < Date(timeIntervalSince1970: lateNightSkipUntilRaw)
     }
 
@@ -89,9 +98,9 @@ struct TodayWorkoutView: View {
     /// Pause/travel-pain feature — refreshed by `.task`/notification below,
     /// same pattern as `MissedTrainerSessionCard`'s own `missed` state.
     @State
-    private var activePause: TrainingPause?
+    var activePause: TrainingPause?
     /// A pause must never replace an already-started/completed session.
-    private var isTodaySessionSacred: Bool {
+    var isTodaySessionSacred: Bool {
         viewModel.todayPlan?.status == .inProgress || viewModel.todayPlan?.status == .completed
     }
 
@@ -166,6 +175,9 @@ struct TodayWorkoutView: View {
                             }
                         }
                     }
+
+                    // Tomorrow's full workout under today's content.
+                    tomorrowSection
 
                     // Fix #6 — "Missed <session> — do it today?" (fixed-mode
                     // only; renders nothing when there's nothing missed).
@@ -248,6 +260,12 @@ struct TodayWorkoutView: View {
         }
         .sheet(isPresented: $showAddExercise) {
             AddExerciseSheet(viewModel: viewModel)
+        }
+        .sheet(isPresented: $showAddGymSession) {
+            AddGymSessionSheet(viewModel: viewModel)
+        }
+        .task(id: tomorrowReloadKey) {
+            reloadTomorrowPreview()
         }
         .sheet(isPresented: $showMonthlyReview) {
             if let key = activeReviewKey {
@@ -400,6 +418,11 @@ struct TodayWorkoutView: View {
         VStack(spacing: TempoSpacing.lg) {
             // Workout type header
             workoutHeader(plan: plan)
+
+            // Soccer done + extra gym session: both parts with their times.
+            if plan.isCompositeDay {
+                compositePartsCard(plan: plan)
+            }
 
             // D2 — the daily readiness prescription (supersedes the legacy
             // pendingAdjustment card). Modality + intensity + why + blocks/cues,
@@ -1446,16 +1469,6 @@ struct TodayWorkoutView: View {
                     .foregroundStyle(Color.tempoTextSecondary)
                     .multilineTextAlignment(.center)
 
-                if let nextType = nextWorkoutType {
-                    VStack(spacing: TempoSpacing.xxs) {
-                        Text("Next workout: Tomorrow")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                        Text(nextType.uppercased())
-                            .font(.tempoHeadline)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                    }
-                }
             }
 
             // Mobility flow button
@@ -1505,17 +1518,6 @@ struct TodayWorkoutView: View {
                     }
                 }
                 Spacer()
-                if let nextType = nextWorkoutType {
-                    VStack(alignment: .trailing, spacing: 0) {
-                        Text("TOMORROW")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                        Text(nextType.uppercased())
-                            .font(.tempoCaption1)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                    }
-                }
             }
             .padding(.horizontal, TempoSpacing.lg)
             .padding(.top, TempoSpacing.sm)
@@ -1589,11 +1591,17 @@ struct TodayWorkoutView: View {
             // still asks to confirm).
             nonGymActivitySection(plan: plan, hasTrainerSession: trainerDay != nil)
 
+            // Soccer day: add a gym session after (or before) the game.
+            if plan.type == .football, viewModel.canAddGymSession {
+                addGymSessionButton
+            }
+
             // §14 #3 — one-tap session RPE, only after completion.
             sessionRPESection(plan: plan)
         }
         .task(id: plan.id) {
             await viewModel.loadNonGymActivity(modelContext: modelContext)
+            playedTime = viewModel.suggestedSoccerStart(modelContext: modelContext) ?? Date()
         }
     }
 
@@ -1635,9 +1643,13 @@ struct TodayWorkoutView: View {
         case .none,
              .dismissed:
             if !hasTrainerSession {
+                if plan.type == .football {
+                    playedTimePicker
+                }
                 confirmButton(
                     title: plan.type == .football ? "LOG THAT I PLAYED" : "MARK \(plan.type.displayName.uppercased()) DONE",
-                    summary: nil
+                    summary: nil,
+                    startTime: plan.type == .football ? playedTime : nil
                 )
             }
 
@@ -1716,11 +1728,12 @@ struct TodayWorkoutView: View {
 
     private func confirmButton(
         title: String,
-        summary: TrainingViewModel.WhoopActivitySummary?
+        summary: TrainingViewModel.WhoopActivitySummary?,
+        startTime: Date? = nil
     ) -> some View {
         Button {
             HapticManager.notification(.success)
-            viewModel.confirmNonGymActivity(summary, modelContext: modelContext)
+            viewModel.confirmNonGymActivity(summary, startTime: startTime, modelContext: modelContext)
         } label: {
             Text(title)
                 .font(.tempoHeadline)
@@ -1843,24 +1856,6 @@ struct TodayWorkoutView: View {
     }
 
     // MARK: - Helpers
-
-    private var nextWorkoutType: String? {
-        let cal = Calendar.current
-        guard let tomorrow = cal.date(byAdding: .day, value: 1, to: Date()) else {
-            return nil
-        }
-        // Look at tomorrow's plan in weekPlans (this week, Mon..Sun) if loaded.
-        if let match = viewModel.weekPlans.first(where: { cal.isDate($0.date, inSameDayAs: tomorrow) }) {
-            return match.type.displayName
-        }
-        // §6 Sunday gap — on a Sunday, tomorrow (Monday) falls in NEXT week,
-        // which `weekPlans` never holds (it's this week only). Preview next
-        // week's Monday so "up next" doesn't just go blank one day a week.
-        let nextMonday = TrainingCalendar.mondayOfWeek(containing: tomorrow)
-        return viewModel.previewWeekPlans(startingMonday: nextMonday, modelContext: modelContext)
-            .first { cal.isDate($0.date, inSameDayAs: tomorrow) }?
-            .type.displayName
-    }
 
     /// Returns the most recent 3 ExerciseHistory entries for a given exercise (excluding today).
     private func lastThreePerformances(for exercise: Exercise) -> [ExerciseHistory] {

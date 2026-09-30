@@ -603,7 +603,7 @@ struct WeekPlanView: View {
 
     private func dayCell(plan: WorkoutPlan, dayLabel: String) -> some View {
         let isToday = calendar.isDateInToday(plan.date)
-        let isCompleted = plan.status == .completed
+        let isCompleted = plan.dayTrained
 
         return VStack(spacing: TempoSpacing.xxs) {
             // Day label
@@ -625,6 +625,12 @@ struct WeekPlanView: View {
             // §21 (b) two-a-day — the day carries a cardio SECOND session; show a
             // "+SWM"/"+RUN" tag so the variety is visible in the week scan, not
             // hidden until the Today card opens.
+            if let companion = plan.companionType {
+                // Soccer + extra gym session: the finished football rides under the anchor.
+                Text("+\(workoutAbbreviation(companion))")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(Color.tempoTextTertiary)
+            }
             if plan.isTwoADay, let second = plan.secondarySessionType {
                 Text("+\(workoutAbbreviation(second))")
                     .font(.system(size: 9, weight: .semibold))
@@ -726,6 +732,13 @@ struct WeekPlanView: View {
                             }
 
                             // Meta line
+                            if plan.isCompositeDay {
+                                // "Football 10:00 ✓ · Push 18:00"
+                                Text(plan.daySummaryText)
+                                    .font(.tempoCaption1)
+                                    .foregroundStyle(Color.tempoTextSecondary)
+                                    .accessibilityIdentifier("week.compositeSummary")
+                            }
                             if plan.type.isGymWorkout {
                                 Text(
                                     "~\(plan.durationMinutes ?? estimatedDuration(plan: plan)) min · \(plan.orderedExercises.count) exercises"
@@ -842,14 +855,34 @@ struct WeekPlanView: View {
                         Spacer()
 
                         if let sets = plannedEx.sets {
-                            Text("\(sets.count) sets")
+                            Text(setsDetail(plannedEx, sets: sets))
                                 .font(.tempoCaption2)
                                 .foregroundStyle(Color.tempoTextSecondary)
+                                .monospacedDigit()
                         }
                     }
                 }
             }
         }
+    }
+
+    /// "3×8 @ 60 kg" from the working sets (warm-ups excluded); "3×8 (BW)" for
+    /// bodyweight lifts; falls back to the set count when nothing is prescribed.
+    private func setsDetail(_ plannedEx: PlannedExercise, sets: [PlannedSet]) -> String {
+        let working = sets.filter { !$0.isWarmup }
+        guard let lead = working.min(by: { $0.setNumber < $1.setNumber }) else {
+            return "\(sets.count) sets"
+        }
+        let head = "\(working.count)×\(lead.targetReps)"
+        let isBodyweight = plannedEx.exercise.map { StrengthStandards.isBodyweightLoaded($0.equipment) } ?? false
+        if isBodyweight {
+            return "\(head) \(TodayWorkoutView.bodyweightLoadText(addedKg: lead.addedLoadKg, unit: weightUnit))"
+        }
+        if let kg = lead.targetWeight, kg > 0 {
+            let shown = TodayWorkoutView.weightText(WeightUnit.kg.convert(kg, to: weightUnit))
+            return "\(head) @ \(shown) \(weightUnit.abbreviation)"
+        }
+        return "\(head) (BW)"
     }
 
     private var mobilityRoutine: some View {
