@@ -142,7 +142,7 @@ final class DayPlannerService {
         // override these boundaries.
         if workout.type == .rest { return nil }
         let duration = workout.durationMinutes ?? 60
-        let start = 17 * 60
+        let start = workout.scheduledStartMin ?? 17 * 60
         return PlannedBlock(
             startMinuteOfDay: start,
             endMinuteOfDay: start + duration,

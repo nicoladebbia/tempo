@@ -195,4 +195,20 @@ final class ExtraGymSessionTests: XCTestCase {
         XCTAssertEqual(footballSessions().count, 1, "Football ActivitySession survives gym completion")
         XCTAssertTrue(plan.dayTrained)
     }
+
+    // MARK: - T6
+
+    func testScheduleProviderEmitsFootballAsSecondaryOnCompositeDay() throws {
+        let plan = playedFootballAt10()
+        XCTAssertTrue(vm.addGymSession(decision: decision(), gymStartMin: 18 * 60, modelContext: context))
+        let week = TrainingScheduleProvider.weekSchedule(
+            containing: today, trainingEngine: TrainingEngine(), whoop: MockWhoopService(),
+            healthKit: MockHealthKitService(), modelContext: context
+        )
+        let day = try XCTUnwrap(week.first { Calendar.current.isDate($0.date, inSameDayAs: today) })
+        XCTAssertEqual(day.mainType, plan.type)
+        XCTAssertEqual(day.secondaryType, .football)
+        let label = WeeklyTrainingSchedule.build(from: [day]).byWeekday[day.weekday]
+        XCTAssertEqual(label, "\(plan.type.displayName) + Football")
+    }
 }

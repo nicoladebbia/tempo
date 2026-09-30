@@ -92,7 +92,7 @@ enum TrainingScheduleProvider {
                 weekday: weekday,
                 date: plan.date,
                 mainType: plan.type,
-                secondaryType: plan.secondarySessionType,
+                secondaryType: plan.secondarySessionType ?? plan.companionType,
                 isTrainerSession: plan.programSessionKey != nil,
                 programSessionKey: plan.programSessionKey
             )

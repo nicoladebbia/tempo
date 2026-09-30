@@ -49,7 +49,7 @@ enum VenuePatternLearner {
                 samples.append(VenueSample(
                     date: plan.startedAt ?? plan.date,
                     startMin: plan.startedAt.map { minutesAfterMidnight($0, calendar: calendar) }
-                        ?? confirmation?.startMin,
+                        ?? plan.scheduledStartMin ?? confirmation?.startMin,
                     durationMin: plan.actualDurationMinutes ?? plan.durationMinutes,
                     venue: confirmation?.venue ?? plan.type.inferredVenue,
                     completed: true,
