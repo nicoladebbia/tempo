@@ -276,6 +276,7 @@ extension TrainingViewModel {
     /// activity to attach, or nil for a manual "I did it" with no Whoop data.
     func confirmNonGymActivity(
         _ summary: WhoopActivitySummary?,
+        startTime: Date? = nil,
         modelContext: ModelContext
     ) {
         let whoopData: WhoopWorkoutData? = summary.map {
@@ -289,7 +290,7 @@ extension TrainingViewModel {
                 startTime: $0.startTime
             )
         }
-        persistNonGymCompletion(whoop: whoopData, modelContext: modelContext)
+        persistNonGymCompletion(whoop: whoopData, startTime: startTime, modelContext: modelContext)
         nonGymActivityState = .saved(summary)
     }
 

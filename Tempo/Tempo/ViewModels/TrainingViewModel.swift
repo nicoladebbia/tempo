@@ -2086,6 +2086,7 @@ final class TrainingViewModel {
     @discardableResult
     func persistNonGymCompletion(
         whoop: WhoopWorkoutData?,
+        startTime: Date? = nil,
         modelContext: ModelContext
     ) -> Bool {
         guard let plan = todayPlan else {
@@ -2105,13 +2106,19 @@ final class TrainingViewModel {
         )
         if let stale = try? modelContext.fetch(staleDescriptor) {
             for row in stale {
+                // A composite day's football session is the day's completed
+                // companion — completing the gym anchor must never delete it.
+                if let companion = plan.companionTypeRaw, row.workoutType == companion {
+                    continue
+                }
                 modelContext.delete(row)
             }
         }
 
+        // Start time: Whoop's own, else the athlete's/kickoff time, else now.
         let session = ActivitySession(
             date: Date(),
-            startTime: whoop?.startTime ?? Date(),
+            startTime: whoop?.startTime ?? startTime ?? Date(),
             workoutType: plan.type.rawValue,
             sportID: whoop?.sportID ?? -1,
             source: whoop == nil ? "manual" : "whoop",
