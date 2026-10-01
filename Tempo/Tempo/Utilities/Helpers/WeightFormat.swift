@@ -38,6 +38,22 @@ enum WeightFormat {
         return text(kg: kg, unit: unit)
     }
 
+    /// A bodyweight-style set's load: "BW", "BW + 10 kg" or "BW − 15 kg" (assist).
+    /// Never the effective bodyweight total — that moves with the lifter's weight.
+    static func bodyweightLoad(addedKg: Double?, unit: WeightUnit) -> String {
+        guard let addedKg, abs(addedKg) >= 0.05 else {
+            return "BW"
+        }
+        let sign = addedKg > 0 ? "+" : "−"
+        return "BW \(sign) \(text(kg: abs(addedKg), unit: unit))"
+    }
+
+    /// A history row's top-set load, equipment-aware: bodyweight-style lifts
+    /// read "BW" / "BW + 10 kg", everything else "62.5 kg" (or "BW" at 0).
+    static func setLoad(kg: Double?, addedKg: Double?, bodyweight: Bool, unit: WeightUnit) -> String {
+        bodyweight ? bodyweightLoad(addedKg: addedKg, unit: unit) : load(kg: kg, unit: unit)
+    }
+
     /// Compact load for tight chips: "62.5", or "BW".
     static func compactLoad(kg: Double?, unit: WeightUnit) -> String {
         guard let kg, kg > 0 else {

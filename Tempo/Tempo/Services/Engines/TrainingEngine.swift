@@ -289,6 +289,10 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
 
         init(exercise: Exercise, excludingPlan planID: UUID?) {
             let cap = TrainingEngine.e1RMPersonalRecordRepCap
+            // Bodyweight-style lifts key on ADDED load (≤ 0 → most reps), never
+            // on the effective load the phone stores — that moves with the
+            // lifter's bodyweight, and the watch logs 0 for the same lifts.
+            let bodyweight = TrainingEngine.usesBodyweightPRRule(exercise.equipment)
             for pr in exercise.personalRecords ?? [] {
                 if let planID, pr.workoutPlanID == planID { continue }
                 exists = true
@@ -315,7 +319,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                 if let e1RM = row.estimated1RM {
                     bestE1RM = max(bestE1RM, e1RM)
                 }
-                if let w = row.bestSetWeight, let r = row.bestSetReps, r > 0 {
+                if let w = bodyweight ? (row.bestSetAddedLoadKg ?? 0) : row.bestSetWeight, let r = row.bestSetReps, r > 0 {
                     if w > 0 {
                         heaviestKg = max(heaviestKg, w)
                         if r <= cap {
@@ -332,7 +336,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                     let reps = set.actualReps ?? 0
                     guard reps > 0 else { continue }
                     exists = true
-                    let weight = set.actualWeight ?? 0
+                    let weight = bodyweight ? (set.addedLoadKg ?? 0) : (set.actualWeight ?? 0)
                     guard weight > 0 else {
                         bestBodyweightReps = max(bestBodyweightReps, reps)
                         continue
@@ -349,12 +353,21 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         }
     }
 
+    /// Equipment whose sets are keyed on added load / reps rather than weight.
+    static func usesBodyweightPRRule(_ equipment: Equipment) -> Bool {
+        StrengthStandards.isBodyweightLoaded(equipment) || equipment == Equipment.none
+    }
+
     /// PR rules:
     /// - The first time a lift is logged it sets the baseline — no PR.
     /// - e1RM PR: a better RIR-aware e1RM AND a better actual performance
     ///   (a higher RIR assumption alone never celebrates the same lift).
     /// - Heaviest weight: only when the set isn't already an e1RM PR.
-    /// - Bodyweight-only sets (weight 0): most reps in one set.
+    /// - Bodyweight-style equipment (bodyweight / pull-up bar / none): `weight`
+    ///   is the ADDED load (the caller maps effective load → added). Added ≤ 0
+    ///   → most reps in one set; added > 0 → the weighted rules on that load.
+    /// - Any other equipment must carry a positive weight — a loaded lift
+    ///   logged at 0 kg is never a "Most reps" record.
     func detectPersonalRecord(
         exercise: Exercise,
         weight: Double,
@@ -362,7 +375,8 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         rir: Int,
         workoutPlanID: UUID? = nil
     ) -> PersonalRecord? {
-        guard weight >= 0, reps > 0 else {
+        let bodyweight = Self.usesBodyweightPRRule(exercise.equipment)
+        guard weight >= 0, reps > 0, weight > 0 || bodyweight else {
             return nil
         }
         let baseline = PersonalRecordBaseline(exercise: exercise, excludingPlan: workoutPlanID)
@@ -370,7 +384,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
             return nil
         }
 
-        if weight == 0 {
+        if weight <= 0 {
             guard reps > baseline.bestBodyweightReps else {
                 return nil
             }

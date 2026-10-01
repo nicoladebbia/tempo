@@ -66,6 +66,12 @@ final class WorkoutPlan {
     /// automatically.
     var pausedAt: Date?
 
+    /// When crash recovery last settled this session's clock. Everything before
+    /// it is already accounted for, so a second kill with no new set can't
+    /// count the same dead stretch twice. Optional, so SwiftData migrates it
+    /// automatically.
+    var crashRecoveredAt: Date?
+
     /// The session is saved but the engine hasn't learned from it yet.
     /// Learning (prediction outcomes, error-fit, venue pattern, adaptive
     /// profile) waits until the summary closes, so the last set's feedback —

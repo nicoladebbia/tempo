@@ -673,6 +673,9 @@ struct ActiveWorkoutView: View {
             return nil
         }
         // A bodyweight set reads "BW × 10", never "0 × 10".
+        if isBodyweightLift {
+            return "\(WeightFormat.bodyweightLoad(addedKg: prior.bestSetAddedLoadKg, unit: weightUnit)) × \(r)"
+        }
         guard let w = prior.bestSetWeight, w > 0 else {
             return "BW × \(r)"
         }

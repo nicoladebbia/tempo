@@ -121,7 +121,7 @@ extension TrainingViewModel {
         let resolvedReps = reps ?? set.targetReps
 
         if sessionState.isActive, currentExerciseIndex == exerciseIndex, currentSetIndex == setIndex {
-            logSet(weight: resolvedWeight, reps: resolvedReps, modelContext: modelContext)
+            logSet(weight: resolvedWeight, reps: resolvedReps, addedLoadKg: set.addedLoadKg, modelContext: modelContext)
             NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
             pushWorkoutToWatch()
             return true
@@ -167,7 +167,8 @@ extension TrainingViewModel {
         if !set.isWarmup, !set.isDropStep, let exercise = slot.exercise {
             let outcome = recordPersonalRecordIfAny(
                 exercise: exercise, weight: resolvedWeight, reps: resolvedReps,
-                rir: set.effectiveRIR(reps: resolvedReps), plan: plan, modelContext: modelContext
+                rir: set.effectiveRIR(reps: resolvedReps), addedLoadKg: set.addedLoadKg,
+                plan: plan, modelContext: modelContext
             )
             if outcome != .none {
                 saveGuarded(modelContext, operation: "watch PR")

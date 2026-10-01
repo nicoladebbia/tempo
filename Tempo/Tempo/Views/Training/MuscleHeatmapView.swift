@@ -336,7 +336,7 @@ struct MuscleHeatmapView: View {
                             .foregroundStyle(Color.tempoTextPrimary)
                         Spacer()
                         if let reps = row.bestSetReps, reps > 0 {
-                            Text("\(WeightFormat.load(kg: row.bestSetWeight, unit: weightUnit)) × \(reps)")
+                            Text("\(historySetLoad(row)) × \(reps)")
                                 .font(.tempoCaption1)
                                 .foregroundStyle(Color.tempoTextSecondary)
                         }
@@ -363,5 +363,12 @@ struct MuscleHeatmapView: View {
 
     private func volumeLabel(_ kg: Double) -> String {
         WeightFormat.volumeText(kg: kg, unit: weightUnit)
+    }
+
+    private func historySetLoad(_ row: ExerciseHistory) -> String {
+        let bodyweight = row.exercise.map { StrengthStandards.isBodyweightLoaded($0.equipment) } ?? false
+        return WeightFormat.setLoad(
+            kg: row.bestSetWeight, addedKg: row.bestSetAddedLoadKg, bodyweight: bodyweight, unit: weightUnit
+        )
     }
 }

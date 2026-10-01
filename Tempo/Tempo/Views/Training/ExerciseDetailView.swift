@@ -264,7 +264,7 @@ struct ExerciseDetailView: View {
             $0.date > Calendar.current.date(byAdding: .day, value: -30, to: .now) ?? .now
         }
         let current1RM = exercise.currentEstimated1RM
-        let bestSet = ExerciseBestSet.pick(from: history)
+        let bestSet = ExerciseBestSet.pick(from: history, bodyweight: StrengthStandards.isBodyweightLoaded(exercise.equipment))
         let volume30d = thirtyDayHistory.reduce(0.0) { $0 + $1.totalVolume }
         let sessions30d = thirtyDayHistory.count
 
@@ -527,7 +527,7 @@ struct ExerciseDetailView: View {
         guard let best else {
             return "—"
         }
-        return "\(WeightFormat.load(kg: best.weightKg, unit: weightUnit)) × \(best.reps)"
+        return "\(WeightFormat.setLoad(kg: best.weightKg, addedKg: best.addedLoadKg, bodyweight: best.isBodyweight, unit: weightUnit)) × \(best.reps)"
     }
 
     private func formatVolume(_ volume: Double) -> String {

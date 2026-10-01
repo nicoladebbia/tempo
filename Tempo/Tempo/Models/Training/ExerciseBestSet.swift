@@ -13,6 +13,9 @@ import Foundation
 struct ExerciseBestSet: Equatable {
     let weightKg: Double
     let reps: Int
+    /// Bodyweight-style lifts only: the best set's added load (nil = plain BW).
+    var addedLoadKg: Double?
+    var isBodyweight = false
 
     /// True when (weight, reps) `a` ranks below `b`.
     static func ranksBelow(_ a: (weight: Double, reps: Int), _ b: (weight: Double, reps: Int)) -> Bool {
@@ -20,14 +23,24 @@ struct ExerciseBestSet: Equatable {
     }
 
     /// The best of each session's recorded top set.
-    static func pick(from history: [ExerciseHistory]) -> ExerciseBestSet? {
+    /// `bodyweight`: rank by ADDED load then reps (the stored effective load
+    /// drifts with the lifter's bodyweight) and carry the added load for display.
+    static func pick(from history: [ExerciseHistory], bodyweight: Bool = false) -> ExerciseBestSet? {
         let pairs = history.compactMap { row -> (weight: Double, reps: Int)? in
             guard let reps = row.bestSetReps, reps > 0 else {
                 return nil
             }
-            return (row.bestSetWeight ?? 0, reps)
+            let weight = bodyweight ? max(0, row.bestSetAddedLoadKg ?? 0) : (row.bestSetWeight ?? 0)
+            return (weight, reps)
         }
-        return pairs.max(by: ranksBelow).map { ExerciseBestSet(weightKg: $0.weight, reps: $0.reps) }
+        return pairs.max(by: ranksBelow).map {
+            ExerciseBestSet(
+                weightKg: $0.weight,
+                reps: $0.reps,
+                addedLoadKg: bodyweight && $0.weight > 0 ? $0.weight : nil,
+                isBodyweight: bodyweight
+            )
+        }
     }
 }
 

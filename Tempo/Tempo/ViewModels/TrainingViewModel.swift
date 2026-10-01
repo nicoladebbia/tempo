@@ -1094,6 +1094,7 @@ final class TrainingViewModel {
             let now = Date()
             plan.pausedSeconds = Self.recoveredPauseSeconds(for: plan, now: now)
             plan.pausedAt = nil
+            plan.crashRecoveredAt = now
             totalPauseDuration = plan.pausedSeconds
             elapsedSeconds = max(0, now.timeIntervalSince(startedAt) - totalPauseDuration)
         }
@@ -1154,11 +1155,17 @@ final class TrainingViewModel {
             .flatMap { $0.sets ?? [] }
             .compactMap { $0.completed ? $0.completedAt : nil }
             .max()
-        let lastActivity = max(startedAt, lastSetAt ?? startedAt)
-        let clockTraining = now.timeIntervalSince(startedAt) - persisted
-        // Training up to the last set excludes the pauses already taken.
-        let maxTraining = max(0, lastActivity.timeIntervalSince(startedAt) - persisted) + crashIdleAllowance
-        return persisted + max(0, clockTraining - maxTraining)
+        // Last sign of life: the last logged set, or the previous recovery (a
+        // resumed session that was killed again before a new set). Wall-clock
+        // from there; pauses never enter the calculation — a pause after the
+        // last set must not turn real minutes into "paused" ones.
+        let lastActivity = max(startedAt, lastSetAt ?? startedAt, plan.crashRecoveredAt ?? startedAt)
+        // Pauses that cannot have happened before the last sign of life (more
+        // than the time up to it) sit inside the gap: they are already counted
+        // and must not be counted a second time as dead time.
+        let pausesInGap = max(0, persisted - lastActivity.timeIntervalSince(startedAt))
+        let deadGap = max(0, now.timeIntervalSince(lastActivity) - pausesInGap - crashIdleAllowance)
+        return min(persisted + deadGap, max(persisted, now.timeIntervalSince(startedAt)))
     }
 
     // MARK: - Discard Crashed Workout
@@ -1283,6 +1290,7 @@ final class TrainingViewModel {
                 weight: weight,
                 reps: reps,
                 rir: set.effectiveRIR(reps: reps),
+                addedLoadKg: addedLoadKg,
                 plan: plan, // §13 — stamped so history-delete can match this PR exactly
                 modelContext: modelContext
             )
@@ -1818,6 +1826,7 @@ final class TrainingViewModel {
             plan.startedAt = nil
             plan.pausedSeconds = 0
             plan.pausedAt = nil
+            plan.crashRecoveredAt = nil
         }
         try? modelContext.save()
         currentFeedback = nil
@@ -1917,6 +1926,7 @@ final class TrainingViewModel {
             let best1RM: Double?
             let bestSetWeight: Double?
             let bestSetReps: Int?
+            let bestSetAddedLoadKg: Double?
             let setsPerformed: Int
             let avgRPE: Double?
             let worstFormRaw: String?
@@ -1956,6 +1966,7 @@ final class TrainingViewModel {
                 best1RM: completedSets.compactMap(\.estimated1RM).max(),
                 bestSetWeight: best?.actualWeight,
                 bestSetReps: best?.actualReps,
+                bestSetAddedLoadKg: StrengthStandards.isBodyweightLoaded(exercise.equipment) ? best?.addedLoadKg : nil,
                 setsPerformed: completedSets.count,
                 avgRPE: agg.avgRPE,
                 worstFormRaw: agg.worstFormRaw,
@@ -2011,6 +2022,7 @@ final class TrainingViewModel {
                 totalVolume: snap.totalVolume,
                 bestSetWeight: snap.bestSetWeight,
                 bestSetReps: snap.bestSetReps,
+                bestSetAddedLoadKg: snap.bestSetAddedLoadKg,
                 setsPerformed: snap.setsPerformed,
                 avgRPE: snap.avgRPE,
                 worstFormRaw: snap.worstFormRaw,

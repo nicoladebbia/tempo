@@ -1107,6 +1107,7 @@
 		EAE27677DFA68F36B46DAD55 /* Universities.json in Resources */ = {isa = PBXBuildFile; fileRef = 680F9AE2427E424447FB2CBE /* Universities.json */; };
 		EB76646D4D9F19E769B989C5 /* MonthlyReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49E0108B5E3B7188A38DD9E2 /* MonthlyReview.swift */; };
 		EBFBAC6040C3337449AD04D8 /* AIProgramPlannerFailureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EA489045785F187CB5DAAB4 /* AIProgramPlannerFailureTests.swift */; };
+		EC15390585FF0FCE1393DB28 /* TrainingUnitsReviewFixesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14617B05D4F84F2F400F6F98 /* TrainingUnitsReviewFixesTests.swift */; };
 		EC57FC7FDE4B737FBF174B67 /* PushRegistrationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66D551622C43CFBEA614B9A /* PushRegistrationService.swift */; };
 		EC73F7DB93C7DDFEE946B54B /* cue_ex_v_bar_pulldown.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = BCD7DCBBE0BF690D1AFFBBEF /* cue_ex_v_bar_pulldown.mp3 */; };
 		EC8504B935C350BA55DE9675 /* cue_ex_leg_extension.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 8062D60CE011C14C0C29E953 /* cue_ex_leg_extension.mp3 */; };
@@ -1336,6 +1337,7 @@
 		13B8FFED271B3698DBC73838 /* TrainingSplit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingSplit.swift; sourceTree = "<group>"; };
 		13C0C3D400A03FC5177BECC8 /* RecoveryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryView.swift; sourceTree = "<group>"; };
 		144CDA0CA84F5DD53308E70B /* CookingCapacityStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CookingCapacityStepView.swift; sourceTree = "<group>"; };
+		14617B05D4F84F2F400F6F98 /* TrainingUnitsReviewFixesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingUnitsReviewFixesTests.swift; sourceTree = "<group>"; };
 		14751D08B082F1E97F2C74D4 /* CoachInterviewService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachInterviewService.swift; sourceTree = "<group>"; };
 		14C2AC47EB3C4AF205FA1EDE /* cue_ex_dumbbell_calf_raise.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_dumbbell_calf_raise.mp3; sourceTree = "<group>"; };
 		14D972D584C1C67F7C608E48 /* PreferenceHealthCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferenceHealthCheck.swift; sourceTree = "<group>"; };
@@ -2628,6 +2630,7 @@
 				6546B04E128CC045005884EB /* TodayDisplayStateTests.swift */,
 				404364CC7F0D8ADDA2E12CC2 /* TrainerProgramTests.swift */,
 				82C5A13C8496D93B65B517D5 /* TrainingQAPolishTests.swift */,
+				14617B05D4F84F2F400F6F98 /* TrainingUnitsReviewFixesTests.swift */,
 				F0AA12269DC2DBD05843A30D /* TrainingViewModelActiveSessionTests.swift */,
 				62910858F8071F1D9532D4DC /* TrainingViewModelPauseIntegrationTests.swift */,
 			);
@@ -5297,6 +5300,7 @@
 				D08225D36F03EBD0DF90B667 /* TrainingScheduleProviderTests.swift in Sources */,
 				35DF7EA31D5874C664A1C9B9 /* TrainingSessionDisplayMathTests.swift in Sources */,
 				BDA84F71745C7DEF9F65EFEC /* TrainingSplitOnboardingTests.swift in Sources */,
+				EC15390585FF0FCE1393DB28 /* TrainingUnitsReviewFixesTests.swift in Sources */,
 				0384B6DF8F614D9E62956A55 /* TrainingViewModelActiveSessionTests.swift in Sources */,
 				135A39A6C2E65E47378F1BD2 /* TrainingViewModelPauseIntegrationTests.swift in Sources */,
 				34F64809A7B735B9DAC8A8EB /* TravelSwapEngineTests.swift in Sources */,
