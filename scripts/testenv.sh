@@ -21,6 +21,10 @@
 #                        [--count N] [--as NAME]     garbage | empty | timeout   (fault list | clear)
 #   scripts/testenv.sh auth ttl <secs|off>           short access tokens → exercise silent re-login
 #   scripts/testenv.sh sign-out <name>               revoke a test user's sessions
+#   scripts/testenv.sh time [set <when> | +2d | -3h | reset]   move the server clock
+#   scripts/testenv.sh job run <job> [--as NAME] [--force]     run a background job now
+#   scripts/testenv.sh sub <name> <state> [--days N]  free | trial | active | cancelled | grace |
+#                                                    billing-retry | expired | refunded (server side)
 #   scripts/testenv.sh db [slot]                     only the databases (for swift test); empties that slot's Redis
 #   eval "$(scripts/testenv.sh test-env [slot])"     env for `swift test`: slot 1 (default) = you,
 #                                                    2 = fast check, 3 = nightly — runs at the same
@@ -270,7 +274,7 @@ case "${1:-status}" in
     status) cmd_status ;;
     logs) if [ "${2:-}" = "-f" ]; then tail -f "$LOG"; else tail -100 "$LOG"; fi ;;
     ai) shift; cmd_ai "$@" ;;
-    fault | auth | sign-out | users) TEMPO_TEST_URL="$URL" python3 "$(dirname "$0")/testctl.py" "$@" ;;
+    fault | auth | sign-out | users | time | job | sub) TEMPO_TEST_URL="$URL" python3 "$(dirname "$0")/testctl.py" "$@" ;;
     pushes) shift; cmd_pushes "$@" ;;
     url) echo "$URL" ;;
     db)

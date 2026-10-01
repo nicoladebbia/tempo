@@ -8,7 +8,7 @@ import Vapor
 // not production), so these routes don't exist on Railway. No JWT: the
 // simulator signs in here instead of through Sign in with Apple.
 //
-// POST   /v1/test/login     {name, simulator_udid?, pro?, ai_consent?, tos?, fresh?, display_name?}
+// POST   /v1/test/login     {name, simulator_udid?, pro?, ai_consent?, tos?, fresh?, display_name?, timezone?}
 // GET    /v1/test/status
 // POST   /v1/test/ai        {mode, slow_seconds?}
 // GET    /v1/test/pushes    ?user_id= | ?name=
@@ -18,6 +18,8 @@ import Vapor
 // GET    /v1/test/faults  · POST {path_prefix, kind, method?, status?, delay_seconds?, remaining?, user_id?} · DELETE (?id=)
 // POST   /v1/test/auth      {access_ttl_seconds}   (null/0 = the real 15 min)
 // POST   /v1/test/sign-out  ?name=                 revoke every session (refresh tokens) of a test user
+// GET/POST /v1/test/clock · POST /v1/test/jobs/run  — see TestModeController+Time
+// POST   /v1/test/subscription {name, state, days?} — see TestModeController+Subscription
 
 struct TestModeController: RouteCollection {
     func boot(routes: RoutesBuilder) throws {
@@ -33,6 +35,8 @@ struct TestModeController: RouteCollection {
         routes.delete("faults", use: clearFaults)
         routes.post("auth", use: setAuth)
         routes.post("sign-out", use: signOut)
+        bootTime(routes: routes)
+        bootSubscription(routes: routes)
     }
 
     // MARK: - Login
@@ -46,6 +50,9 @@ struct TestModeController: RouteCollection {
         /// Retire the existing test user and start a brand-new account.
         var fresh: Bool?
         var displayName: String?
+        /// IANA zone for the user's local-time logic (morning briefing). The
+        /// server runs on the same Mac as the simulator, so it defaults to its zone.
+        var timezone: String?
     }
 
     struct LoginResponse: Content {
@@ -98,6 +105,11 @@ struct TestModeController: RouteCollection {
         if let displayName = body.displayName {
             user.displayName = displayName
         }
+        let zone = body.timezone ?? TimeZone.current.identifier
+        guard TimeZone(identifier: zone) != nil else {
+            throw Abort(.badRequest, reason: "Unknown timezone '\(zone)'.")
+        }
+        user.timezone = zone
         user.tosAcceptedAt = body.tos == false ? nil : (user.tosAcceptedAt ?? Date())
         user.aiConsentAt = body.aiConsent == false ? nil : (user.aiConsentAt ?? Date())
         try await user.save(on: req.db)
@@ -204,7 +216,7 @@ struct TestModeController: RouteCollection {
 
     // MARK: - Helpers
 
-    private static func state(_ req: Request) throws -> TestModeState {
+    static func state(_ req: Request) throws -> TestModeState {
         guard let state = req.application.testMode else { throw Abort(.notFound) }
         return state
     }
@@ -247,7 +259,7 @@ struct TestModeController: RouteCollection {
                 id: id,
                 name: name,
                 displayName: user.displayName,
-                pro: subs.contains { $0.isActive && $0.expirationDate > Date() },
+                pro: subs.contains { $0.isActive && $0.expirationDate > req.now },
                 createdAt: user.createdAt,
                 simulatorUdid: state.simulator(for: id)
             ))

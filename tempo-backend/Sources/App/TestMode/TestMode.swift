@@ -112,6 +112,7 @@ final class TestModeState: @unchecked Sendable {
     private let lock = NIOLock()
     let faults = FaultStore()
     private var _accessTokenTTL: TimeInterval?
+    private var _clockOffset: TimeInterval = 0
     private var _aiMode: AIMode = .fake
     private var _slowSeconds: Double = 8
     private var _pushes: [CapturedPush] = []
@@ -127,6 +128,12 @@ final class TestModeState: @unchecked Sendable {
     var accessTokenTTL: TimeInterval? {
         get { lock.withLock { _accessTokenTTL } }
         set { lock.withLock { _accessTokenTTL = newValue } }
+    }
+
+    /// Time travel: added to the real time wherever the server asks `app.now`.
+    var clockOffset: TimeInterval {
+        get { lock.withLock { _clockOffset } }
+        set { lock.withLock { _clockOffset = newValue } }
     }
 
     var slowSeconds: Double {

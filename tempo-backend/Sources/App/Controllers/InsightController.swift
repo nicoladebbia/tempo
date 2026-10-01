@@ -39,7 +39,7 @@ struct InsightController: RouteCollection {
         // still completely usable, while a synchronous regenerate burns 2–4s
         // of foreground time. On a stale hit the user sees the existing
         // report immediately and the next call sees the refreshed one.
-        let weekStart = currentWeekStart()
+        let weekStart = currentWeekStart(now: req.now)
         let key = AICacheKey.weeklyReport(userId: userID, weekStart: weekStart)
         let bypass = (try? req.query.get(Bool.self, at: "force_regenerate")) ?? false
 
@@ -143,7 +143,7 @@ struct InsightController: RouteCollection {
 
         // Calculate week boundaries
         let calendar = Calendar.current
-        let today = Date()
+        let today = req.now
         let weekStartDate = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: today)) ?? today
         let weekEndDate = calendar.date(byAdding: .day, value: 6, to: weekStartDate) ?? today
 
@@ -213,7 +213,7 @@ struct InsightController: RouteCollection {
             throw Abort(.notFound, reason: "User not found")
         }
 
-        let hour = Calendar.current.component(.hour, from: Date())
+        let hour = Calendar.current.component(.hour, from: req.now)
         let timeOfDay: String
         if hour < 12 { timeOfDay = "morning" }
         else if hour < 17 { timeOfDay = "afternoon" }
@@ -234,9 +234,9 @@ struct InsightController: RouteCollection {
 
     // MARK: - Helpers
 
-    private func currentWeekStart() -> String {
+    private func currentWeekStart(now: Date) -> String {
         let calendar = Calendar.current
-        let weekStartDate = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())) ?? Date()
+        let weekStartDate = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)) ?? now
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: weekStartDate)
