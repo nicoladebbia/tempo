@@ -449,6 +449,13 @@ case "${1:-status}" in
             docker exec "$PG" createdb -U tempo -T tempo_test "$name" 2>/dev/null \
                 || docker exec "$PG" createdb -U tempo "$name"
         fi
+        # The kept database still mustn't carry spend between runs: the image
+        # budget test alone adds ~160c a run, and at the 2000c monthly cap
+        # every later run that month fails with budgetExhausted.
+        docker exec "$PG" psql -U tempo -d "$name" -q -c "DO \$\$ BEGIN
+            IF to_regclass('exercise_image_monthly_spend') IS NOT NULL THEN TRUNCATE exercise_image_monthly_spend; END IF;
+            IF to_regclass('ai_monthly_spend') IS NOT NULL THEN TRUNCATE ai_monthly_spend; END IF;
+        END \$\$;" >/dev/null
         # Redis starts empty every run (rate-limit counters), like CI's
         # fresh service container did.
         docker exec "$REDIS" redis-cli -n "$slot" FLUSHDB >/dev/null

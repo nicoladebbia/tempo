@@ -71,14 +71,19 @@ func configure(
     // Per VAPOR_PROJECT_STRUCTURE.md Section 4 — Redis for caching and queues
     // ─────────────────────────────────────────────────
     let redisURL = Environment.get("REDIS_URL") ?? "redis://localhost:6379"
-    app.redis.configuration = try RedisConfiguration(url: redisURL)
+    // RediStack gives up on a pooled connection after 10 ms by default, so a
+    // busy moment turned rate limiting and token checks into random 500s
+    // (timedOutWaitingForConnection). Wait up to a second instead.
+    let redisPool = RedisConfiguration.PoolOptions(connectionRetryTimeout: .seconds(1))
+    let redisConfig = try RedisConfiguration(url: redisURL, pool: redisPool)
+    app.redis.configuration = redisConfig
 
     // ─────────────────────────────────────────────────
     // 4. Background job queue (Redis-backed)
     // Per VAPOR_PROJECT_STRUCTURE.md Section 4 — Queues initialization
     // Job types registered in later phases
     // ─────────────────────────────────────────────────
-    try app.queues.use(.redis(url: redisURL))
+    app.queues.use(.redis(redisConfig))
 
     // ─────────────────────────────────────────────────
     // 4.5. JWT signers
