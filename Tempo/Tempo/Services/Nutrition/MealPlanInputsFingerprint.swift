@@ -92,7 +92,54 @@ enum MealPlanInputsFingerprint {
             activeTrainerProgramIDs: programs.filter(\.isActive).map(\.id),
             profile: profileFields(profile),
             schedule: scheduleFields(settings: settings, in: context) + routineFields(in: context)
+                + intakeFields(settings: settings, dailyPlan: UserDailyPlanProfile.current(in: context))
         ))
+    }
+
+    /// Eating window, meal count, cook times, cookable days, leftover style,
+    /// breakfast / post-workout flags. A line is appended ONLY when the value
+    /// is set / non-default, so an untouched profile keeps the fingerprint it
+    /// had before these fields were tracked (no plan flagged stale on upgrade).
+    static func intakeFields(settings: UserSettings?, dailyPlan: UserDailyPlanProfile?) -> [String] {
+        var lines: [String] = []
+        if let settings {
+            if let first = settings.mealIntakeFirstMealHour {
+                lines.append("firstMealHour=\(first)")
+            }
+            if let last = settings.mealIntakeLastMealHour {
+                lines.append("lastMealHour=\(last)")
+            }
+            if let meals = settings.mealsPerDayPreference {
+                lines.append("mealsPerDay=\(meals)")
+            }
+            if let weekday = settings.cookTimeWeekdayMins {
+                lines.append("cookWeekday=\(weekday)")
+            }
+            if let weekend = settings.cookTimeWeekendMins {
+                lines.append("cookWeekend=\(weekend)")
+            }
+            if let days = settings.mealIntakeCookableDays {
+                lines.append("cookableDays=\(days)")
+            }
+            if let leftover = settings.mealIntakeLeftoverToleranceRaw {
+                lines.append("leftover=\(leftover)")
+            }
+        }
+        if let dailyPlan {
+            if dailyPlan.eatingWindowStartMinutes != 8 * 60 {
+                lines.append("windowStartMin=\(dailyPlan.eatingWindowStartMinutes)")
+            }
+            if dailyPlan.eatingWindowEndMinutes != 20 * 60 {
+                lines.append("windowEndMin=\(dailyPlan.eatingWindowEndMinutes)")
+            }
+            if dailyPlan.breakfastSkipped {
+                lines.append("breakfastSkipped=true")
+            }
+            if !dailyPlan.postWorkoutMandatory {
+                lines.append("postWorkoutMandatory=false")
+            }
+        }
+        return lines
     }
 
     /// The Fuel setup routine (wake/leave times, meals out, notes) shapes

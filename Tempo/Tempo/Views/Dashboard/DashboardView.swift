@@ -231,6 +231,12 @@ struct DashboardView: View {
                 }
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .tempoMealWillBeRemoved)) { note in
+            // Synchronous: the model is deleted right after the post returns.
+            if let id = note.userInfo?["id"] as? UUID {
+                viewModel?.dropNextMeal(mealID: id)
+            }
+        }
         .onReceive(
             Publishers.MergeMany(
                 // A server-built week landing, or a diet-profile edit, changes

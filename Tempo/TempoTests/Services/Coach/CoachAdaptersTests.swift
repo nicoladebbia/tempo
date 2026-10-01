@@ -276,6 +276,24 @@ final class CoachAdaptersTests: XCTestCase {
         XCTAssertEqual(meal.status, .planned)
     }
 
+    func testDispatcher_undoSkipGoesThroughSharedPathAndRefreshesDashboard() async throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        let meal = try seedPlannedMeal(in: context)
+        let dispatcher = CoachToolDispatcherAdapter(conversationID: UUID(), turnIndex: 0)
+        let result = try await dispatcher.dispatch(
+            toolName: "skipMeal",
+            inputJSON: Data(#"{"mealID":"\#(meal.id.uuidString)"}"#.utf8),
+            context: context
+        )
+        XCTAssertEqual(meal.status, .skipped)
+        let refreshed = expectation(forNotification: .tempoNutritionLogged, object: nil)
+        try await result.undoEntry?.reverseAction()
+        await fulfillment(of: [refreshed], timeout: 1)
+        XCTAssertEqual(meal.status, .planned)
+        XCTAssertNil(meal.actualEatenAt)
+    }
+
     func testDispatcher_swapToQuickerMealNoPendingOutcome() async throws {
         let container = try makeContainer()
         let context = ModelContext(container)

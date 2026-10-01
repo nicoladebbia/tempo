@@ -84,7 +84,7 @@ struct SupplementReorderSheet: View {
                     Text(
                         supplement.servingsPerContainer != nil
                             ? "Restocking adds a full container to what's left and starts a fresh low-stock check."
-                            : "Restocking starts a fresh low-stock check. Add servings per container to keep count."
+                            : "Set servings per container in this supplement's edit screen first, so a restock can update the count."
                     )
                 }
 
@@ -119,7 +119,11 @@ struct SupplementReorderSheet: View {
     }
 
     private func markRestocked() {
-        SupplementReorderService.restock(supplement)
+        // Unknown container size → nothing to add; don't pretend it worked.
+        guard SupplementReorderService.restock(supplement) else {
+            HapticManager.notification(.warning)
+            return
+        }
         try? modelContext.save()
         restocked = true
         HapticManager.notification(.success)

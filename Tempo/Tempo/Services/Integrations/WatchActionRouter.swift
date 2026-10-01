@@ -16,6 +16,9 @@ import SwiftData
 final class WatchActionRouter {
     private let accountabilityEngine: AccountabilityEngine
     private let notifications: any NotificationServiceProtocol
+    /// Source of the 7-day TDEE so a Watch-marked meal rebalances against the
+    /// same target as the Today ring. nil in tests.
+    private let whoop: (any WhoopServiceProtocol)?
 
     /// Set once by `ServiceContainer.configure(modelContext:)` at launch
     /// (`TempoApp.init`, right after the ModelContainer is created). Optional
@@ -69,10 +72,12 @@ final class WatchActionRouter {
 
     init(
         accountabilityEngine: AccountabilityEngine,
-        notifications: any NotificationServiceProtocol
+        notifications: any NotificationServiceProtocol,
+        whoop: (any WhoopServiceProtocol)? = nil
     ) {
         self.accountabilityEngine = accountabilityEngine
         self.notifications = notifications
+        self.whoop = whoop
     }
 
     /// Called once at launch, after the ModelContainer exists (`TempoApp.init`).
@@ -173,10 +178,9 @@ final class WatchActionRouter {
 
     // MARK: - Meals
 
-    /// Same operation as tapping Mark Eaten in Nutrition —
-    /// `NutritionTabViewModel.markMealEaten` (meal shift + macro rebalance
-    /// included). A fresh disposable view model is the established pattern
-    /// for this exact call (see `MealDetailView`'s `undoMealEaten`).
+    /// Same operation as tapping Mark Eaten in Nutrition — the shared
+    /// `MealOutcomeService.markEaten` (pantry decrement, meal shift, macro
+    /// rebalance, reminders, Dashboard ping), no view model involved.
     private func markMealEaten(id: String?) -> Bool {
         guard let modelContext, let id, let uuid = UUID(uuidString: id) else {
             return false
@@ -189,8 +193,15 @@ final class WatchActionRouter {
         else {
             return false
         }
-        NutritionTabViewModel().markMealEaten(meal, modelContext: modelContext, notifications: notifications)
-        return true
+        do {
+            try MealOutcomeService.markEaten(
+                meal,
+                env: MealOutcomeService.Env.live(modelContext: modelContext, notifications: notifications, whoop: whoop)
+            )
+            return true
+        } catch {
+            return false
+        }
     }
 
     // MARK: - Focus Timer

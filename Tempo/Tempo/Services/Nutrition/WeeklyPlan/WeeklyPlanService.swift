@@ -110,6 +110,12 @@ final class WeeklyPlanService {
         return calendar.date(byAdding: .day, value: -daysSinceMonday, to: today) ?? today
     }
 
+    /// A plan for a week that has already ended — never applied (it would
+    /// replace the current week).
+    nonisolated static func isPastWeek(_ weekStart: Date, now: Date = Date(), calendar: Calendar = .current) -> Bool {
+        calendar.startOfDay(for: weekStart) < currentWeekStart(for: now, calendar: calendar)
+    }
+
     nonisolated static func dayString(_ date: Date, calendar: Calendar = .current) -> String {
         let parts = calendar.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
@@ -125,7 +131,8 @@ final class WeeklyPlanService {
 
     nonisolated static func message(forServerError code: String) -> String {
         switch code {
-        case "subscription_required": "Weekly plans are a Pro feature."
+        case "subscription_required": PlanGenerationBlocker.proRequired.message
+        case "ai_consent_required": PlanGenerationBlocker.aiConsentRequired.message
         case "ai_budget_exhausted": "The AI is at capacity right now. Try again in a bit."
         case "timed out": "The plan build timed out. Try again."
         default: "Couldn't build the plan. Try again."
@@ -209,6 +216,15 @@ final class WeeklyPlanService {
             }
             if weekStart > now {
                 phase = .upcoming(plan, weekStart: weekStart)
+                return
+            }
+            // A week that's already over (the phone was offline until the
+            // next Monday) must not replace the current week — applying it
+            // would archive this week's plan and its eaten meals.
+            if Self.isPastWeek(weekStart, now: now) {
+                logger.info("[WeeklyPlan] dropping ready job for a past week")
+                defaults.removeObject(forKey: Key.pendingJobID)
+                phase = .idle
                 return
             }
             inFlightJobID = job.id

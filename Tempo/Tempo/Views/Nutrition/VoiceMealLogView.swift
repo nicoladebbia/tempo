@@ -14,6 +14,9 @@ struct VoiceMealLogView: View {
     /// Called once per confirmed item, mirroring FoodSearchView.onFoodSelected
     /// so the existing MealLogging save path is reused unchanged.
     var onFoodSelected: ((FoodItem) -> Void)?
+    /// The eat time the user said ("at 1pm"), when the model resolved one, so
+    /// the log lands at that time instead of "now".
+    var onEatTime: ((Date) -> Void)?
     /// Low-confidence fallback: dismiss and open the Search tab pre-filled.
     var onSearchInstead: ((String) -> Void)?
 
@@ -306,13 +309,20 @@ struct VoiceMealLogView: View {
     }
 
     private func logResolvedItems() {
-        for item in resolved where !item.isLowConfidence {
+        let confident = resolved.filter { !$0.isLowConfidence }
+        if let eatTime = confident.earliestLoggedAt {
+            onEatTime?(eatTime)
+        }
+        for item in confident {
+            // One serving of the resolved portion: the kcal/macros already
+            // cover the whole "<n> g". (quantity was the gram count before —
+            // 250 servings of "250 g" — which inflated the logged grams.)
             let food = FoodItem(
                 id: UUID(),
                 name: item.name,
                 brand: nil,
                 servingSize: "\(Int(item.quantityG)) g",
-                servingQuantity: item.quantityG,
+                servingQuantity: 1,
                 calories: Int(item.calories),
                 protein: item.proteinG,
                 carbs: item.carbsG,

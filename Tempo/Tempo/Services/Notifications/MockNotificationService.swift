@@ -52,6 +52,11 @@ final class MockNotificationService: NotificationServiceProtocol, @unchecked Sen
         logger.debug("Mock: scheduled meal reminder '\(mealName)' at \(time)")
     }
 
+    func cancelMealReminder(mealName: String, on _: Date) {
+        let body = "Time for \(mealName). Don't skip it."
+        scheduledNotifications.removeAll { $0.category == "meal_reminder" && $0.body == body }
+    }
+
     func scheduleBedtimeReminder(time: Date) {
         let notification = ScheduledNotification(
             category: "bedtime",
@@ -197,7 +202,7 @@ final class MockNotificationService: NotificationServiceProtocol, @unchecked Sen
 
     private static let supplementReminderPrefix = "supplement_reminder_"
 
-    func scheduleSupplementReminder(title: String, body: String, fireDate: Date, supplementNames: [String]) {
+    func scheduleSupplementReminder(title: String, body: String, fireDate: Date, supplementNames: [String], supplementIDs: [String]) {
         let notification = ScheduledNotification(
             category: "\(Self.supplementReminderPrefix)\(TempoDateFormatters.isoDate.string(from: fireDate))",
             title: title,
@@ -217,7 +222,7 @@ final class MockNotificationService: NotificationServiceProtocol, @unchecked Sen
         }
     }
 
-    func scheduleSupplementReorderAlert(supplementName: String, title: String, body: String) {
+    func scheduleSupplementReorderAlert(supplementName: String, supplementID: String?, title: String, body: String) {
         let notification = ScheduledNotification(
             category: "supplement_reorder_\(supplementName)",
             title: title,

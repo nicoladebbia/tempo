@@ -108,6 +108,24 @@ final class GroceryListGeneratorTests: XCTestCase {
         XCTAssertNil(byName["oats"])
     }
 
+    // A loaf bought through the grocery list nets as a whole loaf; the same
+    // "1 piece" typed by hand or by voice is a single slice.
+    func testGenerate_purchasedLoafNetsWholeLoaf_manualPieceIsSlice() throws {
+        let key = FoodCanonicalizer.canonicalize("whole grain bread")
+        let bread = try XCTUnwrap(FoodMacroDatabase.naturalPortions[key], "canonical key \(key)")
+        let plan = makePlan(foodsByMeal: [[food("whole grain bread", bread.grams * 3)]])
+        func toBuy(_ source: PantryPurchaseSource) -> GroceryListGenerator.Aggregated? {
+            GroceryListGenerator.generate(from: .init(
+                mealPlan: plan,
+                pantry: [PantryItem(canonicalName: key, displayName: "Bread",
+                                    quantity: 1, unit: .pieces, purchaseSource: source)],
+                weekStartDate: Date()
+            )).first { $0.canonicalName == key }
+        }
+        XCTAssertNil(toBuy(.groceryConfirm), "A bought loaf covers three slices")
+        XCTAssertNotNil(toBuy(.manual), "One typed slice doesn't cover three")
+    }
+
     // The bug: generate() only subtracted pantry stock when the pantry item's
     // unit EXACTLY matched the (always-grams) aggregated need. A voice/scan
     // pantry holds items in ml / lb / pieces, so they were silently NOT

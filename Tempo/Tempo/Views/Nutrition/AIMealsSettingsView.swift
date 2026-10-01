@@ -96,7 +96,7 @@ struct AIMealsSettingsView: View {
             }
             Button("Later", role: .cancel) { dismiss() }
         } message: {
-            Text("Your changes are saved. The current plan keeps its old meals until you regenerate.")
+            Text("Your changes are saved. Meals you've eaten and past days stay. Planned meals from today on are replaced. Until then the current plan keeps its old meals.")
         }
     }
 
@@ -424,15 +424,33 @@ struct AIMealsSettingsView: View {
             return fresh
         }()
 
+        // Only an edit to the "this week" answers supersedes the wizard's;
+        // saving a cook-time or window change must not wipe them.
+        let savedExclusions = settings.mealIntakeExclusionsRaw
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        let weekAnswersChanged =
+            (settings.mealIntakeCookableDays ?? MealPlanIntake.default.cookableDaysThisWeek) != cookableDays
+                || settings.mealIntakeRecoveryAdjusted != recoveryAdjusted
+                || savedExclusions != exclusions
+
         settings.mealIntakeCookableDays = cookableDays
         settings.mealIntakeLeftoverToleranceRaw = leftoverTolerance.rawValue
         settings.cookTimeWeekdayMins = cookWeekdayMins
         settings.cookTimeWeekendMins = cookWeekendMins
         settings.mealsPerDayPreference = mealsPerDay
-        settings.mealIntakeFirstMealHour = firstMealHour
-        settings.mealIntakeLastMealHour = lastMealHour
+        MealPlanIntake.saveEatingWindow(
+            EatingWindow(firstMealHour: firstMealHour, lastMealHour: lastMealHour),
+            settings: settings,
+            dailyPlan: dailyPlanProfiles.first
+        )
         settings.mealIntakeRecoveryAdjusted = recoveryAdjusted
         settings.mealIntakeExclusionsRaw = exclusions.joined(separator: ", ")
+        // Saved prefs just edited here supersede this week's wizard answers.
+        if weekAnswersChanged {
+            settings.mealIntakeTempWeekStart = nil
+        }
         settings.updatedAt = Date()
 
         if let profile = activeProfiles.first {

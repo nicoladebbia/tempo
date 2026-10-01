@@ -67,18 +67,17 @@ final class GroceryContainerRoundingTests: XCTestCase {
         XCTAssertEqual(before.unit, .bottles, "Sanity: generator rounds this food to whole bottles")
         XCTAssertEqual(before.quantity, 5)
 
-        // Pantry covers all but a sliver (4.9 of the needed 5 bottles worth),
-        // producing a ~98% coverage fraction — the remainder in bottles
-        // would be 0.1 (a fraction) without the whole-unit rounding fix.
+        // Pantry holds 3 bottles (3000 g) → 1800 g still needed → buy 2 whole
+        // bottles (purchase units round UP; the pantry itself is fractional).
         _ = try pantry.mergeOrCreate(
-            rawName: "Tart Cherry Juice", quantity: 4.9, unit: .bottles, storageLocation: .pantry,
+            rawName: "Tart Cherry Juice", quantity: 3, unit: .bottles, storageLocation: .pantry,
             purchaseDate: nil, purchaseSource: .manual, sourceReceiptLineItemID: nil
         )
         _ = try grocery.reapplyPantry(pantry)
 
         let after = try XCTUnwrap(list.orderedItems.first { $0.canonicalFoodName == "tart cherry juice" })
-        XCTAssertEqual(after.quantity, after.quantity.rounded(), "Countable unit must never end up fractional")
-        XCTAssertEqual(after.quantity, 1, "A tiny non-zero remainder rounds UP to 1 whole bottle")
+        XCTAssertEqual(after.quantity, after.quantity.rounded(), "Shopping quantities stay whole bottles")
+        XCTAssertEqual(after.quantity, 2, "1800 g short rounds UP to 2 bottles, never subtracted twice")
     }
 
     func testAddItem_roundsCountableUnitQuantityUp() throws {

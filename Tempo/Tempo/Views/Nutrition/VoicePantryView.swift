@@ -451,7 +451,7 @@ struct VoicePantryView: View {
     }
 
     private func formatQuantity(_ value: Double) -> String {
-        value == value.rounded() ? "\(Int(value))" : String(format: "%.1f", value)
+        PantryQuantityFormatter.number(value)
     }
 
     private func storageIcon(_ loc: PantryStorageLocation) -> String {

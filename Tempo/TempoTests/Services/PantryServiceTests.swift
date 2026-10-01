@@ -590,4 +590,34 @@ final class PantryServiceTests: XCTestCase {
         XCTAssertEqual(item.useBy, original, "No location change + no explicit useBy → useBy must be untouched")
         XCTAssertEqual(item.quantity, 300)
     }
+
+    // MARK: - Loaf vs slice readings (bought vs typed pieces)
+
+    func testMergeBoughtLoafIntoTypedSlicesRowConvertsToSlices() throws {
+        let bread = try XCTUnwrap(FoodMacroDatabase.naturalPortions["whole grain bread"])
+        let slices = try service.mergeOrCreate(
+            rawName: "whole grain bread", quantity: 4, unit: .pieces, storageLocation: .pantry,
+            purchaseDate: Date(), purchaseSource: .manual, sourceReceiptLineItemID: nil
+        )
+        let merged = try service.mergeOrCreate(
+            rawName: "whole grain bread", quantity: 1, unit: .pieces, storageLocation: .pantry,
+            purchaseDate: Date(), purchaseSource: .receiptScan, sourceReceiptLineItemID: nil
+        )
+        XCTAssertEqual(merged.id, slices.id)
+        XCTAssertFalse(merged.weighsPurchaseUnit, "Row keeps its slice reading")
+        XCTAssertEqual(merged.quantity, 4 + bread.purchaseGrams / bread.grams, accuracy: 0.01)
+    }
+
+    func testStockTakeInSlicesOnBoughtLoafRowSwitchesToSlices() throws {
+        _ = try service.mergeOrCreate(
+            rawName: "whole grain bread", quantity: 1, unit: .pieces, storageLocation: .pantry,
+            purchaseDate: Date(), purchaseSource: .groceryConfirm, sourceReceiptLineItemID: nil
+        )
+        let row = try service.setOrCreate(
+            rawName: "whole grain bread", quantity: 6, unit: .pieces, storageLocation: .pantry,
+            purchaseDate: Date(), purchaseSource: .manual
+        )
+        XCTAssertEqual(row.quantity, 6)
+        XCTAssertFalse(row.weighsPurchaseUnit, "\"6 slices\" must not read as 6 loaves")
+    }
 }

@@ -104,6 +104,9 @@ struct TempoApp: App {
                 // `sim.sh qa --scenario <name>` starting states (see
                 // ScenarioSeed's header).
                 ScenarioSeed.seedIfRequested(context: container.mainContext)
+                // Nutrition QA — a full week's plan + pantry + grocery list
+                // (see NutritionPlanUITestSeed's header).
+                NutritionPlanUITestSeed.seedIfRequested(context: container.mainContext)
             #endif
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
