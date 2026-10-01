@@ -15,6 +15,16 @@ import SwiftData
 // MARK: - DashboardViewModel day type
 
 extension DashboardViewModel {
+    /// Events after which the Fuel quadrant must re-pull: a meal logged / marked
+    /// eaten, and anything that moves today's target (a new weekly plan applied,
+    /// a diet-profile edit). Nutrition Today reacts to these through its own VM;
+    /// the Dashboard has to be told or it keeps a stale target.
+    static let fuelRefreshTriggers: [Notification.Name] = [
+        .tempoNutritionLogged,
+        .tempoWeeklyPlanApplied,
+        .tempoDietaryProfileChanged,
+    ]
+
     /// Dashboard display status for a persisted WorkoutPlan. Single mapping
     /// used by the Move quadrant.
     static func dashboardWorkoutStatus(for plan: WorkoutPlan) -> DashboardWorkoutStatus {
