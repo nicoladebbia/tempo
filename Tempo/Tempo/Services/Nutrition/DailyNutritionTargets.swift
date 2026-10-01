@@ -15,7 +15,10 @@
 //              single-day refund from yesterday's real shortfall.
 //   adjust     NutritionEngine.adjustedTargets — recovery zone + training /
 //              rest day (rest −15%, red +10% kcal/+15% protein, green+training
-//              +20% carbs, yellow+training +10% carbs).
+//              +20% carbs, yellow+training +10% carbs). The rest −15% only
+//              applies to the no-plan estimate: a plan's day is already sized
+//              for its day type, and the TDEE it starts from is a weekly
+//              average, so cutting it again would undershoot the week.
 //
 // `note` is the short human-readable explanation Nutrition Today shows under
 // the calorie bar ("Rest day −15% · +150 kcal from yesterday").
@@ -88,7 +91,14 @@ struct DailyNutritionTargets: Equatable {
             dietaryProfile: dietaryProfile,
             whoopAvgTDEE: whoopAvgTDEE
         )
-        return compute(base: base, carryover: carryover, day: day, recoveryScore: recoveryScore, strain: strain)
+        return compute(
+            base: base,
+            carryover: carryover,
+            day: day,
+            recoveryScore: recoveryScore,
+            strain: strain,
+            planCoversDay: NutritionTargetCalculator.planCoversDay(todayMeals)
+        )
     }
 
     static func compute(
@@ -96,7 +106,11 @@ struct DailyNutritionTargets: Equatable {
         carryover: MacroCarryoverService.DailyAdjustment,
         day: DayContext,
         recoveryScore: Double?,
-        strain: Double? = nil
+        strain: Double? = nil,
+        // True when `base` is a meal plan's baseline for the day. The plan
+        // already sized the day for rest vs training, so the rest −15% is
+        // skipped (recovery / training adjustments still apply).
+        planCoversDay: Bool = false
     ) -> DailyNutritionTargets {
         let withCarryover = NutritionTargetCalculator.applying(carryover, to: base)
         let adjusted = NutritionEngine.adjustedTargets(
@@ -107,7 +121,7 @@ struct DailyNutritionTargets: Equatable {
             recoveryZone: recoveryScore.map { RecoveryZone(score: $0) },
             currentStrain: strain,
             isTrainingDay: day.isTrainingDay,
-            isRestDay: day.isRestDay,
+            isRestDay: day.isRestDay && !planCoversDay,
             baseHydrationMl: DailyHydrationTarget.baseMl(bodyWeightKg: day.bodyWeightKg),
             activityCaloriesBurned: day.activityCaloriesBurned,
             activityDurationMin: day.activityDurationMin
