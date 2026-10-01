@@ -227,6 +227,11 @@ run_scenarios() {
             crashed+=("$name")
         fi
     done
+    # Per-worktree servers: stop this run's one. (Older testenv.sh copies only
+    # have the shared server, whose `down` would stop everyone's.)
+    if grep -q "cmd_servers" "$tenv"; then
+        (cd "$wt" && bash "$tenv" down) >>"$out/testenv.log" 2>&1 || true
+    fi
     if [ ${#crashed[@]} -eq 0 ]; then
         result "$slug" "Scenarios" pass "${#ok[@]} launched: ${ok[*]}"
     else
@@ -234,7 +239,7 @@ run_scenarios() {
     fi
 }
 
-# main last, so the shared local test server is left running main's build.
+# main last.
 for ((t = ${#TARGETS[@]} - 1; t >= 0; t--)); do
     target="${TARGETS[$t]}"
     IFS='|' read -r slug ref title <<<"$target"

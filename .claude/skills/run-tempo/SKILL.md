@@ -56,9 +56,10 @@ scripts/sim.sh qa --local --as alice --free # another account, without Pro
 scripts/testenv.sh ai broken                # fake | broken | empty | slow [secs] | error | real (needs `up --real-ai`)
 scripts/testenv.sh pushes                   # pushes the server sent and whether the simulator got them
 scripts/sim.sh notify urgent                # any notification kind with its real action buttons (`notify help`)
-scripts/testenv.sh status | logs -f | down | reset
+scripts/testenv.sh status | logs -f | down | reset   # this worktree's own server
+scripts/testenv.sh servers [--prune]         # every worktree's server
 # deeper:
-open http://127.0.0.1:58080/v1/test/        # control page: all of the below with buttons
+open "$(scripts/testenv.sh url)/v1/test/"    # control page: all of the below with buttons
 scripts/testenv.sh time set sunday 19:55    # move the server clock (+3d, -2h, reset)
 scripts/testenv.sh job run morning-briefing --as alice [--force]   # jobs never run on their own
 scripts/testenv.sh fault add /v1/nutrition error 503 --count 2     # slow [s] | logout | garbage | empty | timeout; fault clear

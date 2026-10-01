@@ -1,5 +1,6 @@
 #!/bin/bash
-# testenv.sh — one local Tempo test server, shared by every simulator.
+# testenv.sh — local Tempo test servers: one per worktree, so parallel sessions
+# never restart or wipe each other's server.
 #
 # Postgres + Redis run in Docker (OrbStack) on their own ports; the Vapor
 # backend runs natively in TEST MODE: fake Claude/USDA/Open Food Facts/
@@ -8,10 +9,16 @@
 # Only simulator runs started with `sim.sh qa --local` use it; the iPhone
 # keeps talking to production.
 #
+# Every worktree gets its own server: the main checkout on :58080, others on
+# :58081+ with their own database and Redis db (`testenv.sh servers` lists
+# them). Postgres and Redis containers are shared. All commands act on the
+# server of the worktree you run them from.
+#
 #   scripts/testenv.sh up [--rebuild] [--real-ai [--record]]   start (or reuse) the server
-#   scripts/testenv.sh down                          stop server + containers
+#   scripts/testenv.sh down [--all]                  stop this worktree's server (--all: every server + containers)
 #   scripts/testenv.sh status                        what is running, AI mode
-#   scripts/testenv.sh reset                         wipe all test data, restart
+#   scripts/testenv.sh servers [--prune]             every worktree's server (--prune: stop ones whose worktree is gone)
+#   scripts/testenv.sh reset                         wipe this server's test data, restart
 #   scripts/testenv.sh logs [-f]                     server log
 #   scripts/testenv.sh ai <fake|broken|empty|slow|error|real|replay> [slow-seconds]
 #   scripts/testenv.sh pushes [name]                 pushes the server sent
@@ -46,14 +53,70 @@ PG=tempo-test-pg
 REDIS=tempo-test-redis
 PG_PORT=55432
 REDIS_PORT=56379
-PORT=58080
-URL="http://127.0.0.1:$PORT"
-SERVER="$STATE/server"
-PIDFILE="$STATE/server.pid"
-LOG="$STATE/server.log"
-mkdir -p "$STATE"
+LANES="$STATE/lanes"
+MAX_LANES=40
+mkdir -p "$LANES"
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+
+# Lane = one worktree's server. 0 is the main checkout (and anything outside a
+# repo); worktrees get 1..MAX_LANES from $LANES/<n>/ROOT.
+set_lane() {
+    LANE="$1"
+    if [ "$LANE" = 0 ]; then
+        LDIR="$STATE" DB_NAME=tempo_local REDIS_DB=0
+    else
+        LDIR="$LANES/$LANE" DB_NAME="tempo_local_$LANE" REDIS_DB=$((16 + LANE))
+    fi
+    PORT=$((58080 + LANE))
+    URL="http://127.0.0.1:$PORT"
+    SERVER="$LDIR/server"
+    PIDFILE="$LDIR/server.pid"
+    LOG="$LDIR/server.log"
+}
+is_main_checkout() {
+    [ -z "$ROOT" ] && return 0
+    [ "$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir)" = "$(git -C "$ROOT" rev-parse --path-format=absolute --git-dir)" ]
+}
+find_lane() {
+    local d
+    for d in "$LANES"/*/; do
+        [ -f "$d/ROOT" ] && [ "$(cat "$d/ROOT")" = "$ROOT" ] && { basename "$d"; return 0; }
+    done
+    return 1
+}
+# Needs the lock. A lane whose worktree is gone is reused (its data wiped).
+alloc_lane() {
+    local n d
+    find_lane && return 0
+    for n in $(seq 1 $MAX_LANES); do
+        d="$LANES/$n"
+        if [ ! -d "$d" ]; then
+            mkdir -p "$d" && echo "$ROOT" >"$d/ROOT" && echo "$n"
+            return 0
+        fi
+    done
+    for n in $(seq 1 $MAX_LANES); do
+        d="$LANES/$n"
+        if [ ! -d "$(cat "$d/ROOT" 2>/dev/null)" ]; then
+            (set_lane "$n"; stop_server)
+            rm -rf "$d/server"
+            echo "$ROOT" >"$d/ROOT" && touch "$d/FRESH" && echo "$n"
+            return 0
+        fi
+    done
+    die "all $MAX_LANES test servers are taken (scripts/testenv.sh servers --prune)"
+}
+
+if is_main_checkout; then
+    set_lane 0
+elif n="$(find_lane)"; then
+    set_lane "$n"
+else
+    set_lane 0
+    LANE=""  # this worktree has no server yet; `up` allocates one
+fi
+need_lane() { [ -n "$LANE" ] || die "this worktree has no test server yet (scripts/testenv.sh up)"; }
 
 log() { echo "[testenv] $*" >&2; }
 die() { echo "[testenv] ERROR: $*" >&2; exit 1; }
@@ -100,7 +163,15 @@ start_containers() {
     if ! container_running "$REDIS"; then
         docker rm -f "$REDIS" >/dev/null 2>&1 || true
         docker run -d --name "$REDIS" --restart unless-stopped -p "127.0.0.1:$REDIS_PORT:6379" \
-            redis:7-alpine redis-server --save "" --appendonly no >/dev/null
+            redis:7-alpine redis-server --save "" --appendonly no --databases 64 >/dev/null
+    elif [ "$(docker exec "$REDIS" redis-cli CONFIG GET databases | tail -1)" -lt 64 ]; then
+        # Older container with 16 dbs: worktree servers need 17+. Redis only
+        # holds caches and rate limits, so recreating it loses nothing real.
+        log "recreating Redis with 64 databases (one per worktree server)"
+        docker rm -f "$REDIS" >/dev/null
+        docker run -d --name "$REDIS" --restart unless-stopped -p "127.0.0.1:$REDIS_PORT:6379" \
+            redis:7-alpine redis-server --save "" --appendonly no --databases 64 >/dev/null
+        for i in $(seq 1 20); do docker exec "$REDIS" redis-cli ping >/dev/null 2>&1 && break; sleep 0.25; done
     fi
     local i
     for i in $(seq 1 60); do
@@ -110,6 +181,19 @@ start_containers() {
     docker exec "$PG" pg_isready -U tempo -d tempo_local >/dev/null 2>&1 || die "Postgres didn't start"
     docker exec "$PG" psql -U tempo -d tempo_local -tAc "SELECT 1 FROM pg_database WHERE datname='tempo_test'" | grep -q 1 \
         || docker exec "$PG" createdb -U tempo tempo_test
+}
+
+# This lane's own database (lane 0 uses the container's tempo_local). The
+# server migrates an empty one on start.
+lane_db() {
+    [ "$LANE" = 0 ] && return 0
+    if [ -f "$LDIR/FRESH" ]; then
+        docker exec "$PG" dropdb -U tempo --force --if-exists "$DB_NAME"
+        docker exec "$REDIS" redis-cli -n "$REDIS_DB" FLUSHDB >/dev/null
+        rm -f "$LDIR/FRESH"
+    fi
+    docker exec "$PG" psql -U tempo -d tempo_local -tAc "SELECT 1 FROM pg_database WHERE datname='$DB_NAME'" | grep -q 1 \
+        || docker exec "$PG" createdb -U tempo "$DB_NAME"
 }
 
 # Test slot n → its own Postgres database and Redis db (Redis has 16).
@@ -171,8 +255,8 @@ start_server() {
         env -i HOME="$HOME" PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
             TEMPO_TEST_MODE=1 TEMPO_TEST_AI="$ai" TEMPO_TEST_AI_RECORD="$record" \
             TEMPO_TEST_AI_RECORDINGS="$STATE/ai-recordings" LOG_LEVEL=info \
-            DB_HOST=127.0.0.1 DB_PORT="$PG_PORT" DB_USER=tempo DB_PASSWORD=tempo_dev DB_NAME=tempo_local \
-            REDIS_URL="redis://127.0.0.1:$REDIS_PORT" JWT_SECRET=tempo-test-mode-secret \
+            DB_HOST=127.0.0.1 DB_PORT="$PG_PORT" DB_USER=tempo DB_PASSWORD=tempo_dev DB_NAME="$DB_NAME" \
+            REDIS_URL="redis://127.0.0.1:$REDIS_PORT/$REDIS_DB" JWT_SECRET=tempo-test-mode-secret \
             ANTHROPIC_API_KEY="$key" OPENAI_API_KEY=test-mode INSTACART_API_KEY=test-mode USDA_API_KEY=test-mode \
             WHOOP_CLIENT_ID=test-mode WHOOP_CLIENT_SECRET=test-mode PUBLIC_BASE_URL="$URL" \
             nohup ./App serve --env development --hostname 127.0.0.1 --port "$PORT" >>"$LOG" 2>&1 &
@@ -201,7 +285,14 @@ cmd_up() {
     done
     [ "$RECORD_AI" = 1 ] && [ "$REAL_AI" = 0 ] && die "--record needs --real-ai"
     lock
+    if [ -z "$LANE" ]; then
+        local n
+        n="$(alloc_lane)" || exit 1
+        set_lane "$n"
+        log "this worktree's own test server: $URL"
+    fi
     start_containers
+    lane_db
     if [ "$rebuild" = 1 ] || [ ! -x "$SERVER/App" ]; then
         build_server
         stop_server
@@ -217,26 +308,65 @@ cmd_up() {
 
 cmd_down() {
     lock
-    stop_server
-    if command -v docker >/dev/null && docker info >/dev/null 2>&1; then
-        docker rm -f "$PG" "$REDIS" >/dev/null 2>&1 || true
+    if [ "${1:-}" = "--all" ]; then
+        local d
+        (set_lane 0; stop_server)
+        for d in "$LANES"/*/; do [ -d "$d" ] && (set_lane "$(basename "$d")"; stop_server); done
+        if command -v docker >/dev/null && docker info >/dev/null 2>&1; then
+            docker rm -f "$PG" "$REDIS" >/dev/null 2>&1 || true
+        fi
+        log "stopped every test server and the databases (all test data gone)"
+        return
     fi
-    log "stopped (all test data gone)"
+    need_lane
+    stop_server
+    log "stopped $URL (other worktrees' servers keep running; --all stops everything)"
 }
 
 cmd_reset() {
+    need_lane
     lock
     stop_server
-    need_docker
-    docker rm -f "$PG" "$REDIS" >/dev/null 2>&1 || true
     start_containers
+    docker exec "$PG" dropdb -U tempo --force --if-exists "$DB_NAME"
+    docker exec "$PG" createdb -U tempo "$DB_NAME"
+    docker exec "$REDIS" redis-cli -n "$REDIS_DB" FLUSHDB >/dev/null
     start_server
-    log "reset: fresh database, every test account starts empty"
+    log "reset $URL: fresh database, every test account starts empty"
+}
+
+cmd_servers() {
+    local prune=0 d n root state me="$LANE"
+    if [ "${1:-}" = "--prune" ]; then prune=1; lock; fi
+    printf '%-6s %-24s %-9s %s\n' port url state worktree
+    for n in 0 $(cd "$LANES" && ls | sort -n); do
+        if [ "$n" = 0 ]; then
+            root="(main checkout)"
+        else
+            root="$(cat "$LANES/$n/ROOT" 2>/dev/null || echo '?')"
+        fi
+        (
+            set_lane "$n"
+            state=stopped
+            server_pid >/dev/null && state=running
+            if [ "$n" != 0 ] && [ ! -d "$root" ]; then
+                if [ "$prune" = 1 ]; then
+                    stop_server
+                    docker exec "$PG" dropdb -U tempo --force --if-exists "$DB_NAME" 2>/dev/null || true
+                    rm -rf "$LANES/$n"
+                    state=pruned
+                fi
+                root="$root  (worktree gone)"
+            fi
+            if [ "$n" = "$me" ]; then root="$root  ← you"; fi
+            printf '%-6s %-24s %-9s %s\n' "$PORT" "$URL" "$state" "$root"
+        )
+    done
 }
 
 cmd_status() {
     local pid
-    if pid="$(server_pid)" && healthy; then
+    if [ -n "$LANE" ] && pid="$(server_pid)" && healthy; then
         echo "server   running (pid $pid) $URL"
         echo "source   $(cat "$SERVER/SOURCE" 2>/dev/null || echo '?')"
         curl -fsS -m 3 "$URL/v1/test/status" | python3 -c '
@@ -260,7 +390,16 @@ if s.get("access_ttl_seconds", 900) != 900:
 print("control  " + sys.argv[1] + "/v1/test/   (open in a browser)")
 ' "$URL" || echo "test API not answering (built without test mode? run: testenv.sh up --rebuild)"
     else
-        echo "server   not running   (scripts/testenv.sh up)"
+        if [ -n "$LANE" ]; then
+            echo "server   not running   (scripts/testenv.sh up)"
+        else
+            echo "server   none for this worktree yet   (scripts/testenv.sh up)"
+        fi
+    fi
+    local others
+    others="$(cmd_servers | awk 'NR > 1 && $3 == "running" && !/← you/' | wc -l | tr -d ' ')"
+    if [ "$others" -gt 0 ]; then
+        echo "others   $others other worktree server(s) running (scripts/testenv.sh servers)"
     fi
     if command -v docker >/dev/null && docker info >/dev/null 2>&1; then
         container_running "$PG" && echo "postgres 127.0.0.1:$PG_PORT" || echo "postgres down"
@@ -290,14 +429,15 @@ for p in json.load(sys.stdin):
 
 case "${1:-status}" in
     up) shift; cmd_up "$@" ;;
-    down) cmd_down ;;
+    down) shift; cmd_down "$@" ;;
     reset) cmd_reset ;;
+    servers) shift; cmd_servers "$@" ;;
     status) cmd_status ;;
-    logs) if [ "${2:-}" = "-f" ]; then tail -f "$LOG"; else tail -100 "$LOG"; fi ;;
-    ai) shift; cmd_ai "$@" ;;
-    fault | auth | sign-out | users | time | job | sub | persona | shared) TEMPO_TEST_URL="$URL" python3 "$(dirname "$0")/testctl.py" "$@" ;;
-    pushes) shift; cmd_pushes "$@" ;;
-    url) echo "$URL" ;;
+    logs) need_lane; if [ "${2:-}" = "-f" ]; then tail -f "$LOG"; else tail -100 "$LOG"; fi ;;
+    ai) shift; need_lane; cmd_ai "$@" ;;
+    fault | auth | sign-out | users | time | job | sub | persona | shared) need_lane; TEMPO_TEST_URL="$URL" python3 "$(dirname "$0")/testctl.py" "$@" ;;
+    pushes) shift; need_lane; cmd_pushes "$@" ;;
+    url) need_lane; echo "$URL" ;;
     db)
         slot="${2:-1}"; check_slot "$slot"
         lock; start_containers

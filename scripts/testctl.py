@@ -2,8 +2,8 @@
 """testctl.py — control the local test server's test-only features.
 
 Called by scripts/testenv.sh (`testenv.sh fault ...` etc.); runnable directly.
-Talks to /v1/test/* on the server testenv.sh started (TEMPO_TEST_URL or
-http://127.0.0.1:58080).
+Talks to /v1/test/* on this worktree's server (testenv.sh passes TEMPO_TEST_URL;
+default http://127.0.0.1:58080, the main checkout's).
 
   fault add <path-prefix> <kind> [value] [--count N] [--method GET] [--as NAME]
         kinds: error [status] | slow [secs] | logout | garbage | empty | timeout
