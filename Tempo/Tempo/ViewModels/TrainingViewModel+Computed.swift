@@ -60,12 +60,7 @@ extension TrainingViewModel {
 
     var formattedVolume: String {
         // totalVolume is kg-stored; show in the user's unit.
-        let vol = WeightUnit.kg.convert(totalVolume, to: weightUnit)
-        let unit = weightUnit.abbreviation
-        if vol >= 1000 {
-            return String(format: "%.1fk %@", vol / 1000, unit)
-        }
-        return "\(Int(vol)) \(unit)"
+        WeightFormat.volumeText(kg: totalVolume, unit: weightUnit)
     }
 
     /// Working-set count for the current exercise (excludes warmup) so the

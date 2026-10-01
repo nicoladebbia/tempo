@@ -1920,11 +1920,10 @@ struct TodayWorkoutView: View {
     private func bestSetSummary(history: ExerciseHistory) -> String {
         let unit = settings?.weightUnit ?? .kg
         if let w = history.bestSetWeight, w > 0 {
-            let converted = WeightUnit.kg.convert(w, to: unit)
             if let r = history.bestSetReps {
-                return "\(Int(converted))\(unit.abbreviation)x\(r)"
+                return "\(WeightFormat.text(kg: w, unit: unit)) × \(r)"
             }
-            return "\(Int(converted))\(unit.abbreviation)"
+            return WeightFormat.text(kg: w, unit: unit)
         }
         return "done"
     }

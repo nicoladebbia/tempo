@@ -35,6 +35,7 @@ struct SundayWrapUpSheet: View {
     private var modelContext
     @Environment(\.dismiss)
     private var dismiss
+    @Query private var userSettings: [UserSettings]
 
     @State
     private var step: Step = .recap
@@ -158,7 +159,11 @@ struct SundayWrapUpSheet: View {
         weekOverWeek.exercises
             .sorted { abs($0.e1RMDelta ?? 0) > abs($1.e1RMDelta ?? 0) }
             .prefix(3)
-            .map(\.recapLine)
+            .map { $0.recapLine(unit: weightUnit) }
+    }
+
+    private var weightUnit: WeightUnit {
+        userSettings.first?.weightUnit ?? .kg
     }
 
     private var topConditioningLines: [String] {

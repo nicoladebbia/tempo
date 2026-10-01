@@ -441,8 +441,7 @@ struct MoveQuadrantDetailView: View {
                         Spacer()
 
                         let dur = workout.durationMinutes ?? workout.actualDurationMinutes
-                        let vol = WeightUnit.kg.convert(workout.totalVolume, to: weightUnit)
-                        Text(volumeHistoryLabel(durationMinutes: dur, volume: vol))
+                        Text(volumeHistoryLabel(durationMinutes: dur, volumeKg: workout.totalVolume))
                             .font(.tempoCaption1)
                             .foregroundStyle(Color.tempoTextSecondary)
                     }
@@ -460,11 +459,8 @@ struct MoveQuadrantDetailView: View {
         .tempoShadow(.card)
     }
 
-    private func volumeHistoryLabel(durationMinutes: Int?, volume: Double) -> String {
-        let unit = weightUnit.abbreviation
-        let volStr = volume >= 1000
-            ? String(format: "%.1fk %@", volume / 1000, unit)
-            : "\(Int(volume)) \(unit)"
+    private func volumeHistoryLabel(durationMinutes: Int?, volumeKg: Double) -> String {
+        let volStr = WeightFormat.volumeText(kg: volumeKg, unit: weightUnit)
         if let dur = durationMinutes {
             return "\(dur)m · \(volStr)"
         }

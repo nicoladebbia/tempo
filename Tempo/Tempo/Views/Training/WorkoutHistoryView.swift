@@ -700,9 +700,8 @@ struct WorkoutHistoryView: View {
                             // blank "--" it was before), tagged and lighter.
                             let w = set.actualWeight ?? set.targetWeight ?? 0
                             let r = set.actualReps ?? set.targetReps
-                            let dispW = WeightUnit.kg.convert(w, to: weightUnit)
                             // Fix #9 — a per-side ramp target reads "x8/side".
-                            Text("\(Int(dispW))x\(SideRepsFormat.reps(r, perSide: plannedEx.perSide))")
+                            Text("\(WeightFormat.number(kg: w, unit: weightUnit))x\(SideRepsFormat.reps(r, perSide: plannedEx.perSide))")
                                 .font(.system(size: 11, design: .monospaced))
                                 .foregroundStyle(Color.tempoTextTertiary)
                                 .padding(.horizontal, 4)
@@ -715,14 +714,13 @@ struct WorkoutHistoryView: View {
                                 .font(.tempoCaption2)
                                 .foregroundStyle(Color.tempoTextTertiary)
                         } else if set.completed, let weight = set.actualWeight, let reps = set.actualReps {
-                            let dispW = WeightUnit.kg.convert(weight, to: weightUnit)
                             // Fix #9 — "x8/side", or "xL8/R7" when the
                             // athlete logged an uneven L/R split.
                             let repsText = SideRepsFormat.loggedReps(
                                 actual: reps, left: set.actualRepsLeft, right: set.actualRepsRight,
                                 perSide: plannedEx.perSide
                             )
-                            Text("\(Int(dispW))x\(repsText)")
+                            Text("\(WeightFormat.number(kg: weight, unit: weightUnit))x\(repsText)")
                                 .font(.system(size: 11, design: .monospaced))
                                 .foregroundStyle(Color.tempoTextSecondary)
                                 .padding(.horizontal, 4)
@@ -770,11 +768,6 @@ struct WorkoutHistoryView: View {
 
     /// Formats a kg volume into the user's preferred unit.
     private func formatVolume(_ volumeKg: Double) -> String {
-        let v = WeightUnit.kg.convert(volumeKg, to: weightUnit)
-        let unit = weightUnit.abbreviation
-        if v >= 1000 {
-            return String(format: "%.1fk %@", v / 1000, unit)
-        }
-        return "\(Int(v)) \(unit)"
+        WeightFormat.volumeText(kg: volumeKg, unit: weightUnit)
     }
 }

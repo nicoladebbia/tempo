@@ -336,7 +336,7 @@ struct MuscleHeatmapView: View {
                             .foregroundStyle(Color.tempoTextPrimary)
                         Spacer()
                         if let best = row.bestSetWeight {
-                            Text("\(volumeLabel(best)) × \(row.bestSetReps ?? 0)")
+                            Text("\(WeightFormat.text(kg: best, unit: weightUnit)) × \(row.bestSetReps ?? 0)")
                                 .font(.tempoCaption1)
                                 .foregroundStyle(Color.tempoTextSecondary)
                         }
@@ -362,10 +362,6 @@ struct MuscleHeatmapView: View {
     }
 
     private func volumeLabel(_ kg: Double) -> String {
-        let display = WeightUnit.kg.convert(kg, to: weightUnit)
-        let formatted = display >= 1000
-            ? String(format: "%.1fk", display / 1000)
-            : String(format: "%.0f", display)
-        return "\(formatted) \(weightUnit.abbreviation)"
+        WeightFormat.volumeText(kg: kg, unit: weightUnit)
     }
 }

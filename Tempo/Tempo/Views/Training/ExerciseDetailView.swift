@@ -281,7 +281,7 @@ struct ExerciseDetailView: View {
                 statItem(
                     label: "Current 1RM",
                     value: current1RM
-                        .map { String(format: "%.1f %@", WeightUnit.kg.convert($0, to: weightUnit), weightUnit.abbreviation) } ?? "—"
+                        .map { WeightFormat.text(kg: $0, unit: weightUnit) } ?? "—"
                 )
                 statItem(
                     label: "Best Set",
@@ -305,7 +305,7 @@ struct ExerciseDetailView: View {
                         .foregroundStyle(Color.tempoPRGold) // prGold
 
                     Text(
-                        "All-Time 1RM PR: \(String(format: "%.1f", WeightUnit.kg.convert(allTimePR, to: weightUnit))) \(weightUnit.abbreviation)"
+                        "All-Time 1RM PR: \(WeightFormat.text(kg: allTimePR, unit: weightUnit))"
                     )
                     .font(.tempoBody)
                     .foregroundStyle(Color.tempoTextPrimary)
@@ -379,7 +379,7 @@ struct ExerciseDetailView: View {
                         }
                         return TempoLineChartData<String>.DataPoint(
                             date: entry.date,
-                            value: e1rm
+                            value: WeightUnit.kg.convert(e1rm, to: weightUnit)
                         )
                     }
                 )
@@ -528,16 +528,11 @@ struct ExerciseDetailView: View {
         guard let w = weight, let r = reps else {
             return "—"
         }
-        let converted = WeightUnit.kg.convert(w, to: weightUnit)
-        return "\(Int(converted))\(weightUnit.abbreviation) x \(r)"
+        return "\(WeightFormat.text(kg: w, unit: weightUnit)) × \(r)"
     }
 
     private func formatVolume(_ volume: Double) -> String {
-        let converted = WeightUnit.kg.convert(volume, to: weightUnit)
-        if converted >= 1000 {
-            return String(format: "%.1fk %@", converted / 1000, weightUnit.abbreviation)
-        }
-        return "\(Int(converted)) \(weightUnit.abbreviation)"
+        WeightFormat.volumeText(kg: volume, unit: weightUnit)
     }
 
     private var equipmentLabel: String {

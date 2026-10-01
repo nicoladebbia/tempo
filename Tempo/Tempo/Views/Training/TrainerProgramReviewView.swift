@@ -883,8 +883,8 @@ private struct ExerciseRowEditor: View {
                !TrainingViewModel.isIsolationOrMachine(matched),
                let e1RM = TrainingViewModel.reliableEstimated1RM(for: matched), e1RM > 0
             {
-                let maxDisplay = Int(WeightUnit.kg.convert(e1RM, to: weightUnit).rounded())
-                let weightDisplay = Int(WeightUnit.kg.convert(e1RM * min(pct, 1.1), to: weightUnit).rounded())
+                let maxDisplay = WeightFormat.number(kg: e1RM, unit: weightUnit)
+                let weightDisplay = WeightFormat.number(kg: e1RM * min(pct, 1.1), unit: weightUnit)
                 Text("\(percentLabel) of your \(maxDisplay) \(weightUnit.abbreviation) max = \(weightDisplay) \(weightUnit.abbreviation)")
                     .font(.tempoCaption2)
                     .foregroundStyle(Color.tempoTextTertiary)

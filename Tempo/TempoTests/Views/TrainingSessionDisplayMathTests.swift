@@ -49,11 +49,11 @@ final class TrainingSessionDisplayMathTests: XCTestCase {
         let pr = PersonalRecord(type: .oneRepMax, value: 100, date: Date(), context: "999kg x 5 reps")
         // The context string is deliberately garbage/wrong here — the label
         // must ignore it entirely and derive everything from pr.value.
-        let kgLabel = PRDisplay.weightLabel(pr, unit: .kg, decimals: 0)
+        let kgLabel = PRDisplay.weightLabel(pr, unit: .kg)
         XCTAssertEqual(kgLabel, "100 kg")
 
-        let lbsLabel = PRDisplay.weightLabel(pr, unit: .lbs, decimals: 0)
-        XCTAssertEqual(lbsLabel, "220 lbs", "100 kg is ~220 lbs, not '999' anything")
+        let lbsLabel = PRDisplay.weightLabel(pr, unit: .lbs)
+        XCTAssertEqual(lbsLabel, "220.5 lbs", "100 kg is ~220.5 lbs, not '999' anything")
     }
 
     func testSubtitleParsesRepsFromContextForRepMaxOnly() {

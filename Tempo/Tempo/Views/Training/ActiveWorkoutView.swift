@@ -168,8 +168,7 @@ struct ActiveWorkoutView: View {
     /// Human hint under the added-load stepper: "= 77.7 kg effective · assisted".
     private var bodyweightEffectiveHint: String {
         let unit = weightUnit.abbreviation
-        let effDisplay = WeightUnit.kg.convert(bodyweightEffectiveKg, to: weightUnit)
-        let effStr = String(format: weightUnit == .kg ? "%.1f" : "%.0f", effDisplay)
+        let effStr = WeightFormat.number(kg: bodyweightEffectiveKg, unit: weightUnit)
         let tag = if inputAddedLoad > 0 {
             "weighted"
         } else if inputAddedLoad < 0 {
@@ -655,7 +654,7 @@ struct ActiveWorkoutView: View {
 
     /// Display-unit conversion for stored-kg history values.
     private func displayWeight(_ kg: Double) -> String {
-        String(format: "%.0f", WeightUnit.kg.convert(kg, to: weightUnit))
+        WeightFormat.number(kg: kg, unit: weightUnit)
     }
 
     /// Best working set of the most recent PRIOR session of this lift.
@@ -1045,8 +1044,7 @@ struct ActiveWorkoutView: View {
     private func warmupTargetLabel(_ set: PlannedSet) -> String {
         let reps = SideRepsFormat.reps(set.targetReps, perSide: set.plannedExercise?.perSide == true)
         if let w = set.targetWeight, w > 0 {
-            let display = WeightUnit.kg.convert(w, to: weightUnit)
-            return "\(Int(display)) \(weightUnit.abbreviation) × \(reps)"
+            return "\(WeightFormat.text(kg: w, unit: weightUnit)) × \(reps)"
         }
         return "Bodyweight × \(reps)"
     }

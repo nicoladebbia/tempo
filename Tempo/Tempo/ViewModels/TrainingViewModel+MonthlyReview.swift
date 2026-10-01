@@ -111,10 +111,11 @@ extension TrainingViewModel {
         let prRows = (try? modelContext.fetch(FetchDescriptor<PersonalRecord>(
             predicate: #Predicate { $0.date >= start && $0.date < end }
         ))) ?? []
+        let prUnit = currentWeightUnit(modelContext: modelContext)
         let prs = prRows.map {
             MonthPRSnapshot(
-                label: "\($0.exercise?.name ?? "Unknown") \($0.typeRaw) "
-                    + ($0.type == .mostReps ? "\(Int($0.value)) reps" : "\(Int($0.value))kg"),
+                label: "\($0.exercise?.name ?? "Unknown") \(PRDisplay.subtitle($0)) "
+                    + PRDisplay.valueLabel($0, unit: prUnit),
                 date: $0.date
             )
         }

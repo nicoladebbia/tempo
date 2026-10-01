@@ -339,6 +339,6 @@ struct StrengthProgressLabView: View {
     }
 
     private func weightLabel(_ kg: Double) -> String {
-        String(format: "%.0f %@", display(kg), weightUnit.abbreviation)
+        WeightFormat.text(kg: kg, unit: weightUnit)
     }
 }

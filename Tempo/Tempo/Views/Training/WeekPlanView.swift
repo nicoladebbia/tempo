@@ -326,11 +326,7 @@ struct WeekPlanView: View {
     }
 
     private func volumeLabel(_ kg: Double) -> String {
-        let value = WeightUnit.kg.convert(kg, to: weightUnit)
-        if value >= 10000 {
-            return String(format: "%.1fk %@", value / 1000, weightUnit.abbreviation)
-        }
-        return String(format: "%.0f %@", value, weightUnit.abbreviation)
+        WeightFormat.volumeText(kg: kg, unit: weightUnit)
     }
 
     private var weekPulse: some View {
