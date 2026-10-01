@@ -58,7 +58,9 @@ final class NutritionReviewFixesTests: XCTestCase {
 
     func testPieceWeightUsesPurchaseGramsForLoafButNotEgg() throws {
         let bread = try XCTUnwrap(FoodMacroDatabase.naturalPortions["whole grain bread"])
-        XCTAssertEqual(try XCTUnwrap(PantryUnit.pieces.gramsPerUnit(of: bread)), bread.purchaseGrams, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(PantryUnit.pieces.gramsPerUnit(of: bread, purchased: true)), bread.purchaseGrams, accuracy: 0.001)
+        // Voice/manual "12 pieces" are slices, not loaves.
+        XCTAssertEqual(try XCTUnwrap(PantryUnit.pieces.gramsPerUnit(of: bread)), bread.grams, accuracy: 0.001)
         let egg = try XCTUnwrap(FoodMacroDatabase.naturalPortions["egg"])
         XCTAssertEqual(try XCTUnwrap(PantryUnit.pieces.gramsPerUnit(of: egg)), 50, accuracy: 0.001)
     }

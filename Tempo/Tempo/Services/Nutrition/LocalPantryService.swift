@@ -114,7 +114,9 @@ final class LocalPantryService: PantryServiceProtocol {
         if let existing {
             let wasInStock = existing.isInStock
             existing.increment(by: quantity)
-            if !wasInStock || existing.isExpired {
+            // Only a SPENT row restarts its clock; an expired batch still in
+            // stock keeps its dates so the merged row doesn't hide it.
+            if !wasInStock {
                 existing.purchaseDate = purchaseDate ?? Date()
             }
             if existing.purchaseDate == nil {
@@ -140,10 +142,11 @@ final class LocalPantryService: PantryServiceProtocol {
                 byAdding: .day, value: days, to: purchaseDate ?? Date()
             )
             if let candidateUseBy {
-                // An already-expired (or used-up) older batch must not drag
-                // the fresh restock's use-by into the past — the old stock
-                // was the bad one; the new batch has its own clock.
-                let oldBatchSpent = wasInStock == false || existing.isExpired
+                // A used-up older batch must not drag the fresh restock's
+                // use-by into the past. An expired batch still IN STOCK keeps
+                // its (earlier) use-by instead: the merged row stays flagged
+                // expired rather than silently hiding food that is off.
+                let oldBatchSpent = wasInStock == false
                 existing.useBy = oldBatchSpent
                     ? candidateUseBy
                     : [existing.useBy, candidateUseBy].compactMap(\.self).min()
