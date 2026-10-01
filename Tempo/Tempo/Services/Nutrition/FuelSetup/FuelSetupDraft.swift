@@ -349,9 +349,10 @@ extension FuelSetupDraft {
             settings.mealsPerDayPreference = mealsPerDay ?? settings.mealsPerDayPreference
             settings.cookTimeWeekdayMins = cookMinutesWeekday ?? settings.cookTimeWeekdayMins
             settings.cookTimeWeekendMins = cookMinutesWeekend ?? settings.cookTimeWeekendMins
-            if let days = cookableDaysPerWeek, days != settings.mealIntakeCookableDays {
+            if cookableDaysPerWeek != nil {
                 // The wizard's "this week" answer would otherwise keep
-                // winning over the days just saved here.
+                // winning over the days just saved here, even when they
+                // equal the stored value.
                 settings.mealIntakeTempWeekStart = nil
                 settings.mealIntakeTempCookableDays = nil
             }

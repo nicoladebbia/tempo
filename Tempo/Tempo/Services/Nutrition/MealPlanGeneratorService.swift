@@ -882,7 +882,8 @@ final class MealPlanGeneratorService: @unchecked Sendable {
                 let qty = PantryQuantityFormatter.text(
                     quantity: item.quantity,
                     unit: item.unit,
-                    canonicalName: item.canonicalName
+                    canonicalName: item.canonicalName,
+                    purchased: item.weighsPurchaseUnit
                 )
                 return "\(item.canonicalName) — \(qty) [\(item.storageLocation.displayName)]"
             }

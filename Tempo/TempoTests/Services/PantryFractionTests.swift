@@ -213,4 +213,18 @@ final class PantryFractionTests: XCTestCase {
         XCTAssertEqual(rice.unit, .packs)
         XCTAssertEqual(PantryGroceryBridge.restockDefault(canonicalName: "mystery goo").unit, .pieces)
     }
+
+    func testUndoIntoFallbackRowConvertsLoafToSlices() throws {
+        let bread = try XCTUnwrap(FoodMacroDatabase.naturalPortions["whole grain bread"])
+        let loaf = PantryItem(canonicalName: "whole grain bread", displayName: "Bread",
+                              quantity: 1, unit: .pieces, purchaseSource: .groceryConfirm)
+        context.insert(loaf)
+        try context.save()
+        let detail = PantryDecrementDetail(pantryItemID: loaf.id, canonicalName: "whole grain bread",
+                                           unitRaw: PantryUnit.pieces.rawValue, amount: 0.5, purchased: true)
+        loaf.isArchived = true
+        let slices = insert("whole grain bread", 2, .pieces) // typed slices
+        PantryDecrementService.creditExact(details: [detail], modelContext: context)
+        XCTAssertEqual(slices.quantity, 2 + 0.5 * bread.purchaseGrams / bread.grams, accuracy: 0.01)
+    }
 }

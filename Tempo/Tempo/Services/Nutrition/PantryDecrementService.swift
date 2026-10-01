@@ -21,6 +21,9 @@ struct PantryDecrementDetail: Codable, Sendable, Equatable {
     let unitRaw: String
     /// Amount applied, in the pantry item's OWN unit, always positive.
     let amount: Double
+    /// The row weighed whole purchase units (bought loaf) when decremented.
+    /// Nil on details recorded before this field existed (read as false).
+    var purchased: Bool? = nil
 }
 
 // MARK: - PantryDecrementResult
@@ -151,7 +154,8 @@ enum PantryDecrementService {
                         canonicalName: name,
                         displayName: FoodCanonicalizer.displayName(name),
                         quantity: 0,
-                        unit: unit
+                        unit: unit,
+                        purchaseSource: detail.purchased == true ? .groceryConfirm : .manual
                     )
                     modelContext.insert(fresh)
                     item = fresh
@@ -166,10 +170,16 @@ enum PantryDecrementService {
             // since switched units would silently corrupt the quantity
             // (e.g. crediting 200 straight into a row now in kilograms
             // instead of grams). Convert through grams when they differ.
+            // The amount is read the way the ORIGINAL row weighed its pieces;
+            // a fallback row may weigh them differently (loaf vs slice).
+            let detailPurchased = detail.purchased ?? item.weighsPurchaseUnit
             if item.unitRaw == detail.unitRaw {
-                item.quantity = clean(item.quantity + detail.amount)
+                item.quantity = clean(item.quantity + item.unit.convert(
+                    detail.amount, foodName: detail.canonicalName,
+                    fromPurchased: detailPurchased, toPurchased: item.weighsPurchaseUnit
+                ))
             } else if let detailUnit = PantryUnit(rawValue: detail.unitRaw),
-                      let grams = gramsEquivalent(pantryAmount: detail.amount, canonicalName: detail.canonicalName, unit: detailUnit, purchased: item.weighsPurchaseUnit),
+                      let grams = gramsEquivalent(pantryAmount: detail.amount, canonicalName: detail.canonicalName, unit: detailUnit, purchased: detailPurchased),
                       let converted = convertGramsToPantryUnit(grams: grams, canonicalName: detail.canonicalName, unit: item.unit, purchased: item.weighsPurchaseUnit)
             {
                 item.quantity = clean(item.quantity + converted)
@@ -388,7 +398,8 @@ enum PantryDecrementService {
             row.quantity = clean(max(0, row.quantity - consume))
             row.updatedAt = Date()
             details.append(PantryDecrementDetail(
-                pantryItemID: row.id, canonicalName: canonical, unitRaw: row.unitRaw, amount: consume
+                pantryItemID: row.id, canonicalName: canonical, unitRaw: row.unitRaw, amount: consume,
+                purchased: row.weighsPurchaseUnit
             ))
             remainingGrams = max(0, remainingGrams - gramsConsumed)
             totalRemainingStock += row.quantity

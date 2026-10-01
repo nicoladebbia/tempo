@@ -113,7 +113,14 @@ final class LocalPantryService: PantryServiceProtocol {
 
         if let existing {
             let wasInStock = existing.isInStock
-            existing.increment(by: quantity)
+            // A bought loaf merged into a typed-slices row (or the reverse)
+            // is re-expressed in the row's own reading, so one row never
+            // mixes loaves and slices.
+            existing.increment(by: unit.convert(
+                quantity, foodName: canonical,
+                fromPurchased: purchaseSource.weighsPurchaseUnit,
+                toPurchased: existing.weighsPurchaseUnit
+            ))
             // Only a SPENT row restarts its clock; an expired batch still in
             // stock keeps its dates so the merged row doesn't hide it.
             if !wasInStock {
@@ -122,8 +129,11 @@ final class LocalPantryService: PantryServiceProtocol {
             if existing.purchaseDate == nil {
                 existing.purchaseDate = purchaseDate
             }
-            // Receipt-driven adds upgrade the source from manual to receipt_scan.
-            if purchaseSource == .receiptScan {
+            // Receipt-driven adds upgrade the source from manual to receipt_scan,
+            // unless that would flip how the row's pieces are weighed.
+            if purchaseSource == .receiptScan,
+               existing.weighsPurchaseUnit || !unit.hasDistinctPurchaseWeight(foodName: canonical)
+            {
                 existing.purchaseSourceRaw = PantryPurchaseSource.receiptScan.rawValue
             }
             if sourceReceiptLineItemID != nil {
@@ -223,6 +233,13 @@ final class LocalPantryService: PantryServiceProtocol {
         if let existing {
             let previous = existing.quantity
             existing.quantity = max(0, quantity)
+            // "I have 6 slices" on a bought-loaf row: the new total is in the
+            // speaker's reading, so the row now weighs pieces that way.
+            if existing.weighsPurchaseUnit != purchaseSource.weighsPurchaseUnit,
+               unit.hasDistinctPurchaseWeight(foodName: canonical)
+            {
+                existing.purchaseSource = purchaseSource
+            }
             existing.updatedAt = Date()
             if existing.purchaseDate == nil {
                 existing.purchaseDate = purchaseDate

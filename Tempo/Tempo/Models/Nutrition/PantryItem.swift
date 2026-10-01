@@ -101,6 +101,26 @@ enum PantryUnit: String, Codable, CaseIterable, Sendable {
         }
     }
 
+    /// Re-expresses `quantity` of this unit from one piece reading to the
+    /// other ("2 loaves" bought ↔ "~53 slices" typed). Returns `quantity`
+    /// unchanged when both readings weigh the same or the food is unknown.
+    func convert(_ quantity: Double, foodName: String, fromPurchased: Bool, toPurchased: Bool) -> Double {
+        guard fromPurchased != toPurchased,
+              let grams = gramsApprox(quantity: quantity, foodName: foodName, purchased: fromPurchased),
+              let perUnit = gramsApprox(quantity: 1, foodName: foodName, purchased: toPurchased),
+              perUnit > 0
+        else {
+            return quantity
+        }
+        return grams / perUnit
+    }
+
+    /// True when a purchased and a typed `.pieces` of this food weigh
+    /// differently (loaf vs slice), so a row can't mix the two readings.
+    func hasDistinctPurchaseWeight(foodName: String) -> Bool {
+        convert(1, foodName: foodName, fromPurchased: true, toPurchased: false) != 1
+    }
+
     /// A countable row at or below this is "used up" (≈5% of one unit). Mass
     /// and volume rows only deplete at exactly zero.
     var depletedThreshold: Double {
@@ -216,6 +236,12 @@ enum PantryPurchaseSource: String, Codable, CaseIterable, Sendable {
     case receiptScan = "receipt_scan"
     case groceryConfirm = "grocery_confirm"
     case prepStep = "prep_step"
+
+    /// A store purchase (grocery confirm or receipt): a `.pieces` row of a
+    /// loaf/ball food counts whole purchase units, not single slices.
+    var weighsPurchaseUnit: Bool {
+        self == .groceryConfirm || self == .receiptScan
+    }
 }
 
 // MARK: - PantryItem
@@ -332,7 +358,7 @@ final class PantryItem {
     /// stock than the user actually has.
     @Transient
     var weighsPurchaseUnit: Bool {
-        purchaseSource == .groceryConfirm || purchaseSource == .receiptScan
+        purchaseSource.weighsPurchaseUnit
     }
 
     /// Days until `useBy`, computed on calendar-day boundaries (not sub-day

@@ -401,7 +401,7 @@ struct PantryView: View {
                     }
                 }
                 HStack(spacing: 6) {
-                    Text(PantryQuantityFormatter.text(quantity: item.quantity, unit: item.unit, canonicalName: item.canonicalName))
+                    Text(PantryQuantityFormatter.text(quantity: item.quantity, unit: item.unit, canonicalName: item.canonicalName, purchased: item.weighsPurchaseUnit))
                         .font(.tempoCaption1)
                         .foregroundStyle(Color.tempoTextSecondary)
                     if let useBy = item.useBy {

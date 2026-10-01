@@ -116,7 +116,8 @@ enum GroceryListGenerator {
                 continue
             }
             guard let onHandGrams = pantryItem.unit.gramsApprox(
-                quantity: pantryItem.quantity, foodName: canonical
+                quantity: pantryItem.quantity, foodName: canonical,
+                purchased: pantryItem.weighsPurchaseUnit
             ) else {
                 continue
             }

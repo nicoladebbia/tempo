@@ -54,10 +54,9 @@ enum SupplementIntakeStore {
                 return found
             }
         }
-        let byName = FetchDescriptor<Supplement>(
-            predicate: #Predicate<Supplement> { $0.name == name && !$0.isArchived }
-        )
-        return (try? modelContext.fetch(byName))?.first
+        // Same stable order as `takenIDs`' legacy owner, so an ID-less tap
+        // and the legacy log agree on which same-named item they mean.
+        return shelfItems(named: name, in: modelContext).first
     }
 
     /// IDs of shelf items taken on `day`. A legacy name-only row marks only the
