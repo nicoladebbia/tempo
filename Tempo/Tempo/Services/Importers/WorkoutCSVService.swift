@@ -278,6 +278,17 @@ enum WorkoutCSVService {
     /// big enough not to drown in scheduling.
     private static let workoutsPerBatch = 20
 
+    /// Bodyweight (kg) assumed for imported pull-up / dip rows when the
+    /// athlete's profile has none — the same default the live logger's inline
+    /// bodyweight prompt starts from (ActiveWorkoutView).
+    static let defaultBodyweightKg = 70.0
+
+    /// "Pull Up (Assisted)", "Assisted Dip": the file's weight is the help the
+    /// athlete got, not load they carried.
+    static func isAssistedName(_ name: String) -> Bool {
+        name.lowercased().contains("assist")
+    }
+
     /// Parse + persist. One completed WorkoutPlan per (start time, name)
     /// group, one ExerciseHistory row per exercise — the same shape
     /// persistCompletion writes, so charts and progression see the history.
@@ -287,11 +298,14 @@ enum WorkoutCSVService {
         _ text: String,
         assumedUnit: WeightUnit? = nil,
         batchID: UUID = UUID(),
+        bodyweightKg: Double? = nil,
         modelContext: ModelContext,
-        progress: (@MainActor (Double) -> Void)? = nil
+        progress: (@MainActor (Double) -> Void)? = nil,
+        willInsert: (@MainActor (UUID) -> Void)? = nil
     ) async throws -> ImportSummary {
         try await importParsed(
-            parse(text), assumedUnit: assumedUnit, batchID: batchID, modelContext: modelContext, progress: progress
+            parse(text), assumedUnit: assumedUnit, batchID: batchID, bodyweightKg: bodyweightKg,
+            modelContext: modelContext, progress: progress, willInsert: willInsert
         )
     }
 
@@ -302,8 +316,10 @@ enum WorkoutCSVService {
         _ parsed: ParsedFile,
         assumedUnit: WeightUnit? = nil,
         batchID: UUID = UUID(),
+        bodyweightKg: Double? = nil,
         modelContext: ModelContext,
-        progress: (@MainActor (Double) -> Void)? = nil
+        progress: (@MainActor (Double) -> Void)? = nil,
+        willInsert: (@MainActor (UUID) -> Void)? = nil
     ) async throws -> ImportSummary {
         let format = parsed.format
         let sets = parsed.sets
@@ -332,6 +348,9 @@ enum WorkoutCSVService {
         var candidates = library.map { ExerciseMatcher.Candidate(id: $0.id, name: $0.name) }
         var resolved: [String: Exercise] = [:]
         var records = ImportedRecordReplay()
+        // Effective load of a bodyweight lift = bodyweight + added, as live.
+        let bodyweight = (bodyweightKg ?? 0) > 0 ? (bodyweightKg ?? 0) : defaultBodyweightKg
+        var announced = false
 
         let orderedKeys = groups.keys.sorted(by: { $0.start < $1.start })
         for (position, key) in orderedKeys.enumerated() {
@@ -357,6 +376,14 @@ enum WorkoutCSVService {
                 ?? key.start
             plan.notes = "Imported from \(format.rawValue)"
             plan.importBatchID = batchID
+            // Tell the caller the batch id before the first row exists: the
+            // context autosaves in the background (every yield above is a
+            // chance), so a kill mid-import can leave a partial batch, and
+            // the caller's "undo last import" pointer must already cover it.
+            if !announced {
+                announced = true
+                willInsert?(batchID)
+            }
             modelContext.insert(plan)
 
             // Exercises in first-appearance order (CSV rows are in set order).
@@ -399,23 +426,34 @@ enum WorkoutCSVService {
                 let slot = PlannedExercise(order: order, workoutPlan: plan, exercise: exercise)
                 var planned: [PlannedSet] = []
                 let bodyweightLift = TrainingEngine.usesBodyweightPRRule(exercise.equipment)
+                let assisted = isAssistedName(name)
                 for (index, set) in groupSets.filter({ $0.exercise == name }).enumerated() {
+                    // Strong/Hevy log a bodyweight lift's weight as the load added
+                    // on top — stored like a live row: the added load, and the
+                    // effective load (bodyweight + added) as the set's weight so
+                    // e1RM, volume and best set share the live basis. An
+                    // assisted variant's weight is help, not load: no added
+                    // load, and reps-only records.
+                    var added: Double?
+                    var load = set.weightKg(assuming: unit)
+                    if assisted {
+                        load = bodyweightLift ? bodyweight : nil
+                    } else if bodyweightLift {
+                        added = load ?? 0
+                        load = bodyweight + (added ?? 0)
+                    }
                     let row = PlannedSet(
                         setNumber: index + 1,
                         targetReps: set.reps,
-                        targetWeight: set.weightKg(assuming: unit),
+                        targetWeight: load,
                         actualReps: set.reps,
-                        actualWeight: set.weightKg(assuming: unit),
+                        actualWeight: load,
                         completed: true,
                         plannedExercise: slot
                     )
                     row.completedAt = key.start
                     row.rpe = set.rpe
-                    // Strong/Hevy log a bodyweight lift's weight as the load
-                    // added on top, the same thing live logging keys records on.
-                    if bodyweightLift {
-                        row.addedLoadKg = set.weightKg(assuming: unit) ?? 0
-                    }
+                    row.addedLoadKg = added
                     planned.append(row)
                 }
                 slot.sets = planned
@@ -454,8 +492,10 @@ enum WorkoutCSVService {
         do {
             try modelContext.save()
         } catch {
-            // All-or-nothing: a failed save must not leave half an import
-            // sitting unsaved in the context.
+            // Drop whatever hasn't been written yet. NOT all-or-nothing: the
+            // context autosaves in the background (yields above), so batches
+            // may already be on disk — `willInsert` gave the caller the batch
+            // id up front so "undo last import" removes them.
             modelContext.rollback()
             throw error
         }
@@ -509,7 +549,8 @@ enum WorkoutCSVService {
     /// weights in `unit` (the athlete's own) with the unit named in the
     /// header — "Weight (lbs)" / "Weight (kg)" — which Tempo's importer reads
     /// back, so the file round-trips without a unit prompt. A bodyweight set
-    /// leaves Weight empty rather than writing "0".
+    /// leaves Weight empty rather than writing "0"; pull-up / dip style lifts
+    /// write the load ADDED to bodyweight (empty when none or assisted).
     static func exportCSV(plans: [WorkoutPlan], unit: WeightUnit = .kg) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -529,8 +570,13 @@ enum WorkoutCSVService {
                     continue
                 }
                 let working = slot.orderedSets.filter { $0.completed && !$0.isWarmup && ($0.actualReps ?? 0) > 0 }
+                // Bodyweight-loaded lifts export the ADDED load (what the
+                // importer reads back); the stored weight there is bodyweight
+                // + added, which would re-import as a huge added load.
+                let bodyweightLift = StrengthStandards.isBodyweightLoaded(exercise.equipment)
                 for (index, set) in working.enumerated() {
-                    let weight = (set.actualWeight.flatMap { $0 > 0 ? $0 : nil })
+                    let load = bodyweightLift ? set.addedLoadKg : set.actualWeight
+                    let weight = (load.flatMap { $0 > 0 ? $0 : nil })
                         .map { WeightFormat.number(kg: $0, unit: unit) } ?? ""
                     let rpe = set.rpe.map(String.init) ?? ""
                     // §6.4 — a drop step is exported as a set like any other

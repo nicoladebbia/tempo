@@ -172,7 +172,8 @@ final class WorkoutCSVServiceTests: XCTestCase {
     """
 
     private func firstWeight(_ context: ModelContext) throws -> Double? {
-        try context.fetch(FetchDescriptor<PlannedSet>()).compactMap(\.actualWeight).first
+        // The loaded lift's set (a bodyweight row also carries a weight now).
+        try context.fetch(FetchDescriptor<PlannedSet>()).first { $0.addedLoadKg == nil }?.actualWeight
     }
 
     func testPoundsFileIsConvertedNotReadAsKilos() async throws {
@@ -182,7 +183,9 @@ final class WorkoutCSVServiceTests: XCTestCase {
         XCTAssertEqual(summary.unit, .lbs)
         XCTAssertTrue(summary.label.contains("lbs"))
         let sets = try context.fetch(FetchDescriptor<PlannedSet>())
-        XCTAssertEqual(sets.filter { $0.actualWeight == nil }.count, 1, "Bodyweight set stays weightless")
+        let bodyweightSet = try XCTUnwrap(sets.first { $0.addedLoadKg != nil })
+        XCTAssertEqual(bodyweightSet.addedLoadKg, 0, "No weight in the file: nothing added")
+        XCTAssertEqual(bodyweightSet.actualWeight, WorkoutCSVService.defaultBodyweightKg, "Stored at bodyweight, like a live row")
     }
 
     func testUnitPickedByTheUserAppliesWhenFileDoesNotSay() async throws {
@@ -474,7 +477,151 @@ final class WorkoutCSVServiceTests: XCTestCase {
         let context = try makeContext()
         // A kg-default user importing the lbs file still gets the right load.
         _ = try await WorkoutCSVService.importCSV(csv, assumedUnit: .kg, modelContext: context)
-        let weight = try XCTUnwrap(context.fetch(FetchDescriptor<PlannedSet>()).compactMap(\.actualWeight).first)
+        let weight = try XCTUnwrap(firstWeight(context))
         XCTAssertEqual(weight, 225 / 2.20462, accuracy: 0.05)
+    }
+
+    // MARK: - Bodyweight-loaded rows are stored like live ones
+
+    private let weightedPullUpCSV = """
+    Date,Workout Name,Exercise Name,Set Order,Weight,Reps
+    2026-06-10 18:00:00,Pull,Pull Up,1,10,5
+    2026-06-17 18:00:00,Pull,Pull Up,1,10,8
+    2026-06-24 18:00:00,Pull,Pull Up,1,15,5
+    """
+
+    func testImportedPullUpsStoreAddedLoadAndEffectiveLoadLikeLiveRows() async throws {
+        let context = try makeContext()
+        _ = try await WorkoutCSVService.importCSV(
+            weightedPullUpCSV, assumedUnit: .kg, bodyweightKg: 80, modelContext: context
+        )
+        let sets = try context.fetch(FetchDescriptor<PlannedSet>(sortBy: [.init(\.setNumber)]))
+        let first = try XCTUnwrap(sets.first { $0.addedLoadKg == 10 && $0.actualReps == 5 })
+        XCTAssertEqual(first.actualWeight, 90, "effective load = bodyweight + added")
+        XCTAssertEqual(first.targetWeight, 90)
+        let pullUp = try XCTUnwrap(context.fetch(FetchDescriptor<Exercise>()).first { $0.name == "Pull Up" })
+        let row = try XCTUnwrap((pullUp.history ?? []).min { $0.date < $1.date })
+        XCTAssertEqual(row.bestSetWeight, 90)
+        XCTAssertEqual(row.bestSetAddedLoadKg, 10)
+        XCTAssertEqual(row.totalVolume, 450, "volume on the same effective-load basis as live rows")
+    }
+
+    func testImportedBodyweightLiftsFallBackToTheDefaultBodyweightWhenNoneIsKnown() async throws {
+        let context = try makeContext()
+        _ = try await WorkoutCSVService.importCSV(weightedPullUpCSV, assumedUnit: .kg, modelContext: context)
+        let first = try XCTUnwrap(context.fetch(FetchDescriptor<PlannedSet>()).first { $0.addedLoadKg == 10 })
+        XCTAssertEqual(first.actualWeight, WorkoutCSVService.defaultBodyweightKg + 10)
+    }
+
+    func testImportReplayAgreesWithLiveRulesForWeightedPullUps() async throws {
+        let context = try makeContext()
+        _ = try await WorkoutCSVService.importCSV(
+            weightedPullUpCSV, assumedUnit: .kg, bodyweightKg: 80, modelContext: context
+        )
+        // 10x5 baseline; 10x8 is a better e1RM but NOT a record; +15 is the heaviest added load.
+        let rows = try records(context)
+        XCTAssertEqual(rows.map(\.type), [.repMax])
+        XCTAssertEqual(rows.first?.contextWeightKg, 15)
+    }
+
+    func testUnmatchedCustomLiftsKeepTheirRealWeightAndGetWeightRecords() async throws {
+        let context = try makeContext()
+        let csv = """
+        Date,Workout Name,Exercise Name,Set Order,Weight,Reps
+        2026-06-10 18:00:00,Mix,Qzx Special Lift,1,50,5
+        2026-06-17 18:00:00,Mix,Qzx Special Lift,1,70,5
+        """
+        _ = try await WorkoutCSVService.importCSV(csv, assumedUnit: .kg, bodyweightKg: 80, modelContext: context)
+        let lift = try XCTUnwrap(context.fetch(FetchDescriptor<Exercise>()).first { $0.name == "Qzx Special Lift" })
+        XCTAssertEqual(lift.equipment, Equipment.none)
+        let sets = try context.fetch(FetchDescriptor<PlannedSet>())
+        XCTAssertTrue(sets.allSatisfy { $0.addedLoadKg == nil }, "not a bodyweight-loaded lift")
+        XCTAssertEqual(Set(sets.compactMap(\.actualWeight)), [50, 70])
+        XCTAssertEqual(try records(context).first?.contextWeightKg, 70)
+
+        // A live set after the import is judged against real weights: no bogus Most reps.
+        XCTAssertNil(TrainingEngine().detectPersonalRecord(exercise: lift, weight: 40, reps: 5, rir: 2))
+    }
+
+    func testAssistedVariantsStoreNoAddedLoadAndKeepRepsOnlyRecords() async throws {
+        let context = try makeContext()
+        let csv = """
+        Date,Workout Name,Exercise Name,Set Order,Weight,Reps
+        2026-06-10 18:00:00,Pull,Pull Up (Assisted),1,30,6
+        2026-06-17 18:00:00,Pull,Pull Up (Assisted),1,20,9
+        """
+        _ = try await WorkoutCSVService.importCSV(csv, assumedUnit: .kg, bodyweightKg: 80, modelContext: context)
+        let sets = try context.fetch(FetchDescriptor<PlannedSet>())
+        XCTAssertEqual(sets.count, 2)
+        XCTAssertTrue(sets.allSatisfy { ($0.addedLoadKg ?? 0) == 0 }, "assistance is never stored as added weight")
+        let rows = try records(context)
+        XCTAssertEqual(rows.map(\.type), [.mostReps], "reps-only: no heaviest-load record from the assistance")
+        XCTAssertEqual(rows.first?.value, 9)
+    }
+
+    func testBodyweightLoadedSetsExportTheAddedLoadAndRoundTrip() async throws {
+        let source = try makeContext()
+        _ = try await WorkoutCSVService.importCSV(
+            weightedPullUpCSV, assumedUnit: .kg, bodyweightKg: 80, modelContext: source
+        )
+        let plans = try source.fetch(FetchDescriptor<WorkoutPlan>())
+        let csv = WorkoutCSVService.exportCSV(plans: plans)
+        let lines = csv.split(separator: "\n").map(String.init)
+        XCTAssertTrue(lines.contains { $0.contains(",Pull Up,1,15,5,") }, "added load, not the 95 kg effective load: \(csv)")
+
+        let destination = try makeContext()
+        _ = try await WorkoutCSVService.importCSV(csv, bodyweightKg: 80, modelContext: destination)
+        let sets = try destination.fetch(FetchDescriptor<PlannedSet>())
+        XCTAssertEqual(Set(sets.compactMap(\.addedLoadKg)), [10, 15])
+        XCTAssertEqual(Set(sets.compactMap(\.actualWeight)), [90, 95])
+    }
+
+    func testLiveLoggedBodyweightSetsExportAddedLoadAndLeaveBodyweightEmpty() async throws {
+        let context = try makeContext()
+        let pullUp = Exercise(name: "Pull-Up", muscleGroup: .back, equipment: .pullUpBar,
+                              movementPattern: .verticalPull, isCompound: true)
+        context.insert(pullUp)
+        let plan = WorkoutPlan(date: Date(), type: .pull)
+        plan.status = .completed
+        plan.startedAt = Date()
+        context.insert(plan)
+        let slot = PlannedExercise(order: 0, workoutPlan: plan, exercise: pullUp)
+        let make: (Int, Double, Double) -> PlannedSet = { number, effective, added in
+            let set = PlannedSet(setNumber: number, targetReps: 8, actualReps: 8, actualWeight: effective,
+                                 completed: true, plannedExercise: slot)
+            set.addedLoadKg = added
+            return set
+        }
+        slot.sets = [make(1, 90, 10), make(2, 80, 0), make(3, 55, -25)]
+        let csv = WorkoutCSVService.exportCSV(plans: [plan])
+        let lines = csv.split(separator: "\n").map(String.init)
+        XCTAssertTrue(lines[1].contains(",Pull-Up,1,10,8,"), lines[1])
+        XCTAssertTrue(lines[2].contains(",Pull-Up,2,,8,"), "bodyweight: empty, never the 80 kg effective load")
+        XCTAssertTrue(lines[3].contains(",Pull-Up,3,,8,"), "assistance is not an added load")
+    }
+
+    // MARK: - Undo pointer for a partial import
+
+    func testBatchIDIsAnnouncedBeforeAnythingIsInserted() async throws {
+        let context = try makeContext()
+        var announced: UUID?
+        var plansAtAnnounce = -1
+        let summary = try await WorkoutCSVService.importCSV(
+            strongCSV, modelContext: context,
+            willInsert: { id in
+                announced = id
+                plansAtAnnounce = (try? context.fetchCount(FetchDescriptor<WorkoutPlan>())) ?? -1
+            }
+        )
+        XCTAssertEqual(announced, summary.batchID)
+        XCTAssertEqual(plansAtAnnounce, 0, "the undo pointer is stored before the first workout exists")
+    }
+
+    func testNothingNewImportDoesNotAnnounceABatch() async throws {
+        let context = try makeContext()
+        _ = try await WorkoutCSVService.importCSV(strongCSV, modelContext: context)
+        var announced = false
+        _ = try await WorkoutCSVService.importCSV(strongCSV, modelContext: context, willInsert: { _ in announced = true })
+        XCTAssertFalse(announced, "a re-import that adds nothing must not overwrite the undo pointer")
     }
 }

@@ -26,6 +26,10 @@ struct WorkoutHistoryView: View {
     @Query
     private var userSettings: [UserSettings]
 
+    /// Bodyweight for imported pull-up / dip rows (effective load = bodyweight + added).
+    @Query
+    private var profiles: [UserProfile]
+
     /// All captured set feedback. Bounded (one row per logged set); built
     /// into a `[setID: SetFeedback]` lookup so expanded rows can show
     /// RPE/breath/form. Legacy sessions have none — graceful absence.
@@ -441,8 +445,16 @@ struct WorkoutHistoryView: View {
         }
         do {
             let summary = try await WorkoutCSVService.importParsed(
-                file, assumedUnit: unit, modelContext: modelContext
-            ) { importProgress = $0 }
+                file,
+                assumedUnit: unit,
+                bodyweightKg: profiles.first?.weightKg,
+                modelContext: modelContext,
+                progress: { importProgress = $0 },
+                // Stored BEFORE the first workout is written: the context
+                // autosaves in the background, so a kill mid-import can leave
+                // a partial batch that "Undo last import" must still cover.
+                willInsert: { lastImportBatchID = $0.uuidString }
+            )
             csvResultMessage = summary.label
             resultOffersUndo = summary.workouts > 0
             if summary.workouts > 0 {
