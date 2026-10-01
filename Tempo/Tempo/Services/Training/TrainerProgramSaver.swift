@@ -130,7 +130,8 @@ enum TrainerProgramSaver {
         trainingEngine: any TrainingEngineProtocol,
         whoop: any WhoopServiceProtocol,
         healthKit: any HealthKitServiceProtocol,
-        onNewExercisesCreated: (([Exercise]) -> Void)? = nil
+        onNewExercisesCreated: (([Exercise]) -> Void)? = nil,
+        skipping: [TrainerProgramSkip] = []
     ) throws {
         let (resolvedWeeks, newExercises) = try resolveExerciseIDs(weeks: weeks, modelContext: modelContext)
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -142,6 +143,13 @@ enum TrainerProgramSaver {
         program.scheduleMode = scheduleMode
         program.cadence = cadence
         try modelContext.save()
+        // Dated skips are recorded only now that the edit itself went through
+        // (a failed update must not leave them behind), then today's plan is
+        // re-applied against them.
+        if !skipping.isEmpty {
+            program.skippedSessions.append(contentsOf: skipping)
+            try modelContext.save()
+        }
 
         let vm = TrainingViewModel(trainingEngine: trainingEngine, whoop: whoop, healthKit: healthKit)
         vm.reapplyEditedProgramToday(program: program, modelContext: modelContext)
@@ -321,9 +329,9 @@ enum TrainerProgramSaver {
         }
         let updatedWeeks = TrainerFeedbackApplier.apply(resolved, acceptedIDs: acceptedIDs, to: program.weeks)
         // Dated skips ("skip Thursday", fixed mode) live beside the weeks, not
-        // inside them; set BEFORE `update` so today's plan re-applies without
-        // the skipped session.
-        program.skippedSessions.append(contentsOf: TrainerFeedbackApplier.skippedSessions(resolved, acceptedIDs: acceptedIDs, program: program))
+        // inside them; `update` records them once the edit succeeded, before
+        // today's plan re-applies, so the skipped session isn't rebuilt.
+        let skips = TrainerFeedbackApplier.skippedSessions(resolved, acceptedIDs: acceptedIDs, program: program)
 
         try update(
             program,
@@ -338,7 +346,8 @@ enum TrainerProgramSaver {
             trainingEngine: trainingEngine,
             whoop: whoop,
             healthKit: healthKit,
-            onNewExercisesCreated: onNewExercisesCreated
+            onNewExercisesCreated: onNewExercisesCreated,
+            skipping: skips
         )
 
         program.changeLog.append(TrainerProgramChangeLogEntry(

@@ -11,6 +11,9 @@
 // plan only exists for a day the athlete opened, so counting plans made a
 // skipped week invisible and the percentage too high. "Done" is real logged
 // work (`TrainerReportBuilder.didRealWork`), never a merely-saved plan.
+// Days Tempo itself overrode (paused, match day, red-recovery bench) are not
+// scheduled — the same exclusions as the missed-session prompt
+// (`TrainerScheduleOverrides`).
 // Today's session counts as scheduled only once it's done (it isn't "missed"
 // until the day is over). Sequence mode has no calendar to walk, so there
 // "scheduled" is the sessions Tempo carried (done, or lapsed unfinished).
@@ -37,11 +40,16 @@ enum TrainerProgramHistoryStats {
     @MainActor
     static func stats(for program: TrainerProgram, modelContext: ModelContext, today: Date = Date()) -> Stats {
         let all = (try? modelContext.fetch(FetchDescriptor<WorkoutPlan>())) ?? []
-        return stats(for: program, plans: all, today: today)
+        return stats(for: program, plans: all, today: today, overrides: TrainerScheduleOverrides.fetch(modelContext: modelContext))
     }
 
     /// Pure core: `plans` may include other programs' rows — they're filtered out.
-    static func stats(for program: TrainerProgram, plans: [WorkoutPlan], today: Date = Date()) -> Stats {
+    static func stats(
+        for program: TrainerProgram,
+        plans: [WorkoutPlan],
+        today: Date = Date(),
+        overrides: TrainerScheduleOverrides = TrainerScheduleOverrides()
+    ) -> Stats {
         let cal = Calendar.current
         let startOfToday = cal.startOfDay(for: today)
         let prefix = "\(program.id.uuidString)#"
@@ -74,10 +82,20 @@ enum TrainerProgramHistoryStats {
             return Stats(done: 0, scheduled: 0)
         }
 
+        // The plan row stored per day, for the red-recovery check.
+        var planByDay: [Date: WorkoutPlan] = [:]
+        for plan in plans {
+            planByDay[cal.startOfDay(for: plan.date)] = plan
+        }
+
         var scheduled = 0
         var cursor = start
         while cursor <= end {
+            let overridden = overrides.overrides(cursor, persisted: planByDay[cursor], calendar: cal)
             for session in program.sessions(on: cursor) {
+                if overridden {
+                    continue
+                }
                 if TrainerReportBuilder.isStillPending(scheduledDate: cursor, now: today) {
                     let key = program.sessionKey(weekIndex: session.weekIndex, dayIndex: session.dayIndex)
                     guard doneSlots.contains(where: { $0.key == key && $0.date == cursor }) else {

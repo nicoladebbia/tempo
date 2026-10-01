@@ -846,7 +846,7 @@ final class TrainerProgramTests: XCTestCase {
         context.insert(row)
         let p = TrainerProgram(
             name: "PT", startDate: date("2026-09-21"),
-            weeks: [ProgramWeek(days: [day(1, "push", exercises: [
+            weeks: [ProgramWeek(days: [day(TrainerProgram.isoWeekday(of: Date()), "push", exercises: [
                 ProgramExercise(name: "Barbell Row", sets: 3, repsLow: 8),
             ])])],
             isActive: true, sourceKind: "text"
@@ -869,6 +869,80 @@ final class TrainerProgramTests: XCTestCase {
         vm.reapplyEditedProgramToday(program: p, modelContext: context)
 
         XCTAssertEqual(today.orderedExercises.map(\.displayName), ["Barbell Row"], "rebuilt from the EDITED program content")
+    }
+
+    // MARK: - Dated skip clears today's already-built plan
+
+    private func todaySkipFixture(_ context: ModelContext) throws -> (TrainerProgram, WorkoutPlan, TrainerProgramSkip) {
+        let bench = Exercise(
+            name: "Bench Press", muscleGroup: .chest, equipment: .barbell,
+            movementPattern: .horizontalPush, isCompound: true
+        )
+        context.insert(bench)
+        let todayStart = Calendar.current.startOfDay(for: Date())
+        let weekday = TrainerProgram.isoWeekday(of: todayStart)
+        let p = TrainerProgram(
+            name: "PT", startDate: TrainingCalendar.mondayOfWeek(containing: todayStart),
+            weeks: [ProgramWeek(days: [day(weekday, "push")])], isActive: true, sourceKind: "text"
+        )
+        context.insert(p)
+        let key = p.sessionKey(weekIndex: 0, dayIndex: 0)
+        let today = WorkoutPlan(date: todayStart, type: .push, status: .planned)
+        today.programSessionKey = key
+        context.insert(today)
+        let slot = PlannedExercise(order: 0, workoutPlan: today, exercise: bench)
+        slot.sets = [PlannedSet(setNumber: 1, targetReps: 8, targetWeight: 60, plannedExercise: slot)]
+        context.insert(slot)
+        let skip = TrainerProgramSkip(date: todayStart, sessionKey: key, summary: "skip today")
+        try context.save()
+        return (p, today, skip)
+    }
+
+    func testDatedSkipTurnsTodaysUntouchedPlanIntoRest() throws {
+        let container = try TempoModelContainer.create(inMemory: true)
+        let context = container.mainContext
+        let (p, today, skip) = try todaySkipFixture(context)
+        p.skippedSessions = [skip]
+        let vm = TrainingViewModel(
+            trainingEngine: MockTrainingEngine(), whoop: MockWhoopService(), healthKit: MockHealthKitService()
+        )
+        vm.reapplyEditedProgramToday(program: p, modelContext: context)
+        XCTAssertTrue(today.orderedExercises.isEmpty, "the skipped session is not rebuilt")
+        XCTAssertNil(today.programSessionKey)
+        XCTAssertEqual(today.type, .rest)
+    }
+
+    func testDatedSkipNeverTouchesAPlanWithLoggedSets() throws {
+        let container = try TempoModelContainer.create(inMemory: true)
+        let context = container.mainContext
+        let (p, today, skip) = try todaySkipFixture(context)
+        let set = try XCTUnwrap(today.orderedExercises.first?.orderedSets.first)
+        set.completed = true
+        set.actualReps = 8
+        set.actualWeight = 60
+        p.skippedSessions = [skip]
+        let vm = TrainingViewModel(
+            trainingEngine: MockTrainingEngine(), whoop: MockWhoopService(), healthKit: MockHealthKitService()
+        )
+        vm.reapplyEditedProgramToday(program: p, modelContext: context)
+        XCTAssertEqual(today.orderedExercises.count, 1)
+        XCTAssertEqual(today.programSessionKey, skip.sessionKey)
+        XCTAssertEqual(today.type, .push)
+    }
+
+    func testSaverUpdateAppliesDatedSkipsOnlyAfterTheEditSucceeded() throws {
+        let container = try TempoModelContainer.create(inMemory: true)
+        let context = container.mainContext
+        let (p, today, skip) = try todaySkipFixture(context)
+        try TrainerProgramSaver.update(
+            p, name: p.name, startDate: p.startDate, weeks: p.weeks, repeats: p.repeats, autoWarmups: p.autoWarmups,
+            scheduleMode: p.scheduleMode, cadence: p.cadence, modelContext: context,
+            trainingEngine: MockTrainingEngine(), whoop: MockWhoopService(), healthKit: MockHealthKitService(),
+            skipping: [skip]
+        )
+        XCTAssertEqual(p.skippedSessions.map(\.id), [skip.id])
+        XCTAssertTrue(today.orderedExercises.isEmpty)
+        XCTAssertEqual(today.type, .rest)
     }
 
     func testTrainerProgramSaverUpdateEditsInPlaceKeepingSameID() throws {

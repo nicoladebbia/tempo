@@ -140,4 +140,28 @@ final class TrainerProgramHistoryStatsTests: XCTestCase {
         let stats = TrainerProgramHistoryStats.stats(for: program, plans: [], today: date("2026-09-30"))
         XCTAssertEqual(stats.scheduled, 2, "09-14 and 09-28; the skipped 09-21 isn't scheduled")
     }
+
+    // MARK: - Same exclusions as the missed-session rule
+
+    func testPausedMatchAndRedRecoveryDaysAreNotMissed() throws {
+        let container = try TempoModelContainer.create(inMemory: true)
+        let context = container.mainContext
+        let program = activeProgram(context)
+        // Today = Wed 09-30: Mondays 09-14, 09-21, 09-28 are scheduled.
+        let pause = TrainingPause(reason: .sick, startDate: date("2026-09-21"), plannedEndDate: date("2026-09-22"))
+        let benched = WorkoutPlan(date: date("2026-09-28"), type: .mobility, status: .planned)
+        benched.recoveryAdjustment = 0
+        context.insert(benched)
+        let withPause = TrainerProgramHistoryStats.stats(
+            for: program, plans: [benched], today: date("2026-09-30"),
+            overrides: TrainerScheduleOverrides(pauses: [pause], matchDays: [])
+        )
+        XCTAssertEqual(withPause.scheduled, 1, "only 09-14 counts: 09-21 is paused, 09-28 was benched by red recovery")
+
+        let withMatch = TrainerProgramHistoryStats.stats(
+            for: program, plans: [], today: date("2026-09-30"),
+            overrides: TrainerScheduleOverrides(pauses: [], matchDays: [date("2026-09-14")])
+        )
+        XCTAssertEqual(withMatch.scheduled, 2, "a match day replaced the session: not a miss")
+    }
 }
