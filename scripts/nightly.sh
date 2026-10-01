@@ -32,8 +32,12 @@ mkdir -p "$HOME_DIR"
 case "${1:-}" in
     install)
         mkdir -p "$HOME_DIR/bin" "$(dirname "$PLIST")"
-        cp "$0" "$HOME_DIR/bin/nightly.sh"
-        chmod +x "$HOME_DIR/bin/nightly.sh"
+        # The tools travel with it: they're the fallback for branches (and a
+        # main) that predate them.
+        for f in nightly.sh sim.sh testenv.sh; do
+            cp "$(dirname "$0")/$f" "$HOME_DIR/bin/$f"
+        done
+        chmod +x "$HOME_DIR/bin/"*.sh
         cat >"$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -107,13 +111,16 @@ echo "== Tempo nightly $STAMP"
 git -C "$REPO" fetch --quiet --prune origin || { echo "fetch failed"; exit 1; }
 
 # Each target runs its own sim.sh/testenv.sh (they change together with the
-# app: scenarios, test login, launch args). origin/main's copies are the
-# fallback for a branch that predates them.
+# app: scenarios, test login, launch args). For a branch that predates them:
+# origin/main's copies, else the ones installed next to this script.
+SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
 TOOLS="$HOME_DIR/tools"
 rm -rf "$TOOLS"
 mkdir -p "$TOOLS"
 for f in sim.sh testenv.sh; do
-    git -C "$REPO" show "origin/main:scripts/$f" >"$TOOLS/$f" 2>/dev/null || rm -f "$TOOLS/$f"
+    git -C "$REPO" show "origin/main:scripts/$f" >"$TOOLS/$f" 2>/dev/null \
+        || cp "$SELF_DIR/$f" "$TOOLS/$f" 2>/dev/null \
+        || rm -f "$TOOLS/$f"
 done
 tool() { # tool <worktree> <script> → path
     if [ -f "$1/scripts/$2" ]; then echo "$1/scripts/$2"; else echo "$TOOLS/$2"; fi
