@@ -143,6 +143,20 @@ struct MorningBriefingJob: AsyncScheduledJob {
         app: Application,
         db: Database
     ) async throws {
+        if await TestModePush.capture(
+            app: app,
+            userID: userID,
+            alert: .init(title: title, subtitle: subtitle, body: body, category: "MORNING_BRIEFING", interruptionLevel: "time-sensitive"),
+            data: [
+                "type": "recovery_morning",
+                "interruption_level": "time-sensitive",
+                "channel": "morning_briefing",
+                "recovery_zone": recoveryZone,
+            ]
+        ) {
+            return
+        }
+
         let devices = try await DeviceToken.query(on: db)
             .filter(\.$userID == userID)
             .all()

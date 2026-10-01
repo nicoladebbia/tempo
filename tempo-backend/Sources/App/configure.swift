@@ -271,4 +271,10 @@ func configure(
         supplementLookupClient: supplementLookupClient,
         brandCatalogRefresher: brandCatalogRefresher
     )
+
+    // ─────────────────────────────────────────────────
+    // 10. Local test mode (TEMPO_TEST_MODE=1, never production)
+    // scripts/testenv.sh — see TestMode/TestMode.swift
+    // ─────────────────────────────────────────────────
+    try TestMode.configure(app)
 }

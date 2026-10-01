@@ -76,6 +76,18 @@ enum APNsService {
         data: [String: String] = [:],
         on req: Request
     ) async throws {
+        var testPayload = data
+        testPayload["type"] = type.rawValue
+        testPayload["interruption_level"] = type.interruptionLevel
+        if await TestModePush.capture(
+            app: req.application,
+            userID: userID,
+            alert: .init(title: title, subtitle: subtitle, body: body, category: type.category, interruptionLevel: type.interruptionLevel),
+            data: testPayload
+        ) {
+            return
+        }
+
         let devices = try await DeviceToken.query(on: req.db)
             .filter(\.$userID == userID)
             .all()
@@ -137,6 +149,10 @@ enum APNsService {
         data: [String: String],
         on req: Request
     ) async throws {
+        if await TestModePush.capture(app: req.application, userID: userID, alert: nil, data: data) {
+            return
+        }
+
         let devices = try await DeviceToken.query(on: req.db)
             .filter(\.$userID == userID)
             .all()
