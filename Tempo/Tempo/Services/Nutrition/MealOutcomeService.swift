@@ -36,6 +36,8 @@ extension Notification.Name {
 @MainActor
 enum MealOutcomeService {
     private static let logger = Logger(subsystem: "app.tempo", category: "MealOutcome")
+    /// Latest in-flight redistribution per skipped meal (see `redistributeAfterSkip`).
+    private static var redistributionTokens: [UUID: UUID] = [:]
 
     // MARK: - Types
 
@@ -198,14 +200,19 @@ enum MealOutcomeService {
     // MARK: - Skip
 
     /// Marks a not-yet-eaten meal skipped. Call `redistributeAfterSkip`
-    /// afterwards to spread its macros over the rest of the day.
-    static func skip(_ meal: PlannedMeal, env: Env) throws {
+    /// afterwards to spread its macros over the rest of the day — or pass
+    /// `rebalance: true` (paths with no AI call: notification action, Coach,
+    /// Undo-toast restore) to spread them proportionally right away.
+    static func skip(_ meal: PlannedMeal, env: Env, rebalance: Bool = false) throws {
         guard meal.status != .eaten else {
             return
         }
         meal.capturePlanBaselineIfNeeded()
         meal.status = .skipped
         meal.actualEatenAt = nil
+        if rebalance, Calendar.current.isDateInToday(meal.dayDate) {
+            applyMacroRebalance(env: env)
+        }
         try save(env.modelContext)
         cancelReminders(forMealID: meal.id, notifications: env.notifications)
         NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
@@ -233,6 +240,15 @@ enum MealOutcomeService {
         guard remaining.contains(where: { $0.status == .planned }) else {
             return nil
         }
+        // Skip → Undo → Skip while the first call is in flight must apply
+        // only the latest call's deltas, not both.
+        let token = UUID()
+        redistributionTokens[skippedID] = token
+        defer {
+            if redistributionTokens[skippedID] == token {
+                redistributionTokens[skippedID] = nil
+            }
+        }
         let result = await service.redistribute(
             skipped: skipped,
             remaining: remaining,
@@ -243,7 +259,7 @@ enum MealOutcomeService {
         )
         // The model may have changed while the call was in flight (user
         // un-skipped it) — re-check before touching anything.
-        guard skipped.status == .skipped else {
+        guard skipped.status == .skipped, redistributionTokens[skippedID] == token else {
             return nil
         }
         let fresh = todaysMeals(env)
@@ -251,15 +267,20 @@ enum MealOutcomeService {
             meal.capturePlanBaselineIfNeeded()
         }
         let byNumber = Dictionary(result.perMeal.map { ($0.mealNumber, $0) }, uniquingKeysWith: { first, _ in first })
+        let targets = fresh.filter { $0.status == .planned && $0.id != skippedID }
+        // Two planned meals can share a meal number; split that number's
+        // delta between them instead of giving each the whole of it.
+        let sharing = Dictionary(grouping: targets, by: \.mealNumber).mapValues { Double($0.count) }
         var applied = false
-        for meal in fresh where meal.status == .planned && meal.id != skippedID {
+        for meal in targets {
             guard let delta = byNumber[meal.mealNumber] else {
                 continue
             }
-            meal.totalCalories += delta.addCalories
-            meal.totalProtein += delta.addProtein
-            meal.totalCarbs += delta.addCarbs
-            meal.totalFat += delta.addFat
+            let share = sharing[meal.mealNumber] ?? 1
+            meal.totalCalories += delta.addCalories / share
+            meal.totalProtein += delta.addProtein / share
+            meal.totalCarbs += delta.addCarbs / share
+            meal.totalFat += delta.addFat / share
             applied = true
         }
         guard applied else {
@@ -330,8 +351,10 @@ enum MealOutcomeService {
             meal.actualEatenAt = nil
             meal.linkedMealLogID = nil
             if Calendar.current.isDateInToday(meal.dayDate) {
-                // Eating/skipping moved the other meals' macros; bring them
-                // back in line now that this one counts as planned again.
+                // Eating/skipping moved the other meals' macros and times;
+                // bring them back in line now that this one counts as
+                // planned again.
+                revertMealShift(env: env)
                 applyMacroRebalance(env: env)
             }
         }
@@ -355,14 +378,25 @@ enum MealOutcomeService {
         let type = MealType.inferred(fromName: snapshot.mealName) ?? .snack
         switch snapshot.kind {
         case .removed:
-            try EatenMealRecorder.record(
+            // `now: eatenAt` puts a past day's log back on that day, not today.
+            let result = try EatenMealRecorder.record(
                 snapshot.foods.map(EatenMealRecorder.input(from:)),
                 type: type,
                 eatenAt: snapshot.eatenAt,
                 source: .manual,
                 modelContext: ctx,
-                notifications: env.notifications
+                notifications: env.notifications,
+                now: snapshot.eatenAt
             )
+            if snapshot.feel != nil || snapshot.satiety != nil || snapshot.substituteNote != nil {
+                ctx.insert(MealFeedback(
+                    plannedMeal: result.meal,
+                    mealFeel: snapshot.feel,
+                    satiety: snapshot.satiety,
+                    substituteNote: snapshot.substituteNote
+                ))
+                try save(ctx)
+            }
         case .revertedToPlanned:
             let id = snapshot.mealID
             var descriptor = FetchDescriptor<PlannedMeal>(predicate: #Predicate<PlannedMeal> { $0.id == id })
@@ -370,8 +404,18 @@ enum MealOutcomeService {
             guard let meal = try ctx.fetch(descriptor).first, meal.status != .eaten else {
                 return
             }
-            if snapshot.priorStatus == .skipped {
-                try skip(meal, env: env)
+            switch snapshot.priorStatus {
+            case .skipped:
+                try skip(meal, env: env, rebalance: true)
+                return
+            case .eaten:
+                break
+            default:
+                // Undo on a never-eaten meal (e.g. Coach-moved `.modified`):
+                // put the status back — never mark it eaten.
+                meal.status = snapshot.priorStatus
+                try save(ctx)
+                NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
                 return
             }
             let logID = snapshot.hadMealLog
@@ -565,11 +609,38 @@ enum MealOutcomeService {
             guard let shift = byID[meal.id] else {
                 continue
             }
+            if meal.originalScheduledTime == nil {
+                meal.originalScheduledTime = meal.scheduledTime
+            }
             meal.scheduledTime = shift.newScheduledTime
             cancelReminders(forMealID: meal.id, notifications: env.notifications)
             if shift.newScheduledDate > Date(), let notifications = env.notifications {
                 scheduleReminders(for: meal, at: shift.newScheduledDate, notifications: notifications)
             }
+        }
+    }
+
+    /// After an undo: today's not-yet-eaten meals go back to their plan
+    /// times, then the shift from the latest meal still eaten today (if
+    /// any) is applied again — the shift only ever follows the last meal
+    /// actually eaten.
+    private static func revertMealShift(env: Env) {
+        let meals = todaysMeals(env)
+        for meal in meals where meal.status == .planned || meal.status == .modified {
+            guard let original = meal.originalScheduledTime else {
+                continue
+            }
+            meal.scheduledTime = original
+            meal.originalScheduledTime = nil
+            cancelReminders(forMealID: meal.id, notifications: env.notifications)
+            restoreReminders(for: meal, notifications: env.notifications)
+        }
+        let lastEaten = meals
+            .filter { $0.status == .eaten && !$0.isUnplannedLog }
+            .compactMap { meal in meal.actualEatenAt.map { (meal.id, $0) } }
+            .max { $0.1 < $1.1 }
+        if let (id, eatenAt) = lastEaten {
+            applyMealShift(eatenMealID: id, eatenAt: eatenAt, env: env)
         }
     }
 

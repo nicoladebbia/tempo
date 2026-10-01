@@ -597,9 +597,7 @@ final class NutritionTabViewModel {
             Logger.nutrition.error("[Diag.Undo] failed: \(error.localizedDescription, privacy: .public)")
             snapshot = nil
         }
-        if snapshot != nil {
-            HapticManager.notification(.success)
-        }
+        // No haptic here: the Undo toast the caller shows fires its own.
         refreshTodayMeals(modelContext: modelContext)
         return snapshot
     }
@@ -1078,7 +1076,9 @@ final class NutritionTabViewModel {
             enrichedIntake = intake
             intakeSource = "wizard"
         } else if let settingsForIntake {
-            enrichedIntake = MealPlanIntake.loadPersisted(from: settingsForIntake)
+            // Judge "this week's" wizard answers against the week being
+            // built: Sunday's build of next week must not inherit them.
+            enrichedIntake = MealPlanIntake.loadPersisted(from: settingsForIntake, now: week)
             intakeSource = "persisted"
         } else {
             enrichedIntake = .default

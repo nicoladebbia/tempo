@@ -338,6 +338,54 @@ final class MealOutcomeServiceTests: XCTestCase {
         XCTAssertFalse(m.didDecrementPantry, "Restoring a skip never touches the pantry")
     }
 
+    func testRestoreAfterUndoOnAMovedMealNeverMarksItEaten() throws {
+        let p = plan()
+        let m = slot("Lunch", number: 2, time: "13:00", in: p)
+        m.status = .modified
+        try context.save()
+        let snap = try MealOutcomeService.undo(m, env: env)
+
+        try MealOutcomeService.restore(snap, env: env)
+
+        XCTAssertEqual(m.status, .modified)
+        XCTAssertNil(m.actualEatenAt)
+        XCTAssertTrue(CanonicalMeals.eatenMeals(on: Date(), in: context).isEmpty)
+    }
+
+    func testRestoringASkipSpreadsItsMacrosAgain() throws {
+        let p = plan()
+        let lunch = slot("Lunch", number: 2, time: "23:00", kcal: 700, in: p)
+        let snack = slot("Snack", number: 3, time: "23:30", kcal: 300, in: p)
+        try context.save()
+        try MealOutcomeService.skip(snack, env: env)
+        let snap = try MealOutcomeService.undo(snack, env: env)
+        XCTAssertEqual(lunch.totalCalories, 700, accuracy: 1)
+
+        try MealOutcomeService.restore(snap, env: env)
+
+        XCTAssertEqual(snack.status, .skipped)
+        XCTAssertGreaterThan(lunch.totalCalories, 700, "The skipped snack's calories move to lunch again")
+    }
+
+    func testRestoredLogKeepsItsFeedbackAndItsDay() throws {
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+        let result = try EatenMealRecorder.record(
+            [food("Toast", kcal: 200)], type: .breakfast, eatenAt: yesterday, source: .manual,
+            modelContext: context, now: yesterday
+        )
+        context.insert(MealFeedback(plannedMeal: result.meal, mealFeel: .light, satiety: .justRight))
+        try context.save()
+        let snap = try MealOutcomeService.undo(result.meal, env: env)
+
+        try MealOutcomeService.restore(snap, env: env)
+
+        let back = try XCTUnwrap(meals().first)
+        XCTAssertTrue(Calendar.current.isDate(back.dayDate, inSameDayAs: yesterday))
+        let feedback = try context.fetch(FetchDescriptor<MealFeedback>())
+        XCTAssertEqual(feedback.count, 1)
+        XCTAssertEqual(feedback.first?.mealFeel, .light)
+    }
+
     // MARK: - Legacy / flag semantics
 
     func testExplicitFalseFlagNeverReadsAsALogEvenWithZeroBaseline() {
@@ -374,6 +422,23 @@ final class MealOutcomeServiceTests: XCTestCase {
 
         XCTAssertEqual(m.status, .skipped)
         XCTAssertTrue(notifications.scheduledNotifications.isEmpty)
+    }
+
+    func testUndoPutsShiftedMealsBackOnTheirPlanTimes() throws {
+        let p = plan()
+        let breakfast = slot("Breakfast", number: 1, time: "08:00", in: p)
+        let lunch = slot("Lunch", number: 2, time: "13:00", in: p)
+        let dinner = slot("Dinner", number: 3, time: "19:30", in: p)
+        let lateBreakfast = Calendar.current.date(bySettingHour: 11, minute: 30, second: 0, of: Date())!
+
+        try MealOutcomeService.markEaten(breakfast, at: lateBreakfast, env: env)
+        XCTAssertNotEqual(lunch.scheduledTime, "13:00", "Eating 3.5 h late pushes lunch back")
+
+        _ = try MealOutcomeService.undo(breakfast, env: env)
+        XCTAssertEqual(lunch.scheduledTime, "13:00")
+        XCTAssertEqual(dinner.scheduledTime, "19:30")
+        XCTAssertEqual(breakfast.scheduledTime, "08:00")
+        XCTAssertNil(lunch.originalScheduledTime)
     }
 
     func testOverdueNotificationButtonsUseTheSharedPath() throws {

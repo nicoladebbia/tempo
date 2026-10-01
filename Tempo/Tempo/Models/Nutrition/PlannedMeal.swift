@@ -174,6 +174,12 @@ final class PlannedMeal: Identifiable {
     /// `isUnplannedLog`). Optional so the field add is a lightweight migration.
     var isUnplannedLogFlag: Bool?
 
+    /// The plan's time for this meal before eating another meal late/early
+    /// shifted it (`MealOutcomeService.applyMealShift`), so Undo can put it
+    /// back. Captured once; nil = never shifted. Optional for lightweight
+    /// migration.
+    var originalScheduledTime: String?
+
     /// What the plan had in this slot before a log REPLACED it ("I ate
     /// something else", or a Quick Log landing in a planned slot): the
     /// planned foods + totals as JSON (`ReplacedPlan`). Undo / delete of the

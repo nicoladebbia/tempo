@@ -178,7 +178,7 @@ final class TempoNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
             if ate {
                 try MealOutcomeService.markEaten(meal, env: env)
             } else {
-                try MealOutcomeService.skip(meal, env: env)
+                try MealOutcomeService.skip(meal, env: env, rebalance: true)
             }
             return true
         } catch {

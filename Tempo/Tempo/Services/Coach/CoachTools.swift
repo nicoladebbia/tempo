@@ -397,7 +397,8 @@ enum CoachTools {
     // MARK: skipMeal
 
     /// Mark a planned meal as skipped. Cancels its notification. Refuses
-    /// if already eaten. Redistribution is the agent's separate step.
+    /// if already eaten. The skipped macros are spread proportionally over
+    /// the rest of today.
     @MainActor
     static func skipMeal(
         mealID: UUID,
@@ -410,8 +411,12 @@ enum CoachTools {
             throw CoachToolError.mealAlreadyLogged(mealID)
         }
         // Shared skip path (status, defrost / prep / overdue reminders,
-        // Dashboard ping). Redistribution stays the agent's separate step.
-        try MealOutcomeService.skip(meal, env: outcomeEnv?(context) ?? MealOutcomeService.Env(modelContext: context))
+        // Dashboard ping), spreading the skipped macros over the rest of today.
+        try MealOutcomeService.skip(
+            meal,
+            env: outcomeEnv?(context) ?? MealOutcomeService.Env(modelContext: context),
+            rebalance: true
+        )
         notifications.cancelMealNotification(mealID: mealID)
         return ToolOutput(summary: "Skipped \(meal.mealName)")
     }
