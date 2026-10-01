@@ -1,0 +1,26 @@
+{
+  "data" : {
+    "expires_at" : "2026-01-01T00:00:00Z",
+    "items" : [
+      {
+        "category" : "pantry",
+        "checked" : true,
+        "id" : "00000000-0000-0000-0000-000000000001",
+        "name" : "Oats",
+        "quantity" : 2.5,
+        "unit" : "kg",
+        "updated_at" : "2026-01-01T00:00:00Z"
+      }
+    ],
+    "revoked" : false,
+    "store" : "Publix",
+    "title" : "Week list",
+    "token" : "0000000000000000000000000000000000000001",
+    "url" : "https://localhost:8080/g/0000000000000000000000000000000000000001"
+  },
+  "meta" : {
+    "request_id" : "req_000000000000000000000002",
+    "timestamp" : "2026-01-01T00:00:00Z"
+  },
+  "ok" : true
+}
