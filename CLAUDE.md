@@ -27,6 +27,7 @@ Verify on the simulator against the **local test backend**, never production. Th
 - **Nightly** at 03:00 (`scripts/nightly.sh`): all tests and scenarios for main + open PRs. Report at `~/.tempo-nightly/latest.html`.
 - Known flaky test: `LiveActivityCoordinatorTests.testEndingActiveResumesHighestPrioritySuspendedAliveParticipant`. Rerun it before treating it as a regression.
 - Test mode only runs locally (loopback DB, no Railway env, never `--env production`). Never set `TEMPO_TEST_MODE` on a deployed server.
+- **API shape changes** (a route's JSON, a DTO, a CodingKey, a push payload): regenerate `contracts/golden/` (`TEMPO_UPDATE_CONTRACTS=1 swift test --filter ContractGolden`) and make both sides pass: backend `ContractGoldenTests` and iOS `APIContractTests`. See `contracts/README.md`.
 
 ## Architecture
 - iOS 17.4+: SwiftUI + SwiftData + HealthKit (unified biometric bus) + EventKit. Swift 6 strict concurrency; `@Observable` services.
