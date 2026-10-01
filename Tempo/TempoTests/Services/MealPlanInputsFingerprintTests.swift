@@ -114,6 +114,45 @@ final class MealPlanInputsFingerprintTests: XCTestCase {
         XCTAssertEqual(before, MealPlanInputsFingerprint.current(in: context))
     }
 
+    func testIntakeFieldsAreEmptyForDefaultsSoOldFingerprintsSurvive() throws {
+        let context = try TempoModelContainer.create(inMemory: true).mainContext
+        let settings = UserSettings()
+        let daily = UserDailyPlanProfile()
+        context.insert(settings)
+        context.insert(daily)
+        XCTAssertEqual(MealPlanInputsFingerprint.intakeFields(settings: settings, dailyPlan: daily), [])
+        XCTAssertEqual(MealPlanInputsFingerprint.intakeFields(settings: nil, dailyPlan: nil), [])
+        let base = MealPlanInputsFingerprint.fingerprint(inputs())
+        var withEmptyIntake = inputs()
+        withEmptyIntake.schedule += MealPlanInputsFingerprint.intakeFields(settings: settings, dailyPlan: daily)
+        XCTAssertEqual(base, MealPlanInputsFingerprint.fingerprint(withEmptyIntake))
+    }
+
+    func testIntakeFieldsChangeTheFingerprint() throws {
+        let context = try TempoModelContainer.create(inMemory: true).mainContext
+        let settings = UserSettings()
+        let daily = UserDailyPlanProfile()
+        context.insert(settings)
+        context.insert(daily)
+        try context.save()
+        let before = MealPlanInputsFingerprint.current(in: context)
+        var seen: Set<String> = [before]
+        let edits: [() -> Void] = [
+            { daily.eatingWindowStartMinutes = 10 * 60 },
+            { daily.breakfastSkipped = true },
+            { daily.postWorkoutMandatory = false },
+            { settings.mealsPerDayPreference = 5 },
+            { settings.cookTimeWeekdayMins = 15 },
+            { settings.mealIntakeCookableDays = 3 },
+            { settings.mealIntakeLeftoverToleranceRaw = LeftoverTolerance.allCases.last?.rawValue },
+        ]
+        for edit in edits {
+            edit()
+            try context.save()
+            XCTAssertTrue(seen.insert(MealPlanInputsFingerprint.current(in: context)).inserted)
+        }
+    }
+
     func testChangesWithDietProfileEdits() {
         let profile = DietaryProfile()
         let before = MealPlanInputsFingerprint.fingerprint(inputs(profile: profile))

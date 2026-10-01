@@ -394,6 +394,22 @@ final class FuelSetupPersistenceTests: XCTestCase {
         try context.save()
     }
 
+    func testSavingNewCookableDaysClearsTheWizardsThisWeekOverride() throws {
+        let settings = UserSettings()
+        settings.mealIntakeCookableDays = 4
+        settings.mealIntakeTempWeekStart = WeeklyPlanService.currentWeekStart(for: Date())
+        settings.mealIntakeTempCookableDays = 2
+        context.insert(settings)
+        try context.save()
+        XCTAssertEqual(MealPlanIntake.loadPersisted(from: settings).cookableDaysThisWeek, 2)
+
+        var draft = FuelSetupDraft()
+        draft.cookableDaysPerWeek = 6
+        draft.save(to: context)
+
+        XCTAssertEqual(MealPlanIntake.loadPersisted(from: settings).cookableDaysThisWeek, 6)
+    }
+
     func testSaveWritesEveryStoreAndLoadsBack() throws {
         var draft = try FuelSetupExtractor.parse("""
         {"profile":{"weightKg":78,"heightCm":183,"age":24,"sex":"male","goal":"cut","goalWeightKg":75,
