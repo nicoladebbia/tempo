@@ -320,6 +320,10 @@ enum TrainerProgramSaver {
             return
         }
         let updatedWeeks = TrainerFeedbackApplier.apply(resolved, acceptedIDs: acceptedIDs, to: program.weeks)
+        // Dated skips ("skip Thursday", fixed mode) live beside the weeks, not
+        // inside them; set BEFORE `update` so today's plan re-applies without
+        // the skipped session.
+        program.skippedSessions.append(contentsOf: TrainerFeedbackApplier.skippedSessions(resolved, acceptedIDs: acceptedIDs, program: program))
 
         try update(
             program,
@@ -400,5 +404,36 @@ enum TrainerProgramSaver {
         case .bench: "Bench"
         case .none: ""
         }
+    }
+
+    // MARK: - Undo a dated skip
+
+    /// Puts a skipped session back (removes its `TrainerProgramSkip`) and
+    /// re-applies today's plan through the same `update` path as every other
+    /// program edit, so `.tempoTrainingSettingsChanged` posts once.
+    @MainActor
+    static func undoSkip(
+        _ skip: TrainerProgramSkip,
+        in program: TrainerProgram,
+        modelContext: ModelContext,
+        trainingEngine: any TrainingEngineProtocol,
+        whoop: any WhoopServiceProtocol,
+        healthKit: any HealthKitServiceProtocol
+    ) throws {
+        program.skippedSessions.removeAll { $0.id == skip.id }
+        try update(
+            program,
+            name: program.name,
+            startDate: program.startDate,
+            weeks: program.weeks,
+            repeats: program.repeats,
+            autoWarmups: program.autoWarmups,
+            scheduleMode: program.scheduleMode,
+            cadence: program.cadence,
+            modelContext: modelContext,
+            trainingEngine: trainingEngine,
+            whoop: whoop,
+            healthKit: healthKit
+        )
     }
 }

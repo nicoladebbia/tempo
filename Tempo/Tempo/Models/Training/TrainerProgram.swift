@@ -123,6 +123,22 @@ struct TrainerProgramChangeLogEntry: Codable, Hashable, Identifiable {
     var editSummaries: [String]
 }
 
+// MARK: - TrainerProgramSkip
+
+/// A one-off, dated skip ("skip Thursday" from a trainer message): ONE
+/// occurrence of a session is dropped, the program itself is unchanged — so
+/// a repeating program is back to normal the following week. `date` is the
+/// start of the skipped day; `sessionKey` is the session's key (so a
+/// two-a-day's other session that day still runs). Reversible by removing
+/// the entry (`TrainerProgramSaver.undoSkip`).
+struct TrainerProgramSkip: Codable, Hashable, Identifiable {
+    var id = UUID()
+    var date: Date
+    var sessionKey: String
+    /// "Thu Anaerobic Run: skipped — knee", for the undo list.
+    var summary: String
+}
+
 // MARK: - TrainerProgramScheduleMode
 
 /// Fix #6 — how the program maps its sessions onto calendar days.
@@ -244,6 +260,11 @@ final class TrainerProgram {
     /// saved before this shipped).
     var changeLog: [TrainerProgramChangeLogEntry] = []
 
+    /// Dated one-off skips from "Trainer Sent Changes" (fixed mode only) —
+    /// `sessions(on:)` drops a skipped occurrence. Defaulted → lightweight
+    /// SwiftData migration (empty on every program saved before this).
+    var skippedSessions: [TrainerProgramSkip] = []
+
     init(
         id: UUID = UUID(),
         name: String,
@@ -315,8 +336,16 @@ final class TrainerProgram {
             return []
         }
         let weekday = Self.isoWeekday(of: date)
+        let cal = TrainingCalendar.iso8601
         return weeks[index].days.enumerated().compactMap { dayIndex, day in
-            day.weekday == weekday && !day.exercises.isEmpty ? (index, dayIndex, day) : nil
+            guard day.weekday == weekday, !day.exercises.isEmpty else {
+                return nil
+            }
+            let key = sessionKey(weekIndex: index, dayIndex: dayIndex)
+            if skippedSessions.contains(where: { $0.sessionKey == key && cal.isDate($0.date, inSameDayAs: date) }) {
+                return nil
+            }
+            return (index, dayIndex, day)
         }
     }
 
