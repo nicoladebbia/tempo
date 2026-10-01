@@ -81,6 +81,15 @@ struct SupplementDecision: Codable, Hashable, Identifiable {
     var id: String {
         name
     }
+
+    /// The AI can emit the same supplement twice for a day (even with
+    /// different take/skip). One decision per name — the first wins — so
+    /// anything keyed by name (`Dictionary(uniqueKeysWithValues:)`, SwiftUI
+    /// `ForEach(id:)`) can never trap or collide.
+    static func dedupedByName(_ decisions: [SupplementDecision]) -> [SupplementDecision] {
+        var seen = Set<String>()
+        return decisions.filter { seen.insert($0.name).inserted }
+    }
 }
 
 // MARK: - Supplement
@@ -181,9 +190,15 @@ final class Supplement {
         set { timingAnchorRaw = newValue?.rawValue }
     }
 
+    /// Low-stock flag for places with no intake history to hand (the plan AI's
+    /// shelf block). Uses the SAME days-of-supply rule as the shelf banner and
+    /// the reorder alert (`SupplementReorderService.lowStockThresholdDays`) —
+    /// it used to be a separate "≤5 servings" rule, so the badge, banner and AI
+    /// flag disagreed. Views that have logs pass them to
+    /// `SupplementReorderService.needsReorder` directly.
     @Transient
     var isRunningLow: Bool {
-        servingsRemaining > 0 && servingsRemaining <= 5
+        servingsRemaining > 0 && SupplementReorderService.needsReorder(for: self, recentLogs: [])
     }
 
     // MARK: - Init

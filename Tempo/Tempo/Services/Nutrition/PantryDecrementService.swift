@@ -59,8 +59,13 @@ struct PantryDecrementResult: Sendable {
 ///   - Pantry items stored in `.grams` / `.kilograms` / `.milliliters` /
 ///     `.liters` are decremented directly with unit normalization.
 ///   - Pantry items stored in `.pieces` are decremented using the
-///     natural-portion grams-per-piece (180g carrots ÷ 65g/medium = 3
+///     natural-portion grams-per-piece (180g carrots ÷ 65g/medium = 2.77
 ///     pieces).
+///   - Container/count units are tracked in FRACTIONS: eating 100 g from a
+///     500 g pack leaves 0.8 pack, not an emptied pack. A row is only
+///     "depleted" once it falls to `PantryUnit.depletedThreshold` (~0.05
+///     unit); that dust is consumed with the last bite so the recorded
+///     detail still round-trips exactly on undo.
 ///   - `.ounces` / `.pounds` are converted by mass (28.35 g / 453.59 g).
 ///   - `.servings` use the natural-portion grams as one serving; foods
 ///     without a natural portion are skipped (`skippedNoUnitMatch`).
@@ -139,12 +144,12 @@ enum PantryDecrementService {
             // (e.g. crediting 200 straight into a row now in kilograms
             // instead of grams). Convert through grams when they differ.
             if item.unitRaw == detail.unitRaw {
-                item.quantity += detail.amount
+                item.quantity = clean(item.quantity + detail.amount)
             } else if let detailUnit = PantryUnit(rawValue: detail.unitRaw),
                       let grams = gramsEquivalent(pantryAmount: detail.amount, canonicalName: detail.canonicalName, unit: detailUnit),
                       let converted = convertGramsToPantryUnit(grams: grams, canonicalName: detail.canonicalName, unit: item.unit)
             {
-                item.quantity += converted
+                item.quantity = clean(item.quantity + converted)
             } else {
                 // No safe conversion available — skip rather than risk
                 // corrupting the row; the approximate `credit(foods:)` path
@@ -290,7 +295,7 @@ enum PantryDecrementService {
                     ))
                     continue
                 }
-                row.quantity += delta
+                row.quantity = clean(row.quantity + delta)
                 row.updatedAt = Date()
                 results.append(PantryDecrementResult(
                     canonicalName: canonical,
@@ -346,13 +351,18 @@ enum PantryDecrementService {
                 continue
             }
             anyRowMatchedUnit = true
-            let consume = min(row.quantity, neededInRowUnit)
+            var consume = min(row.quantity, neededInRowUnit)
             guard consume > 0 else {
                 totalRemainingStock += row.quantity
                 continue
             }
+            // Leave no un-usable dust: a countable row that would end up at
+            // or under the depletion threshold is consumed fully.
+            if row.unit.isCountable, row.quantity - consume <= row.unit.depletedThreshold {
+                consume = row.quantity
+            }
             let gramsConsumed = gramsEquivalent(pantryAmount: consume, canonicalName: canonical, unit: row.unit) ?? remainingGrams
-            row.quantity = max(0, row.quantity - consume)
+            row.quantity = clean(max(0, row.quantity - consume))
             row.updatedAt = Date()
             details.append(PantryDecrementDetail(
                 pantryItemID: row.id, canonicalName: canonical, unitRaw: row.unitRaw, amount: consume
@@ -364,13 +374,22 @@ enum PantryDecrementService {
         guard anyRowMatchedUnit else {
             return PantryDecrementResult(canonicalName: canonical, requestedGrams: requestedGrams, outcome: .skippedNoUnitMatch)
         }
-        let outcome: PantryDecrementResult.Outcome = totalRemainingStock <= 0
+        let outcome: PantryDecrementResult.Outcome = rows.allSatisfy({ !$0.isInStock })
             ? .depleted
             : .decremented(remaining: totalRemainingStock)
         return PantryDecrementResult(canonicalName: canonical, requestedGrams: requestedGrams, outcome: outcome, details: details)
     }
 
     // MARK: - Unit conversion
+
+    /// Snap float dust (0.30000000000000004) so quantities stay readable and
+    /// decrement → credit round-trips to the exact starting value.
+    nonisolated static func clean(_ value: Double) -> Double {
+        (value * 1_000_000).rounded() / 1_000_000
+    }
+
+    static let gramsPerOunce = 28.349523125
+    static let gramsPerPound = 453.59237
 
     /// Translate a recipe gram quantity into the pantry item's stored unit.
     /// Returns nil when the unit can't be converted (caller surfaces a
@@ -381,13 +400,9 @@ enum PantryDecrementService {
     ///   1 g/mL (water-like) — staples like oil drift ~8% but never
     ///   decrement anyway.
     /// - Countable container units (.cans/.bottles/.jars/.packs/.pieces):
-    ///   divide grams by the naturalPortion's `purchaseGrams` (which
-    ///   carries the per-container weight) and round up. For `.pieces`
-    ///   we fall back to the per-item `grams` field so legacy entries
-    ///   that meant "1 banana ≈ 120g" still work.
-    static let gramsPerOunce = 28.349523125
-    static let gramsPerPound = 453.59237
-
+    ///   divide grams by the naturalPortion's per-unit weight (see
+    ///   `PantryUnit.gramsPerUnit`). NOT rounded — the pantry tracks
+    ///   fractions (0.2 pack) so a small bite never empties a whole pack.
     static func convertGramsToPantryUnit(
         grams: Double,
         canonicalName: String,
@@ -407,33 +422,25 @@ enum PantryDecrementService {
              .bottles,
              .jars,
              .packs:
-            guard let portion = FoodMacroDatabase.naturalPortions[canonicalName] else {
+            // Fractional: 100 g of a 500 g pack is 0.2 pack, never a whole
+            // emptied pack. Containers use the purchase weight, pieces the
+            // per-item weight (`PantryUnit.gramsPerUnit`).
+            guard let portion = FoodMacroDatabase.naturalPortions[canonicalName],
+                  let perUnit = unit.gramsPerUnit(of: portion)
+            else {
                 return nil
             }
-            // For containers, prefer purchaseGrams (the full container
-            // weight). For .pieces, fall back to the recipe-side `grams`
-            // since legacy entries (egg, banana) were authored that way.
-            let perUnit: Double = {
-                if unit == .pieces {
-                    return portion.grams
-                }
-                return portion.purchaseGrams > 0 ? portion.purchaseGrams : portion.grams
-            }()
-            guard perUnit > 0 else {
-                return nil
-            }
-            return (grams / perUnit).rounded(.up)
+            return grams / perUnit
         case .ounces:
             return grams / gramsPerOunce
         case .pounds:
             return grams / gramsPerPound
         case .servings:
-            // One serving ≈ one natural portion (1 egg, 40 g oats…). Rounded
-            // up like .pieces — a partial serving still opens a new one.
+            // One serving ≈ one natural portion (1 egg, 40 g oats…).
             guard let portion = FoodMacroDatabase.naturalPortions[canonicalName], portion.grams > 0 else {
                 return nil
             }
-            return (grams / portion.grams).rounded(.up)
+            return grams / portion.grams
         }
     }
 
@@ -463,11 +470,9 @@ enum PantryDecrementService {
              .bottles,
              .jars,
              .packs:
-            guard let portion = FoodMacroDatabase.naturalPortions[canonicalName] else {
-                return nil
-            }
-            let perUnit = unit == .pieces ? portion.grams : (portion.purchaseGrams > 0 ? portion.purchaseGrams : portion.grams)
-            guard perUnit > 0 else {
+            guard let portion = FoodMacroDatabase.naturalPortions[canonicalName],
+                  let perUnit = unit.gramsPerUnit(of: portion)
+            else {
                 return nil
             }
             return pantryAmount * perUnit
