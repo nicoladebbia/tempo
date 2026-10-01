@@ -177,6 +177,11 @@ struct TempoApp: App {
             ContentView()
                 .environment(services)
                 .task {
+                    // Entitlement at launch + Transaction.updates listener.
+                    // Idempotent; a no-op for the mock container.
+                    await services.subscriptions.startObserving()
+                }
+                .task {
                     // Runs once, before any resume-workout UI could
                     // plausibly request a fresh Live Activity — clears any
                     // Activity a previous, now-dead process left running.

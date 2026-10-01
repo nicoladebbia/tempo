@@ -31,12 +31,23 @@ final class SubscriptionService: SubscriptionServiceProtocol, @unchecked Sendabl
     // MARK: - Private
 
     private var updateTask: Task<Void, Never>?
+    /// True once `startObserving()` has begun. Guards against the app calling it
+    /// again (scene re-creation re-runs `.task`), which would otherwise replace
+    /// the live `Transaction.updates` listener and re-fetch products.
+    private(set) var isObserving = false
     private var products: [Product] = []
     private let productIds = Set(SubscriptionProduct.allCases.map(\.rawValue))
 
     // MARK: - Public API
 
+    /// Idempotent: the first call loads products, resolves the current entitlement
+    /// (so a paying user is Pro right after launch) and starts the
+    /// `Transaction.updates` listener (renewals, refunds, Ask-to-Buy approvals).
     func startObserving() async {
+        guard !isObserving else {
+            return
+        }
+        isObserving = true
         await loadProducts()
         await refreshState()
         listenForTransactions()
