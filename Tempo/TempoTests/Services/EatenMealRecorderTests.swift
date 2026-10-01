@@ -21,7 +21,7 @@ final class EatenMealRecorderTests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
         container = try ModelContainer(
-            for: PlannedMeal.self, WeeklyMealPlan.self, MealLog.self,
+            for: Schema(TempoSchemaV1.models),
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         context = container.mainContext

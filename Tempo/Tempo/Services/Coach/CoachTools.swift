@@ -374,8 +374,9 @@ enum CoachTools {
         guard meal.status != .eaten else {
             throw CoachToolError.mealAlreadyLogged(mealID)
         }
-        meal.status = .skipped
-        try context.save()
+        // Shared skip path (status, reminders, Dashboard ping). Redistribution
+        // stays the agent's separate step.
+        try MealOutcomeService.skip(meal, env: MealOutcomeService.Env(modelContext: context))
         notifications.cancelMealNotification(mealID: mealID)
         return ToolOutput(summary: "Skipped \(meal.mealName)")
     }

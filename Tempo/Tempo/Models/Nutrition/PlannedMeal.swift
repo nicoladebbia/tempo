@@ -11,7 +11,7 @@ import SwiftData
 
 // MARK: - PlannedFood
 
-struct PlannedFood: Codable {
+struct PlannedFood: Codable, Equatable {
     let name: String
     let quantityGrams: Double
     let calories: Double
@@ -49,6 +49,29 @@ struct MealMacros: Equatable {
             carbs: lhs.carbs + rhs.carbs,
             fat: lhs.fat + rhs.fat
         )
+    }
+}
+
+// MARK: - ReplacedPlan
+
+/// The planned dish a log replaced, kept so Undo / Delete can bring it back.
+struct ReplacedPlan: Codable, Equatable {
+    let foods: [PlannedFood]
+    let calories: Double
+    let protein: Double
+    let carbs: Double
+    let fat: Double
+
+    var totals: MealMacros {
+        MealMacros(calories: calories, protein: protein, carbs: carbs, fat: fat)
+    }
+
+    init(foods: [PlannedFood], totals: MealMacros) {
+        self.foods = foods
+        calories = totals.calories
+        protein = totals.protein
+        carbs = totals.carbs
+        fat = totals.fat
     }
 }
 
@@ -144,6 +167,13 @@ final class PlannedMeal: Identifiable {
     var planBaselineCarbs: Double?
     var planBaselineFat: Double?
 
+    /// What the plan had in this slot before a log REPLACED it ("I ate
+    /// something else", or a Quick Log landing in a planned slot): the
+    /// planned foods + totals as JSON (`ReplacedPlan`). Undo / delete of the
+    /// log restores them so the planned dish comes back. nil = nothing was
+    /// replaced. Optional so the SwiftData field add is a lightweight migration.
+    var replacedPlanJSON: Data?
+
     /// How long the user expects to spend eating. Drives the "eat-finish" time
     /// surfaced in `MealDetailView`. Default 30 minutes.
     var eatDurationMinutes: Int
@@ -158,6 +188,12 @@ final class PlannedMeal: Identifiable {
     /// orphan PlannedMeal never points at a stale Recipe.
     @Relationship(deleteRule: .cascade)
     var recipe: Recipe?
+
+    /// The planned recipe parked here while a log has replaced the slot's
+    /// dish (so `recipe` renders the foods actually eaten). Moved back to
+    /// `recipe` when the log is undone / deleted.
+    @Relationship(deleteRule: .cascade)
+    var replacedRecipe: Recipe?
 
     // MARK: - Computed Properties
 
@@ -275,6 +311,68 @@ final class PlannedMeal: Identifiable {
         planBaselineProtein = 0
         planBaselineCarbs = 0
         planBaselineFat = 0
+    }
+
+    /// True for a meal the user logged on top of the plan (Quick Log, scan,
+    /// photo, voice, preset): explicitly frozen at a zero plan baseline by
+    /// `markAsUnplannedLog`. Undoing or deleting one REMOVES it — it was never
+    /// a plan slot, so reverting it to `.planned` would invent an upcoming
+    /// meal. A plan slot always carries a non-zero captured baseline (or none).
+    @Transient
+    var isUnplannedLog: Bool {
+        guard let calories = planBaselineCalories else {
+            return false
+        }
+        return calories == 0 && (planBaselineProtein ?? 0) == 0
+            && (planBaselineCarbs ?? 0) == 0 && (planBaselineFat ?? 0) == 0
+    }
+
+    /// The plan's original dish for this slot when a log replaced it.
+    @Transient
+    var replacedPlan: ReplacedPlan? {
+        get {
+            guard let replacedPlanJSON else {
+                return nil
+            }
+            return try? JSONDecoder().decode(ReplacedPlan.self, from: replacedPlanJSON)
+        }
+        set {
+            replacedPlanJSON = newValue.flatMap { try? JSONEncoder().encode($0) }
+        }
+    }
+
+    /// Parks the planned dish (foods, totals, recipe) before a log overwrites
+    /// it. First call wins, so re-logging the same slot never loses the
+    /// ORIGINAL plan. No-op for an ad-hoc log (nothing was planned).
+    func stashPlannedDishIfNeeded() {
+        guard replacedPlanJSON == nil, !isUnplannedLog else {
+            return
+        }
+        replacedPlan = ReplacedPlan(foods: foods, totals: totals)
+        if let recipe {
+            replacedRecipe = recipe
+            self.recipe = nil
+        }
+    }
+
+    /// Puts the planned dish back (foods, totals, recipe). Returns false when
+    /// nothing was stashed.
+    @discardableResult
+    func restoreReplacedPlan() -> Bool {
+        guard let stashed = replacedPlan else {
+            return false
+        }
+        foods = stashed.foods
+        totalCalories = stashed.totals.calories
+        totalProtein = stashed.totals.protein
+        totalCarbs = stashed.totals.carbs
+        totalFat = stashed.totals.fat
+        if let replacedRecipe {
+            recipe = replacedRecipe
+            self.replacedRecipe = nil
+        }
+        replacedPlanJSON = nil
+        return true
     }
 
     /// Recalculate totals from current foods.

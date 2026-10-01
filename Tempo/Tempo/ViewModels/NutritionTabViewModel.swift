@@ -549,292 +549,129 @@ final class NutritionTabViewModel {
 
     // MARK: - Meal Actions
 
+    /// Everything the shared eat/skip/undo path needs, fed with this view
+    /// model's cached Whoop inputs so the rebalancer uses the Today-ring target.
+    private func outcomeEnv(
+        _ modelContext: ModelContext,
+        _ notifications: (any NotificationServiceProtocol)?
+    ) -> MealOutcomeService.Env {
+        MealOutcomeService.Env(
+            modelContext: modelContext,
+            notifications: notifications ?? notificationsService,
+            whoopAvgTDEE: cachedWhoopAvgTDEE,
+            recoveryScore: todayRecovery?.score
+        )
+    }
+
+    /// Marks a meal eaten through `MealOutcomeService.markEaten` — the single
+    /// path Today, the detail screen and the Watch share (status, time, pantry
+    /// decrement, shift, rebalance, reminders, Dashboard ping). `foods` /
+    /// `substituteNote` = "ate something else" (the planned dish is remembered
+    /// for Undo). Returns false when the save failed.
+    @discardableResult
     func markMealEaten(
         _ meal: PlannedMeal,
         at eatenAt: Date = Date(),
         modelContext: ModelContext,
-        notifications: (any NotificationServiceProtocol)? = nil
-    ) {
-        let mealID = meal.id
-        Logger.nutrition
-            .info(
-                "[Diag.Eat] \(meal.mealName, privacy: .public) marked eaten at \(eatenAt.formatted(date: .omitted, time: .shortened), privacy: .public) — \(Int(meal.totalCalories))kcal, decrementedPantry=\(meal.didDecrementPantry)"
+        notifications: (any NotificationServiceProtocol)? = nil,
+        feel: MealFeel? = nil,
+        satiety: MealSatiety? = nil,
+        replacingWith foods: [PlannedFood]? = nil,
+        substituteNote: String? = nil,
+        pantry: MealOutcomeService.PantryUse = .plannedMeal
+    ) -> Bool {
+        do {
+            try MealOutcomeService.markEaten(
+                meal,
+                at: eatenAt,
+                feel: feel,
+                satiety: satiety,
+                replacingWith: foods,
+                substituteNote: substituteNote,
+                pantry: pantry,
+                env: outcomeEnv(modelContext, notifications)
             )
-        meal.status = .eaten
-        meal.actualEatenAt = eatenAt
-
-        // Shift any subsequent planned meals to maintain their original
-        // gaps. Pure function — see `MealShiftPlanner` for the math and the
-        // bedtime-cap compression rule.
-        applyMealShift(
-            eatenMealID: mealID,
-            actualEatTime: eatenAt,
-            modelContext: modelContext,
-            notifications: notifications
-        )
-
-        // Same-day macro rebalance: if the user ate a substitute (planned
-        // macros zeroed) or the planned meal's macros otherwise diverge
-        // from target, bump the remaining .planned meals proportionally
-        // so the day still hits its target macros.
-        applyMacroRebalance(modelContext: modelContext)
-
-        try? modelContext.save()
-        HapticManager.notification(.success)
-        notifications?.cancelDefrostReminders(forMealID: mealID)
-        notifications?.cancelPrepStartReminder(forMealID: mealID)
-        notifications?.cancelOverdueMealReminder(forMealID: mealID)
+        } catch {
+            Logger.nutrition.error("[Diag.Eat] mark eaten failed: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
         refreshTodayMeals(modelContext: modelContext)
-
-        // Notify the day-plan engine: a meal eaten off its scheduled time
-        // means subsequent free windows shifted, so the timeline copy
-        // (especially meal-timing) is stale. DayPlanScheduler debounces.
-        NotificationCenter.default.post(
-            name: .tempoDayPlanReplanRequested,
-            object: nil,
-            userInfo: ["reason": DayPlanReason.mealEatenOffSchedule.rawValue]
-        )
-        // Keep the Dashboard Fuel quadrant in sync with this change.
-        NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
+        return true
     }
 
-    /// Undo a meal that was marked eaten — reverts it to `.planned` so the
-    /// user can re-log, fix a wrong slot (açai bowl logged to Breakfast
-    /// instead of Snack), or just take it back. The inverse of
-    /// `markMealEaten` for the parts that matter for correctness:
-    ///
-    ///   - status → `.planned`, `actualEatenAt` → nil. Because day/Fuel
-    ///     totals sum ONLY `.eaten` meals, this immediately removes the
-    ///     meal's macros from today's totals — no double-count when it's
-    ///     re-logged elsewhere.
-    ///   - Deletes this meal's `MealFeedback` row(s) so a stale "how did it
-    ///     feel" / substitute note doesn't linger on a meal that wasn't eaten.
-    ///   - Re-credits the pantry IF this meal had decremented it
-    ///     (`didDecrementPantry`), then resets the flag. Prefers the EXACT
-    ///     inverse (`PantryDecrementService.creditExact`, using the recorded
-    ///     `decrementDetail`); falls back to the approximate re-derivation
-    ///     (`credit(foods:)`) for meals decremented before that detail was
-    ///     recorded. Guarded so it runs once.
-    ///
-    /// Deliberately does NOT try to un-shift sibling meals or reverse the
-    /// macro rebalance that `markMealEaten` applied — that state-machine
-    /// reversal is fragile and not what "I logged this wrong" needs. The
-    /// user can regenerate the day if the timeline drifted.
+    /// Undo / delete a logged or skipped meal via `MealOutcomeService.undo`: a
+    /// plan slot returns to `.planned` with its original dish, a log the user
+    /// added on top of the plan is removed. Returns the snapshot for the Undo
+    /// toast (nil when the save failed).
+    @discardableResult
     func undoMealEaten(
         _ meal: PlannedMeal,
-        modelContext: ModelContext
-    ) {
-        let mealID = meal.id
-        Logger.nutrition
-            .info(
-                "[Diag.Undo] \(meal.mealName, privacy: .public) was \(meal.status.rawValue, privacy: .public) → reverting to planned (creditPantry=\(meal.didDecrementPantry))"
-            )
-
-        // Re-credit pantry before flipping state, while didDecrementPantry
-        // still tells us whether stock was pulled.
-        if meal.didDecrementPantry {
-            let detail = meal.decrementDetail
-            if !detail.isEmpty {
-                _ = PantryDecrementService.creditExact(details: detail, modelContext: modelContext)
-            } else {
-                _ = PantryDecrementService.credit(
-                    foods: meal.foods, label: meal.mealName, modelContext: modelContext
-                )
-            }
-            meal.decrementDetail = []
-            meal.didDecrementPantry = false
-        }
-
-        meal.status = .planned
-        meal.actualEatenAt = nil
-
-        // Delete any MealFeedback captured for this meal. Fetch via a
-        // SwiftData predicate on the relationship id — the SAME safe pattern
-        // refreshFeedbackPresence uses. Do NOT iterate rows in Swift and read
-        // row.plannedMeal?.id: that crashes on a dangling ref to a
-        // cascade-deleted meal (see the CRITICAL note in
-        // refreshFeedbackPresence). The predicate engine resolves it
-        // server-side.
-        let descriptor = FetchDescriptor<MealFeedback>(
-            predicate: #Predicate<MealFeedback> { row in
-                row.plannedMeal?.id == mealID
-            }
-        )
-        if let rows = try? modelContext.fetch(descriptor) {
-            for row in rows {
-                modelContext.delete(row)
-            }
-        }
-
-        try? modelContext.save()
-        HapticManager.notification(.success)
-        refreshTodayMeals(modelContext: modelContext)
-        refreshFeedbackPresence(modelContext: modelContext)
-
-        // Keep the Dashboard Fuel quadrant + day plan in sync.
-        NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
-    }
-
-    /// Recompute and persist shifted scheduled times for the remaining meals
-    /// of the day, then reschedule prep-start / defrost / meal-reminder
-    /// notifications for the shifted meals so the user gets accurate pings.
-    private func applyMealShift(
-        eatenMealID: UUID,
-        actualEatTime: Date,
         modelContext: ModelContext,
-        notifications: (any NotificationServiceProtocol)?
-    ) {
-        let results = MealShiftPlanner.computeShift(
-            todaysMeals: todayMeals,
-            eatenMealID: eatenMealID,
-            actualEatTime: actualEatTime
-        )
-        guard !results.isEmpty else {
-            return
+        notifications: (any NotificationServiceProtocol)? = nil
+    ) -> MealOutcomeService.LogSnapshot? {
+        let mealID = meal.id
+        if meal.isUnplannedLog, meal.status == .eaten {
+            // Drop the row from the cached list before the model is deleted so
+            // nothing renders a dead reference.
+            todayMeals.removeAll { $0.id == mealID }
+            feedbackPresence[mealID] = nil
         }
-
-        // Apply new scheduledTime and reschedule notifications for each shifted meal.
-        let resultsByID = Dictionary(uniqueKeysWithValues: results.map { ($0.mealID, $0) })
-        for meal in todayMeals {
-            guard let r = resultsByID[meal.id] else {
-                continue
-            }
-            meal.scheduledTime = r.newScheduledTime
-
-            // Reschedule the per-meal reminder at the new time. Defrost,
-            // prep-start, and overdue reminders are all tied to the meal
-            // time; cancel + reschedule.
-            notifications?.cancelDefrostReminders(forMealID: meal.id)
-            notifications?.cancelPrepStartReminder(forMealID: meal.id)
-            notifications?.cancelOverdueMealReminder(forMealID: meal.id)
-
-            if r.newScheduledDate > Date() {
-                notifications?.scheduleMealReminder(
-                    mealName: meal.mealName,
-                    time: r.newScheduledDate.addingTimeInterval(-5 * 60)
-                )
-                notifications?.scheduleOverdueMealReminder(
-                    mealID: meal.id,
-                    mealName: meal.mealName,
-                    scheduledTime: r.newScheduledDate,
-                    lateMinutes: 15
-                )
-                // Prep-start reminder uses the new meal time minus recipe lead.
-                let prep = meal.recipe?.prepMinutes ?? 0
-                let cook = meal.recipe?.cookMinutes ?? 0
-                let leadMinutes = prep + cook
-                if leadMinutes > 0,
-                   let prepStart = Calendar.current.date(
-                       byAdding: .minute,
-                       value: -leadMinutes,
-                       to: r.newScheduledDate
-                   ),
-                   prepStart > Date()
-                {
-                    notifications?.schedulePrepStartReminder(
-                        mealID: meal.id,
-                        mealName: meal.mealName,
-                        prepStartDate: prepStart
-                    )
-                }
-            }
+        let snapshot: MealOutcomeService.LogSnapshot?
+        do {
+            snapshot = try MealOutcomeService.undo(meal, env: outcomeEnv(modelContext, notifications))
+        } catch {
+            Logger.nutrition.error("[Diag.Undo] failed: \(error.localizedDescription, privacy: .public)")
+            snapshot = nil
         }
+        refreshTodayMeals(modelContext: modelContext)
+        return snapshot
     }
 
-    /// Same-day macro rebalance hook fired after Mark Eaten. Reads
-    /// today's eaten + remaining .planned meals, computes the residual
-    /// target delta via MealRebalancer, and applies per-meal additive
-    /// adjustments. No-ops when the residual is below threshold so a
-    /// 95%-on-target day doesn't get juggled.
-    ///
-    /// Re-fetches the PlannedMeals from `modelContext` by date predicate
-    /// instead of trusting the cached `todayMeals` array — the cached
-    /// array can hold stale refs after a plan regen, which crashes on
-    /// SwiftData property access ("BackingData.swift:1039 Fatal").
-    private func applyMacroRebalance(modelContext: ModelContext) {
-        let cal = Calendar.current
-        let todayStart = cal.startOfDay(for: Date())
-        guard let tomorrowStart = cal.date(byAdding: .day, value: 1, to: todayStart) else {
-            return
+    /// Re-applies a log removed by `undoMealEaten` (the Undo toast).
+    @discardableResult
+    func restoreLog(
+        _ snapshot: MealOutcomeService.LogSnapshot,
+        modelContext: ModelContext,
+        notifications: (any NotificationServiceProtocol)? = nil
+    ) -> Bool {
+        do {
+            try MealOutcomeService.restore(snapshot, env: outcomeEnv(modelContext, notifications))
+        } catch {
+            Logger.nutrition.error("[Diag.Undo] restore failed: \(error.localizedDescription, privacy: .public)")
+            return false
         }
-        let descriptor = FetchDescriptor<PlannedMeal>(
-            predicate: #Predicate<PlannedMeal> { meal in
-                meal.dayDate >= todayStart && meal.dayDate < tomorrowStart
-            }
-        )
-        guard let freshMeals = try? modelContext.fetch(descriptor),
-              !freshMeals.isEmpty
-        else {
-            return
-        }
-        let canonicalMeals = freshMeals.filter(CanonicalMeals.isCanonical)
-        let eaten = canonicalMeals.filter { $0.status == .eaten }
-        let remaining = canonicalMeals.filter { $0.status == .planned }
-        guard !remaining.isEmpty else {
-            return
-        }
-        // The target below sums plan baselines; freeze them before we move
-        // any totals so this rebalance can't feed back into the next one.
-        for meal in canonicalMeals {
-            meal.capturePlanBaselineIfNeeded()
-        }
-
-        let consumed = MealRebalancer.Macros(
-            calories: eaten.reduce(0.0) { $0 + $1.totalCalories },
-            protein: eaten.reduce(0.0) { $0 + $1.totalProtein },
-            carbs: eaten.reduce(0.0) { $0 + $1.totalCarbs },
-            fat: eaten.reduce(0.0) { $0 + $1.totalFat }
-        )
-        let plannedMacros = remaining.map { meal in
-            MealRebalancer.PlannedMealMacros(
-                id: meal.id,
-                calories: meal.totalCalories,
-                protein: meal.totalProtein,
-                carbs: meal.totalCarbs,
-                fat: meal.totalFat
-            )
-        }
-        // The canonical daily target — the exact number the Today ring shows.
-        let targets = DailyNutritionTargets.today(
-            in: modelContext,
-            whoopAvgTDEE: cachedWhoopAvgTDEE,
-            recoveryScore: todayRecovery?.score
-        )
-        let dayTargets = MealRebalancer.Targets(
-            calories: Double(targets.calories),
-            protein: Double(targets.protein),
-            carbs: Double(targets.carbs),
-            fat: Double(targets.fat)
-        )
-        let adjustments = MealRebalancer.rebalance(
-            dayTargets: dayTargets,
-            consumed: consumed,
-            remaining: plannedMacros
-        )
-        for adj in adjustments where !adj.isZero {
-            guard let meal = remaining.first(where: { $0.id == adj.mealID }) else {
-                continue
-            }
-            meal.totalCalories = max(0, meal.totalCalories + adj.calories)
-            meal.totalProtein = max(0, meal.totalProtein + adj.protein)
-            meal.totalCarbs = max(0, meal.totalCarbs + adj.carbs)
-            meal.totalFat = max(0, meal.totalFat + adj.fat)
-        }
+        refreshTodayMeals(modelContext: modelContext)
+        return true
     }
 
+    /// Re-reads today's meals and presets after a change made outside this
+    /// view model (meal detail screen, Watch, Log tab).
+    func refreshAfterMealChange(modelContext: ModelContext) {
+        refreshTodayMeals(modelContext: modelContext)
+        refreshPresets(modelContext: modelContext)
+    }
+
+    /// Forgets a meal that is about to be deleted elsewhere
+    /// (`.tempoMealWillBeRemoved`).
+    func dropFromToday(mealID: UUID) {
+        todayMeals.removeAll { $0.id == mealID }
+        feedbackPresence[mealID] = nil
+    }
+
+    @discardableResult
     func markMealSkipped(
         _ meal: PlannedMeal,
         modelContext: ModelContext,
         notifications: (any NotificationServiceProtocol)? = nil
-    ) {
-        let mealID = meal.id
-        meal.status = .skipped
-        try? modelContext.save()
-        HapticManager.lightImpact()
-        notifications?.cancelDefrostReminders(forMealID: mealID)
-        notifications?.cancelPrepStartReminder(forMealID: mealID)
-        notifications?.cancelOverdueMealReminder(forMealID: mealID)
+    ) -> Bool {
+        do {
+            try MealOutcomeService.skip(meal, env: outcomeEnv(modelContext, notifications))
+        } catch {
+            Logger.nutrition.error("[Diag.Skip] failed: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
         refreshTodayMeals(modelContext: modelContext)
+        return true
     }
 
     // MARK: - Skip Redistribution (AI)
@@ -872,35 +709,20 @@ final class NutritionTabViewModel {
         guard let redistribution = redistributionService else {
             return
         }
-
-        let remaining = todayMeals.filter { $0.id != skipped.id }
-        let result = await redistribution.redistribute(
-            skipped: skipped,
-            remaining: remaining,
+        let result = await MealOutcomeService.redistributeAfterSkip(
+            skipped,
+            service: redistribution,
+            env: outcomeEnv(modelContext, nil),
             recoveryScore: recoveryScore,
             sleepHours: sleepHours,
             strain: strain,
             dayType: dayType
         )
-
-        // Apply per-meal additive deltas. Freeze plan baselines first so the
-        // redistribution moves food around without moving the day's target.
-        for meal in todayMeals {
-            meal.capturePlanBaselineIfNeeded()
-        }
-        let byNumber = Dictionary(uniqueKeysWithValues: result.perMeal.map { ($0.mealNumber, $0) })
-        for meal in todayMeals where meal.status == .planned {
-            guard let delta = byNumber[meal.mealNumber] else {
-                continue
-            }
-            meal.totalCalories += delta.addCalories
-            meal.totalProtein += delta.addProtein
-            meal.totalCarbs += delta.addCarbs
-            meal.totalFat += delta.addFat
-        }
-        try? modelContext.save()
         refreshTodayMeals(modelContext: modelContext)
-
+        // Only claim a redistribution when one was actually applied.
+        guard let result else {
+            return
+        }
         let sourceTag = result.source == .ai ? "Coach" : "Fallback"
         lastRedistributionBanner = "\(sourceTag): \(result.reasoning)"
         HapticManager.notification(.success)
@@ -909,76 +731,82 @@ final class NutritionTabViewModel {
     // MARK: - Presets
 
     func savePreset(name: String, items: [PlannedFood], mealType: MealType, modelContext: ModelContext) {
-        let foodInputs = items.map { food in
-            MealFoodItemInput(
-                foodId: UUID().uuidString,
-                name: food.name,
-                brand: nil,
-                servings: 1.0,
-                servingSize: food.quantityGrams,
-                servingUnit: "g",
-                calories: food.calories,
-                proteinGrams: food.proteinG,
-                carbsGrams: food.carbsG,
-                fatGrams: food.fatG,
-                source: .manual
-            )
+        guard let preset = try? MealOutcomeService.savePreset(
+            name: name, foods: items, mealType: mealType, modelContext: modelContext
+        ) else {
+            return
         }
-
-        let preset = MealPreset(
-            name: name,
-            foodItems: foodInputs,
-            totalCalories: items.reduce(0) { $0 + $1.calories },
-            totalProtein: items.reduce(0) { $0 + $1.proteinG },
-            totalCarbs: items.reduce(0) { $0 + $1.carbsG },
-            totalFat: items.reduce(0) { $0 + $1.fatG },
-            mealType: mealType
-        )
-        modelContext.insert(preset)
-        try? modelContext.save()
         presets.append(preset)
         HapticManager.notification(.success)
     }
 
-    func logFromPreset(_ preset: MealPreset, modelContext: ModelContext) {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        let now = Date()
-        let timeFormatter = DateFormatter()
-        timeFormatter.dateFormat = "HH:mm"
+    /// "Save as preset" on a logged meal. False when it has no foods or the
+    /// save failed.
+    @discardableResult
+    func savePreset(from meal: PlannedMeal, name: String, modelContext: ModelContext) -> Bool {
+        let foods = meal.foods
+        guard !foods.isEmpty,
+              let preset = try? MealOutcomeService.savePreset(
+                  name: name,
+                  foods: foods,
+                  mealType: MealType.inferred(fromName: meal.mealName) ?? .snack,
+                  modelContext: modelContext
+              )
+        else {
+            return false
+        }
+        presets.append(preset)
+        HapticManager.notification(.success)
+        return true
+    }
 
-        let meal = PlannedMeal(
-            dayDate: today,
-            mealNumber: todayMeals.count + 1,
-            mealName: preset.mealType.displayName,
-            scheduledTime: timeFormatter.string(from: now),
-            foods: preset.foodItems.map { input in
-                PlannedFood(
-                    name: input.name,
-                    quantityGrams: input.servingSize,
-                    calories: input.calories,
-                    proteinG: input.proteinGrams,
-                    carbsG: input.carbsGrams,
-                    fatG: input.fatGrams
-                )
-            },
-            totalCalories: preset.totalCalories,
-            totalProtein: preset.totalProtein,
-            totalCarbs: preset.totalCarbs,
-            totalFat: preset.totalFat,
-            status: .eaten,
-            actualEatenAt: now,
-            mealPlan: weeklyPlan
-        )
-        // A preset is an extra log, not part of the plan's allocation.
-        meal.markAsUnplannedLog()
-        modelContext.insert(meal)
+    func deletePreset(_ preset: MealPreset, modelContext: ModelContext) {
+        presets.removeAll { $0.id == preset.id }
+        modelContext.delete(preset)
+        try? modelContext.save()
+        HapticManager.lightImpact()
+    }
+
+    func refreshPresets(modelContext: ModelContext) {
+        let descriptor = FetchDescriptor<MealPreset>(sortBy: [SortDescriptor(\.useCount, order: .reverse)])
+        if let fetched = try? modelContext.fetch(descriptor) {
+            presets = fetched
+        }
+    }
+
+    /// Logs a preset through `EatenMealRecorder` — the same path as Quick Log:
+    /// fills a matching planned slot (planned dish remembered, shift/rebalance
+    /// run), merges into an eaten one, or becomes an unplanned log; legacy
+    /// MealLog written, Dashboard pinged. Returns nil when the save failed
+    /// (so the caller must not toast success).
+    @discardableResult
+    func logFromPreset(
+        _ preset: MealPreset,
+        modelContext: ModelContext,
+        resolution: EatenMealRecorder.DuplicateResolution = .add,
+        notifications: (any NotificationServiceProtocol)? = nil
+    ) -> EatenMealRecorder.Result? {
+        let result: EatenMealRecorder.Result
+        do {
+            result = try EatenMealRecorder.record(
+                preset.foodItems,
+                type: preset.mealType,
+                eatenAt: Date(),
+                source: .preset,
+                resolution: resolution,
+                modelContext: modelContext,
+                notifications: notifications ?? notificationsService
+            )
+        } catch {
+            Logger.nutrition.error("[Diag.Preset] log failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
         preset.recordUse()
         try? modelContext.save()
-        todayMeals = Self.chronological(todayMeals + [meal])
+        let known = todayMeals.contains { $0.id == result.meal.id }
+        todayMeals = Self.chronological(known ? todayMeals : todayMeals + [result.meal])
         HapticManager.notification(.success)
-        // Keep the Dashboard Fuel quadrant in sync, same as every other log path.
-        NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
+        return result
     }
 
     /// Today's meal order: parsed "HH:mm" minutes-of-day, then meal number.

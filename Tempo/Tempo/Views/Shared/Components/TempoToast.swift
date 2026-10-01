@@ -16,6 +16,9 @@ import SwiftUI
 struct TempoToast: View {
     let message: String
     let style: ToastStyle
+    /// Optional trailing button ("Undo"). Tapping runs `action` and dismisses.
+    var actionTitle: String?
+    var action: (() -> Void)?
 
     enum ToastStyle {
         case success
@@ -63,6 +66,18 @@ struct TempoToast: View {
                 .lineLimit(2)
 
             Spacer()
+
+            if let actionTitle, let action {
+                Button(action: action) {
+                    Text(actionTitle)
+                        .font(.tempoBody)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.tempoSignal)
+                        .padding(.horizontal, TempoSpacing.xs)
+                        .frame(minHeight: 44)
+                }
+                .buttonStyle(.plain)
+            }
         }
         .padding(.horizontal, TempoSpacing.cardPadding)
         .padding(.vertical, TempoSpacing.md)
@@ -83,12 +98,30 @@ struct ToastModifier: ViewModifier {
         content
             .overlay(alignment: .top) {
                 if let toast {
-                    TempoToast(message: toast.message, style: toast.style)
+                    TempoToast(
+                        message: toast.message,
+                        style: toast.style,
+                        actionTitle: toast.actionTitle,
+                        action: toast.action.map { run in
+                            {
+                                run()
+                                withAnimation(.easeIn(duration: 0.2)) {
+                                    self.toast = nil
+                                }
+                            }
+                        }
+                    )
                         .padding(.top, TempoSpacing.sm)
                         .transition(.move(edge: .top).combined(with: .opacity))
                         .onAppear {
                             HapticManager.notification(toast.style.haptic)
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                            // A toast with an action stays long enough to use it;
+                            // a newer toast must not be dismissed by an older timer.
+                            let shownID = toast.id
+                            DispatchQueue.main.asyncAfter(deadline: .now() + toast.duration) {
+                                guard self.toast?.id == shownID else {
+                                    return
+                                }
                                 withAnimation(.easeIn(duration: 0.2)) {
                                     self.toast = nil
                                 }
@@ -116,6 +149,14 @@ struct ToastData: Identifiable, Equatable {
     let id = UUID()
     let message: String
     let style: TempoToast.ToastStyle
+    /// Optional action button (e.g. "Undo") — see `TempoToast`.
+    var actionTitle: String?
+    var action: (() -> Void)?
+
+    /// 5 s when there is an action to tap, 3 s otherwise.
+    var duration: TimeInterval {
+        actionTitle == nil ? 3 : 5
+    }
 
     static func == (lhs: ToastData, rhs: ToastData) -> Bool {
         lhs.id == rhs.id
