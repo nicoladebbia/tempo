@@ -126,10 +126,7 @@ final class Exercise {
 
     @Transient
     var currentEstimated1RM: Double? {
-        history?
-            .sorted { $0.date > $1.date }
-            .first?
-            .estimated1RM
+        Self.currentEstimated1RM(from: history ?? [])
     }
 
     @Transient

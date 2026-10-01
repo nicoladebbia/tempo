@@ -1944,7 +1944,7 @@ final class TrainingViewModel {
             // weight/reps must come from a real working set.
             let best = completedSets
                 .filter { !$0.isDropStep }
-                .max { ($0.actualWeight ?? 0) < ($1.actualWeight ?? 0) }
+                .max { ExerciseBestSet.ranksBelow(($0.actualWeight ?? 0, $0.actualReps ?? 0), ($1.actualWeight ?? 0, $1.actualReps ?? 0)) }
 
             // Aggregate ONLY user-provided feedback for this exercise's working
             // sets (pure helper, unit-tested). No entered feedback → nil/0.

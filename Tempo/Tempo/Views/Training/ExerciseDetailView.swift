@@ -264,8 +264,7 @@ struct ExerciseDetailView: View {
             $0.date > Calendar.current.date(byAdding: .day, value: -30, to: .now) ?? .now
         }
         let current1RM = exercise.currentEstimated1RM
-        let bestWeight = history.compactMap(\.bestSetWeight).max()
-        let bestReps = history.compactMap(\.bestSetReps).max()
+        let bestSet = ExerciseBestSet.pick(from: history)
         let volume30d = thirtyDayHistory.reduce(0.0) { $0 + $1.totalVolume }
         let sessions30d = thirtyDayHistory.count
 
@@ -285,7 +284,7 @@ struct ExerciseDetailView: View {
                 )
                 statItem(
                     label: "Best Set",
-                    value: bestSetText(weight: bestWeight, reps: bestReps)
+                    value: bestSetText(bestSet)
                 )
                 statItem(
                     label: "Volume (30d)",
@@ -525,11 +524,11 @@ struct ExerciseDetailView: View {
         return history.filter { $0.date > cutoff }
     }
 
-    private func bestSetText(weight: Double?, reps: Int?) -> String {
-        guard let w = weight, let r = reps else {
+    private func bestSetText(_ best: ExerciseBestSet?) -> String {
+        guard let best else {
             return "—"
         }
-        return "\(WeightFormat.load(kg: w, unit: weightUnit)) × \(r)"
+        return "\(WeightFormat.load(kg: best.weightKg, unit: weightUnit)) × \(best.reps)"
     }
 
     private func formatVolume(_ volume: Double) -> String {

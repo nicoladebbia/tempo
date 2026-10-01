@@ -160,7 +160,7 @@ final class PlannedExercise {
         // a reduced-weight backoff, never the max-effort signal "best" means.
         (sets ?? [])
             .filter { !$0.isWarmup && !$0.isDropStep && $0.completed && $0.actualWeight != nil }
-            .max { ($0.actualWeight ?? 0) < ($1.actualWeight ?? 0) }
+            .max { ExerciseBestSet.ranksBelow(($0.actualWeight ?? 0, $0.actualReps ?? 0), ($1.actualWeight ?? 0, $1.actualReps ?? 0)) }
     }
 
     @Transient
