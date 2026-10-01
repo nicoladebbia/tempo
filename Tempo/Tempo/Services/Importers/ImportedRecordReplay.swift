@@ -42,7 +42,7 @@ struct ImportedRecordReplay {
         for row in exercise.history ?? [] {
             events.append(Event(
                 date: row.date,
-                weightKg: (bodyweight ? row.bestSetAddedLoadKg : row.bestSetWeight) ?? 0,
+                weightKg: max(0, (bodyweight ? row.bestSetAddedLoadKg : row.bestSetWeight) ?? 0),
                 reps: row.bestSetReps ?? 0,
                 e1RM: row.estimated1RM
             ))
@@ -55,7 +55,7 @@ struct ImportedRecordReplay {
             for set in slot.sets ?? [] where set.completed && !set.isWarmup {
                 events.append(Event(
                     date: date,
-                    weightKg: (bodyweight ? set.addedLoadKg : set.actualWeight) ?? 0,
+                    weightKg: max(0, (bodyweight ? set.addedLoadKg : set.actualWeight) ?? 0),
                     reps: set.actualReps ?? 0,
                     e1RM: set.estimated1RM
                 ))
@@ -87,7 +87,7 @@ struct ImportedRecordReplay {
         let bodyweight = TrainingEngine.usesBodyweightPRRule(exercise.equipment)
         let zeroWeightAllowed = TrainingEngine.allowsZeroWeightRecord(exercise.equipment)
         let load: (PlannedSet) -> Double = { set in
-            (bodyweight ? set.addedLoadKg : set.actualWeight) ?? 0
+            max(0, (bodyweight ? set.addedLoadKg : set.actualWeight) ?? 0)
         }
         let working = sets.filter { $0.completed && !$0.isWarmup && ($0.actualReps ?? 0) > 0 }
         var best: [PRType: (value: Double, set: PlannedSet)] = [:]

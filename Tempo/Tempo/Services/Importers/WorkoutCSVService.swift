@@ -432,12 +432,19 @@ enum WorkoutCSVService {
                     // on top — stored like a live row: the added load, and the
                     // effective load (bodyweight + added) as the set's weight so
                     // e1RM, volume and best set share the live basis. An
-                    // assisted variant's weight is help, not load: no added
-                    // load, and reps-only records.
+                    // assisted variant's weight is help, not load: stored as a
+                    // NEGATIVE added load (like the live logger's "BW − 40"),
+                    // effective load = bodyweight − help, and reps-only records.
                     var added: Double?
                     var load = set.weightKg(assuming: unit)
                     if assisted {
-                        load = bodyweightLift ? bodyweight : nil
+                        if bodyweightLift {
+                            let assist = max(0, load ?? 0)
+                            added = -assist
+                            load = max(0, bodyweight - assist)
+                        } else {
+                            load = nil
+                        }
                     } else if bodyweightLift {
                         added = load ?? 0
                         load = bodyweight + (added ?? 0)
@@ -550,7 +557,7 @@ enum WorkoutCSVService {
     /// header — "Weight (lbs)" / "Weight (kg)" — which Tempo's importer reads
     /// back, so the file round-trips without a unit prompt. A bodyweight set
     /// leaves Weight empty rather than writing "0"; pull-up / dip style lifts
-    /// write the load ADDED to bodyweight (empty when none or assisted).
+    /// write the load ADDED to bodyweight (empty when none); assisted variants write the assist weight.
     static func exportCSV(plans: [WorkoutPlan], unit: WeightUnit = .kg) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -575,7 +582,10 @@ enum WorkoutCSVService {
                 // + added, which would re-import as a huge added load.
                 let bodyweightLift = StrengthStandards.isBodyweightLoaded(exercise.equipment)
                 for (index, set) in working.enumerated() {
-                    let load = bodyweightLift ? set.addedLoadKg : set.actualWeight
+                    // An assisted variant writes its help back as a positive
+                    // number (the importer reads it as assistance again).
+                    let assistedLift = bodyweightLift && isAssistedName(exercise.name)
+                    let load = bodyweightLift ? set.addedLoadKg.map { assistedLift ? -$0 : $0 } : set.actualWeight
                     let weight = (load.flatMap { $0 > 0 ? $0 : nil })
                         .map { WeightFormat.number(kg: $0, unit: unit) } ?? ""
                     let rpe = set.rpe.map(String.init) ?? ""

@@ -543,7 +543,7 @@ final class WorkoutCSVServiceTests: XCTestCase {
         XCTAssertNil(TrainingEngine().detectPersonalRecord(exercise: lift, weight: 40, reps: 5, rir: 2))
     }
 
-    func testAssistedVariantsStoreNoAddedLoadAndKeepRepsOnlyRecords() async throws {
+    func testAssistedVariantsStoreAssistanceAsNegativeAddedLoadAndKeepRepsOnlyRecords() async throws {
         let context = try makeContext()
         let csv = """
         Date,Workout Name,Exercise Name,Set Order,Weight,Reps
@@ -553,10 +553,29 @@ final class WorkoutCSVServiceTests: XCTestCase {
         _ = try await WorkoutCSVService.importCSV(csv, assumedUnit: .kg, bodyweightKg: 80, modelContext: context)
         let sets = try context.fetch(FetchDescriptor<PlannedSet>())
         XCTAssertEqual(sets.count, 2)
-        XCTAssertTrue(sets.allSatisfy { ($0.addedLoadKg ?? 0) == 0 }, "assistance is never stored as added weight")
+        XCTAssertEqual(Set(sets.compactMap(\.addedLoadKg)), [-30, -20], "assistance is a negative added load")
+        XCTAssertEqual(Set(sets.compactMap(\.actualWeight)), [50, 60], "effective load = bodyweight - assistance")
         let rows = try records(context)
         XCTAssertEqual(rows.map(\.type), [.mostReps], "reps-only: no heaviest-load record from the assistance")
         XCTAssertEqual(rows.first?.value, 9)
+    }
+
+    func testAssistedVariantsExportTheAssistAndRoundTrip() async throws {
+        let source = try makeContext()
+        let csv = """
+        Date,Workout Name,Exercise Name,Set Order,Weight (lbs),Reps
+        2026-06-10 18:00:00,Pull,Pull Up (Assisted),1,40,10
+        """
+        _ = try await WorkoutCSVService.importCSV(csv, bodyweightKg: 80, modelContext: source)
+        let plans = try source.fetch(FetchDescriptor<WorkoutPlan>())
+        let exported = WorkoutCSVService.exportCSV(plans: plans, unit: .lbs)
+        XCTAssertTrue(exported.contains(",1,40,10,"), "assist weight written back as a positive number: \(exported)")
+
+        let destination = try makeContext()
+        _ = try await WorkoutCSVService.importCSV(exported, bodyweightKg: 80, modelContext: destination)
+        let sets = try destination.fetch(FetchDescriptor<PlannedSet>())
+        let added = try XCTUnwrap(sets.first?.addedLoadKg)
+        XCTAssertEqual(added, -40 * 0.45359237, accuracy: 0.01)
     }
 
     func testBodyweightLoadedSetsExportTheAddedLoadAndRoundTrip() async throws {
