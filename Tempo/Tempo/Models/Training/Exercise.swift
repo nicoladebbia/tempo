@@ -129,6 +129,16 @@ final class Exercise {
         Self.currentEstimated1RM(from: history ?? [])
     }
 
+    /// The most recent session's estimate (the pre-display-fix meaning). Used to
+    /// seed never-trained siblings, where "what he just did" is the right signal.
+    @Transient
+    var latestEstimated1RM: Double? {
+        history?
+            .sorted { $0.date > $1.date }
+            .first?
+            .estimated1RM
+    }
+
     @Transient
     var allTimePR: Double? {
         personalRecords?
