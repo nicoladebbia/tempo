@@ -219,6 +219,10 @@ extension TrainingViewModel {
         }
         guard let plan = todayPlan else { return }
         discardActiveWorkout(modelContext: modelContext)
+        // The discard's rollback hands every lift back for a redo — except the
+        // one that hurt: it stays flagged so "Train anyway" doesn't bring it
+        // back unmarked.
+        plannedExercise?.painSkipped = true
         plan.status = .skipped
         plan.skipReason = .floorForced
         saveGuarded(modelContext, operation: "pain-ended workout")
