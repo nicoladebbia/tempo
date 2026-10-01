@@ -85,6 +85,7 @@ extension TrainingViewModel {
         }
         for other in all where other.isActive {
             other.isActive = false
+            other.endedAt = Date()
         }
         // Every other due-but-not-chosen queued program is cleared too (not
         // left to be silently promoted — and immediately un-promoted — on a

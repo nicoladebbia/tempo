@@ -244,6 +244,13 @@ final class TrainerProgram {
     /// SwiftData migration.
     var queuedActivationDate: Date?
 
+    /// When this program stopped being the active one (paused by hand, or
+    /// replaced by another). Lets the history stats count the same days the
+    /// active card did right up to that moment. nil on programs archived
+    /// before this existed (stats fall back to the last plan date).
+    /// Optional → lightweight SwiftData migration.
+    var endedAt: Date?
+
     /// Weekly-upload feature — nil means `.block` (the pre-existing behavior,
     /// and the default for every program saved before this shipped —
     /// lightweight SwiftData migration). Editable on the review screen and on

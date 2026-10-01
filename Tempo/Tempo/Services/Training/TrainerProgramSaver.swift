@@ -71,6 +71,7 @@ enum TrainerProgramSaver {
         if queuedActivationDate == nil {
             for program in existingPrograms where program.isActive {
                 program.isActive = false
+                program.endedAt = Date()
             }
         }
         // At most ONE program is ever queued at a time — a second queue
@@ -281,6 +282,7 @@ enum TrainerProgramSaver {
         let all = (try? modelContext.fetch(FetchDescriptor<TrainerProgram>())) ?? []
         for other in all where other.id != program.id && other.isActive {
             other.isActive = false
+            other.endedAt = Date()
         }
         program.isActive = true
         // Started by hand — a pending queue date must not re-fire later.
@@ -294,6 +296,7 @@ enum TrainerProgramSaver {
     @MainActor
     static func deactivate(_ program: TrainerProgram, modelContext: ModelContext) {
         program.isActive = false
+        program.endedAt = Date()
         // Stopped by hand — a queued program must not resurrect on its date.
         program.queuedActivationDate = nil
         try? modelContext.save()

@@ -76,7 +76,7 @@ enum TrainerProgramHistoryStats {
         let end: Date = if program.isActive {
             startOfToday
         } else {
-            min(startOfToday, max(slots.map(\.date).max() ?? start, start))
+            min(startOfToday, max(program.endedAt.map { cal.startOfDay(for: $0) } ?? slots.map(\.date).max() ?? start, start))
         }
         guard start <= end else {
             return Stats(done: 0, scheduled: 0)
