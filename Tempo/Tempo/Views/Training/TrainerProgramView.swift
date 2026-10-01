@@ -44,9 +44,26 @@ struct TrainerProgramView: View {
     /// trainer-feedback-tests — "Trainer sent changes" (TrainerFeedbackInputView.swift, new file).
     @State
     private var feedbackProgram: TrainerProgram?
+    /// Compliance for the active program. Walks every plan and every day since
+    /// the start, so it is computed once here (see `refreshCompliance`), never
+    /// inside `body`, which re-runs on every render.
+    @State
+    private var complianceStats: TrainerProgramHistoryStats.Stats?
 
     private var activeProgram: TrainerProgram? {
         programs.first { $0.isActive }
+    }
+
+    /// What the compliance numbers depend on among the program's own fields.
+    private var complianceKey: String {
+        guard let program = activeProgram else {
+            return "none"
+        }
+        return "\(program.id)-\(program.startDate.timeIntervalSince1970)-\(program.weeks.count)-\(program.skippedSessions.count)-\(program.scheduleMode.rawValue)"
+    }
+
+    private func refreshCompliance() {
+        complianceStats = activeProgram.map { TrainerProgramHistoryStats.stats(for: $0, modelContext: modelContext) }
     }
 
     /// Fix #11(b) — queued to auto-activate later; not "past" (history) and
@@ -111,6 +128,12 @@ struct TrainerProgramView: View {
         .background(Color.tempoBgPrimary)
         .navigationTitle("Trainer Program")
         .navigationBarTitleDisplayMode(.inline)
+        .task(id: complianceKey) {
+            refreshCompliance()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .tempoWorkoutChanged)) { _ in
+            refreshCompliance()
+        }
         .toolbar {
             if activeProgram != nil {
                 ToolbarItem(placement: .primaryAction) {
@@ -222,10 +245,9 @@ struct TrainerProgramView: View {
                 .foregroundStyle(program.isFinished(on: Date()) ? Color.tempoWarning : Color.tempoTextTertiary)
 
             // Compliance: sessions actually done / scheduled so far.
-            TrainerComplianceBar(
-                stats: TrainerProgramHistoryStats.stats(for: program, modelContext: modelContext),
-                emptyText: "No sessions due yet."
-            )
+            if let complianceStats {
+                TrainerComplianceBar(stats: complianceStats, emptyText: "No sessions due yet.")
+            }
 
             Divider().background(Color.tempoDivider)
 
