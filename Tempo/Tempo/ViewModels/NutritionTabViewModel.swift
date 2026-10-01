@@ -570,6 +570,7 @@ final class NutritionTabViewModel {
         }
         HapticManager.notification(.success)
         refreshTodayMeals(modelContext: modelContext)
+        reapplyPantryToGrocery()
         return true
     }
 
@@ -599,6 +600,7 @@ final class NutritionTabViewModel {
         }
         // No haptic here: the Undo toast the caller shows fires its own.
         refreshTodayMeals(modelContext: modelContext)
+        reapplyPantryToGrocery()
         return snapshot
     }
 
@@ -616,6 +618,7 @@ final class NutritionTabViewModel {
             return false
         }
         refreshTodayMeals(modelContext: modelContext)
+        reapplyPantryToGrocery()
         return true
     }
 
@@ -647,6 +650,7 @@ final class NutritionTabViewModel {
         }
         HapticManager.lightImpact()
         refreshTodayMeals(modelContext: modelContext)
+        reapplyPantryToGrocery()
         return true
     }
 
@@ -1238,7 +1242,7 @@ final class NutritionTabViewModel {
             let defrosts: [(id: UUID, name: String, lead: Int)]
         }
         // Eaten / skipped meals need no reminder (a from-today rebuild keeps them).
-        let pending: [PendingNotification] = freshMeals.filter { $0.status == .planned }.map { meal in
+        let pending: [PendingNotification] = freshMeals.filter { $0.status == .planned || $0.status == .modified }.map { meal in
             let mealTime = MealScheduleHelpers.scheduledDate(for: meal, calendar: calendar)
             let prepStart = MealScheduleHelpers.prepStartDate(for: meal, calendar: calendar)
             let defrosts: [(UUID, String, Int)] = (meal.recipe?.ingredients ?? [])

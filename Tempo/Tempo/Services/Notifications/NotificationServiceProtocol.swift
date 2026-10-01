@@ -42,6 +42,9 @@ protocol NotificationServiceProtocol: Sendable {
     func scheduleMorningBriefing(for date: Date, content: BriefingContent)
     func scheduleAccountabilityEscalation(tier: EscalationTier, time: Date, content: String)
     func scheduleMealReminder(mealName: String, time: Date)
+    /// Cancels the "Fuel Up" reminder `scheduleMealReminder` set for this meal
+    /// name on `day` (it is keyed by name + day, not by meal id).
+    func cancelMealReminder(mealName: String, on day: Date)
     func scheduleBedtimeReminder(time: Date)
 
     /// Time Sensitive APNs reminder to move a frozen ingredient out of the freezer
@@ -139,4 +142,8 @@ protocol NotificationServiceProtocol: Sendable {
 
     func cancelAll()
     func cancelCategory(_ category: String)
+}
+
+extension NotificationServiceProtocol {
+    func cancelMealReminder(mealName _: String, on _: Date) {}
 }

@@ -105,12 +105,43 @@ struct MealDetailView: View {
         )
     }
 
+    /// A weekly-plan row for a later day: nothing to log yet.
+    private var isFutureDay: Bool {
+        Calendar.current.startOfDay(for: meal.dayDate) > Calendar.current.startOfDay(for: Date())
+    }
+
+    /// The sheet picks "now minus a few minutes"; on another day only its
+    /// hour and minute count, placed on that day (like `commitEatTimeEdit`).
+    private func eatTimeOnMealDay(_ picked: Date) -> Date {
+        let cal = Calendar.current
+        guard !cal.isDateInToday(meal.dayDate) else {
+            return picked
+        }
+        var components = cal.dateComponents([.year, .month, .day], from: cal.startOfDay(for: meal.dayDate))
+        components.hour = cal.component(.hour, from: picked)
+        components.minute = cal.component(.minute, from: picked)
+        return cal.date(from: components) ?? picked
+    }
+
     /// A log the user added on top of the plan — undoing it deletes it.
     private var isUnplannedLog: Bool {
         meal.isUnplannedLog
     }
 
+    /// True once this screen deleted its own meal row: nothing may read the
+    /// deleted model while the dismiss animation runs.
+    @State
+    private var isRemoved = false
+
     var body: some View {
+        if isRemoved {
+            Color.clear
+        } else {
+            detail
+        }
+    }
+
+    private var detail: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: TempoSpacing.xl) {
                 header
@@ -404,7 +435,7 @@ struct MealDetailView: View {
                     // ANY not-yet-resolved meal — not just overdue. Lets you
                     // record what you ate (or a swap) even before the meal's
                     // scheduled time, e.g. you ate breakfast early.
-                    if !phase.isResolved {
+                    if !phase.isResolved, !isFutureDay {
                         mealActions
                     }
                 }
@@ -634,19 +665,18 @@ struct MealDetailView: View {
     }
 
     /// Undo this meal. A plan slot reverts to planned (original dish back); a
-    /// log added on top of the plan is DELETED. Deleting removes the row, so
-    /// dismiss first and delete once the screen is gone (nothing renders the
-    /// deleted model), after Today dropped it from its list.
+    /// log added on top of the plan is DELETED (the screen blanks itself first,
+    /// so nothing renders the deleted model).
     private func undoEaten() {
         let env = outcomeEnv
         let target = meal
         if target.isUnplannedLog, target.status == .eaten {
-            dismiss()
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(450))
-                if (try? MealOutcomeService.undo(target, env: env)) != nil {
-                    HapticManager.notification(.success)
-                }
+            // Delete first so a failure shows here. The screen blanks in the
+            // same synchronous turn, before SwiftUI re-reads the deleted row.
+            if runAction({ try MealOutcomeService.undo(target, env: env) }) {
+                isRemoved = true
+                HapticManager.notification(.success)
+                dismiss()
             }
         } else {
             if runAction({ try MealOutcomeService.undo(target, env: env) }) {
@@ -684,6 +714,11 @@ struct MealDetailView: View {
         satiety: MealSatiety?,
         substitute: MarkEatenSheet.Substitute?
     ) {
+        guard !isFutureDay else {
+            actionError = "That meal is on a later day. You can log it once the day comes."
+            return
+        }
+        let eatTime = eatTimeOnMealDay(eatTime)
         guard let substitute else {
             // Plain "ate the planned meal" — synchronous. Decrements once.
             let done = runAction {
@@ -755,12 +790,16 @@ struct MealDetailView: View {
         }
         HapticManager.lightImpact()
         Task { @MainActor in
+            // Same inputs as the Today card: today's Whoop recovery + sleep.
+            let whoop = services.whoop
+            let recovery = try? await whoop.fetchRecovery(for: Date()).score
+            let sleep = try? await services.healthKit.fetchSleepAnalysis(for: Date()).totalHours
             let result = await MealOutcomeService.redistributeAfterSkip(
                 target,
                 service: MealRedistributionService(apiClient: services.apiClient),
                 env: env,
-                recoveryScore: nil,
-                sleepHours: nil,
+                recoveryScore: recovery,
+                sleepHours: sleep,
                 strain: nil,
                 dayType: "unknown"
             )

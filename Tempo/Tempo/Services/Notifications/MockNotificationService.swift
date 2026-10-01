@@ -52,6 +52,11 @@ final class MockNotificationService: NotificationServiceProtocol, @unchecked Sen
         logger.debug("Mock: scheduled meal reminder '\(mealName)' at \(time)")
     }
 
+    func cancelMealReminder(mealName: String, on _: Date) {
+        let body = "Time for \(mealName). Don't skip it."
+        scheduledNotifications.removeAll { $0.category == "meal_reminder" && $0.body == body }
+    }
+
     func scheduleBedtimeReminder(time: Date) {
         let notification = ScheduledNotification(
             category: "bedtime",

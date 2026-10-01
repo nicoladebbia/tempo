@@ -204,7 +204,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
                 id: "SUPPLEMENT_REORDER",
                 actions: [
                     UNNotificationAction(identifier: "SUPPLEMENT_ADD_TO_LIST", title: "Add to grocery list", options: .foreground),
-                    UNNotificationAction(identifier: "SUPPLEMENT_RESTOCKED", title: "Restocked"),
+                    UNNotificationAction(identifier: "SUPPLEMENT_RESTOCKED", title: "Restocked", options: .foreground),
                 ]
             ),
         ]
@@ -309,6 +309,12 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
             interruptionLevel: .active,
             budgetCost: 0.5,
             priority: 5
+        )
+    }
+
+    func cancelMealReminder(mealName: String, on day: Date) {
+        center.removePendingNotificationRequests(
+            withIdentifiers: ["meal_\(mealName.lowercased())_\(dateKey(day))"]
         )
     }
 
