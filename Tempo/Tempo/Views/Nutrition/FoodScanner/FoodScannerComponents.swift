@@ -88,6 +88,25 @@ extension FoodProduct {
     }
 }
 
+// MARK: - FoodProduct → StagedPantryItem
+
+extension StagedPantryItem {
+    /// Prefills name, brand, package size (quantity + unit), and a guessed
+    /// storage location — all still editable before the user saves. Shared by
+    /// the pantry barcode scanner and the product page's "Add to pantry".
+    init(product: FoodProduct) {
+        let parsedSize = PackageSizeParser.parse(product.quantityLabel)
+        self.init(
+            name: product.name,
+            quantity: parsedSize?.quantity ?? 1,
+            unit: parsedSize?.unit ?? .pieces,
+            location: PantryStorageGuesser.guess(for: product),
+            totalPaidUSD: nil,
+            brand: product.brand ?? ""
+        )
+    }
+}
+
 // MARK: - FoodScoreBadge
 
 /// Compact "72" pill in the rating colour; "?" when there isn't enough data.
