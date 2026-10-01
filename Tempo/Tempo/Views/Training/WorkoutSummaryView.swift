@@ -371,7 +371,11 @@ struct WorkoutSummaryView: View {
                         actual: reps, left: best.actualRepsLeft, right: best.actualRepsRight,
                         perSide: plannedEx.perSide
                     )
-                    Text("Best: \(WeightFormat.load(kg: weight, unit: viewModel.weightUnit)) × \(repsText)")
+                    let isBodyweight = plannedEx.exercise.map { StrengthStandards.isBodyweightLoaded($0.equipment) } ?? false
+                    let loadText = WeightFormat.setLoad(
+                        kg: weight, addedKg: best.addedLoadKg, bodyweight: isBodyweight, unit: viewModel.weightUnit
+                    )
+                    Text("Best: \(loadText) × \(repsText)")
                         .font(.tempoCaption1)
                         .foregroundStyle(Color.tempoTextSecondary)
                 }

@@ -361,7 +361,7 @@ struct WorkoutHistoryView: View {
         let name = workout.type.displayName
         return """
         \(name): permanently removes this session — its \(setCount) logged set\(setCount == 1 ? "" : "s"), \
-        set feedback, and the progress-chart history & PRs it created. Weekly volume and charts \
+        set feedback, pain flags, and the progress-chart history & PRs it created. Weekly volume and charts \
         will update. Weight adjustments Tempo already learned from it stay. This can't be undone.
         """
     }
@@ -563,11 +563,11 @@ struct WorkoutHistoryView: View {
                     // Row 2: Stats
                     HStack(spacing: TempoSpacing.md) {
                         // Duration
-                        if let duration = workout.durationMinutes ?? workout.actualDurationMinutes {
+                        if let durationText = Self.durationText(for: workout) {
                             HStack(spacing: TempoSpacing.xxs) {
                                 Image(systemName: "timer")
                                     .font(.system(size: 11))
-                                Text("\(duration) min")
+                                Text(durationText)
                                     .font(.tempoCaption1)
                                     .lineLimit(1)
                                     .fixedSize()
@@ -681,6 +681,20 @@ struct WorkoutHistoryView: View {
 
     private func activitySession(for workout: WorkoutPlan) -> ActivitySession? {
         allActivitySessions.first { $0.workoutPlanID == workout.id }
+    }
+
+    /// A finished session's measured time wins over the planned figure; under a
+    /// minute reads "<1 min", otherwise the nearest minute.
+    static func durationText(for workout: WorkoutPlan) -> String? {
+        if let seconds = workout.actualDurationSeconds {
+            return WorkoutPlan.durationLabel(seconds: seconds)
+        }
+        return workout.durationMinutes.map { "\($0) min" }
+    }
+
+    /// Working sets always (logged or not), warm-ups only when actually done.
+    static func visibleSets(of plannedEx: PlannedExercise) -> [PlannedSet] {
+        plannedEx.orderedSets.filter { !$0.isWarmup || $0.completed }
     }
 
     private func activityDetail(_ session: ActivitySession) -> some View {
@@ -871,9 +885,11 @@ struct WorkoutHistoryView: View {
                     )
             }
 
+            let isBodyweight = plannedEx.exercise.map { StrengthStandards.isBodyweightLoaded($0.equipment) } ?? false
             // Sets detail — per-set chip + optional feedback line
             VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                ForEach(plannedEx.orderedSets, id: \.id) { set in
+                // H — a planned ramp the athlete never did isn't history.
+                ForEach(Self.visibleSets(of: plannedEx), id: \.id) { set in
                     HStack(spacing: TempoSpacing.xs) {
                         if set.isWarmup {
                             // Warm-up / ramp set — show the ramp target (not the
@@ -881,7 +897,7 @@ struct WorkoutHistoryView: View {
                             let w = set.actualWeight ?? set.targetWeight ?? 0
                             let r = set.actualReps ?? set.targetReps
                             // Fix #9 — a per-side ramp target reads "x8/side".
-                            Text("\(WeightFormat.compactLoad(kg: w, unit: weightUnit))x\(SideRepsFormat.reps(r, perSide: plannedEx.perSide))")
+                            Text("\(WeightFormat.compactSetLoad(kg: w, addedKg: set.addedLoadKg, bodyweight: isBodyweight, unit: weightUnit))x\(SideRepsFormat.reps(r, perSide: plannedEx.perSide))")
                                 .font(.system(size: 11, design: .monospaced))
                                 .foregroundStyle(Color.tempoTextTertiary)
                                 .padding(.horizontal, 4)
@@ -900,7 +916,7 @@ struct WorkoutHistoryView: View {
                                 actual: reps, left: set.actualRepsLeft, right: set.actualRepsRight,
                                 perSide: plannedEx.perSide
                             )
-                            Text("\(WeightFormat.compactLoad(kg: weight, unit: weightUnit))x\(repsText)")
+                            Text("\(WeightFormat.compactSetLoad(kg: weight, addedKg: set.addedLoadKg, bodyweight: isBodyweight, unit: weightUnit))x\(repsText)")
                                 .font(.system(size: 11, design: .monospaced))
                                 .foregroundStyle(Color.tempoTextSecondary)
                                 .padding(.horizontal, 4)

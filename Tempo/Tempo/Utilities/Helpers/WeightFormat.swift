@@ -54,6 +54,18 @@ enum WeightFormat {
         bodyweight ? bodyweightLoad(addedKg: addedKg, unit: unit) : load(kg: kg, unit: unit)
     }
 
+    /// Compact set-chip load: bodyweight-style lifts read "BW", "BW+2.5", "BW−40"
+    /// (assist); everything else the plain "62.5" (or "BW" at 0).
+    static func compactSetLoad(kg: Double?, addedKg: Double?, bodyweight: Bool, unit: WeightUnit) -> String {
+        guard bodyweight else {
+            return compactLoad(kg: kg, unit: unit)
+        }
+        guard let addedKg, abs(addedKg) >= 0.05 else {
+            return "BW"
+        }
+        return "BW\(addedKg > 0 ? "+" : "−")\(number(kg: abs(addedKg), unit: unit))"
+    }
+
     /// Compact load for tight chips: "62.5", or "BW".
     static func compactLoad(kg: Double?, unit: WeightUnit) -> String {
         guard let kg, kg > 0 else {
@@ -69,6 +81,33 @@ enum WeightFormat {
             return String(format: "%.1fk %@", value / 1000, unit.abbreviation)
         }
         return "\(Int(value.rounded())) \(unit.abbreviation)"
+    }
+
+    /// Compact big-number volume for tight stat cells, no unit: "999", "12.3k", "3.95M".
+    static func compactVolume(kg: Double, unit: WeightUnit) -> String {
+        let value = WeightUnit.kg.convert(kg, to: unit)
+        if value >= 1_000_000 {
+            return trimmed(value / 1_000_000, decimals: 2) + "M"
+        }
+        if value >= 1000 {
+            return trimmed(value / 1000, decimals: 1) + "k"
+        }
+        return "\(Int(value.rounded()))"
+    }
+
+    private static func trimmed(_ value: Double, decimals: Int) -> String {
+        let text = String(format: "%.\(decimals)f", value)
+        guard text.contains(".") else {
+            return text
+        }
+        var out = text
+        while out.hasSuffix("0") {
+            out.removeLast()
+        }
+        if out.hasSuffix(".") {
+            out.removeLast()
+        }
+        return out
     }
 
     /// A number the athlete typed, accepting a decimal comma ("5,2" → 5.2) as

@@ -228,14 +228,25 @@ final class WorkoutPlan {
         (exercises ?? []).reduce(0) { $0 + $1.totalVolume }
     }
 
+    /// Active training seconds (pauses / calls excluded — same rule as the
+    /// live clock, so every screen shows one duration for one workout).
     @Transient
-    var actualDurationMinutes: Int? {
+    var actualDurationSeconds: TimeInterval? {
         guard let start = startedAt, let end = finishedAt else {
             return nil
         }
-        // Pauses / calls are not training time — same rule as the live
-        // clock, so every screen shows one duration for one workout.
-        return Int(max(0, end.timeIntervalSince(start) - pausedSeconds) / 60)
+        return max(0, end.timeIntervalSince(start) - pausedSeconds)
+    }
+
+    /// Nearest whole minute (2:56 reads 3, not a truncated 2).
+    @Transient
+    var actualDurationMinutes: Int? {
+        actualDurationSeconds.map { Int(($0 / 60).rounded()) }
+    }
+
+    /// "<1 min" under a minute, otherwise "N min" at the nearest minute.
+    nonisolated static func durationLabel(seconds: TimeInterval) -> String {
+        seconds < 60 ? "<1 min" : "\(Int((seconds / 60).rounded())) min"
     }
 
     // MARK: - Init

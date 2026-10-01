@@ -756,8 +756,8 @@ struct WeekPlanView: View {
 
                         Spacer()
 
-                        if isCompleted, let duration = plan.actualDurationMinutes {
-                            Text("\(duration) min")
+                        if isCompleted, let seconds = plan.actualDurationSeconds {
+                            Text(WorkoutPlan.durationLabel(seconds: seconds))
                                 .font(.tempoCaption1)
                                 .foregroundStyle(Color.tempoTextTertiary)
                         }

@@ -100,4 +100,113 @@ final class WorkoutPurgeTests: XCTestCase {
         let plan = WorkoutPlan(date: Date(), type: .push)
         XCTAssertEqual(session(for: plan).workoutPlanID, plan.id)
     }
+
+    // MARK: - Pain reports
+
+    func testDeletingAWorkoutRemovesThePainReportItFiledOnly() throws {
+        let context = try makeContext()
+        let press = Exercise(name: "Overhead Press", muscleGroup: .shoulders, equipment: .barbell,
+                             movementPattern: .verticalPush, isCompound: true)
+        context.insert(press)
+        let doomed = loggedPlan(context, exercise: press, coachSession: false)
+        let kept = WorkoutPlan(date: Date().addingTimeInterval(-86400 * 2), type: .push, status: .completed)
+        context.insert(kept)
+        context.insert(PainReport(bodyArea: .shoulder, severity: 3, exerciseID: press.id, workoutPlanID: doomed.id))
+        context.insert(PainReport(bodyArea: .shoulder, severity: 3, exerciseID: press.id, workoutPlanID: kept.id))
+        try context.save()
+
+        XCTAssertTrue(WorkoutPurge.purge(doomed, modelContext: context))
+
+        let left = try context.fetch(FetchDescriptor<PainReport>())
+        XCTAssertEqual(left.count, 1)
+        XCTAssertEqual(left.first?.workoutPlanID, kept.id, "another workout's flag on the same lift survives")
+    }
+
+    func testLegacyUnstampedPainReportGoesWithItsOnlySameDayWorkout() throws {
+        let context = try makeContext()
+        let press = Exercise(name: "Overhead Press", muscleGroup: .shoulders, equipment: .barbell,
+                             movementPattern: .verticalPush, isCompound: true)
+        context.insert(press)
+        let plan = loggedPlan(context, exercise: press, coachSession: false)
+        let legacy = PainReport(bodyArea: .shoulder, severity: 5, exerciseID: press.id)
+        context.insert(legacy)
+        let other = PainReport(bodyArea: .knee, severity: 5, exerciseID: UUID())
+        context.insert(other)
+        let found = WorkoutPurge.painReportsToDelete(
+            for: plan, allReports: [legacy, other], allPlans: [plan]
+        )
+        XCTAssertEqual(found.map(\.id), [legacy.id])
+    }
+
+    // MARK: - Pain-ended label
+
+    func testPainEndedExerciseSaysStoppedOnceSetsWereLogged() throws {
+        let context = try makeContext()
+        let press = Exercise(name: "Overhead Press", muscleGroup: .shoulders, equipment: .barbell,
+                             movementPattern: .verticalPush, isCompound: true)
+        context.insert(press)
+        let plan = WorkoutPlan(date: Date(), type: .push)
+        context.insert(plan)
+        let slot = PlannedExercise(order: 0, workoutPlan: plan, exercise: press)
+        let sets = (1 ... 4).map { PlannedSet(setNumber: $0, targetReps: 5, plannedExercise: slot) }
+        slot.sets = sets
+        XCTAssertNil(slot.painStatusLabel, "not pain-ended")
+        slot.painSkipped = true
+        XCTAssertEqual(slot.painStatusLabel, "Skipped — pain")
+        sets[0].completed = true
+        XCTAssertEqual(slot.painStatusLabel, "Stopped — pain after 1 set")
+        sets[1].completed = true
+        XCTAssertEqual(slot.painStatusLabel, "Stopped — pain after 2 sets")
+    }
+
+    func testWarmupsNeverCountTowardPainStoppedSets() throws {
+        let context = try makeContext()
+        let press = Exercise(name: "Overhead Press", muscleGroup: .shoulders, equipment: .barbell,
+                             movementPattern: .verticalPush, isCompound: true)
+        context.insert(press)
+        let plan = WorkoutPlan(date: Date(), type: .push)
+        context.insert(plan)
+        let slot = PlannedExercise(order: 0, workoutPlan: plan, exercise: press)
+        let warm = PlannedSet(setNumber: 1, targetReps: 8, plannedExercise: slot)
+        warm.isWarmup = true
+        warm.completed = true
+        slot.sets = [warm, PlannedSet(setNumber: 2, targetReps: 5, plannedExercise: slot)]
+        slot.painSkipped = true
+        XCTAssertEqual(slot.painStatusLabel, "Skipped — pain")
+    }
+
+    // MARK: - History rows + duration
+
+    func testHistoryHidesUnloggedWarmupsButKeepsDoneOnes() throws {
+        let context = try makeContext()
+        let press = Exercise(name: "Bench", muscleGroup: .chest, equipment: .barbell,
+                             movementPattern: .horizontalPush, isCompound: true)
+        context.insert(press)
+        let plan = WorkoutPlan(date: Date(), type: .push)
+        context.insert(plan)
+        let slot = PlannedExercise(order: 0, workoutPlan: plan, exercise: press)
+        let undone = PlannedSet(setNumber: 1, targetReps: 8, plannedExercise: slot)
+        undone.isWarmup = true
+        let done = PlannedSet(setNumber: 2, targetReps: 8, plannedExercise: slot)
+        done.isWarmup = true
+        done.completed = true
+        let work = PlannedSet(setNumber: 3, targetReps: 5, plannedExercise: slot)
+        slot.sets = [undone, done, work]
+        XCTAssertEqual(WorkoutHistoryView.visibleSets(of: slot).map(\.setNumber), [2, 3])
+    }
+
+    func testDurationRoundsToNearestMinuteAndShowsUnderOne() {
+        XCTAssertEqual(WorkoutPlan.durationLabel(seconds: 176), "3 min")
+        XCTAssertEqual(WorkoutPlan.durationLabel(seconds: 37), "<1 min")
+        XCTAssertEqual(WorkoutPlan.durationLabel(seconds: 60), "1 min")
+        XCTAssertEqual(WorkoutPlan.durationLabel(seconds: 3600), "60 min")
+        let plan = WorkoutPlan(date: Date(), type: .push)
+        let start = Date()
+        plan.startedAt = start
+        plan.finishedAt = start.addingTimeInterval(176)
+        XCTAssertEqual(plan.actualDurationMinutes, 3)
+        XCTAssertEqual(WorkoutHistoryView.durationText(for: plan), "3 min")
+        plan.finishedAt = start.addingTimeInterval(37)
+        XCTAssertEqual(WorkoutHistoryView.durationText(for: plan), "<1 min")
+    }
 }

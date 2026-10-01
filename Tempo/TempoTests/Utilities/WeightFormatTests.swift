@@ -64,4 +64,21 @@ final class WeightFormatTests: XCTestCase {
         )
         XCTAssertEqual(delta.recapLine(unit: .kg), "Pull-up BW × 10→12")
     }
+
+    func testBodyweightSetLoadsAreCompactAndSigned() {
+        XCTAssertEqual(WeightFormat.compactSetLoad(kg: 80, addedKg: 0, bodyweight: true, unit: .kg), "BW")
+        XCTAssertEqual(WeightFormat.compactSetLoad(kg: 82.5, addedKg: 2.5, bodyweight: true, unit: .kg), "BW+2.5")
+        XCTAssertEqual(WeightFormat.compactSetLoad(kg: 40, addedKg: -40, bodyweight: true, unit: .kg), "BW−40")
+        let lbs = WeightFormat.compactSetLoad(kg: 80, addedKg: -18.1437, bodyweight: true, unit: .lbs)
+        XCTAssertEqual(lbs, "BW−40")
+        XCTAssertEqual(WeightFormat.compactSetLoad(kg: 62.5, addedKg: nil, bodyweight: false, unit: .kg), "62.5")
+        XCTAssertEqual(WeightFormat.setLoad(kg: 40, addedKg: -18.1437, bodyweight: true, unit: .lbs), "BW − 40 lbs")
+    }
+
+    func testCompactVolumeStaysShort() {
+        XCTAssertEqual(WeightFormat.compactVolume(kg: 999, unit: .kg), "999")
+        XCTAssertEqual(WeightFormat.compactVolume(kg: 12300, unit: .kg), "12.3k")
+        XCTAssertEqual(WeightFormat.compactVolume(kg: 1_000_000, unit: .kg), "1M")
+        XCTAssertEqual(WeightFormat.compactVolume(kg: 3_953_700 / 2.20462, unit: .lbs), "3.95M")
+    }
 }
