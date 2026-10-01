@@ -266,4 +266,32 @@ struct TestModeRouteTests {
             #expect(app.testMode?.aiCalls.last?.status == 529)
         }
     }
+
+    @Test func emptyClaudeReplyIsAFailureNotABlankMessage() async throws {
+        let previous = Environment.get("ANTHROPIC_API_KEY")
+        setenv("ANTHROPIC_API_KEY", "test-key", 1)
+        defer {
+            if let previous { setenv("ANTHROPIC_API_KEY", previous, 1) } else { unsetenv("ANTHROPIC_API_KEY") }
+        }
+        try await withApp(testMode: true) { app in
+            app.testMode?.aiMode = .empty
+            let name = "t-\(UUID().uuidString.prefix(8).lowercased())"
+            var token = ""
+            try await login(app, #"{"name":"\#(name)"}"#) { res in
+                token = try res.content.decode(TestModeController.LoginResponse.self).accessToken
+            }
+            for path in ["suggest-meal", "explain-adjustment"] {
+                try await app.test(.POST, "v1/nutrition/ai/\(path)", beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: token)
+                    req.headers.contentType = .json
+                    let body = path == "suggest-meal"
+                        ? #"{"pantryCanonicalNames":["oats"],"remainingCalories":600,"remainingProtein":40,"isTrainingDay":true}"#
+                        : #"{"mode":"standard","isTrainingDay":true,"baseCalories":2500,"adjustedCalories":2600,"baseProtein":160,"adjustedProtein":165,"modeExplanation":"x"}"#
+                    req.body = ByteBuffer(string: body)
+                }, afterResponse: { res async in
+                    #expect(res.status == .badGateway, "\(path) returned \(res.status)")
+                })
+            }
+        }
+    }
 }
