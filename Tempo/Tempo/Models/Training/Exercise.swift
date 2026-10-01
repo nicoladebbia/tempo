@@ -38,6 +38,10 @@ final class Exercise {
 
     var preferredRestSeconds: Int?
 
+    /// Set when a CSV import created this custom exercise, so undoing that
+    /// import can remove it too. nil otherwise. Optional → lightweight migration.
+    var importBatchID: UUID?
+
     // MARK: - Relationships
 
     /// §10.6 — deleting a custom Exercise must NOT erase the training record it

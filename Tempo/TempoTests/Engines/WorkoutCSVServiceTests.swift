@@ -157,4 +157,82 @@ final class WorkoutCSVServiceTests: XCTestCase {
         XCTAssertEqual(WorkoutCSVService.exportCSV(plans: [plan])
             .split(separator: "\n").count, 1, "Header only")
     }
+
+    // MARK: - Units
+
+    private let strongPounds = """
+    Date,Workout Name,Duration,Exercise Name,Set Order,Weight,Weight Unit,Reps,RPE,Distance,Distance Unit,Seconds,Notes,Workout Notes,Workout Duration
+    2026-07-20 18:00:00,Push Day,1h,Bench Press (Barbell),1,225,lbs,5,,0,,0,,,1h
+    2026-07-20 18:00:00,Push Day,1h,Pull Up,1,,lbs,8,,0,,0,,,1h
+    """
+
+    private let strongNoUnit = """
+    Date,Workout Name,Duration,Exercise Name,Set Order,Weight,Reps
+    2026-07-20 18:00:00,Push Day,1h,Bench Press (Barbell),1,225,5
+    """
+
+    private func firstWeight(_ context: ModelContext) throws -> Double? {
+        try context.fetch(FetchDescriptor<PlannedSet>()).compactMap(\.actualWeight).first
+    }
+
+    func testPoundsFileIsConvertedNotReadAsKilos() throws {
+        let context = try makeContext()
+        let summary = try WorkoutCSVService.importCSV(strongPounds, modelContext: context)
+        XCTAssertEqual(try XCTUnwrap(firstWeight(context)), 225 / 2.20462, accuracy: 0.001)
+        XCTAssertEqual(summary.unit, .lbs)
+        XCTAssertTrue(summary.label.contains("lbs"))
+        let sets = try context.fetch(FetchDescriptor<PlannedSet>())
+        XCTAssertEqual(sets.filter { $0.actualWeight == nil }.count, 1, "Bodyweight set stays weightless")
+    }
+
+    func testUnitPickedByTheUserAppliesWhenFileDoesNotSay() throws {
+        let lbs = try makeContext()
+        _ = try WorkoutCSVService.importCSV(strongNoUnit, assumedUnit: .lbs, modelContext: lbs)
+        XCTAssertEqual(try XCTUnwrap(firstWeight(lbs)), 225 / 2.20462, accuracy: 0.001)
+
+        let kg = try makeContext()
+        _ = try WorkoutCSVService.importCSV(strongNoUnit, assumedUnit: .kg, modelContext: kg)
+        XCTAssertEqual(try firstWeight(kg), 225)
+
+        let history = try lbs.fetch(FetchDescriptor<ExerciseHistory>())
+        XCTAssertEqual(try XCTUnwrap(history.first?.bestSetWeight), 225 / 2.20462, accuracy: 0.001)
+    }
+
+    // MARK: - Undo
+
+    func testUndoRemovesOnlyTheImportedBatch() throws {
+        let context = try makeContext()
+        let library = Exercise(name: "Barbell Row", muscleGroup: .back, equipment: .barbell,
+                               movementPattern: .horizontalPull, isCompound: true)
+        context.insert(library)
+        let live = WorkoutPlan(date: Date(), type: .pull)
+        live.status = .completed
+        context.insert(live)
+        try context.save()
+
+        let summary = try WorkoutCSVService.importCSV(strongCSV, modelContext: context)
+        let batch = try XCTUnwrap(summary.batchID)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<WorkoutPlan>()), 3)
+
+        let removed = try WorkoutCSVService.undoImport(batchID: batch, modelContext: context)
+
+        XCTAssertEqual(removed, 2)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<WorkoutPlan>()), 1, "Live workout untouched")
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<PlannedSet>()), 0)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<ExerciseHistory>()), 0)
+        let exercises = try context.fetch(FetchDescriptor<Exercise>())
+        XCTAssertEqual(exercises.map(\.name), ["Barbell Row"], "Custom exercises the import made are removed, library stays")
+    }
+
+    func testUndoKeepsACustomExerciseALaterImportReused() throws {
+        let context = try makeContext()
+        let first = try WorkoutCSVService.importCSV(strongNoUnit, modelContext: context)
+        let laterCSV = strongNoUnit.replacingOccurrences(of: "2026-07-20", with: "2026-07-27")
+        _ = try WorkoutCSVService.importCSV(laterCSV, modelContext: context)
+
+        try WorkoutCSVService.undoImport(batchID: try XCTUnwrap(first.batchID), modelContext: context)
+
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<WorkoutPlan>()), 1)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<Exercise>()), 1, "Still used by the second import")
+    }
 }

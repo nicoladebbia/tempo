@@ -79,6 +79,29 @@ struct WorkoutHistoryView: View {
     private var csvResultMessage: String?
     @State
     private var exportFileURL: URL?
+    /// A parsed file waiting for the athlete to say which unit its weights
+    /// are in (Strong's older exports don't say).
+    @State
+    private var pendingUnitChoice: WorkoutCSVService.ParsedFile?
+    /// Batch id of the most recent import — lets the result alert and the
+    /// menu remove the whole import in one tap.
+    @AppStorage("lastWorkoutImportBatchID")
+    private var lastImportBatchID = ""
+    @State
+    private var showUndoImportConfirm = false
+    /// True only while the alert shows a fresh import result.
+    @State
+    private var resultOffersUndo = false
+
+    /// The most recent import, only while some of its workouts still exist.
+    private var undoableImportBatch: UUID? {
+        guard let id = UUID(uuidString: lastImportBatchID),
+              completedWorkouts.contains(where: { $0.importBatchID == id })
+        else {
+            return nil
+        }
+        return id
+    }
 
     private var weightUnit: WeightUnit {
         userSettings.first?.weightUnit ?? .kg
@@ -131,6 +154,13 @@ struct WorkoutHistoryView: View {
                         Label("Export CSV", systemImage: "square.and.arrow.up")
                     }
                     .disabled(completedWorkouts.isEmpty)
+                    if undoableImportBatch != nil {
+                        Button(role: .destructive) {
+                            showUndoImportConfirm = true
+                        } label: {
+                            Label("Undo last import", systemImage: "arrow.uturn.backward")
+                        }
+                    }
                 } label: {
                     Image(systemName: "arrow.up.arrow.down.square")
                 }
@@ -156,6 +186,31 @@ struct WorkoutHistoryView: View {
                 ShareSheet(items: [url])
             }
         }
+        .confirmationDialog(
+            "Which unit is this file in?",
+            isPresented: Binding(
+                get: { pendingUnitChoice != nil },
+                set: {
+                    if !$0 {
+                        pendingUnitChoice = nil
+                    }
+                }
+            ),
+            titleVisibility: .visible
+        ) {
+            // The athlete's own unit first — the likeliest answer.
+            ForEach([weightUnit, weightUnit == .kg ? WeightUnit.lbs : .kg], id: \.self) { unit in
+                Button(unit == .kg ? "Kilograms (kg)" : "Pounds (lbs)") {
+                    if let file = pendingUnitChoice {
+                        pendingUnitChoice = nil
+                        runImport(file, unit: unit)
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) { pendingUnitChoice = nil }
+        } message: {
+            Text("This export doesn't say. Picking the wrong one makes every weight 2.2x off. Tempo is set to \(weightUnit.abbreviation).")
+        }
         .alert(
             "Workout Import",
             isPresented: Binding(
@@ -163,13 +218,23 @@ struct WorkoutHistoryView: View {
                 set: {
                     if !$0 {
                         csvResultMessage = nil
+                        resultOffersUndo = false
                     }
                 }
             )
         ) {
-            Button("OK") { csvResultMessage = nil }
+            Button(resultOffersUndo ? "Keep" : "OK") { csvResultMessage = nil }
+            if resultOffersUndo, undoableImportBatch != nil {
+                Button("Undo import", role: .destructive) { undoLastImport() }
+            }
         } message: {
             Text(csvResultMessage ?? "")
+        }
+        .alert("Undo last import?", isPresented: $showUndoImportConfirm) {
+            Button("Undo import", role: .destructive) { undoLastImport() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Removes every workout, record and new exercise that import added. Workouts you logged yourself stay.")
         }
         .alert(
             "Delete this workout?",
@@ -312,17 +377,48 @@ struct WorkoutHistoryView: View {
                 return
             }
             do {
-                let summary = try WorkoutCSVService.importCSV(text, modelContext: modelContext)
-                csvResultMessage = summary.label
-                if summary.workouts > 0 {
-                    NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
-                    HapticManager.notification(.success)
+                let file = try WorkoutCSVService.parse(text)
+                if file.declaredUnit != nil || !file.sets.contains(where: { ($0.weight ?? 0) > 0 }) {
+                    runImport(file, unit: file.declaredUnit ?? weightUnit)
+                } else {
+                    pendingUnitChoice = file
                 }
             } catch {
                 csvResultMessage = error.localizedDescription
             }
         case let .failure(error):
             csvResultMessage = error.localizedDescription
+        }
+    }
+
+    private func runImport(_ file: WorkoutCSVService.ParsedFile, unit: WeightUnit) {
+        do {
+            let summary = try WorkoutCSVService.importParsed(file, assumedUnit: unit, modelContext: modelContext)
+            csvResultMessage = summary.label
+            resultOffersUndo = summary.workouts > 0
+            if summary.workouts > 0 {
+                lastImportBatchID = summary.batchID?.uuidString ?? ""
+                NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
+                HapticManager.notification(.success)
+            }
+        } catch {
+            csvResultMessage = error.localizedDescription
+        }
+    }
+
+    private func undoLastImport() {
+        csvResultMessage = nil
+        resultOffersUndo = false
+        guard let batch = undoableImportBatch else {
+            return
+        }
+        do {
+            let removed = try WorkoutCSVService.undoImport(batchID: batch, modelContext: modelContext)
+            lastImportBatchID = ""
+            csvResultMessage = "Import undone — \(removed) workouts removed."
+            HapticManager.notification(.success)
+        } catch {
+            csvResultMessage = "Couldn't undo the import: \(error.localizedDescription)"
         }
     }
 

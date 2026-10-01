@@ -41,6 +41,10 @@ enum WorkoutCSVService {
         var sets = 0
         var duplicates = 0
         var newExercises = 0
+        /// Tags every workout/exercise this import created (see `undoImport`).
+        var batchID: UUID?
+        /// The unit weights were read in (nil when the file has no weights).
+        var unit: WeightUnit?
 
         var label: String {
             if workouts == 0, duplicates > 0 {
@@ -53,7 +57,11 @@ enum WorkoutCSVService {
             if duplicates > 0 {
                 parts.append("\(duplicates) already in Tempo")
             }
-            return "\(format.rawValue): " + parts.joined(separator: ", ") + "."
+            var text = "\(format.rawValue): " + parts.joined(separator: ", ") + "."
+            if let unit {
+                text += " Weights read as \(unit.abbreviation)."
+            }
+            return text
         }
     }
 
@@ -256,13 +264,33 @@ enum WorkoutCSVService {
     @MainActor
     static func importCSV(
         _ text: String,
-        assumedUnit: WeightUnit = .kg,
+        assumedUnit: WeightUnit? = nil,
+        batchID: UUID = UUID(),
         modelContext: ModelContext
     ) throws -> ImportSummary {
-        let parsed = try parse(text)
+        try importParsed(
+            parse(text), assumedUnit: assumedUnit, batchID: batchID, modelContext: modelContext
+        )
+    }
+
+    /// Persist an already-parsed file (the view parses first to learn whether
+    /// it must ask which unit the weights are in).
+    @MainActor
+    static func importParsed(
+        _ parsed: ParsedFile,
+        assumedUnit: WeightUnit? = nil,
+        batchID: UUID = UUID(),
+        modelContext: ModelContext
+    ) throws -> ImportSummary {
         let format = parsed.format
         let sets = parsed.sets
-        var summary = ImportSummary(format: format)
+        // A unit the file declares wins per row; otherwise the caller's
+        // choice; otherwise kg (what the app stores).
+        let unit = assumedUnit ?? parsed.declaredUnit ?? .kg
+        var summary = ImportSummary(format: format, batchID: batchID)
+        if sets.contains(where: { ($0.weight ?? 0) > 0 }) {
+            summary.unit = parsed.declaredUnit ?? unit
+        }
 
         struct GroupKey: Hashable {
             let start: Date
@@ -296,6 +324,7 @@ enum WorkoutCSVService {
             plan.finishedAt = plan.durationMinutes.map { key.start.addingTimeInterval(Double($0) * 60) }
                 ?? key.start
             plan.notes = "Imported from \(format.rawValue)"
+            plan.importBatchID = batchID
             modelContext.insert(plan)
 
             // Exercises in first-appearance order (CSV rows are in set order).
@@ -319,6 +348,7 @@ enum WorkoutCSVService {
                         isCompound: false,
                         isCustom: true
                     )
+                    exercise.importBatchID = batchID
                     modelContext.insert(exercise)
                     exercisesByName[name.lowercased()] = exercise
                     summary.newExercises += 1
@@ -330,9 +360,9 @@ enum WorkoutCSVService {
                     let row = PlannedSet(
                         setNumber: index + 1,
                         targetReps: set.reps,
-                        targetWeight: set.weightKg(assuming: assumedUnit),
+                        targetWeight: set.weightKg(assuming: unit),
                         actualReps: set.reps,
-                        actualWeight: set.weightKg(assuming: assumedUnit),
+                        actualWeight: set.weightKg(assuming: unit),
                         completed: true,
                         plannedExercise: slot
                     )
@@ -363,6 +393,46 @@ enum WorkoutCSVService {
 
         try modelContext.save()
         return summary
+    }
+
+    // MARK: - Undo
+
+    /// Removes everything one import created: its workouts (sets cascade),
+    /// their history rows and records, and the custom exercises it added that
+    /// nothing else uses. Returns how many workouts were removed.
+    @MainActor
+    @discardableResult
+    static func undoImport(batchID: UUID, modelContext: ModelContext) throws -> Int {
+        let plans = try modelContext.fetch(FetchDescriptor<WorkoutPlan>(
+            predicate: #Predicate { $0.importBatchID == batchID }
+        ))
+        let planIDs = Set(plans.map(\.id))
+
+        for history in try modelContext.fetch(FetchDescriptor<ExerciseHistory>())
+            where history.workoutPlanID.map(planIDs.contains) == true
+        {
+            modelContext.delete(history)
+        }
+        for record in try modelContext.fetch(FetchDescriptor<PersonalRecord>())
+            where record.workoutPlanID.map(planIDs.contains) == true
+        {
+            modelContext.delete(record)
+        }
+        for plan in plans {
+            modelContext.delete(plan)
+        }
+        try modelContext.save()
+
+        // Custom exercises this import created that no remaining session uses.
+        let created = try modelContext.fetch(FetchDescriptor<Exercise>(
+            predicate: #Predicate { $0.importBatchID == batchID }
+        ))
+        for exercise in created where (exercise.plannedExercises ?? []).isEmpty {
+            modelContext.delete(exercise)
+        }
+        try modelContext.save()
+        NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
+        return plans.count
     }
 
     // MARK: - Export

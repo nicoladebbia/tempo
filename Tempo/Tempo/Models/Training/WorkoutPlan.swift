@@ -117,6 +117,11 @@ final class WorkoutPlan {
     /// Optional → lightweight SwiftData migration.
     var pausedReasonRaw: String?
 
+    /// Set on every workout created by one CSV import (Strong / Hevy / generic)
+    /// so the whole import can be removed in one tap. nil = not imported.
+    /// Optional → lightweight SwiftData migration.
+    var importBatchID: UUID?
+
     // MARK: - Relationships
 
     @Relationship(deleteRule: .cascade, inverse: \PlannedExercise.workoutPlan)
