@@ -118,6 +118,23 @@ final class PantryFractionTests: XCTestCase {
         XCTAssertEqual(PantryUnit.pieces.gramsApprox(quantity: 2, foodName: "carrot") ?? 0, 130, accuracy: 0.001)
     }
 
+    func testVoicePiecesOfLoafFoodWeighOneSliceButBoughtLoafWeighsLoaf() throws {
+        let portion = try XCTUnwrap(FoodMacroDatabase.naturalPortions["grain bread"])
+        XCTAssertGreaterThan(portion.purchaseGrams, portion.grams * 3, "fixture: loaf is much heavier than a slice")
+        XCTAssertEqual(PantryUnit.pieces.gramsApprox(quantity: 12, foodName: "grain bread") ?? 0, 12 * portion.grams, accuracy: 0.001)
+        XCTAssertEqual(PantryUnit.pieces.gramsApprox(quantity: 1, foodName: "grain bread", purchased: true) ?? 0, portion.purchaseGrams, accuracy: 0.001)
+        let voice = PantryItem(canonicalName: "grain bread", displayName: "Bread", quantity: 12, unit: .pieces)
+        let bought = PantryItem(canonicalName: "grain bread", displayName: "Bread", quantity: 1, unit: .pieces)
+        bought.purchaseSource = .groceryConfirm
+        XCTAssertFalse(voice.weighsPurchaseUnit)
+        XCTAssertTrue(bought.weighsPurchaseUnit)
+    }
+
+    func testFormatterOmitsPlaceholderWeightForStaples() {
+        XCTAssertEqual(PantryQuantityFormatter.text(quantity: 1, unit: .bottles, canonicalName: "olive oil"), "1 bottle")
+        XCTAssertEqual(PantryQuantityFormatter.text(quantity: 1, unit: .packs, canonicalName: "salt"), "1 pack")
+    }
+
     func testFormatterShowsFractionAndApproxWeight() {
         XCTAssertEqual(PantryQuantityFormatter.text(quantity: 0.8, unit: .packs, canonicalName: "pasta"), "0.8 pack (~400 g)")
         XCTAssertEqual(PantryQuantityFormatter.text(quantity: 1, unit: .packs, canonicalName: "pasta"), "1 pack (~500 g)")
@@ -150,6 +167,20 @@ final class PantryFractionTests: XCTestCase {
         XCTAssertEqual(merged.id, old.id)
         let useBy = try XCTUnwrap(merged.useBy)
         XCTAssertGreaterThan(useBy, Date(), "A fresh restock must not inherit the expired batch's use-by")
+    }
+
+    func testRestockMergeKeepsExpiredBatchStillInStock() throws {
+        let pantry = LocalPantryService(modelContext: context)
+        let old = insert("milk", 1, .liters)
+        let past = Calendar.current.date(byAdding: .day, value: -5, to: Date())
+        old.useBy = past
+        try context.save()
+        let merged = try pantry.mergeOrCreate(
+            rawName: "milk", quantity: 1, unit: .liters, storageLocation: .fridge,
+            purchaseDate: Date(), purchaseSource: .manual, sourceReceiptLineItemID: nil
+        )
+        XCTAssertEqual(merged.useBy, past, "expired stock must stay flagged, not be hidden by the restock")
+        XCTAssertTrue(merged.isExpired)
     }
 
     func testRestockMergeStillKeepsEarlierFreshUseBy() throws {

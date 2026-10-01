@@ -335,6 +335,23 @@ final class PantryDecrementServiceTests: XCTestCase {
         XCTAssertEqual(item.quantity, 1.0, accuracy: 0.001)
     }
 
+    func testCreditExact_archivedRowCreditsALiveRowInstead() throws {
+        let archived = insertBranded("chicken breast", quantity: 1000, unit: .grams, brand: "Old", useBy: nil)
+        let results = PantryDecrementService.decrement(
+            foods: [food("chicken breast", grams: 200)], label: "Dinner", modelContext: context
+        )
+        let details = try XCTUnwrap(results.first?.details)
+        archived.isArchived = true
+        try context.save()
+
+        PantryDecrementService.creditExact(details: details, modelContext: context)
+
+        XCTAssertEqual(archived.quantity, 800, accuracy: 0.001, "archived row untouched")
+        let live = try context.fetch(FetchDescriptor<PantryItem>()).filter { !$0.isArchived && $0.canonicalName == "chicken breast" }
+        XCTAssertEqual(live.count, 1, "a live row is recreated")
+        XCTAssertEqual(try XCTUnwrap(live.first).quantity, 200, accuracy: 0.001)
+    }
+
     // MARK: - Meal without a recipe (uses meal.foods)
 
     func testDecrementForMeal_withNoRecipe_usesMealFoods() throws {

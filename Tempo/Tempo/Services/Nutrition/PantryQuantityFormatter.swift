@@ -44,10 +44,15 @@ enum PantryQuantityFormatter {
 
     /// Approximate weight of a countable quantity, e.g. "~400 g". nil when the
     /// food has no per-unit weight or the unit is already mass/volume.
-    static func approxWeight(quantity: Double, unit: PantryUnit, canonicalName: String) -> String? {
+    static func approxWeight(quantity: Double, unit: PantryUnit, canonicalName: String, purchased: Bool = false) -> String? {
+        // Staples (salt, olive oil) carry a 1 g placeholder weight, so a hint
+        // like "1 bottle (~1 g)" is wrong: omit it for staples and <= 1 g.
+        if FoodMacroDatabase.naturalPortions[canonicalName.lowercased()]?.isStaple == true {
+            return nil
+        }
         guard unit.isCountable, unit != .servings,
-              let grams = unit.gramsApprox(quantity: quantity, foodName: canonicalName),
-              grams > 0
+              let grams = unit.gramsApprox(quantity: quantity, foodName: canonicalName, purchased: purchased),
+              grams > 1
         else {
             return nil
         }
@@ -58,7 +63,7 @@ enum PantryQuantityFormatter {
     }
 
     /// "500g", "3 pcs", "0.8 pack (~400 g)".
-    static func text(quantity: Double, unit: PantryUnit, canonicalName: String? = nil) -> String {
+    static func text(quantity: Double, unit: PantryUnit, canonicalName: String? = nil, purchased: Bool = false) -> String {
         let n = number(quantity)
         guard unit.isCountable else {
             return "\(n)\(unit.displayName)"
@@ -68,7 +73,7 @@ enum PantryQuantityFormatter {
         // Weight hint for containers always; for pieces only once fractional
         // (3 whole pcs needs no gram hint, 0.5 pc does).
         if let canonicalName, unit.isContainer || !isWhole,
-           let weight = approxWeight(quantity: quantity, unit: unit, canonicalName: canonicalName)
+           let weight = approxWeight(quantity: quantity, unit: unit, canonicalName: canonicalName, purchased: purchased)
         {
             out += " (\(weight))"
         }

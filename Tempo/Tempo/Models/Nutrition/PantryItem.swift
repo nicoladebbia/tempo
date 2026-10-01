@@ -71,7 +71,7 @@ enum PantryUnit: String, Codable, CaseIterable, Sendable {
     /// `foodName` enables container-unit conversion via
     /// FoodMacroDatabase.naturalPortions[foodName].purchaseGrams — "1 pack
     /// of pasta" resolves to its known purchase weight.
-    func gramsApprox(quantity: Double, foodName: String? = nil) -> Double? {
+    func gramsApprox(quantity: Double, foodName: String? = nil, purchased: Bool = false) -> Double? {
         switch self {
         case .grams: return quantity
         case .kilograms: return quantity * 1000
@@ -94,7 +94,7 @@ enum PantryUnit: String, Codable, CaseIterable, Sendable {
             else {
                 return nil
             }
-            guard let unitGrams = gramsPerUnit(of: portion) else {
+            guard let unitGrams = gramsPerUnit(of: portion, purchased: purchased) else {
                 return nil
             }
             return quantity * unitGrams
@@ -123,11 +123,17 @@ enum PantryUnit: String, Codable, CaseIterable, Sendable {
     /// (callers convert those directly). THE single source of truth shared by
     /// `gramsApprox`, `PantryDecrementService` and the display formatter, so a
     /// "can" is the same weight on the grocery list, in the pantry and on undo.
-    func gramsPerUnit(of portion: FoodMacroDatabase.NaturalPortion) -> Double? {
+    ///
+    /// `purchased`: the row came in as a store purchase (grocery confirm or
+    /// receipt). Only then does a `.pieces` row of a food with a distinct
+    /// purchase unit weigh that whole unit ("1 loaf" = 800 g). Voice/manual
+    /// "12 pieces of bread" are slices, so they keep the single-piece weight.
+    func gramsPerUnit(of portion: FoodMacroDatabase.NaturalPortion, purchased: Bool = false) -> Double? {
         // A bought "1 loaf"/"1 ball" row is `.pieces` but weighs the purchase
         // unit, not the recipe slice. Simple portions (egg, carrot) have
         // unit == purchaseUnit and keep the item weight.
         let boughtAsDistinctPiece = self == .pieces
+            && purchased
             && portion.purchaseGrams > 0
             && portion.purchaseUnit.lowercased() != portion.unit.lowercased()
             && GroceryListGenerator.pantryUnit(for: portion.purchaseUnit) == .pieces
@@ -316,6 +322,17 @@ final class PantryItem {
     var purchaseSource: PantryPurchaseSource {
         get { PantryPurchaseSource(rawValue: purchaseSourceRaw) ?? .manual }
         set { purchaseSourceRaw = newValue.rawValue }
+    }
+
+    /// True when this row was bought as a whole purchase unit (grocery confirm
+    /// or receipt), so a `.pieces` quantity of loaf/ball foods weighs that unit.
+    /// Voice/manual/prep rows count single pieces (slices). Existing rows are
+    /// read by their stored source: older untagged rows default to `.manual`
+    /// (slice weight), the conservative reading since it never credits more
+    /// stock than the user actually has.
+    @Transient
+    var weighsPurchaseUnit: Bool {
+        purchaseSource == .groceryConfirm || purchaseSource == .receiptScan
     }
 
     /// Days until `useBy`, computed on calendar-day boundaries (not sub-day
