@@ -12,6 +12,8 @@
 //
 // One record per lift per session: the best e1RM PR, else the heaviest-weight
 // PR (only when no e1RM PR), else — for pure bodyweight lifts — most reps.
+// Bodyweight-loaded lifts (pull-ups, dips) never get an e1RM PR: heaviest
+// ADDED load or most reps only, exactly as live logging.
 //
 
 import Foundation
@@ -79,9 +81,11 @@ struct ImportedRecordReplay {
         }
         bar = bar.merged(with: imported[exercise.id] ?? TrainingEngine.PersonalRecordBaseline())
 
-        // Same keying as live logging: bodyweight lifts by the added load
-        // (none → most reps), loaded lifts only with a real weight.
+        // Same keying as live logging: bodyweight-loaded lifts by the added
+        // load (no e1RM record), loaded lifts with a real weight; only
+        // bodyweight-loaded and unclassified lifts may set "Most reps".
         let bodyweight = TrainingEngine.usesBodyweightPRRule(exercise.equipment)
+        let zeroWeightAllowed = TrainingEngine.allowsZeroWeightRecord(exercise.equipment)
         let load: (PlannedSet) -> Double = { set in
             (bodyweight ? set.addedLoadKg : set.actualWeight) ?? 0
         }
@@ -90,8 +94,8 @@ struct ImportedRecordReplay {
         for set in working {
             let reps = set.actualReps ?? 0
             let weight = load(set)
-            guard weight > 0 || bodyweight, let hit = TrainingEngine.personalRecordKind(
-                baseline: bar, weight: weight, reps: reps, rir: set.effectiveRIR(reps: reps)
+            guard weight > 0 || zeroWeightAllowed, let hit = TrainingEngine.personalRecordKind(
+                baseline: bar, weight: weight, reps: reps, rir: set.effectiveRIR(reps: reps), allowsE1RM: !bodyweight
             ) else {
                 continue
             }
