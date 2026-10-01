@@ -100,7 +100,9 @@ struct TestModeFixtureTests {
         #expect(payload.lineItems.count == 6)
 
         let picks = reply("You are a supplements buying guide.")
-        _ = try snake.decode(SupplementPicksAIRawResponse.self, from: Data(picks.text.utf8))
+        let decodedPicks = try snake.decode(SupplementPicksAIRawResponse.self, from: Data(picks.text.utf8))
+        #expect(decodedPicks.picks.first?.approxPricePerServingUsd == 0.18)
+        #expect(decodedPicks.toDTO(kind: "creatine").picks.first?.approxPricePerServingUSD == 0.18)
 
         let dashboard = reply("You generate dashboard insight cards for a student-athlete fitness app.")
         _ = try snake.decode(DashboardInsightsResponse.self, from: Data(dashboard.text.utf8))
