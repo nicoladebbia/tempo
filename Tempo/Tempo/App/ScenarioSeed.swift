@@ -43,7 +43,7 @@ import SwiftData
         }
 
         @MainActor
-        static func seed(_ name: String, context: ModelContext) {
+        static func seed(_ name: String, context: ModelContext, now: Date = Date()) {
             switch name {
             case "fresh": // brand-new account, onboarding from the first screen
                 break
@@ -63,6 +63,16 @@ import SwiftData
             case "edge": // long names, emoji, zero and huge numbers everywhere
                 fuelReady(context)
                 edge(context)
+            case "athlete": // 8 weeks of consistent training, meals, green recovery, long streak
+                seedPersona(.athlete, context: context, now: now)
+            case "picky-vegan": // vegan with nut/soy/mushroom/cilantro limits, 3 weeks of meals that respect them
+                seedPersona(.pickyVegan, context: context, now: now)
+            case "exam-week": // student with exams this week: sleep dropping, recovery yellow/red, fewer workouts
+                seedPersona(.examWeek, context: context, now: now)
+            case "injured": // 6 weeks of training, then a knee injury and a training pause 4 days ago
+                seedPersona(.injured, context: context, now: now)
+            case "lapsed-pro": // 10 weeks of solid history that stopped 3 weeks ago, streak broken
+                seedPersona(.lapsedPro, context: context, now: now)
             default:
                 print("[ScenarioSeed] unknown scenario '\(name)' — run scripts/sim.sh scenarios")
             }
@@ -97,15 +107,21 @@ import SwiftData
         // MARK: - Pieces
 
         @MainActor
-        private static func onboarded(_ context: ModelContext) {
+        static func onboarded(_ context: ModelContext) {
             UserDefaults.standard.set(true, forKey: "tempo.onboarding.complete")
             if (try? context.fetch(FetchDescriptor<UserSettings>()))?.isEmpty ?? true {
                 context.insert(UserSettings())
             }
         }
 
+        /// The shared Fuel setup. `tweak` lets a persona change the draft (body,
+        /// goal, diet rules) before it is saved; `pantryRows` replaces the stock pantry.
         @MainActor
-        private static func fuelReady(_ context: ModelContext) {
+        static func fuelReady(
+            _ context: ModelContext,
+            pantryRows: [PantryRow]? = nil,
+            tweak: (inout FuelSetupDraft) -> Void = { _ in }
+        ) {
             onboarded(context)
             var routine = WeeklyRoutine(days: (1 ... 7).map { DayRoutine(weekday: $0) })
             for weekday in 1 ... 7 {
@@ -133,9 +149,10 @@ import SwiftData
             draft.stores = ["Publix"]
             draft.dislikedFoods = ["mushrooms"]
             draft.routine = routine
+            tweak(&draft)
             draft.save(to: context)
 
-            pantry(context, [
+            pantry(context, pantryRows ?? [
                 ("chicken breast", "Chicken Breast", 1200, .grams, .fridge),
                 ("white rice", "White Rice", 2000, .grams, .pantry),
                 ("oats", "Rolled Oats", 1000, .grams, .pantry),
@@ -246,10 +263,12 @@ import SwiftData
             ))
         }
 
+        typealias PantryRow = (String, String, Double, PantryUnit, PantryStorageLocation)
+
         @MainActor
-        private static func pantry(
+        static func pantry(
             _ context: ModelContext,
-            _ rows: [(String, String, Double, PantryUnit, PantryStorageLocation)]
+            _ rows: [PantryRow]
         ) {
             for row in rows {
                 context.insert(PantryItem(
