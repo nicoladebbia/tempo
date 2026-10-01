@@ -44,6 +44,26 @@ Gotchas:
 
 If AXe can't reach something, a temporary XCUITest in `TempoUITests` that writes `app.screenshot().pngRepresentation` to the scratchpad works too (run with `scripts/sim.sh test -only-testing:TempoUITests/<Test>`). Delete it afterwards and rerun `xcodegen generate`.
 
+## Local test backend, scenarios, pushes
+
+Anything that needs the server (weekly plan, AI features, pushes, Pro gates) runs against the local test backend instead of production:
+
+```bash
+scripts/testenv.sh up                       # Postgres + Redis + server in test mode (≈10 s; --rebuild after backend edits)
+scripts/sim.sh qa --local                   # signed into this simulator's own test account (Pro, AI consent)
+scripts/sim.sh qa --local --scenario week   # wiped app + seeded state; `sim.sh scenarios` lists them
+scripts/sim.sh qa --local --as alice --free # another account, without Pro
+scripts/testenv.sh ai broken                # fake | broken | empty | slow [secs] | error | real (needs `up --real-ai`)
+scripts/testenv.sh pushes                   # pushes the server sent and whether the simulator got them
+scripts/sim.sh notify urgent                # any notification kind with its real action buttons (`notify help`)
+scripts/testenv.sh status | logs -f | down | reset
+```
+
+- AI, USDA, Open Food Facts, DSLD, Whoop, OpenAI and Instacart are faked (`tempo-backend/Sources/App/TestMode/`). Any other outside host gets a 502 and a `[test-mode] blocked outbound` log line; add a fixture there when that shows up.
+- Local runs ask for notification permission and sim.sh taps Allow (AXe). To see the action buttons, go home (`axe button home`), send the notification, then long-press the banner (`axe touch -x 200 -y 90 --down`, wait, `--up`).
+- `sim.sh qa` / `run` without `--local` switch the simulator back to production.
+- A new scenario goes in `Tempo/Tempo/App/ScenarioSeed.swift` as a `case "name": // description` line.
+
 ## Install on Nicola's iPhone
 
 ```bash

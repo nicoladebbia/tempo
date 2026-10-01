@@ -11,7 +11,9 @@ Native iOS app (Swift/SwiftUI) + Vapor backend (`tempo-backend/`) unifying fitne
 - iOS: `cd Tempo && xcodegen generate` (project is generated from `project.yml`; never hand-edit the .xcodeproj). Scheme `Tempo`.
 - iOS build/test/run: **always through `scripts/sim.sh`** — it gives each worktree its own simulator ("Tempo · <worktree>") and its own `DerivedData/`, so parallel sessions never queue on or overwrite each other's simulator. `scripts/sim.sh test` (TempoTests; pass `-only-testing:...` to narrow), `scripts/sim.sh build`, `scripts/sim.sh qa` (install + launch past onboarding). Never use `-destination 'name=iPhone 17'` or the default DerivedData. Driving the app, screenshots, installing on the iPhone → `run-tempo` skill.
 - Leftovers: `scripts/cleanup.py` lists unused worktrees, simulators and build caches (dry run); `--yes` removes them. Run it after a round is merged.
-- Backend: `cd tempo-backend && swift build && swift test` (run needs Postgres + Redis; see README).
+- Backend: `cd tempo-backend && swift build && swift test`. Databases: `scripts/testenv.sh db && eval "$(scripts/testenv.sh test-env)"` first.
+- Local test backend: `scripts/testenv.sh up` runs Postgres + Redis + the server in test mode on 127.0.0.1:58080. AI and outside services are fake by default; switch with `testenv.sh ai fake|broken|empty|slow|error`. `sim.sh qa --local` signs the simulator into its own test account on it, and `--scenario NAME` seeds a starting state (`sim.sh scenarios`). Real server pushes reach the simulator; send any notification with `sim.sh notify <kind>`. The phone always uses production. Details → `run-tempo` skill.
+- CI: the "Fast check" workflow runs on this Mac (self-hosted runner `mac-mini-tempo`, about 1–2 min, never blocks merges). The nightly at 03:00 (`scripts/nightly.sh`) runs the full tests and scenarios for main + open PRs; the report is at `~/.tempo-nightly/latest.html`.
 - A CLI build proves compilation only. Nicola runs the app on his physical iPhone; only an on-device check after a fresh ⌘R counts as verified. "Still broken" reports → suspect a stale device build first (`.claude/rules/swift.md`).
 
 ## Architecture
