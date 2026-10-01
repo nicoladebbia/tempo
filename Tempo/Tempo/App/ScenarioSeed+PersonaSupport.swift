@@ -393,6 +393,8 @@ import SwiftData
         /// 0 ... 1: how hard the week is hitting (cuts sleep and HRV, lifts RHR).
         var stress: (Int) -> Double = { _ in 0 }
         var baseStrainKcal = 2600.0
+        /// Lowest score allowed on a day (lets a persona open on a green morning).
+        var minScore: (Int) -> Double = { _ in 0 }
     }
 
     @MainActor
@@ -406,13 +408,18 @@ import SwiftData
             for daysAgo in stride(from: oldest, through: newest, by: -1) {
                 var rng = PersonaRNG(daysAgo: daysAgo, salt: salt)
                 let stress = spec.stress(daysAgo)
-                let sleep = min(9.2, max(3.8, spec.baseSleep + rng.spread(0.6) - 2.4 * stress))
-                let hrv = spec.baseHRV * (1 + rng.spread(0.11) - 0.38 * stress)
+                var sleep = min(9.2, max(3.8, spec.baseSleep + rng.spread(0.6) - 2.4 * stress))
+                var hrv = spec.baseHRV * (1 + rng.spread(0.11) - 0.38 * stress)
+                if spec.minScore(daysAgo) > 0 {
+                    // A pinned good morning: HRV and sleep at or above baseline so every number agrees.
+                    hrv = max(hrv, spec.baseHRV * 1.03)
+                    sleep = max(sleep, spec.baseSleep + 0.2)
+                }
                 let rhr = spec.baseRHR + rng.spread(2) + 9 * stress
-                let score = min(
+                let score = max(spec.minScore(daysAgo), min(
                     99,
                     max(3, (58 + spec.greenBias + (hrv - spec.baseHRV) / spec.baseHRV * 95 + (sleep - spec.baseSleep) * 7).rounded())
-                )
+                ))
 
                 let totalMin = sleep * 60
                 let awake = Int(28 + 22 * stress + rng.unit() * 8)

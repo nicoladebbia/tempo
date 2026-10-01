@@ -39,6 +39,10 @@ import SwiftData
             case .injured: injured(context, clock)
             case .lapsedPro: lapsedPro(context, clock)
             }
+            // The app plans today from this split, so it has to match the history it sits on.
+            if let settings = (try? context.fetch(FetchDescriptor<UserSettings>()))?.first {
+                settings.trainingSplit = [.athlete, .injured, .lapsedPro].contains(persona) ? .upperLower : .fullBody
+            }
             try? context.save()
         }
 
@@ -171,7 +175,7 @@ import SwiftData
             )
             PersonaRecovery.seed(
                 context: context, clock: clock,
-                spec: RecoverySpec(baseHRV: 72, baseRHR: 51, baseSleep: 7.7),
+                spec: RecoverySpec(baseHRV: 72, baseRHR: 51, baseSleep: 7.7, minScore: { $0 == 0 ? 78 : 0 }),
                 oldest: oldest, newest: 0, salt: salt, facts: &facts
             )
             PersonaAccountability.seed(
@@ -516,7 +520,7 @@ import SwiftData
                     studyMinutes: { clock.isWeekend($0) ? 65 : 120 + ($0 * 9) % 35 },
                     studyTarget: { clock.isWeekend($0) ? 60 : 120 },
                     oldest: oldest, newest: lastDay,
-                    forcedMiss: { $0 == oldest - 14 },
+                    forcedMiss: { $0 == oldest - 14 || $0 == lastDay },
                     includeToday: false
                 ),
                 facts: facts
