@@ -403,9 +403,9 @@ struct ActiveWorkoutView: View {
             // input fields so the athlete can't log the pre-reduction number.
             loadCurrentSetInputs()
         }) {
-            PainReportSheet(viewModel: viewModel, plannedExercise: viewModel.currentExercise) {
-                dismiss()
-            }
+            // "End the session" is routed by sessionState (summary / discard
+            // close this cover from TrainingTabView) — no dismiss() here.
+            PainReportSheet(viewModel: viewModel, plannedExercise: viewModel.currentExercise)
         }
         // §4.2-4.4 — tap-to-type / scroll-wheel entry for weight, added load,
         // and reps. One sheet type, driven by which field was tapped.

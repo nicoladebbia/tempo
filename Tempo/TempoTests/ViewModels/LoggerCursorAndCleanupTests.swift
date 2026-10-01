@@ -362,6 +362,82 @@ final class LoggerCursorAndCleanupTests: XCTestCase {
         XCTAssertEqual(plan.actualDurationMinutes, 50)
     }
 
+    // MARK: - Severe pain → "End the session"
+
+    func testPainEndWithLoggedSetsFinishesToSummary() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [3])
+        start(vm, plan: plan)
+        let set = try XCTUnwrap(plan.orderedExercises.first?.orderedSets.first)
+        set.completed = true
+        set.actualReps = 8
+        set.actualWeight = 80
+        let report = PainReport(bodyArea: .knee, severity: 8)
+        context.insert(report)
+
+        vm.endSessionDueToPain(report, modelContext: context)
+
+        XCTAssertEqual(report.actionTaken, .endedSession)
+        XCTAssertEqual(vm.sessionState, .summary, "The session really ends — no ghost session behind the screen")
+        XCTAssertTrue(set.completed, "Logged work is kept")
+        vm.resetState()
+    }
+
+    func testPainEndWithNothingLoggedClosesAndRestsTheDay() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [3])
+        start(vm, plan: plan)
+        let report = PainReport(bodyArea: .back, severity: 9)
+        context.insert(report)
+
+        vm.endSessionDueToPain(report, modelContext: context)
+
+        XCTAssertEqual(vm.sessionState, .discarded)
+        XCTAssertEqual(plan.status, .skipped)
+        XCTAssertEqual(plan.skipReason, .floorForced, "Pain is the body saying no — not a missed day")
+        vm.resetState()
+    }
+
+    func testPainEndDuringACallStillFinishes() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [2])
+        start(vm, plan: plan)
+        let set = try XCTUnwrap(plan.orderedExercises.first?.orderedSets.first)
+        set.completed = true
+        set.actualReps = 8
+        set.actualWeight = 80
+        vm.handleCallChange(callEnded: false)
+        let report = PainReport(bodyArea: .shoulder, severity: 8)
+        context.insert(report)
+
+        vm.endSessionDueToPain(report, modelContext: context)
+
+        XCTAssertEqual(vm.sessionState, .summary)
+        XCTAssertNil(plan.pausedAt)
+        vm.resetState()
+    }
+
+    func testPainEndWithoutASessionOnlyRecordsTheReport() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [2])
+        plan.status = .planned
+        plan.startedAt = nil
+        vm.todayPlan = plan
+        vm.sessionState = .idle
+        let report = PainReport(bodyArea: .knee, severity: 8)
+        context.insert(report)
+
+        XCTAssertFalse(vm.canEndSessionForPain, "From Today's list there is no session to end")
+        vm.endSessionDueToPain(report, modelContext: context)
+
+        XCTAssertEqual(vm.sessionState, .idle)
+        XCTAssertEqual(plan.status, .planned)
+    }
+
     // MARK: - 5. Watch payloads
 
     func testWatchSetWithoutWeightUsesPrescriptionNotZero() throws {

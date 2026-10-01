@@ -168,13 +168,37 @@ extension TrainingViewModel {
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
     }
 
+    /// Whether the pain sheet can offer "End the session": only while a
+    /// session is actually running (live, paused or on a call). From Today's
+    /// list there is nothing to end.
+    var canEndSessionForPain: Bool {
+        switch sessionState {
+        case .warmup, .exercise, .cooldown, .paused, .interruptedCall: true
+        default: false
+        }
+    }
+
     /// Severe — the athlete confirmed ending the session from the pain sheet.
-    /// Non-destructive: whatever sets are already logged stay logged; nothing
-    /// past this point is required from today's plan. The actual "end
-    /// session" navigation is the caller's (ActiveWorkoutView's) job — this
-    /// just records the outcome.
+    /// Really ends it (it used to only record the choice and close the screen,
+    /// leaving the session running in the background):
+    /// - sets logged → finish normally, so they're saved to history and the
+    ///   summary shows;
+    /// - nothing logged → close the session and resolve the day as a
+    ///   body-said-no skip (`.floorForced`), which doesn't count against
+    ///   adherence.
     func endSessionDueToPain(_ report: PainReport, modelContext: ModelContext) {
         report.actionTaken = .endedSession
         _ = modelContext.saveOrAlert("end session for pain")
+        guard canEndSessionForPain else { return }
+        if hasAnyCompletedWorkingSet {
+            finishWorkout(modelContext: modelContext)
+            return
+        }
+        guard let plan = todayPlan else { return }
+        discardActiveWorkout(modelContext: modelContext)
+        plan.status = .skipped
+        plan.skipReason = .floorForced
+        saveGuarded(modelContext, operation: "pain-ended workout")
+        NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
     }
 }

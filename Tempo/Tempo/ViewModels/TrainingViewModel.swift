@@ -1714,7 +1714,7 @@ final class TrainingViewModel {
     /// nothing logged must not mint a phantom `.inProgress` plan that can
     /// never be regenerated (persistCompletion's own zero-sets guard leaves
     /// status exactly where it found it, so nothing else ever reverts it).
-    private var hasAnyCompletedWorkingSet: Bool {
+    var hasAnyCompletedWorkingSet: Bool {
         guard let plan = todayPlan else {
             return false
         }
@@ -1740,7 +1740,8 @@ final class TrainingViewModel {
         case .warmup,
              .exercise,
              .cooldown,
-             .paused:
+             .paused,
+             .interruptedCall:
             break
         default:
             return
@@ -1754,6 +1755,9 @@ final class TrainingViewModel {
         // the persisted total — used by Health and History — in step).
         if case let .paused(_, pauseStart) = sessionState {
             addPausedTime(Date().timeIntervalSince(pauseStart))
+        } else if case .interruptedCall = sessionState, let callStart = callStartedAt {
+            addPausedTime(Date().timeIntervalSince(callStart))
+            callStartedAt = nil
         }
         clearPauseMarker()
         stopRestTimer()
