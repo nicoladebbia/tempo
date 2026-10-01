@@ -46,7 +46,8 @@ final class WorkoutCSVServiceTests: XCTestCase {
     // MARK: - Parsing
 
     func testStrongParseSkipsWarmupsAndInfersFormat() throws {
-        let (format, sets) = try WorkoutCSVService.parse(strongCSV)
+        let parsed = try WorkoutCSVService.parse(strongCSV)
+        let (format, sets) = (parsed.format, parsed.sets)
         XCTAssertEqual(format, .strong)
         XCTAssertEqual(sets.count, 4, "W1 warmup row is dropped")
         XCTAssertEqual(sets.filter { $0.exercise == "Press, Overhead" }.count, 1,

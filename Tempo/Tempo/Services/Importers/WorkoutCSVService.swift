@@ -57,27 +57,54 @@ enum WorkoutCSVService {
         }
     }
 
-    /// One completed working set as parsed from any supported CSV.
-    struct ParsedSet: Equatable {
+    /// One completed working set as parsed from any supported CSV. `weight`
+    /// is exactly what the file says, in `unit` when the file declares one
+    /// (a "Weight Unit" column, a "Weight (lbs)" / `weight_lbs` header) — the
+    /// importer converts to kg, so a pound file is never read as kilos.
+    struct ParsedSet: Equatable, Sendable {
         let workoutName: String
         let start: Date
         let durationMinutes: Int?
         let exercise: String
-        let weightKg: Double?
+        let weight: Double?
+        let unit: WeightUnit?
         let reps: Int
         let rpe: Int?
+
+        /// The load in kg; `fallback` is the unit to assume when the file
+        /// doesn't declare one. nil for a bodyweight set.
+        func weightKg(assuming fallback: WeightUnit) -> Double? {
+            guard let weight, weight > 0 else {
+                return nil
+            }
+            return (unit ?? fallback).convert(weight, to: .kg)
+        }
+    }
+
+    struct ParsedFile: Sendable {
+        let format: Format
+        let sets: [ParsedSet]
+        /// The unit the file itself declares (header or unit column); nil
+        /// when it doesn't say — the caller must ask or default.
+        let declaredUnit: WeightUnit?
     }
 
     // MARK: - Parsing
 
     /// Header-detect the format and flatten the file to working-set rows.
-    /// Warmup rows and rep-less rows (cardio/duration entries) are dropped.
-    static func parse(_ text: String) throws -> (format: Format, sets: [ParsedSet]) {
-        let rows = WhoopExportParser.keyedRows(text).map { row in
+    /// Warmup rows and rep-less rows (cardio/duration entries, Strong's
+    /// rest-timer rows) are dropped. Pure and `nonisolated` so big files
+    /// parse off the main actor.
+    nonisolated static func parse(_ text: String) throws -> ParsedFile {
+        var body = Substring(text)
+        if body.hasPrefix("\u{FEFF}") {
+            body = body.dropFirst()
+        }
+        let rows = WhoopExportParser.keyedRows(String(body)).map { row in
             Dictionary(row.map { key, value in
                 (
                     key.trimmingCharacters(in: .whitespaces).lowercased(),
-                    value.trimmingCharacters(in: .whitespaces)
+                    value.trimmingCharacters(in: .whitespacesAndNewlines)
                 )
             }) { first, _ in first }
         }
@@ -90,27 +117,77 @@ enum WorkoutCSVService {
             format = .hevy
         } else if first["exercise name"] != nil, first["workout name"] != nil {
             format = .strong
-        } else if first["exercise"] != nil, first["reps"] != nil {
+        } else if first["reps"] != nil,
+                  first["exercise"] != nil || first["exercise name"] != nil || first["exercise_name"] != nil,
+                  first["date"] != nil || first["start_time"] != nil
+        {
             format = .generic
         } else {
             throw ImportError.unrecognizedFormat
         }
 
-        let sets = rows.compactMap { parsedSet(from: $0, format: format) }
+        let dates = DateParser()
+        let sets = rows.compactMap { parsedSet(from: $0, format: format, dates: dates) }
         guard !sets.isEmpty else {
             throw ImportError.noWorkouts
         }
-        return (format, sets)
+        return ParsedFile(format: format, sets: sets, declaredUnit: declaredUnit(header: first, sets: sets))
     }
 
-    private static func parsedSet(from row: [String: String], format: Format) -> ParsedSet? {
+    /// A unit named by a weight header ("Weight (lbs)", `weight_lbs`) wins;
+    /// else the most common per-row "Weight Unit" value.
+    private nonisolated static func declaredUnit(header first: [String: String], sets: [ParsedSet]) -> WeightUnit? {
+        for key in first.keys.sorted() where key.hasPrefix("weight") && key != "weight unit" {
+            if let unit = unit(fromName: key) {
+                return unit
+            }
+        }
+        let counts = sets.compactMap(\.unit).reduce(into: [WeightUnit: Int]()) { $0[$1, default: 0] += 1 }
+        return counts.max { $0.value < $1.value }?.key
+    }
+
+    /// "weight_lbs", "Weight (lb)", "pounds", "kg", "kilograms" -> a unit.
+    private nonisolated static func unit(fromName name: String?) -> WeightUnit? {
+        guard let name = nonEmpty(name)?.lowercased() else {
+            return nil
+        }
+        if name.contains("lb") || name.contains("pound") {
+            return .lbs
+        }
+        if name.contains("kg") || name.contains("kilo") {
+            return .kg
+        }
+        return nil
+    }
+
+    /// The load column, whatever the export called it, plus the unit that
+    /// column (or a sibling "Weight Unit" column) declares.
+    private nonisolated static func weightAndUnit(_ row: [String: String]) -> (Double?, WeightUnit?) {
+        let candidates = row.keys.filter { $0.hasPrefix("weight") && $0 != "weight unit" }.sorted()
+        // A column that names its unit first, a bare "weight" last.
+        let ordered = candidates.filter { unit(fromName: $0) != nil } + candidates.filter { unit(fromName: $0) == nil }
+        for key in ordered {
+            if let value = double(row[key]) {
+                return (value, unit(fromName: key) ?? unit(fromName: row["weight unit"]))
+            }
+        }
+        return (nil, unit(fromName: row["weight unit"]))
+    }
+
+    private nonisolated static func parsedSet(
+        from row: [String: String],
+        format: Format,
+        dates: DateParser
+    ) -> ParsedSet? {
+        let (weight, unit) = weightAndUnit(row)
         switch format {
         case .strong:
-            // Strong marks warmups in "Set Order" ("W"/"W1") and emits
-            // rest-timer/note rows with no reps — all skipped.
+            // Strong marks warmups in "Set Order" ("W"/"W1"; "D" = drop set,
+            // "F" = failure, both real working sets) and emits rest-timer /
+            // note rows with no reps — all skipped.
             let order = (row["set order"] ?? "").uppercased()
             guard !order.hasPrefix("W"),
-                  let start = date(row["date"]),
+                  let start = dates.parse(row["date"]),
                   let exercise = nonEmpty(row["exercise name"]),
                   let reps = int(row["reps"]), reps > 0
             else {
@@ -119,36 +196,40 @@ enum WorkoutCSVService {
             return ParsedSet(
                 workoutName: nonEmpty(row["workout name"]) ?? "Imported workout",
                 start: start,
-                durationMinutes: durationMinutes(row["duration"]),
+                durationMinutes: durationMinutes(row["duration"]) ?? durationMinutes(row["workout duration"]),
                 exercise: exercise,
-                weightKg: double(row["weight"]),
+                weight: weight,
+                unit: unit,
                 reps: reps,
                 rpe: int(row["rpe"])
             )
         case .hevy:
+            // set_type: normal / warmup / failure / dropset.
             guard (row["set_type"] ?? "").lowercased() != "warmup",
-                  let start = date(row["start_time"]),
+                  let start = dates.parse(row["start_time"]),
                   let exercise = nonEmpty(row["exercise_title"]),
                   let reps = int(row["reps"]), reps > 0
             else {
                 return nil
             }
-            let end = date(row["end_time"])
+            let end = dates.parse(row["end_time"])
             let duration = end.map { Int($0.timeIntervalSince(start) / 60) }
             return ParsedSet(
                 workoutName: nonEmpty(row["title"]) ?? "Imported workout",
                 start: start,
                 durationMinutes: duration.flatMap { $0 > 0 ? $0 : nil },
                 exercise: exercise,
-                weightKg: double(row["weight_kg"]),
+                weight: weight,
+                unit: unit,
                 reps: reps,
                 rpe: int(row["rpe"])
             )
         case .generic:
-            guard (row["set_type"] ?? row["warmup"] ?? "").lowercased() != "warmup",
-                  (row["warmup"] ?? "").lowercased() != "true",
-                  let start = date(row["date"]),
-                  let exercise = nonEmpty(row["exercise"]),
+            let kind = (row["set_type"] ?? row["set order"] ?? "").lowercased()
+            let warmupFlag = (row["warmup"] ?? "").lowercased()
+            guard !kind.hasPrefix("w"), !["true", "yes", "1"].contains(warmupFlag),
+                  let start = dates.parse(row["date"] ?? row["start_time"]),
+                  let exercise = nonEmpty(row["exercise"] ?? row["exercise name"] ?? row["exercise_name"]),
                   let reps = int(row["reps"]), reps > 0
             else {
                 return nil
@@ -158,7 +239,8 @@ enum WorkoutCSVService {
                 start: start,
                 durationMinutes: int(row["duration"]),
                 exercise: exercise,
-                weightKg: double(row["weight_kg"]) ?? double(row["weight"]),
+                weight: weight,
+                unit: unit,
                 reps: reps,
                 rpe: int(row["rpe"])
             )
@@ -172,8 +254,14 @@ enum WorkoutCSVService {
     /// persistCompletion writes, so charts and progression see the history.
     /// Unknown exercise names become custom Exercises (editable later).
     @MainActor
-    static func importCSV(_ text: String, modelContext: ModelContext) throws -> ImportSummary {
-        let (format, sets) = try parse(text)
+    static func importCSV(
+        _ text: String,
+        assumedUnit: WeightUnit = .kg,
+        modelContext: ModelContext
+    ) throws -> ImportSummary {
+        let parsed = try parse(text)
+        let format = parsed.format
+        let sets = parsed.sets
         var summary = ImportSummary(format: format)
 
         struct GroupKey: Hashable {
@@ -242,9 +330,9 @@ enum WorkoutCSVService {
                     let row = PlannedSet(
                         setNumber: index + 1,
                         targetReps: set.reps,
-                        targetWeight: set.weightKg,
+                        targetWeight: set.weightKg(assuming: assumedUnit),
                         actualReps: set.reps,
-                        actualWeight: set.weightKg,
+                        actualWeight: set.weightKg(assuming: assumedUnit),
                         completed: true,
                         plannedExercise: slot
                     )
@@ -336,35 +424,65 @@ enum WorkoutCSVService {
         return .fullBody
     }
 
-    private static let dateFormats = [
-        "yyyy-MM-dd HH:mm:ss",
-        "yyyy-MM-dd HH:mm",
-        "d MMM yyyy, HH:mm",
-        "dd MMM yyyy, HH:mm",
-        "yyyy-MM-dd'T'HH:mm:ssZ",
-        "yyyy-MM-dd'T'HH:mm:ss",
-        "M/d/yyyy HH:mm",
-        "M/d/yy HH:mm",
-        "yyyy-MM-dd",
-    ]
+    /// Date formats seen in Strong, Hevy and hand-made CSVs. Formatters are
+    /// built once per parse, not once per row, and the format that matched
+    /// last is tried first (a file nearly always uses one format throughout).
+    private final class DateParser {
+        private static let formats = [
+            "yyyy-MM-dd HH:mm:ss",
+            "yyyy-MM-dd HH:mm",
+            "d MMM yyyy, HH:mm",
+            "d MMM yyyy, HH:mm:ss",
+            "d MMM yyyy HH:mm",
+            "MMM d, yyyy, h:mm a",
+            "MMMM d, yyyy 'at' h:mm a",
+            "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
+            "yyyy-MM-dd'T'HH:mm:ssZ",
+            "yyyy-MM-dd'T'HH:mm:ss",
+            "M/d/yyyy HH:mm",
+            "M/d/yy HH:mm",
+            "M/d/yyyy",
+            "yyyy-MM-dd",
+        ]
 
-    private static func date(_ value: String?) -> Date? {
-        guard let value = nonEmpty(value) else {
-            return nil
-        }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        for format in dateFormats {
-            formatter.dateFormat = format
-            if let parsed = formatter.date(from: value) {
-                return parsed
+        private let formatters: [DateFormatter]
+        private var lastHit = 0
+
+        init() {
+            formatters = Self.formats.map { format in
+                let formatter = DateFormatter()
+                formatter.locale = Locale(identifier: "en_US_POSIX")
+                formatter.dateFormat = format
+                return formatter
             }
         }
-        return nil
+
+        func parse(_ value: String?) -> Date? {
+            guard let value, !value.isEmpty else {
+                return nil
+            }
+            if let parsed = formatters[lastHit].date(from: value) {
+                return parsed
+            }
+            for (index, formatter) in formatters.enumerated() where index != lastHit {
+                if let parsed = formatter.date(from: value) {
+                    lastHit = index
+                    return parsed
+                }
+            }
+            // ISO-8601 with a "Z" / fractional seconds.
+            let iso = ISO8601DateFormatter()
+            iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let parsed = iso.date(from: value) {
+                return parsed
+            }
+            iso.formatOptions = [.withInternetDateTime]
+            return iso.date(from: value)
+        }
     }
 
-    /// Strong duration strings: "1h 5m", "45m", "1h".
-    private static func durationMinutes(_ value: String?) -> Int? {
+    /// Strong duration strings: "1h 5m", "45m", "1h", "50s".
+    private nonisolated static func durationMinutes(_ value: String?) -> Int? {
         guard let value = nonEmpty(value) else {
             return nil
         }
@@ -377,6 +495,8 @@ enum WorkoutCSVService {
             }
             if scanner.scanString("h") != nil {
                 minutes += number * 60
+            } else if scanner.scanString("s") != nil {
+                minutes += number / 60
             } else {
                 _ = scanner.scanString("m")
                 minutes += number
@@ -385,25 +505,32 @@ enum WorkoutCSVService {
         return minutes > 0 ? minutes : nil
     }
 
-    private static func nonEmpty(_ value: String?) -> String? {
+    private nonisolated static func nonEmpty(_ value: String?) -> String? {
         guard let value, !value.isEmpty else {
             return nil
         }
         return value
     }
 
-    private static func double(_ value: String?) -> Double? {
-        guard let value = nonEmpty(value) else {
+    /// "82.5", "82,5" (decimal comma, quoted in the file) and "1,082.5"
+    /// (thousands comma) all read as the number they mean.
+    nonisolated static func double(_ value: String?) -> Double? {
+        guard var text = nonEmpty(value)?.trimmingCharacters(in: .whitespaces), !text.isEmpty else {
             return nil
         }
-        return Double(value.replacingOccurrences(of: ",", with: "."))
+        if text.contains(","), text.contains(".") {
+            text = text.replacingOccurrences(of: ",", with: "")
+        } else {
+            text = text.replacingOccurrences(of: ",", with: ".")
+        }
+        return Double(text)
     }
 
-    private static func int(_ value: String?) -> Int? {
+    private nonisolated static func int(_ value: String?) -> Int? {
         guard let value = nonEmpty(value) else {
             return nil
         }
-        return Int(value) ?? Double(value).map(Int.init)
+        return Int(value) ?? double(value).map { Int($0) }
     }
 
     private static func escape(_ field: String) -> String {
