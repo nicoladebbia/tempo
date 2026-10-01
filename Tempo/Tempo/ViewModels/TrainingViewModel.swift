@@ -2063,7 +2063,11 @@ final class TrainingViewModel {
         #endif
 
         // Best-effort Apple Health write — never blocks or fails the save.
-        writeStrengthWorkoutToHealthKit(plan: plan, totalVolumeKg: snapshots.reduce(0) { $0 + $1.totalVolume })
+        writeStrengthWorkoutToHealthKit(
+            plan: plan,
+            totalVolumeKg: snapshots.reduce(0) { $0 + $1.totalVolume },
+            bodyweightKg: currentBodyweightKg(modelContext: modelContext)
+        )
 
         // Day-plan engine signal — a logged workout means subsequent
         // blocks (especially recovery + meals) may shift. DayPlanScheduler

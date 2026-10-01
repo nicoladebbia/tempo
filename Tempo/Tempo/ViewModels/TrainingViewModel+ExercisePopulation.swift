@@ -694,7 +694,7 @@ extension TrainingViewModel {
     /// User bodyweight (kg) for cold-start estimation. Explicit profile weight
     /// first, then the most recent HealthKit body-mass snapshot. nil when neither
     /// exists → `StrengthStandards` falls back to a conservative absolute seed.
-    private func currentBodyweightKg(modelContext: ModelContext) -> Double? {
+    func currentBodyweightKg(modelContext: ModelContext) -> Double? {
         if let profile = try? modelContext.fetch(FetchDescriptor<UserProfile>()).first,
            let w = profile.weightKg, w > 0
         {
