@@ -57,6 +57,17 @@ scripts/testenv.sh ai broken                # fake | broken | empty | slow [secs
 scripts/testenv.sh pushes                   # pushes the server sent and whether the simulator got them
 scripts/sim.sh notify urgent                # any notification kind with its real action buttons (`notify help`)
 scripts/testenv.sh status | logs -f | down | reset
+# deeper:
+open http://127.0.0.1:58080/v1/test/        # control page: all of the below with buttons
+scripts/testenv.sh time set sunday 19:55    # move the server clock (+3d, -2h, reset)
+scripts/testenv.sh job run morning-briefing --as alice [--force]   # jobs never run on their own
+scripts/testenv.sh fault add /v1/nutrition error 503 --count 2     # slow [s] | logout | garbage | empty | timeout; fault clear
+scripts/testenv.sh auth ttl 10              # short access tokens; sign-out <name> revokes sessions
+scripts/testenv.sh sub alice cancelled --days 2                    # trial | grace | billing-retry | expired | refunded …
+scripts/sim.sh qa --local --scenario athlete                       # persona with weeks of history (both halves)
+scripts/sim.sh --sim b qa --local --as bob --no-build              # a second simulator / user
+scripts/testenv.sh shared alice && scripts/sim.sh --sim b open <url>   # open a share link as the shopper
+scripts/testenv.sh up --real-ai --record; scripts/testenv.sh ai replay # save real replies, replay them free
 ```
 
 - AI, USDA, Open Food Facts, DSLD, Whoop, OpenAI and Instacart are faked (`tempo-backend/Sources/App/TestMode/`). Any other outside host gets a 502 and a `[test-mode] blocked outbound` log line; add a fixture there when that shows up.
