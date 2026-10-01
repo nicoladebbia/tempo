@@ -429,10 +429,15 @@ struct AIMealsSettingsView: View {
         settings.cookTimeWeekdayMins = cookWeekdayMins
         settings.cookTimeWeekendMins = cookWeekendMins
         settings.mealsPerDayPreference = mealsPerDay
-        settings.mealIntakeFirstMealHour = firstMealHour
-        settings.mealIntakeLastMealHour = lastMealHour
+        MealPlanIntake.saveEatingWindow(
+            EatingWindow(firstMealHour: firstMealHour, lastMealHour: lastMealHour),
+            settings: settings,
+            dailyPlan: dailyPlanProfiles.first
+        )
         settings.mealIntakeRecoveryAdjusted = recoveryAdjusted
         settings.mealIntakeExclusionsRaw = exclusions.joined(separator: ", ")
+        // Saved prefs just edited here supersede this week's wizard answers.
+        settings.mealIntakeTempWeekStart = nil
         settings.updatedAt = Date()
 
         if let profile = activeProfiles.first {

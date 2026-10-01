@@ -31,6 +31,8 @@ struct NutritionWeeklyPlanView: View {
     private var isPreparingWizard = false
     @State
     private var showProfileSetup = false
+    @State
+    private var showRebuildConfirm = false
     @AppStorage("tempo.nutrition.disclaimerAccepted")
     private var disclaimerAccepted = false
 
@@ -48,6 +50,9 @@ struct NutritionWeeklyPlanView: View {
             VStack(spacing: TempoSpacing.lg) {
                 NextWeekPlanCard()
                 if let plan = viewModel.weeklyPlan {
+                    if viewModel.showPlanUpdateBanner {
+                        PlanUpdateBanner(viewModel: viewModel)
+                    }
                     planHeaderCard(plan)
                     weekDaysList(plan)
                 } else {
@@ -59,7 +64,9 @@ struct NutritionWeeklyPlanView: View {
 
                 aiMealsPreferencesLink
 
-                if let error = viewModel.planGenerationError {
+                if let blocker = viewModel.planGenerationBlocker {
+                    PlanBlockerCard(blocker: blocker, viewModel: viewModel)
+                } else if let error = viewModel.planGenerationError {
                     HStack(spacing: TempoSpacing.xs) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.system(size: 12))
@@ -125,12 +132,11 @@ struct NutritionWeeklyPlanView: View {
                     // then cancelled — budget cap was already saved).
                     let descriptor = FetchDescriptor<UserSettings>()
                     if let settings = (try? modelContext.fetch(descriptor))?.first {
-                        // Persist the WHOLE intake (cooking days, leftover,
-                        // eating window, recovery, exclusions) so every later
-                        // "Regenerate Plan" reuses these answers instead of
-                        // falling back to defaults. Grocery prefs are persisted
+                        // Persist the intake: leftover style + eating window
+                        // stay; this week's answers (cooking days, exclusions,
+                        // recovery) are kept only until the week ends. Grocery prefs are persisted
                         // on the same record (kept explicit for clarity).
-                        intake.persist(to: settings)
+                        intake.persist(to: settings, dailyPlan: UserDailyPlanProfile.current(in: modelContext))
                         if let grocery = intake.groceryIntent {
                             settings.groceryBudgetCapUSD = grocery.budgetCapUSD
                             settings.groceryPreferredStores = grocery.preferredStores
@@ -170,13 +176,16 @@ struct NutritionWeeklyPlanView: View {
 
                 Spacer()
 
-                Text("Active")
+                // A plan built from inputs that have since changed is not
+                // "Active" any more — say so (Update lives in the banner).
+                let stale = viewModel.isPlanOutOfDate
+                Text(stale ? "Out of date" : "Active")
                     .font(.system(size: 10, weight: .bold))
                     .tracking(0.5)
-                    .foregroundStyle(Color.tempoSuccess)
+                    .foregroundStyle(stale ? Color.tempoAmber : Color.tempoSuccess)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(Color.tempoSuccess.opacity(0.12))
+                    .background((stale ? Color.tempoAmber : Color.tempoSuccess).opacity(0.12))
                     .clipShape(Capsule())
             }
 
@@ -397,10 +406,11 @@ struct NutritionWeeklyPlanView: View {
                 showProfileSetup = true
                 return
             }
-            if disclaimerAccepted {
-                launchWizard()
+            // Replacing planned meals needs a yes first.
+            if viewModel.weeklyPlan != nil {
+                showRebuildConfirm = true
             } else {
-                showDisclaimerAlert = true
+                startGenerate()
             }
         } label: {
             HStack(spacing: 8) {
@@ -426,6 +436,20 @@ struct NutritionWeeklyPlanView: View {
             .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
         }
         .disabled(viewModel.isGeneratingPlan || isPreparingWizard)
+        .alert("Rebuild the rest of the week?", isPresented: $showRebuildConfirm) {
+            Button("Rebuild") { startGenerate() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Meals you've eaten and past days stay. Planned meals from today on are replaced.")
+        }
+    }
+
+    private func startGenerate() {
+        if disclaimerAccepted {
+            launchWizard()
+        } else {
+            showDisclaimerAlert = true
+        }
     }
 
     /// Pushes the editable AI Meals preferences page. Saving there can trigger

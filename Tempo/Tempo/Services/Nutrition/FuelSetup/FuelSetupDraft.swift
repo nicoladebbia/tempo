@@ -243,6 +243,15 @@ extension FuelSetupDraft {
             draft.breakfastSkipped = daily.breakfastSkipped
             draft.eatingWindowStartMinutes = daily.eatingWindowStartMinutes
             draft.eatingWindowEndMinutes = daily.eatingWindowEndMinutes
+            // The planner's window wins when it differs (wizard / AI Meals
+            // settings saved one) — the editor shows what the planner uses.
+            if let settings, MealPlanIntake.hasPersistedEatingWindow(settings) {
+                let used = MealPlanIntake.seeded(settings: settings, dailyPlan: daily).eatingWindow
+                if MealPlanIntake.eatingWindow(fromOnboarding: daily) != used {
+                    draft.eatingWindowStartMinutes = used.firstMealHour * 60
+                    draft.eatingWindowEndMinutes = used.lastMealHour * 60
+                }
+            }
             if let routine = daily.weeklyRoutine {
                 draft.routine = routine
                 draft.notes = daily.fuelSetupNotes ?? ""
@@ -347,8 +356,7 @@ extension FuelSetupDraft {
             if let start = eatingWindowStartMinutes, let end = eatingWindowEndMinutes {
                 let window = EatingWindow(firstMealHour: Int((Double(start) / 60).rounded(.up)), lastMealHour: min(23, end / 60))
                 if window.isValid {
-                    settings.mealIntakeFirstMealHour = window.firstMealHour
-                    settings.mealIntakeLastMealHour = window.lastMealHour
+                    MealPlanIntake.saveEatingWindow(window, settings: settings, dailyPlan: daily)
                 }
             }
             settings.groceryBudgetCapUSD = weeklyBudgetUSD ?? settings.groceryBudgetCapUSD

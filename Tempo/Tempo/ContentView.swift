@@ -285,17 +285,10 @@ struct ContentView: View {
         )
     }
 
-    /// Regenerates the active meal plan when its inputs fingerprint no longer
-    /// matches (no-op when nothing the plan depends on changed, when there's
-    /// no plan, or when a generation is already running).
+    /// Flags the active meal plan as out of date when its inputs fingerprint
+    /// no longer matches. Never rebuilds it: Today shows an "update the rest
+    /// of the week?" banner and the user decides.
     private func handlePlanInputsChanged() {
-        nutritionViewModel.regenerateIfOutOfDate(
-            modelContext: modelContext,
-            whoop: services.whoop,
-            apiClient: services.apiClient,
-            notifications: services.notifications,
-            trainingEngine: services.trainingEngine,
-            healthKit: services.healthKit
-        )
+        nutritionViewModel.checkPlanFreshness(modelContext: modelContext)
     }
 }

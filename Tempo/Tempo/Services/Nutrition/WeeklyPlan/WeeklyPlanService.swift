@@ -124,7 +124,8 @@ final class WeeklyPlanService {
 
     nonisolated static func message(forServerError code: String) -> String {
         switch code {
-        case "subscription_required": "Weekly plans are a Pro feature."
+        case "subscription_required": PlanGenerationBlocker.proRequired.message
+        case "ai_consent_required": PlanGenerationBlocker.aiConsentRequired.message
         case "ai_budget_exhausted": "The AI is at capacity right now. Try again in a bit."
         case "timed out": "The plan build timed out. Try again."
         default: "Couldn't build the plan. Try again."

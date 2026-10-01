@@ -59,8 +59,8 @@ struct NutritionTodayView: View {
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: TempoSpacing.xl) {
-                if viewModel.isPlanOutOfDate {
-                    planOutOfDateBanner
+                if viewModel.showPlanUpdateBanner {
+                    PlanUpdateBanner(viewModel: viewModel)
                 }
                 if let banner = viewModel.lastRedistributionBanner {
                     redistributionBanner(banner)
@@ -515,48 +515,6 @@ struct NutritionTodayView: View {
         }
         .padding(TempoSpacing.md)
         .background(Color.tempoElectric.opacity(0.10))
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-    }
-
-    /// Shown when the plan was built from training / diet-profile settings
-    /// that have since changed and the automatic regenerate didn't land
-    /// (offline, backend error) — or while it's running.
-    private var planOutOfDateBanner: some View {
-        HStack(alignment: .center, spacing: TempoSpacing.sm) {
-            Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Color.tempoAmber)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Plan out of date")
-                    .font(.tempoCaption1)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Text("Your training or diet settings changed.")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextSecondary)
-            }
-            Spacer()
-            Button {
-                HapticManager.lightImpact()
-                viewModel.generatePlan(
-                    modelContext: modelContext,
-                    whoop: services.whoop,
-                    apiClient: services.apiClient,
-                    notifications: services.notifications,
-                    trainingEngine: services.trainingEngine,
-                    healthKit: services.healthKit
-                )
-            } label: {
-                Text(viewModel.isGeneratingPlan ? "Regenerating…" : "Regenerate")
-                    .font(.tempoCaption1)
-                    .fontWeight(.semibold)
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(Color.tempoSignal)
-            .disabled(viewModel.isGeneratingPlan)
-        }
-        .padding(TempoSpacing.md)
-        .background(Color.tempoAmber.opacity(0.10))
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
     }
 
