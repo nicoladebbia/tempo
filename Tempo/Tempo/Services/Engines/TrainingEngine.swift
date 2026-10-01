@@ -287,6 +287,39 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
         /// Most reps in one bodyweight-only set.
         var bestBodyweightReps = 0
 
+        /// An empty baseline — nothing logged yet (the first log sets it).
+        init() {}
+
+        /// Folds one performed working set into the bar (CSV import replays
+        /// history session by session with this). `e1RM` is the set's
+        /// RIR-aware estimate when known.
+        mutating func absorb(weightKg weight: Double, reps: Int, e1RM: Double?) {
+            guard reps > 0 else { return }
+            exists = true
+            guard weight > 0 else {
+                bestBodyweightReps = max(bestBodyweightReps, reps)
+                return
+            }
+            heaviestKg = max(heaviestKg, weight)
+            if reps <= TrainingEngine.e1RMPersonalRecordRepCap {
+                bestPerformance = max(bestPerformance, StrengthStandards.epleyE1RM(weight: weight, reps: reps))
+                if let e1RM {
+                    bestE1RM = max(bestE1RM, e1RM)
+                }
+            }
+        }
+
+        /// The higher of this bar and `other`'s, per measure.
+        func merged(with other: PersonalRecordBaseline) -> PersonalRecordBaseline {
+            var out = self
+            out.exists = exists || other.exists
+            out.bestE1RM = max(bestE1RM, other.bestE1RM)
+            out.bestPerformance = max(bestPerformance, other.bestPerformance)
+            out.heaviestKg = max(heaviestKg, other.heaviestKg)
+            out.bestBodyweightReps = max(bestBodyweightReps, other.bestBodyweightReps)
+            return out
+        }
+
         init(exercise: Exercise, excludingPlan planID: UUID?) {
             let cap = TrainingEngine.e1RMPersonalRecordRepCap
             // Bodyweight-style lifts key on ADDED load (≤ 0 → most reps), never
@@ -400,39 +433,49 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
             )
         }
 
-        let eps = Self.personalRecordEpsilon
-        // §12 — the shared RIR-aware Epley formula (PlannedSet.estimated1RM /
-        // history), only within the rep cap (see e1RMPersonalRecordRepCap).
-        if reps <= Self.e1RMPersonalRecordRepCap {
+        guard let hit = Self.personalRecordKind(baseline: baseline, weight: weight, reps: reps, rir: rir) else {
+            return nil
+        }
+        return PersonalRecord(
+            type: hit.type,
+            value: hit.value,
+            date: Date(),
+            workoutPlanID: workoutPlanID,
+            context: "\(Int(weight)) x \(reps) reps",
+            contextWeightKg: weight,
+            contextReps: reps,
+            exercise: exercise
+        )
+    }
+
+    /// The pure PR rule for one set against a bar — shared by live logging
+    /// (`detectPersonalRecord`) and CSV import's history replay so both agree:
+    /// e1RM PR (better RIR-aware e1RM AND better actual performance, rep-capped);
+    /// else heaviest weight; bodyweight-only sets: most reps. nil when the
+    /// lift has no history (first log = baseline) or nothing is beaten.
+    static func personalRecordKind(
+        baseline: PersonalRecordBaseline,
+        weight: Double,
+        reps: Int,
+        rir: Int
+    ) -> (type: PRType, value: Double)? {
+        guard weight >= 0, reps > 0, baseline.exists else {
+            return nil
+        }
+        if weight == 0 {
+            return reps > baseline.bestBodyweightReps ? (.mostReps, Double(reps)) : nil
+        }
+        let eps = personalRecordEpsilon
+        if reps <= e1RMPersonalRecordRepCap {
             let estimated1RM = StrengthStandards.e1RM(weight: weight, reps: reps, rir: rir)
             let performance = StrengthStandards.epleyE1RM(weight: weight, reps: reps)
             if estimated1RM > baseline.bestE1RM + eps, performance > baseline.bestPerformance + eps {
-                return PersonalRecord(
-                    type: .oneRepMax,
-                    value: estimated1RM,
-                    date: Date(),
-                    workoutPlanID: workoutPlanID,
-                    context: "\(Int(weight)) x \(reps) reps",
-                    contextWeightKg: weight,
-                    contextReps: reps,
-                    exercise: exercise
-                )
+                return (.oneRepMax, estimated1RM)
             }
         }
-
         if weight > baseline.heaviestKg + eps {
-            return PersonalRecord(
-                type: .repMax,
-                value: weight,
-                date: Date(),
-                workoutPlanID: workoutPlanID,
-                context: "\(Int(weight)) x \(reps) reps",
-                contextWeightKg: weight,
-                contextReps: reps,
-                exercise: exercise
-            )
+            return (.repMax, weight)
         }
-
         return nil
     }
 
