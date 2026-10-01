@@ -45,6 +45,11 @@ final class SubscriptionService: SubscriptionServiceProtocol, @unchecked Sendabl
     /// `Transaction.updates` listener (renewals, refunds, Ask-to-Buy approvals).
     func startObserving() async {
         guard !isObserving else {
+            // A launch offline leaves the catalogue empty; try again so the
+            // paywall isn't stuck with no plans until a relaunch.
+            if products.isEmpty {
+                await loadProducts()
+            }
             return
         }
         isObserving = true

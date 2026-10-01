@@ -41,6 +41,17 @@ struct RefreshTokenReplayTests {
             .count()
     }
 
+    private func backdateRevocation(_ app: Application, userID: String) async throws {
+        let revoked = try await RefreshToken.query(on: app.db)
+            .filter(\.$user.$id == userID)
+            .filter(\.$revokedAt != nil)
+            .all()
+        for token in revoked {
+            token.revokedAt = Date().addingTimeInterval(-(AuthController.replayGraceSeconds + 5))
+            try await token.save(on: app.db)
+        }
+    }
+
     private func makeUser(_ app: Application) async throws -> String {
         let suffix = UUID().uuidString.prefix(12)
         let user = User(appleUserID: "apple_\(suffix)", username: "user_\(suffix)", displayName: "T")
@@ -58,6 +69,19 @@ struct RefreshTokenReplayTests {
             // Legit rotation.
             let rotated = try await AuthController().refreshToken(refreshRequest(app, token: first.refreshToken))
             #expect(try await activeSessions(app, userID: uid) == 2) // dev-2 + the rotated dev-1 token
+
+            // Replay right after rotation (lost response): plain 401, nothing else dies.
+            do {
+                _ = try await AuthController().refreshToken(refreshRequest(app, token: first.refreshToken))
+                Issue.record("expected 401")
+            } catch let abort as Abort {
+                #expect(abort.status == .unauthorized)
+                #expect(!abort.reason.contains("Replay"))
+            }
+            #expect(try await activeSessions(app, userID: uid) == 2)
+
+            // Past the grace window it's a leak.
+            try await backdateRevocation(app, userID: uid)
 
             // Attacker replays the old token: 401 AND every session dies.
             await #expect(throws: Abort.self) {

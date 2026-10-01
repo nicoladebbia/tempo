@@ -240,6 +240,8 @@ struct DashboardView: View {
                 // plan's 2,975 until the next cold launch.
                 DashboardViewModel.fuelRefreshTriggers.map { NotificationCenter.default.publisher(for: $0) }
             )
+            // Regenerate posts a profile change then the plan; one refresh.
+            .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
         ) { _ in
             // A meal was logged / marked eaten in the Nutrition tab (a
             // separate VM), or today's target changed. Re-pull the Fuel
