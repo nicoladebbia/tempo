@@ -135,6 +135,24 @@ final class PantryGroceryBridgeTests: XCTestCase {
         XCTAssertEqual(first.quantity, 2)
     }
 
+    func testAddToCurrentGroceryList_doesNotBumpUserTypedRow() throws {
+        let list = GroceryList(weekStartDate: PantryGroceryBridge.currentWeekMonday(), sourceMealPlanID: nil)
+        context.insert(list)
+        let typed = GroceryListItem(
+            list: list, canonicalFoodName: "rice", displayName: "Rice", quantity: 2, unit: .pieces,
+            category: "grains", isManual: true
+        )
+        context.insert(typed)
+        list.items = [typed]
+
+        _ = try PantryGroceryBridge.addToCurrentGroceryList(
+            canonicalName: "rice", displayName: "Rice", quantity: 1, unit: .pieces, modelContext: context
+        )
+
+        XCTAssertEqual(typed.quantity, 2, "A row the user typed is never bumped by a pantry restock")
+        XCTAssertEqual(list.items?.count, 1)
+    }
+
     func testAddToCurrentGroceryList_leavesAPlanRowAlone() throws {
         let list = GroceryList(weekStartDate: PantryGroceryBridge.currentWeekMonday(), sourceMealPlanID: UUID())
         context.insert(list)
