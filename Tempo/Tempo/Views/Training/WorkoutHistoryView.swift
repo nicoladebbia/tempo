@@ -190,7 +190,7 @@ struct WorkoutHistoryView: View {
                 pendingDelete = nil
             }
         } message: { workout in
-            Text(deleteConfirmationMessage(workout))
+            Text(Self.deleteConfirmationMessage(workout))
         }
     }
 
@@ -263,11 +263,15 @@ struct WorkoutHistoryView: View {
     /// Volume reads completed plans live, so it updates. ExerciseHistory / PRs
     /// this session produced ARE deleted with it (§13) — matched by
     /// `workoutPlanID`, not merely nulled elsewhere.
-    private func deleteConfirmationMessage(_ workout: WorkoutPlan) -> String {
-        let setCount = workout.orderedExercises.reduce(0) { $0 + ($1.sets?.count ?? 0) }
+    /// Counts the sets actually logged — not the planned ones (a session
+    /// ended after 2 of 17 sets used to say "its 17 sets").
+    static func deleteConfirmationMessage(_ workout: WorkoutPlan) -> String {
+        let setCount = workout.orderedExercises.reduce(0) { total, ex in
+            total + (ex.sets ?? []).filter { $0.completed && !$0.isWarmup }.count
+        }
         let name = workout.type.displayName
         return """
-        \(name): permanently removes this session — its \(setCount) set\(setCount == 1 ? "" : "s"), \
+        \(name): permanently removes this session — its \(setCount) logged set\(setCount == 1 ? "" : "s"), \
         set feedback, and the progress-chart history & PRs it created. Weekly volume and charts \
         will update. Weight adjustments Tempo already learned from it stay. This can't be undone.
         """
