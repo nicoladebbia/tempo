@@ -404,4 +404,39 @@ final class PlanRebuildFromTodayTests: XCTestCase {
 
         XCTAssertTrue(removed.contains(doomedID))
     }
+
+    func testRebuildStampsTheFingerprintWhenThePlanIsSaved() async throws {
+        let plan = seedWeek()
+        plan.inputsFingerprint = "stale"
+        try context.save()
+        let rebuilt = try await rebuild()
+        XCTAssertEqual(rebuilt.inputsFingerprint, MealPlanInputsFingerprint.current(in: context))
+    }
+
+    func testRebuildReusesTheRunningPlanEvenWhenItsStoredStartIsOffByADay() async throws {
+        // e.g. a plan stored before a timezone change: starts Sunday, still covers today.
+        let plan = WeeklyMealPlan(
+            startDate: day(2026, 9, 27),
+            endDate: day(2026, 10, 3),
+            dayTypeAssignments: [:]
+        )
+        context.insert(plan)
+        let eaten = addMeal(plan, dayOffset: 2, number: 1, name: "Breakfast", kcal: 500, status: .eaten, baseline: 500)
+        try context.save()
+        let eatenID = eaten.id
+
+        let rebuilt = try await rebuild()
+
+        XCTAssertEqual(rebuilt.id, plan.id)
+        XCTAssertEqual(allPlans().count, 1)
+        XCTAssertTrue(meals(of: rebuilt, offset: 2).contains { $0.id == eatenID && $0.status == .eaten })
+    }
+
+    func testFoodsSignatureTracksNamesAndGramsButNotOrder() {
+        let a = PlannedFood(name: "Rice", quantityGrams: 150, calories: 1, proteinG: 1, carbsG: 1, fatG: 1)
+        let b = PlannedFood(name: "Chicken", quantityGrams: 200, calories: 1, proteinG: 1, carbsG: 1, fatG: 1)
+        let bigger = PlannedFood(name: "Chicken", quantityGrams: 250, calories: 1, proteinG: 1, carbsG: 1, fatG: 1)
+        XCTAssertEqual(MealPlanGeneratorService.foodsSignature([a, b]), MealPlanGeneratorService.foodsSignature([b, a]))
+        XCTAssertNotEqual(MealPlanGeneratorService.foodsSignature([a, b]), MealPlanGeneratorService.foodsSignature([a, bigger]))
+    }
 }
