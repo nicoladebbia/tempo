@@ -164,7 +164,7 @@ struct SupplementsView: View {
                 .font(.tempoHeadline)
                 .foregroundStyle(Color.tempoTextPrimary)
             Text(
-                "Add what you own — whey, creatine, omega-3. Your plan will decide each day whether to take or skip them, and count protein powder toward your macros."
+                "Add what you own — whey, creatine, omega-3. Your plan decides each day whether to take or skip them. Tick a dose and its calories and macros count in your day."
             )
             .font(.tempoCaption1)
             .foregroundStyle(Color.tempoTextSecondary)
