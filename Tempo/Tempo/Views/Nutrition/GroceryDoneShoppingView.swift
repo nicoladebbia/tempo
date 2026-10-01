@@ -90,7 +90,9 @@ struct GroceryDoneShoppingView: View {
             if row.wrappedValue.include {
                 HStack {
                     TextField("Amount", text: row.quantityText)
-                        .keyboardType(row.wrappedValue.unit.isCountable ? .numberPad : .decimalPad)
+                        // Packs/cans are tracked in fractions ("0.5 pack"), so
+                        // countable units need the decimal pad too.
+                        .keyboardType(.decimalPad)
                     Picker("Unit", selection: row.unit) {
                         ForEach(PantryUnit.allCases, id: \.self) { u in
                             Text(u.displayName).tag(u)
@@ -121,12 +123,11 @@ struct GroceryDoneShoppingView: View {
         let confirmations: [NutritionTabViewModel.GroceryBoughtConfirmation] = rows
             .filter(\.include)
             .compactMap { row in
-                // Countable units can't take a fractional quantity (BUILD
-                // item 1d) — route the typed amount through the same
-                // whole-unit rounding used everywhere else in the flow.
-                let typed = Double(row.quantityText.replacingOccurrences(of: ",", with: ".")) ?? row.item.quantity
-                let quantity = row.unit.wholeUnitQuantity(max(0, typed))
-                guard quantity > 0 else {
+                // The pantry tracks part-used containers ("0.5 pack"), so
+                // keep what the user typed. List amounts are already whole.
+                let typed = Double(row.quantityText.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")) ?? row.item.quantity
+                let quantity = max(0, typed)
+                guard quantity > 0, quantity.isFinite else {
                     return nil
                 }
                 let price = Double(row.priceText.replacingOccurrences(of: ",", with: "."))

@@ -136,7 +136,7 @@ enum GroceryStoreLayout {
         learning: CategoryRankLearning
     ) -> [String] {
         let authored = store.defaultCategoryOrder
-        let authoredIndex = Dictionary(uniqueKeysWithValues: authored.enumerated().map { ($1, Double($0)) })
+        let authoredIndex = Dictionary(authored.enumerated().map { ($1, Double($0)) }, uniquingKeysWith: { first, _ in first })
         let unknownScore = Double(authored.count) + 1
 
         func score(_ category: String) -> Double {

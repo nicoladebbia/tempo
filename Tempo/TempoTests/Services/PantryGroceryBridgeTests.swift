@@ -115,8 +115,10 @@ final class PantryGroceryBridgeTests: XCTestCase {
         )
 
         let lists = try context.fetch(FetchDescriptor<GroceryList>())
-        XCTAssertEqual(lists.first?.items?.count, 1, "Same canonical name + unit bumps rather than duplicates")
-        XCTAssertEqual(bumped.quantity, 5)
+        XCTAssertEqual(lists.first?.items?.count, 1, "Same canonical name + unit never duplicates")
+        // Round 1: a restock row is "I ran out" — adding it again must not
+        // inflate the amount to buy.
+        XCTAssertEqual(bumped.quantity, 2)
     }
 
     func testAddToCurrentGroceryList_sameFoodInAnotherUnit_reusesTheRow() throws {
@@ -131,6 +133,24 @@ final class PantryGroceryBridgeTests: XCTestCase {
         XCTAssertEqual(lists.first?.items?.count, 1, "Rice is already on the list — no second row")
         XCTAssertTrue(again === first)
         XCTAssertEqual(first.quantity, 2)
+    }
+
+    func testAddToCurrentGroceryList_doesNotBumpUserTypedRow() throws {
+        let list = GroceryList(weekStartDate: PantryGroceryBridge.currentWeekMonday(), sourceMealPlanID: nil)
+        context.insert(list)
+        let typed = GroceryListItem(
+            list: list, canonicalFoodName: "rice", displayName: "Rice", quantity: 2, unit: .pieces,
+            category: "grains", isManual: true
+        )
+        context.insert(typed)
+        list.items = [typed]
+
+        _ = try PantryGroceryBridge.addToCurrentGroceryList(
+            canonicalName: "rice", displayName: "Rice", quantity: 1, unit: .pieces, modelContext: context
+        )
+
+        XCTAssertEqual(typed.quantity, 2, "A row the user typed is never bumped by a pantry restock")
+        XCTAssertEqual(list.items?.count, 1)
     }
 
     func testAddToCurrentGroceryList_leavesAPlanRowAlone() throws {

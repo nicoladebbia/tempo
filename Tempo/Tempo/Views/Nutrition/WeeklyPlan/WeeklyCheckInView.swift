@@ -151,8 +151,8 @@ struct WeeklyCheckInView: View {
 
     static func message(for error: Error) -> String {
         switch error as? APIError {
-        case .subscriptionRequired?: "Weekly plans are a Pro feature."
-        case .aiConsentRequired?: "Allow AI features in Settings to build plans."
+        case .subscriptionRequired?: PlanGenerationBlocker.proRequired.message
+        case .aiConsentRequired?: PlanGenerationBlocker.aiConsentRequired.message
         case .unauthorized?: "Sign in to build your week."
         case .networkError?,
              .timeout?,

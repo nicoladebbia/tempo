@@ -54,6 +54,15 @@ final class WeeklyPlanServiceTests: XCTestCase {
         )
     }
 
+    func testOnlyAnEndedWeekCountsAsPast() {
+        let thisMonday = date("2026-09-28", hour: 0)
+        let lastMonday = date("2026-09-21", hour: 0)
+        // Saturday and Sunday still belong to this week — a plan for it applies.
+        XCTAssertFalse(WeeklyPlanService.isPastWeek(thisMonday, now: date("2026-10-03"), calendar: calendar))
+        XCTAssertFalse(WeeklyPlanService.isPastWeek(thisMonday, now: date("2026-10-04"), calendar: calendar))
+        XCTAssertTrue(WeeklyPlanService.isPastWeek(lastMonday, now: date("2026-09-28", hour: 9), calendar: calendar))
+    }
+
     func testDayStringRoundTrips() throws {
         let monday = try XCTUnwrap(WeeklyPlanService.date(fromDay: "2026-09-28", calendar: calendar))
         XCTAssertEqual(WeeklyPlanService.dayString(monday, calendar: calendar), "2026-09-28")
@@ -115,7 +124,10 @@ final class WeeklyPlanServiceTests: XCTestCase {
             weekStart: weekStart,
             macrosVerified: true,
             modelContext: context,
-            attachingRecipes: false
+            attachingRecipes: false,
+            // The week's own Monday: nothing has happened yet, so the whole
+            // week is built (a mid-week "now" only rebuilds from today).
+            now: weekStart
         )
 
         XCTAssertEqual(plan.startDate, Calendar.current.startOfDay(for: weekStart))

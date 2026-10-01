@@ -80,10 +80,13 @@ final class WeeklyMealPlan {
             guard let data = supplementDecisionsJSON else {
                 return [:]
             }
-            return (try? JSONDecoder().decode([Int: [SupplementDecision]].self, from: data)) ?? [:]
+            let decoded = (try? JSONDecoder().decode([Int: [SupplementDecision]].self, from: data)) ?? [:]
+            // AI output may repeat a supplement name within a day — dedupe on
+            // read so already-stored plans are safe too.
+            return decoded.mapValues { SupplementDecision.dedupedByName($0) }
         }
         set {
-            supplementDecisionsJSON = try? JSONEncoder().encode(newValue)
+            supplementDecisionsJSON = try? JSONEncoder().encode(newValue.mapValues { SupplementDecision.dedupedByName($0) })
         }
     }
 

@@ -96,7 +96,8 @@ final class GroceryPreservationTests: XCTestCase {
     func testRegenerate_dropsAPantryRowThePlanNowCovers() throws {
         let plan = makePlan(foods: [("Rice", 200)])
         _ = try grocery.generate(from: plan, pantry: pantry, weekStartDate: plan.startDate)
-        _ = try grocery.addItem(name: "Salmon", quantity: 1, unit: .pieces, category: PantryGroceryBridge.category)
+        let salmonRow = try grocery.addItem(name: "Salmon", quantity: 1, unit: .pieces, category: PantryGroceryBridge.category)
+        salmonRow.notes = GroceryListItem.pantryRestockNote
         _ = try grocery.addItem(name: "Olive Oil", quantity: 1, unit: .bottles, category: PantryGroceryBridge.category)
         let updated = makePlan(foods: [("Rice", 200), ("Salmon", 300)])
 
@@ -128,7 +129,9 @@ final class GroceryPreservationTests: XCTestCase {
         try grocery.markBought([rice], boughtAt: Date())
 
         let regenerated = try grocery.generate(from: plan, pantry: pantry, weekStartDate: plan.startDate)
-        let riceAfter = try XCTUnwrap(regenerated.orderedItems.first { $0.canonicalFoodName == "rice" })
+        // Round 1: the bought row stays as the trip's record (a fresh row may
+        // sit beside it for any shortfall).
+        let riceAfter = try XCTUnwrap(regenerated.orderedItems.first { $0.canonicalFoodName == "rice" && $0.isBought })
         XCTAssertTrue(riceAfter.isBought)
         XCTAssertEqual(riceAfter.reminderIdentifier, "fake-identifier-123")
     }

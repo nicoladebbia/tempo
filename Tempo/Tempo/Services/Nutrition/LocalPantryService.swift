@@ -112,12 +112,28 @@ final class LocalPantryService: PantryServiceProtocol {
         let existing = candidates.first { PantryItem.normalizeBrand($0.brand) == normBrand }
 
         if let existing {
-            existing.increment(by: quantity)
+            let wasInStock = existing.isInStock
+            // A bought loaf merged into a typed-slices row (or the reverse)
+            // is re-expressed in the row's own reading, so one row never
+            // mixes loaves and slices.
+            existing.increment(by: unit.convert(
+                quantity, foodName: canonical,
+                fromPurchased: purchaseSource.weighsPurchaseUnit,
+                toPurchased: existing.weighsPurchaseUnit
+            ))
+            // Only a SPENT row restarts its clock; an expired batch still in
+            // stock keeps its dates so the merged row doesn't hide it.
+            if !wasInStock {
+                existing.purchaseDate = purchaseDate ?? Date()
+            }
             if existing.purchaseDate == nil {
                 existing.purchaseDate = purchaseDate
             }
-            // Receipt-driven adds upgrade the source from manual to receipt_scan.
-            if purchaseSource == .receiptScan {
+            // Receipt-driven adds upgrade the source from manual to receipt_scan,
+            // unless that would flip how the row's pieces are weighed.
+            if purchaseSource == .receiptScan,
+               existing.weighsPurchaseUnit || !unit.hasDistinctPurchaseWeight(foodName: canonical)
+            {
                 existing.purchaseSourceRaw = PantryPurchaseSource.receiptScan.rawValue
             }
             if sourceReceiptLineItemID != nil {
@@ -136,11 +152,19 @@ final class LocalPantryService: PantryServiceProtocol {
                 byAdding: .day, value: days, to: purchaseDate ?? Date()
             )
             if let candidateUseBy {
-                existing.useBy = [existing.useBy, candidateUseBy].compactMap(\.self).min()
+                // A used-up older batch must not drag the fresh restock's
+                // use-by into the past. An expired batch still IN STOCK keeps
+                // its (earlier) use-by instead: the merged row stays flagged
+                // expired rather than silently hiding food that is off.
+                let oldBatchSpent = wasInStock == false
+                existing.useBy = oldBatchSpent
+                    ? candidateUseBy
+                    : [existing.useBy, candidateUseBy].compactMap(\.self).min()
             }
             if !matched {
                 refineUseByWithAIIfPossible(itemID: existing.id, canonicalName: canonical, storageLocation: existing.storageLocation)
             }
+            restoreStaple(canonical: canonical)
             try modelContext.save()
             logger
                 .info(
@@ -167,6 +191,7 @@ final class LocalPantryService: PantryServiceProtocol {
             useBy: computedUseBy
         )
         modelContext.insert(new)
+        restoreStaple(canonical: canonical)
         try modelContext.save()
         if !matched {
             refineUseByWithAIIfPossible(itemID: new.id, canonicalName: canonical, storageLocation: storageLocation)
@@ -208,6 +233,13 @@ final class LocalPantryService: PantryServiceProtocol {
         if let existing {
             let previous = existing.quantity
             existing.quantity = max(0, quantity)
+            // "I have 6 slices" on a bought-loaf row: the new total is in the
+            // speaker's reading, so the row now weighs pieces that way.
+            if existing.weighsPurchaseUnit != purchaseSource.weighsPurchaseUnit,
+               unit.hasDistinctPurchaseWeight(foodName: canonical)
+            {
+                existing.purchaseSource = purchaseSource
+            }
             existing.updatedAt = Date()
             if existing.purchaseDate == nil {
                 existing.purchaseDate = purchaseDate
@@ -254,6 +286,18 @@ final class LocalPantryService: PantryServiceProtocol {
         }
         logger.info("Pantry set-create: \(canonical, privacy: .public) \(quantity)\(unit.displayName, privacy: .public)")
         return new
+    }
+
+    /// A bought/ingested food that is also a tracked staple is "have" again —
+    /// staples stayed stuck on running-low/out forever after the restock.
+    private func restoreStaple(canonical: String) {
+        let descriptor = FetchDescriptor<PantryStaple>(
+            predicate: #Predicate<PantryStaple> { $0.canonicalName == canonical }
+        )
+        for staple in (try? modelContext.fetch(descriptor)) ?? [] where staple.status != .have {
+            staple.status = .have
+            staple.updatedAt = Date()
+        }
     }
 
     func adjustQuantity(of item: PantryItem, by delta: Double) throws {

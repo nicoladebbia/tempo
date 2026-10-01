@@ -15,33 +15,64 @@ import Foundation
 /// Best-effort; always editable in the confirm sheet before saving.
 enum PantryStorageGuesser {
     private static let freezerKeywords = [
-        "frozen", "ice-cream", "ice cream", "sorbet", "surgel",
+        "frozen", "ice-cream", "ice cream", "sorbet", "surgel", "gelato", "popsicle", "ice cube",
     ]
     private static let fridgeKeywords = [
         "dairy", "milk", "yogurt", "yoghurt", "cheese", "butter", "cream",
         "fresh", "meat", "poultry", "chicken", "beef", "pork", "fish", "seafood",
-        "eggs", "tofu", "deli", "charcuterie", "sausage", "ham",
+        "eggs", "egg", "tofu", "deli", "charcuterie", "sausage", "ham",
+        "turkey", "salmon", "spinach", "asparagus", "broccoli", "berries",
+        "lettuce", "bacon", "steak", "lamb", "veal", "shrimp", "cod", "tilapia",
     ]
-    private static let pantryKeywords = [
-        "canned", "can", "dried", "pasta", "rice", "cereal", "flour", "sugar",
-        "spice", "sauce", "oil", "vinegar", "snack", "chip", "biscuit",
-        "cookie", "chocolate", "candy", "condiment", "jam", "honey", "coffee",
-        "tea", "water", "soda", "juice", "beverage",
+    /// Shelf-stable "butters" that must NOT hit the dairy rule.
+    private static let pantryOverrides = [
+        "peanut butter", "almond butter", "nut butter", "cashew butter",
+        "sunflower seed butter", "cocoa butter", "apple butter", "butter beans",
+        "coconut cream", "cream of tartar", "ice tea", "iced tea",
     ]
+
+    /// Whole-word / whole-phrase match (plural-tolerant). Substring matching
+    /// put rice, juice and spices in the freezer ("ice"), steak in the pantry
+    /// ("tea") and peanut butter in the fridge ("butter").
+    static func containsKeyword(_ keyword: String, in haystack: String) -> Bool {
+        // "egg noodles" is pasta, not eggs.
+        if keyword == "egg" || keyword == "eggs",
+           haystack.range(of: "\\begg\\s+(?:noodle|pasta)", options: [.regularExpression, .caseInsensitive]) != nil {
+            return false
+        }
+        let k = keyword.lowercased()
+        // Compound stems may carry a leading word ("strawberries", "catfish");
+        // "oat" may carry a trailing one ("oatmeal"). Risky short words
+        // (ice, egg) stay exact whole-word.
+        let lead = ["berries", "berry", "fish"].contains(k) ? "\\w*" : ""
+        let tail = k == "oat" ? "\\w*" : "(?:s|es)?"
+        let pattern = "\\b" + lead + NSRegularExpression.escapedPattern(for: keyword) + tail + "\\b"
+        return haystack.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
+    private static func containsAny(_ keywords: [String], in haystack: String) -> Bool {
+        keywords.contains { containsKeyword($0, in: haystack) }
+    }
 
     static func guess(for product: FoodProduct) -> PantryStorageLocation {
-        let haystack = ([product.name] + product.categories)
-            .joined(separator: " ")
-            .lowercased()
+        guess(haystack: ([product.name] + product.categories).joined(separator: " "))
+    }
 
-        if freezerKeywords.contains(where: haystack.contains) {
+    /// Receipt/ingredient path: only a canonical food name, no category tags.
+    static func guess(forName name: String) -> PantryStorageLocation {
+        guess(haystack: name)
+    }
+
+    private static func guess(haystack raw: String) -> PantryStorageLocation {
+        let haystack = raw.lowercased()
+        if containsAny(pantryOverrides, in: haystack) {
+            return .pantry
+        }
+        if containsAny(freezerKeywords, in: haystack) {
             return .freezer
         }
-        if fridgeKeywords.contains(where: haystack.contains) {
+        if containsAny(fridgeKeywords, in: haystack) {
             return .fridge
-        }
-        if pantryKeywords.contains(where: haystack.contains) {
-            return .pantry
         }
         // Shelf-stable beverages (water, soda) default to pantry; anything
         // else unclassified is safest as pantry too (not perishable-fridge).
