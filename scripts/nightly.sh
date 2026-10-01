@@ -171,10 +171,10 @@ run_ios() {
 
 run_backend() {
     local slug="$1" wt="$2" out="$RUN/$slug"
-    bash "$(tool "$wt" testenv.sh)" db >/dev/null 2>&1 || { result "$slug" "Backend tests" fail "test databases didn't start"; return; }
+    bash "$(tool "$wt" testenv.sh)" db 3 >/dev/null 2>&1 || { result "$slug" "Backend tests" fail "test databases didn't start"; return; }
     local started=$SECONDS
     (
-        eval "$(bash "$(tool "$wt" testenv.sh)" test-env)"
+        eval "$(bash "$(tool "$wt" testenv.sh)" test-env 3)"
         cd "$wt/tempo-backend" && swift test --build-path "$HOME_DIR/backend-build/$slug" 2>&1
     ) >"$out/backend.log"
     local code=$? secs=$((SECONDS - started))

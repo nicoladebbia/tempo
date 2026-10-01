@@ -16,8 +16,10 @@
 #   scripts/testenv.sh ai <fake|broken|empty|slow|error|real> [slow-seconds]
 #   scripts/testenv.sh pushes [name]                 pushes the server sent
 #   scripts/testenv.sh url                           base URL for the app
-#   scripts/testenv.sh db                            only the databases (for swift test)
-#   eval "$(scripts/testenv.sh test-env)"            env for `swift test` (own DB + Redis db 1)
+#   scripts/testenv.sh db [slot]                     only the databases (for swift test); empties that slot's Redis
+#   eval "$(scripts/testenv.sh test-env [slot])"     env for `swift test`: slot 1 (default) = you,
+#                                                    2 = fast check, 3 = nightly — runs at the same
+#                                                    time don't share a test DB or Redis db
 #
 # --rebuild: build the backend from THIS worktree and restart on it.
 # --real-ai: real Claude calls (costs money). Key from $ANTHROPIC_API_KEY,
@@ -95,6 +97,10 @@ start_containers() {
     docker exec "$PG" psql -U tempo -d tempo_local -tAc "SELECT 1 FROM pg_database WHERE datname='tempo_test'" | grep -q 1 \
         || docker exec "$PG" createdb -U tempo tempo_test
 }
+
+# Test slot n → its own Postgres database and Redis db (Redis has 16).
+slot_db() { if [ "$1" = 1 ]; then echo tempo_test; else echo "tempo_test_$1"; fi; }
+check_slot() { [[ "$1" =~ ^([1-9]|1[0-5])$ ]] || die "slot must be 1-15"; }
 
 # Copy the built server out of the worktree so it keeps running (and can be
 # restarted) after that worktree is removed.
@@ -262,14 +268,24 @@ case "${1:-status}" in
     pushes) shift; cmd_pushes "$@" ;;
     url) echo "$URL" ;;
     db)
+        slot="${2:-1}"; check_slot "$slot"
         lock; start_containers
-        # Redis db 1 is the unit tests' (rate-limit counters etc.); start
-        # every run empty, like CI's fresh service container did.
-        docker exec "$REDIS" redis-cli -n 1 FLUSHDB >/dev/null
-        log "databases up (postgres $PG_PORT, redis $REDIS_PORT; test redis flushed)" ;;
+        # Keep the database: a fresh one makes every suite's parallel
+        # autoMigrate race. A new slot starts as a copy of slot 1's
+        # (already migrated) when nobody is using it.
+        name="$(slot_db "$slot")"
+        if ! docker exec "$PG" psql -U tempo -d tempo_local -tAc "SELECT 1 FROM pg_database WHERE datname='$name'" | grep -q 1; then
+            docker exec "$PG" createdb -U tempo -T tempo_test "$name" 2>/dev/null \
+                || docker exec "$PG" createdb -U tempo "$name"
+        fi
+        # Redis starts empty every run (rate-limit counters), like CI's
+        # fresh service container did.
+        docker exec "$REDIS" redis-cli -n "$slot" FLUSHDB >/dev/null
+        log "databases up (postgres $PG_PORT, redis $REDIS_PORT; test slot $slot emptied)" ;;
     healthy) healthy ;;
     test-env)
-        echo "export DB_HOST=127.0.0.1 DB_PORT=$PG_PORT DB_USER=tempo DB_PASSWORD=tempo_dev DB_NAME=tempo_test REDIS_URL=redis://127.0.0.1:$REDIS_PORT/1"
+        slot="${2:-1}"; check_slot "$slot"
+        echo "export DB_HOST=127.0.0.1 DB_PORT=$PG_PORT DB_USER=tempo DB_PASSWORD=tempo_dev DB_NAME=$(slot_db "$slot") REDIS_URL=redis://127.0.0.1:$REDIS_PORT/$slot"
         ;;
     -h | --help | help) sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//' ;;
     *) die "unknown command '$1' (try: scripts/testenv.sh help)" ;;

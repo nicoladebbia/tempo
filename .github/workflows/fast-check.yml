@@ -45,8 +45,8 @@ jobs:
               CODE_SIGNING_ALLOWED=NO > ios.log 2>&1 ) &
           ios=$!
 
-          ( scripts/testenv.sh db \
-            && eval "$(scripts/testenv.sh test-env)" \
+          ( scripts/testenv.sh db 2 \
+            && eval "$(scripts/testenv.sh test-env 2)" \
             && cd tempo-backend \
             && swift build --build-tests --build-path "$CI_CACHE/backend" \
             && swift test --skip-build --build-path "$CI_CACHE/backend" ) > backend.log 2>&1 &
