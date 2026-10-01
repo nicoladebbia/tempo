@@ -259,6 +259,11 @@ extension TrainingViewModel {
         guard currentSetIndex < sets.count else {
             return sets.last?.targetWeight
         }
+        // A pain report cut the remaining targets: pre-fill the reduced
+        // number, never the heavier load logged before the report.
+        if exercise.painLoadReduced, let reduced = sets[currentSetIndex].targetWeight {
+            return reduced
+        }
         // Carry from the most recent WORKING set (skip ramps and drop steps) so
         // the next working set pre-fills the working weight, not the 75% ramp
         // or a ~80% drop. Fall back to the current set's own target if no

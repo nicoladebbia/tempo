@@ -86,11 +86,17 @@ final class PlannedExercise {
     var travelSwapOriginalName: String?
 
     /// "This hurts" flow — true once the athlete (or the severe-pain flow)
-    /// skipped this exercise for today due to pain. Display-only: doesn't
-    /// touch `WorkoutPlan.totalSets`/`completedSets` (an unlogged set already
-    /// reads honestly as not-done). Optional/defaulted → lightweight
-    /// SwiftData migration.
+    /// skipped this exercise for today due to pain. The live session's cursor
+    /// (`firstUncompletedSetIndex`), crash-resume and the watch queue all
+    /// treat it as having no work left. Doesn't touch `WorkoutPlan.totalSets`
+    /// / `completedSets` (an unlogged set already reads honestly as not-done).
+    /// Optional/defaulted → lightweight SwiftData migration.
     var painSkipped: Bool = false
+
+    /// "This hurts" (mild) cut today's remaining targets. The weight field
+    /// then pre-fills the reduced target instead of carrying the heavier
+    /// load from the set before the report. Defaulted → lightweight migration.
+    var painLoadReduced: Bool = false
 
     // MARK: - Relationships
 

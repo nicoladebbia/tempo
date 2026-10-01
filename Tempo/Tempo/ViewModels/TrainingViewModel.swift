@@ -1098,7 +1098,7 @@ final class TrainingViewModel {
         let exercises = plan.orderedExercises
         var foundActiveExercise = false
         for (exIdx, ex) in exercises.enumerated() {
-            if !ex.isComplete {
+            if !ex.isComplete, !ex.painSkipped {
                 // The first set NOT done — a completed-count cursor landed on
                 // the wrong set whenever an earlier one was skipped/uncompleted.
                 let resumeIndex = firstUncompletedSetIndex(in: ex)
@@ -1604,8 +1604,14 @@ final class TrainingViewModel {
     // `advanceAfterSkip` below call into them directly (same target, no
     // import needed).
 
+    /// nil = nothing left to do here — including an exercise skipped for
+    /// pain, so every advance path (rest end, skip, crash resume, empty-slot
+    /// recovery) walks past it instead of landing on it.
     func firstUncompletedSetIndex(in plannedExercise: PlannedExercise) -> Int? {
-        plannedExercise.orderedSets.firstIndex { !$0.completed }
+        guard !plannedExercise.painSkipped else {
+            return nil
+        }
+        return plannedExercise.orderedSets.firstIndex { !$0.completed }
     }
 
     /// Rest toward an explicit (exercise, set) target — honoring the

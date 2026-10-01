@@ -28,7 +28,8 @@ extension TrainingViewModel {
         let exercises = plan.orderedExercises.compactMap { slot -> WatchWorkoutPayload.Exercise? in
             // An exercise deleted from the library mid-plan can't be logged
             // from the wrist (logs match by library exercise) — leave it off.
-            guard let exercise = slot.exercise else {
+            // Skipped for pain → not on the wrist's queue either.
+            guard let exercise = slot.exercise, !slot.painSkipped else {
                 return nil
             }
             let working = slot.orderedSets.filter { !$0.isWarmup }
@@ -92,7 +93,9 @@ extension TrainingViewModel {
     ) -> Bool {
         guard let plan = todayPlan,
               plan.status == .planned || plan.status == .inProgress,
-              let exerciseIndex = plan.orderedExercises.firstIndex(where: { $0.exercise?.name == exerciseName })
+              let exerciseIndex = plan.orderedExercises.firstIndex(where: {
+                  $0.exercise?.name == exerciseName && !$0.painSkipped
+              })
         else {
             return false
         }

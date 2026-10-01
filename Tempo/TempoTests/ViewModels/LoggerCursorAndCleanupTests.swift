@@ -498,6 +498,85 @@ final class LoggerCursorAndCleanupTests: XCTestCase {
         XCTAssertEqual(DashboardViewModel.dashboardWorkoutStatus(for: benched), .none)
     }
 
+    // MARK: - Pain skip / reduce really change the session
+
+    func testPainSkippedExerciseHasNoWorkLeft() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [2, 2])
+        let first = plan.orderedExercises[0]
+        XCTAssertEqual(vm.firstUncompletedSetIndex(in: first), 0)
+        first.painSkipped = true
+        XCTAssertNil(vm.firstUncompletedSetIndex(in: first))
+    }
+
+    func testPainSkippingTheCurrentExerciseMovesOn() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [3, 2])
+        start(vm, plan: plan)
+        let report = PainReport(bodyArea: .shoulder, severity: 5)
+        context.insert(report)
+
+        vm.skipExerciseDueToPain(report, plannedExercise: plan.orderedExercises[0], modelContext: context)
+
+        assertSetActive(vm, exercise: 1, set: 0)
+        vm.resetState()
+    }
+
+    func testCrashResumeWalksPastAPainSkippedExercise() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [2, 2])
+        plan.orderedExercises[0].painSkipped = true
+        vm.todayPlan = plan
+        vm.sessionState = .crashedRecovery
+
+        vm.resumeFromCrash()
+
+        assertSetActive(vm, exercise: 1, set: 0)
+        vm.resetState()
+    }
+
+    func testWatchNeitherShowsNorLogsAPainSkippedExercise() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [2, 2])
+        plan.orderedExercises[0].painSkipped = true
+        vm.todayPlan = plan
+
+        let names = vm.watchWorkoutPayload()?.exercises.map(\.name) ?? []
+        XCTAssertFalse(names.contains("Bench Press"))
+        XCTAssertTrue(names.contains("Barbell Row"))
+        XCTAssertFalse(
+            vm.applyWatchSetLog(exerciseName: "Bench Press", reps: 8, weightKg: 80, modelContext: context),
+            "A wrist log can't complete a set on an exercise skipped for pain"
+        )
+        XCTAssertFalse(plan.orderedExercises[0].orderedSets.contains(where: \.completed))
+    }
+
+    func testMildPainPrefillsTheReducedWeight() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [3])
+        start(vm, plan: plan)
+        let sets = plan.orderedExercises[0].orderedSets
+        sets[0].completed = true
+        sets[0].actualReps = 8
+        sets[0].actualWeight = 80
+        vm.currentSetIndex = 1
+        vm.sessionState = .exercise(.setActive(exerciseIndex: 0, setIndex: 1))
+
+        vm.filePainReport(
+            plannedExercise: plan.orderedExercises[0], bodyArea: .knee, severity: 2, modelContext: context
+        )
+
+        let reduced = try XCTUnwrap(sets[1].targetWeight)
+        XCTAssertLessThan(reduced, 80)
+        XCTAssertEqual(vm.stickyWeight, reduced, "Must not carry the pre-report 80 kg")
+        vm.resetState()
+    }
+
     // MARK: - 5. Watch payloads
 
     func testWatchSetWithoutWeightUsesPrescriptionNotZero() throws {

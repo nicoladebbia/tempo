@@ -243,13 +243,10 @@ struct PainReportSheet: View {
             VStack(spacing: TempoSpacing.sm) {
                 if canEnd {
                     Button(role: .destructive) {
-                        if let plannedExercise {
-                            viewModel.skipExerciseDueToPain(report, plannedExercise: plannedExercise, modelContext: modelContext)
-                        }
                         dismiss()
                         // Sets logged → summary; none → session closes. The
                         // workout screen follows sessionState, not this sheet.
-                        viewModel.endSessionDueToPain(report, modelContext: modelContext)
+                        viewModel.endSessionDueToPain(report, plannedExercise: plannedExercise, modelContext: modelContext)
                     } label: {
                         Text("End the session")
                             .font(.tempoSubheadline.weight(.semibold))
