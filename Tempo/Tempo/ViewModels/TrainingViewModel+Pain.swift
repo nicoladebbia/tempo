@@ -57,6 +57,7 @@ extension TrainingViewModel {
             severity: severity,
             exerciseID: plannedExercise?.exercise?.id,
             exerciseNameSnapshot: plannedExercise?.displayName,
+            workoutPlanID: plannedExercise?.workoutPlan?.id,
             actionTaken: action,
             note: note,
             createdAt: now

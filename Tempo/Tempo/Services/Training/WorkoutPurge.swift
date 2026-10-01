@@ -58,6 +58,38 @@ enum WorkoutPurge {
         }
     }
 
+    /// The "This hurts" reports deleting `workout` should also remove, so a pain
+    /// flag it produced doesn't outlive it. Matched by the stamped plan id; a
+    /// legacy (unstamped) report only when it names one of this workout's lifts
+    /// on its day and no OTHER workout that day trained the same lift. A report
+    /// another remaining workout filed is never touched.
+    static func painReportsToDelete(
+        for workout: WorkoutPlan,
+        allReports: [PainReport],
+        allPlans: [WorkoutPlan],
+        calendar: Calendar = .current
+    ) -> [PainReport] {
+        let day = calendar.startOfDay(for: workout.finishedAt ?? workout.date)
+        let exerciseIDs = Set(workout.orderedExercises.compactMap { $0.exercise?.id })
+        let otherIDsThatDay = Set(
+            allPlans
+                .filter { $0.id != workout.id && calendar.isDate($0.finishedAt ?? $0.date, inSameDayAs: day) }
+                .flatMap(\.orderedExercises)
+                .compactMap { $0.exercise?.id }
+        )
+        return allReports.filter { r in
+            if let planID = r.workoutPlanID {
+                return planID == workout.id
+            }
+            guard let exID = r.exerciseID else {
+                return false
+            }
+            return exerciseIDs.contains(exID)
+                && !otherIDsThatDay.contains(exID)
+                && calendar.isDate(r.date, inSameDayAs: day)
+        }
+    }
+
     /// Hard delete. WorkoutPlan cascades to PlannedExercise → PlannedSet;
     /// everything else that points at the session by id is removed here.
     /// Saves, then tells every surface (Today, Dashboard, watch, day plan).
@@ -107,6 +139,14 @@ enum WorkoutPurge {
             && s.workoutPlanID == nil
             && s.workoutPlan?.persistentModelID == workout.persistentModelID {
             s.workoutPlan = nil
+        }
+        // 4b. Pain reports filed in this session (the "Pain flagged" chip).
+        for r in painReportsToDelete(
+            for: workout,
+            allReports: fetch(PainReport.self, modelContext),
+            allPlans: fetch(WorkoutPlan.self, modelContext)
+        ) {
+            modelContext.delete(r)
         }
         // 5. The plan itself.
         modelContext.delete(workout)
