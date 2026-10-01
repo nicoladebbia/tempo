@@ -265,9 +265,13 @@ extension GroceryListItem {
     /// carrots", "1 bag spinach") — purchase-unit rows built by
     /// `GroceryListGenerator`. Showing `quantity + unit` next to it again read
     /// "3 pcs 3 medium carrots" in the share text, the share page and Instacart.
+    ///
+    /// Only generator-built rows (never `isManual`) qualify: a name the user
+    /// typed ("7 up soda", "12 oz coffee", "1 kg bag rice") is theirs and
+    /// keeps its separate quantity/unit.
     @Transient
     var displayNameEmbedsQuantity: Bool {
-        displayName.range(of: #"^\d+(?:[.,]\d+)?\s+\S"#, options: .regularExpression) != nil
+        !isManual && displayName.range(of: #"^\d+(?:[.,]\d+)?\s+\S"#, options: .regularExpression) != nil
     }
 
     /// Name with no amount in it — what share page / Instacart pair with the

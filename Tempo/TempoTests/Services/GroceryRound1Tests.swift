@@ -301,6 +301,25 @@ final class GroceryRound1Tests: XCTestCase {
 
     // MARK: - 6. labels / categories
 
+    func testUserTypedNamesStartingWithANumberKeepTheirQuantity() throws {
+        let list = GroceryList(weekStartDate: Date(), sourceMealPlanID: nil)
+        context.insert(list)
+        let soda = GroceryListItem(
+            list: list, canonicalFoodName: "7 up soda", displayName: "7 up soda", quantity: 2, unit: .pieces,
+            category: "pantry", isManual: true
+        )
+        context.insert(soda)
+        list.items = [soda]
+        XCTAssertFalse(soda.displayNameEmbedsQuantity)
+        XCTAssertEqual(soda.fullLabel, "2 pcs 7 up soda")
+        XCTAssertEqual(soda.quantityFreeName, "7 up soda")
+        XCTAssertEqual(
+            LocalGroceryListService.reminderTitle(name: soda.displayName, quantity: 2, unit: .pieces, embedsQuantity: soda.displayNameEmbedsQuantity),
+            "7 up soda — 2pcs"
+        )
+        XCTAssertTrue(GroceryShareTextFormatter.text(for: list).contains("2 pcs 7 up soda"))
+    }
+
     func testLabelsNeverDoubleTheQuantity() throws {
         let p = plan()
         meal(in: p, number: 1, [("Carrot", 195), ("Salmon", 200)])

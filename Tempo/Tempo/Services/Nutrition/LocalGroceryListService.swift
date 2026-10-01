@@ -359,6 +359,17 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
         // `generate` creates them. Anything still on the list (ticked, typed
         // by the user) already covers its food.
         if let net {
+            // A 1-pack "ran out" row must not block the plan's bigger need:
+            // as in `generate`, the plan row replaces an open restock row
+            // (unless the user dismissed that food from the list).
+            let dismissed = Set((list.dismissedFoods ?? []).map { $0.lowercased() })
+            for item in remaining where item.isPantryRestock && !item.isChecked && !item.isBought {
+                let key = item.canonicalFoodName.lowercased()
+                if !dismissed.contains(key), net.keys.contains(where: { $0.lowercased() == key }) {
+                    removeItem(item, from: &remaining)
+                    removed += 1
+                }
+            }
             let onList = Set(remaining.filter { !$0.isBought }.map { $0.canonicalFoodName.lowercased() })
                 .union((list.dismissedFoods ?? []).map { $0.lowercased() })
             for entry in net.values.sorted(by: { $0.canonicalName < $1.canonicalName })
@@ -405,10 +416,13 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
     /// "Oats — 1.5kg". Same quantity formatting as GroceryListView: whole
     /// numbers stay whole, fractions keep one decimal. `Int(quantity)` used to
     /// truncate 1.5 kg to "1kg" and 0.5 lb to "0lb".
-    static func reminderTitle(name: String, quantity: Double, unit: PantryUnit) -> String {
+    ///
+    /// `embedsQuantity`: pass `item.displayNameEmbedsQuantity` so a user-typed
+    /// "7 up soda" keeps its amount. nil falls back to the name-only pattern.
+    static func reminderTitle(name: String, quantity: Double, unit: PantryUnit, embedsQuantity: Bool? = nil) -> String {
         // "3 medium carrots" already carries its amount — don't append
         // "— 3pcs" after it.
-        if name.range(of: #"^\d+(?:[.,]\d+)?\s+\S"#, options: .regularExpression) != nil {
+        if embedsQuantity ?? (name.range(of: #"^\d+(?:[.,]\d+)?\s+\S"#, options: .regularExpression) != nil) {
             return name
         }
         let formatted = quantity == quantity.rounded() ? "\(Int(quantity))" : String(format: "%.1f", quantity)
@@ -478,7 +492,7 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
                 }
                 let reminder = EKReminder(eventStore: eventStore)
                 reminder.calendar = calendar
-                reminder.title = Self.reminderTitle(name: item.displayName, quantity: item.quantity, unit: item.unit)
+                reminder.title = Self.reminderTitle(name: item.displayName, quantity: item.quantity, unit: item.unit, embedsQuantity: item.displayNameEmbedsQuantity)
                 reminder.notes = "\(title)\nCategory: \(item.category)"
                 reminder.isCompleted = item.isChecked
                 do {
@@ -497,14 +511,14 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
                     // Reminders directly) — recreate so export stays reliable.
                     let reminder = EKReminder(eventStore: eventStore)
                     reminder.calendar = calendar
-                    reminder.title = Self.reminderTitle(name: item.displayName, quantity: item.quantity, unit: item.unit)
+                    reminder.title = Self.reminderTitle(name: item.displayName, quantity: item.quantity, unit: item.unit, embedsQuantity: item.displayNameEmbedsQuantity)
                     reminder.notes = "\(title)\nCategory: \(item.category)"
                     reminder.isCompleted = item.isChecked
                     try? eventStore.save(reminder, commit: false)
                     item.reminderIdentifier = reminder.calendarItemIdentifier
                     continue
                 }
-                reminder.title = Self.reminderTitle(name: item.displayName, quantity: item.quantity, unit: item.unit)
+                reminder.title = Self.reminderTitle(name: item.displayName, quantity: item.quantity, unit: item.unit, embedsQuantity: item.displayNameEmbedsQuantity)
                 reminder.isCompleted = item.isChecked
                 try? eventStore.save(reminder, commit: false)
 
