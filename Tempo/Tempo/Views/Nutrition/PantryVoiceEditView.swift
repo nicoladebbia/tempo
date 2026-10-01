@@ -201,6 +201,7 @@ struct PantryVoiceEditView: View {
         let results = VoicePantryEditApplier.apply(intents, pantryService: service, modelContext: modelContext)
         appliedSummaries = results.map(\.summary)
         viewModel.reloadPantry()
+        viewModel.reapplyPantryToGrocery()
         phase = .applied
     }
 

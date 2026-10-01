@@ -17,6 +17,11 @@ struct PlannedMealCardView: View {
     let meal: PlannedMeal
     var onMarkEaten: (() -> Void)?
     var onMarkSkipped: (() -> Void)?
+    /// Takes an eaten/skipped meal back: a plan slot returns to planned (its
+    /// original dish restored), a log added on top of the plan is deleted.
+    var onUndo: (() -> Void)?
+    /// Saves the logged foods as a preset for the Log tab.
+    var onSavePreset: (() -> Void)?
     /// Tap handler for the "review pending" affordance shown on eaten meals
     /// that don't yet have a `MealFeedback` row. Caller decides what to
     /// present (typically `MealFeedbackSheet`).
@@ -79,7 +84,8 @@ struct PlannedMealCardView: View {
         // competing with the tap target. (Swipe actions were removed: they
         // are a no-op outside a List, and the Today meals render in a VStack.)
         .contextMenu {
-            if meal.status == .planned {
+            switch meal.status {
+            case .planned, .modified:
                 Button {
                     onMarkEaten?()
                 } label: {
@@ -90,6 +96,33 @@ struct PlannedMealCardView: View {
                     onMarkSkipped?()
                 } label: {
                     Label("Skip Meal", systemImage: "xmark.circle.fill")
+                }
+            case .eaten:
+                if onSavePreset != nil, !meal.foods.isEmpty {
+                    Button {
+                        onSavePreset?()
+                    } label: {
+                        Label("Save as preset", systemImage: "bookmark")
+                    }
+                }
+                if onUndo != nil {
+                    Button(role: .destructive) {
+                        onUndo?()
+                    } label: {
+                        if meal.isUnplannedLog {
+                            Label("Delete log", systemImage: "trash")
+                        } else {
+                            Label("Undo — not eaten", systemImage: "arrow.uturn.backward")
+                        }
+                    }
+                }
+            case .skipped:
+                if onUndo != nil {
+                    Button {
+                        onUndo?()
+                    } label: {
+                        Label("Undo skip", systemImage: "arrow.uturn.backward")
+                    }
                 }
             }
         }

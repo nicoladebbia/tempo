@@ -104,6 +104,9 @@ struct TempoApp: App {
                 // `sim.sh qa --scenario <name>` starting states (see
                 // ScenarioSeed's header).
                 ScenarioSeed.seedIfRequested(context: container.mainContext)
+                // Nutrition QA — a full week's plan + pantry + grocery list
+                // (see NutritionPlanUITestSeed's header).
+                NutritionPlanUITestSeed.seedIfRequested(context: container.mainContext)
             #endif
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
@@ -176,6 +179,11 @@ struct TempoApp: App {
         WindowGroup {
             ContentView()
                 .environment(services)
+                .task {
+                    // Entitlement at launch + Transaction.updates listener.
+                    // Idempotent; a no-op for the mock container.
+                    await services.subscriptions.startObserving()
+                }
                 .task {
                     // Runs once, before any resume-workout UI could
                     // plausibly request a fresh Live Activity — clears any

@@ -179,7 +179,8 @@ final class MealRedistributionService {
         skippedCarbs: Double,
         skippedFat: Double
     ) -> MealRedistributionResult {
-        let byNumber = Dictionary(uniqueKeysWithValues: remaining.map { ($0.mealNumber, $0) })
+        // Two meals can share a number (snacks/duplicates) — never trap on it.
+        let byNumber = Dictionary(remaining.map { ($0.mealNumber, $0) }, uniquingKeysWith: { first, _ in first })
         var perMeal: [MealRedistributionResult.PerMeal] = []
         var appliedCal: Double = 0
 

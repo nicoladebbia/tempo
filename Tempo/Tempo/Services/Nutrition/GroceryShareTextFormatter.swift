@@ -54,7 +54,7 @@ enum GroceryShareTextFormatter {
             lines.append(category.uppercased())
             for item in categoryItems {
                 let box = item.isChecked ? "☑" : "☐"
-                lines.append("\(box) \(quantityLabel(item)) \(item.displayName)")
+                lines.append("\(box) \(item.fullLabel)")
             }
             lines.append("")
         }
@@ -64,11 +64,5 @@ enum GroceryShareTextFormatter {
             lines.removeLast()
         }
         return lines.joined(separator: "\n")
-    }
-
-    private static func quantityLabel(_ item: GroceryListItem) -> String {
-        let value = item.quantity
-        let formatted = value == value.rounded() ? "\(Int(value))" : String(format: "%.1f", value)
-        return "\(formatted) \(item.unit.displayName)"
     }
 }

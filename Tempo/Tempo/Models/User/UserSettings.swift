@@ -212,6 +212,15 @@ final class UserSettings {
     /// Meals settings page; not auto-cleared each week).
     var mealIntakeExclusionsRaw: String = ""
 
+    // THIS WEEK's answers from the plan wizard (cookable days, exclusions,
+    // recovery skew). They override the saved prefs above only while
+    // `mealIntakeTempWeekStart` is the current week's Monday, so a rebuild
+    // mid-week keeps them and next week they quietly expire. Additive.
+    var mealIntakeTempWeekStart: Date?
+    var mealIntakeTempCookableDays: Int?
+    var mealIntakeTempExclusionsRaw: String = ""
+    var mealIntakeTempRecoveryAdjusted: Bool = false
+
     /// How many meals the user WANTS per day (3/4/5). Nil → let the AI decide
     /// (the current 4-5 default). Drives the meal-count directive.
     var mealsPerDayPreference: Int?

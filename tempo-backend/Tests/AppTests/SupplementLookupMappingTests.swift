@@ -86,6 +86,13 @@ struct SupplementLookupMappingTests {
         // 2270 g / 30.4 g ≈ 74.7 → rounds to 75
         #expect(product.derivedServingsPerContainer == 75)
     }
+
+    @Test func derivedServingsIsNilWhenItRoundsToZero() throws {
+        let json = offOnlyJSON
+            .replacingOccurrences(of: "\"quantity\": \"2.27 kg\"", with: "\"quantity\": \"5 mg\"")
+        let off = try JSONDecoder().decode(OFFResponse.self, from: Data(json.utf8))
+        #expect(try #require(off.product).derivedServingsPerContainer == nil)
+    }
 }
 
 struct SupplementKindGuesserTests {
@@ -118,5 +125,26 @@ struct SupplementCertificationScannerTests {
     @Test func returnsEmptyForNilOrUnrelatedText() {
         #expect(SupplementCertificationScanner.scan(nil).isEmpty)
         #expect(SupplementCertificationScanner.scan("all natural, gluten free").isEmpty)
+    }
+}
+
+struct SupplementGramsParsingTests {
+    @Test func readsOnlyNumbersFollowedByAMassUnit() {
+        #expect(OFFProduct.parseGrams("30.4 g") == 30.4)
+        #expect(OFFProduct.parseGrams("2.27kg") == 2270)
+        #expect(OFFProduct.parseGrams("2 x 30 g") == 30)
+        #expect(OFFProduct.parseGrams("1,000 mg") == 1)
+        #expect(OFFProduct.parseGrams("1,000 g") == 1000)
+        #expect(OFFProduct.parseGrams("30,4 g") == 30.4)
+        #expect(OFFProduct.parseGrams("0,500 kg") == 500)
+        #expect(OFFProduct.parseGrams("1 capsule (500 mg)") == 0.5)
+        #expect(OFFProduct.parseGrams("5 lbs")! > 2267 && OFFProduct.parseGrams("5 lbs")! < 2268)
+    }
+
+    @Test func countsAndScoopsAreNotGrams() {
+        #expect(OFFProduct.parseGrams("2 gummies") == nil)
+        #expect(OFFProduct.parseGrams("1 scoop") == nil)
+        #expect(OFFProduct.parseGrams("60 tablets") == nil)
+        #expect(OFFProduct.parseGrams(nil) == nil)
     }
 }

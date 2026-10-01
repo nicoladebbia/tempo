@@ -95,16 +95,20 @@ struct JWTService {
 
     static func verifyRefreshToken(
         rawToken: String,
+        includeRevoked: Bool = false,
         on req: Request
     ) async throws -> RefreshToken {
         let hash = SHA256.hash(data: Data(rawToken.utf8))
         let tokenHash = hash.compactMap { String(format: "%02x", $0) }.joined()
 
-        guard let token = try await RefreshToken.query(on: req.db)
-            .filter(\.$tokenHash == tokenHash)
-            .filter(\.$revokedAt == nil)
-            .first()
-        else {
+        // `includeRevoked` lets the refresh endpoint SEE an already-rotated
+        // token so it can run replay detection (revoke every session). Other
+        // callers (logout) keep treating a revoked token as unknown.
+        let query = RefreshToken.query(on: req.db).filter(\.$tokenHash == tokenHash)
+        if !includeRevoked {
+            query.filter(\.$revokedAt == nil)
+        }
+        guard let token = try await query.first() else {
             throw Abort(.unauthorized, reason: "Invalid refresh token.")
         }
 

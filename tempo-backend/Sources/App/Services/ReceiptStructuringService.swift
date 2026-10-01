@@ -465,7 +465,10 @@ private struct ReceiptClaudeContentBlock: Codable {
     }
 }
 
-private struct ReceiptClaudeRawResponse: Decodable {
+/// Decoded with `.convertFromSnakeCase` (the key arrives as `stopReason`), so
+/// there must be NO explicit snake_case CodingKeys here — they would never match.
+/// Non-private so AppTests can regression-test truncation detection.
+struct ReceiptClaudeRawResponse: Decodable {
     let content: [Block]
     /// "end_turn" = complete, "max_tokens" = output was truncated.
     let stopReason: String?
@@ -473,11 +476,6 @@ private struct ReceiptClaudeRawResponse: Decodable {
     struct Block: Decodable {
         let type: String
         let text: String
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case content
-        case stopReason = "stop_reason"
     }
 }
 

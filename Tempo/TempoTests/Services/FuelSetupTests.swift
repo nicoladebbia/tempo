@@ -394,6 +394,39 @@ final class FuelSetupPersistenceTests: XCTestCase {
         try context.save()
     }
 
+    func testSavingNewCookableDaysClearsTheWizardsThisWeekOverride() throws {
+        // The one settings row from setUp (a second row would make which
+        // one `save` updates depend on fetch order).
+        let settings = try XCTUnwrap(MealPlanGeneratorService.fetchUserSettings(modelContext: context))
+        settings.mealIntakeCookableDays = 4
+        settings.mealIntakeTempWeekStart = WeeklyPlanService.currentWeekStart(for: Date())
+        settings.mealIntakeTempCookableDays = 2
+        try context.save()
+        XCTAssertEqual(MealPlanIntake.loadPersisted(from: settings).cookableDaysThisWeek, 2)
+
+        var draft = FuelSetupDraft()
+        draft.cookableDaysPerWeek = 6
+        draft.save(to: context)
+
+        XCTAssertEqual(MealPlanIntake.loadPersisted(from: settings).cookableDaysThisWeek, 6)
+    }
+
+    func testSavingTheSameCookableDaysStillClearsTheWizardsOverride() throws {
+        // The one settings row from setUp (a second row would make which
+        // one `save` updates depend on fetch order).
+        let settings = try XCTUnwrap(MealPlanGeneratorService.fetchUserSettings(modelContext: context))
+        settings.mealIntakeCookableDays = 5
+        settings.mealIntakeTempWeekStart = WeeklyPlanService.currentWeekStart(for: Date())
+        settings.mealIntakeTempCookableDays = 3
+        try context.save()
+
+        var draft = FuelSetupDraft()
+        draft.cookableDaysPerWeek = 5
+        draft.save(to: context)
+
+        XCTAssertEqual(MealPlanIntake.loadPersisted(from: settings).cookableDaysThisWeek, 5)
+    }
+
     func testSaveWritesEveryStoreAndLoadsBack() throws {
         var draft = try FuelSetupExtractor.parse("""
         {"profile":{"weightKg":78,"heightCm":183,"age":24,"sex":"male","goal":"cut","goalWeightKg":75,

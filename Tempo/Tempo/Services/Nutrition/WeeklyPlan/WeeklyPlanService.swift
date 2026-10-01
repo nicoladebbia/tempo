@@ -16,8 +16,9 @@ import os
 import SwiftData
 
 extension Notification.Name {
-    /// Posted after a server-built plan was saved as the active plan, so the
-    /// Nutrition surfaces reload and run their post-plan passes.
+    /// Posted after a server-built plan was saved as the active plan (by any
+    /// path: `sync`, `buildNow`), so the Nutrition surfaces reload, the
+    /// Dashboard Fuel card re-pulls today's target, and reminders reschedule.
     static let tempoWeeklyPlanApplied = Notification.Name("tempo.nutrition.weeklyPlanApplied")
 }
 
@@ -109,6 +110,12 @@ final class WeeklyPlanService {
         return calendar.date(byAdding: .day, value: -daysSinceMonday, to: today) ?? today
     }
 
+    /// A plan for a week that has already ended — never applied (it would
+    /// replace the current week).
+    nonisolated static func isPastWeek(_ weekStart: Date, now: Date = Date(), calendar: Calendar = .current) -> Bool {
+        calendar.startOfDay(for: weekStart) < currentWeekStart(for: now, calendar: calendar)
+    }
+
     nonisolated static func dayString(_ date: Date, calendar: Calendar = .current) -> String {
         let parts = calendar.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
@@ -124,7 +131,8 @@ final class WeeklyPlanService {
 
     nonisolated static func message(forServerError code: String) -> String {
         switch code {
-        case "subscription_required": "Weekly plans are a Pro feature."
+        case "subscription_required": PlanGenerationBlocker.proRequired.message
+        case "ai_consent_required": PlanGenerationBlocker.aiConsentRequired.message
         case "ai_budget_exhausted": "The AI is at capacity right now. Try again in a bit."
         case "timed out": "The plan build timed out. Try again."
         default: "Couldn't build the plan. Try again."
@@ -210,11 +218,19 @@ final class WeeklyPlanService {
                 phase = .upcoming(plan, weekStart: weekStart)
                 return
             }
+            // A week that's already over (the phone was offline until the
+            // next Monday) must not replace the current week — applying it
+            // would archive this week's plan and its eaten meals.
+            if Self.isPastWeek(weekStart, now: now) {
+                logger.info("[WeeklyPlan] dropping ready job for a past week")
+                defaults.removeObject(forKey: Key.pendingJobID)
+                phase = .idle
+                return
+            }
             inFlightJobID = job.id
             defer { inFlightJobID = nil }
             do {
                 _ = try await apply(job, plan: plan, weekStart: weekStart, modelContext: modelContext, deps: deps)
-                NotificationCenter.default.post(name: .tempoWeeklyPlanApplied, object: nil)
             } catch {
                 logger.error("[WeeklyPlan] apply failed: \(error.localizedDescription, privacy: .public)")
             }
@@ -363,6 +379,11 @@ final class WeeklyPlanService {
         defaults.removeObject(forKey: Key.pendingJobID)
         phase = .idle
         logger.info("[WeeklyPlan] applied job \(job.id, privacy: .public) for \(job.weekStart, privacy: .public)")
+        // Posted here (not only from `sync`) so EVERY path that saves a plan —
+        // push/foreground sync, in-app Regenerate (`buildNow`), the QA scenario —
+        // tells the Dashboard Fuel card, the supplement scheduler and the Nutrition
+        // tab that today's target may have moved.
+        NotificationCenter.default.post(name: .tempoWeeklyPlanApplied, object: nil)
         return saved
     }
 

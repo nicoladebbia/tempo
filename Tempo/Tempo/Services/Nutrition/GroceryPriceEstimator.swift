@@ -54,8 +54,8 @@ enum GroceryPriceEstimator {
             return nil
         }
 
-        if let entryGrams = best.unit.gramsApprox(quantity: best.quantity, foodName: name), entryGrams > 0,
-           let targetGrams = unit.gramsApprox(quantity: quantity, foodName: name)
+        if let entryGrams = best.unit.gramsApprox(quantity: best.quantity, foodName: name, purchased: true), entryGrams > 0,
+           let targetGrams = unit.gramsApprox(quantity: quantity, foodName: name, purchased: true)
         {
             let perGram = best.totalPaidUSD / entryGrams
             return GroceryPriceResolution(usd: max(0, perGram * targetGrams), source: .paid)

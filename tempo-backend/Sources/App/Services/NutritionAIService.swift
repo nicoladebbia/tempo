@@ -117,7 +117,13 @@ actor NutritionAIService {
             on: req
         )
 
-        return textBlock.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = textBlock.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // An empty reply must not reach the user as a blank card; treat it like any other bad upstream reply.
+        guard !trimmed.isEmpty else {
+            req.logger.warning("Nutrition AI \(caller): Claude returned empty text")
+            throw NutritionAIError.malformedResponse
+        }
+        return trimmed
     }
 
     // MARK: - Prompts

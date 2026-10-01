@@ -373,6 +373,8 @@ struct PaywallView: View {
     // MARK: - Actions
 
     private func loadProducts() async {
+        // Retries the StoreKit catalogue if launch couldn't reach the store.
+        await services.subscriptions.startObserving()
         products = services.subscriptions.availableProducts()
     }
 

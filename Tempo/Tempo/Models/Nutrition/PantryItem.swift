@@ -71,7 +71,7 @@ enum PantryUnit: String, Codable, CaseIterable, Sendable {
     /// `foodName` enables container-unit conversion via
     /// FoodMacroDatabase.naturalPortions[foodName].purchaseGrams — "1 pack
     /// of pasta" resolves to its known purchase weight.
-    func gramsApprox(quantity: Double, foodName: String? = nil) -> Double? {
+    func gramsApprox(quantity: Double, foodName: String? = nil, purchased: Bool = false) -> Double? {
         switch self {
         case .grams: return quantity
         case .kilograms: return quantity * 1000
@@ -94,8 +94,90 @@ enum PantryUnit: String, Codable, CaseIterable, Sendable {
             else {
                 return nil
             }
-            let unitGrams = self == .packs ? portion.purchaseGrams : portion.grams
+            guard let unitGrams = gramsPerUnit(of: portion, purchased: purchased) else {
+                return nil
+            }
             return quantity * unitGrams
+        }
+    }
+
+    /// Re-expresses `quantity` of this unit from one piece reading to the
+    /// other ("2 loaves" bought ↔ "~53 slices" typed). Returns `quantity`
+    /// unchanged when both readings weigh the same or the food is unknown.
+    func convert(_ quantity: Double, foodName: String, fromPurchased: Bool, toPurchased: Bool) -> Double {
+        guard fromPurchased != toPurchased,
+              let grams = gramsApprox(quantity: quantity, foodName: foodName, purchased: fromPurchased),
+              let perUnit = gramsApprox(quantity: 1, foodName: foodName, purchased: toPurchased),
+              perUnit > 0
+        else {
+            return quantity
+        }
+        return grams / perUnit
+    }
+
+    /// True when a purchased and a typed `.pieces` of this food weigh
+    /// differently (loaf vs slice), so a row can't mix the two readings.
+    func hasDistinctPurchaseWeight(foodName: String) -> Bool {
+        convert(1, foodName: foodName, fromPurchased: true, toPurchased: false) != 1
+    }
+
+    /// A countable row at or below this is "used up" (≈5% of one unit). Mass
+    /// and volume rows only deplete at exactly zero.
+    var depletedThreshold: Double {
+        isCountable ? 0.05 : 0
+    }
+
+    /// True for container units (can/bottle/jar/pack) — one unit is the whole
+    /// purchased container, weighed by the portion's `purchaseGrams`. `.pieces`
+    /// and `.servings` use the per-item `grams` instead.
+    var isContainer: Bool {
+        switch self {
+        case .cans, .bottles, .jars, .packs: true
+        default: false
+        }
+    }
+
+    /// Grams in ONE of this unit for a food with a natural-portion entry.
+    /// Containers use the purchase weight (falling back to the item weight);
+    /// pieces/servings use the item weight; mass/volume units return nil
+    /// (callers convert those directly). THE single source of truth shared by
+    /// `gramsApprox`, `PantryDecrementService` and the display formatter, so a
+    /// "can" is the same weight on the grocery list, in the pantry and on undo.
+    ///
+    /// `purchased`: the row came in as a store purchase (grocery confirm or
+    /// receipt). Only then does a `.pieces` row of a food with a distinct
+    /// purchase unit weigh that whole unit ("1 loaf" = 800 g). Voice/manual
+    /// "12 pieces of bread" are slices, so they keep the single-piece weight.
+    func gramsPerUnit(of portion: FoodMacroDatabase.NaturalPortion, purchased: Bool = false) -> Double? {
+        // A bought "1 loaf"/"1 ball" row is `.pieces` but weighs the purchase
+        // unit, not the recipe slice. Simple portions (egg, carrot) have
+        // unit == purchaseUnit and keep the item weight.
+        let boughtAsDistinctPiece = self == .pieces
+            && purchased
+            && portion.purchaseGrams > 0
+            && portion.purchaseUnit.lowercased() != portion.unit.lowercased()
+            && GroceryListGenerator.pantryUnit(for: portion.purchaseUnit) == .pieces
+        let perUnit: Double = if isContainer || boughtAsDistinctPiece {
+            portion.purchaseGrams > 0 ? portion.purchaseGrams : portion.grams
+        } else {
+            portion.grams
+        }
+        return perUnit > 0 ? perUnit : nil
+    }
+
+    /// Singular label for a quantity of exactly one ("1 pack", "0.8 pack").
+    func label(forQuantity quantity: Double) -> String {
+        guard quantity <= 1.0001 else {
+            return displayName
+        }
+        switch self {
+        case .cans: return "can"
+        case .bottles: return "bottle"
+        case .jars: return "jar"
+        case .packs: return "pack"
+        case .pieces: return "pc"
+        case .servings: return "serving"
+        default: return displayName
         }
     }
 
@@ -154,6 +236,12 @@ enum PantryPurchaseSource: String, Codable, CaseIterable, Sendable {
     case receiptScan = "receipt_scan"
     case groceryConfirm = "grocery_confirm"
     case prepStep = "prep_step"
+
+    /// A store purchase (grocery confirm or receipt): a `.pieces` row of a
+    /// loaf/ball food counts whole purchase units, not single slices.
+    var weighsPurchaseUnit: Bool {
+        self == .groceryConfirm || self == .receiptScan
+    }
 }
 
 // MARK: - PantryItem
@@ -262,6 +350,17 @@ final class PantryItem {
         set { purchaseSourceRaw = newValue.rawValue }
     }
 
+    /// True when this row was bought as a whole purchase unit (grocery confirm
+    /// or receipt), so a `.pieces` quantity of loaf/ball foods weighs that unit.
+    /// Voice/manual/prep rows count single pieces (slices). Existing rows are
+    /// read by their stored source: older untagged rows default to `.manual`
+    /// (slice weight), the conservative reading since it never credits more
+    /// stock than the user actually has.
+    @Transient
+    var weighsPurchaseUnit: Bool {
+        purchaseSource.weighsPurchaseUnit
+    }
+
     /// Days until `useBy`, computed on calendar-day boundaries (not sub-day
     /// precision) so it agrees with `isExpired`. Negative when expired.
     /// Nil when no use-by set.
@@ -302,7 +401,15 @@ final class PantryItem {
     /// offer to add the item back to the grocery list.
     @Transient
     var isDepleted: Bool {
-        !isArchived && quantity <= 0
+        !isArchived && quantity <= unit.depletedThreshold
+    }
+
+    /// `true` while there is genuinely something left to use. Container/count
+    /// rows are tracked in fractions (1 pack − 100 g of 500 g = 0.8 pack), so
+    /// dust below `depletedThreshold` counts as gone.
+    @Transient
+    var isInStock: Bool {
+        quantity > unit.depletedThreshold
     }
 
     // MARK: - Init

@@ -95,41 +95,80 @@ struct MealPlanIntake: Sendable, Equatable {
     /// `trainingSchedule` and `groceryIntent` are NOT set here — the view model
     /// enriches those from UserSettings (training split + football days, grocery
     /// budget + stores) on each generate, as it already did.
-    static func loadPersisted(from settings: UserSettings) -> MealPlanIntake {
+    static func loadPersisted(from settings: UserSettings, now: Date = Date()) -> MealPlanIntake {
         let window = EatingWindow(
             firstMealHour: settings.mealIntakeFirstMealHour ?? EatingWindow.default.firstMealHour,
             lastMealHour: settings.mealIntakeLastMealHour ?? EatingWindow.default.lastMealHour
         )
         let leftover = settings.mealIntakeLeftoverToleranceRaw
             .flatMap { LeftoverTolerance(rawValue: $0) } ?? MealPlanIntake.default.leftoverTolerance
-        let exclusions = settings.mealIntakeExclusionsRaw
-            .split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
+        func list(_ raw: String) -> [String] {
+            raw.split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+        }
+
+        var cookableDays = settings.mealIntakeCookableDays ?? MealPlanIntake.default.cookableDaysThisWeek
+        var recovery = settings.mealIntakeRecoveryAdjusted
+        var exclusions = list(settings.mealIntakeExclusionsRaw)
+        // This week's wizard answers win while they're still this week's.
+        if let tempWeek = settings.mealIntakeTempWeekStart,
+           Calendar.current.isDate(tempWeek, inSameDayAs: WeeklyPlanService.currentWeekStart(for: now))
+        {
+            cookableDays = settings.mealIntakeTempCookableDays ?? cookableDays
+            recovery = settings.mealIntakeTempRecoveryAdjusted
+            exclusions = list(settings.mealIntakeTempExclusionsRaw)
+        }
 
         return MealPlanIntake(
-            cookableDaysThisWeek: settings.mealIntakeCookableDays ?? MealPlanIntake.default.cookableDaysThisWeek,
+            cookableDaysThisWeek: cookableDays,
             leftoverTolerance: leftover,
             eatingWindow: window.isValid ? window : .default,
             groceryIntent: nil,
-            recoveryAdjusted: settings.mealIntakeRecoveryAdjusted,
+            recoveryAdjusted: recovery,
             temporaryExclusions: exclusions,
             trainingSchedule: nil
         )
     }
 
-    /// Write this intake's persistable fields back to `UserSettings` so the
-    /// next regenerate reuses them. Called by the wizard's onComplete (and the
-    /// future AI Meals settings page). Grocery + training are persisted/derived
-    /// elsewhere, so they're not touched here.
-    func persist(to settings: UserSettings) {
-        settings.mealIntakeCookableDays = cookableDaysThisWeek
+    /// Write this intake back to `UserSettings` so the next regenerate reuses
+    /// it. Called by the wizard's onComplete.
+    ///  - Durable answers (leftover style, eating window) become the saved prefs.
+    ///  - "This week" answers (cookable days, temporary exclusions, recovery
+    ///    skew) are stored against this week's Monday and expire with it —
+    ///    they never overwrite the prefs the AI Meals settings page manages.
+    /// The eating window is written through to onboarding's profile too, so
+    /// the Fuel setup editor and the planner never disagree.
+    /// Grocery + training are persisted/derived elsewhere.
+    func persist(to settings: UserSettings, dailyPlan: UserDailyPlanProfile? = nil, now: Date = Date()) {
         settings.mealIntakeLeftoverToleranceRaw = leftoverTolerance.rawValue
-        settings.mealIntakeFirstMealHour = eatingWindow.firstMealHour
-        settings.mealIntakeLastMealHour = eatingWindow.lastMealHour
-        settings.mealIntakeRecoveryAdjusted = recoveryAdjusted
-        settings.mealIntakeExclusionsRaw = temporaryExclusions.joined(separator: ", ")
-        settings.updatedAt = Date()
+        Self.saveEatingWindow(eatingWindow, settings: settings, dailyPlan: dailyPlan)
+        settings.mealIntakeTempWeekStart = WeeklyPlanService.currentWeekStart(for: now)
+        settings.mealIntakeTempCookableDays = cookableDaysThisWeek
+        settings.mealIntakeTempRecoveryAdjusted = recoveryAdjusted
+        settings.mealIntakeTempExclusionsRaw = temporaryExclusions.joined(separator: ", ")
+        settings.updatedAt = now
+    }
+
+    /// THE write path for the eating window. `UserSettings` hours are what the
+    /// planner reads; onboarding's `UserDailyPlanProfile` minutes are what the
+    /// Fuel setup editor loads. Writing only one left them disagreeing, so
+    /// every writer goes through here. The profile keeps its minute precision
+    /// unless the hour window actually changed.
+    static func saveEatingWindow(_ window: EatingWindow, settings: UserSettings, dailyPlan: UserDailyPlanProfile?) {
+        // Both or neither: an invalid window writes nothing, so settings and
+        // the onboarding profile can't disagree.
+        guard window.isValid else {
+            return
+        }
+        settings.mealIntakeFirstMealHour = window.firstMealHour
+        settings.mealIntakeLastMealHour = window.lastMealHour
+        guard let dailyPlan, eatingWindow(fromOnboarding: dailyPlan) != window else {
+            return
+        }
+        dailyPlan.eatingWindowStartMinutes = window.firstMealHour * 60
+        dailyPlan.eatingWindowEndMinutes = window.lastMealHour * 60
+        dailyPlan.updatedAt = Date()
     }
 }
 

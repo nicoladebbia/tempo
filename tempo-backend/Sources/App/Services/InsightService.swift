@@ -314,6 +314,9 @@ actor InsightService {
 
         // Try to extract JSON from markdown code blocks if present
         let content = Self.extractJSON(from: textBlock.text)
+        guard !content.isEmpty else {
+            throw InsightError.malformedResponse
+        }
 
         return ClaudeAPIResponse(
             content: content,

@@ -114,6 +114,15 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
                     UNNotificationAction(identifier: "DELAY_30MIN", title: "Delay 30min"),
                 ]
             ),
+            // Overdue meal check-in: answer without opening the app. Both go
+            // through MealOutcomeService, like Mark Eaten / Skip on Today.
+            makeCategory(
+                id: "OVERDUE_MEAL_REMINDER",
+                actions: [
+                    UNNotificationAction(identifier: Self.overdueAteActionID, title: "Ate it"),
+                    UNNotificationAction(identifier: Self.overdueSkippedActionID, title: "Skipped"),
+                ]
+            ),
             // Training Reminder
             makeCategory(
                 id: "TRAINING_REMINDER",
@@ -195,7 +204,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
                 id: "SUPPLEMENT_REORDER",
                 actions: [
                     UNNotificationAction(identifier: "SUPPLEMENT_ADD_TO_LIST", title: "Add to grocery list", options: .foreground),
-                    UNNotificationAction(identifier: "SUPPLEMENT_RESTOCKED", title: "Restocked"),
+                    UNNotificationAction(identifier: "SUPPLEMENT_RESTOCKED", title: "Restocked", options: .foreground),
                 ]
             ),
         ]
@@ -300,6 +309,12 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
             interruptionLevel: .active,
             budgetCost: 0.5,
             priority: 5
+        )
+    }
+
+    func cancelMealReminder(mealName: String, on day: Date) {
+        center.removePendingNotificationRequests(
+            withIdentifiers: ["meal_\(mealName.lowercased())_\(dateKey(day))"]
         )
     }
 
@@ -420,9 +435,15 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
             priority: 3,
             // Discrete check-in tied to a specific meal; exempt from the
             // generic-notification budget for the same reason as prep-start.
-            bypassBudget: true
+            bypassBudget: true,
+            // "Ate it" / "Skipped" act on this meal (TempoNotificationDelegate).
+            userInfo: [Self.mealIDUserInfoKey: mealID.uuidString]
         )
     }
+
+    static let mealIDUserInfoKey = "mealID"
+    static let overdueAteActionID = "MEAL_ATE"
+    static let overdueSkippedActionID = "MEAL_SKIPPED"
 
     func cancelOverdueMealReminder(forMealID mealID: UUID) {
         center.removePendingNotificationRequests(
@@ -498,7 +519,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
     /// `SupplementScheduleEngine.group` groups by clock minute.
     private static let supplementReminderPrefix = "supplement_reminder_"
 
-    func scheduleSupplementReminder(title: String, body: String, fireDate: Date, supplementNames: [String]) {
+    func scheduleSupplementReminder(title: String, body: String, fireDate: Date, supplementNames: [String], supplementIDs: [String]) {
         guard fireDate > Date(), !supplementNames.isEmpty else {
             return
         }
@@ -512,7 +533,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         content.threadIdentifier = "tempo.supplements.\(dateKey(fireDate))"
         content.interruptionLevel = .active
         content.sound = sound(for: "SUPPLEMENT_REMINDER")
-        content.userInfo = ["supplementNames": supplementNames]
+        content.userInfo = ["supplementNames": supplementNames, "supplementIDs": supplementIDs]
 
         let trigger = UNCalendarNotificationTrigger(
             dateMatching: Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: fireDate),
@@ -539,21 +560,25 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
 
     // MARK: - Supplement Reorder Alert
 
-    func scheduleSupplementReorderAlert(supplementName: String, title: String, body: String) {
+    func scheduleSupplementReorderAlert(supplementName: String, supplementID: String?, title: String, body: String) {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
         content.categoryIdentifier = "SUPPLEMENT_REORDER"
-        content.threadIdentifier = "tempo.supplement_reorder.\(supplementName)"
+        content.threadIdentifier = "tempo.supplement_reorder.\(supplementID ?? supplementName)"
         content.interruptionLevel = .active
         content.sound = sound(for: "SUPPLEMENT_REORDER")
-        content.userInfo = ["supplementName": supplementName]
+        var info: [String: Any] = ["supplementName": supplementName]
+        if let supplementID {
+            info["supplementID"] = supplementID
+        }
+        content.userInfo = info
 
         // Fires almost immediately — this is a discrete "it just crossed the
         // threshold" event, not something scheduled for a future clock time.
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 2, repeats: false)
         let request = UNNotificationRequest(
-            identifier: "supplement_reorder_\(supplementName)_\(dateKey(Date()))",
+            identifier: "supplement_reorder_\(supplementID ?? supplementName)_\(dateKey(Date()))",
             content: content,
             trigger: trigger
         )
@@ -892,7 +917,8 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         interruptionLevel: UNNotificationInterruptionLevel,
         budgetCost: Double,
         priority: Int,
-        bypassBudget: Bool = false
+        bypassBudget: Bool = false,
+        userInfo: [String: String] = [:]
     ) {
         // Budget check — bypassable for time-critical, discrete-event notifications
         // (e.g. defrost reminders) whose suppression would cause real-world harm.
@@ -939,6 +965,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
             content.threadIdentifier = threadID
             content.interruptionLevel = interruptionLevel
             content.sound = sound(for: categoryID)
+            content.userInfo = userInfo
 
             let components = Calendar.current.dateComponents(
                 [.year, .month, .day, .hour, .minute, .second],

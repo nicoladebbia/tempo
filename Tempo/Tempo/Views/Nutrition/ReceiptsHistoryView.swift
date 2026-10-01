@@ -38,7 +38,11 @@ struct ReceiptsHistoryView: View {
                                 receipt: receipt,
                                 receiptService: receiptService,
                                 pantryService: pantryService,
-                                onIngested: { viewModel.reloadReceipts() }
+                                onIngested: {
+                                    viewModel.reloadReceipts()
+                                    // Same as from Pantry: new stock shrinks the list.
+                                    viewModel.reapplyPantryToGrocery()
+                                }
                             )
                         } label: {
                             receiptRow(receipt)
