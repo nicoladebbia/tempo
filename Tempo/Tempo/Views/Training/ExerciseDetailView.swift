@@ -372,14 +372,14 @@ struct ExerciseDetailView: View {
                     id: "e1RM",
                     label: "Estimated 1RM",
                     color: Color.tempoSignal,
-                    points: chartHistory.compactMap { entry in
-                        // Bodyweight sessions carry no e1RM — never plot a 0.
-                        guard let e1rm = entry.estimated1RM, e1rm > 0 else {
-                            return nil
-                        }
-                        return TempoLineChartData<String>.DataPoint(
-                            date: entry.date,
-                            value: WeightUnit.kg.convert(e1rm, to: weightUnit)
+                    // One point per day (bodyweight sessions carry no e1RM —
+                    // never plot a 0).
+                    points: ProgressLabMath.dailyBestE1RM(
+                        chartHistory.map { ($0.date, $0.estimated1RM) }
+                    ).map { day in
+                        TempoLineChartData<String>.DataPoint(
+                            date: day.date,
+                            value: WeightUnit.kg.convert(day.e1RM, to: weightUnit)
                         )
                     }
                 )

@@ -73,7 +73,8 @@ extension TrainingViewModel {
     /// Health; any error is swallowed — a Health hiccup must never affect the
     /// saved workout. Calories are estimated as MET 3.5 × bodyweight × hours
     /// (0 without a known bodyweight).
-    func writeStrengthWorkoutToHealthKit(plan: WorkoutPlan, totalVolumeKg: Double, bodyweightKg: Double?) {
+    func writeStrengthWorkoutToHealthKit(plan: WorkoutPlan, totalVolumeKg: Double) {
+        let bodyweightKg = plan.modelContext.flatMap { currentBodyweightKg(modelContext: $0) }
         let end = plan.finishedAt ?? Date()
         // The live session clock; if it never ran in this VM (0), fall back
         // to wall-clock minus recorded pauses.

@@ -95,3 +95,44 @@ final class HealthWorkoutWriteRulesTests: XCTestCase {
         XCTAssertEqual(span.end, at(30))
     }
 }
+
+// MARK: - Move "last session" HR match
+
+final class WorkoutSampleOverlapTests: XCTestCase {
+    private let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+
+    private func sample(_ startMin: Double, _ endMin: Double, hr: Double) -> WorkoutSample {
+        WorkoutSample(
+            startDate: t0.addingTimeInterval(startMin * 60),
+            endDate: t0.addingTimeInterval(endMin * 60),
+            workoutType: "strength",
+            durationMinutes: endMin - startMin,
+            activeCalories: 0,
+            averageHeartRate: hr,
+            maxHeartRate: nil,
+            distanceMeters: nil
+        )
+    }
+
+    func testPicksTheWorkoutOverlappingTheSessionNotTheDaysHighestHR() {
+        let samples = [sample(-300, -270, hr: 165), sample(0, 55, hr: 128), sample(50, 70, hr: 150)]
+        let hit = WorkoutSample.bestOverlap(
+            start: t0, end: t0.addingTimeInterval(60 * 60), in: samples
+        )
+        XCTAssertEqual(hit?.averageHeartRate, 128)
+    }
+
+    func testNoOverlapMeansNoHR() {
+        XCTAssertNil(WorkoutSample.bestOverlap(
+            start: t0, end: t0.addingTimeInterval(3600), in: [sample(-300, -270, hr: 165)]
+        ))
+    }
+
+    func testMoveHistoryLabelHidesZeroVolume() {
+        XCTAssertEqual(MoveQuadrantDetailView.volumeHistoryLabel(durationMinutes: 32, volumeKg: 0, unit: .kg), "32m")
+        XCTAssertEqual(
+            MoveQuadrantDetailView.volumeHistoryLabel(durationMinutes: 52, volumeKg: 4200, unit: .kg),
+            "52m · " + WeightFormat.volumeText(kg: 4200, unit: .kg)
+        )
+    }
+}

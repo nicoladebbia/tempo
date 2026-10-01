@@ -166,13 +166,12 @@ struct MoveQuadrantDetailView: View {
             lastSessionAvgHR = .some(nil)
             return
         }
-        let sessionDate = last.finishedAt ?? last.date
-        let samples = await (try? services.healthKit.fetchWorkouts(for: sessionDate)) ?? []
-        // Match the HK workout that overlaps this session's finish time;
-        // fall back to the highest-HR sample for the day.
-        let avg = samples
-            .compactMap(\.averageHeartRate)
-            .max()
+        let end = last.finishedAt ?? last.date
+        let start = last.startedAt ?? end.addingTimeInterval(-Double(last.durationMinutes ?? 60) * 60)
+        let samples = await (try? services.healthKit.fetchWorkouts(for: end)) ?? []
+        // Only the HK workout that actually overlaps this session — never
+        // another activity from the same day.
+        let avg = WorkoutSample.bestOverlap(start: start, end: end, in: samples)?.averageHeartRate
         lastSessionAvgHR = .some(avg)
     }
 
@@ -441,7 +440,7 @@ struct MoveQuadrantDetailView: View {
                         Spacer()
 
                         let dur = workout.durationMinutes ?? workout.actualDurationMinutes
-                        Text(volumeHistoryLabel(durationMinutes: dur, volumeKg: workout.totalVolume))
+                        Text(Self.volumeHistoryLabel(durationMinutes: dur, volumeKg: workout.totalVolume, unit: weightUnit))
                             .font(.tempoCaption1)
                             .foregroundStyle(Color.tempoTextSecondary)
                     }
@@ -459,12 +458,17 @@ struct MoveQuadrantDetailView: View {
         .tempoShadow(.card)
     }
 
-    private func volumeHistoryLabel(durationMinutes: Int?, volumeKg: Double) -> String {
-        let volStr = WeightFormat.volumeText(kg: volumeKg, unit: weightUnit)
+    /// "52m · 4.2k kg"; a session with no lifted volume (a run, mobility)
+    /// shows just its duration, never "0 kg".
+    static func volumeHistoryLabel(durationMinutes: Int?, volumeKg: Double, unit: WeightUnit) -> String {
+        var parts: [String] = []
         if let dur = durationMinutes {
-            return "\(dur)m · \(volStr)"
+            parts.append("\(dur)m")
         }
-        return volStr
+        if volumeKg > 0 {
+            parts.append(WeightFormat.volumeText(kg: volumeKg, unit: unit))
+        }
+        return parts.joined(separator: " · ")
     }
 
     // MARK: - Weekly Volume Chart
