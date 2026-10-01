@@ -24,8 +24,12 @@
 #   scripts/sim.sh notify <kind> [json] deliver a push with real action buttons (list: notify help)
 #   scripts/sim.sh shot  <file.png>     screenshot, resized to points so AXe taps match
 #   scripts/sim.sh name | dd | dest     print the sim name / DerivedData path / -destination
-#   scripts/sim.sh clean                delete this worktree's sim and DerivedData
+#   scripts/sim.sh open <url>           open a link in the sim (e.g. a grocery share link in Safari)
+#   scripts/sim.sh clean                delete this worktree's sims and DerivedData
 # Target another worktree with --dir <path> (used by parallel.sh / cleanup.sh).
+# Two users at once: --sim <id> uses a second simulator "Tempo · <worktree> · <id>"
+# with its own test account (default name <worktree>-<id>), e.g.
+#   scripts/sim.sh qa --local --as alice && scripts/sim.sh --sim b qa --local --as bob --no-build
 
 set -euo pipefail
 
@@ -36,6 +40,12 @@ QA_ARGS=(--uitesting-skip-onboarding -healthKitAuthorized YES -hasCompletedSetup
 DIR=""
 if [ "${1:-}" = "--dir" ]; then
     DIR="${2:?--dir needs a path}"
+    shift 2
+fi
+SECOND=""
+if [ "${1:-}" = "--sim" ]; then
+    SECOND="${2:?--sim needs an id, e.g. b}"
+    [[ "$SECOND" =~ ^[a-z0-9]{1,8}$ ]] || { echo "[ERR] --sim: 1-8 lowercase letters/digits" >&2; exit 1; }
     shift 2
 fi
 ROOT="$(git -C "${DIR:-.}" rev-parse --show-toplevel 2>/dev/null || true)"
@@ -64,7 +74,8 @@ sim_slug() {
     echo "$base"
 }
 
-SIM_NAME="${TEMPO_SIM_NAME:-Tempo · $(sim_slug "$ROOT")}"
+BASE_SIM_NAME="${TEMPO_SIM_NAME:-Tempo · $(sim_slug "$ROOT")}"
+SIM_NAME="$BASE_SIM_NAME${SECOND:+ · $SECOND}"
 DD="$ROOT/DerivedData"
 PROJECT="$ROOT/Tempo/Tempo.xcodeproj"
 
@@ -201,11 +212,13 @@ do_run() {
     local server=(-tempoAPIBaseURL off)
     if [ "$local_mode" = 1 ]; then
         "$ROOT/scripts/testenv.sh" up >/dev/null
-        [ -z "$name" ] && name="$(sim_slug "$ROOT" | tr '[:upper:]_.' '[:lower:]--' | tr -cd 'a-z0-9-' | cut -c1-40)"
+        [ -z "$name" ] && name="$(sim_slug "$ROOT" | tr '[:upper:]_.' '[:lower:]--' | tr -cd 'a-z0-9-' | cut -c1-$((40 - ${#SECOND} - (${#SECOND} > 0))))${SECOND:+-$SECOND}"
         local line
         server=()
         while IFS= read -r line; do server+=("$line"); done < <(test_login_args "$udid" "$name" "$([ "$fresh" = 1 ] && echo true || echo false)" "$pro")
         [ "${#server[@]}" -eq 10 ] || { echo "[ERR] test login failed (scripts/testenv.sh logs)" >&2; exit 1; }
+        # A persona scenario also has a server half (subscription, XP, receipts).
+        if [ -n "$scenario" ] && "$ROOT/scripts/testenv.sh" persona "$name" "$scenario" 2>/dev/null; then :; fi
     fi
     [ -n "$scenario" ] && extra+=(--uitesting-scenario "$scenario")
     if [ "$scenario" = fresh ]; then # first-run path: keep onboarding
@@ -281,14 +294,24 @@ do_notify() {
 }
 
 do_clean() {
-    local udid
-    udid="$(find_udid)"
-    if [ -n "$udid" ]; then
+    local udid name
+    # This worktree's sim and its --sim extras.
+    while IFS=$'\t' read -r udid name; do
+        [ -n "$udid" ] || continue
         xcrun simctl shutdown "$udid" 2>/dev/null || true
         xcrun simctl delete "$udid"
-        echo "[sim] deleted \"$SIM_NAME\" ($udid)"
-    fi
-    if [ -d "$DD" ]; then
+        echo "[sim] deleted \"$name\" ($udid)"
+    done < <(xcrun simctl list devices -j | python3 -c '
+import json, sys
+base = sys.argv[1]
+only = sys.argv[2] if len(sys.argv) > 2 else ""
+for devs in json.load(sys.stdin)["devices"].values():
+    for d in devs:
+        if (only and d["name"] == only) or (not only and (d["name"] == base or d["name"].startswith(base + " · "))):
+            print(d["udid"] + "\t" + d["name"])
+' "$BASE_SIM_NAME" "${SECOND:+$SIM_NAME}")
+    # --sim <id> clean: just that extra sim; the shared build stays.
+    if [ -z "$SECOND" ] && [ -d "$DD" ]; then
         rm -rf "$DD"
         echo "[sim] deleted $DD"
     fi
@@ -318,6 +341,7 @@ case "$cmd" in
         echo "$out"
         ;;
     clean) do_clean ;;
+    open) xcrun simctl openurl "$(ensure_sim)" "${1:?usage: sim.sh open <url>}" ;;
     notify)
         if [ "${1:-}" = json ]; then
             udid="$(ensure_sim)"
@@ -334,7 +358,7 @@ case "$cmd" in
             sed -E 's/^ +case "([a-z-]+)":? *\/\/ ?/  \1 — /' || echo "no ScenarioSeed.swift"
         ;;
     *)
-        sed -n '2,29p' "$0" | sed 's/^# \{0,1\}//'
+        awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"
         exit 1
         ;;
 esac

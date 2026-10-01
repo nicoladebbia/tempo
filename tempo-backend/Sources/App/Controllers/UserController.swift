@@ -37,7 +37,7 @@ struct UserController: RouteCollection {
         let activeSub = try await UserSubscription.query(on: req.db)
             .filter(\.$user.$id == userID)
             .filter(\.$isActive == true)
-            .filter(\.$expirationDate > Date())
+            .filter(\.$expirationDate > req.now)
             .sort(\.$expirationDate, .descending)
             .first()
 

@@ -1,0 +1,14 @@
+{
+  "data" : {
+    "barcode" : "0123456789012",
+    "canonical_food_name" : "chicken breast",
+    "confirmation_count" : 1,
+    "expanded_name" : "Publix chicken breast",
+    "is_trusted" : false
+  },
+  "meta" : {
+    "request_id" : "req_000000000000000000000001",
+    "timestamp" : "2026-01-01T00:00:00Z"
+  },
+  "ok" : true
+}

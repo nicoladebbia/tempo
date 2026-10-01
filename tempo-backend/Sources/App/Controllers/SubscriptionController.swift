@@ -33,7 +33,7 @@ struct SubscriptionController: RouteCollection {
             )
         }
 
-        let isActive = subscription.expirationDate > Date()
+        let isActive = subscription.expirationDate > req.now
         if !isActive {
             subscription.isActive = false
             try await subscription.save(on: req.db)

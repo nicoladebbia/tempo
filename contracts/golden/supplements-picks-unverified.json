@@ -1,0 +1,31 @@
+{
+  "data" : {
+    "kind" : "other",
+    "look_for" : "third-party tested; 3-5 g/day",
+    "picks" : [
+      {
+        "approx_price_per_serving_usd" : 0.89000000000000001,
+        "brand" : "Example",
+        "buy_links" : [
+          {
+            "label" : "Amazon",
+            "url" : "https://example.com/p"
+          }
+        ],
+        "certifications" : [
+          "NSF Certified for Sport"
+        ],
+        "form" : "powder",
+        "price_as_of" : "2026-09",
+        "product" : "Example Product",
+        "why" : "Third-party tested."
+      }
+    ],
+    "verified" : false
+  },
+  "meta" : {
+    "request_id" : "req_000000000000000000000001",
+    "timestamp" : "2026-01-01T00:00:00Z"
+  },
+  "ok" : true
+}

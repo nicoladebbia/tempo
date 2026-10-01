@@ -8,7 +8,8 @@ import Vapor
 // Replaces `app.client` (and so every `req.client`) in test mode. Answers by
 // host; anything unknown gets a 502 and a log line instead of a real request,
 // so a QA session never calls a paid or rate-limited service by accident.
-// Only Claude can go out for real, and only in AI mode `.real`.
+// Only Claude can go out for real, and only in AI mode `.real` (`.replay`
+// serves real replies recorded earlier — see AIRecordings).
 
 struct TestModeClient: Client {
     let eventLoop: EventLoop
@@ -80,7 +81,21 @@ struct TestModeClient: Client {
             guard Self.hasRealAnthropicKey else {
                 return done(Self.json(TestFixtures.anthropicError(type: "authentication_error", message: "test mode has no real key"), status: .unauthorized))
             }
-            return try done(await real.delegating(to: eventLoop).send(request).get())
+            let response = try await real.delegating(to: eventLoop).send(request).get()
+            if state.recordAI, response.status == .ok, let body = response.body {
+                do {
+                    try state.recordings.save(feature: feature.name, body: String(buffer: body))
+                } catch {
+                    logger.warning("[test-mode] couldn't record \(feature.name): \(error)")
+                }
+            }
+            return done(response)
+        case .replay:
+            if let recorded = state.recordings.latest(feature: feature.name) {
+                return done(Self.json(recorded))
+            }
+            logger.info("[test-mode] no recording for \(feature.name) yet — fake reply")
+            return done(Self.json(TestFixtures.anthropicMessage(text: feature.reply(context), model: feature.model)))
         case .error:
             return done(Self.json(TestFixtures.anthropicError(type: "overloaded_error", message: "Overloaded (test mode)"), status: .init(statusCode: 529)))
         case .empty:

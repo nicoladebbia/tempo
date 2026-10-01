@@ -85,10 +85,21 @@ while [ $# -gt 0 ]; do
     shift
 done
 
-LOCK="$HOME_DIR/.lock"
-if ! mkdir "$LOCK" 2>/dev/null; then
-    echo "nightly already running ($LOCK)" >&2
-    exit 1
+# The lock is a symlink whose target is the run's pid: creating it is atomic
+# and carries the pid in one step.
+LOCK="$HOME_DIR/.running"
+if ! ln -s "$$" "$LOCK" 2>/dev/null; then
+    # A run that was killed or cut off by a restart leaves its lock behind;
+    # without this, every later night would stop here. After a restart the
+    # pid may belong to something else, so it must also be this script.
+    holder="$(readlink "$LOCK" 2>/dev/null || true)"
+    if [ -n "$holder" ] && ps -p "$holder" -o command= 2>/dev/null | grep -q "nightly\.sh"; then
+        echo "nightly already running (pid $holder)" >&2
+        exit 1
+    fi
+    echo "removing stale lock (pid ${holder:-unknown} is gone)"
+    [ "$(readlink "$LOCK" 2>/dev/null)" = "$holder" ] && rm -f "$LOCK"
+    ln -s "$$" "$LOCK" 2>/dev/null || { echo "another run took the lock" >&2; exit 1; }
 fi
 WORKTREES=()
 cleanup() {
@@ -98,9 +109,24 @@ cleanup() {
         bash "$(tool "$wt" sim.sh)" --dir "$wt" clean >/dev/null 2>&1 || true
         git -C "$REPO" worktree remove --force "$wt" >/dev/null 2>&1 || true
     done
-    rmdir "$LOCK" 2>/dev/null || true
+    [ "$(readlink "$LOCK" 2>/dev/null)" = "$$" ] && rm -f "$LOCK"
 }
 trap cleanup EXIT
+# Stopped on purpose (kill, launchctl): stop the tests it started, then clean
+# up the worktrees and sims.
+stop() {
+    trap '' TERM INT
+    # Whole process group only when it's ours (launchd): from a shell
+    # without job control it would include the caller.
+    if [ "$(ps -o pgid= -p $$ | tr -d ' ')" = "$$" ]; then
+        pkill -TERM -g "$$" 2>/dev/null || true
+    else
+        pkill -TERM -P "$$" 2>/dev/null || true
+    fi
+    exit "$1"
+}
+trap 'stop 143' TERM
+trap 'stop 130' INT
 
 STAMP="$(date +%Y-%m-%d_%H%M)"
 RUN="$HOME_DIR/runs/$STAMP"
@@ -182,6 +208,12 @@ run_ios() {
 run_backend() {
     local slug="$1" wt="$2" out="$RUN/$slug"
     bash "$(tool "$wt" testenv.sh)" db 3 >/dev/null 2>&1 || { result "$slug" "Backend tests" fail "test databases didn't start"; return; }
+    # Branches with an older testenv.sh don't reset the monthly AI/image spend,
+    # which hits its cap after a few runs (budgetExhausted).
+    docker exec tempo-test-pg psql -U tempo -d tempo_test_3 -q -c "DO \$\$ BEGIN
+        IF to_regclass('exercise_image_monthly_spend') IS NOT NULL THEN TRUNCATE exercise_image_monthly_spend; END IF;
+        IF to_regclass('ai_monthly_spend') IS NOT NULL THEN TRUNCATE ai_monthly_spend; END IF;
+    END \$\$;" >/dev/null 2>&1 || true
     local started=$SECONDS
     (
         eval "$(bash "$(tool "$wt" testenv.sh)" test-env 3)"
@@ -227,6 +259,11 @@ run_scenarios() {
             crashed+=("$name")
         fi
     done
+    # Per-worktree servers: stop this run's one. (Older testenv.sh copies only
+    # have the shared server, whose `down` would stop everyone's.)
+    if grep -q "cmd_servers" "$tenv"; then
+        (cd "$wt" && bash "$tenv" down) >>"$out/testenv.log" 2>&1 || true
+    fi
     if [ ${#crashed[@]} -eq 0 ]; then
         result "$slug" "Scenarios" pass "${#ok[@]} launched: ${ok[*]}"
     else
@@ -234,7 +271,7 @@ run_scenarios() {
     fi
 }
 
-# main last, so the shared local test server is left running main's build.
+# main last.
 for ((t = ${#TARGETS[@]} - 1; t >= 0; t--)); do
     target="${TARGETS[$t]}"
     IFS='|' read -r slug ref title <<<"$target"

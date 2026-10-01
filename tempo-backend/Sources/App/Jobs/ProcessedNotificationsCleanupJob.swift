@@ -22,15 +22,19 @@ struct ProcessedNotificationsCleanupJob: AsyncScheduledJob {
     static let retentionDays: Int = 90
 
     func run(context: QueueContext) async throws {
-        let cutoff = Date().addingTimeInterval(-Double(Self.retentionDays) * 86_400)
+        try await purge(app: context.application, now: context.application.now)
+    }
+
+    func purge(app: Application, now: Date) async throws {
+        let cutoff = now.addingTimeInterval(-Double(Self.retentionDays) * 86_400)
 
         // .delete() returns Void; we don't get a row count back from
         // Fluent's bulk delete. Log the cutoff timestamp so audit-trail
         // reads make sense if we ever need to investigate.
-        try await ProcessedAppStoreNotification.query(on: context.application.db)
+        try await ProcessedAppStoreNotification.query(on: app.db)
             .filter(\.$receivedAt < cutoff)
             .delete()
-        context.logger.info(
+        app.logger.info(
             "[appstore_cleanup] purged processed_appstore_notifications older than \(cutoff)"
         )
     }

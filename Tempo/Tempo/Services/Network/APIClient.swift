@@ -46,11 +46,35 @@ actor APIClient {
         }
         self.authInterceptor = authInterceptor
 
-        decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        decoder = Self.makeDecoder()
 
         encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
+    }
+
+    // MARK: - Decoding (shared with APIContractTests so the contract check can't drift)
+
+    /// The decoder every response goes through: ISO-8601 dates, NO key strategy
+    /// (DTOs spell snake_case keys in their own CodingKeys).
+    static func makeDecoder() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
+    }
+
+    /// Decodes a 2xx body exactly as `executeWithRetry` does.
+    static func decodeBody<T: Decodable & Sendable>(_ data: Data, as _: T.Type, expectsEnvelope: Bool) throws -> T {
+        if T.self == EmptyResponse.self {
+            return EmptyResponse() as! T
+        }
+        do {
+            if expectsEnvelope {
+                return try makeDecoder().decode(APIEnvelope<T>.self, from: data).data
+            }
+            return try makeDecoder().decode(T.self, from: data)
+        } catch {
+            throw APIError.decodingFailed(error.localizedDescription)
+        }
     }
 
     // MARK: - Public API
@@ -161,19 +185,7 @@ actor APIClient {
 
             switch httpResponse.statusCode {
             case 200 ... 299:
-                if T.self == EmptyResponse.self {
-                    return EmptyResponse() as! T
-                }
-                do {
-                    if endpoint.expectsEnvelope {
-                        let envelope = try decoder.decode(APIEnvelope<T>.self, from: data)
-                        return envelope.data
-                    } else {
-                        return try decoder.decode(T.self, from: data)
-                    }
-                } catch {
-                    throw APIError.decodingFailed(error.localizedDescription)
-                }
+                return try Self.decodeBody(data, as: T.self, expectsEnvelope: endpoint.expectsEnvelope)
 
             case 304:
                 // Not Modified — caller should use cached data

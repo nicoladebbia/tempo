@@ -8,21 +8,39 @@ import Vapor
 // not production), so these routes don't exist on Railway. No JWT: the
 // simulator signs in here instead of through Sign in with Apple.
 //
-// POST   /v1/test/login     {name, simulator_udid?, pro?, ai_consent?, tos?, fresh?, display_name?}
+// GET    /v1/test           control page (browser) — TestModeControlPage
+// POST   /v1/test/login     {name, simulator_udid?, pro?, ai_consent?, tos?, fresh?, display_name?, timezone?}
 // GET    /v1/test/status
 // POST   /v1/test/ai        {mode, slow_seconds?}
 // GET    /v1/test/pushes    ?user_id= | ?name=
 // DELETE /v1/test/pushes    ?user_id= | ?name=
 // GET    /v1/test/ai-calls
+// GET    /v1/test/users     ?name=   test accounts (newest first)
+// GET    /v1/test/faults  · POST {path_prefix, kind, method?, status?, delay_seconds?, remaining?, user_id?} · DELETE (?id=)
+// POST   /v1/test/auth      {access_ttl_seconds}   (null/0 = the real 15 min)
+// POST   /v1/test/sign-out  ?name=                 revoke every session (refresh tokens) of a test user
+// GET/POST /v1/test/clock · POST /v1/test/jobs/run  — see TestModeController+Time
+// POST   /v1/test/subscription {name, state, days?} — see TestModeController+Subscription
+// POST   /v1/test/persona  {name, persona} · GET /v1/test/shared ?name= — see TestModeController+Persona
 
 struct TestModeController: RouteCollection {
     func boot(routes: RoutesBuilder) throws {
+        routes.get { _ in TestModeControlPage.response() }
         routes.post("login", use: login)
         routes.get("status", use: status)
         routes.post("ai", use: setAIMode)
         routes.get("pushes", use: pushes)
         routes.delete("pushes", use: clearPushes)
         routes.get("ai-calls", use: aiCalls)
+        routes.get("users", use: users)
+        routes.get("faults", use: listFaults)
+        routes.post("faults", use: addFault)
+        routes.delete("faults", use: clearFaults)
+        routes.post("auth", use: setAuth)
+        routes.post("sign-out", use: signOut)
+        bootTime(routes: routes)
+        bootSubscription(routes: routes)
+        bootPersona(routes: routes)
     }
 
     // MARK: - Login
@@ -36,6 +54,9 @@ struct TestModeController: RouteCollection {
         /// Retire the existing test user and start a brand-new account.
         var fresh: Bool?
         var displayName: String?
+        /// IANA zone for the user's local-time logic (morning briefing). The
+        /// server runs on the same Mac as the simulator, so it defaults to its zone.
+        var timezone: String?
     }
 
     struct LoginResponse: Content {
@@ -88,6 +109,11 @@ struct TestModeController: RouteCollection {
         if let displayName = body.displayName {
             user.displayName = displayName
         }
+        let zone = body.timezone ?? TimeZone.current.identifier
+        guard TimeZone(identifier: zone) != nil else {
+            throw Abort(.badRequest, reason: "Unknown timezone '\(zone)'.")
+        }
+        user.timezone = zone
         user.tosAcceptedAt = body.tos == false ? nil : (user.tosAcceptedAt ?? Date())
         user.aiConsentAt = body.aiConsent == false ? nil : (user.aiConsentAt ?? Date())
         try await user.save(on: req.db)
@@ -112,22 +138,22 @@ struct TestModeController: RouteCollection {
     static func setPro(_ pro: Bool, userID: String, on req: Request) async throws {
         let subs = try await UserSubscription.query(on: req.db).filter(\.$user.$id == userID).all()
         if pro {
-            if subs.contains(where: { $0.isActive && $0.expirationDate > Date() }) {
+            if subs.contains(where: { $0.isActive && $0.expirationDate > req.now }) {
                 return
             }
             let sub = UserSubscription(
                 userID: userID,
                 productId: "tempo_pro_monthly",
                 originalTransactionId: "test_\(UUID().uuidString.prefix(12))",
-                purchaseDate: Date().addingTimeInterval(-86400),
-                expirationDate: Date().addingTimeInterval(365 * 86400),
+                purchaseDate: req.now.addingTimeInterval(-86400),
+                expirationDate: req.now.addingTimeInterval(365 * 86400),
                 environment: "sandbox"
             )
             try await sub.save(on: req.db)
         } else {
             for sub in subs where sub.isActive {
                 sub.isActive = false
-                sub.expirationDate = Date().addingTimeInterval(-60)
+                sub.expirationDate = req.now.addingTimeInterval(-60)
                 try await sub.save(on: req.db)
             }
         }
@@ -142,6 +168,13 @@ struct TestModeController: RouteCollection {
         let realAIAvailable: Bool
         let pushes: Int
         let aiCalls: Int
+        let recordingAI: Bool
+        /// Feature → number of recorded real replies (AI mode replay).
+        let aiRecordings: [String: Int]
+        let now: Date
+        let clockOffsetSeconds: Double
+        let faults: Int
+        let accessTtlSeconds: Double
     }
 
     func status(_ req: Request) async throws -> StatusResponse {
@@ -152,7 +185,13 @@ struct TestModeController: RouteCollection {
             slowSeconds: state.slowSeconds,
             realAIAvailable: TestModeClient.hasRealAnthropicKey,
             pushes: state.pushes(for: nil).count,
-            aiCalls: state.aiCalls.count
+            aiCalls: state.aiCalls.count,
+            recordingAI: state.recordAI,
+            aiRecordings: state.recordings.counts(),
+            now: req.now,
+            clockOffsetSeconds: state.clockOffset,
+            faults: state.faults.all.count,
+            accessTtlSeconds: state.accessTokenTTL ?? JWTService.accessTokenTTL
         )
     }
 
@@ -194,18 +233,97 @@ struct TestModeController: RouteCollection {
 
     // MARK: - Helpers
 
-    private static func state(_ req: Request) throws -> TestModeState {
+    static func state(_ req: Request) throws -> TestModeState {
         guard let state = req.application.testMode else { throw Abort(.notFound) }
         return state
     }
 
     /// `?user_id=` wins; `?name=` maps a test login name to its user id.
-    private static func userFilter(_ req: Request) async throws -> String? {
+    static func userFilter(_ req: Request) async throws -> String? {
         if let id = req.query[String.self, at: "user_id"] {
             return id
         }
         guard let name = req.query[String.self, at: "name"] else { return nil }
         let user = try await User.query(on: req.db).filter(\.$appleUserID == appleUserID(for: name)).first()
         return user?.id ?? "__none__"
+    }
+
+    // MARK: - Users
+
+    struct TestUser: Content {
+        let id: String
+        let name: String
+        let displayName: String
+        let pro: Bool
+        let createdAt: Date?
+        let simulatorUdid: String?
+    }
+
+    func users(_ req: Request) async throws -> [TestUser] {
+        var query = User.query(on: req.db).filter(\.$appleUserID =~ "test:")
+        if let name = req.query[String.self, at: "name"] {
+            query = User.query(on: req.db).filter(\.$appleUserID == Self.appleUserID(for: name))
+        }
+        let rows = try await query.sort(\.$createdAt, .descending).limit(200).all()
+        let state = try Self.state(req)
+        var out: [TestUser] = []
+        for user in rows {
+            let id = try user.requireID()
+            let name = String(user.appleUserID.dropFirst("test:".count))
+            guard !name.contains(":retired:") else { continue }
+            let subs = try await UserSubscription.query(on: req.db).filter(\.$user.$id == id).all()
+            out.append(TestUser(
+                id: id,
+                name: name,
+                displayName: user.displayName,
+                pro: subs.contains { $0.isActive && $0.expirationDate > req.now },
+                createdAt: user.createdAt,
+                simulatorUdid: state.simulator(for: id)
+            ))
+        }
+        return out
+    }
+
+    // MARK: - Faults + auth
+
+    func listFaults(_ req: Request) async throws -> [FaultRule] {
+        try Self.state(req).faults.all
+    }
+
+    func addFault(_ req: Request) async throws -> FaultRule {
+        let rule = try req.content.decode(FaultRule.self)
+        guard rule.pathPrefix.hasPrefix("/"), !rule.pathPrefix.hasPrefix("/v1/test") else {
+            throw Abort(.badRequest, reason: "path_prefix must start with / and not be /v1/test.")
+        }
+        return try Self.state(req).faults.add(rule)
+    }
+
+    func clearFaults(_ req: Request) async throws -> HTTPStatus {
+        let faults = try Self.state(req).faults
+        if let id = req.query[UUID.self, at: "id"] {
+            faults.remove(id: id)
+        } else {
+            faults.clear()
+        }
+        return .noContent
+    }
+
+    struct AuthRequest: Content {
+        var accessTtlSeconds: Double?
+    }
+
+    func setAuth(_ req: Request) async throws -> AuthRequest {
+        let body = try req.content.decode(AuthRequest.self)
+        let ttl = body.accessTtlSeconds.flatMap { $0 > 0 ? max(5, $0) : nil }
+        try Self.state(req).accessTokenTTL = ttl
+        return AuthRequest(accessTtlSeconds: ttl ?? JWTService.accessTokenTTL)
+    }
+
+    func signOut(_ req: Request) async throws -> HTTPStatus {
+        guard let id = try await Self.userFilter(req), id != "__none__" else {
+            throw Abort(.notFound, reason: "No such test user.")
+        }
+        try await JWTService.revokeAllTokens(userID: id, on: req.db)
+        return .noContent
     }
 }

@@ -59,6 +59,7 @@ enum TestMode {
         if let raw = Environment.get("TEMPO_TEST_AI"), let mode = AIMode(rawValue: raw) {
             state.aiMode = mode
         }
+        state.recordAI = Environment.get("TEMPO_TEST_AI_RECORD") == "1"
         app.testMode = state
 
         let real = app.client
@@ -66,7 +67,9 @@ enum TestMode {
             TestModeClient(eventLoop: app.eventLoopGroup.next(), state: state, real: real, logger: app.logger)
         }
 
-        try app.grouped("v1", "test").register(collection: TestModeController())
+        app.middleware.use(TestModeFaultMiddleware(faults: state.faults))
+        try app.grouped("v1", "test").grouped(TestModeSameOriginMiddleware())
+            .register(collection: TestModeController())
         app.logger.warning("TEST MODE ON — fake outside services, /v1/test routes, pushes captured (AI: \(state.aiMode.rawValue))")
     }
 }
@@ -86,6 +89,8 @@ enum AIMode: String, Codable, Sendable, CaseIterable {
     case error
     /// Pass through to the real Claude API (needs a real ANTHROPIC_API_KEY).
     case real
+    /// The newest recorded real reply per feature (see AIRecordings); fake if none.
+    case replay
 }
 
 // MARK: - State
@@ -109,6 +114,11 @@ struct AICallRecord: Content, Sendable {
 
 final class TestModeState: @unchecked Sendable {
     private let lock = NIOLock()
+    let faults = FaultStore()
+    private var _accessTokenTTL: TimeInterval?
+    private var _clockOffset: TimeInterval = 0
+    private var _recordAI = false
+    private var _recordings = AIRecordings(directory: AIRecordings.defaultDirectory())
     private var _aiMode: AIMode = .fake
     private var _slowSeconds: Double = 8
     private var _pushes: [CapturedPush] = []
@@ -118,6 +128,29 @@ final class TestModeState: @unchecked Sendable {
     var aiMode: AIMode {
         get { lock.withLock { _aiMode } }
         set { lock.withLock { _aiMode = newValue } }
+    }
+
+    /// Shorter access tokens, to exercise silent re-login (nil = the real 15 min).
+    var accessTokenTTL: TimeInterval? {
+        get { lock.withLock { _accessTokenTTL } }
+        set { lock.withLock { _accessTokenTTL = newValue } }
+    }
+
+    /// Time travel: added to the real time wherever the server asks `app.now`.
+    var clockOffset: TimeInterval {
+        get { lock.withLock { _clockOffset } }
+        set { lock.withLock { _clockOffset = newValue } }
+    }
+
+    /// Save real Claude replies (`up --real-ai --record`).
+    var recordAI: Bool {
+        get { lock.withLock { _recordAI } }
+        set { lock.withLock { _recordAI = newValue } }
+    }
+
+    var recordings: AIRecordings {
+        get { lock.withLock { _recordings } }
+        set { lock.withLock { _recordings = newValue } }
     }
 
     var slowSeconds: Double {
@@ -179,5 +212,27 @@ extension Application {
     var testMode: TestModeState? {
         get { storage[TestModeKey.self] }
         set { storage[TestModeKey.self] = newValue }
+    }
+}
+
+// MARK: - Same-origin guard
+
+/// CORS allows every origin, so without this any web page open in the
+/// developer's browser could drive /v1/test (log in as anyone, add faults).
+/// Requests with no Origin (testctl, curl, the app) and the control page's
+/// own same-origin calls pass; everything else is 403.
+struct TestModeSameOriginMiddleware: AsyncMiddleware {
+    func respond(to request: Request, chainingTo next: AsyncResponder) async throws -> Response {
+        if let origin = request.headers.first(name: .origin) {
+            let host = request.headers.first(name: .host) ?? ""
+            let allowed = URL(string: origin).map { url in
+                let port = url.port.map { ":\($0)" } ?? ""
+                return "\(url.host ?? "")\(port)" == host
+            } ?? false
+            guard allowed else {
+                throw Abort(.forbidden, reason: "Test routes only accept same-origin requests.")
+            }
+        }
+        return try await next.respond(to: request)
     }
 }
