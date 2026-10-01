@@ -121,12 +121,11 @@ struct GroceryDoneShoppingView: View {
         let confirmations: [NutritionTabViewModel.GroceryBoughtConfirmation] = rows
             .filter(\.include)
             .compactMap { row in
-                // Countable units can't take a fractional quantity (BUILD
-                // item 1d) — route the typed amount through the same
-                // whole-unit rounding used everywhere else in the flow.
+                // The pantry tracks part-used containers ("0.5 pack"), so
+                // keep what the user typed. List amounts are already whole.
                 let typed = Double(row.quantityText.replacingOccurrences(of: ",", with: ".")) ?? row.item.quantity
-                let quantity = row.unit.wholeUnitQuantity(max(0, typed))
-                guard quantity > 0 else {
+                let quantity = max(0, typed)
+                guard quantity > 0, quantity.isFinite else {
                     return nil
                 }
                 let price = Double(row.priceText.replacingOccurrences(of: ",", with: "."))

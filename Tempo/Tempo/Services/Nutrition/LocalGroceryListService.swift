@@ -95,6 +95,7 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
         }
         list.sourceMealPlanID = mealPlan.id
         list.generatedAt = now()
+        list.dismissedFoods = nil
         pruneOldLists(referenceDate: weekStartDate, keeping: list.id)
 
         var items = list.items ?? []
@@ -259,6 +260,13 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
 
     func deleteItem(_ item: GroceryListItem) throws {
         removeReminder(for: item)
+        // Remember a deleted plan row so a pantry sync doesn't bring it back.
+        if !item.isManual, !item.isBought, let list = item.list {
+            let food = item.canonicalFoodName.lowercased()
+            if !(list.dismissedFoods ?? []).contains(food) {
+                list.dismissedFoods = (list.dismissedFoods ?? []) + [food]
+            }
+        }
         modelContext.delete(item)
         try modelContext.save()
     }
@@ -298,8 +306,8 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
     /// matter how often it syncs, and a pantry change that grows the need
     /// grows the row back.
     ///
-    /// Touches only un-ticked, un-bought plan rows. User-typed manual items
-    /// are left alone; pantry-restock rows ("out of rice") are dropped once
+    /// Touches only un-ticked, un-bought plan rows, and re-adds a food whose
+    /// need came back. User-typed manual items are left alone; pantry-restock rows ("out of rice") are dropped once
     /// that food is back in stock. Removed rows lose their Reminders entry.
     /// Returns the number of rows removed.
     @discardableResult
@@ -313,7 +321,9 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
         if let planID = list.sourceMealPlanID {
             var descriptor = FetchDescriptor<WeeklyMealPlan>(predicate: #Predicate { $0.id == planID })
             descriptor.fetchLimit = 1
-            if let plan = try modelContext.fetch(descriptor).first {
+            // An archived (replaced) plan's meals aren't the shopping need
+            // any more — leave its rows as generated.
+            if let plan = try modelContext.fetch(descriptor).first, plan.isActive {
                 let entries = GroceryListGenerator.generate(from: .init(
                     mealPlan: plan, pantry: pantryItems, weekStartDate: list.weekStartDate, onOrAfter: now()
                 ))
@@ -342,6 +352,28 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
             } else {
                 removeItem(item, from: &remaining)
                 removed += 1
+            }
+        }
+        // A pantry drop (used up, emptied, archived) can bring a need back
+        // that an earlier sync removed — add those rows again, the same way
+        // `generate` creates them. Anything still on the list (ticked, typed
+        // by the user) already covers its food.
+        if let net {
+            let onList = Set(remaining.filter { !$0.isBought }.map { $0.canonicalFoodName.lowercased() })
+                .union((list.dismissedFoods ?? []).map { $0.lowercased() })
+            for entry in net.values.sorted(by: { $0.canonicalName < $1.canonicalName })
+                where !onList.contains(entry.canonicalName.lowercased())
+            {
+                let item = GroceryListItem(
+                    list: list,
+                    canonicalFoodName: entry.canonicalName,
+                    displayName: entry.displayName,
+                    quantity: entry.quantity,
+                    unit: entry.unit,
+                    category: entry.category
+                )
+                modelContext.insert(item)
+                remaining.append(item)
             }
         }
         list.items = remaining

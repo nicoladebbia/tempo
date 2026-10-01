@@ -120,3 +120,20 @@ struct SupplementCertificationScannerTests {
         #expect(SupplementCertificationScanner.scan("all natural, gluten free").isEmpty)
     }
 }
+
+struct SupplementGramsParsingTests {
+    @Test func readsOnlyNumbersFollowedByAMassUnit() {
+        #expect(OFFProduct.parseGrams("30.4 g") == 30.4)
+        #expect(OFFProduct.parseGrams("2.27kg") == 2270)
+        #expect(OFFProduct.parseGrams("2 x 30 g") == 30)
+        #expect(OFFProduct.parseGrams("1 capsule (500 mg)") == 0.5)
+        #expect(OFFProduct.parseGrams("5 lbs")! > 2267 && OFFProduct.parseGrams("5 lbs")! < 2268)
+    }
+
+    @Test func countsAndScoopsAreNotGrams() {
+        #expect(OFFProduct.parseGrams("2 gummies") == nil)
+        #expect(OFFProduct.parseGrams("1 scoop") == nil)
+        #expect(OFFProduct.parseGrams("60 tablets") == nil)
+        #expect(OFFProduct.parseGrams(nil) == nil)
+    }
+}

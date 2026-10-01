@@ -268,24 +268,30 @@ struct OFFProduct: Content {
         return (quantityGrams / servingGrams).rounded()
     }
 
-    private static func parseGrams(_ raw: String?) -> Double? {
+    /// Grams from a label amount. Only a number directly followed by a mass
+    /// unit counts ("60 g", "1.2kg", "2 x 30 g" → 30, "500 mg" → 0.5);
+    /// "2 gummies" or "1 scoop" give nil. The old check glued every digit
+    /// together and accepted any "g" in the text, so "2 gummies" read as 2 g
+    /// and "2 x 30 g" as 230 g.
+    static func parseGrams(_ raw: String?) -> Double? {
         guard let raw else { return nil }
         let lower = raw.lowercased()
-        let numberString = lower.filter { $0.isNumber || $0 == "." }
-        guard let value = Double(numberString) else { return nil }
-        if lower.contains("kg") {
-            return value * 1000
+        let pattern = #"(?<![\w.])(\d+(?:[.,]\d+)?)\s*(kg|mg|grams?|gr|g|lbs?|oz)(?![a-z])"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: lower, range: NSRange(lower.startIndex..., in: lower)),
+              let numberRange = Range(match.range(at: 1), in: lower),
+              let unitRange = Range(match.range(at: 2), in: lower),
+              let value = Double(lower[numberRange].replacingOccurrences(of: ",", with: "."))
+        else {
+            return nil
         }
-        if lower.contains("lb") {
-            return value * 453.592
+        switch lower[unitRange] {
+        case "kg": return value * 1000
+        case "mg": return value / 1000
+        case "lb", "lbs": return value * 453.592
+        case "oz": return value * 28.3495
+        default: return value
         }
-        if lower.contains("oz") {
-            return value * 28.3495
-        }
-        if lower.contains("g") {
-            return value
-        }
-        return nil
     }
 }
 

@@ -150,6 +150,57 @@ final class GroceryRound1Tests: XCTestCase {
         XCTAssertEqual(salmon.quantity, original, "Pantry change in the other direction grows the row back")
     }
 
+    func testRowRemovedByStockComesBackWhenPantryIsEmptied() throws {
+        let p = plan()
+        meal(in: p, number: 1, [("Oats", 500), ("Salmon", 340)])
+        let list = try grocery.generate(from: p, pantry: pantry, weekStartDate: today())
+        XCTAssertTrue(list.items?.contains { $0.canonicalFoodName == "oats" } == true)
+        try addPantry("Oats", 1000, .grams)
+        XCTAssertEqual(try grocery.reapplyPantry(pantry), 1, "Fully covered → removed")
+        XCTAssertFalse(list.items?.contains { $0.canonicalFoodName == "oats" } == true)
+
+        try pantry.archive(try XCTUnwrap(pantry.find(canonicalName: "oats")))
+        try grocery.reapplyPantry(pantry)
+        XCTAssertEqual(list.items?.filter { $0.canonicalFoodName == "oats" }.count, 1, "Need is back → row is back, once")
+        try grocery.reapplyPantry(pantry)
+        XCTAssertEqual(list.items?.filter { $0.canonicalFoodName == "oats" }.count, 1, "Re-sync never duplicates it")
+    }
+
+    func testDeletedRowStaysDeletedAcrossPantrySyncs() throws {
+        let p = plan()
+        meal(in: p, number: 1, [("Oats", 500), ("Salmon", 340)])
+        let list = try grocery.generate(from: p, pantry: pantry, weekStartDate: today())
+        try grocery.deleteItem(try XCTUnwrap(list.items?.first { $0.canonicalFoodName == "salmon" }))
+        try addPantry("Oats", 100, .grams)
+        try grocery.reapplyPantry(pantry)
+        XCTAssertFalse(list.items?.contains { $0.canonicalFoodName == "salmon" } == true, "User removed it — stays removed")
+        // A fresh Generate starts over.
+        _ = try grocery.generate(from: p, pantry: pantry, weekStartDate: today())
+        XCTAssertTrue(list.items?.contains { $0.canonicalFoodName == "salmon" } == true)
+    }
+
+    func testReplacedPlanNeverAddsRows() throws {
+        let p = plan()
+        meal(in: p, number: 1, [("Oats", 500), ("Salmon", 340)])
+        try addPantry("Oats", 1000, .grams)
+        let list = try grocery.generate(from: p, pantry: pantry, weekStartDate: today())
+        XCTAssertFalse(list.items?.contains { $0.canonicalFoodName == "oats" } == true)
+        p.isActive = false
+        try pantry.archive(try XCTUnwrap(pantry.find(canonicalName: "oats")))
+        try grocery.reapplyPantry(pantry)
+        XCTAssertFalse(list.items?.contains { $0.canonicalFoodName == "oats" } == true)
+    }
+
+    func testCapitalisedPantryNameStillNets() throws {
+        let p = plan()
+        meal(in: p, number: 1, [("Oats", 500)])
+        let row = PantryItem(canonicalName: "Oats", displayName: "Oats", quantity: 1000, unit: .grams, storageLocation: .pantry)
+        let entries = GroceryListGenerator.generate(from: .init(
+            mealPlan: p, pantry: [row], weekStartDate: today(), onOrAfter: today()
+        ))
+        XCTAssertFalse(entries.contains { $0.canonicalName == "oats" && $0.quantity > 0 })
+    }
+
     // MARK: - 3. Only still-planned meals from today
 
     func testGeneratorSkipsEatenSkippedAndPastMeals() {

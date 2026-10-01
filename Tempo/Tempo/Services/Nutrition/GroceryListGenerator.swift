@@ -105,7 +105,11 @@ enum GroceryListGenerator {
         // naturalPortions entry, gramsApprox returns nil → skip it
         // (under-dedup is the safe failure: leave it on the list).
         for pantryItem in input.pantry where !pantryItem.isArchived {
-            let canonical = pantryItem.canonicalName
+            // Plan keys are canonical (lower-case); a pantry row typed or
+            // imported with capitals ("Rice") must still net against them.
+            let canonical = aggregated[pantryItem.canonicalName] != nil
+                ? pantryItem.canonicalName
+                : pantryItem.canonicalName.lowercased()
             guard var entry = aggregated[canonical] else {
                 continue
             }

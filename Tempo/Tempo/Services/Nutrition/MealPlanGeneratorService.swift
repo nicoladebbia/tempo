@@ -849,13 +849,14 @@ final class MealPlanGeneratorService: @unchecked Sendable {
                 return lhs.canonicalName < rhs.canonicalName
             }
             .map { item in
-                let qty: String
-                if item.quantity == item.quantity.rounded() {
-                    qty = "\(Int(item.quantity))"
-                } else {
-                    qty = String(format: "%.1f", item.quantity)
-                }
-                return "\(item.canonicalName) — \(qty) \(item.unit.displayName) [\(item.storageLocation.displayName)]"
+                // Same wording as the Pantry row ("0.8 pack (~400 g)") so the
+                // AI knows how much a partly used container really holds.
+                let qty = PantryQuantityFormatter.text(
+                    quantity: item.quantity,
+                    unit: item.unit,
+                    canonicalName: item.canonicalName
+                )
+                return "\(item.canonicalName) — \(qty) [\(item.storageLocation.displayName)]"
             }
     }
 

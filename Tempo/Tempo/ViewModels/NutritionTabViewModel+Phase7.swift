@@ -281,6 +281,8 @@ extension NutritionTabViewModel {
             pantryState.loadError = "Couldn't empty the pantry: \(error.localizedDescription)"
         }
         reloadPantry()
+        // Nothing on hand any more — the grocery list needs the full amounts.
+        reapplyPantryToGrocery()
         return removed
     }
 

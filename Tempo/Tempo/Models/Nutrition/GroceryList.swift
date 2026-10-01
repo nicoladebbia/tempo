@@ -32,6 +32,11 @@ final class GroceryList {
     @Relationship(deleteRule: .cascade, inverse: \GroceryListItem.list)
     var items: [GroceryListItem]?
 
+    /// Plan foods the user deleted from this list. A pantry sync never adds
+    /// them back; a fresh Generate starts over. Optional for lightweight
+    /// migration.
+    var dismissedFoods: [String]?
+
     @Transient
     var orderedItems: [GroceryListItem] {
         (items ?? []).sorted {

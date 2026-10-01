@@ -1149,7 +1149,9 @@ final class NutritionTabViewModel {
                 item.isArchived == false && item.quantity > 0
             }
         )
+        // Leftover "dust" from fractional containers isn't real stock.
         let pantryNames: Set<String> = ((try? modelContext.fetch(descriptor)) ?? [])
+            .filter(\.isInStock)
             .map(\.canonicalName)
             .reduce(into: Set<String>()) { acc, name in
                 acc.insert(name.lowercased())
