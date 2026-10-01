@@ -51,6 +51,10 @@ final class TempoNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
             await syncPlans()
         case ("MEAL_REMINDER", "DELAY_30MIN"):
             await snooze(title: title, body: body, category: category, minutes: 30)
+        case ("OVERDUE_MEAL_REMINDER", NotificationService.overdueAteActionID):
+            await resolveOverdueMeal(content.userInfo[NotificationService.mealIDUserInfoKey] as? String, ate: true)
+        case ("OVERDUE_MEAL_REMINDER", NotificationService.overdueSkippedActionID):
+            await resolveOverdueMeal(content.userInfo[NotificationService.mealIDUserInfoKey] as? String, ate: false)
         case ("MEAL_REMINDER", _),
              ("OVERDUE_MEAL_REMINDER", _):
             await open(.nutrition)
@@ -139,6 +143,51 @@ final class TempoNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
     /// taken for today. Same decrement path (`SupplementReorderService.
     /// applyTaken`) an in-app tap uses. Takes the already-extracted, Sendable
     /// `[String]` rather than the raw (non-Sendable) notification `userInfo`.
+    /// "Ate it" / "Skipped" on an overdue-meal check-in — the same
+    /// `MealOutcomeService` path as Mark Eaten / Skip in Nutrition (pantry,
+    /// shift, rebalance, reminders, Dashboard).
+    @MainActor
+    private func resolveOverdueMeal(_ id: String?, ate: Bool) async {
+        guard let container = Self.modelContainer else {
+            return
+        }
+        let env = MealOutcomeService.Env.live(
+            modelContext: container.mainContext,
+            notifications: Self.services?.notifications,
+            whoop: Self.services?.whoop
+        )
+        Self.resolveOverdueMeal(id: id, ate: ate, env: env)
+    }
+
+    /// A meal already resolved (eaten in the app meanwhile, or removed by a
+    /// rebuild) is left alone. Returns true when the meal changed.
+    @MainActor
+    @discardableResult
+    static func resolveOverdueMeal(id: String?, ate: Bool, env: MealOutcomeService.Env) -> Bool {
+        guard let id, let uuid = UUID(uuidString: id) else {
+            return false
+        }
+        var descriptor = FetchDescriptor<PlannedMeal>(predicate: #Predicate<PlannedMeal> { $0.id == uuid })
+        descriptor.fetchLimit = 1
+        guard let meal = try? env.modelContext.fetch(descriptor).first,
+              meal.status == .planned || meal.status == .modified
+        else {
+            return false
+        }
+        do {
+            if ate {
+                try MealOutcomeService.markEaten(meal, env: env)
+            } else {
+                try MealOutcomeService.skip(meal, env: env)
+            }
+            return true
+        } catch {
+            Logger(subsystem: "app.tempo", category: "NotificationDelegate")
+                .error("Overdue meal action failed: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
     @MainActor
     private func markSupplementsTaken(names: [String], ids: [String]) async {
         guard let container = Self.modelContainer, !names.isEmpty else {

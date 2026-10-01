@@ -114,6 +114,15 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
                     UNNotificationAction(identifier: "DELAY_30MIN", title: "Delay 30min"),
                 ]
             ),
+            // Overdue meal check-in: answer without opening the app. Both go
+            // through MealOutcomeService, like Mark Eaten / Skip on Today.
+            makeCategory(
+                id: "OVERDUE_MEAL_REMINDER",
+                actions: [
+                    UNNotificationAction(identifier: Self.overdueAteActionID, title: "Ate it"),
+                    UNNotificationAction(identifier: Self.overdueSkippedActionID, title: "Skipped"),
+                ]
+            ),
             // Training Reminder
             makeCategory(
                 id: "TRAINING_REMINDER",
@@ -420,9 +429,15 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
             priority: 3,
             // Discrete check-in tied to a specific meal; exempt from the
             // generic-notification budget for the same reason as prep-start.
-            bypassBudget: true
+            bypassBudget: true,
+            // "Ate it" / "Skipped" act on this meal (TempoNotificationDelegate).
+            userInfo: [Self.mealIDUserInfoKey: mealID.uuidString]
         )
     }
+
+    static let mealIDUserInfoKey = "mealID"
+    static let overdueAteActionID = "MEAL_ATE"
+    static let overdueSkippedActionID = "MEAL_SKIPPED"
 
     func cancelOverdueMealReminder(forMealID mealID: UUID) {
         center.removePendingNotificationRequests(
@@ -896,7 +911,8 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         interruptionLevel: UNNotificationInterruptionLevel,
         budgetCost: Double,
         priority: Int,
-        bypassBudget: Bool = false
+        bypassBudget: Bool = false,
+        userInfo: [String: String] = [:]
     ) {
         // Budget check — bypassable for time-critical, discrete-event notifications
         // (e.g. defrost reminders) whose suppression would cause real-world harm.
@@ -943,6 +959,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
             content.threadIdentifier = threadID
             content.interruptionLevel = interruptionLevel
             content.sound = sound(for: categoryID)
+            content.userInfo = userInfo
 
             let components = Calendar.current.dateComponents(
                 [.year, .month, .day, .hour, .minute, .second],

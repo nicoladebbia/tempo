@@ -245,7 +245,16 @@ struct NutritionWeeklyPlanView: View {
 
                         VStack(spacing: TempoSpacing.xs) {
                             ForEach(dayMeals, id: \.id) { meal in
-                                compactMealRow(meal)
+                                // Opens the same meal page as Today, so a
+                                // wrong log from an earlier day can be
+                                // deleted or undone too.
+                                NavigationLink {
+                                    MealDetailView(meal: meal)
+                                } label: {
+                                    compactMealRow(meal)
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
                             }
                         }
                         .padding(.top, TempoSpacing.sm)

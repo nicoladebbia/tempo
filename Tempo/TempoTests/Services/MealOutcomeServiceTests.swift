@@ -376,6 +376,25 @@ final class MealOutcomeServiceTests: XCTestCase {
         XCTAssertTrue(notifications.scheduledNotifications.isEmpty)
     }
 
+    func testOverdueNotificationButtonsUseTheSharedPath() throws {
+        let p = plan()
+        let lunch = slot("Lunch", number: 2, time: "12:00", in: p)
+        let dinner = slot("Dinner", number: 3, time: "19:00", in: p)
+        let notifications = MockNotificationService()
+        let live = MealOutcomeService.Env.live(modelContext: context, notifications: notifications, whoop: nil)
+
+        XCTAssertTrue(TempoNotificationDelegate.resolveOverdueMeal(id: lunch.id.uuidString, ate: true, env: live))
+        XCTAssertEqual(lunch.status, .eaten)
+        XCTAssertNotNil(lunch.actualEatenAt)
+        XCTAssertTrue(TempoNotificationDelegate.resolveOverdueMeal(id: dinner.id.uuidString, ate: false, env: live))
+        XCTAssertEqual(dinner.status, .skipped)
+
+        // Already answered in the app → the late button press changes nothing.
+        XCTAssertFalse(TempoNotificationDelegate.resolveOverdueMeal(id: lunch.id.uuidString, ate: false, env: live))
+        XCTAssertEqual(lunch.status, .eaten)
+        XCTAssertFalse(TempoNotificationDelegate.resolveOverdueMeal(id: "not-a-uuid", ate: true, env: live))
+    }
+
     func testRebalanceUsesWhoopTDEEAndStoredRecoveryLikeTheTodayRing() throws {
         let whoop = MockWhoopService()
         let live = MealOutcomeService.Env.live(modelContext: context, notifications: nil, whoop: whoop)

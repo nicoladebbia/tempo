@@ -266,6 +266,7 @@ struct CoachToolDispatcherAdapter: CoachToolDispatcher {
                     row?.status = oldStatus
                     try? context.save()
                     scheduler.cancelMealNotification(mealID: mealID)
+                    NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
                 }
             )
             queuePendingOutcomeIfNeeded(
@@ -306,12 +307,24 @@ struct CoachToolDispatcherAdapter: CoachToolDispatcher {
                 outcomeEnv: outcomeEnv,
                 context: context
             )
+            // Undo goes through the same path as Undo on Today: back to
+            // planned, reminders restored, Dashboard refreshed.
+            let env = outcomeEnv?(context) ?? MealOutcomeService.Env(modelContext: context)
             undoEntry = CoachService.UndoEntry(
                 description: "Undo skip \(pre.mealName)",
                 reverseAction: { @MainActor in
-                    let row = try? CoachToolHelpers.plannedMeal(id: mealID, in: context)
-                    row?.status = oldStatus
-                    try? context.save()
+                    guard oldStatus != .skipped,
+                          let row = try? CoachToolHelpers.plannedMeal(id: mealID, in: context),
+                          row.status == .skipped
+                    else {
+                        return
+                    }
+                    _ = try? MealOutcomeService.undo(row, env: env)
+                    if oldStatus == .modified {
+                        // It had been moved by Coach before the skip.
+                        row.status = .modified
+                        try? context.save()
+                    }
                 }
             )
             queuePendingOutcomeIfNeeded(
