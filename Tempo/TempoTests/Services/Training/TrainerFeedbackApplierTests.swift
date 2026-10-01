@@ -261,6 +261,21 @@ final class TrainerFeedbackApplierTests: XCTestCase {
         XCTAssertNil(resolved[0].action)
     }
 
+    func testRefusedDeltaStillAppliesTheRestOfTheEdit() {
+        let week = fixtureWeek()
+        let resolved = TrainerFeedbackApplier.resolve(
+            edits: [edit(type: .updateExercise, exerciseName: "Squat", sets: 5, weightDeltaKg: 5)],
+            weeks: [week], weekIndex: 0
+        )
+        XCTAssertEqual(resolved.count, 2)
+        XCTAssertTrue(resolved[0].matched)
+        XCTAssertEqual(resolved[0].summary, "Squat: 3 sets → 5 sets")
+        XCTAssertFalse(resolved[1].matched)
+        let result = TrainerFeedbackApplier.apply(resolved, acceptedIDs: Set(resolved.map(\.id)), to: [week])
+        XCTAssertEqual(result[0].days[1].exercises[0].sets, 5)
+        XCTAssertNil(result[0].days[1].exercises[0].weightKg)
+    }
+
     func testAbsoluteWeightOnALiftWithNoFixedWeightStillApplies() {
         let resolved = TrainerFeedbackApplier.resolve(
             edits: [edit(type: .updateExercise, exerciseName: "Squat", weightKg: 100)],

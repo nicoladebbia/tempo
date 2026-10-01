@@ -78,7 +78,7 @@ enum TrainerProgramHistoryStats {
         var cursor = start
         while cursor <= end {
             for session in program.sessions(on: cursor) {
-                if cursor == startOfToday {
+                if TrainerReportBuilder.isStillPending(scheduledDate: cursor, now: today) {
                     let key = program.sessionKey(weekIndex: session.weekIndex, dayIndex: session.dayIndex)
                     guard doneSlots.contains(where: { $0.key == key && $0.date == cursor }) else {
                         continue

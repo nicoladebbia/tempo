@@ -119,6 +119,14 @@ enum TrainerReportBuilder {
         }
     }
 
+    /// A not-yet-done session scheduled today (or later) is neither missed nor
+    /// part of the denominator yet. Shared by the report and the compliance
+    /// stats so both agree.
+    nonisolated static func isStillPending(scheduledDate: Date, now: Date) -> Bool {
+        let cal = Calendar.current
+        return cal.startOfDay(for: scheduledDate) >= cal.startOfDay(for: now)
+    }
+
     // MARK: Language detection
 
     /// Italian if the program's own source text reads Italian, else the
@@ -152,7 +160,7 @@ enum TrainerReportBuilder {
 
     // MARK: Build
 
-    nonisolated static func build(input: TrainerReportInput, language: TrainerReportLanguage) -> TrainerReportDocument {
+    nonisolated static func build(input: TrainerReportInput, language: TrainerReportLanguage, now: Date = Date()) -> TrainerReportDocument {
         let strings = TrainerReportStrings.forLanguage(language)
         let program = input.program
         let cal = Calendar.current
@@ -193,7 +201,7 @@ enum TrainerReportBuilder {
             return document(rows: rows, input: input, strings: strings, language: language)
         }
 
-        let rows = scheduled.map { item -> TrainerReportSessionRow in
+        let rows = scheduled.compactMap { item -> TrainerReportSessionRow? in
             // Only plans with REAL logged work count: opening a day saves a
             // plan, which is not the same as training it.
             let candidates = (plansByKey[item.sessionKey] ?? []).filter { didRealWork($0, sessionKey: item.sessionKey) }
@@ -211,6 +219,11 @@ enum TrainerReportBuilder {
                 exactMatch != nil ? .done : .moved(to: plan.date)
             } else {
                 .missed
+            }
+
+            // Today's session isn't "missed" until the day is over.
+            if status == .missed, isStillPending(scheduledDate: item.date, now: now) {
+                return nil
             }
 
             return buildRow(

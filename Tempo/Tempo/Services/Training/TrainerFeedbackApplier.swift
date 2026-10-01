@@ -253,27 +253,32 @@ enum TrainerFeedbackApplier {
             return [unmatched(raw, reason: "Couldn't find \"\(rawName)\" this week.")]
         }
 
-        return matches.map { dayIndex, exerciseIndex in
+        return matches.flatMap { dayIndex, exerciseIndex -> [ResolvedTrainerFeedbackEdit] in
             let day = week.days[dayIndex]
             let exercise = day.exercises[exerciseIndex]
             switch raw.type {
             case .removeExercise:
-                return ResolvedTrainerFeedbackEdit(
+                return [ResolvedTrainerFeedbackEdit(
                     summary: "\(exercise.name): removed",
                     action: .removeExercise(weekIndex: weekIndex, dayIndex: dayIndex, exerciseID: exercise.id)
-                )
+                )]
             default:
                 let (changes, diffs, refusal) = fieldChanges(raw, for: exercise)
+                var results: [ResolvedTrainerFeedbackEdit] = []
+                // The rest of the edit still applies; only a refused part
+                // (e.g. a "+5 kg" with no fixed weight) is listed as unmatched.
+                if !diffs.isEmpty {
+                    results.append(ResolvedTrainerFeedbackEdit(
+                        summary: "\(exercise.name): \(diffs.joined(separator: ", "))",
+                        action: .replaceExercise(weekIndex: weekIndex, dayIndex: dayIndex, exerciseID: exercise.id, changes: changes)
+                    ))
+                }
                 if let refusal {
-                    return unmatched(raw, reason: refusal)
+                    results.append(unmatched(raw, reason: refusal))
+                } else if diffs.isEmpty {
+                    results.append(unmatched(raw, reason: "Nothing to change on \"\(exercise.name)\"."))
                 }
-                guard !diffs.isEmpty else {
-                    return unmatched(raw, reason: "Nothing to change on \"\(exercise.name)\".")
-                }
-                return ResolvedTrainerFeedbackEdit(
-                    summary: "\(exercise.name): \(diffs.joined(separator: ", "))",
-                    action: .replaceExercise(weekIndex: weekIndex, dayIndex: dayIndex, exerciseID: exercise.id, changes: changes)
-                )
+                return results
             }
         }
     }

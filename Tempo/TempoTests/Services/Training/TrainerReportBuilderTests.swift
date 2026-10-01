@@ -213,6 +213,18 @@ final class TrainerReportBuilderTests: XCTestCase {
         XCTAssertEqual(document.summary.doneCount, 0)
     }
 
+    /// Today's not-yet-done session is neither missed nor in the denominator.
+    func testTodaysUndoneSessionIsNotMissed() throws {
+        let program = makeProgram()
+        let inScope = input(program: program, plans: [])
+        let beforeDay = TrainerReportBuilder.build(input: inScope, language: .english, now: monday)
+        XCTAssertTrue(beforeDay.sessions.isEmpty)
+        XCTAssertEqual(beforeDay.summary.scheduledCount, 0)
+        let nextDay = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: 1, to: monday))
+        let afterDay = TrainerReportBuilder.build(input: inScope, language: .english, now: nextDay)
+        XCTAssertEqual(afterDay.sessions.first?.status, .missed)
+    }
+
     /// A two-a-day (lift + conditioning) shares ONE `WorkoutPlan` between its
     /// main and secondary sessions — the secondary row must NOT pair its
     /// prescription against the main lift's logged sets (see the comment in
