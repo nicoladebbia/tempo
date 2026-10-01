@@ -229,7 +229,9 @@ extension TrainingViewModel {
         guard let plan = todayPlan else {
             return false
         }
-        return plan.type.isGymWorkout && plan.status != .completed
+        // A skipped day (recovery floor, pain) isn't startable from the
+        // button — `trainAnyway` reopens it first, on purpose.
+        return plan.type.isGymWorkout && plan.status != .completed && plan.status != .skipped
     }
 
     var recoveryAdjustmentText: String? {

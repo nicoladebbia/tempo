@@ -890,8 +890,10 @@ final class TrainingViewModel {
             return false
         }
         // A finished day is not restartable — logging it again would
-        // double-count volume and history.
-        guard let plan = todayPlan, plan.status != .completed else {
+        // double-count volume and history. A skipped day must be reopened
+        // with `trainAnyway` first (the Dashboard button used to start it
+        // straight past the recovery block).
+        guard let plan = todayPlan, plan.status != .completed, plan.status != .skipped else {
             return false
         }
         // Sets already logged today (e.g. Start tapped from the Dashboard
@@ -1156,23 +1158,15 @@ final class TrainingViewModel {
 
     // MARK: - Discard Crashed Workout
 
+    /// Throwing away a crashed session is the same as discarding a live one:
+    /// logged sets/PRs roll back and the day stays OPEN TO REDO (.planned).
+    /// It used to mark the day .skipped, which locked the user out of the
+    /// workout they still wanted to do and counted it as a missed day.
     func discardCrashedWorkout(modelContext: ModelContext) {
         guard sessionState == .crashedRecovery else {
             return
         }
-        if let plan = todayPlan {
-            // Sets/PRs logged before the crash are thrown away with the
-            // session; otherwise they linger on a `.skipped` day and PRs stay
-            // in the record book.
-            rollBackLoggedWork(of: plan, modelContext: modelContext)
-            plan.status = .skipped
-            plan.pausedSeconds = 0
-            plan.pausedAt = nil
-        }
-        try? modelContext.save()
-        sessionState = .discarded
-        resetState()
-        NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
+        discardActiveWorkout(modelContext: modelContext)
     }
 
     // MARK: - Log Set
@@ -2264,6 +2258,30 @@ final class TrainingViewModel {
         #if DEBUG
             print("\(DebugTrace.prefix)[daily_coach] user kept planned workout → \(stashed)")
         #endif
+    }
+
+    /// The day was benched for the body (severe readiness or pain →
+    /// `.skipped` + `.floorForced`) and the athlete wants to train anyway.
+    /// Reopens the plan and marks today's coach session overridden so the
+    /// next readiness pass doesn't bench it again. A user skip is not
+    /// reopened here — that was their own call.
+    func trainAnyway(modelContext: ModelContext) {
+        guard let plan = todayPlan,
+              plan.status == .skipped,
+              plan.skipReason == .floorForced
+        else {
+            return
+        }
+        plan.status = .planned
+        plan.skipReason = nil
+        dailySession?.userOverrode = true
+        saveGuarded(modelContext, operation: "train anyway")
+        NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
+    }
+
+    /// Whether today is benched for recovery and can be reopened.
+    var isRecoveryBenched: Bool {
+        todayPlan?.status == .skipped && todayPlan?.skipReason == .floorForced
     }
 
     /// §21 (b) — check off (or undo) the cardio SECOND session of a gym+cardio

@@ -416,6 +416,12 @@ struct TodayWorkoutView: View {
                     .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
             }
 
+            // Benched for recovery/pain: no Start button — an explicit,
+            // deliberate way back in instead.
+            if viewModel.isRecoveryBenched {
+                benchedCard
+            }
+
             // Workout meta bar
             // Per MODULE_TRAINING.md Section 2.6
             workoutMeta(plan: plan)
@@ -482,6 +488,37 @@ struct TodayWorkoutView: View {
             }
         }
         .padding(.top, TempoSpacing.md)
+    }
+
+    // MARK: - Benched (recovery floor / pain)
+
+    private var benchedCard: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            HStack(spacing: TempoSpacing.sm) {
+                Image(systemName: "bed.double.fill")
+                    .foregroundStyle(Color.tempoRecoveryRed)
+                Text("BENCHED TODAY")
+                    .font(.tempoHeadline)
+                    .foregroundStyle(Color.tempoTextPrimary)
+            }
+            Text("Your body called it. Today is recovery — walk, stretch, sleep. Doesn't count as a missed day.")
+                .font(.tempoBody)
+                .foregroundStyle(Color.tempoTextSecondary)
+            Button {
+                HapticManager.impact(.medium)
+                viewModel.trainAnyway(modelContext: modelContext)
+            } label: {
+                Text("Train anyway")
+                    .font(.tempoSubheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityHint("Reopens today's workout so you can start it.")
+        }
+        .padding(TempoSpacing.cardPadding)
+        .background(Color.tempoSurfaceCard)
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
     }
 
     // MARK: - Recovery / Deload Status Line

@@ -1402,8 +1402,8 @@ struct ActiveWorkoutView: View {
                 }
 
                 Button {
+                    // .discarded closes this cover from TrainingTabView.
                     viewModel.discardCrashedWorkout(modelContext: modelContext)
-                    dismiss()
                 } label: {
                     Text("Discard")
                         .font(.tempoHeadline)

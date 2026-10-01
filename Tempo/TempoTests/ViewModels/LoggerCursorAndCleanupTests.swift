@@ -438,6 +438,66 @@ final class LoggerCursorAndCleanupTests: XCTestCase {
         XCTAssertEqual(plan.status, .planned)
     }
 
+    // MARK: - Benched day (recovery floor / pain) → "Train anyway"
+
+    private func seedBenchedPlan(context: ModelContext, reason: SkipReason) -> WorkoutPlan {
+        let plan = seedPlan(context: context, setCounts: [2])
+        plan.status = .skipped
+        plan.skipReason = reason
+        plan.startedAt = nil
+        return plan
+    }
+
+    func testBenchedDayCannotBeStartedDirectly() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        vm.todayPlan = seedBenchedPlan(context: context, reason: .floorForced)
+        vm.sessionState = .idle
+
+        XCTAssertFalse(vm.canStartWorkout)
+        XCTAssertFalse(vm.startWorkout(), "The Dashboard Start button must not walk past the recovery block")
+        XCTAssertEqual(vm.sessionState, .idle)
+        XCTAssertTrue(vm.isRecoveryBenched)
+    }
+
+    func testTrainAnywayReopensABenchedDay() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedBenchedPlan(context: context, reason: .floorForced)
+        vm.todayPlan = plan
+        vm.sessionState = .idle
+
+        vm.trainAnyway(modelContext: context)
+
+        XCTAssertEqual(plan.status, .planned)
+        XCTAssertNil(plan.skipReason)
+        XCTAssertFalse(vm.isRecoveryBenched)
+        XCTAssertTrue(vm.canStartWorkout)
+        XCTAssertTrue(vm.startWorkout())
+        vm.resetState()
+    }
+
+    func testTrainAnywayLeavesAUserSkipAlone() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedBenchedPlan(context: context, reason: .userSkipped)
+        vm.todayPlan = plan
+
+        vm.trainAnyway(modelContext: context)
+
+        XCTAssertEqual(plan.status, .skipped)
+        XCTAssertEqual(plan.skipReason, .userSkipped)
+        XCTAssertFalse(vm.isRecoveryBenched)
+    }
+
+    func testDashboardShowsABenchedDayAsRest() throws {
+        let context = try makeContext()
+        let benched = seedBenchedPlan(context: context, reason: .floorForced)
+        XCTAssertEqual(DashboardViewModel.dashboardWorkoutStatus(for: benched), .restDay)
+        benched.skipReason = .userSkipped
+        XCTAssertEqual(DashboardViewModel.dashboardWorkoutStatus(for: benched), .none)
+    }
+
     // MARK: - 5. Watch payloads
 
     func testWatchSetWithoutWeightUsesPrescriptionNotZero() throws {
@@ -515,7 +575,8 @@ final class LoggerCursorAndCleanupTests: XCTestCase {
         vm.discardCrashedWorkout(modelContext: context)
 
         try assertRolledBack(plan, context: context)
-        XCTAssertEqual(plan.status, .skipped)
+        XCTAssertEqual(plan.status, .planned, "A discarded crash leaves the day open to redo")
+        XCTAssertEqual(vm.sessionState, .discarded)
     }
 
     // MARK: - 8. Delayed inter-exercise hop can't overwrite a newer state
