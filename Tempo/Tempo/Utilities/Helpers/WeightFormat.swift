@@ -29,6 +29,23 @@ enum WeightFormat {
         "\(number(kg: kg, unit: unit)) \(unit.abbreviation)"
     }
 
+    /// A set's load: "62.5 kg", or "BW" when it carried no external weight —
+    /// a bodyweight set never reads "0 kg".
+    static func load(kg: Double?, unit: WeightUnit) -> String {
+        guard let kg, kg > 0 else {
+            return "BW"
+        }
+        return text(kg: kg, unit: unit)
+    }
+
+    /// Compact load for tight chips: "62.5", or "BW".
+    static func compactLoad(kg: Double?, unit: WeightUnit) -> String {
+        guard let kg, kg > 0 else {
+            return "BW"
+        }
+        return number(kg: kg, unit: unit)
+    }
+
     /// Volume totals: "12.4k lbs" from 1,000 up, otherwise whole units.
     static func volumeText(kg: Double, unit: WeightUnit) -> String {
         let value = WeightUnit.kg.convert(kg, to: unit)

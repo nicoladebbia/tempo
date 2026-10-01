@@ -666,8 +666,12 @@ struct ActiveWorkoutView: View {
         let prior = rows
             .filter { !cal.isDateInToday($0.date) }
             .max { $0.date < $1.date }
-        guard let prior, let w = prior.bestSetWeight, let r = prior.bestSetReps else {
+        guard let prior, let r = prior.bestSetReps, r > 0 else {
             return nil
+        }
+        // A bodyweight set reads "BW × 10", never "0 × 10".
+        guard let w = prior.bestSetWeight, w > 0 else {
+            return "BW × \(r)"
         }
         return "\(displayWeight(w)) × \(r)"
     }
@@ -678,8 +682,8 @@ struct ActiveWorkoutView: View {
             return nil
         }
         let reps = SideRepsFormat.reps(set.targetReps, perSide: viewModel.currentExercise?.perSide == true)
-        // Bodyweight lift with no known bodyweight: 0 is "just bodyweight".
-        if isBodyweightLift, w <= 0 {
+        // No external load: 0 is "just bodyweight", never "0 × 10".
+        if w <= 0 {
             return "BW × \(reps)"
         }
         return "\(displayWeight(w)) × \(reps)"

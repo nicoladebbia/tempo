@@ -156,7 +156,7 @@ struct WorkoutView: View {
                     .foregroundStyle(.secondary)
 
                 // Target display — monospaced in card
-                Text("\(workoutState.lastReps) reps × \(weightLabel(workoutState.lastWeight)) \(unitLabel)")
+                Text("\(workoutState.lastReps) reps × \(loadLabel(workoutState.lastWeight))")
                     .font(.system(size: 20, weight: .bold, design: .monospaced))
                     .padding(.vertical, 12)
                     .frame(maxWidth: .infinity)
@@ -274,7 +274,7 @@ struct WorkoutView: View {
                     .foregroundStyle(.secondary)
                 Text("\(workoutState.exerciseName) \(workoutState.currentSet)/\(workoutState.totalSets)")
                     .font(.system(size: 14, weight: .medium))
-                Text("\(workoutState.lastReps) reps × \(weightLabel(workoutState.lastWeight)) \(unitLabel)")
+                Text("\(workoutState.lastReps) reps × \(loadLabel(workoutState.lastWeight))")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
@@ -401,6 +401,11 @@ struct WorkoutView: View {
 
     /// kg → display unit, rounded to the nearest 0.5 so a snapped 40.82 kg
     /// shows as the 90 lbs it actually is, not 89.9997.
+    /// "40 kg", or "BW" for a set with no external load (never "0 kg").
+    private func loadLabel(_ weightKg: Double) -> String {
+        weightKg > 0 ? "\(weightLabel(weightKg)) \(unitLabel)" : "BW"
+    }
+
     private func weightLabel(_ weightKg: Double) -> String {
         let value = isLbs ? weightKg * 2.20462 : weightKg
         return String(format: "%g", (value * 2).rounded() / 2)

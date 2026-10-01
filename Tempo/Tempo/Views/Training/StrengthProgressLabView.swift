@@ -152,8 +152,9 @@ struct StrengthProgressLabView: View {
     // MARK: e1RM chart
 
     private var e1RMCard: some View {
-        let primary = points(for: primaryLift).filter { $0.e1RM != nil }
-        let ghost = points(for: compareLift).filter { $0.e1RM != nil }
+        // A bodyweight session's e1RM is 0 — not a point on a strength curve.
+        let primary = points(for: primaryLift).filter { ($0.e1RM ?? 0) > 0 }
+        let ghost = points(for: compareLift).filter { ($0.e1RM ?? 0) > 0 }
         let scrubbed = scrubDate.flatMap { ProgressLabMath.nearest(to: $0, in: primary) }
 
         return VStack(alignment: .leading, spacing: TempoSpacing.md) {
@@ -280,8 +281,8 @@ struct StrengthProgressLabView: View {
             Text(point.date.formatted(.dateTime.day().month(.abbreviated)))
                 .font(.tempoCaption2)
                 .foregroundStyle(Color.tempoTextTertiary)
-            if let weight = point.bestWeight, let reps = point.bestReps {
-                Text("best \(weightLabel(weight)) × \(reps)")
+            if let reps = point.bestReps, reps > 0 {
+                Text("best \(WeightFormat.load(kg: point.bestWeight, unit: weightUnit)) × \(reps)")
                     .font(.tempoCaption2)
                     .foregroundStyle(Color.tempoTextSecondary)
             }

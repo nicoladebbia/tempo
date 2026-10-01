@@ -279,6 +279,15 @@ extension WeekOverWeekProgress.ExerciseDelta {
         guard let currentWeight = currentBestWeightKg else {
             return nil
         }
+        // Bodyweight: "BW × 12" (reps are the progress), never "0 kg".
+        guard currentWeight > 0 else {
+            return currentBestReps.map { reps in
+                if let previous = previousBestReps, previous != reps, (previousBestWeightKg ?? 0) <= 0 {
+                    return "BW × \(previous)→\(reps)"
+                }
+                return "BW × \(reps)"
+            }
+        }
         let current = WeightFormat.number(kg: currentWeight, unit: unit)
         var text = if let previousWeight = previousBestWeightKg, previousWeight != currentWeight {
             "\(WeightFormat.number(kg: previousWeight, unit: unit))→\(current) \(unit.abbreviation)"

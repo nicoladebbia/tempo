@@ -701,7 +701,7 @@ struct WorkoutHistoryView: View {
                             let w = set.actualWeight ?? set.targetWeight ?? 0
                             let r = set.actualReps ?? set.targetReps
                             // Fix #9 — a per-side ramp target reads "x8/side".
-                            Text("\(WeightFormat.number(kg: w, unit: weightUnit))x\(SideRepsFormat.reps(r, perSide: plannedEx.perSide))")
+                            Text("\(WeightFormat.compactLoad(kg: w, unit: weightUnit))x\(SideRepsFormat.reps(r, perSide: plannedEx.perSide))")
                                 .font(.system(size: 11, design: .monospaced))
                                 .foregroundStyle(Color.tempoTextTertiary)
                                 .padding(.horizontal, 4)
@@ -720,7 +720,7 @@ struct WorkoutHistoryView: View {
                                 actual: reps, left: set.actualRepsLeft, right: set.actualRepsRight,
                                 perSide: plannedEx.perSide
                             )
-                            Text("\(WeightFormat.number(kg: weight, unit: weightUnit))x\(repsText)")
+                            Text("\(WeightFormat.compactLoad(kg: weight, unit: weightUnit))x\(repsText)")
                                 .font(.system(size: 11, design: .monospaced))
                                 .foregroundStyle(Color.tempoTextSecondary)
                                 .padding(.horizontal, 4)

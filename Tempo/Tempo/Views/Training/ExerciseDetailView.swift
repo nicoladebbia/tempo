@@ -374,7 +374,8 @@ struct ExerciseDetailView: View {
                     label: "Estimated 1RM",
                     color: Color.tempoSignal,
                     points: chartHistory.compactMap { entry in
-                        guard let e1rm = entry.estimated1RM else {
+                        // Bodyweight sessions carry no e1RM — never plot a 0.
+                        guard let e1rm = entry.estimated1RM, e1rm > 0 else {
                             return nil
                         }
                         return TempoLineChartData<String>.DataPoint(
@@ -528,7 +529,7 @@ struct ExerciseDetailView: View {
         guard let w = weight, let r = reps else {
             return "—"
         }
-        return "\(WeightFormat.text(kg: w, unit: weightUnit)) × \(r)"
+        return "\(WeightFormat.load(kg: w, unit: weightUnit)) × \(r)"
     }
 
     private func formatVolume(_ volume: Double) -> String {

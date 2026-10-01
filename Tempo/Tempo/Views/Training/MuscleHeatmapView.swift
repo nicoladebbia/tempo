@@ -335,8 +335,8 @@ struct MuscleHeatmapView: View {
                             .font(.tempoSubheadline)
                             .foregroundStyle(Color.tempoTextPrimary)
                         Spacer()
-                        if let best = row.bestSetWeight {
-                            Text("\(WeightFormat.text(kg: best, unit: weightUnit)) × \(row.bestSetReps ?? 0)")
+                        if let reps = row.bestSetReps, reps > 0 {
+                            Text("\(WeightFormat.load(kg: row.bestSetWeight, unit: weightUnit)) × \(reps)")
                                 .font(.tempoCaption1)
                                 .foregroundStyle(Color.tempoTextSecondary)
                         }

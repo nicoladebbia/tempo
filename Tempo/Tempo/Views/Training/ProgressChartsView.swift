@@ -470,7 +470,7 @@ struct ProgressChartsView: View {
                     .foregroundStyle(Color.tempoTextPrimary)
                     .lineLimit(1)
 
-                if let e1rm = exercise.currentEstimated1RM {
+                if let e1rm = exercise.currentEstimated1RM, e1rm > 0 {
                     Text("e1RM: \(WeightFormat.text(kg: e1rm, unit: weightUnit))")
                         .font(.tempoCaption1)
                         .foregroundStyle(Color.tempoTextSecondary)

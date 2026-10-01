@@ -48,4 +48,20 @@ final class WeightFormatTests: XCTestCase {
         XCTAssertEqual(delta.recapLine(unit: .lbs), "RDL 132.3→143.3 lbs")
         XCTAssertEqual(delta.weightChangeText, "60→65 kg", "The trainer report stays in kg")
     }
+
+    func testBodyweightSetsReadBWNeverZero() {
+        XCTAssertEqual(WeightFormat.load(kg: 0, unit: .kg), "BW")
+        XCTAssertEqual(WeightFormat.load(kg: nil, unit: .lbs), "BW")
+        XCTAssertEqual(WeightFormat.load(kg: 20, unit: .kg), "20 kg")
+        XCTAssertEqual(WeightFormat.compactLoad(kg: 0, unit: .kg), "BW")
+    }
+
+    func testBodyweightRecapShowsRepsNotZeroKg() {
+        let delta = WeekOverWeekProgress.ExerciseDelta(
+            exerciseID: UUID(), name: "Pull-up", currentDate: Date(), previousDate: Date(),
+            currentBestWeightKg: 0, currentBestReps: 12, previousBestWeightKg: 0, previousBestReps: 10,
+            e1RMDelta: nil, volumeDelta: nil
+        )
+        XCTAssertEqual(delta.recapLine(unit: .kg), "Pull-up BW × 10→12")
+    }
 }

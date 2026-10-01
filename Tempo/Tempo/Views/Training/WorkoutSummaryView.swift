@@ -371,7 +371,7 @@ struct WorkoutSummaryView: View {
                         actual: reps, left: best.actualRepsLeft, right: best.actualRepsRight,
                         perSide: plannedEx.perSide
                     )
-                    Text("Best: \(formattedWeight(weight)) x \(repsText)")
+                    Text("Best: \(WeightFormat.load(kg: weight, unit: viewModel.weightUnit)) × \(repsText)")
                         .font(.tempoCaption1)
                         .foregroundStyle(Color.tempoTextSecondary)
                 }
@@ -397,16 +397,6 @@ struct WorkoutSummaryView: View {
         .padding(TempoSpacing.md)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
-    }
-
-    // MARK: - Weight Formatting
-
-    /// Format a kg-stored weight in the user's display unit. Keeps the summary
-    /// consistent with the timer-bar volume (which already converts) — fixes the
-    /// bug where per-set/per-exercise rows were hardcoded "kg" while the volume
-    /// header showed the user's actual unit.
-    private func formattedWeight(_ kg: Double) -> String {
-        WeightFormat.text(kg: kg, unit: viewModel.weightUnit)
     }
 
     // MARK: - Save Button
