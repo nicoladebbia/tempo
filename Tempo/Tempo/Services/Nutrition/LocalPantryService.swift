@@ -112,7 +112,11 @@ final class LocalPantryService: PantryServiceProtocol {
         let existing = candidates.first { PantryItem.normalizeBrand($0.brand) == normBrand }
 
         if let existing {
+            let wasInStock = existing.isInStock
             existing.increment(by: quantity)
+            if !wasInStock || existing.isExpired {
+                existing.purchaseDate = purchaseDate ?? Date()
+            }
             if existing.purchaseDate == nil {
                 existing.purchaseDate = purchaseDate
             }
@@ -136,11 +140,18 @@ final class LocalPantryService: PantryServiceProtocol {
                 byAdding: .day, value: days, to: purchaseDate ?? Date()
             )
             if let candidateUseBy {
-                existing.useBy = [existing.useBy, candidateUseBy].compactMap(\.self).min()
+                // An already-expired (or used-up) older batch must not drag
+                // the fresh restock's use-by into the past — the old stock
+                // was the bad one; the new batch has its own clock.
+                let oldBatchSpent = wasInStock == false || existing.isExpired
+                existing.useBy = oldBatchSpent
+                    ? candidateUseBy
+                    : [existing.useBy, candidateUseBy].compactMap(\.self).min()
             }
             if !matched {
                 refineUseByWithAIIfPossible(itemID: existing.id, canonicalName: canonical, storageLocation: existing.storageLocation)
             }
+            restoreStaple(canonical: canonical)
             try modelContext.save()
             logger
                 .info(
@@ -167,6 +178,7 @@ final class LocalPantryService: PantryServiceProtocol {
             useBy: computedUseBy
         )
         modelContext.insert(new)
+        restoreStaple(canonical: canonical)
         try modelContext.save()
         if !matched {
             refineUseByWithAIIfPossible(itemID: new.id, canonicalName: canonical, storageLocation: storageLocation)
@@ -254,6 +266,18 @@ final class LocalPantryService: PantryServiceProtocol {
         }
         logger.info("Pantry set-create: \(canonical, privacy: .public) \(quantity)\(unit.displayName, privacy: .public)")
         return new
+    }
+
+    /// A bought/ingested food that is also a tracked staple is "have" again —
+    /// staples stayed stuck on running-low/out forever after the restock.
+    private func restoreStaple(canonical: String) {
+        let descriptor = FetchDescriptor<PantryStaple>(
+            predicate: #Predicate<PantryStaple> { $0.canonicalName == canonical }
+        )
+        for staple in (try? modelContext.fetch(descriptor)) ?? [] where staple.status != .have {
+            staple.status = .have
+            staple.updatedAt = Date()
+        }
     }
 
     func adjustQuantity(of item: PantryItem, by delta: Double) throws {

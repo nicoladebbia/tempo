@@ -260,6 +260,7 @@ extension NutritionTabViewModel {
             pantryState.loadError = "Couldn't archive item: \(error.localizedDescription)"
         }
         reloadPantry()
+        reapplyPantryToGrocery()
     }
 
     /// "Empty pantry": archives every active item (same soft delete as the
@@ -307,6 +308,10 @@ extension NutritionTabViewModel {
             pantryState.loadError = "Couldn't update item: \(error.localizedDescription)"
         }
         reloadPantry()
+        // Quantity/unit edits change what the list still needs to buy.
+        if quantity != nil || unit != nil {
+            reapplyPantryToGrocery()
+        }
     }
 
     /// Schedules (or cancels) the daily "Use it up" summary notification
@@ -365,7 +370,7 @@ extension NutritionTabViewModel {
         guard let recipeService else {
             return
         }
-        let activePantry = pantryState.items.filter { $0.quantity > 0 }
+        let activePantry = pantryState.items.filter(\.isInStock)
         let pantryNames = Set(activePantry.map(\.canonicalName))
         var expiryByName: [String: Int] = [:]
         for item in activePantry {

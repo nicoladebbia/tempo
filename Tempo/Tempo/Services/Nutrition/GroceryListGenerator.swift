@@ -19,6 +19,26 @@ enum GroceryListGenerator {
         let pantry: [PantryItem]
         /// Week start to stamp on the resulting list.
         let weekStartDate: Date
+        /// When set, only meals on/after this day count (the list is for what
+        /// is STILL to cook, not the Monday–today meals already eaten). nil =
+        /// no date filter (legacy callers/tests). Either way only meals still
+        /// `.planned` are shopped for — eaten/skipped meals never are.
+        var onOrAfter: Date?
+    }
+
+    /// Meals the shopping list should cover: still planned, and (when a day is
+    /// given) scheduled that day or later.
+    static func shoppableMeals(in plan: WeeklyMealPlan, onOrAfter: Date?) -> [PlannedMeal] {
+        let cutoff = onOrAfter.map { Calendar.current.startOfDay(for: $0) }
+        return (plan.meals ?? []).filter { meal in
+            guard meal.status == .planned else {
+                return false
+            }
+            if let cutoff, Calendar.current.startOfDay(for: meal.dayDate) < cutoff {
+                return false
+            }
+            return true
+        }
     }
 
     /// Aggregated entry pre-persist.
@@ -49,7 +69,7 @@ enum GroceryListGenerator {
     static func generate(from input: GeneratorInput) -> [Aggregated] {
         var aggregated: [String: Aggregated] = [:]
 
-        for meal in input.mealPlan.meals ?? [] {
+        for meal in shoppableMeals(in: input.mealPlan, onOrAfter: input.onOrAfter) {
             // Restaurant items are bought ready-made, not shopped for.
             for food in meal.foods where !food.isApproximate {
                 let canonical = FoodCanonicalizer.canonicalize(food.name)
@@ -135,8 +155,8 @@ enum GroceryListGenerator {
 
         // Staple suppression: only surface when pantry has zero of it.
         if portion.isStaple {
-            let onHand = pantryByName[entry.canonicalName.lowercased()]?.quantity ?? 0
-            if onHand > 0 {
+            let onHandItem = pantryByName[entry.canonicalName.lowercased()]
+            if onHandItem?.isInStock == true {
                 return nil
             }
             // First-time buy: show as a single purchase unit and use the
@@ -171,7 +191,7 @@ enum GroceryListGenerator {
     /// Map a natural-portion `purchaseUnit` word to the canonical
     /// `PantryUnit` case. Falls back to `.pieces` for anything we don't
     /// have a native case for (yet).
-    private static func pantryUnit(for purchaseUnit: String) -> PantryUnit {
+    static func pantryUnit(for purchaseUnit: String) -> PantryUnit {
         let w = purchaseUnit.lowercased()
         if w.contains("can") { return .cans }
         if w.contains("bottle") { return .bottles }
@@ -217,7 +237,7 @@ enum GroceryListGenerator {
             "orange", "lemon", "lime", "bell pepper", "pepper", "ginger",
             "sweet potato", "potato", "carrot", "onion", "garlic",
             "tomato", "lettuce", "cucumber", "zucchini", "apple", "grape",
-            "mushroom", "kale", "celery", "corn",
+            "mushroom", "kale", "celery", "corn", "eggplant",
         ]
         // Meat and seafood split out (the user shops these as distinct aisles).
         let meat = [
@@ -239,25 +259,37 @@ enum GroceryListGenerator {
         let frozen = ["frozen", "ice"]
         let oils = ["olive oil", "oil", "vinegar"]
 
-        if produce.contains(where: n.contains) {
+        // Short keywords ("ice", "ham", "oil", "egg", "corn") match as WHOLE
+        // words — as substrings they filed juice/spices under frozen,
+        // graham under meat and eggplant under dairy. Longer stems
+        // ("blueberr") keep prefix matching.
+        func hit(_ keywords: [String]) -> Bool {
+            keywords.contains { kw in
+                kw.count <= 4 ? PantryStorageGuesser.containsKeyword(kw, in: n) : n.contains(kw)
+            }
+        }
+        if hit(produce) {
             return "produce"
         }
-        if meat.contains(where: n.contains) {
+        if hit(meat) {
             return "meat"
         }
-        if seafood.contains(where: n.contains) {
+        if hit(seafood) {
             return "seafood"
         }
-        if dairy.contains(where: n.contains) {
-            return "dairy"
-        }
-        if grains.contains(where: n.contains) {
-            return "grains"
-        }
-        if frozen.contains(where: n.contains) {
+        if n.contains("ice cream") {
             return "frozen"
         }
-        if oils.contains(where: n.contains) {
+        if hit(dairy) {
+            return "dairy"
+        }
+        if hit(grains) {
+            return "grains"
+        }
+        if hit(frozen) {
+            return "frozen"
+        }
+        if hit(oils) {
             return "oils"
         }
         return "pantry"

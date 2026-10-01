@@ -78,11 +78,13 @@ final class GroceryWeekAnchorTests: XCTestCase {
 
     func testGenerate_midWeekRegenerateReplacesSameWeekList_notDuplicate() throws {
         let plan = makePlan(startDate: thisMonday, foods: [("Rice", 200)])
+        grocery.now = { plan.startDate }
         _ = try grocery.generate(from: plan, pantry: pantry, weekStartDate: plan.startDate)
 
         // Simulate "today" being mid-week by regenerating with the SAME
         // plan.startDate (as the real call site now always does) — this must
         // replace, not add a second list for the week.
+        grocery.now = { plan.startDate }
         _ = try grocery.generate(from: plan, pantry: pantry, weekStartDate: plan.startDate)
 
         let all = try grocery.fetchAll()
@@ -93,11 +95,13 @@ final class GroceryWeekAnchorTests: XCTestCase {
         // A list 6 weeks in the past — should be pruned once ANY generate() runs.
         let sixWeeksAgo = try XCTUnwrap(Calendar.current.date(byAdding: .weekOfYear, value: -6, to: thisMonday))
         let oldPlan = makePlan(startDate: sixWeeksAgo, foods: [("Oats", 200)])
+        grocery.now = { oldPlan.startDate }
         _ = try grocery.generate(from: oldPlan, pantry: pantry, weekStartDate: oldPlan.startDate)
         XCTAssertEqual(try grocery.fetchAll().count, 1)
 
         // A fresh generate for THIS week should prune the 6-week-old list.
         let currentPlan = makePlan(startDate: thisMonday, foods: [("Rice", 200)])
+        grocery.now = { currentPlan.startDate }
         _ = try grocery.generate(from: currentPlan, pantry: pantry, weekStartDate: currentPlan.startDate)
 
         let all = try grocery.fetchAll()
@@ -109,9 +113,11 @@ final class GroceryWeekAnchorTests: XCTestCase {
         // A list 2 weeks old must survive (within the 4-week retention window).
         let twoWeeksAgo = try XCTUnwrap(Calendar.current.date(byAdding: .weekOfYear, value: -2, to: thisMonday))
         let oldPlan = makePlan(startDate: twoWeeksAgo, foods: [("Oats", 200)])
+        grocery.now = { oldPlan.startDate }
         _ = try grocery.generate(from: oldPlan, pantry: pantry, weekStartDate: oldPlan.startDate)
 
         let currentPlan = makePlan(startDate: thisMonday, foods: [("Rice", 200)])
+        grocery.now = { currentPlan.startDate }
         _ = try grocery.generate(from: currentPlan, pantry: pantry, weekStartDate: currentPlan.startDate)
 
         XCTAssertEqual(try grocery.fetchAll().count, 2, "2-week-old list is within retention")

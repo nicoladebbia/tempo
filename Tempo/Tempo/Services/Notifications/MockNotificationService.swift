@@ -197,7 +197,7 @@ final class MockNotificationService: NotificationServiceProtocol, @unchecked Sen
 
     private static let supplementReminderPrefix = "supplement_reminder_"
 
-    func scheduleSupplementReminder(title: String, body: String, fireDate: Date, supplementNames: [String]) {
+    func scheduleSupplementReminder(title: String, body: String, fireDate: Date, supplementNames: [String], supplementIDs: [String]) {
         let notification = ScheduledNotification(
             category: "\(Self.supplementReminderPrefix)\(TempoDateFormatters.isoDate.string(from: fireDate))",
             title: title,
@@ -217,7 +217,7 @@ final class MockNotificationService: NotificationServiceProtocol, @unchecked Sen
         }
     }
 
-    func scheduleSupplementReorderAlert(supplementName: String, title: String, body: String) {
+    func scheduleSupplementReorderAlert(supplementName: String, supplementID: String?, title: String, body: String) {
         let notification = ScheduledNotification(
             category: "supplement_reorder_\(supplementName)",
             title: title,

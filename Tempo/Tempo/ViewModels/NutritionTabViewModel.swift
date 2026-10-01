@@ -283,7 +283,7 @@ final class NutritionTabViewModel {
             return []
         }
         let key = daysSinceStart + 1 // Monday=1 … Sunday=7
-        return plan.supplementDecisions[key] ?? []
+        return SupplementDecision.dedupedByName(plan.supplementDecisions[key] ?? [])
     }
 
     /// Today's full supplement schedule (`SupplementScheduleEngine`), sorted
@@ -313,43 +313,31 @@ final class NutritionTabViewModel {
         return Set(rows.map(\.supplementName))
     }
 
+    /// IDs of shelf supplements marked TAKEN today. The Today card keys its
+    /// checkmarks on this, not on names, so two same-named items don't share
+    /// a tick.
+    func takenSupplementIDsToday(modelContext: ModelContext) -> Set<UUID> {
+        SupplementIntakeStore.takenIDs(on: Date(), in: modelContext)
+    }
+
     /// Toggle "I took it" for a supplement today — idempotent. A row's
-    /// existence means taken; tapping again (undo) deletes it. Guarded against
-    /// a double-tap leaving two rows that one undo can't clear: we delete ALL
-    /// matching rows on un-take and only insert when none exist.
+    /// existence means taken; tapping again (undo) deletes it (ALL matching
+    /// rows, so a double-tap can't leave one an undo can't clear).
     ///
-    /// Also applies the reorder decrement/undo (`SupplementReorderService`)
-    /// when the shelf item is tracked, and posts `.tempoSupplementsChanged` so
-    /// `SupplementReminderScheduler` rebuilds today's reminders (a taken dose
-    /// needs no more nagging).
-    func toggleSupplementTaken(name: String, modelContext: ModelContext) {
-        let today = Calendar.current.startOfDay(for: Date())
-        let descriptor = FetchDescriptor<SupplementIntakeLog>(
-            predicate: #Predicate<SupplementIntakeLog> { row in
-                row.day == today && row.supplementName == name
-            }
-        )
-        let existing = (try? modelContext.fetch(descriptor)) ?? []
-        let supplementDescriptor = FetchDescriptor<Supplement>(
-            predicate: #Predicate<Supplement> { $0.name == name }
-        )
-        let supplement = (try? modelContext.fetch(supplementDescriptor))?.first
-        if existing.isEmpty {
-            modelContext.insert(SupplementIntakeLog(supplementName: name, day: today))
-            if let supplement {
-                SupplementReorderService.applyTaken(to: supplement)
-            }
-        } else {
-            for row in existing {
-                modelContext.delete(row)
-            }
-            if let supplement {
-                SupplementReorderService.applyUndo(to: supplement)
-            }
-        }
-        try? modelContext.save()
+    /// Keyed by `supplementID` (falls back to the name for callers/rows that
+    /// only know the name). Also applies the reorder decrement/undo
+    /// (`SupplementReorderService`) when the shelf item is tracked, and posts
+    /// `.tempoSupplementsChanged` so `SupplementReminderScheduler` rebuilds
+    /// today's reminders (a taken dose needs no more nagging).
+    func toggleSupplementTaken(supplementID: UUID?, name: String, modelContext: ModelContext) {
+        SupplementIntakeStore.toggle(supplementID: supplementID, name: name, in: modelContext)
         HapticManager.lightImpact()
         NotificationCenter.default.post(name: .tempoSupplementsChanged, object: nil)
+    }
+
+    /// Name-only form kept for existing callers; resolves the shelf item by name.
+    func toggleSupplementTaken(name: String, modelContext: ModelContext) {
+        toggleSupplementTaken(supplementID: nil, name: name, modelContext: modelContext)
     }
 
     var todayProteinConsumed: Int {

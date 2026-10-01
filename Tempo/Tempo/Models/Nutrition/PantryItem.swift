@@ -94,8 +94,57 @@ enum PantryUnit: String, Codable, CaseIterable, Sendable {
             else {
                 return nil
             }
-            let unitGrams = self == .packs ? portion.purchaseGrams : portion.grams
+            guard let unitGrams = gramsPerUnit(of: portion) else {
+                return nil
+            }
             return quantity * unitGrams
+        }
+    }
+
+    /// A countable row at or below this is "used up" (≈5% of one unit). Mass
+    /// and volume rows only deplete at exactly zero.
+    var depletedThreshold: Double {
+        isCountable ? 0.05 : 0
+    }
+
+    /// True for container units (can/bottle/jar/pack) — one unit is the whole
+    /// purchased container, weighed by the portion's `purchaseGrams`. `.pieces`
+    /// and `.servings` use the per-item `grams` instead.
+    var isContainer: Bool {
+        switch self {
+        case .cans, .bottles, .jars, .packs: true
+        default: false
+        }
+    }
+
+    /// Grams in ONE of this unit for a food with a natural-portion entry.
+    /// Containers use the purchase weight (falling back to the item weight);
+    /// pieces/servings use the item weight; mass/volume units return nil
+    /// (callers convert those directly). THE single source of truth shared by
+    /// `gramsApprox`, `PantryDecrementService` and the display formatter, so a
+    /// "can" is the same weight on the grocery list, in the pantry and on undo.
+    func gramsPerUnit(of portion: FoodMacroDatabase.NaturalPortion) -> Double? {
+        let perUnit: Double = if isContainer {
+            portion.purchaseGrams > 0 ? portion.purchaseGrams : portion.grams
+        } else {
+            portion.grams
+        }
+        return perUnit > 0 ? perUnit : nil
+    }
+
+    /// Singular label for a quantity of exactly one ("1 pack", "0.8 pack").
+    func label(forQuantity quantity: Double) -> String {
+        guard quantity <= 1.0001 else {
+            return displayName
+        }
+        switch self {
+        case .cans: return "can"
+        case .bottles: return "bottle"
+        case .jars: return "jar"
+        case .packs: return "pack"
+        case .pieces: return "pc"
+        case .servings: return "serving"
+        default: return displayName
         }
     }
 
@@ -302,7 +351,15 @@ final class PantryItem {
     /// offer to add the item back to the grocery list.
     @Transient
     var isDepleted: Bool {
-        !isArchived && quantity <= 0
+        !isArchived && quantity <= unit.depletedThreshold
+    }
+
+    /// `true` while there is genuinely something left to use. Container/count
+    /// rows are tracked in fractions (1 pack − 100 g of 500 g = 0.8 pack), so
+    /// dust below `depletedThreshold` counts as gone.
+    @Transient
+    var isInStock: Bool {
+        quantity > unit.depletedThreshold
     }
 
     // MARK: - Init

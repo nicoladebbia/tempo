@@ -498,7 +498,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
     /// `SupplementScheduleEngine.group` groups by clock minute.
     private static let supplementReminderPrefix = "supplement_reminder_"
 
-    func scheduleSupplementReminder(title: String, body: String, fireDate: Date, supplementNames: [String]) {
+    func scheduleSupplementReminder(title: String, body: String, fireDate: Date, supplementNames: [String], supplementIDs: [String]) {
         guard fireDate > Date(), !supplementNames.isEmpty else {
             return
         }
@@ -512,7 +512,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         content.threadIdentifier = "tempo.supplements.\(dateKey(fireDate))"
         content.interruptionLevel = .active
         content.sound = sound(for: "SUPPLEMENT_REMINDER")
-        content.userInfo = ["supplementNames": supplementNames]
+        content.userInfo = ["supplementNames": supplementNames, "supplementIDs": supplementIDs]
 
         let trigger = UNCalendarNotificationTrigger(
             dateMatching: Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: fireDate),
@@ -539,21 +539,25 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
 
     // MARK: - Supplement Reorder Alert
 
-    func scheduleSupplementReorderAlert(supplementName: String, title: String, body: String) {
+    func scheduleSupplementReorderAlert(supplementName: String, supplementID: String?, title: String, body: String) {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
         content.categoryIdentifier = "SUPPLEMENT_REORDER"
-        content.threadIdentifier = "tempo.supplement_reorder.\(supplementName)"
+        content.threadIdentifier = "tempo.supplement_reorder.\(supplementID ?? supplementName)"
         content.interruptionLevel = .active
         content.sound = sound(for: "SUPPLEMENT_REORDER")
-        content.userInfo = ["supplementName": supplementName]
+        var info: [String: Any] = ["supplementName": supplementName]
+        if let supplementID {
+            info["supplementID"] = supplementID
+        }
+        content.userInfo = info
 
         // Fires almost immediately — this is a discrete "it just crossed the
         // threshold" event, not something scheduled for a future clock time.
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 2, repeats: false)
         let request = UNNotificationRequest(
-            identifier: "supplement_reorder_\(supplementName)_\(dateKey(Date()))",
+            identifier: "supplement_reorder_\(supplementID ?? supplementName)_\(dateKey(Date()))",
             content: content,
             trigger: trigger
         )

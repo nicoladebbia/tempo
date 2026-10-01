@@ -12,8 +12,8 @@
 //
 // Keyed by start-of-day DATE (NOT weekday) — a calendar-day fact, so last
 // Monday's check never lights up this Monday. The join back to a decision is
-// the supplement NAME string (the only shared key); renaming a supplement
-// orphans its history, which is acceptable.
+// `Supplement.id` (`supplementID`); rows from before that field existed carry
+// only the NAME and are matched by it as a fallback.
 //
 
 import Foundation
@@ -24,8 +24,15 @@ final class SupplementIntakeLog {
     @Attribute(.unique)
     var id: UUID
 
-    /// Matches `Supplement.name` / `SupplementDecision.name`.
+    /// Matches `Supplement.name` / `SupplementDecision.name`. Kept for display
+    /// and for legacy rows written before `supplementID` existed.
     var supplementName: String
+
+    /// The shelf item this row belongs to. Joins on the ID, not the name, so
+    /// two supplements with the same name don't share a checkmark and a rename
+    /// doesn't orphan the history. nil on rows logged before this field
+    /// existed (additive, lightweight migration) — those fall back to the name.
+    var supplementID: UUID?
 
     /// Calendar day this was taken, normalized to start-of-day.
     var day: Date
@@ -36,11 +43,13 @@ final class SupplementIntakeLog {
     init(
         id: UUID = UUID(),
         supplementName: String,
+        supplementID: UUID? = nil,
         day: Date,
         takenAt: Date = Date()
     ) {
         self.id = id
         self.supplementName = supplementName
+        self.supplementID = supplementID
         self.day = Calendar.current.startOfDay(for: day)
         self.takenAt = takenAt
     }

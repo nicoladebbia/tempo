@@ -27,7 +27,7 @@ struct UseUpSoonCard: View {
     /// Compact list of expiring items keyed by canonical name → soonest days-to-expire.
     private var expiryByName: [String: Int] {
         var map: [String: Int] = [:]
-        for item in viewModel.pantryState.items where item.quantity > 0 {
+        for item in viewModel.pantryState.items where item.isInStock {
             guard let days = item.daysUntilUseBy, (0 ... 7).contains(days) else {
                 continue
             }

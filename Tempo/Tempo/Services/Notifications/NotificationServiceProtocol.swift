@@ -125,7 +125,7 @@ protocol NotificationServiceProtocol: Sendable {
     /// `SupplementReminderScheduler` always cancels + rebuilds the whole
     /// rolling window, so the concrete implementation is free to derive its
     /// own id from `fireDate`.
-    func scheduleSupplementReminder(title: String, body: String, fireDate: Date, supplementNames: [String])
+    func scheduleSupplementReminder(title: String, body: String, fireDate: Date, supplementNames: [String], supplementIDs: [String])
 
     /// Cancel every pending supplement reminder — called before rebuilding
     /// the rolling today+tomorrow window.
@@ -135,7 +135,7 @@ protocol NotificationServiceProtocol: Sendable {
     /// Fires almost immediately — callers gate frequency themselves by
     /// stamping `Supplement.lastReorderAlertAt` before calling this, so this
     /// method does not need its own cancel/dedupe.
-    func scheduleSupplementReorderAlert(supplementName: String, title: String, body: String)
+    func scheduleSupplementReorderAlert(supplementName: String, supplementID: String?, title: String, body: String)
 
     func cancelAll()
     func cancelCategory(_ category: String)
