@@ -29,6 +29,9 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
     /// Per INTEGRATION_SPECS.md Section 2.1 — detect permission revocation on app launch.
     private var previousWriteStatus: HKAuthorizationStatus = .notDetermined
 
+    /// In-flight guard for the one-time calories/distance permission sheet.
+    private var isRequestingNewWriteTypes = false
+
     // MARK: - Authorization
 
     // Per INTEGRATION_SPECS.md Section 2.1 — requestAuthorization()
@@ -83,12 +86,19 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
         // Users who allowed workout writes before calories/distance were added
         // get one Health sheet for just the new types (iOS never re-asks a
         // type that's already been decided).
-        if workoutStatus == .sharingAuthorized {
+        if workoutStatus == .sharingAuthorized, !isRequestingNewWriteTypes {
             let newTypes = HealthKitConstants.writeTypes.filter {
                 healthStore.authorizationStatus(for: $0) == .notDetermined
             }
             if !newTypes.isEmpty {
-                try? await healthStore.requestAuthorization(toShare: newTypes, read: [])
+                // Runs on every foreground — never stack a second sheet.
+                isRequestingNewWriteTypes = true
+                defer { isRequestingNewWriteTypes = false }
+                do {
+                    try await healthStore.requestAuthorization(toShare: newTypes, read: [])
+                } catch {
+                    Logger.healthkit.error("New write types request failed: \(error.localizedDescription)")
+                }
             }
         }
 
@@ -594,15 +604,18 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
             healthStore.execute(query)
         }
 
+        let bpm = HKUnit.count().unitDivided(by: .minute())
         let results = workouts.map { workout in
-            WorkoutSample(
+            let heartRate = workout.statistics(for: HKQuantityType(.heartRate))
+            return WorkoutSample(
                 startDate: workout.startDate,
                 endDate: workout.endDate,
                 workoutType: Self.mapActivityType(workout.workoutActivityType),
                 durationMinutes: workout.duration / 60,
                 activeCalories: workout.totalEnergyBurned?.doubleValue(for: .kilocalorie()) ?? 0,
-                averageHeartRate: nil, // HR during workout fetched separately if needed
-                maxHeartRate: nil,
+                // Present for Watch-recorded workouts; nil otherwise.
+                averageHeartRate: heartRate?.averageQuantity()?.doubleValue(for: bpm),
+                maxHeartRate: heartRate?.maximumQuantity()?.doubleValue(for: bpm),
                 distanceMeters: workout.totalDistance?.doubleValue(for: .meter())
             )
         }

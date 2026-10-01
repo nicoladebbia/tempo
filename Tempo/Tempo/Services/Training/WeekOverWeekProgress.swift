@@ -290,7 +290,7 @@ extension WeekOverWeekProgress.ExerciseDelta {
         }
         let current = WeightFormat.number(kg: currentWeight, unit: unit)
         var text = if let previousWeight = previousBestWeightKg, previousWeight != currentWeight {
-            "\(WeightFormat.number(kg: previousWeight, unit: unit))→\(current) \(unit.abbreviation)"
+            "\(WeightFormat.compactLoad(kg: previousWeight, unit: unit))→\(current) \(unit.abbreviation)"
         } else {
             "\(current) \(unit.abbreviation)"
         }

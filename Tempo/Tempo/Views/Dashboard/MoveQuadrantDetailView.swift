@@ -168,7 +168,10 @@ struct MoveQuadrantDetailView: View {
         }
         let end = last.finishedAt ?? last.date
         let start = last.startedAt ?? end.addingTimeInterval(-Double(last.durationMinutes ?? 60) * 60)
-        let samples = await (try? services.healthKit.fetchWorkouts(for: end)) ?? []
+        var samples = await (try? services.healthKit.fetchWorkouts(for: end)) ?? []
+        if !Calendar.current.isDate(start, inSameDayAs: end) {
+            samples += await (try? services.healthKit.fetchWorkouts(for: start)) ?? []
+        }
         // Only the HK workout that actually overlaps this session — never
         // another activity from the same day.
         let avg = WorkoutSample.bestOverlap(start: start, end: end, in: samples)?.averageHeartRate

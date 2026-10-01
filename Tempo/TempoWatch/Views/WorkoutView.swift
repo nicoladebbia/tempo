@@ -399,13 +399,13 @@ struct WorkoutView: View {
         return String(format: "%d:%02d", m, s)
     }
 
-    /// kg → display unit, rounded to the nearest 0.5 so a snapped 40.82 kg
-    /// shows as the 90 lbs it actually is, not 89.9997.
     /// "40 kg", or "BW" for a set with no external load (never "0 kg").
     private func loadLabel(_ weightKg: Double) -> String {
         weightKg > 0 ? "\(weightLabel(weightKg)) \(unitLabel)" : "BW"
     }
 
+    /// kg → display unit, rounded to the nearest 0.5 so a snapped 40.82 kg
+    /// shows as the 90 lbs it actually is, not 89.9997.
     private func weightLabel(_ weightKg: Double) -> String {
         let value = isLbs ? weightKg * 2.20462 : weightKg
         return String(format: "%g", (value * 2).rounded() / 2)

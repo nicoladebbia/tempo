@@ -682,9 +682,10 @@ struct ActiveWorkoutView: View {
             return nil
         }
         let reps = SideRepsFormat.reps(set.targetReps, perSide: viewModel.currentExercise?.perSide == true)
-        // No external load: 0 is "just bodyweight", never "0 × 10".
+        // No external load: 0 is "just bodyweight" on a bodyweight lift, and
+        // "no weight prescribed yet" on a loaded one — never "0 × 10".
         if w <= 0 {
-            return "BW × \(reps)"
+            return isBodyweightLift ? "BW × \(reps)" : "\(reps) reps"
         }
         return "\(displayWeight(w)) × \(reps)"
     }

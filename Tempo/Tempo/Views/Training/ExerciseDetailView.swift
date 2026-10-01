@@ -335,7 +335,10 @@ struct ExerciseDetailView: View {
     // Per WIREFRAMES.md Screen 20 — e1RM line chart, 200pt, with 30D/90D/ALL picker
 
     private var progressChart: some View {
-        let chartHistory = filteredHistory(for: chartRange)
+        // One point per day; bodyweight sessions carry no e1RM — never plot a 0.
+        let chartDays = ProgressLabMath.dailyBestE1RM(
+            filteredHistory(for: chartRange).map { ($0.date, $0.estimated1RM) }
+        )
 
         return VStack(alignment: .leading, spacing: TempoSpacing.md) {
             HStack {
@@ -355,7 +358,7 @@ struct ExerciseDetailView: View {
                 .frame(width: 160)
             }
 
-            if chartHistory.isEmpty {
+            if chartDays.isEmpty {
                 VStack(spacing: TempoSpacing.sm) {
                     Image(systemName: "chart.line.uptrend.xyaxis")
                         .font(.system(size: 32))
@@ -372,11 +375,7 @@ struct ExerciseDetailView: View {
                     id: "e1RM",
                     label: "Estimated 1RM",
                     color: Color.tempoSignal,
-                    // One point per day (bodyweight sessions carry no e1RM —
-                    // never plot a 0).
-                    points: ProgressLabMath.dailyBestE1RM(
-                        chartHistory.map { ($0.date, $0.estimated1RM) }
-                    ).map { day in
+                    points: chartDays.map { day in
                         TempoLineChartData<String>.DataPoint(
                             date: day.date,
                             value: WeightUnit.kg.convert(day.e1RM, to: weightUnit)
