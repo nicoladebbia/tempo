@@ -115,7 +115,10 @@ final class WeeklyPlanServiceTests: XCTestCase {
             weekStart: weekStart,
             macrosVerified: true,
             modelContext: context,
-            attachingRecipes: false
+            attachingRecipes: false,
+            // The week's own Monday: nothing has happened yet, so the whole
+            // week is built (a mid-week "now" only rebuilds from today).
+            now: weekStart
         )
 
         XCTAssertEqual(plan.startDate, Calendar.current.startOfDay(for: weekStart))

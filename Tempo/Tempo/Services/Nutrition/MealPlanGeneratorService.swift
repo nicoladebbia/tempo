@@ -290,6 +290,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         macrosVerified: Bool,
         modelContext: ModelContext,
         attachingRecipes: Bool = true,
+        now: Date = Date(),
         onStatus: ((GenerationState) -> Void)? = nil
     ) async throws -> WeeklyMealPlan {
         let setState = stateReporter(onStatus)
@@ -319,6 +320,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             validatedPlan,
             targets: prepared.targets,
             weekStart: weekStart,
+            now: now,
             modelContext: modelContext
         )
 
@@ -450,7 +452,12 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         intake: MealPlanIntake?,
         modelContext: ModelContext
     ) async {
-        let meals = plan.meals ?? []
+        // Only meals that still need one: a from-today rebuild keeps earlier /
+        // eaten meals (with their recipes) and must not re-spend AI calls on them.
+        let today = Calendar.current.startOfDay(for: Date())
+        let meals = (plan.meals ?? []).filter {
+            $0.recipe == nil && $0.status == .planned && $0.dayDate >= today
+        }
         guard !meals.isEmpty else {
             return
         }
@@ -491,7 +498,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         // stretched window was the timing for the SwiftData invalidation
         // crash on plan regen. Batches of 4 stay under the rate limit
         // while keeping total wall-time roughly the same.
-        let concurrency = 4
+        let concurrency = Self.recipeConcurrency
         var collected: [UUID: ParsedRecipe] = [:]
         for chunk in requests.chunked(into: concurrency) {
             let batch = await withTaskGroup(of: (UUID, ParsedRecipe?).self) { group in
@@ -562,24 +569,52 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             exclusions: exclusions
         )
 
-        do {
-            let body = NutritionProxyTextRequest(
-                model: "haiku",
-                system: systemPrompt,
-                userMessage: userPrompt,
-                maxTokens: 4096,
-                temperature: 0.4,
-                caller: "meal_recipe"
-            )
-            let response: NutritionProxyTextResponse = try await apiClient.request(
-                APIEndpoint<NutritionProxyTextResponse>.nutritionProxyText(),
-                body: body
-            )
-            return try parseRecipeJSON(response.text)
-        } catch {
-            logger.warning("Recipe generation failed for '\(mealName)': \(error.localizedDescription)")
+        // 429-aware: the backend allows ~20 AI calls a minute and a week is
+        // ~28 recipes, so a rate-limit answer waits (Retry-After, else a
+        // growing pause) and tries again instead of silently dropping the
+        // recipe. Entitlement / consent errors won't clear by waiting.
+        var attempt = 0
+        while true {
+            do {
+                let body = NutritionProxyTextRequest(
+                    model: "haiku",
+                    system: systemPrompt,
+                    userMessage: userPrompt,
+                    maxTokens: 4096,
+                    temperature: 0.4,
+                    caller: "meal_recipe"
+                )
+                let response: NutritionProxyTextResponse = try await apiClient.request(
+                    APIEndpoint<NutritionProxyTextResponse>.nutritionProxyText(),
+                    body: body
+                )
+                return try parseRecipeJSON(response.text)
+            } catch {
+                if let wait = Self.recipeRetryDelay(after: error, attempt: attempt) {
+                    attempt += 1
+                    logger.info("Recipe for '\(mealName)' rate-limited — retry \(attempt) in \(Int(wait))s")
+                    try? await Task.sleep(for: .seconds(wait))
+                    continue
+                }
+                logger.warning("Recipe generation failed for '\(mealName)': \(error.localizedDescription)")
+                return nil
+            }
+        }
+    }
+
+    /// Recipes in flight at once — kept low so a week (~28) rarely trips the
+    /// backend's 20/min limit; the retry below absorbs the rest.
+    static let recipeConcurrency = 3
+    static let recipeMaxRetries = 4
+
+    /// How long to wait before retrying a recipe call, or nil to give up.
+    /// Only rate limits retry. Exposed for tests.
+    nonisolated static func recipeRetryDelay(after error: Error, attempt: Int) -> TimeInterval? {
+        guard attempt < recipeMaxRetries, case let APIError.rateLimited(retryAfter) = error else {
             return nil
         }
+        let backoff = min(30, 4 * pow(2, Double(attempt)))
+        return min(60, max(retryAfter ?? 0, backoff))
     }
 
     /// Decode the Haiku JSON envelope. Tolerates markdown/text wrap by extracting
@@ -1154,14 +1189,57 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         return food
     }
 
-    /// Scale all meals proportionally so the day total matches the target within 3%.
+    /// Scale the day's home foods so calories match the target AND protein
+    /// lands near its target. Calories alone left protein wherever the AI put
+    /// it, so foods are split into protein-rich and the rest and each group
+    /// gets its own factor (a 2x2 solve: calories and protein). Restaurant
+    /// items are fixed portions and never scale.
+    nonisolated static func scaleFactors(
+        proteinRich: (calories: Double, protein: Double),
+        other: (calories: Double, protein: Double),
+        targetCalories: Double,
+        targetProtein: Double
+    ) -> (rich: Double, other: Double) {
+        let totalCal = proteinRich.calories + other.calories
+        guard totalCal > 0, targetCalories > 0 else {
+            return (1, 1)
+        }
+        let uniform = targetCalories / totalCal
+        let totalProtein = proteinRich.protein + other.protein
+        // Already near the protein target after a uniform scale, or nothing to
+        // trade between → uniform.
+        guard targetProtein > 0, proteinRich.calories > 0, other.calories > 0,
+              abs(totalProtein * uniform - targetProtein) / targetProtein > 0.08
+        else {
+            return (uniform, uniform)
+        }
+        // a*Cr + b*Co = T ; a*Pr + b*Po = P
+        let det = proteinRich.calories * other.protein - other.calories * proteinRich.protein
+        guard abs(det) > 1e-6 else {
+            return (uniform, uniform)
+        }
+        let a = (targetCalories * other.protein - other.calories * targetProtein) / det
+        let b = (proteinRich.calories * targetProtein - targetCalories * proteinRich.protein) / det
+        // Keep portions believable, then re-fit calories (protein gives a little).
+        let ca = min(1.8, max(0.5, a))
+        let cb = min(1.8, max(0.5, b))
+        let fitted = ca * proteinRich.calories + cb * other.calories
+        guard fitted > 0 else {
+            return (uniform, uniform)
+        }
+        let k = targetCalories / fitted
+        return (ca * k, cb * k)
+    }
+
     private func scaleMealsToTarget(
         _ meals: [ParsedMealData],
         target: MacroTargets
     ) -> [ParsedMealData] {
-        // Restaurant items are fixed portions — only home food scales.
-        let fixedCal = meals.flatMap(\.foods).filter { $0.source == "restaurant" }.reduce(0.0) { $0 + $1.calories }
-        let totalCal = meals.flatMap(\.foods).reduce(0.0) { $0 + $1.calories } - fixedCal
+        let allFoods = meals.flatMap(\.foods)
+        let fixedCal = allFoods.filter { $0.source == "restaurant" }.reduce(0.0) { $0 + $1.calories }
+        let fixedProtein = allFoods.filter { $0.source == "restaurant" }.reduce(0.0) { $0 + $1.proteinG }
+        let home = allFoods.filter { $0.source != "restaurant" }
+        let totalCal = home.reduce(0.0) { $0 + $1.calories }
         let targetCal = Double(target.calories) - fixedCal
         // Both sides must be positive; a zero target would otherwise scale
         // every meal to zero calories silently.
@@ -1169,20 +1247,34 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             return meals
         }
 
-        let ratio = targetCal / totalCal
+        func isProteinRich(_ food: ParsedFoodData) -> Bool {
+            food.calories > 0 && food.proteinG * 4 / food.calories >= 0.35
+        }
+        let rich = home.filter(isProteinRich)
+        let rest = home.filter { !isProteinRich($0) }
+        let factors = Self.scaleFactors(
+            proteinRich: (rich.reduce(0.0) { $0 + $1.calories }, rich.reduce(0.0) { $0 + $1.proteinG }),
+            other: (rest.reduce(0.0) { $0 + $1.calories }, rest.reduce(0.0) { $0 + $1.proteinG }),
+            targetCalories: targetCal,
+            targetProtein: Double(target.proteinGrams) - fixedProtein
+        )
 
-        // Only scale if off by more than 5%
-        guard abs(ratio - 1.0) > 0.05 else {
+        // Only scale if something is meaningfully off (>5% calories, or the
+        // protein trade moved the factors apart).
+        let calorieOff = abs(targetCal / totalCal - 1.0) > 0.05
+        let proteinTraded = abs(factors.rich - factors.other) > 0.02
+        guard calorieOff || proteinTraded else {
             return meals
         }
 
-        logger.info("Scaling meals: \(Int(totalCal)) -> \(target.calories) kcal (ratio: \(String(format: "%.2f", ratio)))")
+        logger.info("Scaling meals: \(Int(totalCal)) -> \(target.calories) kcal (protein-rich x\(String(format: "%.2f", factors.rich)), other x\(String(format: "%.2f", factors.other)))")
 
         return meals.map { meal in
             let scaledFoods = meal.foods.map { food in
                 guard food.source != "restaurant" else {
                     return food
                 }
+                let ratio = isProteinRich(food) ? factors.rich : factors.other
                 return ParsedFoodData(
                     name: food.name,
                     quantityGrams: (food.quantityGrams * ratio).rounded(),
@@ -1206,15 +1298,22 @@ final class MealPlanGeneratorService: @unchecked Sendable {
     // MARK: - Persistence
 
     /// Create WeeklyMealPlan and PlannedMeal records in SwiftData.
+    ///
+    /// Rebuilding the CURRENT week never rewrites history: the active plan is
+    /// kept, past days stay as they were, today keeps its eaten / skipped /
+    /// modified meals, and only still-planned meals from today on are
+    /// replaced (see `PlanRebuild`). A new week (or no plan yet) archives the
+    /// old plan and starts a fresh one.
     @MainActor
     private func persistPlan(
         _ plan: ParsedWeeklyPlan,
         targets: [DayType: MacroTargets],
         weekStart: Date? = nil,
+        now: Date = Date(),
         modelContext: ModelContext
     ) throws -> WeeklyMealPlan {
         let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
+        let today = calendar.startOfDay(for: now)
 
         // Plan-start is the Monday of THIS week — matches the prompt's
         // contract that day.dayIndex 0 = Monday, 6 = Sunday. Previously
@@ -1241,53 +1340,41 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         let startDate = weekStart.map { calendar.startOfDay(for: $0) } ?? thisMonday
         let endDate = calendar.date(byAdding: .day, value: 6, to: startDate)!
 
-        // Build day type assignments keyed by absolute weekday (Mon=1..Sun=7)
-        // so RecoverIQ / training-day logic gets a stable mapping.
-        var dayTypeAssignments: [Int: String] = [:]
-        var supplementDecisions: [Int: [SupplementDecision]] = [:]
-        for day in plan.days {
-            // dayIndex 0 = Monday per the prompt contract. Map directly.
-            let weekdayNumber = day.dayIndex + 1
-            dayTypeAssignments[weekdayNumber] = day.dayType
-            // Capture the AI's per-day supplement take/skip decisions (only
-            // present when the user owns supplements). Stored on the plan,
-            // surfaced as "Today's supplements".
-            if let supps = day.supplements, !supps.isEmpty {
-                supplementDecisions[weekdayNumber] = supps.map {
-                    SupplementDecision(name: $0.name, take: $0.take, timing: $0.timing, reason: $0.reason)
-                }
-            }
-        }
+        // A plan for the week that is running now only rebuilds from today:
+        // earlier days already happened.
+        let rebuildsCurrentWeek = today >= startDate && today <= endDate
 
-        // ARCHIVE (don't delete) existing active plans. The personalization
+        // ARCHIVE (don't delete) superseded active plans. The personalization
         // engine needs last week's ACTUAL behavior — eaten/skipped statuses,
         // actualEatenAt, and recipes — which a hard delete would cascade-wipe
         // (WeeklyMealPlan → PlannedMeal → Recipe are all .cascade). Marking
         // isActive=false + isArchived=true retains the rows.
         //
         // Safe against the old duplicate-meals bug ONLY because every TODAY/
-        // active surface now filters `meal.mealPlan?.isActive == true`
-        // (NutritionTabViewModel.loadToday/refreshTodayMeals,
-        // targetsForToday(in:), FuelDayScheduleViewModel,
-        // DashboardViewModel+NutritionFetch). Archived plans' meals fail that
-        // filter, so an overlapping-week regen no longer double-renders.
+        // active surface filters `meal.mealPlan?.isActive == true`
+        // (CanonicalMeals, NutritionTabViewModel.loadToday, FuelDayScheduleVM,
+        // DashboardViewModel+NutritionFetch). The ONE exception is the active
+        // plan of the week being rebuilt: it stays active and is updated in
+        // place, so today's eaten meals never leave the canonical set.
         let existingDescriptor = FetchDescriptor<WeeklyMealPlan>(
             predicate: #Predicate<WeeklyMealPlan> { $0.isActive }
         )
-        if let existingPlans = try? modelContext.fetch(existingDescriptor) {
-            for existing in existingPlans {
-                existing.isActive = false
-                existing.isArchived = true
-            }
+        let activePlans = (try? modelContext.fetch(existingDescriptor)) ?? []
+        let reusable: WeeklyMealPlan? = rebuildsCurrentWeek
+            ? activePlans
+            .filter { calendar.isDate($0.startDate, inSameDayAs: startDate) }
+            .max { $0.generatedAt < $1.generatedAt }
+            : nil
+        for existing in activePlans where existing !== reusable {
+            existing.isActive = false
+            existing.isArchived = true
         }
 
         // Prune archived plans older than the retention window (12 weeks) so
         // the local store stays bounded. Pruning a WeeklyMealPlan cascades to
         // its PlannedMeals + Recipes; MealFeedback (.nullify, denormalized
         // recipeID) survives regardless, so older feedback signal is kept.
-        let retentionCutoff = Calendar.current.date(
-            byAdding: .weekOfYear, value: -12, to: Date()
-        ) ?? Date.distantPast
+        let retentionCutoff = calendar.date(byAdding: .weekOfYear, value: -12, to: now) ?? Date.distantPast
         let staleDescriptor = FetchDescriptor<WeeklyMealPlan>(
             predicate: #Predicate<WeeklyMealPlan> { plan in
                 plan.isArchived && plan.endDate < retentionCutoff
@@ -1299,23 +1386,73 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             }
         }
 
-        // Create the plan
-        let weeklyPlan = WeeklyMealPlan(
-            startDate: startDate,
-            endDate: endDate,
-            dayTypeAssignments: dayTypeAssignments,
-            isActive: true
-        )
-        if !supplementDecisions.isEmpty {
-            weeklyPlan.supplementDecisions = supplementDecisions
+        let weeklyPlan: WeeklyMealPlan
+        // Meals from today on that survive the rebuild (acted on by the user).
+        var keptMeals: [PlannedMeal] = []
+        if let reusable {
+            weeklyPlan = reusable
+            weeklyPlan.generatedAt = now
+            // Drop only meals that were never acted on, from today on.
+            // Eaten / skipped / modified meals and every earlier day stay.
+            let upcoming = (reusable.meals ?? []).filter { $0.dayDate >= today }
+            keptMeals = upcoming.filter { $0.status != .planned }
+            for meal in upcoming where meal.status == .planned {
+                modelContext.delete(meal)
+            }
+            try modelContext.save()
+        } else {
+            weeklyPlan = WeeklyMealPlan(
+                startDate: startDate,
+                endDate: endDate,
+                dayTypeAssignments: [:],
+                isActive: true
+            )
+            modelContext.insert(weeklyPlan)
         }
-        modelContext.insert(weeklyPlan)
+
+        // Day types and supplement decisions are keyed by absolute weekday
+        // (Mon=1..Sun=7). Past days keep what they had.
+        var dayTypeAssignments = weeklyPlan.dayTypeAssignments
+        var supplementDecisions = weeklyPlan.supplementDecisions
+        for day in plan.days {
+            let dayDate = calendar.date(byAdding: .day, value: day.dayIndex, to: startDate)!
+            if rebuildsCurrentWeek, dayDate < today {
+                continue
+            }
+            // dayIndex 0 = Monday per the prompt contract. Map directly.
+            let weekdayNumber = day.dayIndex + 1
+            dayTypeAssignments[weekdayNumber] = day.dayType
+            // The AI's per-day supplement take/skip decisions (only present
+            // when the user owns supplements), surfaced as "Today's supplements".
+            if let supps = day.supplements, !supps.isEmpty {
+                supplementDecisions[weekdayNumber] = supps.map {
+                    SupplementDecision(name: $0.name, take: $0.take, timing: $0.timing, reason: $0.reason)
+                }
+            } else {
+                supplementDecisions[weekdayNumber] = nil
+            }
+        }
+        weeklyPlan.dayTypeAssignments = dayTypeAssignments
+        weeklyPlan.supplementDecisions = supplementDecisions
 
         // Create PlannedMeal records
         for day in plan.days {
             let dayDate = calendar.date(byAdding: .day, value: day.dayIndex, to: startDate)!
+            if rebuildsCurrentWeek, dayDate < today {
+                continue
+            }
 
+            // Meals that survive on this date (eaten / skipped / modified).
+            let kept = keptMeals.filter { calendar.isDate($0.dayDate, inSameDayAs: dayDate) }
+
+            var created: [PlannedMeal] = []
             for meal in day.meals {
+                // Never duplicate a slot the user already ate / skipped.
+                if kept.contains(where: {
+                    PlanRebuild.occupies(kept: $0, mealNumber: meal.mealNumber, mealName: meal.mealName)
+                }) {
+                    continue
+                }
                 let foods = meal.foods.map { food in
                     PlannedFood(
                         name: food.name,
@@ -1329,26 +1466,43 @@ final class MealPlanGeneratorService: @unchecked Sendable {
                     )
                 }
 
-                let totalCal = foods.reduce(0.0) { $0 + $1.calories }
-                let totalProt = foods.reduce(0.0) { $0 + $1.proteinG }
-                let totalCarbs = foods.reduce(0.0) { $0 + $1.carbsG }
-                let totalFat = foods.reduce(0.0) { $0 + $1.fatG }
-
                 let plannedMeal = PlannedMeal(
                     dayDate: dayDate,
                     mealNumber: meal.mealNumber,
                     mealName: meal.mealName,
                     scheduledTime: meal.scheduledTime,
                     foods: foods,
-                    totalCalories: totalCal,
-                    totalProtein: totalProt,
-                    totalCarbs: totalCarbs,
-                    totalFat: totalFat,
+                    totalCalories: foods.reduce(0.0) { $0 + $1.calories },
+                    totalProtein: foods.reduce(0.0) { $0 + $1.proteinG },
+                    totalCarbs: foods.reduce(0.0) { $0 + $1.carbsG },
+                    totalFat: foods.reduce(0.0) { $0 + $1.fatG },
                     status: .planned,
                     mealPlan: weeklyPlan
                 )
-
                 modelContext.insert(plannedMeal)
+                created.append(plannedMeal)
+            }
+
+            // Today with something already eaten or kept: the new meals only
+            // cover what's left of the day.
+            if calendar.isDate(dayDate, inSameDayAs: today) {
+                let eaten = CanonicalMeals.eatenMeals(on: dayDate, in: modelContext)
+                if !kept.isEmpty || !eaten.isEmpty {
+                    let dayTarget = day.meals.reduce(MealMacros.zero) { acc, meal in
+                        meal.foods.reduce(acc) {
+                            $0 + MealMacros(
+                                calories: $1.calories, protein: $1.proteinG,
+                                carbs: $1.carbsG, fat: $1.fatG
+                            )
+                        }
+                    }
+                    PlanRebuild.fit(
+                        remaining: created,
+                        dayTarget: dayTarget,
+                        keptBaseline: CanonicalMeals.planBaseline(of: kept),
+                        consumed: CanonicalMeals.totals(of: eaten)
+                    )
+                }
             }
         }
 
@@ -1473,6 +1627,10 @@ enum MealPlanGeneratorError: Error, LocalizedError {
                 switch apiError {
                 case .unauthorized:
                     "Sign-in expired. Please log in again."
+                case .subscriptionRequired:
+                    PlanGenerationBlocker.proRequired.message
+                case .aiConsentRequired:
+                    PlanGenerationBlocker.aiConsentRequired.message
                 case .rateLimited:
                     "AI rate limit reached. Wait a moment and try again."
                 case .timeout:
