@@ -267,4 +267,103 @@ final class WorkoutCSVServiceTests: XCTestCase {
         XCTAssertEqual(summary.newExercises, 1)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<Exercise>()), 1)
     }
+
+    // MARK: - Records from imported history
+
+    private let benchHistoryCSV = """
+    Date,Workout Name,Exercise Name,Set Order,Weight,Reps,RPE
+    2026-06-10 18:00:00,Push,Bench Press (Barbell),1,80,5,
+    2026-06-10 18:00:00,Push,Pull Up,1,,8,
+    2026-06-17 18:00:00,Push,Bench Press (Barbell),1,85,5,
+    2026-06-17 18:00:00,Push,Bench Press (Barbell),2,90,3,
+    2026-06-17 18:00:00,Push,Pull Up,1,,10,
+    2026-06-24 18:00:00,Push,Bench Press (Barbell),1,80,5,
+    2026-06-24 18:00:00,Push,Pull Up,1,,9,
+    """
+
+    private func records(_ context: ModelContext) throws -> [PersonalRecord] {
+        try context.fetch(FetchDescriptor<PersonalRecord>(sortBy: [.init(\.date)]))
+    }
+
+    func testImportedHistoryEstablishesRecordsOnTheirRealDates() throws {
+        let context = try makeContext()
+        let summary = try WorkoutCSVService.importCSV(benchHistoryCSV, assumedUnit: .kg, modelContext: context)
+
+        let rows = try records(context)
+        // First session of each lift = baseline (no PR). Second session beats
+        // it. Third session beats nothing.
+        XCTAssertEqual(rows.count, 2)
+        XCTAssertEqual(summary.records, 2)
+        let bench = try XCTUnwrap(rows.first { $0.exercise?.name == "Bench Press (Barbell)" })
+        XCTAssertEqual(bench.type, .oneRepMax, "e1RM PR; no separate heaviest-weight row for the same set")
+        XCTAssertEqual(bench.contextWeightKg, 85, "Best e1RM set of the session (85 x 5 ≈ 99 beats 90 x 3 ≈ 99 by a hair)")
+        let pullUp = try XCTUnwrap(rows.first { $0.exercise?.name == "Pull Up" })
+        XCTAssertEqual(pullUp.type, .mostReps)
+        XCTAssertEqual(pullUp.value, 10)
+
+        let calendar = Calendar.current
+        XCTAssertEqual(calendar.component(.day, from: bench.date), 17, "Dated at the session, not the import")
+        XCTAssertEqual(calendar.component(.month, from: bench.date), 6)
+        XCTAssertEqual(Set(rows.map(\.workoutPlanID)).count, 1, "One record per lift per session, same session here")
+    }
+
+    func testRowsInAnyOrderStillReplayChronologically() throws {
+        let lines = benchHistoryCSV.split(separator: "\n")
+        let newestFirst = ([lines[0]] + lines.dropFirst().reversed()).joined(separator: "\n")
+        let context = try makeContext()
+        _ = try WorkoutCSVService.importCSV(newestFirst, assumedUnit: .kg, modelContext: context)
+        XCTAssertEqual(try records(context).count, 2)
+    }
+
+    func testFirstLiveSetAfterImportIsNotABogusFirstLogRecord() throws {
+        let context = try makeContext()
+        _ = try WorkoutCSVService.importCSV(benchHistoryCSV, assumedUnit: .kg, modelContext: context)
+        let bench = try XCTUnwrap(context.fetch(FetchDescriptor<Exercise>()).first { $0.name == "Bench Press (Barbell)" })
+        let engine = TrainingEngine()
+
+        XCTAssertNil(engine.detectPersonalRecord(exercise: bench, weight: 60, reps: 8, rir: 2),
+                     "Imported history is the baseline: a lighter set is not a first-log PR")
+        XCTAssertNotNil(engine.detectPersonalRecord(exercise: bench, weight: 100, reps: 3, rir: 1),
+                        "A genuine record against imported history still fires")
+    }
+
+    func testImportedPoundsRecordsAreStoredInKilos() throws {
+        let context = try makeContext()
+        let csv = """
+        Date,Workout Name,Exercise Name,Set Order,Weight,Reps
+        2026-06-10 18:00:00,Push,Bench Press (Barbell),1,185,5
+        2026-06-17 18:00:00,Push,Bench Press (Barbell),1,225,5
+        """
+        _ = try WorkoutCSVService.importCSV(csv, assumedUnit: .lbs, modelContext: context)
+        let record = try XCTUnwrap(records(context).first)
+        XCTAssertEqual(try XCTUnwrap(record.contextWeightKg), 225 / 2.20462, accuracy: 0.001)
+    }
+
+    func testOlderImportedSessionsNeverMintRecordsAgainstNewerLiveHistory() throws {
+        let context = try makeContext()
+        let bench = Exercise(name: "Bench Press (Barbell)", muscleGroup: .chest, equipment: .barbell,
+                             movementPattern: .horizontalPush, isCompound: true)
+        context.insert(bench)
+        // Live history from August: 120 kg.
+        context.insert(ExerciseHistory(date: ISO8601DateFormatter().date(from: "2026-08-01T10:00:00Z") ?? Date(),
+                                       estimated1RM: 135, totalVolume: 600, bestSetWeight: 120, bestSetReps: 5,
+                                       setsPerformed: 1, workoutPlanID: UUID(), exercise: bench))
+        try context.save()
+
+        _ = try WorkoutCSVService.importCSV(benchHistoryCSV, assumedUnit: .kg, modelContext: context)
+
+        // June sessions: the first is the earliest log (baseline); the 90 kg
+        // session beats it. Nothing is compared against August's 120 kg.
+        let rows = try records(context).filter { $0.exercise?.id == bench.id }
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(Calendar.current.component(.day, from: try XCTUnwrap(rows.first?.date)), 17)
+    }
+
+    func testUndoRemovesImportedRecordsToo() throws {
+        let context = try makeContext()
+        let summary = try WorkoutCSVService.importCSV(benchHistoryCSV, assumedUnit: .kg, modelContext: context)
+        XCTAssertEqual(try records(context).count, 2)
+        try WorkoutCSVService.undoImport(batchID: try XCTUnwrap(summary.batchID), modelContext: context)
+        XCTAssertEqual(try records(context).count, 0)
+    }
 }

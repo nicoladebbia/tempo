@@ -41,6 +41,9 @@ enum WorkoutCSVService {
         var sets = 0
         var duplicates = 0
         var newExercises = 0
+        /// Personal records the replay of this history set (first log of a
+        /// lift is a baseline, not a record).
+        var records = 0
         /// Tags every workout/exercise this import created (see `undoImport`).
         var batchID: UUID?
         /// The unit weights were read in (nil when the file has no weights).
@@ -308,6 +311,7 @@ enum WorkoutCSVService {
         var exercisesByID = Dictionary(library.map { ($0.id, $0) }) { first, _ in first }
         var candidates = library.map { ExerciseMatcher.Candidate(id: $0.id, name: $0.name) }
         var resolved: [String: Exercise] = [:]
+        var records = ImportedRecordReplay()
 
         for key in groups.keys.sorted(by: { $0.start < $1.start }) {
             guard !existingStarts.contains(key.start) else {
@@ -363,6 +367,8 @@ enum WorkoutCSVService {
                     summary.newExercises += 1
                 }
 
+                // Snapshot what the lift had BEFORE this import touches it.
+                records.prepare(exercise)
                 let slot = PlannedExercise(order: order, workoutPlan: plan, exercise: exercise)
                 var planned: [PlannedSet] = []
                 for (index, set) in groupSets.filter({ $0.exercise == name }).enumerated() {
@@ -382,7 +388,10 @@ enum WorkoutCSVService {
                 slot.sets = planned
                 summary.sets += planned.count
 
-                let best = planned.max { ($0.actualWeight ?? 0) < ($1.actualWeight ?? 0) }
+                // One real set: heaviest, ties (and all-bodyweight lifts) by reps.
+                let best = planned.max {
+                    ($0.actualWeight ?? 0, $0.actualReps ?? 0) < ($1.actualWeight ?? 0, $1.actualReps ?? 0)
+                }
                 let volume = planned.reduce(0.0) { acc, row in
                     acc + ((row.actualWeight ?? 0) * Double(row.actualReps ?? 0))
                 }
@@ -396,6 +405,11 @@ enum WorkoutCSVService {
                     workoutPlanID: plan.id,
                     exercise: exercise
                 ))
+                // Records by their real date, by the app's own PR rules.
+                if let record = records.record(for: exercise, sets: planned, on: key.start, planID: plan.id) {
+                    modelContext.insert(record)
+                    summary.records += 1
+                }
             }
             summary.workouts += 1
         }
