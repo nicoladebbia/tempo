@@ -100,6 +100,19 @@ enum WorkoutCSVService {
         let declaredUnit: WeightUnit?
     }
 
+    // MARK: - Reading
+
+    /// File text, detecting UTF-8/UTF-16 (byte-order mark) and falling back to
+    /// Latin-1 for exports saved by older spreadsheet tools. Blocking IO —
+    /// call off the main actor.
+    nonisolated static func readText(from url: URL) -> String? {
+        var encoding = String.Encoding.utf8
+        if let text = try? String(contentsOf: url, usedEncoding: &encoding) {
+            return text
+        }
+        return try? String(contentsOf: url, encoding: .isoLatin1)
+    }
+
     // MARK: - Parsing
 
     /// Header-detect the format and flatten the file to working-set rows.
@@ -260,6 +273,11 @@ enum WorkoutCSVService {
 
     // MARK: - Import
 
+    /// How many workouts are written between yields to the main run loop —
+    /// small enough that a 3,000-workout history keeps scrolling/animating,
+    /// big enough not to drown in scheduling.
+    private static let workoutsPerBatch = 20
+
     /// Parse + persist. One completed WorkoutPlan per (start time, name)
     /// group, one ExerciseHistory row per exercise — the same shape
     /// persistCompletion writes, so charts and progression see the history.
@@ -269,10 +287,11 @@ enum WorkoutCSVService {
         _ text: String,
         assumedUnit: WeightUnit? = nil,
         batchID: UUID = UUID(),
-        modelContext: ModelContext
-    ) throws -> ImportSummary {
-        try importParsed(
-            parse(text), assumedUnit: assumedUnit, batchID: batchID, modelContext: modelContext
+        modelContext: ModelContext,
+        progress: (@MainActor (Double) -> Void)? = nil
+    ) async throws -> ImportSummary {
+        try await importParsed(
+            parse(text), assumedUnit: assumedUnit, batchID: batchID, modelContext: modelContext, progress: progress
         )
     }
 
@@ -283,8 +302,9 @@ enum WorkoutCSVService {
         _ parsed: ParsedFile,
         assumedUnit: WeightUnit? = nil,
         batchID: UUID = UUID(),
-        modelContext: ModelContext
-    ) throws -> ImportSummary {
+        modelContext: ModelContext,
+        progress: (@MainActor (Double) -> Void)? = nil
+    ) async throws -> ImportSummary {
         let format = parsed.format
         let sets = parsed.sets
         // A unit the file declares wins per row; otherwise the caller's
@@ -313,7 +333,14 @@ enum WorkoutCSVService {
         var resolved: [String: Exercise] = [:]
         var records = ImportedRecordReplay()
 
-        for key in groups.keys.sorted(by: { $0.start < $1.start }) {
+        let orderedKeys = groups.keys.sorted(by: { $0.start < $1.start })
+        for (position, key) in orderedKeys.enumerated() {
+            // Hand the main actor back between batches so a big file never
+            // freezes the screen, and report how far along we are.
+            if position % workoutsPerBatch == 0 {
+                progress?(Double(position) / Double(orderedKeys.count))
+                await Task.yield()
+            }
             guard !existingStarts.contains(key.start) else {
                 summary.duplicates += 1
                 continue
@@ -414,7 +441,15 @@ enum WorkoutCSVService {
             summary.workouts += 1
         }
 
-        try modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            // All-or-nothing: a failed save must not leave half an import
+            // sitting unsaved in the context.
+            modelContext.rollback()
+            throw error
+        }
+        progress?(1)
         return summary
     }
 

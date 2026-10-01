@@ -45,7 +45,7 @@ final class WorkoutCSVServiceTests: XCTestCase {
 
     // MARK: - Parsing
 
-    func testStrongParseSkipsWarmupsAndInfersFormat() throws {
+    func testStrongParseSkipsWarmupsAndInfersFormat() async throws {
         let parsed = try WorkoutCSVService.parse(strongCSV)
         let (format, sets) = (parsed.format, parsed.sets)
         XCTAssertEqual(format, .strong)
@@ -68,7 +68,7 @@ final class WorkoutCSVServiceTests: XCTestCase {
 
     // MARK: - Import
 
-    func testStrongImportCreatesPlansSetsAndHistory() throws {
+    func testStrongImportCreatesPlansSetsAndHistory() async throws {
         let context = try makeContext()
         // Pre-existing library exercise — matched case-insensitively, no dupe.
         context.insert(Exercise(name: "bench press", muscleGroup: .chest,
@@ -76,7 +76,7 @@ final class WorkoutCSVServiceTests: XCTestCase {
                                 isCompound: true))
         try context.save()
 
-        let summary = try WorkoutCSVService.importCSV(strongCSV, modelContext: context)
+        let summary = try await WorkoutCSVService.importCSV(strongCSV, modelContext: context)
 
         XCTAssertEqual(summary.workouts, 2)
         XCTAssertEqual(summary.sets, 4)
@@ -105,9 +105,9 @@ final class WorkoutCSVServiceTests: XCTestCase {
         XCTAssertEqual(customs.count, 2)
     }
 
-    func testHevyImportSkipsWarmupsAndMapsColumns() throws {
+    func testHevyImportSkipsWarmupsAndMapsColumns() async throws {
         let context = try makeContext()
-        let summary = try WorkoutCSVService.importCSV(hevyCSV, modelContext: context)
+        let summary = try await WorkoutCSVService.importCSV(hevyCSV, modelContext: context)
 
         XCTAssertEqual(summary.format, .hevy)
         XCTAssertEqual(summary.workouts, 1)
@@ -117,10 +117,10 @@ final class WorkoutCSVServiceTests: XCTestCase {
         XCTAssertEqual(plan.orderedExercises.first?.orderedSets.first?.actualWeight, 100)
     }
 
-    func testReimportIsIdempotent() throws {
+    func testReimportIsIdempotent() async throws {
         let context = try makeContext()
-        _ = try WorkoutCSVService.importCSV(strongCSV, modelContext: context)
-        let second = try WorkoutCSVService.importCSV(strongCSV, modelContext: context)
+        _ = try await WorkoutCSVService.importCSV(strongCSV, modelContext: context)
+        let second = try await WorkoutCSVService.importCSV(strongCSV, modelContext: context)
 
         XCTAssertEqual(second.workouts, 0)
         XCTAssertEqual(second.duplicates, 2, "Both workouts recognized by start time")
@@ -130,14 +130,14 @@ final class WorkoutCSVServiceTests: XCTestCase {
 
     // MARK: - Export round-trip
 
-    func testExportRoundTripsThroughImport() throws {
+    func testExportRoundTripsThroughImport() async throws {
         let source = try makeContext()
-        _ = try WorkoutCSVService.importCSV(strongCSV, modelContext: source)
+        _ = try await WorkoutCSVService.importCSV(strongCSV, modelContext: source)
         let plans = try source.fetch(FetchDescriptor<WorkoutPlan>())
         let csv = WorkoutCSVService.exportCSV(plans: plans)
 
         let destination = try makeContext()
-        let summary = try WorkoutCSVService.importCSV(csv, modelContext: destination)
+        let summary = try await WorkoutCSVService.importCSV(csv, modelContext: destination)
 
         XCTAssertEqual(summary.format, .strong, "Export is Strong-compatible")
         XCTAssertEqual(summary.workouts, 2)
@@ -150,7 +150,7 @@ final class WorkoutCSVServiceTests: XCTestCase {
         XCTAssertEqual(bench.compactMap(\.rpe), [8, 9], "RPE survives the round-trip")
     }
 
-    func testExportSkipsIncompletePlans() throws {
+    func testExportSkipsIncompletePlans() async throws {
         let context = try makeContext()
         let plan = WorkoutPlan(date: Date(), type: .push)
         context.insert(plan) // .planned — never exported
@@ -175,9 +175,9 @@ final class WorkoutCSVServiceTests: XCTestCase {
         try context.fetch(FetchDescriptor<PlannedSet>()).compactMap(\.actualWeight).first
     }
 
-    func testPoundsFileIsConvertedNotReadAsKilos() throws {
+    func testPoundsFileIsConvertedNotReadAsKilos() async throws {
         let context = try makeContext()
-        let summary = try WorkoutCSVService.importCSV(strongPounds, modelContext: context)
+        let summary = try await WorkoutCSVService.importCSV(strongPounds, modelContext: context)
         XCTAssertEqual(try XCTUnwrap(firstWeight(context)), 225 / 2.20462, accuracy: 0.001)
         XCTAssertEqual(summary.unit, .lbs)
         XCTAssertTrue(summary.label.contains("lbs"))
@@ -185,13 +185,13 @@ final class WorkoutCSVServiceTests: XCTestCase {
         XCTAssertEqual(sets.filter { $0.actualWeight == nil }.count, 1, "Bodyweight set stays weightless")
     }
 
-    func testUnitPickedByTheUserAppliesWhenFileDoesNotSay() throws {
+    func testUnitPickedByTheUserAppliesWhenFileDoesNotSay() async throws {
         let lbs = try makeContext()
-        _ = try WorkoutCSVService.importCSV(strongNoUnit, assumedUnit: .lbs, modelContext: lbs)
+        _ = try await WorkoutCSVService.importCSV(strongNoUnit, assumedUnit: .lbs, modelContext: lbs)
         XCTAssertEqual(try XCTUnwrap(firstWeight(lbs)), 225 / 2.20462, accuracy: 0.001)
 
         let kg = try makeContext()
-        _ = try WorkoutCSVService.importCSV(strongNoUnit, assumedUnit: .kg, modelContext: kg)
+        _ = try await WorkoutCSVService.importCSV(strongNoUnit, assumedUnit: .kg, modelContext: kg)
         XCTAssertEqual(try firstWeight(kg), 225)
 
         let history = try lbs.fetch(FetchDescriptor<ExerciseHistory>())
@@ -200,7 +200,7 @@ final class WorkoutCSVServiceTests: XCTestCase {
 
     // MARK: - Undo
 
-    func testUndoRemovesOnlyTheImportedBatch() throws {
+    func testUndoRemovesOnlyTheImportedBatch() async throws {
         let context = try makeContext()
         let library = Exercise(name: "Barbell Row", muscleGroup: .back, equipment: .barbell,
                                movementPattern: .horizontalPull, isCompound: true)
@@ -210,7 +210,7 @@ final class WorkoutCSVServiceTests: XCTestCase {
         context.insert(live)
         try context.save()
 
-        let summary = try WorkoutCSVService.importCSV(strongCSV, modelContext: context)
+        let summary = try await WorkoutCSVService.importCSV(strongCSV, modelContext: context)
         let batch = try XCTUnwrap(summary.batchID)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<WorkoutPlan>()), 3)
 
@@ -224,11 +224,11 @@ final class WorkoutCSVServiceTests: XCTestCase {
         XCTAssertEqual(exercises.map(\.name), ["Barbell Row"], "Custom exercises the import made are removed, library stays")
     }
 
-    func testUndoKeepsACustomExerciseALaterImportReused() throws {
+    func testUndoKeepsACustomExerciseALaterImportReused() async throws {
         let context = try makeContext()
-        let first = try WorkoutCSVService.importCSV(strongNoUnit, modelContext: context)
+        let first = try await WorkoutCSVService.importCSV(strongNoUnit, modelContext: context)
         let laterCSV = strongNoUnit.replacingOccurrences(of: "2026-07-20", with: "2026-07-27")
-        _ = try WorkoutCSVService.importCSV(laterCSV, modelContext: context)
+        _ = try await WorkoutCSVService.importCSV(laterCSV, modelContext: context)
 
         try WorkoutCSVService.undoImport(batchID: try XCTUnwrap(first.batchID), modelContext: context)
 
@@ -238,14 +238,14 @@ final class WorkoutCSVServiceTests: XCTestCase {
 
     // MARK: - Exercise matching
 
-    func testStrongNameMatchesLibraryExerciseInsteadOfForkingACustomOne() throws {
+    func testStrongNameMatchesLibraryExerciseInsteadOfForkingACustomOne() async throws {
         let context = try makeContext()
         let library = Exercise(name: "Barbell Bench Press", muscleGroup: .chest, equipment: .barbell,
                                movementPattern: .horizontalPush, isCompound: true)
         context.insert(library)
         try context.save()
 
-        let summary = try WorkoutCSVService.importCSV(strongPounds, modelContext: context)
+        let summary = try await WorkoutCSVService.importCSV(strongPounds, modelContext: context)
 
         XCTAssertEqual(summary.newExercises, 1, "Only Pull Up is new; Bench Press (Barbell) is the library lift")
         XCTAssertEqual(library.history?.count, 1, "History lands on the library exercise")
@@ -256,14 +256,14 @@ final class WorkoutCSVServiceTests: XCTestCase {
         XCTAssertEqual(customs.first?.equipment, .bodyweight)
     }
 
-    func testTwoSpellingsOfOneLiftShareOneExercise() throws {
+    func testTwoSpellingsOfOneLiftShareOneExercise() async throws {
         let context = try makeContext()
         let csv = """
         Date,Workout Name,Exercise Name,Set Order,Weight,Reps
         2026-07-20 18:00:00,Push,Bench Press (Barbell),1,80,5
         2026-07-22 18:00:00,Push,Barbell Bench Press,1,82.5,5
         """
-        let summary = try WorkoutCSVService.importCSV(csv, assumedUnit: .kg, modelContext: context)
+        let summary = try await WorkoutCSVService.importCSV(csv, assumedUnit: .kg, modelContext: context)
         XCTAssertEqual(summary.newExercises, 1)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<Exercise>()), 1)
     }
@@ -285,9 +285,9 @@ final class WorkoutCSVServiceTests: XCTestCase {
         try context.fetch(FetchDescriptor<PersonalRecord>(sortBy: [.init(\.date)]))
     }
 
-    func testImportedHistoryEstablishesRecordsOnTheirRealDates() throws {
+    func testImportedHistoryEstablishesRecordsOnTheirRealDates() async throws {
         let context = try makeContext()
-        let summary = try WorkoutCSVService.importCSV(benchHistoryCSV, assumedUnit: .kg, modelContext: context)
+        let summary = try await WorkoutCSVService.importCSV(benchHistoryCSV, assumedUnit: .kg, modelContext: context)
 
         let rows = try records(context)
         // First session of each lift = baseline (no PR). Second session beats
@@ -307,17 +307,17 @@ final class WorkoutCSVServiceTests: XCTestCase {
         XCTAssertEqual(Set(rows.map(\.workoutPlanID)).count, 1, "One record per lift per session, same session here")
     }
 
-    func testRowsInAnyOrderStillReplayChronologically() throws {
+    func testRowsInAnyOrderStillReplayChronologically() async throws {
         let lines = benchHistoryCSV.split(separator: "\n")
         let newestFirst = ([lines[0]] + lines.dropFirst().reversed()).joined(separator: "\n")
         let context = try makeContext()
-        _ = try WorkoutCSVService.importCSV(newestFirst, assumedUnit: .kg, modelContext: context)
+        _ = try await WorkoutCSVService.importCSV(newestFirst, assumedUnit: .kg, modelContext: context)
         XCTAssertEqual(try records(context).count, 2)
     }
 
-    func testFirstLiveSetAfterImportIsNotABogusFirstLogRecord() throws {
+    func testFirstLiveSetAfterImportIsNotABogusFirstLogRecord() async throws {
         let context = try makeContext()
-        _ = try WorkoutCSVService.importCSV(benchHistoryCSV, assumedUnit: .kg, modelContext: context)
+        _ = try await WorkoutCSVService.importCSV(benchHistoryCSV, assumedUnit: .kg, modelContext: context)
         let bench = try XCTUnwrap(context.fetch(FetchDescriptor<Exercise>()).first { $0.name == "Bench Press (Barbell)" })
         let engine = TrainingEngine()
 
@@ -327,19 +327,19 @@ final class WorkoutCSVServiceTests: XCTestCase {
                         "A genuine record against imported history still fires")
     }
 
-    func testImportedPoundsRecordsAreStoredInKilos() throws {
+    func testImportedPoundsRecordsAreStoredInKilos() async throws {
         let context = try makeContext()
         let csv = """
         Date,Workout Name,Exercise Name,Set Order,Weight,Reps
         2026-06-10 18:00:00,Push,Bench Press (Barbell),1,185,5
         2026-06-17 18:00:00,Push,Bench Press (Barbell),1,225,5
         """
-        _ = try WorkoutCSVService.importCSV(csv, assumedUnit: .lbs, modelContext: context)
+        _ = try await WorkoutCSVService.importCSV(csv, assumedUnit: .lbs, modelContext: context)
         let record = try XCTUnwrap(records(context).first)
         XCTAssertEqual(try XCTUnwrap(record.contextWeightKg), 225 / 2.20462, accuracy: 0.001)
     }
 
-    func testOlderImportedSessionsNeverMintRecordsAgainstNewerLiveHistory() throws {
+    func testOlderImportedSessionsNeverMintRecordsAgainstNewerLiveHistory() async throws {
         let context = try makeContext()
         let bench = Exercise(name: "Bench Press (Barbell)", muscleGroup: .chest, equipment: .barbell,
                              movementPattern: .horizontalPush, isCompound: true)
@@ -350,7 +350,7 @@ final class WorkoutCSVServiceTests: XCTestCase {
                                        setsPerformed: 1, workoutPlanID: UUID(), exercise: bench))
         try context.save()
 
-        _ = try WorkoutCSVService.importCSV(benchHistoryCSV, assumedUnit: .kg, modelContext: context)
+        _ = try await WorkoutCSVService.importCSV(benchHistoryCSV, assumedUnit: .kg, modelContext: context)
 
         // June sessions: the first is the earliest log (baseline); the 90 kg
         // session beats it. Nothing is compared against August's 120 kg.
@@ -359,11 +359,57 @@ final class WorkoutCSVServiceTests: XCTestCase {
         XCTAssertEqual(Calendar.current.component(.day, from: try XCTUnwrap(rows.first?.date)), 17)
     }
 
-    func testUndoRemovesImportedRecordsToo() throws {
+    func testUndoRemovesImportedRecordsToo() async throws {
         let context = try makeContext()
-        let summary = try WorkoutCSVService.importCSV(benchHistoryCSV, assumedUnit: .kg, modelContext: context)
+        let summary = try await WorkoutCSVService.importCSV(benchHistoryCSV, assumedUnit: .kg, modelContext: context)
         XCTAssertEqual(try records(context).count, 2)
         try WorkoutCSVService.undoImport(batchID: try XCTUnwrap(summary.batchID), modelContext: context)
         XCTAssertEqual(try records(context).count, 0)
+    }
+
+    // MARK: - Big files
+
+    private func bigCSV(workouts: Int) -> String {
+        var lines = ["Date,Workout Name,Exercise Name,Set Order,Weight,Reps"]
+        let base = ISO8601DateFormatter().date(from: "2020-01-01T10:00:00Z") ?? Date()
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        for day in 0 ..< workouts {
+            let date = formatter.string(from: base.addingTimeInterval(Double(day) * 86400))
+            for set in 1 ... 3 {
+                lines.append("\(date),Push,Bench Press (Barbell),\(set),\(60 + day % 40),8")
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    func testBigImportReportsProgressAndFinishes() async throws {
+        let context = try makeContext()
+        var seen: [Double] = []
+        let summary = try await WorkoutCSVService.importCSV(
+            bigCSV(workouts: 300), assumedUnit: .kg, modelContext: context
+        ) { seen.append($0) }
+
+        XCTAssertEqual(summary.workouts, 300)
+        XCTAssertEqual(summary.sets, 900)
+        XCTAssertGreaterThan(seen.count, 5, "Progress is reported in batches")
+        XCTAssertEqual(seen, seen.sorted(), "Progress never goes backwards")
+        XCTAssertEqual(seen.last, 1)
+    }
+
+    func testParsingRunsOffTheMainActor() async throws {
+        let text = bigCSV(workouts: 50)
+        let file = try await Task.detached { try WorkoutCSVService.parse(text) }.value
+        XCTAssertEqual(file.sets.count, 150)
+    }
+
+    func testFailedParseLeavesNothingBehind() async throws {
+        let context = try makeContext()
+        do {
+            _ = try await WorkoutCSVService.importCSV("foo,bar\n1,2\n", modelContext: context)
+            XCTFail("unrecognized file must throw")
+        } catch {}
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<WorkoutPlan>()), 0)
     }
 }

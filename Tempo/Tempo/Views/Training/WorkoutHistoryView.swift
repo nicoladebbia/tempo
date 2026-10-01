@@ -89,6 +89,12 @@ struct WorkoutHistoryView: View {
     private var lastImportBatchID = ""
     @State
     private var showUndoImportConfirm = false
+    /// Non-nil while a CSV is being read / written: the stage label and, once
+    /// writing starts, 0...1 progress (nil = still reading, indeterminate).
+    @State
+    private var importStage: String?
+    @State
+    private var importProgress: Double?
     /// True only while the alert shows a fresh import result.
     @State
     private var resultOffersUndo = false
@@ -131,6 +137,11 @@ struct WorkoutHistoryView: View {
             }
         }
         .background(Color.tempoBgPrimary)
+        .overlay {
+            if let importStage {
+                importOverlay(importStage)
+            }
+        }
         .navigationTitle("Workout History")
         .navigationBarTitleDisplayMode(.inline)
         // §13 — cardio lives on its own surface; gym history stays this one.
@@ -203,7 +214,7 @@ struct WorkoutHistoryView: View {
                 Button(unit == .kg ? "Kilograms (kg)" : "Pounds (lbs)") {
                     if let file = pendingUnitChoice {
                         pendingUnitChoice = nil
-                        runImport(file, unit: unit)
+                        startImport(file, unit: unit)
                     }
                 }
             }
@@ -366,34 +377,63 @@ struct WorkoutHistoryView: View {
     private func importCSV(_ result: Result<URL, Error>) {
         switch result {
         case let .success(url):
-            let scoped = url.startAccessingSecurityScopedResource()
-            defer {
-                if scoped {
-                    url.stopAccessingSecurityScopedResource()
+            importStage = "Reading file…"
+            importProgress = nil
+            // Reading + parsing a multi-year export is heavy: off the main actor.
+            Task {
+                let parsed = await Task.detached(priority: .userInitiated) { () -> Result<WorkoutCSVService.ParsedFile, any Error> in
+                    let scoped = url.startAccessingSecurityScopedResource()
+                    defer {
+                        if scoped {
+                            url.stopAccessingSecurityScopedResource()
+                        }
+                    }
+                    guard let text = WorkoutCSVService.readText(from: url) else {
+                        return .failure(CSVReadError())
+                    }
+                    return Result { try WorkoutCSVService.parse(text) }
+                }.value
+                switch parsed {
+                case let .success(file):
+                    if file.declaredUnit != nil || !file.sets.contains(where: { ($0.weight ?? 0) > 0 }) {
+                        await runImport(file, unit: file.declaredUnit ?? weightUnit)
+                    } else {
+                        importStage = nil
+                        pendingUnitChoice = file
+                    }
+                case let .failure(error):
+                    importStage = nil
+                    resultOffersUndo = false
+                    csvResultMessage = error.localizedDescription
                 }
-            }
-            guard let text = try? String(contentsOf: url, encoding: .utf8) else {
-                csvResultMessage = "Couldn't read that file."
-                return
-            }
-            do {
-                let file = try WorkoutCSVService.parse(text)
-                if file.declaredUnit != nil || !file.sets.contains(where: { ($0.weight ?? 0) > 0 }) {
-                    runImport(file, unit: file.declaredUnit ?? weightUnit)
-                } else {
-                    pendingUnitChoice = file
-                }
-            } catch {
-                csvResultMessage = error.localizedDescription
             }
         case let .failure(error):
             csvResultMessage = error.localizedDescription
         }
     }
 
-    private func runImport(_ file: WorkoutCSVService.ParsedFile, unit: WeightUnit) {
+    private struct CSVReadError: LocalizedError {
+        var errorDescription: String? {
+            "Couldn't read that file."
+        }
+    }
+
+    private func startImport(_ file: WorkoutCSVService.ParsedFile, unit: WeightUnit) {
+        Task { await runImport(file, unit: unit) }
+    }
+
+    @MainActor
+    private func runImport(_ file: WorkoutCSVService.ParsedFile, unit: WeightUnit) async {
+        importStage = "Importing workouts…"
+        importProgress = 0
+        defer {
+            importStage = nil
+            importProgress = nil
+        }
         do {
-            let summary = try WorkoutCSVService.importParsed(file, assumedUnit: unit, modelContext: modelContext)
+            let summary = try await WorkoutCSVService.importParsed(
+                file, assumedUnit: unit, modelContext: modelContext
+            ) { importProgress = $0 }
             csvResultMessage = summary.label
             resultOffersUndo = summary.workouts > 0
             if summary.workouts > 0 {
@@ -402,8 +442,31 @@ struct WorkoutHistoryView: View {
                 HapticManager.notification(.success)
             }
         } catch {
+            resultOffersUndo = false
             csvResultMessage = error.localizedDescription
         }
+    }
+
+    private func importOverlay(_ stage: String) -> some View {
+        ZStack {
+            Color.black.opacity(0.45).ignoresSafeArea()
+            VStack(spacing: TempoSpacing.md) {
+                if let importProgress {
+                    ProgressView(value: importProgress)
+                        .tint(Color.tempoSignal)
+                        .frame(width: 180)
+                } else {
+                    ProgressView()
+                }
+                Text(importProgress.map { "\(stage) \(Int($0 * 100))%" } ?? stage)
+                    .font(.tempoBody)
+                    .foregroundStyle(Color.tempoTextPrimary)
+            }
+            .padding(TempoSpacing.xl)
+            .background(Color.tempoBgSecondary)
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        }
+        .transition(.opacity)
     }
 
     private func undoLastImport() {
