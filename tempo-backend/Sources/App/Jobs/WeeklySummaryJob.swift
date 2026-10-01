@@ -1,15 +1,15 @@
-import Vapor
 import Fluent
 import Queues
 @preconcurrency import Redis
+import Vapor
 
 // MARK: - Weekly Summary Job
+
 // Per BUILD_PLAN step 15.2 — Sunday job that generates weekly reports for all users.
 // Per AI_INTELLIGENCE_ENGINE.md Section 6.3 — Cache warming Sunday night batch.
 // Generates reports proactively so Monday morning is fully cached.
 
 struct WeeklySummaryJob: AsyncScheduledJob {
-
     func run(context: QueueContext) async throws {
         _ = try await generate(app: context.application, now: context.application.now)
     }
@@ -44,7 +44,7 @@ struct WeeklySummaryJob: AsyncScheduledJob {
             // Check if already cached for this week
             let cacheKey = RedisKey("insight:weekly:\(userID):\(weekStart)")
             if (try? await app.redis.get(cacheKey, as: String.self).get()) != nil {
-                continue  // Already generated
+                continue // Already generated
             }
 
             do {
@@ -61,9 +61,11 @@ struct WeeklySummaryJob: AsyncScheduledJob {
                 let encoder = JSONEncoder()
                 encoder.keyEncodingStrategy = .convertToSnakeCase
                 if let data = try? encoder.encode(report),
-                   let jsonString = String(data: data, encoding: .utf8) {
-                    _ = try? await app.redis.set(cacheKey, to: jsonString)
-                    _ = try? await app.redis.expire(cacheKey, after: .seconds(7 * 24 * 3600))
+                   let jsonString = String(data: data, encoding: .utf8)
+                {
+                    _ = try? await app.redis.setex(
+                        cacheKey, to: jsonString, expirationInSeconds: 7 * 24 * 3600
+                    ).get()
                 }
 
                 generated += 1
@@ -79,7 +81,7 @@ struct WeeklySummaryJob: AsyncScheduledJob {
 
     // MARK: - Build Input
 
-    private func buildWeeklyInput(user: User, weekStart: String, weekEnd: String, db: Database) -> WeeklyReportInput {
+    private func buildWeeklyInput(user: User, weekStart: String, weekEnd: String, db _: Database) -> WeeklyReportInput {
         WeeklyReportInput(
             userID: user.id ?? "",
             weekStart: weekStart,
@@ -87,7 +89,7 @@ struct WeeklySummaryJob: AsyncScheduledJob {
             streakDays: user.streakDays,
             level: user.level,
             xpTotal: user.xpTotal,
-            avgScore: 75,  // TODO: Compute from daily snapshots
+            avgScore: 75, // TODO: Compute from daily snapshots
             daysWithData: 7,
             avgRecovery: 72,
             avgSleepHours: 7.0,
@@ -108,27 +110,33 @@ struct WeeklySummaryJob: AsyncScheduledJob {
     }
 
     // MARK: - Fallback Report Generator
+
     // Per AI_INTELLIGENCE_ENGINE.md Section 8.2 — Statistical template.
 
     private func generateFallbackReport(_ input: WeeklyReportInput) -> WeeklyReportResponse {
         let title: String
-        if input.avgScore >= 90 { title = "Dominant week across the board" }
-        else if input.avgScore >= 75 { title = "Solid week with room to grow" }
-        else if input.avgScore >= 60 { title = "Average week -- time to lock in" }
-        else { title = "Below the line -- reset starts now" }
+        if input.avgScore >= 90 {
+            title = "Dominant week across the board"
+        } else if input.avgScore >= 75 {
+            title = "Solid week with room to grow"
+        } else if input.avgScore >= 60 {
+            title = "Average week -- time to lock in"
+        } else {
+            title = "Below the line -- reset starts now"
+        }
 
         let recoveryDelta = input.avgRecovery - input.prevAvgRecovery
 
         return WeeklyReportResponse(
             title: title,
             summary: "This week you scored an average of \(input.avgScore)/100 across \(input.daysWithData) days. " +
-                     "Recovery averaged \(input.avgRecovery)% and you completed \(input.avgCompletionPct)% of non-negotiables.",
+                "Recovery averaged \(input.avgRecovery)% and you completed \(input.avgCompletionPct)% of non-negotiables.",
             sections: [
                 ReportSection(
                     title: "Recovery & Sleep",
                     icon: "bed.double.fill",
                     body: "Average recovery: \(input.avgRecovery)% (\(recoveryDelta >= 0 ? "+" : "")\(recoveryDelta)% vs last week). " +
-                          "Sleep averaged \(String(format: "%.1f", input.avgSleepHours))h.",
+                        "Sleep averaged \(String(format: "%.1f", input.avgSleepHours))h.",
                     sentiment: recoveryDelta >= 0 ? "positive" : "warning"
                 ),
                 ReportSection(
@@ -153,7 +161,7 @@ struct WeeklySummaryJob: AsyncScheduledJob {
             actionItems: [
                 "Review your weakest domain and set one specific improvement target for next week.",
                 "Maintain current sleep schedule. Consistency matters more than duration.",
-                "Focus on completing all non-negotiables before evening."
+                "Focus on completing all non-negotiables before evening.",
             ],
             comparedToLastWeek: WeekOverWeekDeltas(
                 recoveryAvgChange: recoveryDelta,

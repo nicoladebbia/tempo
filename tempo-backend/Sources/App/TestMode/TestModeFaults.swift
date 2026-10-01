@@ -98,7 +98,7 @@ struct TestModeFaultMiddleware: AsyncMiddleware {
 
     func respond(to request: Request, chainingTo next: AsyncResponder) async throws -> Response {
         let path = request.url.path
-        guard !path.hasPrefix("/v1/test"), !faults.all.isEmpty else {
+        guard !path.hasPrefix("/v1/test"), path != "/health", !faults.all.isEmpty else {
             return try await next.respond(to: request)
         }
         // Unverified on purpose: only used to scope a rule to one test user.

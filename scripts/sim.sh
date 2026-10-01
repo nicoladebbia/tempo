@@ -212,7 +212,7 @@ do_run() {
     local server=(-tempoAPIBaseURL off)
     if [ "$local_mode" = 1 ]; then
         "$ROOT/scripts/testenv.sh" up >/dev/null
-        [ -z "$name" ] && name="$(sim_slug "$ROOT" | tr '[:upper:]_.' '[:lower:]--' | tr -cd 'a-z0-9-' | cut -c1-$((40 - ${#SECOND} - 1)))${SECOND:+-$SECOND}"
+        [ -z "$name" ] && name="$(sim_slug "$ROOT" | tr '[:upper:]_.' '[:lower:]--' | tr -cd 'a-z0-9-' | cut -c1-$((40 - ${#SECOND} - (${#SECOND} > 0))))${SECOND:+-$SECOND}"
         local line
         server=()
         while IFS= read -r line; do server+=("$line"); done < <(test_login_args "$udid" "$name" "$([ "$fresh" = 1 ] && echo true || echo false)" "$pro")
@@ -304,12 +304,14 @@ do_clean() {
     done < <(xcrun simctl list devices -j | python3 -c '
 import json, sys
 base = sys.argv[1]
+only = sys.argv[2] if len(sys.argv) > 2 else ""
 for devs in json.load(sys.stdin)["devices"].values():
     for d in devs:
-        if d["name"] == base or d["name"].startswith(base + " · "):
+        if (only and d["name"] == only) or (not only and (d["name"] == base or d["name"].startswith(base + " · "))):
             print(d["udid"] + "\t" + d["name"])
-' "$BASE_SIM_NAME")
-    if [ -d "$DD" ]; then
+' "$BASE_SIM_NAME" "${SECOND:+$SIM_NAME}")
+    # --sim <id> clean: just that extra sim; the shared build stays.
+    if [ -z "$SECOND" ] && [ -d "$DD" ]; then
         rm -rf "$DD"
         echo "[sim] deleted $DD"
     fi

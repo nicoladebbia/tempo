@@ -138,22 +138,22 @@ struct TestModeController: RouteCollection {
     static func setPro(_ pro: Bool, userID: String, on req: Request) async throws {
         let subs = try await UserSubscription.query(on: req.db).filter(\.$user.$id == userID).all()
         if pro {
-            if subs.contains(where: { $0.isActive && $0.expirationDate > Date() }) {
+            if subs.contains(where: { $0.isActive && $0.expirationDate > req.now }) {
                 return
             }
             let sub = UserSubscription(
                 userID: userID,
                 productId: "tempo_pro_monthly",
                 originalTransactionId: "test_\(UUID().uuidString.prefix(12))",
-                purchaseDate: Date().addingTimeInterval(-86400),
-                expirationDate: Date().addingTimeInterval(365 * 86400),
+                purchaseDate: req.now.addingTimeInterval(-86400),
+                expirationDate: req.now.addingTimeInterval(365 * 86400),
                 environment: "sandbox"
             )
             try await sub.save(on: req.db)
         } else {
             for sub in subs where sub.isActive {
                 sub.isActive = false
-                sub.expirationDate = Date().addingTimeInterval(-60)
+                sub.expirationDate = req.now.addingTimeInterval(-60)
                 try await sub.save(on: req.db)
             }
         }

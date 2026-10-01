@@ -1,18 +1,21 @@
-import Vapor
+import APNS
+import APNSCore
 import Fluent
 import Queues
 import Redis
-import APNS
-import APNSCore
+import Vapor
 import VaporAPNS
 
 // MARK: - Morning Briefing Scheduled Job
+
 // Per BUILD_PLAN step 12.4 — Sends morning briefings at user's configured time.
 // Per ONBOARDING_AND_NOTIFICATIONS.md — Channel 1: Morning Briefing.
 // Runs every 15 minutes, checks which users need their briefing.
 
 struct MorningBriefingJob: AsyncScheduledJob {
-    var name: String { "MorningBriefingJob" }
+    var name: String {
+        "MorningBriefingJob"
+    }
 
     func run(context: QueueContext) async throws {
         _ = try await send(app: context.application, now: context.application.now)
@@ -93,14 +96,11 @@ struct MorningBriefingJob: AsyncScheduledJob {
                 )
 
                 // Mark as sent for today (expire at midnight + 1h)
-                _ = try? await app.redis.set(
+                _ = try? await app.redis.setex(
                     RedisKey(todayKey),
-                    to: "sent"
-                )
-                _ = try? await app.redis.expire(
-                    RedisKey(todayKey),
-                    after: .hours(18)
-                )
+                    to: "sent",
+                    expirationInSeconds: 18 * 3600
+                ).get()
 
                 sent += 1
                 app.logger.info("Sent morning briefing to user \(userID)")
@@ -119,15 +119,21 @@ struct MorningBriefingJob: AsyncScheduledJob {
             .filter(\.$user.$id == userID)
             .sort(\.$date, .descending)
             .first(),
-           let score = recovery.recoveryScore {
-            if score >= 67 { return "green" }
-            if score >= 34 { return "yellow" }
+            let score = recovery.recoveryScore
+        {
+            if score >= 67 {
+                return "green"
+            }
+            if score >= 34 {
+                return "yellow"
+            }
             return "red"
         }
         return "unknown"
     }
 
     // MARK: - Copy Generator
+
     // Per ONBOARDING_AND_NOTIFICATIONS.md — Channel 1 copy (Drill Sergeant).
     // Per APP_STORE_COMPLIANCE.md — No exact health values on lock screen.
 
@@ -185,7 +191,7 @@ struct MorningBriefingJob: AsyncScheduledJob {
             "type": "recovery_morning",
             "interruption_level": "time-sensitive",
             "channel": "morning_briefing",
-            "recovery_zone": recoveryZone
+            "recovery_zone": recoveryZone,
         ])
 
         for device in devices {

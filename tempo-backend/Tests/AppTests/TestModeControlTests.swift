@@ -64,6 +64,21 @@ struct TestModeControlTests {
         return status
     }
 
+    // MARK: Same origin
+
+    @Test func routesRejectOtherWebsites() async throws {
+        try await withApp { app in
+            try await app.test(.GET, "v1/test/status", beforeRequest: { req in
+                req.headers.replaceOrAdd(name: .origin, value: "https://evil.example")
+            }, afterResponse: { res async in #expect(res.status == .forbidden) })
+            try await app.test(.GET, "v1/test/status", beforeRequest: { req in
+                req.headers.replaceOrAdd(name: .host, value: "127.0.0.1:58080")
+                req.headers.replaceOrAdd(name: .origin, value: "http://127.0.0.1:58080")
+            }, afterResponse: { res async in #expect(res.status == .ok) })
+            try await app.test(.GET, "v1/test/status", afterResponse: { res async in #expect(res.status == .ok) })
+        }
+    }
+
     // MARK: Faults
 
     @Test func faultsBreakMatchingRequestsThenStop() async throws {
@@ -73,16 +88,16 @@ struct TestModeControlTests {
             try await post(app, "v1/test/faults", #"{"path_prefix":"/v1/insights","kind":"error","status":503,"remaining":2,"user_id":"\#(me.userID)"}"#) { res in
                 #expect(res.status == .ok)
             }
-            #expect(try await weeklyReport(app, other) == .ok)  // someone else: untouched
+            #expect(try await weeklyReport(app, other) == .ok) // someone else: untouched
             #expect(try await weeklyReport(app, me) == .serviceUnavailable)
             #expect(try await weeklyReport(app, me) == .serviceUnavailable)
-            #expect(try await weeklyReport(app, me) == .ok)  // count used up
+            #expect(try await weeklyReport(app, me) == .ok) // count used up
             #expect(app.testMode?.faults.all.isEmpty == true)
 
             try await post(app, "v1/test/faults", #"{"path_prefix":"/v1/insights","kind":"logout"}"#)
             #expect(try await weeklyReport(app, me) == .unauthorized)
             try await post(app, "v1/test/faults", #"{"path_prefix":"/v1/test","kind":"error"}"#) { res in
-                #expect(res.status == .badRequest)  // the controls can't break themselves
+                #expect(res.status == .badRequest) // the controls can't break themselves
             }
             try await app.test(.DELETE, "v1/test/faults", afterResponse: { res async throws in #expect(res.status == .noContent) })
             #expect(try await weeklyReport(app, me) == .ok)
@@ -159,13 +174,13 @@ struct TestModeControlTests {
     @Test func cancelledProRunsOutWhenTheClockPassesItsEnd() async throws {
         try await withApp { app in
             let me = try await login(app)
-            #expect(try await weeklyReport(app, me) == .ok)  // also caches Pro for 5 min
+            #expect(try await weeklyReport(app, me) == .ok) // also caches Pro for 5 min
             try await post(app, "v1/test/subscription", #"{"name":"\#(me.name)","state":"cancelled","days":2}"#) { res in
                 let body = try res.content.decode(TestModeController.SubscriptionResponse.self)
                 #expect(body.pro)
             }
             try await post(app, "v1/test/clock", #"{"advance_seconds":\#(3 * 86400)}"#)
-            #expect(try await weeklyReport(app, me) == .paymentRequired)  // cache dropped on the clock change
+            #expect(try await weeklyReport(app, me) == .paymentRequired) // cache dropped on the clock change
             try await post(app, "v1/test/clock", #"{"reset":true}"#)
             #expect(try await weeklyReport(app, me) == .ok)
         }
@@ -225,12 +240,12 @@ struct TestModeControlTests {
             let daysAhead = Int.random(in: 30 ... 3000)
             try await setClock(app, hour: 8, minute: 20, zone: "Europe/Rome", daysAhead: daysAhead)
             #expect(try await briefing(app, me) == 1)
-            #expect(try await briefing(app, me) == 0)  // already had today's
+            #expect(try await briefing(app, me) == 0) // already had today's
             #expect(try await briefing(app, me, force: true) == 1)
             #expect(app.testMode?.pushes(for: me.userID).count == 2)
 
             try await setClock(app, hour: 8, minute: 55, zone: "Europe/Rome", daysAhead: daysAhead + 1)
-            #expect(try await briefing(app, me) == 0)  // outside 08:15–08:45
+            #expect(try await briefing(app, me) == 0) // outside 08:15–08:45
             try await setClock(app, hour: 8, minute: 44, zone: "Europe/Rome", daysAhead: daysAhead + 1)
             #expect(try await briefing(app, me) == 1)
             try await post(app, "v1/test/clock", #"{"reset":true}"#)
@@ -306,7 +321,7 @@ struct TestModeControlTests {
             let events = try await XPEvent.query(on: app.db).filter(\.$user.$id == me.userID).all()
             #expect(events.count == first.xpEvents)
             let oldest = try #require(events.compactMap(\.createdAt).min())
-            #expect(Date().timeIntervalSince(oldest) > 7 * 7 * 86400)  // backdated, not "now"
+            #expect(Date().timeIntervalSince(oldest) > 7 * 7 * 86400) // backdated, not "now"
             #expect(first.xpTotal == events.reduce(0) { $0 + $1.multipliedXP })
 
             let again = try await persona(app, me, "athlete")
@@ -343,8 +358,8 @@ struct TestModeControlTests {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("tempo-rec-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: dir) }
         let recordings = AIRecordings(directory: dir)
-        try recordings.save(feature: "weekly_plan", body: #"{"old":true}"#, at: Date(timeIntervalSince1970: 1_000))
-        try recordings.save(feature: "weekly_plan", body: #"{"new":true}"#, at: Date(timeIntervalSince1970: 2_000))
+        try recordings.save(feature: "weekly_plan", body: #"{"old":true}"#, at: Date(timeIntervalSince1970: 1000))
+        try recordings.save(feature: "weekly_plan", body: #"{"new":true}"#, at: Date(timeIntervalSince1970: 2000))
         #expect(recordings.latest(feature: "weekly_plan") == #"{"new":true}"#)
         #expect(recordings.latest(feature: "nothing") == nil)
         #expect(recordings.counts() == ["weekly_plan": 2])

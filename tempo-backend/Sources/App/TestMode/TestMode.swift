@@ -68,7 +68,8 @@ enum TestMode {
         }
 
         app.middleware.use(TestModeFaultMiddleware(faults: state.faults))
-        try app.grouped("v1", "test").register(collection: TestModeController())
+        try app.grouped("v1", "test").grouped(TestModeSameOriginMiddleware())
+            .register(collection: TestModeController())
         app.logger.warning("TEST MODE ON — fake outside services, /v1/test routes, pushes captured (AI: \(state.aiMode.rawValue))")
     }
 }
@@ -211,5 +212,27 @@ extension Application {
     var testMode: TestModeState? {
         get { storage[TestModeKey.self] }
         set { storage[TestModeKey.self] = newValue }
+    }
+}
+
+// MARK: - Same-origin guard
+
+/// CORS allows every origin, so without this any web page open in the
+/// developer's browser could drive /v1/test (log in as anyone, add faults).
+/// Requests with no Origin (testctl, curl, the app) and the control page's
+/// own same-origin calls pass; everything else is 403.
+struct TestModeSameOriginMiddleware: AsyncMiddleware {
+    func respond(to request: Request, chainingTo next: AsyncResponder) async throws -> Response {
+        if let origin = request.headers.first(name: .origin) {
+            let host = request.headers.first(name: .host) ?? ""
+            let allowed = URL(string: origin).map { url in
+                let port = url.port.map { ":\($0)" } ?? ""
+                return "\(url.host ?? "")\(port)" == host
+            } ?? false
+            guard allowed else {
+                throw Abort(.forbidden, reason: "Test routes only accept same-origin requests.")
+            }
+        }
+        return try await next.respond(to: request)
     }
 }
