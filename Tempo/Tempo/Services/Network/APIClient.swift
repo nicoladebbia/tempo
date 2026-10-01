@@ -300,6 +300,12 @@ actor APIClient {
     }
 
     private func deviceID() async -> String {
+        #if DEBUG && targetEnvironment(simulator)
+            // Test-server sessions are minted for this id (refresh checks it).
+            if let testDeviceID = TestServer.deviceIDOverride {
+                return testDeviceID
+            }
+        #endif
         // Stable device identifier — in production, store in Keychain
         let vendorID = await MainActor.run { UIDevice.current.identifierForVendor }
         return vendorID?.uuidString ?? UUID().uuidString

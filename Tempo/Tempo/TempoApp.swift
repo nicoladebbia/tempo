@@ -101,10 +101,18 @@ struct TempoApp: App {
                 // PauseTravelPainUITestSeed's header); no-ops unless launched
                 // with one of its launch arguments.
                 PauseTravelPainUITestSeed.seedIfRequested(context: container.mainContext)
+                // `sim.sh qa --scenario <name>` starting states (see
+                // ScenarioSeed's header).
+                ScenarioSeed.seedIfRequested(context: container.mainContext)
             #endif
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }
+        #if DEBUG && targetEnvironment(simulator)
+            // `sim.sh qa --local`: sign in as this simulator's test account
+            // before AuthService restores the session.
+            TestServer.prepare()
+        #endif
         // ServiceContainer.live builds the APIClient itself so it can wire
         // the AuthInterceptor (Bearer-token attachment) at APIClient init.
         let serviceContainer = ServiceContainer.live()
