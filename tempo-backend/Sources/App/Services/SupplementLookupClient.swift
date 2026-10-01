@@ -265,27 +265,44 @@ struct OFFProduct: Content {
         guard let quantityGrams = Self.parseGrams(quantity), let servingGrams = Self.parseGrams(servingSize), servingGrams > 0 else {
             return nil
         }
-        return (quantityGrams / servingGrams).rounded()
+        let servings = (quantityGrams / servingGrams).rounded()
+        return servings > 0 ? servings : nil
     }
 
-    private static func parseGrams(_ raw: String?) -> Double? {
+    /// Grams from a label amount. Only a number directly followed by a mass
+    /// unit counts ("60 g", "1.2kg", "2 x 30 g" → 30, "500 mg" → 0.5);
+    /// "2 gummies" or "1 scoop" give nil. The old check glued every digit
+    /// together and accepted any "g" in the text, so "2 gummies" read as 2 g
+    /// and "2 x 30 g" as 230 g.
+    /// "1,000" → "1000" (comma + exactly three digits after 1–3 leading
+    /// digits is a thousands separator); "30,4" and "0,500" stay decimals.
+    static func normalizedNumber(_ token: String) -> String {
+        let parts = token.split(separator: ",", omittingEmptySubsequences: false)
+        if parts.count == 2, parts[1].count == 3, parts[0].count <= 3, parts[0] != "0", !parts[0].contains(".") {
+            return String(parts[0]) + String(parts[1])
+        }
+        return token.replacingOccurrences(of: ",", with: ".")
+    }
+
+    static func parseGrams(_ raw: String?) -> Double? {
         guard let raw else { return nil }
         let lower = raw.lowercased()
-        let numberString = lower.filter { $0.isNumber || $0 == "." }
-        guard let value = Double(numberString) else { return nil }
-        if lower.contains("kg") {
-            return value * 1000
+        let pattern = #"(?<![\w.])(\d+(?:[.,]\d+)?)\s*(kg|mg|grams?|gr|g|lbs?|oz)(?![a-z])"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: lower, range: NSRange(lower.startIndex..., in: lower)),
+              let numberRange = Range(match.range(at: 1), in: lower),
+              let unitRange = Range(match.range(at: 2), in: lower),
+              let value = Double(Self.normalizedNumber(String(lower[numberRange])))
+        else {
+            return nil
         }
-        if lower.contains("lb") {
-            return value * 453.592
+        switch lower[unitRange] {
+        case "kg": return value * 1000
+        case "mg": return value / 1000
+        case "lb", "lbs": return value * 453.592
+        case "oz": return value * 28.3495
+        default: return value
         }
-        if lower.contains("oz") {
-            return value * 28.3495
-        }
-        if lower.contains("g") {
-            return value
-        }
-        return nil
     }
 }
 

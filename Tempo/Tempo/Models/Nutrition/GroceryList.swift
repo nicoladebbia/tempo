@@ -32,6 +32,11 @@ final class GroceryList {
     @Relationship(deleteRule: .cascade, inverse: \GroceryListItem.list)
     var items: [GroceryListItem]?
 
+    /// Plan foods the user deleted from this list. A pantry sync never adds
+    /// them back; a fresh Generate starts over. Optional for lightweight
+    /// migration.
+    var dismissedFoods: [String]?
+
     @Transient
     var orderedItems: [GroceryListItem] {
         (items ?? []).sorted {
@@ -235,5 +240,60 @@ final class GroceryListItem {
         self.priceSourceRaw = priceSource?.rawValue
         self.notes = notes
         self.createdAt = Date()
+    }
+}
+
+// MARK: - Pantry-restock marker
+
+extension GroceryListItem {
+    /// `notes` value stamped on rows `PantryGroceryBridge` creates ("I'm out
+    /// of rice", a depleted ingredient). Lets the service tell those apart
+    /// from items the user typed in themselves, which a pantry restock must
+    /// never delete.
+    static let pantryRestockNote = "pantry-restock"
+
+    @Transient
+    var isPantryRestock: Bool {
+        isManual && notes == Self.pantryRestockNote
+    }
+}
+
+// MARK: - Display names
+
+extension GroceryListItem {
+    /// `true` when `displayName` already leads with the amount ("3 medium
+    /// carrots", "1 bag spinach") — purchase-unit rows built by
+    /// `GroceryListGenerator`. Showing `quantity + unit` next to it again read
+    /// "3 pcs 3 medium carrots" in the share text, the share page and Instacart.
+    ///
+    /// Only generator-built rows (never `isManual`) qualify: a name the user
+    /// typed ("7 up soda", "12 oz coffee", "1 kg bag rice") is theirs and
+    /// keeps its separate quantity/unit.
+    @Transient
+    var displayNameEmbedsQuantity: Bool {
+        !isManual && displayName.range(of: #"^\d+(?:[.,]\d+)?\s+\S"#, options: .regularExpression) != nil
+    }
+
+    /// Name with no amount in it — what share page / Instacart pair with the
+    /// separate quantity + unit fields.
+    @Transient
+    var quantityFreeName: String {
+        guard displayNameEmbedsQuantity else {
+            return displayName
+        }
+        let canonical = FoodCanonicalizer.displayName(canonicalFoodName)
+        if !canonical.isEmpty {
+            return canonical
+        }
+        return displayName.replacingOccurrences(of: #"^\d+(?:[.,]\d+)?\s+"#, with: "", options: .regularExpression)
+    }
+
+    /// One self-contained line: "3 medium carrots", "500 g Chicken breast".
+    @Transient
+    var fullLabel: String {
+        if displayNameEmbedsQuantity {
+            return displayName
+        }
+        return "\(PantryQuantityFormatter.number(quantity)) \(unit.displayName) \(displayName)"
     }
 }

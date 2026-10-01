@@ -36,6 +36,16 @@ struct NutritionTodayView: View {
     @State
     private var markEatenMeal: PlannedMeal?
 
+    /// Result toasts (errors, "log deleted" with Undo).
+    @State
+    private var toast: ToastData?
+
+    /// "Save as preset" naming alert.
+    @State
+    private var presetSourceMeal: PlannedMeal?
+    @State
+    private var presetNameDraft = ""
+
     /// Bumped after toggling a supplement "taken" so the card re-reads the
     /// taken set (a fetch in a computed view doesn't auto-refresh on insert).
     @State
@@ -49,8 +59,8 @@ struct NutritionTodayView: View {
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: TempoSpacing.xl) {
-                if viewModel.isPlanOutOfDate {
-                    planOutOfDateBanner
+                if viewModel.showPlanUpdateBanner {
+                    PlanUpdateBanner(viewModel: viewModel)
                 }
                 if let banner = viewModel.lastRedistributionBanner {
                     redistributionBanner(banner)
@@ -102,6 +112,53 @@ struct NutritionTodayView: View {
             }
             .presentationDetents([.medium, .large])
         }
+        .tempoToast($toast)
+        .alert("Save as preset", isPresented: Binding(
+            get: { presetSourceMeal != nil },
+            set: { if !$0 { presetSourceMeal = nil } }
+        )) {
+            TextField("Preset name", text: $presetNameDraft)
+            Button("Save") {
+                if let meal = presetSourceMeal {
+                    let name = presetNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let saved = !name.isEmpty
+                        && viewModel.savePreset(from: meal, name: name, modelContext: modelContext)
+                    toast = saved
+                        ? ToastData(message: "\(name) saved. Find it on the Log tab.", style: .success)
+                        : ToastData(message: "Couldn't save that preset.", style: .error)
+                }
+                presetSourceMeal = nil
+            }
+            Button("Cancel", role: .cancel) { presetSourceMeal = nil }
+        } message: {
+            Text("Log this meal again in one tap from the Log tab.")
+        }
+    }
+
+    // MARK: - Undo / delete / preset
+
+    /// Undo an eaten/skipped meal (plan slot → planned, ad-hoc log → deleted)
+    /// with a 5-second Undo toast.
+    private func undoMeal(_ meal: PlannedMeal) {
+        let name = meal.mealName
+        guard let snapshot = viewModel.undoMealEaten(
+            meal, modelContext: modelContext, notifications: services.notifications
+        ) else {
+            toast = ToastData(message: "Couldn't undo \(name). Try again.", style: .error)
+            return
+        }
+        let message = snapshot.kind == .removed ? "\(name) log deleted." : "\(name) is back on the plan."
+        toast = ToastData(message: message, style: .info, actionTitle: "Undo") {
+            if !viewModel.restoreLog(snapshot, modelContext: modelContext, notifications: services.notifications) {
+                toast = ToastData(message: "Couldn't restore \(name).", style: .error)
+            }
+        }
+    }
+
+    private func beginSavePreset(_ meal: PlannedMeal) {
+        presetNameDraft = meal.foods.first.map { meal.foods.count > 1 ? "\($0.name) +\(meal.foods.count - 1)" : $0.name }
+            ?? meal.mealName
+        presetSourceMeal = meal
     }
 
     // MARK: - Macro Rings
@@ -189,7 +246,7 @@ struct NutritionTodayView: View {
         // Re-read on every toggle (supplementTakenRefresh) so the checkmarks
         // reflect the latest taken state.
         let taken = supplementTakenRefresh >= 0
-            ? viewModel.takenSupplementsToday(modelContext: modelContext)
+            ? viewModel.takenSupplementIDsToday(modelContext: modelContext)
             : []
         if !doses.isEmpty {
             VStack(alignment: .leading, spacing: TempoSpacing.md) {
@@ -233,9 +290,9 @@ struct NutritionTodayView: View {
                         // nothing to check off). Tap toggles + persists; tap
                         // again undoes.
                         if dose.take {
-                            let isTaken = taken.contains(dose.name)
+                            let isTaken = taken.contains(dose.supplementID)
                             Button {
-                                viewModel.toggleSupplementTaken(name: dose.name, modelContext: modelContext)
+                                viewModel.toggleSupplementTaken(supplementID: dose.supplementID, name: dose.name, modelContext: modelContext)
                                 supplementTakenRefresh += 1
                             } label: {
                                 Image(systemName: isTaken ? "checkmark.circle.fill" : "circle")
@@ -350,8 +407,10 @@ struct NutritionTodayView: View {
 
                 Spacer()
 
-                let eaten = viewModel.todayMeals.count(where: { $0.status == .eaten })
-                Text("\(eaten)/\(viewModel.todayMeals.count) done")
+                // Extra logs aren't part of the plan, so they stay out of both numbers.
+                let planned = viewModel.todayMeals.filter { !$0.isUnplannedLog }
+                let eaten = planned.count(where: { $0.status == .eaten })
+                Text("\(eaten)/\(planned.count) done")
                     .font(.tempoCaption1)
                     .foregroundStyle(Color.tempoTextTertiary)
             }
@@ -376,35 +435,24 @@ struct NutritionTodayView: View {
                             // can pick the actual eat-time (and optionally
                             // a meal-feel chip or substitute).
                             if PlannedMealTimingMatcher.isNearScheduled(meal: meal, now: Date()) {
-                                viewModel.markMealEaten(
-                                    meal,
-                                    modelContext: modelContext,
-                                    notifications: services.notifications
-                                )
-                                if !meal.didDecrementPantry {
-                                    let results = PantryDecrementService.decrement(for: meal, modelContext: modelContext)
-                                    meal.decrementDetail = results.flatMap(\.details)
-                                    meal.didDecrementPantry = true
-                                    PantryDepletionPlanCheck.handleDepletions(
-                                        results,
-                                        weeklyPlan: meal.mealPlan,
-                                        modelContext: modelContext
-                                    )
-                                    try? modelContext.save()
-                                }
+                                commitMarkEaten(meal: meal, at: Date(), feel: nil, satiety: nil, substitute: nil)
                             } else {
                                 markEatenMeal = meal
                             }
                         },
                         onMarkSkipped: {
-                            viewModel.markMealSkipped(
+                            guard viewModel.markMealSkipped(
                                 meal,
                                 modelContext: modelContext,
                                 notifications: services.notifications
-                            )
+                            ) else {
+                                toast = ToastData(message: "Couldn't skip \(meal.mealName). Try again.", style: .error)
+                                return
+                            }
                             // Fire-and-forget AI redistribution. UX
                             // stays snappy; banner appears when the call
-                            // returns (sub-second on Haiku, ~2s on retry).
+                            // returns (sub-second on Haiku, ~2s on retry)
+                            // and only when macros were really moved.
                             Task {
                                 let recovery = viewModel.todayRecovery?.score
                                 let sleep = viewModel.todaySleep?.totalHours
@@ -420,10 +468,18 @@ struct NutritionTodayView: View {
                                 )
                             }
                         },
+                        onUndo: { undoMeal(meal) },
+                        onSavePreset: { beginSavePreset(meal) },
                         onReviewTap: { feedbackMeal = meal },
                         needsReview: meal.status == .eaten
                             && !(viewModel.feedbackPresence[meal.id] ?? false)
                     )
+                    .swipeToDelete(
+                        enabled: meal.status == .eaten,
+                        label: meal.isUnplannedLog ? "Delete log" : "Undo — not eaten"
+                    ) {
+                        undoMeal(meal)
+                    }
                 }
             }
         }
@@ -461,48 +517,6 @@ struct NutritionTodayView: View {
         }
         .padding(TempoSpacing.md)
         .background(Color.tempoElectric.opacity(0.10))
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-    }
-
-    /// Shown when the plan was built from training / diet-profile settings
-    /// that have since changed and the automatic regenerate didn't land
-    /// (offline, backend error) — or while it's running.
-    private var planOutOfDateBanner: some View {
-        HStack(alignment: .center, spacing: TempoSpacing.sm) {
-            Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Color.tempoAmber)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Plan out of date")
-                    .font(.tempoCaption1)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Text("Your training or diet settings changed.")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextSecondary)
-            }
-            Spacer()
-            Button {
-                HapticManager.lightImpact()
-                viewModel.generatePlan(
-                    modelContext: modelContext,
-                    whoop: services.whoop,
-                    apiClient: services.apiClient,
-                    notifications: services.notifications,
-                    trainingEngine: services.trainingEngine,
-                    healthKit: services.healthKit
-                )
-            } label: {
-                Text(viewModel.isGeneratingPlan ? "Regenerating…" : "Regenerate")
-                    .font(.tempoCaption1)
-                    .fontWeight(.semibold)
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(Color.tempoSignal)
-            .disabled(viewModel.isGeneratingPlan)
-        }
-        .padding(TempoSpacing.md)
-        .background(Color.tempoAmber.opacity(0.10))
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
     }
 
@@ -593,72 +607,60 @@ struct NutritionTodayView: View {
         substitute: MarkEatenSheet.Substitute?
     ) {
         guard let substitute else {
-            viewModel.markMealEaten(
+            // Pantry decrement, feedback row, shift and rebalance all happen
+            // inside the shared service.
+            if viewModel.markMealEaten(
                 meal, at: eatTime, modelContext: modelContext,
-                notifications: services.notifications
-            )
-            if !meal.didDecrementPantry {
-                let results = PantryDecrementService.decrement(for: meal, modelContext: modelContext)
-                meal.decrementDetail = results.flatMap(\.details)
-                meal.didDecrementPantry = true
-                PantryDepletionPlanCheck.handleDepletions(results, weeklyPlan: meal.mealPlan, modelContext: modelContext)
+                notifications: services.notifications, feel: feel, satiety: satiety
+            ) {
+                viewModel.refreshFeedbackPresence(modelContext: modelContext)
+            } else {
+                toast = ToastData(message: "Couldn't save \(meal.mealName). Try again.", style: .error)
             }
-            if feel != nil || satiety != nil {
-                let feedback = MealFeedback(plannedMeal: meal, mealFeel: feel, satiety: satiety)
-                modelContext.insert(feedback)
-            }
-            try? modelContext.save()
-            viewModel.refreshFeedbackPresence(modelContext: modelContext)
             return
         }
         // Substitute → parse "what you ate" into real foods + DB macros via the
         // NL pipeline and REPLACE the meal's foods/macros (same as the meal
-        // detail screen). No MealLog (day totals sum PlannedMeal → double-count).
-        Task { await resolveSubstitute(meal: meal, note: substitute.note, usedPantry: substitute.usedPantry, feel: feel, satiety: satiety) }
+        // detail screen). The planned dish is remembered for Undo. No MealLog
+        // (day totals sum PlannedMeal → double-count).
+        Task { await resolveSubstitute(meal: meal, at: eatTime, note: substitute.note, usedPantry: substitute.usedPantry, feel: feel, satiety: satiety) }
     }
 
     @MainActor
-    private func resolveSubstitute(meal: PlannedMeal, note: String, usedPantry: Bool, feel: MealFeel?, satiety: MealSatiety?) async {
+    private func resolveSubstitute(meal: PlannedMeal, at eatTime: Date, note: String, usedPantry: Bool, feel: MealFeel?, satiety: MealSatiety?) async {
         let nl = NaturalLanguageLoggingService(apiClient: services.apiClient)
         do {
             let items = try await nl.parseNaturalLanguage(note)
             guard !items.isEmpty else {
+                toast = ToastData(
+                    message: "Couldn't recognize any food in \"\(note)\". Edit it and try again.",
+                    style: .error
+                )
                 return
             }
-            // The substitute replaces what was eaten, not what the plan asked
-            // for — keep the plan's allocation for the daily target.
-            meal.capturePlanBaselineIfNeeded()
-            meal.foods = items.map {
+            let foods = items.map {
                 PlannedFood(
                     name: $0.name, quantityGrams: $0.quantityGrams,
                     calories: $0.calories, proteinG: $0.proteinG,
                     carbsG: $0.carbsG, fatG: $0.fatG
                 )
             }
-            meal.totalCalories = items.reduce(0) { $0 + $1.calories }
-            meal.totalProtein = items.reduce(0) { $0 + $1.proteinG }
-            meal.totalCarbs = items.reduce(0) { $0 + $1.carbsG }
-            meal.totalFat = items.reduce(0) { $0 + $1.fatG }
-            meal.recipe = nil
-            viewModel.markMealEaten(
-                meal, at: .now, modelContext: modelContext,
-                notifications: services.notifications
-            )
-            if usedPantry, !meal.didDecrementPantry {
-                let results = PantryDecrementService.decrement(
-                    foods: meal.foods, label: meal.mealName, modelContext: modelContext
-                )
-                meal.decrementDetail = results.flatMap(\.details)
-                meal.didDecrementPantry = true
-                PantryDepletionPlanCheck.handleDepletions(results, weeklyPlan: meal.mealPlan, modelContext: modelContext)
+            if viewModel.markMealEaten(
+                meal, at: eatTime, modelContext: modelContext,
+                notifications: services.notifications, feel: feel, satiety: satiety,
+                replacingWith: foods, substituteNote: note,
+                pantry: usedPantry ? .foods : .none
+            ) {
+                viewModel.refreshFeedbackPresence(modelContext: modelContext)
+            } else {
+                toast = ToastData(message: "Couldn't save \(meal.mealName). Try again.", style: .error)
             }
-            let feedback = MealFeedback(plannedMeal: meal, mealFeel: feel, satiety: satiety, substituteNote: note)
-            modelContext.insert(feedback)
-            try? modelContext.save()
-            viewModel.refreshFeedbackPresence(modelContext: modelContext)
         } catch {
-            // Parse failed — leave the meal untouched (planned, not eaten) so
-            // the user can retry. The Today row keeps its planned state.
+            // Parse failed — the meal stays planned so the user can retry.
+            toast = ToastData(
+                message: "Couldn't read that: \(error.localizedDescription). Your meal is unchanged.",
+                style: .error
+            )
         }
     }
 }

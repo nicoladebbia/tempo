@@ -84,11 +84,12 @@ enum PantryDepletionPlanCheck {
                 continue
             }
             let displayName = FoodCanonicalizer.displayName(result.canonicalName)
+            let restock = PantryGroceryBridge.restockDefault(canonicalName: result.canonicalName)
             if (try? PantryGroceryBridge.addToCurrentGroceryList(
                 canonicalName: result.canonicalName,
                 displayName: displayName.isEmpty ? result.canonicalName : displayName,
-                quantity: 1,
-                unit: .pieces,
+                quantity: restock.quantity,
+                unit: restock.unit,
                 modelContext: modelContext
             )) != nil {
                 added += 1

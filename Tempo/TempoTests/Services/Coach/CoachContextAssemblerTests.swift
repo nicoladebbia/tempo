@@ -156,6 +156,10 @@ final class CoachContextAssemblerTests: XCTestCase {
         let context = ModelContext(container)
         let calendar = Calendar(identifier: .gregorian)
         let today = calendar.startOfDay(for: Date())
+        // Planned meals belong to a plan (a meal with none is an ad-hoc log
+        // and adds nothing to "planned").
+        let plan = WeeklyMealPlan(startDate: today, endDate: today.addingTimeInterval(8 * 86400))
+        context.insert(plan)
 
         for offset in 1...7 {
             guard let day = calendar.date(byAdding: .day, value: offset, to: today) else { continue }
@@ -166,6 +170,7 @@ final class CoachContextAssemblerTests: XCTestCase {
                 scheduledTime: "07:30",
                 totalCalories: 600
             )
+            meal.mealPlan = plan
             context.insert(meal)
         }
         try context.save()

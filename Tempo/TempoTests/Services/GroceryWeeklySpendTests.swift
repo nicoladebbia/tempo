@@ -32,7 +32,8 @@ final class GroceryWeeklySpendTests: XCTestCase {
         Receipt(
             store: "Publix",
             purchaseDate: Date().addingTimeInterval(-daysAgo * 86400),
-            totalAmount: usd
+            totalAmount: usd,
+            userReviewed: true
         )
     }
 

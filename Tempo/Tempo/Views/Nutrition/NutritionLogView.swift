@@ -39,6 +39,10 @@ struct NutritionLogView: View {
     private var foodsPendingReview: [ParsedFoodItem]?
     @State
     private var toast: ToastData?
+    /// A preset the user tapped whose foods are already in today's meal —
+    /// asks before logging a second portion.
+    @State
+    private var presetDuplicate: MealPreset?
 
     /// Focus on the Quick Log text field. Used so submitNaturalLanguage()
     /// can resign the keyboard the moment the user taps Go — previously the
@@ -94,6 +98,7 @@ struct NutritionLogView: View {
             VStack(spacing: TempoSpacing.xl) {
                 naturalLanguageSection
                 quickActionsRow
+                loggedTodaySection
                 presetsSection
                 fullSearchButton
             }
@@ -175,6 +180,119 @@ struct NutritionLogView: View {
         } message: { prompt in
             let names = prompt.duplicateNames.joined(separator: ", ")
             Text("You already have \(names) in this meal. Add another portion, or edit the existing one?")
+        }
+        .alert(
+            "Already logged",
+            isPresented: Binding(
+                get: { presetDuplicate != nil },
+                set: { if !$0 { presetDuplicate = nil } }
+            ),
+            presenting: presetDuplicate
+        ) { preset in
+            Button("Add another") {
+                logPreset(preset, confirmedDuplicate: true)
+                presetDuplicate = nil
+            }
+            Button("Cancel", role: .cancel) { presetDuplicate = nil }
+        } message: { preset in
+            Text("\(preset.name) is already in this meal. Log another portion?")
+        }
+    }
+
+    // MARK: - Logged today (delete a wrong log)
+
+    private var loggedToday: [PlannedMeal] {
+        viewModel.todayMeals
+            .filter { $0.status == .eaten }
+            .sorted { ($0.actualEatenAt ?? .distantPast) > ($1.actualEatenAt ?? .distantPast) }
+    }
+
+    @ViewBuilder
+    private var loggedTodaySection: some View {
+        let meals = loggedToday
+        if !meals.isEmpty {
+            VStack(alignment: .leading, spacing: TempoSpacing.md) {
+                Text("LOGGED TODAY")
+                    .font(.tempoModuleTag)
+                    .tracking(TempoTracking.drillLabel)
+                    .foregroundStyle(Color.tempoTextSecondary)
+
+                ForEach(meals, id: \.id) { meal in
+                    loggedRow(meal)
+                        .swipeToDelete(label: meal.isUnplannedLog ? "Delete log" : "Undo — not eaten") {
+                            undoLog(meal)
+                        }
+                }
+            }
+        }
+    }
+
+    private func loggedRow(_ meal: PlannedMeal) -> some View {
+        let foods = meal.foods.map(\.name).joined(separator: ", ")
+        return HStack(spacing: TempoSpacing.md) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(meal.mealName)
+                    .font(.tempoCallout)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                if !foods.isEmpty {
+                    Text(foods)
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("\(Int(meal.totalCalories)) kcal")
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(Color.tempoViolet)
+                if let at = meal.actualEatenAt {
+                    Text(at.formatted(date: .omitted, time: .shortened))
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                }
+            }
+        }
+        .tempoCard()
+        .contextMenu {
+            if !meal.foods.isEmpty {
+                Button {
+                    let foods = meal.foods
+                    let saved = viewModel.savePreset(
+                        from: meal,
+                        name: foods.count == 1 ? foods[0].name : meal.mealName,
+                        modelContext: modelContext
+                    )
+                    toast = saved
+                        ? ToastData(message: "Saved as a preset.", style: .success)
+                        : ToastData(message: "Couldn't save that preset. Try again.", style: .error)
+                } label: {
+                    Label("Save as preset", systemImage: "bookmark")
+                }
+            }
+            Button(role: .destructive) {
+                undoLog(meal)
+            } label: {
+                Label(meal.isUnplannedLog ? "Delete log" : "Undo — not eaten", systemImage: "trash")
+            }
+        }
+    }
+
+    /// Delete a wrong log (or take a plan slot back) with a 5-second Undo.
+    private func undoLog(_ meal: PlannedMeal) {
+        let name = meal.mealName
+        guard let snapshot = viewModel.undoMealEaten(
+            meal, modelContext: modelContext, notifications: services.notifications
+        ) else {
+            toast = ToastData(message: "Couldn't undo \(name). Try again.", style: .error)
+            return
+        }
+        let message = snapshot.kind == .removed ? "\(name) log deleted." : "\(name) is back on the plan."
+        toast = ToastData(message: message, style: .info, actionTitle: "Undo") {
+            if !viewModel.restoreLog(snapshot, modelContext: modelContext, notifications: services.notifications) {
+                toast = ToastData(message: "Couldn't restore \(name).", style: .error)
+            }
         }
     }
 
@@ -310,11 +428,7 @@ struct NutritionLogView: View {
 
     private func presetCard(_ preset: MealPreset) -> some View {
         Button {
-            viewModel.logFromPreset(preset, modelContext: modelContext)
-            toast = ToastData(
-                message: "\(preset.name) logged. \(Int(preset.totalCalories)) kcal.",
-                style: .success
-            )
+            logPreset(preset)
         } label: {
             VStack(alignment: .leading, spacing: TempoSpacing.sm) {
                 HStack {
@@ -354,6 +468,43 @@ struct NutritionLogView: View {
             .tempoCard()
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button(role: .destructive) {
+                viewModel.deletePreset(preset, modelContext: modelContext)
+            } label: {
+                Label("Delete preset", systemImage: "trash")
+            }
+        }
+    }
+
+    /// Logs a preset through the shared recorder (slot match, duplicate check,
+    /// legacy log, Dashboard ping). The success toast only appears when the
+    /// save really happened.
+    private func logPreset(_ preset: MealPreset, confirmedDuplicate: Bool = false) {
+        if !confirmedDuplicate {
+            let dupes = EatenMealRecorder.duplicateNames(
+                of: preset.foodItems,
+                type: preset.mealType,
+                eatenAt: Date(),
+                in: viewModel.todayMeals
+            )
+            if !dupes.isEmpty {
+                presetDuplicate = preset
+                return
+            }
+        }
+        guard let result = viewModel.logFromPreset(
+            preset,
+            modelContext: modelContext,
+            notifications: services.notifications
+        ) else {
+            toast = ToastData(message: "Couldn't log \(preset.name). Try again.", style: .error)
+            return
+        }
+        toast = ToastData(
+            message: "\(preset.name) logged. \(Int(result.logged.calories)) kcal.",
+            style: .success
+        )
     }
 
     private func macroLabel(_ letter: String, value: Int, color: Color) -> some View {

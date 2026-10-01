@@ -613,21 +613,9 @@ final class LiveReceiptService: ReceiptServiceProtocol {
     /// Heuristic default storage location based on canonical food name. Users
     /// can edit per-line in the review UI; this only seeds the initial value.
     private func defaultLocation(for canonical: String) -> PantryStorageLocation {
-        // Items typically refrigerated.
-        let fridgeKeywords = [
-            "chicken", "salmon", "turkey", "beef", "yogurt", "milk", "cheese",
-            "eggs", "fish", "spinach", "asparagus", "broccoli",
-        ]
-        // Items typically frozen.
-        let freezerKeywords = ["frozen", "berries", "ice"]
-        let name = canonical.lowercased()
-        if freezerKeywords.contains(where: name.contains) {
-            return .freezer
-        }
-        if fridgeKeywords.contains(where: name.contains) {
-            return .fridge
-        }
-        return .pantry
+        // Whole-word matching (PantryStorageGuesser) — substring matching put
+        // rice/juice/spices ("ice") and fresh berries in the freezer.
+        PantryStorageGuesser.guess(forName: canonical)
     }
 
     /// Best-effort normalized chain slug from a free-text store name/header

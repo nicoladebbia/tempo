@@ -101,6 +101,9 @@ struct TempoApp: App {
                 // PauseTravelPainUITestSeed's header); no-ops unless launched
                 // with one of its launch arguments.
                 PauseTravelPainUITestSeed.seedIfRequested(context: container.mainContext)
+                // Nutrition QA — a full week's plan + pantry + grocery list
+                // (see NutritionPlanUITestSeed's header).
+                NutritionPlanUITestSeed.seedIfRequested(context: container.mainContext)
             #endif
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")

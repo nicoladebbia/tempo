@@ -87,11 +87,7 @@ struct FoodFitContext: Equatable, Sendable {
     /// Nutrition ring shows), using today's stored recovery when there is one.
     @MainActor
     static func loadToday(in context: ModelContext, whoopAvgTDEE: Double?, now: Date = Date()) -> FoodFitContext {
-        let start = Calendar.current.startOfDay(for: now)
-        let end = Calendar.current.date(byAdding: .day, value: 1, to: start) ?? now
-        let recovery = (try? context.fetch(FetchDescriptor<DailyRecovery>(
-            predicate: #Predicate { $0.date >= start && $0.date < end }
-        )))?.first?.recoveryScore
+        let recovery = DailyNutritionTargets.storedRecoveryScore(in: context, now: now)
         let targets = DailyNutritionTargets.today(in: context, whoopAvgTDEE: whoopAvgTDEE, recoveryScore: recovery)
         return load(in: context, targets: targets, now: now)
     }
