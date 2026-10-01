@@ -1351,8 +1351,8 @@ struct TodayWorkoutView: View {
             }
 
             // "This hurts" flow — skipped-for-pain marker.
-            if plannedExercise.painSkipped {
-                Label("Skipped — pain", systemImage: "bandage.fill")
+            if let painLabel = plannedExercise.painStatusLabel {
+                Label(painLabel, systemImage: "bandage.fill")
                     .font(.tempoCaption2)
                     .foregroundStyle(Color.tempoWarning)
             }
@@ -1780,7 +1780,11 @@ struct TodayWorkoutView: View {
     /// Fix #7 — shared by both TrainerSessionCard call sites (main session +
     /// two-a-day second session) so each stays a one-line call.
     private func trainerSessionCard(_ day: ProgramDay, heading: String, plan: WorkoutPlan, key: String?) -> some View {
-        TrainerSessionCard(day: day, heading: heading, workoutPlanID: plan.id, programSessionKey: key, viewModel: viewModel)
+        let isSecondary = key != nil && key == plan.programSecondaryKey
+        let isDone = isSecondary ? plan.secondaryCompleted : plan.status == .completed
+        return TrainerSessionCard(
+            day: day, heading: heading, workoutPlanID: plan.id, programSessionKey: key, viewModel: viewModel, isDone: isDone
+        )
     }
 
     private func nonGymIcon(for type: WorkoutType) -> String {
