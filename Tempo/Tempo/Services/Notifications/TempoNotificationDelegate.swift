@@ -37,6 +37,7 @@ final class TempoNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
         let category = content.categoryIdentifier
         let action = response.actionIdentifier
         let type = content.userInfo["type"] as? String
+        let mealID = content.userInfo[NotificationService.mealIDUserInfoKey] as? String
         let title = content.title
         let body = content.body
         logger.info("Notification action \(action, privacy: .public) in \(category, privacy: .public)")
@@ -50,14 +51,20 @@ final class TempoNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
             await open(.nutrition)
             await syncPlans()
         case ("MEAL_REMINDER", "DELAY_30MIN"):
-            await snooze(title: title, body: body, category: category, minutes: 30)
+            await snooze(title: title, body: body, category: category, minutes: 30, mealID: mealID)
         case ("OVERDUE_MEAL_REMINDER", NotificationService.overdueAteActionID):
             await resolveOverdueMeal(content.userInfo[NotificationService.mealIDUserInfoKey] as? String, ate: true)
         case ("OVERDUE_MEAL_REMINDER", NotificationService.overdueSkippedActionID):
             await resolveOverdueMeal(content.userInfo[NotificationService.mealIDUserInfoKey] as? String, ate: false)
         case ("MEAL_REMINDER", _),
-             ("OVERDUE_MEAL_REMINDER", _):
-            await open(.nutrition)
+             ("OVERDUE_MEAL_REMINDER", _),
+             ("DEFROST_REMINDER", _),
+             ("PREP_START_REMINDER", _):
+            if let request = Self.mealRequest(category: category, action: action, mealID: mealID) {
+                await open(.nutrition, meal: request)
+            } else if !Self.isQuietMealAction(action) {
+                await open(.nutrition)
+            }
         case ("SUPPLEMENT_REMINDER", "SUPPLEMENT_TAKEN"):
             let names = content.userInfo["supplementNames"] as? [String] ?? []
             let ids = content.userInfo["supplementIDs"] as? [String] ?? []
@@ -118,7 +125,7 @@ final class TempoNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
     }
 
     @MainActor
-    private func open(_ tab: Tab, checkIn: Bool = false) {
+    private func open(_ tab: Tab, checkIn: Bool = false, meal: MealRequest? = nil) {
         guard let appState = Self.services?.appState else {
             return
         }
@@ -126,6 +133,31 @@ final class TempoNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
         if checkIn {
             appState.weeklyCheckInRequested = true
         }
+        if let meal {
+            appState.requestedMeal = meal
+        }
+    }
+
+    /// What a meal notification tap / button should show: "Log meal" opens
+    /// Mark eaten for that meal, everything else that carries a meal id (a
+    /// tap, "View meal") opens the meal. Nil when there is no meal id.
+    static func mealRequest(category: String, action: String, mealID: String?) -> MealRequest? {
+        guard let mealID, let uuid = UUID(uuidString: mealID) else {
+            return nil
+        }
+        switch (category, action) {
+        case ("MEAL_REMINDER", "LOG_MEAL"):
+            return MealRequest(id: uuid, action: .markEaten)
+        case (_, _) where isQuietMealAction(action):
+            return nil
+        default:
+            return MealRequest(id: uuid, action: .open)
+        }
+    }
+
+    /// Buttons that act without opening a meal.
+    static func isQuietMealAction(_ action: String) -> Bool {
+        action == "DONE" || action == "DELAY_15MIN" || action == "DELAY_30MIN"
     }
 
     /// The moment a supplement reminder was first delivered. A snoozed copy
@@ -138,7 +170,8 @@ final class TempoNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
 
     private func snooze(
         title: String, body: String, category: String, minutes: Int,
-        supplementNames: [String] = [], supplementIDs: [String] = [], originalDelivery: Date? = nil
+        supplementNames: [String] = [], supplementIDs: [String] = [], originalDelivery: Date? = nil,
+        mealID: String? = nil
     ) async {
         let content = UNMutableNotificationContent()
         content.title = title
@@ -151,6 +184,10 @@ final class TempoNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
                 "supplementIDs": supplementIDs,
                 Self.supplementDeliveredKey: (originalDelivery ?? Date()).timeIntervalSince1970,
             ]
+        }
+        if let mealID {
+            // A snoozed meal reminder still opens its meal.
+            content.userInfo = [NotificationService.mealIDUserInfoKey: mealID]
         }
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: TimeInterval(minutes * 60), repeats: false)
         try? await UNUserNotificationCenter.current().add(

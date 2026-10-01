@@ -1293,6 +1293,7 @@ final class NutritionTabViewModel {
                 )
             }
         }
+        scheduleMealReminders(modelContext: modelContext, notifications: notifications)
     }
 
     // MARK: - Wizard Snapshot Builder
@@ -1394,36 +1395,13 @@ final class NutritionTabViewModel {
         }
     }
 
-    // MARK: - Meal Reminders (Phase 4)
+    // MARK: - Meal Reminders
 
-    // Schedule a local notification 5min before each planned meal's
-    // scheduled time. Skips meals already eaten/skipped/delayed.
-
-    func scheduleMealReminders(notifications: any NotificationServiceProtocol, calendar: Calendar = .current) {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        let today = calendar.startOfDay(for: Date())
-        for meal in todayMeals where meal.status == .planned {
-            guard let time = formatter.date(from: meal.scheduledTime) else {
-                continue
-            }
-            let comps = calendar.dateComponents([.hour, .minute], from: time)
-            guard let scheduled = calendar.date(
-                bySettingHour: comps.hour ?? 0,
-                minute: comps.minute ?? 0,
-                second: 0,
-                of: today
-            )
-            else {
-                continue
-            }
-            let fire = scheduled.addingTimeInterval(-5 * 60)
-            // Avoid scheduling already-past reminders.
-            guard fire > Date() else {
-                continue
-            }
-            notifications.scheduleMealReminder(mealName: meal.mealName, time: fire)
-        }
+    /// Pre-meal reminders (15 min before every planned meal, only while the
+    /// Meal Reminders switch is on) follow the plan: called after every plan
+    /// build / adoption. See `MealReminderPlanner`.
+    func scheduleMealReminders(modelContext: ModelContext, notifications: any NotificationServiceProtocol) {
+        MealReminderPlanner.reschedule(modelContext: modelContext, notifications: notifications)
     }
 
     // MARK: - Recovery Data

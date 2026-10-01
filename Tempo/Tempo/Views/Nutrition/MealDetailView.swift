@@ -18,6 +18,8 @@ import SwiftUI
 /// disappears. Persisting them is left to a future iteration.
 struct MealDetailView: View {
     let meal: PlannedMeal
+    /// A "Log meal" notification button opens straight into Mark eaten.
+    var opensMarkEaten = false
 
     @Environment(\.dismiss)
     private var dismiss
@@ -176,6 +178,11 @@ struct MealDetailView: View {
         .navigationTitle(meal.mealName)
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadWakeSignal() }
+        .onAppear {
+            if opensMarkEaten, meal.status == .planned || meal.status == .modified {
+                resolveAsEaten()
+            }
+        }
         // This meal is about to be deleted elsewhere (plan rebuild, Log tab):
         // leave before the model goes away so nothing renders a dead row.
         .onReceive(NotificationCenter.default.publisher(for: .tempoMealWillBeRemoved)) { note in

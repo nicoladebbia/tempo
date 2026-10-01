@@ -52,6 +52,28 @@ final class MockNotificationService: NotificationServiceProtocol, @unchecked Sen
         logger.debug("Mock: scheduled meal reminder '\(mealName)' at \(time)")
     }
 
+    func scheduleMealReminder(mealID: UUID, mealName: String, fireDate: Date) {
+        scheduledNotifications.removeAll { $0.mealID == mealID && $0.category == "meal_reminder" }
+        scheduledNotifications.append(ScheduledNotification(
+            category: "meal_reminder",
+            title: "Fuel Up",
+            body: "\(mealName) in \(MealReminderPlanner.leadMinutes) min. Don't skip it.",
+            triggerDate: fireDate,
+            mealID: mealID
+        ))
+    }
+
+    func cancelMealReminder(mealID: UUID) {
+        scheduledNotifications.removeAll { $0.mealID == mealID && $0.category == "meal_reminder" }
+    }
+
+    func replaceMealReminders(_ reminders: [MealReminderRequest]) {
+        scheduledNotifications.removeAll { $0.category == "meal_reminder" }
+        for reminder in reminders.sorted(by: { $0.fireDate < $1.fireDate }) {
+            scheduleMealReminder(mealID: reminder.mealID, mealName: reminder.mealName, fireDate: reminder.fireDate)
+        }
+    }
+
     func cancelMealReminder(mealName: String, on _: Date) {
         let body = "Time for \(mealName). Don't skip it."
         scheduledNotifications.removeAll { $0.category == "meal_reminder" && $0.body == body }
