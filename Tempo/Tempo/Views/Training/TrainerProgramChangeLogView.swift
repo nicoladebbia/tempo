@@ -60,9 +60,22 @@ struct TrainerProgramChangeLogView: View {
             ForEach(entries) { entry in
                 Section {
                     ForEach(entry.editSummaries, id: \.self) { summary in
-                        Text(summary)
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                        if entry.isUndone(summary) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(summary)
+                                    .font(.tempoBody)
+                                    .strikethrough()
+                                    .foregroundStyle(Color.tempoTextTertiary)
+                                Text("Skip undone")
+                                    .font(.tempoCaption2)
+                                    .foregroundStyle(Color.tempoTextTertiary)
+                            }
+                            .accessibilityElement(children: .combine)
+                        } else {
+                            Text(summary)
+                                .font(.tempoBody)
+                                .foregroundStyle(Color.tempoTextPrimary)
+                        }
                     }
                     if !entry.sourceText.isEmpty {
                         DisclosureGroup("Original message") {

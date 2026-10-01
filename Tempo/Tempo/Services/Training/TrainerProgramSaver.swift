@@ -433,6 +433,17 @@ enum TrainerProgramSaver {
         healthKit: any HealthKitServiceProtocol
     ) throws {
         program.skippedSessions.removeAll { $0.id == skip.id }
+        // Keep the history line, but show it as undone (newest batch that
+        // logged this skip and isn't already marked).
+        if let index = program.changeLog.indices
+            .sorted(by: { program.changeLog[$0].date > program.changeLog[$1].date })
+            .first(where: {
+                program.changeLog[$0].editSummaries.contains(skip.summary) && !program.changeLog[$0].isUndone(skip.summary)
+            }) {
+            var undone = program.changeLog[index].undoneSummaries ?? []
+            undone.append(skip.summary)
+            program.changeLog[index].undoneSummaries = undone
+        }
         try update(
             program,
             name: program.name,

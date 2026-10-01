@@ -121,6 +121,14 @@ struct TrainerProgramChangeLogEntry: Codable, Hashable, Identifiable {
     var date: Date
     var sourceText: String
     var editSummaries: [String]
+    /// Summaries of dated skips from this batch the athlete later put back
+    /// with Undo. nil (not []) so entries saved before this still decode.
+    var undoneSummaries: [String]?
+
+    /// How many edit lines of this summary are already marked undone.
+    func isUndone(_ summary: String) -> Bool {
+        undoneSummaries?.contains(summary) == true
+    }
 }
 
 // MARK: - TrainerProgramSkip
