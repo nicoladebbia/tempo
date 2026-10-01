@@ -137,7 +137,7 @@ struct ReceiptCaptureView: View {
                     : "AI features are off. Turn them on to read receipts."
                 ) {
                     self.scanBlocker = nil
-                    scanError = "AI is on. Scan the receipt again."
+                    scanError = nil
                 }
                 .padding(.horizontal, TempoSpacing.xl)
             } else if let scanError {

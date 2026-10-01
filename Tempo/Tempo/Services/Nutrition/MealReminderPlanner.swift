@@ -40,15 +40,22 @@ enum MealReminderPlanner {
         modelContext: ModelContext,
         now: Date = Date(),
         calendar: Calendar = .current
-    ) -> [MealReminderRequest] {
+    ) -> [MealReminderRequest]? {
         let startOfToday = calendar.startOfDay(for: now)
         let descriptor = FetchDescriptor<PlannedMeal>(
             predicate: #Predicate<PlannedMeal> { meal in
-                meal.dayDate >= startOfToday && meal.mealPlan?.isActive == true
+                meal.dayDate >= startOfToday
             }
         )
-        let meals = (try? modelContext.fetch(descriptor)) ?? []
+        // A failed fetch must not read as "no meals" (that would wipe every
+        // pending reminder); the caller leaves the current ones alone.
+        guard let meals = try? modelContext.fetch(descriptor) else {
+            return nil
+        }
+        // Active-plan filter in Swift: relationship predicates miss
+        // not-yet-faulted rows.
         return meals
+            .filter { $0.mealPlan?.isActive == true }
             .compactMap { meal in
                 reminder(
                     for: meal,
@@ -71,7 +78,9 @@ enum MealReminderPlanner {
             notifications.replaceMealReminders([])
             return
         }
-        let wanted = requests(modelContext: modelContext, now: now, calendar: calendar)
+        guard let wanted = requests(modelContext: modelContext, now: now, calendar: calendar) else {
+            return
+        }
         notifications.replaceMealReminders(wanted)
         Logger.nutrition.info("[MealReminders] \(wanted.count, privacy: .public) scheduled")
         for reminder in wanted.prefix(5) {

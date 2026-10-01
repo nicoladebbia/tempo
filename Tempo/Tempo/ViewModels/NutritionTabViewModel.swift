@@ -1002,24 +1002,6 @@ final class NutritionTabViewModel {
         )
     }
 
-    /// Records the user's AI-features consent with the backend, clears the
-    /// blocker and rebuilds. Returns false when the consent call failed.
-    func grantAIConsentAndRebuild(modelContext: ModelContext, services: ServiceContainer) async -> Bool {
-        do {
-            let _: AIConsentResponseDTO = try await services.apiClient.request(
-                APIEndpoint<AIConsentResponseDTO>.setAIConsent(),
-                body: AIConsentRequestDTO(consented: true)
-            )
-        } catch {
-            Logger.nutrition.error("[Diag.Plan] AI consent failed: \(error.localizedDescription, privacy: .public)")
-            return false
-        }
-        planGenerationBlocker = nil
-        planGenerationError = nil
-        rebuildRestOfWeek(modelContext: modelContext, services: services)
-        return true
-    }
-
     // MARK: - Server-built plan
 
     /// A plan the Sunday job saved while this screen wasn't generating it:
