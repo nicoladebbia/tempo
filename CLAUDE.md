@@ -31,6 +31,16 @@ Modules read overlapping data (Fuel quadrant ↔ Nutrition surfaces; Body ↔ Mo
 3. Edit spans 2+ modules → run the `architecture-guard` agent.
 4. Summarize the blast radius: "Changed X. Readers: […]. Verified: […]. Unverified: […]." Never "done" while a reader is unverified.
 
+## Audit sessions — Nutrition and Training run in parallel
+Two sessions work at the same time, one per area, each from its own audit report:
+- **Nutrition**: report https://claude.ai/artifact/WmALRmh57ngV2LDwnzEddL · memory `nutrition-audit-*.md`, `nutrition-round*.md`
+- **Training**: report https://claude.ai/artifact/NFFzLjVbQYXMKYhLBTLMeN · memory `training-audit-*.md`, `training-round*.md`
+
+Rules:
+1. At the start, work out which area you are (ask if unclear), read that report (`Artifact` read) and the latest round memory, then fix round by round with `/round <area> <n>`.
+2. The reports are **read-only**. Never edit or republish them. Progress, decisions and newly found bugs go in the round memory file and the PRs.
+3. **Own area only.** Edit only your area's code. If a fix needs a shared file (Dashboard, `ContentView`, shared models/services such as `DailyNutritionTargets`, `TrainingViewModel`, `project.yml`) or the other area's code, don't edit it: write it under "Needs shared/other area" in your round memory and in the PR, and leave it. Bugs found in the other area go under Follow-ups, unfixed.
+
 ## Related projects
 - `~/dev/nutritrack-app/` — NutriTrack (Flask, 140+ API endpoints, built-in Whoop integration)
 - `~/dev/saife/` — Swift/SwiftUI iOS project (pattern reference)
