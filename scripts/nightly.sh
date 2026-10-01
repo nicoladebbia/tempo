@@ -87,9 +87,18 @@ done
 
 LOCK="$HOME_DIR/.lock"
 if ! mkdir "$LOCK" 2>/dev/null; then
-    echo "nightly already running ($LOCK)" >&2
-    exit 1
+    # A run that was killed or cut off by a restart leaves its lock behind;
+    # without this, every later night would stop here.
+    holder="$(cat "$LOCK/pid" 2>/dev/null || true)"
+    if [ -n "$holder" ] && kill -0 "$holder" 2>/dev/null; then
+        echo "nightly already running (pid $holder)" >&2
+        exit 1
+    fi
+    echo "removing stale lock (pid ${holder:-unknown} is gone)"
+    rm -rf "$LOCK"
+    mkdir "$LOCK" || exit 1
 fi
+echo $$ >"$LOCK/pid"
 WORKTREES=()
 cleanup() {
     local wt
@@ -98,9 +107,12 @@ cleanup() {
         bash "$(tool "$wt" sim.sh)" --dir "$wt" clean >/dev/null 2>&1 || true
         git -C "$REPO" worktree remove --force "$wt" >/dev/null 2>&1 || true
     done
-    rmdir "$LOCK" 2>/dev/null || true
+    rm -rf "$LOCK"
 }
 trap cleanup EXIT
+# Stopped on purpose (kill, launchctl): still clean up the worktrees and sims.
+trap 'exit 143' TERM
+trap 'exit 130' INT
 
 STAMP="$(date +%Y-%m-%d_%H%M)"
 RUN="$HOME_DIR/runs/$STAMP"
