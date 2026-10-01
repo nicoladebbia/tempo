@@ -31,7 +31,9 @@ enum GroceryListGenerator {
     static func shoppableMeals(in plan: WeeklyMealPlan, onOrAfter: Date?) -> [PlannedMeal] {
         let cutoff = onOrAfter.map { Calendar.current.startOfDay(for: $0) }
         return (plan.meals ?? []).filter { meal in
-            guard meal.status == .planned else {
+            // A Coach-moved (.modified) meal is still upcoming; dropping it
+            // made reapplyPantry delete its grocery rows.
+            guard meal.status == .planned || meal.status == .modified else {
                 return false
             }
             if let cutoff, Calendar.current.startOfDay(for: meal.dayDate) < cutoff {

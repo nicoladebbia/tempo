@@ -124,7 +124,14 @@ enum PantryUnit: String, Codable, CaseIterable, Sendable {
     /// `gramsApprox`, `PantryDecrementService` and the display formatter, so a
     /// "can" is the same weight on the grocery list, in the pantry and on undo.
     func gramsPerUnit(of portion: FoodMacroDatabase.NaturalPortion) -> Double? {
-        let perUnit: Double = if isContainer {
+        // A bought "1 loaf"/"1 ball" row is `.pieces` but weighs the purchase
+        // unit, not the recipe slice. Simple portions (egg, carrot) have
+        // unit == purchaseUnit and keep the item weight.
+        let boughtAsDistinctPiece = self == .pieces
+            && portion.purchaseGrams > 0
+            && portion.purchaseUnit.lowercased() != portion.unit.lowercased()
+            && GroceryListGenerator.pantryUnit(for: portion.purchaseUnit) == .pieces
+        let perUnit: Double = if isContainer || boughtAsDistinctPiece {
             portion.purchaseGrams > 0 ? portion.purchaseGrams : portion.grams
         } else {
             portion.grams

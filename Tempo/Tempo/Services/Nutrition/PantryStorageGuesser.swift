@@ -35,7 +35,18 @@ enum PantryStorageGuesser {
     /// put rice, juice and spices in the freezer ("ice"), steak in the pantry
     /// ("tea") and peanut butter in the fridge ("butter").
     static func containsKeyword(_ keyword: String, in haystack: String) -> Bool {
-        let pattern = "\\b" + NSRegularExpression.escapedPattern(for: keyword) + "(?:s|es)?\\b"
+        // "egg noodles" is pasta, not eggs.
+        if keyword == "egg" || keyword == "eggs",
+           haystack.range(of: "\\begg\\s+(?:noodle|pasta)", options: [.regularExpression, .caseInsensitive]) != nil {
+            return false
+        }
+        let k = keyword.lowercased()
+        // Compound stems may carry a leading word ("strawberries", "catfish");
+        // "oat" may carry a trailing one ("oatmeal"). Risky short words
+        // (ice, egg) stay exact whole-word.
+        let lead = ["berries", "berry", "fish"].contains(k) ? "\\w*" : ""
+        let tail = k == "oat" ? "\\w*" : "(?:s|es)?"
+        let pattern = "\\b" + lead + NSRegularExpression.escapedPattern(for: keyword) + tail + "\\b"
         return haystack.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
     }
 

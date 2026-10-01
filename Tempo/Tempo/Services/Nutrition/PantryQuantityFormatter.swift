@@ -15,6 +15,13 @@ import Foundation
 enum PantryQuantityFormatter {
     /// "1", "0.8", "0.83", "12.5" — never "0.80000000001".
     static func number(_ value: Double) -> String {
+        // Int(v.rounded()) traps on NaN/inf and beyond Int range.
+        guard value.isFinite else {
+            return "0"
+        }
+        if abs(value) > 1e9 {
+            return String(format: "%.0f", value)
+        }
         let v = PantryDecrementService.clean(value)
         if abs(v - v.rounded()) < 0.005 {
             return String(Int(v.rounded()))
