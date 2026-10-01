@@ -21,7 +21,17 @@ protocol HealthKitServiceProtocol: Sendable {
     func fetchWorkouts(for date: Date) async throws -> [WorkoutSample]
     func fetchBodyComposition() async throws -> BodyCompositionData
     func writeWorkout(_ workout: WorkoutSample) async throws
-    func writeNutrition(_ nutrition: NutritionSample) async throws
+    /// Writes one Health food entry (correlation + samples). Returns true when
+    /// something was saved, false when Health is unavailable or no nutrition
+    /// type is authorised (so callers can retry after the user grants access).
+    @discardableResult
+    func writeNutrition(_ nutrition: NutritionSample) async throws -> Bool
+    /// Deletes every Tempo-written object (food correlation, nutrition and
+    /// water samples) carrying this HKMetadataKeySyncIdentifier.
+    func deleteNutrition(syncIdentifier: String) async throws
+    /// Writes one dietaryWater sample. Same Bool contract as `writeNutrition`.
+    @discardableResult
+    func writeWater(ml: Double, date: Date, syncIdentifier: String) async throws -> Bool
     func enableBackgroundDelivery() async throws
 }
 
@@ -102,4 +112,10 @@ struct NutritionSample {
     let proteinGrams: Double
     let carbsGrams: Double
     let fatGrams: Double
+    /// Meal name shown in Health (HKMetadataKeyFoodType).
+    var name: String?
+    /// "tempo-meal-<id>"; lets Tempo update or delete this entry later.
+    var syncIdentifier: String?
+    /// Increases on every edit so Health treats the write as the newer version.
+    var syncVersion: Int = 1
 }
