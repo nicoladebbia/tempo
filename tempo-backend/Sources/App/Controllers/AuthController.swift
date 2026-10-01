@@ -109,20 +109,24 @@ struct AuthController: RouteCollection {
         }
 
         // Verify refresh token
-        let token = try await JWTService.verifyRefreshToken(rawToken: body.refreshToken, on: req)
+        // includeRevoked: a rotated (revoked) token must reach the replay check
+        // below instead of being filtered out as "unknown". Expired or unknown
+        // tokens still throw a plain 401 here.
+        let token = try await JWTService.verifyRefreshToken(rawToken: body.refreshToken, includeRevoked: true, on: req)
+
+        // Replay detection first: re-presenting an already-rotated token means
+        // it leaked — kill every session for the user.
+        // Per BACKEND_API.md Section 2.2 step 5
+        if token.isRevoked {
+            try await JWTService.revokeAllTokens(userID: token.$user.id, on: req.db)
+            throw Abort(.unauthorized, reason: "Replay detected. All sessions invalidated.")
+        }
 
         // Per BACKEND_API.md Section 2.2 step 2 — device_id must match
         guard token.deviceID == deviceID else {
             // Device mismatch — possible token theft, revoke all tokens
             try await JWTService.revokeAllTokens(userID: token.$user.id, on: req.db)
             throw Abort(.unauthorized, reason: "Device ID mismatch. All sessions invalidated.")
-        }
-
-        // Check if token was already revoked (replay detection)
-        // Per BACKEND_API.md Section 2.2 step 5
-        if token.isRevoked {
-            try await JWTService.revokeAllTokens(userID: token.$user.id, on: req.db)
-            throw Abort(.unauthorized, reason: "Replay detected. All sessions invalidated.")
         }
 
         // Revoke old token (single-use rotation)
