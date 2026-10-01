@@ -40,6 +40,11 @@ final class SupplementIntakeLog {
     /// Wall-clock moment the user tapped "taken".
     var takenAt: Date
 
+    /// Servings this tick took off the shelf count (0 when it was clamped at
+    /// empty or untracked). nil on rows from before this field — an undo
+    /// treats those as one serving. Additive, lightweight migration.
+    var stockDecrement: Double?
+
     init(
         id: UUID = UUID(),
         supplementName: String,

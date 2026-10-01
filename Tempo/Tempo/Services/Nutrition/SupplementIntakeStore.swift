@@ -16,13 +16,24 @@ import SwiftData
 /// disagree about what counts as taken.
 @MainActor
 enum SupplementIntakeStore {
-    /// Does `log` belong to this shelf item? By ID when the row has one; a
-    /// legacy (ID-less) row matches by name.
-    static func matches(_ log: SupplementIntakeLog, id: UUID?, name: String) -> Bool {
+    /// Does `log` belong to this shelf item? By ID when the row has one. A
+    /// legacy (ID-less) row can't tell same-named items apart, so it belongs
+    /// to ONE of them only: `legacyOwner`, the first by stable order.
+    static func matches(_ log: SupplementIntakeLog, id: UUID?, name: String, legacyOwner: UUID?) -> Bool {
         if let logID = log.supplementID {
             return logID == id
         }
-        return log.supplementName == name
+        return log.supplementName == name && id == legacyOwner
+    }
+
+    /// Non-archived shelf items called `name`, in a stable order (oldest first).
+    static func shelfItems(named name: String, in modelContext: ModelContext) -> [Supplement] {
+        let descriptor = FetchDescriptor<Supplement>(
+            predicate: #Predicate<Supplement> { $0.name == name && !$0.isArchived }
+        )
+        return ((try? modelContext.fetch(descriptor)) ?? []).sorted {
+            ($0.createdAt, $0.id.uuidString) < ($1.createdAt, $1.id.uuidString)
+        }
     }
 
     static func logs(on day: Date, in modelContext: ModelContext) -> [SupplementIntakeLog] {
@@ -49,8 +60,8 @@ enum SupplementIntakeStore {
         return (try? modelContext.fetch(byName))?.first
     }
 
-    /// IDs of shelf items taken on `day`. A legacy name-only row marks every
-    /// shelf item of that name (it can't tell them apart).
+    /// IDs of shelf items taken on `day`. A legacy name-only row marks only the
+    /// first shelf item of that name (it can't tell them apart).
     static func takenIDs(on day: Date, in modelContext: ModelContext) -> Set<UUID> {
         let rows = logs(on: day, in: modelContext)
         guard !rows.isEmpty else {
@@ -59,9 +70,10 @@ enum SupplementIntakeStore {
         var ids = Set(rows.compactMap(\.supplementID))
         let legacyNames = Set(rows.filter { $0.supplementID == nil }.map(\.supplementName))
         if !legacyNames.isEmpty {
-            let shelf = (try? modelContext.fetch(FetchDescriptor<Supplement>(predicate: #Predicate<Supplement> { !$0.isArchived }))) ?? []
-            for supplement in shelf where legacyNames.contains(supplement.name) {
-                ids.insert(supplement.id)
+            for name in legacyNames {
+                if let owner = shelfItems(named: name, in: modelContext).first {
+                    ids.insert(owner.id)
+                }
             }
         }
         return ids
@@ -101,20 +113,26 @@ enum SupplementIntakeStore {
         let today = Calendar.current.startOfDay(for: day)
         let shelfItem = supplement(id: supplementID, name: name, in: modelContext)
         let resolvedID = supplementID ?? shelfItem?.id
-        let existing = logs(on: today, in: modelContext).filter { matches($0, id: resolvedID, name: name) }
+        let siblings = shelfItems(named: name, in: modelContext)
+        let existing = logs(on: today, in: modelContext)
+            .filter { matches($0, id: resolvedID, name: name, legacyOwner: siblings.first?.id) }
         let nowTaken: Bool
         if existing.isEmpty {
-            modelContext.insert(SupplementIntakeLog(supplementName: name, supplementID: resolvedID, day: today))
+            let log = SupplementIntakeLog(supplementName: name, supplementID: resolvedID, day: today)
+            modelContext.insert(log)
             if let shelfItem {
-                SupplementReorderService.applyTaken(to: shelfItem)
+                log.stockDecrement = SupplementReorderService.applyTaken(to: shelfItem)
             }
             nowTaken = true
         } else {
             for row in existing {
+                // A legacy name-only row with several same-named items can't
+                // say which one it decremented — don't guess, leave the stock.
+                let ambiguous = row.supplementID == nil && siblings.count > 1
+                if let shelfItem, !ambiguous {
+                    SupplementReorderService.applyUndo(to: shelfItem, amount: row.stockDecrement)
+                }
                 modelContext.delete(row)
-            }
-            if let shelfItem {
-                SupplementReorderService.applyUndo(to: shelfItem)
             }
             nowTaken = false
         }
@@ -134,12 +152,14 @@ enum SupplementIntakeStore {
         let today = Calendar.current.startOfDay(for: day)
         let shelfItem = supplement(id: supplementID, name: name, in: modelContext)
         let resolvedID = supplementID ?? shelfItem?.id
-        if logs(on: today, in: modelContext).contains(where: { matches($0, id: resolvedID, name: name) }) {
+        let owner = shelfItems(named: name, in: modelContext).first?.id
+        if logs(on: today, in: modelContext).contains(where: { matches($0, id: resolvedID, name: name, legacyOwner: owner) }) {
             return false
         }
-        modelContext.insert(SupplementIntakeLog(supplementName: name, supplementID: resolvedID, day: today))
+        let log = SupplementIntakeLog(supplementName: name, supplementID: resolvedID, day: today)
+        modelContext.insert(log)
         if let shelfItem {
-            SupplementReorderService.applyTaken(to: shelfItem)
+            log.stockDecrement = SupplementReorderService.applyTaken(to: shelfItem)
         }
         return true
     }

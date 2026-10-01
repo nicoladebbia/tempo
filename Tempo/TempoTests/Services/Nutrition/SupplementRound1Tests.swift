@@ -119,6 +119,52 @@ final class SupplementRound1Tests: XCTestCase {
         XCTAssertNotNil(left, "History survives the rename")
     }
 
+    // MARK: - Legacy name-only logs
+
+    func testLegacyNameOnlyLogMatchesOnlyTheFirstSameNamedItemAndSkipsStockUndo() throws {
+        let first = Supplement(name: "Whey", kind: .protein, servingsRemaining: 10, createdAt: Date(timeIntervalSinceNow: -1000))
+        let second = Supplement(name: "Whey", kind: .protein, servingsRemaining: 10, createdAt: Date())
+        ctx.insert(first)
+        ctx.insert(second)
+        ctx.insert(SupplementIntakeLog(supplementName: "Whey", supplementID: nil, day: Date()))
+        try ctx.save()
+
+        XCTAssertEqual(SupplementIntakeStore.takenIDs(on: Date(), in: ctx), [first.id])
+
+        // Unticking the second does nothing to the legacy row; the first's untick removes it without touching stock.
+        XCTAssertTrue(SupplementIntakeStore.toggle(supplementID: second.id, name: "Whey", in: ctx))
+        XCTAssertEqual(second.servingsRemaining, 9)
+        XCTAssertFalse(SupplementIntakeStore.toggle(supplementID: first.id, name: "Whey", in: ctx))
+        XCTAssertEqual(first.servingsRemaining, 10, "ambiguous legacy row: stock not guessed")
+        XCTAssertEqual(second.servingsRemaining, 9)
+    }
+
+    func testUntickAfterClampedTickDoesNotInventAServing() throws {
+        let empty = Supplement(name: "Zinc", kind: .other, servingsRemaining: 0)
+        empty.servingsPerContainer = 60
+        ctx.insert(empty)
+        try ctx.save()
+        XCTAssertTrue(SupplementIntakeStore.toggle(supplementID: empty.id, name: "Zinc", in: ctx))
+        XCTAssertFalse(SupplementIntakeStore.toggle(supplementID: empty.id, name: "Zinc", in: ctx))
+        XCTAssertEqual(empty.servingsRemaining, 0)
+    }
+
+    // MARK: - Snoozed reminders
+
+    func testSnoozeIsRemovedOnlyWhenEveryItsSupplementsIsTaken() {
+        let a = UUID(), b = UUID()
+        let both = SupplementReminderScheduler.snoozeIdentifier(supplementIDs: [a.uuidString, b.uuidString])
+        let onlyA = SupplementReminderScheduler.snoozeIdentifier(supplementIDs: [a.uuidString])
+        let legacy = SupplementReminderScheduler.snoozeIdentifier(supplementIDs: [])
+        let pending = [both, onlyA, legacy, "snooze_\(UUID().uuidString)", "other"]
+        let stale = SupplementReminderScheduler.snoozeIdentifiersToRemove(pending: pending, takenIDs: [a])
+        XCTAssertEqual(stale, [onlyA])
+        XCTAssertEqual(
+            Set(SupplementReminderScheduler.snoozeIdentifiersToRemove(pending: pending, takenIDs: [a, b])),
+            [both, onlyA]
+        )
+    }
+
     // MARK: - Reminders respect taken state
 
     func testReminderRebuildSkipsTakenDoseButKeepsTomorrow() async throws {

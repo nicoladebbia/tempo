@@ -16,6 +16,7 @@
 
 import Foundation
 import SwiftData
+import UserNotifications
 
 // MARK: - Notification.Name
 
@@ -138,7 +139,48 @@ enum SupplementReminderScheduler {
         now: Date = Date()
     ) async {
         await notifications.cancelSupplementReminders()
+        await clearSnoozes(
+            takenIDs: SupplementIntakeStore.takenIDs(on: now, in: modelContext),
+            center: UNUserNotificationCenter.current()
+        )
         scheduleAll(notifications: notifications, modelContext: modelContext, now: now)
+    }
+
+    // MARK: - Snoozed reminders
+
+    /// Identifier prefix of a snoozed supplement reminder:
+    /// `snooze_supp_<uuid>_<id1>,<id2>…` (the IDs of the supplements it lists).
+    static let snoozePrefix = "snooze_supp_"
+
+    static func snoozeIdentifier(supplementIDs: [String]) -> String {
+        "\(snoozePrefix)\(UUID().uuidString)_\(supplementIDs.joined(separator: ","))"
+    }
+
+    /// Snoozed reminders whose every supplement is already taken — they'd
+    /// otherwise still fire after the dose was ticked.
+    static func snoozeIdentifiersToRemove(pending: [String], takenIDs: Set<UUID>) -> [String] {
+        pending.filter { identifier in
+            guard identifier.hasPrefix(snoozePrefix) else {
+                return false
+            }
+            let parts = identifier.dropFirst(snoozePrefix.count).split(separator: "_", maxSplits: 1)
+            guard parts.count == 2 else {
+                return false
+            }
+            let ids = parts[1].split(separator: ",").compactMap { UUID(uuidString: String($0)) }
+            return !ids.isEmpty && ids.allSatisfy(takenIDs.contains)
+        }
+    }
+
+    static func clearSnoozes(takenIDs: Set<UUID>, center: UNUserNotificationCenter) async {
+        guard !takenIDs.isEmpty else {
+            return
+        }
+        let pending = await center.pendingNotificationRequests().map(\.identifier)
+        let stale = snoozeIdentifiersToRemove(pending: pending, takenIDs: takenIDs)
+        if !stale.isEmpty {
+            center.removePendingNotificationRequests(withIdentifiers: stale)
+        }
     }
 
     private static func scheduleAll(
@@ -218,7 +260,7 @@ enum SupplementReminderScheduler {
         now: Date
     ) {
         let calendar = Calendar.current
-        let windowStart = calendar.date(byAdding: .day, value: -SupplementReorderService.intakeWindowDays, to: now) ?? now
+        let windowStart = SupplementReorderService.intakeWindowStart(asOf: now, calendar: calendar)
         let logDescriptor = FetchDescriptor<SupplementIntakeLog>(
             predicate: #Predicate<SupplementIntakeLog> { $0.day >= windowStart }
         )
@@ -268,6 +310,8 @@ enum SupplementReminderScheduler {
             return
         }
         try? modelContext.save()
+        let takenIDs = SupplementIntakeStore.takenIDs(on: now, in: modelContext)
+        Task { await clearSnoozes(takenIDs: takenIDs, center: UNUserNotificationCenter.current()) }
         NotificationCenter.default.post(name: .tempoSupplementsChanged, object: nil)
     }
 }

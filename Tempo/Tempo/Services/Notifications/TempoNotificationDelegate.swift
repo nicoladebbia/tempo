@@ -61,11 +61,17 @@ final class TempoNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
         case ("SUPPLEMENT_REMINDER", "SUPPLEMENT_TAKEN"):
             let names = content.userInfo["supplementNames"] as? [String] ?? []
             let ids = content.userInfo["supplementIDs"] as? [String] ?? []
-            await markSupplementsTaken(names: names, ids: ids)
+            await markSupplementsTaken(
+                names: names, ids: ids,
+                deliveredAt: Self.supplementDay(userInfo: content.userInfo, delivered: response.notification.date)
+            )
         case ("SUPPLEMENT_REMINDER", "SUPPLEMENT_SNOOZE_15"):
             let names = content.userInfo["supplementNames"] as? [String] ?? []
             let ids = content.userInfo["supplementIDs"] as? [String] ?? []
-            await snooze(title: title, body: body, category: category, minutes: 15, supplementNames: names, supplementIDs: ids)
+            await snooze(
+                title: title, body: body, category: category, minutes: 15, supplementNames: names, supplementIDs: ids,
+                originalDelivery: Self.supplementDay(userInfo: content.userInfo, delivered: response.notification.date)
+            )
         case ("SUPPLEMENT_REMINDER", _):
             await open(.nutrition)
         case ("SUPPLEMENT_REORDER", "SUPPLEMENT_ADD_TO_LIST"):
@@ -122,27 +128,45 @@ final class TempoNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
         }
     }
 
-    private func snooze(title: String, body: String, category: String, minutes: Int, supplementNames: [String] = [], supplementIDs: [String] = []) async {
+    /// The moment a supplement reminder was first delivered. A snoozed copy
+    /// carries it forward so a snooze that crosses midnight keeps its day.
+    static let supplementDeliveredKey = "supplementDeliveredAt"
+
+    static func supplementDay(userInfo: [AnyHashable: Any], delivered: Date) -> Date {
+        (userInfo[supplementDeliveredKey] as? Double).map(Date.init(timeIntervalSince1970:)) ?? delivered
+    }
+
+    private func snooze(
+        title: String, body: String, category: String, minutes: Int,
+        supplementNames: [String] = [], supplementIDs: [String] = [], originalDelivery: Date? = nil
+    ) async {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
         content.categoryIdentifier = category
         content.sound = .default
         if !supplementNames.isEmpty {
-            content.userInfo = ["supplementNames": supplementNames, "supplementIDs": supplementIDs]
+            content.userInfo = [
+                "supplementNames": supplementNames,
+                "supplementIDs": supplementIDs,
+                Self.supplementDeliveredKey: (originalDelivery ?? Date()).timeIntervalSince1970,
+            ]
         }
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: TimeInterval(minutes * 60), repeats: false)
         try? await UNUserNotificationCenter.current().add(
-            UNNotificationRequest(identifier: "snooze_\(UUID().uuidString)", content: content, trigger: trigger)
+            UNNotificationRequest(
+                // Supplement snoozes carry their supplement IDs so a tick can cancel them.
+                identifier: supplementNames.isEmpty
+                    ? "snooze_\(UUID().uuidString)"
+                    : SupplementReminderScheduler.snoozeIdentifier(supplementIDs: supplementIDs),
+                content: content,
+                trigger: trigger
+            )
         )
     }
 
     // MARK: - Supplement actions (Lane 1 — timing engine)
 
-    /// "Taken" on a grouped supplement reminder — marks every named supplement
-    /// taken for today. Same decrement path (`SupplementReorderService.
-    /// applyTaken`) an in-app tap uses. Takes the already-extracted, Sendable
-    /// `[String]` rather than the raw (non-Sendable) notification `userInfo`.
     /// "Ate it" / "Skipped" on an overdue-meal check-in — the same
     /// `MealOutcomeService` path as Mark Eaten / Skip in Nutrition (pantry,
     /// shift, rebalance, reminders, Dashboard).
@@ -188,12 +212,18 @@ final class TempoNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
         }
     }
 
+    /// "Taken" on a grouped supplement reminder — marks every named supplement
+    /// taken for the day the reminder was DELIVERED (a 23:50 reminder tapped at
+    /// 00:10 still counts for the day it was about). Same decrement path
+    /// (`SupplementReorderService.applyTaken`) an in-app tap uses. Takes the
+    /// already-extracted, Sendable `[String]` rather than the raw
+    /// (non-Sendable) notification `userInfo`.
     @MainActor
-    private func markSupplementsTaken(names: [String], ids: [String]) async {
+    private func markSupplementsTaken(names: [String], ids: [String], deliveredAt: Date) async {
         guard let container = Self.modelContainer, !names.isEmpty else {
             return
         }
-        SupplementReminderScheduler.markTaken(names: names, ids: ids, modelContext: container.mainContext)
+        SupplementReminderScheduler.markTaken(names: names, ids: ids, modelContext: container.mainContext, now: deliveredAt)
     }
 
     /// "Add to grocery list" on a running-low alert.

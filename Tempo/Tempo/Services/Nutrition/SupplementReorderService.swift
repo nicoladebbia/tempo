@@ -19,6 +19,13 @@ enum SupplementReorderService {
     /// and (once per restock cycle) a reminder fires.
     static let lowStockThresholdDays = 7
 
+    /// First day of the intake window — start of day, so a log written this
+    /// morning N days ago isn't cut off by the current time of day.
+    static func intakeWindowStart(asOf: Date = Date(), calendar: Calendar = .current) -> Date {
+        let today = calendar.startOfDay(for: asOf)
+        return calendar.date(byAdding: .day, value: -intakeWindowDays, to: today) ?? today
+    }
+
     /// True when the user has entered ANY quantity info for this supplement —
     /// only tracked items get a days-left estimate or a decrement on "taken".
     static func isTracked(_ supplement: Supplement) -> Bool {
@@ -53,11 +60,16 @@ enum SupplementReorderService {
                 }
                 .map { calendar.startOfDay(for: $0.day) }
         ).count
-        let observedDays = max(1, (calendar.dateComponents([.day], from: windowStart, to: today).day ?? 0) + 1)
+        let windowDays = max(1, (calendar.dateComponents([.day], from: windowStart, to: today).day ?? 0) + 1)
+        // A supplement added 3 days ago has only 3 days of history: dividing
+        // by the full window would understate its rate and overstate its supply.
+        let createdDay = calendar.startOfDay(for: supplement.createdAt)
+        let daysSinceCreated = max(1, (calendar.dateComponents([.day], from: createdDay, to: today).day ?? 0) + 1)
+        let observedDays = min(windowDays, daysSinceCreated)
 
         let perDay: Double
         if matchingDays > 0 {
-            perDay = Double(matchingDays) / Double(observedDays)
+            perDay = min(1.0, Double(matchingDays) / Double(observedDays))
         } else if supplement.takeDaily {
             // Fallback for a brand-new daily supplement with no logged history yet.
             perDay = 1.0
@@ -78,13 +90,10 @@ enum SupplementReorderService {
         calendar: Calendar = .current
     ) -> Bool {
         guard let left = daysLeft(for: supplement, recentLogs: recentLogs, asOf: asOf, calendar: calendar) else {
-            // A tracked conditional item with no logged intake has no rate to
-            // estimate from. Assume the pessimistic ≤1 serving/day, so the
-            // shelf badge, the banner, the reorder alert and the plan AI's
-            // flag all agree on ONE rule instead of three.
-            return isTracked(supplement)
-                && supplement.servingsRemaining > 0
-                && supplement.servingsRemaining <= Double(lowStockThresholdDays)
+            // Untracked, or a conditional (non-daily) item with no logged
+            // intake: no rate to estimate from, and a serving count alone says
+            // nothing about how long a "when needed" item lasts. Don't flag.
+            return false
         }
         return left <= lowStockThresholdDays
     }
@@ -114,21 +123,31 @@ enum SupplementReorderService {
 
     /// "I took it" — decrements by one serving when tracked. Clamped at 0;
     /// untracked items (no quantity ever entered) are left untouched.
-    static func applyTaken(to supplement: Supplement) {
+    /// Returns the amount actually taken off (0 when untracked or already
+    /// empty, less than 1 when clamped) so an undo can give back exactly that.
+    @discardableResult
+    static func applyTaken(to supplement: Supplement) -> Double {
         guard isTracked(supplement) else {
-            return
+            return 0
         }
-        supplement.servingsRemaining = max(0, supplement.servingsRemaining - 1)
+        let before = supplement.servingsRemaining
+        supplement.servingsRemaining = max(0, before - 1)
+        return before - supplement.servingsRemaining
     }
 
-    /// Undo — adds the serving back. Not capped at a container: after a
-    /// restock the leftovers plus the new tub can exceed one. Callers only
-    /// undo a day that has a taken log, so it can't run twice.
-    static func applyUndo(to supplement: Supplement) {
-        guard isTracked(supplement) else {
-            return
+    /// Undo — adds back `amount`, what `applyTaken` actually removed. nil is a
+    /// log from before that was recorded: one serving, tracked items only.
+    /// Not capped at a container: after a restock the leftovers plus the new
+    /// tub can exceed one. Callers only undo a day that has a taken log, so it
+    /// can't run twice.
+    static func applyUndo(to supplement: Supplement, amount: Double? = nil) {
+        if let amount {
+            if amount > 0 {
+                supplement.servingsRemaining += amount
+            }
+        } else if isTracked(supplement) {
+            supplement.servingsRemaining += 1
         }
-        supplement.servingsRemaining += 1
     }
 
     /// "Restocked" — adds a new container to what's left (same math as a

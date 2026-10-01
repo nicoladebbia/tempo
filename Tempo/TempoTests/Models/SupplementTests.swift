@@ -33,8 +33,8 @@ final class SupplementTests: XCTestCase {
     }
 
     func testRunningLowThreshold() {
-        let low = Supplement(name: "Whey", kind: .protein, servingsRemaining: 4)
-        let fine = Supplement(name: "Whey", kind: .protein, servingsRemaining: 20)
+        let low = Supplement(name: "Whey", kind: .protein, servingsRemaining: 4, takeDaily: true)
+        let fine = Supplement(name: "Whey", kind: .protein, servingsRemaining: 20, takeDaily: true)
         let unknown = Supplement(name: "Whey", kind: .protein, servingsRemaining: 0)
         XCTAssertTrue(low.isRunningLow)
         XCTAssertFalse(fine.isRunningLow)
