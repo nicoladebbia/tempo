@@ -19,8 +19,35 @@ import Vapor
 
 enum TestMode {
     static func isEnabled(_ app: Application) -> Bool {
-        guard app.environment != .production else { return false }
+        guard app.environment != .production, runsLocally() else { return false }
+        if let forced = app.storage[ForcedKey.self] {
+            return forced
+        }
         return Environment.get("TEMPO_TEST_MODE") == "1"
+    }
+
+    /// Per-app switch for unit tests: the env var is process-wide, so tests
+    /// setting it would turn test mode on in suites running alongside.
+    static func force(_ enabled: Bool, on app: Application) {
+        app.storage[ForcedKey.self] = enabled
+    }
+
+    /// Vapor only knows it's in production from `--env`/`VAPOR_ENV`, which
+    /// a deploy can forget. So also require a local database and no hosting
+    /// platform: a stray TEMPO_TEST_MODE=1 on Railway must stay inert.
+    static func runsLocally(_ env: [String: String] = ProcessInfo.processInfo.environment) -> Bool {
+        if env.keys.contains(where: { $0.hasPrefix("RAILWAY_") }) {
+            return false
+        }
+        let loopback: Set = ["127.0.0.1", "localhost", "::1"]
+        if let url = env["DATABASE_URL"] {
+            guard let host = URL(string: url)?.host, loopback.contains(host) else { return false }
+        }
+        return loopback.contains(env["DB_HOST"] ?? "localhost")
+    }
+
+    private struct ForcedKey: StorageKey {
+        typealias Value = Bool
     }
 
     /// Wires the fake HTTP client, the default AI mode and the test routes.

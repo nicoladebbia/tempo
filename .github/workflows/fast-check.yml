@@ -22,6 +22,8 @@ permissions:
 jobs:
   check:
     name: iOS build + backend tests
+    # Bots' pushes don't get to run code on the Mac.
+    if: ${{ !endsWith(github.actor, '[bot]') }}
     runs-on: [self-hosted, macOS, ARM64, tempo]
     timeout-minutes: 20
     env:
@@ -50,8 +52,10 @@ jobs:
             && swift test --skip-build --build-path "$CI_CACHE/backend" ) > backend.log 2>&1 &
           backend=$!
 
-          wait $ios; ios_code=$?
-          wait $backend; backend_code=$?
+          # The step shell runs with -e: a bare failing `wait` would end it
+          # before anything below prints.
+          ios_code=0; wait $ios || ios_code=$?
+          backend_code=0; wait $backend || backend_code=$?
 
           if [ $ios_code -eq 0 ]; then echo "✅ iOS build"; else
             echo "::group::iOS build failed"; grep -E "error:" ios.log | head -40 || tail -40 ios.log; echo "::endgroup::"

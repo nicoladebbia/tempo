@@ -91,7 +91,7 @@ cleanup() {
     local wt
     for wt in ${WORKTREES[@]+"${WORKTREES[@]}"}; do
         [ -d "$wt" ] || continue
-        bash "$TOOLS/sim.sh" --dir "$wt" clean >/dev/null 2>&1 || true
+        bash "$(tool "$wt" sim.sh)" --dir "$wt" clean >/dev/null 2>&1 || true
         git -C "$REPO" worktree remove --force "$wt" >/dev/null 2>&1 || true
     done
     rmdir "$LOCK" 2>/dev/null || true
@@ -106,19 +106,18 @@ echo "== Tempo nightly $STAMP"
 
 git -C "$REPO" fetch --quiet --prune origin || { echo "fetch failed"; exit 1; }
 
-# Always run the tooling from origin/main's copy (falls back to this script's
-# folder before the harness is merged), so one installed script stays current.
+# Each target runs its own sim.sh/testenv.sh (they change together with the
+# app: scenarios, test login, launch args). origin/main's copies are the
+# fallback for a branch that predates them.
 TOOLS="$HOME_DIR/tools"
 rm -rf "$TOOLS"
 mkdir -p "$TOOLS"
 for f in sim.sh testenv.sh; do
-    if git -C "$REPO" cat-file -e "origin/main:scripts/$f" 2>/dev/null; then
-        git -C "$REPO" show "origin/main:scripts/$f" >"$TOOLS/$f"
-    else
-        cp "$(cd "$(dirname "$0")" && pwd)/$f" "$TOOLS/$f" 2>/dev/null || cp "$REPO/scripts/$f" "$TOOLS/$f"
-    fi
+    git -C "$REPO" show "origin/main:scripts/$f" >"$TOOLS/$f" 2>/dev/null || rm -f "$TOOLS/$f"
 done
-chmod +x "$TOOLS"/*.sh
+tool() { # tool <worktree> <script> → path
+    if [ -f "$1/scripts/$2" ]; then echo "$1/scripts/$2"; else echo "$TOOLS/$2"; fi
+}
 
 # Targets: "slug|ref|title"
 TARGETS=("main|origin/main|main")
@@ -153,7 +152,7 @@ run_ios() {
     local bundle="$out/ios.xcresult"
     (cd "$wt/Tempo" && xcodegen generate --quiet) || { result "$slug" "iOS tests" fail "xcodegen failed"; return; }
     local started=$SECONDS
-    bash "$TOOLS/sim.sh" --dir "$wt" test -resultBundlePath "$bundle" >"$out/ios.log" 2>&1
+    bash "$(tool "$wt" sim.sh)" --dir "$wt" test -resultBundlePath "$bundle" >"$out/ios.log" 2>&1
     local code=$? secs=$((SECONDS - started))
     local summary
     summary="$(xcresult_summary "$bundle")"
@@ -172,10 +171,10 @@ run_ios() {
 
 run_backend() {
     local slug="$1" wt="$2" out="$RUN/$slug"
-    bash "$TOOLS/testenv.sh" db >/dev/null 2>&1 || { result "$slug" "Backend tests" fail "test databases didn't start"; return; }
+    bash "$(tool "$wt" testenv.sh)" db >/dev/null 2>&1 || { result "$slug" "Backend tests" fail "test databases didn't start"; return; }
     local started=$SECONDS
     (
-        eval "$(bash "$TOOLS/testenv.sh" test-env)"
+        eval "$(bash "$(tool "$wt" testenv.sh)" test-env)"
         cd "$wt/tempo-backend" && swift test --build-path "$HOME_DIR/backend-build/$slug" 2>&1
     ) >"$out/backend.log"
     local code=$? secs=$((SECONDS - started))
@@ -196,14 +195,16 @@ run_scenarios() {
         result "$slug" "Scenarios" skip "branch has no scenarios yet"
         return
     fi
-    # The branch's own scripts: scenarios, test login and the test server
-    # change together with the app, so main's copies may not know them yet.
-    local sim="$wt/scripts/sim.sh" tenv="$wt/scripts/testenv.sh"
+    local sim tenv
+    sim="$(tool "$wt" sim.sh)" tenv="$(tool "$wt" testenv.sh)"
     (cd "$wt" && bash "$tenv" up --rebuild) >"$out/testenv.log" 2>&1 || { result "$slug" "Scenarios" fail "local test server didn't start" "testenv.log"; return; }
     local udid name crashed=() ok=()
     udid="$(bash "$sim" --dir "$wt" udid)"
     for name in $SMOKE_SCENARIOS; do
-        bash "$sim" --dir "$wt" qa --no-build --scenario "$name" --as "nightly-$slug-$name" >>"$out/scenarios.log" 2>&1
+        # With --skip-ios nothing built the app yet: the first scenario does.
+        local build=--no-build
+        [ "$SKIP_IOS" = 1 ] && [ ${#ok[@]} -eq 0 ] && [ ${#crashed[@]} -eq 0 ] && build=""
+        bash "$sim" --dir "$wt" qa ${build:+"$build"} --scenario "$name" --as "nightly-$slug-$name" >>"$out/scenarios.log" 2>&1
         sleep 12
         bash "$sim" --dir "$wt" shot "$out/scenario-$name.png" >/dev/null 2>&1
         if xcrun simctl spawn "$udid" launchctl list 2>/dev/null | grep -q "UIKitApplication:app.tempo.Tempo.dev"; then
@@ -219,7 +220,9 @@ run_scenarios() {
     fi
 }
 
-for target in "${TARGETS[@]}"; do
+# main last, so the shared local test server is left running main's build.
+for ((t = ${#TARGETS[@]} - 1; t >= 0; t--)); do
+    target="${TARGETS[$t]}"
     IFS='|' read -r slug ref title <<<"$target"
     [ -n "$ONLY" ] && [ "$ONLY" != "$slug" ] && continue
     echo "== $title ($slug)"
@@ -242,7 +245,7 @@ for target in "${TARGETS[@]}"; do
     sim_pid=$!
     [ "$SKIP_BACKEND" = 1 ] || run_backend "$slug" "$wt"
     wait "$sim_pid"
-    bash "$TOOLS/sim.sh" --dir "$wt" clean >/dev/null 2>&1 || true
+    bash "$(tool "$wt" sim.sh)" --dir "$wt" clean >/dev/null 2>&1 || true
     git -C "$REPO" worktree remove --force "$wt" >/dev/null 2>&1 || true
 done
 

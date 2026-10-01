@@ -181,7 +181,9 @@ do_run() {
     while [ $# -gt 0 ]; do
         case "$1" in
             --local) local_mode=1 ;;
-            --as) name="${2:?--as needs a name}"; local_mode=1; shift ;;
+            --as)
+                name="${2:?--as needs a name}"; local_mode=1; shift
+                [[ "$name" =~ ^[a-z0-9][a-z0-9-]{0,39}$ ]] || { echo "[ERR] --as: lowercase letters, digits and '-' only (max 40)" >&2; exit 1; } ;;
             --scenario) scenario="${2:?--scenario needs a name}"; local_mode=1; fresh=1; shift ;;
             --fresh) fresh=1 ;;
             --free) pro=false; local_mode=1 ;;
@@ -206,6 +208,11 @@ do_run() {
         [ "${#server[@]}" -eq 10 ] || { echo "[ERR] test login failed (scripts/testenv.sh logs)" >&2; exit 1; }
     fi
     [ -n "$scenario" ] && extra+=(--uitesting-scenario "$scenario")
+    if [ "$scenario" = fresh ]; then # first-run path: keep onboarding
+        local kept=() a
+        for a in ${extra[@]+"${extra[@]}"}; do [ "$a" = --uitesting-skip-onboarding ] || kept+=("$a"); done
+        extra=(${kept[@]+"${kept[@]}"})
+    fi
     open -a Simulator --args -CurrentDeviceUDID "$udid" 2>/dev/null || true
     xcrun simctl launch --terminate-running-process "$udid" "$BUNDLE_ID" "${server[@]}" ${extra[@]+"${extra[@]}"}
     [ "$local_mode" = 1 ] && allow_notifications "$udid"

@@ -157,13 +157,10 @@ struct ClaudeJSONExtractionTests {
 @Suite("TestMode routes", .serialized)
 struct TestModeRouteTests {
     private func withApp(testMode: Bool, _ body: (Application) async throws -> Void) async throws {
-        if testMode {
-            setenv("TEMPO_TEST_MODE", "1", 1)
-        } else {
-            unsetenv("TEMPO_TEST_MODE")
-        }
-        defer { unsetenv("TEMPO_TEST_MODE") }
+        // Per app, not setenv: the env var would leak into suites running
+        // in parallel.
         let app = try await Application.make(.testing)
+        TestMode.force(testMode, on: app)
         do {
             try await configure(app)
             try await app.autoMigrate()
@@ -193,10 +190,18 @@ struct TestModeRouteTests {
         }
     }
 
+    @Test func hostedOrRemoteDatabaseNeverEnablesTestMode() {
+        #expect(TestMode.runsLocally([:]))
+        #expect(TestMode.runsLocally(["DB_HOST": "127.0.0.1"]))
+        #expect(TestMode.runsLocally(["DATABASE_URL": "postgres://u:p@localhost:5432/x"]))
+        #expect(!TestMode.runsLocally(["RAILWAY_ENVIRONMENT": "production"]))
+        #expect(!TestMode.runsLocally(["DATABASE_URL": "postgres://u:p@db.railway.internal:5432/x"]))
+        #expect(!TestMode.runsLocally(["DB_HOST": "10.0.0.5"]))
+    }
+
     @Test func productionNeverEnablesTestMode() async throws {
-        setenv("TEMPO_TEST_MODE", "1", 1)
-        defer { unsetenv("TEMPO_TEST_MODE") }
         let app = try await Application.make(.production)
+        TestMode.force(true, on: app)
         #expect(TestMode.isEnabled(app) == false)
         try await app.asyncShutdown()
     }

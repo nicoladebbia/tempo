@@ -261,7 +261,12 @@ case "${1:-status}" in
     ai) shift; cmd_ai "$@" ;;
     pushes) shift; cmd_pushes "$@" ;;
     url) echo "$URL" ;;
-    db) lock; start_containers; log "databases up (postgres $PG_PORT, redis $REDIS_PORT)" ;;
+    db)
+        lock; start_containers
+        # Redis db 1 is the unit tests' (rate-limit counters etc.); start
+        # every run empty, like CI's fresh service container did.
+        docker exec "$REDIS" redis-cli -n 1 FLUSHDB >/dev/null
+        log "databases up (postgres $PG_PORT, redis $REDIS_PORT; test redis flushed)" ;;
     healthy) healthy ;;
     test-env)
         echo "export DB_HOST=127.0.0.1 DB_PORT=$PG_PORT DB_USER=tempo DB_PASSWORD=tempo_dev DB_NAME=tempo_test REDIS_URL=redis://127.0.0.1:$REDIS_PORT/1"
