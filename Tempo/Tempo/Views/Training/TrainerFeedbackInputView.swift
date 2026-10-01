@@ -230,7 +230,7 @@ struct TrainerFeedbackInputView: View {
         do {
             let rawEdits = try await feedbackService.structureFeedback(from: combinedText)
             let weekIndex = program.weekIndex(on: Date()) ?? 0
-            let resolved = TrainerFeedbackApplier.resolve(edits: rawEdits, weeks: program.weeks, weekIndex: weekIndex)
+            let resolved = TrainerFeedbackApplier.resolve(edits: rawEdits, weeks: program.weeks, weekIndex: weekIndex, scheduleMode: program.scheduleMode)
             reviewPayload = ReviewPayload(sourceText: combinedText, edits: resolved)
         } catch {
             errorMessage = message(for: error)
@@ -270,7 +270,7 @@ struct TrainerFeedbackInputView: View {
                     moveToWeekday: nil, reason: nil
                 ),
             ]
-            let resolved = TrainerFeedbackApplier.resolve(edits: rawEdits, weeks: program.weeks, weekIndex: weekIndex)
+            let resolved = TrainerFeedbackApplier.resolve(edits: rawEdits, weeks: program.weeks, weekIndex: weekIndex, scheduleMode: program.scheduleMode)
             reviewPayload = ReviewPayload(sourceText: sampleText, edits: resolved)
         }
     #endif

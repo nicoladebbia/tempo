@@ -21,14 +21,55 @@
 
 import Foundation
 
+// MARK: - ExerciseChanges
+
+/// The field changes one `update_exercise` edit makes, applied on top of the
+/// exercise as it is AT APPLY TIME (so two edits to the same exercise
+/// compose, and two "+5 kg" deltas add up) instead of overwriting it with a
+/// snapshot taken at resolve time.
+struct ExerciseChanges: Equatable {
+    var sets: Int?
+    var repsLow: Int?
+    var repsHigh: Int?
+    var restSeconds: Int?
+    /// Absolute weight; wins over `weightDeltaKg`.
+    var weightKg: Double?
+    var weightDeltaKg: Double?
+    var notes: String?
+
+    func applied(to exercise: ProgramExercise) -> ProgramExercise {
+        var updated = exercise
+        if let sets { updated.sets = sets }
+        if let repsLow { updated.repsLow = repsLow }
+        if let repsHigh { updated.repsHigh = repsHigh }
+        if let restSeconds { updated.restSeconds = restSeconds }
+        if let weightKg {
+            updated.weightKg = weightKg
+        } else if let weightDeltaKg {
+            updated.weightKg = max(0, (exercise.weightKg ?? 0) + weightDeltaKg)
+        }
+        if let notes { updated.notes = notes }
+        return updated
+    }
+}
+
 // MARK: - ResolvedTrainerFeedbackEdit
 
 struct ResolvedTrainerFeedbackEdit: Identifiable, Equatable {
     enum Action: Equatable {
-        case replaceExercise(weekIndex: Int, dayIndex: Int, exerciseIndex: Int, updated: ProgramExercise)
-        case removeExercise(weekIndex: Int, dayIndex: Int, exerciseIndex: Int)
+        /// Exercises are addressed by their stable `ProgramExercise.id`, never
+        /// by position: an earlier removal in the same batch shifts every
+        /// later index, and two edits to one exercise must both land.
+        case replaceExercise(weekIndex: Int, dayIndex: Int, exerciseID: UUID, changes: ExerciseChanges)
+        case removeExercise(weekIndex: Int, dayIndex: Int, exerciseID: UUID)
         case addExercise(weekIndex: Int, dayIndex: Int, exercise: ProgramExercise)
+        /// Sequence mode only: the day leaves the program (its exercises are
+        /// emptied) — a weekday-less sequence has no "that Thursday" to skip.
         case skipDay(weekIndex: Int, dayIndex: Int)
+        /// Fixed mode: skip only this DATE's occurrence; the program is
+        /// untouched (see `TrainerProgramSkip`). Not a week mutation — the
+        /// saver stores it via `skippedSessions(_:acceptedIDs:)`.
+        case skipDate(weekIndex: Int, dayIndex: Int, date: Date)
         case moveDay(weekIndex: Int, dayIndex: Int, newWeekday: Int)
     }
 
@@ -52,7 +93,20 @@ enum TrainerFeedbackApplier {
     /// `remove_exercise` with no weekday given, which can match more than one
     /// occurrence (e.g. the same exercise on two days) — each occurrence
     /// becomes its own toggleable row.
-    static func resolve(edits: [RawTrainerFeedbackEdit], weeks: [ProgramWeek], weekIndex: Int) -> [ResolvedTrainerFeedbackEdit] {
+    ///
+    /// Edits resolve IN ORDER against a working copy that already reflects the
+    /// earlier matched edits, so "remove X" then "change X" can't both match
+    /// and a second edit's diff line starts from the first one's result.
+    /// `scheduleMode` decides what "skip Thursday" means (fixed: only that
+    /// date, via `.skipDate`; sequence: the day leaves the program);
+    /// `referenceDate` anchors which week's Thursday is meant.
+    static func resolve(
+        edits: [RawTrainerFeedbackEdit],
+        weeks: [ProgramWeek],
+        weekIndex: Int,
+        scheduleMode: TrainerProgramScheduleMode = .fixed,
+        referenceDate: Date = Date()
+    ) -> [ResolvedTrainerFeedbackEdit] {
         guard weeks.indices.contains(weekIndex) else {
             return edits.map {
                 ResolvedTrainerFeedbackEdit(
@@ -62,8 +116,19 @@ enum TrainerFeedbackApplier {
                 )
             }
         }
-        let week = weeks[weekIndex]
-        return edits.flatMap { resolve($0, week: week, weekIndex: weekIndex) }
+        var working = weeks
+        let weekMonday = TrainingCalendar.mondayOfWeek(containing: referenceDate)
+        var results: [ResolvedTrainerFeedbackEdit] = []
+        for raw in edits {
+            let resolved = resolve(raw, week: working[weekIndex], weekIndex: weekIndex, scheduleMode: scheduleMode, weekMonday: weekMonday)
+            for edit in resolved {
+                if let action = edit.action {
+                    apply(action, to: &working)
+                }
+            }
+            results.append(contentsOf: resolved)
+        }
+        return results
     }
 
     /// Applies every edit whose `id` is in `acceptedIDs`, in the order given
@@ -83,22 +148,41 @@ enum TrainerFeedbackApplier {
         return weeks
     }
 
+    /// The accepted dated skips (fixed mode), for the saver to store on the
+    /// program. Pairs each with its edit's summary for the undo list.
+    static func skippedSessions(
+        _ resolved: [ResolvedTrainerFeedbackEdit],
+        acceptedIDs: Set<UUID>,
+        program: TrainerProgram
+    ) -> [TrainerProgramSkip] {
+        resolved.compactMap { edit in
+            guard acceptedIDs.contains(edit.id), case let .skipDate(weekIndex, dayIndex, date)? = edit.action else {
+                return nil
+            }
+            return TrainerProgramSkip(
+                date: Calendar.current.startOfDay(for: date),
+                sessionKey: program.sessionKey(weekIndex: weekIndex, dayIndex: dayIndex),
+                summary: edit.summary
+            )
+        }
+    }
+
     private static func apply(_ action: ResolvedTrainerFeedbackEdit.Action, to weeks: inout [ProgramWeek]) {
         switch action {
-        case let .replaceExercise(weekIndex, dayIndex, exerciseIndex, updated):
+        case let .replaceExercise(weekIndex, dayIndex, exerciseID, changes):
             guard weeks.indices.contains(weekIndex), weeks[weekIndex].days.indices.contains(dayIndex),
-                  weeks[weekIndex].days[dayIndex].exercises.indices.contains(exerciseIndex)
+                  let index = weeks[weekIndex].days[dayIndex].exercises.firstIndex(where: { $0.id == exerciseID })
             else {
                 return
             }
-            weeks[weekIndex].days[dayIndex].exercises[exerciseIndex] = updated
-        case let .removeExercise(weekIndex, dayIndex, exerciseIndex):
+            weeks[weekIndex].days[dayIndex].exercises[index] = changes.applied(to: weeks[weekIndex].days[dayIndex].exercises[index])
+        case let .removeExercise(weekIndex, dayIndex, exerciseID):
             guard weeks.indices.contains(weekIndex), weeks[weekIndex].days.indices.contains(dayIndex),
-                  weeks[weekIndex].days[dayIndex].exercises.indices.contains(exerciseIndex)
+                  let index = weeks[weekIndex].days[dayIndex].exercises.firstIndex(where: { $0.id == exerciseID })
             else {
                 return
             }
-            weeks[weekIndex].days[dayIndex].exercises.remove(at: exerciseIndex)
+            weeks[weekIndex].days[dayIndex].exercises.remove(at: index)
         case let .addExercise(weekIndex, dayIndex, exercise):
             guard weeks.indices.contains(weekIndex), weeks[weekIndex].days.indices.contains(dayIndex) else {
                 return
@@ -113,6 +197,9 @@ enum TrainerFeedbackApplier {
                 return
             }
             weeks[weekIndex].days[dayIndex].exercises = []
+        case .skipDate:
+            // Dated skips don't change the weeks — see `skippedSessions`.
+            break
         case let .moveDay(weekIndex, dayIndex, newWeekday):
             guard weeks.indices.contains(weekIndex), weeks[weekIndex].days.indices.contains(dayIndex) else {
                 return
@@ -124,7 +211,13 @@ enum TrainerFeedbackApplier {
 
     // MARK: - Per-edit resolution
 
-    private static func resolve(_ raw: RawTrainerFeedbackEdit, week: ProgramWeek, weekIndex: Int) -> [ResolvedTrainerFeedbackEdit] {
+    private static func resolve(
+        _ raw: RawTrainerFeedbackEdit,
+        week: ProgramWeek,
+        weekIndex: Int,
+        scheduleMode: TrainerProgramScheduleMode,
+        weekMonday: Date
+    ) -> [ResolvedTrainerFeedbackEdit] {
         switch raw.type {
         case .updateExercise:
             resolveExerciseEdit(raw, week: week, weekIndex: weekIndex)
@@ -133,9 +226,9 @@ enum TrainerFeedbackApplier {
         case .addExercise:
             [resolveAddExercise(raw, week: week, weekIndex: weekIndex)]
         case .skipSession:
-            [resolveDayEdit(raw, week: week, weekIndex: weekIndex)]
+            [resolveDayEdit(raw, week: week, weekIndex: weekIndex, scheduleMode: scheduleMode, weekMonday: weekMonday)]
         case .moveDay:
-            [resolveDayEdit(raw, week: week, weekIndex: weekIndex)]
+            [resolveDayEdit(raw, week: week, weekIndex: weekIndex, scheduleMode: scheduleMode, weekMonday: weekMonday)]
         }
     }
 
@@ -160,67 +253,79 @@ enum TrainerFeedbackApplier {
             return [unmatched(raw, reason: "Couldn't find \"\(rawName)\" this week.")]
         }
 
-        return matches.map { dayIndex, exerciseIndex in
+        return matches.flatMap { dayIndex, exerciseIndex -> [ResolvedTrainerFeedbackEdit] in
             let day = week.days[dayIndex]
             let exercise = day.exercises[exerciseIndex]
             switch raw.type {
             case .removeExercise:
-                return ResolvedTrainerFeedbackEdit(
+                return [ResolvedTrainerFeedbackEdit(
                     summary: "\(exercise.name): removed",
-                    action: .removeExercise(weekIndex: weekIndex, dayIndex: dayIndex, exerciseIndex: exerciseIndex)
-                )
+                    action: .removeExercise(weekIndex: weekIndex, dayIndex: dayIndex, exerciseID: exercise.id)
+                )]
             default:
-                let (updated, diffs) = applyFieldChanges(raw, to: exercise)
-                guard !diffs.isEmpty else {
-                    return unmatched(raw, reason: "Nothing to change on \"\(exercise.name)\".")
+                let (changes, diffs, refusal) = fieldChanges(raw, for: exercise)
+                var results: [ResolvedTrainerFeedbackEdit] = []
+                // The rest of the edit still applies; only a refused part
+                // (e.g. a "+5 kg" with no fixed weight) is listed as unmatched.
+                if !diffs.isEmpty {
+                    results.append(ResolvedTrainerFeedbackEdit(
+                        summary: "\(exercise.name): \(diffs.joined(separator: ", "))",
+                        action: .replaceExercise(weekIndex: weekIndex, dayIndex: dayIndex, exerciseID: exercise.id, changes: changes)
+                    ))
                 }
-                return ResolvedTrainerFeedbackEdit(
-                    summary: "\(exercise.name): \(diffs.joined(separator: ", "))",
-                    action: .replaceExercise(weekIndex: weekIndex, dayIndex: dayIndex, exerciseIndex: exerciseIndex, updated: updated)
-                )
+                if let refusal {
+                    results.append(unmatched(raw, reason: refusal))
+                } else if diffs.isEmpty {
+                    results.append(unmatched(raw, reason: "Nothing to change on \"\(exercise.name)\"."))
+                }
+                return results
             }
         }
     }
 
-    /// Applies every non-nil field on `raw` to a copy of `exercise`, and
-    /// returns a "field: old → new" line per change made — so the review
-    /// screen (and the applied change-log entry) show exactly what moved,
-    /// never just "updated".
-    private static func applyFieldChanges(_ raw: RawTrainerFeedbackEdit, to exercise: ProgramExercise) -> (ProgramExercise, [String]) {
-        var updated = exercise
+    /// The non-nil fields on `raw` that actually differ from `exercise`, plus
+    /// a "field: old → new" line per change — so the review screen (and the
+    /// applied change-log entry) show exactly what moved, never just
+    /// "updated". `refusal` is set when the edit can't be applied safely: a
+    /// relative "+5 kg" on a lift with no fixed weight would prescribe 5 kg
+    /// out of nothing, so it is left for the athlete to review by hand.
+    private static func fieldChanges(_ raw: RawTrainerFeedbackEdit, for exercise: ProgramExercise) -> (ExerciseChanges, [String], String?) {
+        var changes = ExerciseChanges()
         var diffs: [String] = []
 
         if let sets = raw.sets, sets != exercise.sets {
             diffs.append("\(exercise.sets) sets → \(sets) sets")
-            updated.sets = sets
+            changes.sets = sets
         }
         if let repsLow = raw.repsLow, repsLow != exercise.repsLow {
             diffs.append("\(exercise.repsLow) reps → \(repsLow) reps")
-            updated.repsLow = repsLow
+            changes.repsLow = repsLow
         }
         if let repsHigh = raw.repsHigh, repsHigh != exercise.repsHigh {
             diffs.append("\(exercise.repsHigh.map(String.init) ?? "—") reps high → \(repsHigh) reps high")
-            updated.repsHigh = repsHigh
+            changes.repsHigh = repsHigh
         }
         if let restSeconds = raw.restSeconds, restSeconds != exercise.restSeconds {
             diffs.append("rest \(exercise.restSeconds.map(String.init) ?? "—")s → \(restSeconds)s")
-            updated.restSeconds = restSeconds
+            changes.restSeconds = restSeconds
         }
         if let weightKg = raw.weightKg, weightKg > 0 {
-            let old = formattedKg(exercise.weightKg)
-            updated.weightKg = weightKg
-            diffs.append("\(old) → \(formattedKg(weightKg))")
+            diffs.append("\(formattedKg(exercise.weightKg)) → \(formattedKg(weightKg))")
+            changes.weightKg = weightKg
         } else if let delta = raw.weightDeltaKg, delta != 0 {
-            let base = exercise.weightKg ?? 0
+            guard let base = exercise.weightKg, base > 0 else {
+                let signed = (delta > 0 ? "+" : "-") + formattedKg(abs(delta))
+                return (changes, diffs, "\(exercise.name) has no fixed weight, so \(signed) can't be applied. Set a weight first.")
+            }
             let new = max(0, base + delta)
-            updated.weightKg = new
-            diffs.append("\(formattedKg(exercise.weightKg)) → \(formattedKg(new))")
+            diffs.append("\(formattedKg(base)) → \(formattedKg(new))")
+            changes.weightDeltaKg = delta
         }
         if let notes = raw.notes, !notes.isEmpty {
-            updated.notes = notes
             diffs.append("note: \"\(notes)\"")
+            changes.notes = notes
         }
-        return (updated, diffs)
+        return (changes, diffs, nil)
     }
 
     // MARK: - Add exercise
@@ -256,7 +361,13 @@ enum TrainerFeedbackApplier {
 
     // MARK: - Day-level edits (skip / move)
 
-    private static func resolveDayEdit(_ raw: RawTrainerFeedbackEdit, week: ProgramWeek, weekIndex: Int) -> ResolvedTrainerFeedbackEdit {
+    private static func resolveDayEdit(
+        _ raw: RawTrainerFeedbackEdit,
+        week: ProgramWeek,
+        weekIndex: Int,
+        scheduleMode: TrainerProgramScheduleMode,
+        weekMonday: Date
+    ) -> ResolvedTrainerFeedbackEdit {
         guard raw.weekday != nil else {
             return unmatched(raw, reason: "Which day?")
         }
@@ -275,6 +386,15 @@ enum TrainerFeedbackApplier {
         switch raw.type {
         case .skipSession:
             let reasonSuffix = raw.reason.map { " — \($0)" } ?? ""
+            if scheduleMode == .fixed,
+               let date = Calendar.current.date(byAdding: .day, value: day.weekday - 1, to: weekMonday)
+            {
+                // Only that date: a repeating program is back to normal next week.
+                return ResolvedTrainerFeedbackEdit(
+                    summary: "\(dayLabel): skipped this \(TrainerProgramView.shortWeekdayName(day.weekday))\(reasonSuffix)",
+                    action: .skipDate(weekIndex: weekIndex, dayIndex: dayIndex, date: date)
+                )
+            }
             return ResolvedTrainerFeedbackEdit(
                 summary: "\(dayLabel): skipped\(reasonSuffix)",
                 action: .skipDay(weekIndex: weekIndex, dayIndex: dayIndex)

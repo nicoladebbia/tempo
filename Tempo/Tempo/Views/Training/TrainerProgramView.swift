@@ -221,6 +221,12 @@ struct TrainerProgramView: View {
                 .font(.tempoCaption1)
                 .foregroundStyle(program.isFinished(on: Date()) ? Color.tempoWarning : Color.tempoTextTertiary)
 
+            // Compliance: sessions actually done / scheduled so far.
+            TrainerComplianceBar(
+                stats: TrainerProgramHistoryStats.stats(for: program, modelContext: modelContext),
+                emptyText: "No sessions due yet."
+            )
+
             Divider().background(Color.tempoDivider)
 
             weekList(program)
