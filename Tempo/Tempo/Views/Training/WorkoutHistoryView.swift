@@ -269,93 +269,24 @@ struct WorkoutHistoryView: View {
         return """
         \(name): permanently removes this session — its \(setCount) set\(setCount == 1 ? "" : "s"), \
         set feedback, and the progress-chart history & PRs it created. Weekly volume and charts \
-        will update. This can't be undone.
+        will update. Weight adjustments Tempo already learned from it stay. This can't be undone.
         """
     }
 
-    /// Which `ExerciseHistory` rows deleting `workout` should also remove.
-    /// Matched by `workoutPlanID` FIRST — the exact key `saveWorkout` stamps
-    /// on every row it writes. A row with no `workoutPlanID` (legacy, written
-    /// before that field existed) falls back to the day+exercise heuristic —
-    /// which, used alone, could delete the OTHER same-day workout's row for a
-    /// shared exercise (e.g. two push sessions logged the same day). Static
-    /// and pure so this exact-vs-heuristic split is unit-testable without a
-    /// live view/query (§13).
+    /// See `WorkoutPurge.historyRowsToDelete` (kept as a forwarder for the
+    /// §13 tests that pin it here).
     static func historyRowsToDelete(
         for workout: WorkoutPlan,
         allHistory: [ExerciseHistory],
         calendar: Calendar = .current
     ) -> [ExerciseHistory] {
-        let sessionDay = calendar.startOfDay(for: workout.finishedAt ?? workout.date)
-        let exerciseIDs = Set(workout.orderedExercises.compactMap { $0.exercise?.id })
-        return allHistory.filter { h in
-            if let hPlanID = h.workoutPlanID {
-                return hPlanID == workout.id
-            }
-            return calendar.isDate(h.date, inSameDayAs: sessionDay)
-                && (h.exercise?.id).map(exerciseIDs.contains) == true
-        }
+        WorkoutPurge.historyRowsToDelete(for: workout, allHistory: allHistory, calendar: calendar)
     }
 
-    /// Hard delete. WorkoutPlan cascades to PlannedExercise → PlannedSet.
-    /// SetFeedback links to PlannedSet with a .nullify rule, so it would be
-    /// orphaned — we delete the linked feedback explicitly so "removes …
-    /// feedback" in the confirmation is truthful.
+    /// Full purge — see `WorkoutPurge.purge` (also notifies Today/Dashboard,
+    /// so a deleted TODAY workout doesn't linger on those screens).
     private func deleteWorkout(_ workout: WorkoutPlan) {
-        // Full purge (user-chosen): the session AND every record it
-        // produced, so it disappears from history, weekly volume, progress
-        // charts and PRs alike.
-        let cal = Calendar.current
-        let sessionDay = cal.startOfDay(for: workout.finishedAt ?? workout.date)
-        let setIDs = Set(
-            workout.orderedExercises.flatMap { ($0.sets ?? []).map(\.id) }
-        )
-
-        // 1. Set feedback linked to this session's sets.
-        for fb in allFeedback where setIDs.contains(fb.setID) {
-            modelContext.delete(fb)
-        }
-        // 2. ExerciseHistory rows this session created.
-        for h in Self.historyRowsToDelete(for: workout, allHistory: allHistory) {
-            modelContext.delete(h)
-        }
-        // 3. PRs attributed to this exact plan. `logSet` now stamps
-        //    `workoutPlanID` at PR-creation time (was never set before, so
-        //    this match never fired and PRs silently outlived their workout).
-        for pr in allPRs where pr.workoutPlanID == workout.id {
-            modelContext.delete(pr)
-        }
-        // 3z. PredictionLog rows this plan produced — never cleaned before,
-        //     so they accumulated forever after a deleted workout.
-        for log in allPredictionLogs where log.workoutPlanID == workout.id {
-            modelContext.delete(log)
-        }
-        // 3b. Non-gym ActivitySession produced by this plan (football etc.).
-        //     Keyed by exact workoutPlanID — without this, deleting a football
-        //     session from history would orphan its ActivitySession record.
-        for session in allActivitySessions where session.workoutPlanID == workout.id {
-            modelContext.delete(session)
-        }
-        // 3d. Fix #7 — conditioning block results this plan's session(s)
-        //     produced. Same exact-workoutPlanID match as ActivitySession
-        //     above, so History doesn't keep showing logged blocks for a
-        //     deleted day.
-        for result in allConditioningResults where result.workoutPlanID == workout.id {
-            modelContext.delete(result)
-        }
-        // 3c. The brain's DailySession for this day. Its `workoutPlan` link is a
-        //     one-way `.nullify` with NO inverse, so deleting the plan (step 4)
-        //     would leave this session pointing at dangling backing — later read
-        //     in sessionRPEAccuracy → crash. Matched by DAY (never by traversing
-        //     `.workoutPlan`, which could itself already be dangling); the §8
-        //     model is write-once one-session-per-day, so the day is the key.
-        for s in allDailySessions where cal.isDate(s.date, inSameDayAs: sessionDay) {
-            modelContext.delete(s)
-        }
-        // 4. The plan itself (cascades to PlannedExercise → PlannedSet).
-        modelContext.delete(workout)
-        modelContext.saveOrAlert("history change")
-
+        WorkoutPurge.purge(workout, modelContext: modelContext)
         swipedWorkoutID = nil
         pendingDelete = nil
         HapticManager.notification(.success)

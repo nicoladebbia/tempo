@@ -283,6 +283,13 @@ struct TodayWorkoutView: View {
             await refreshWorkoutSchedule()
         }
         .onReceive(NotificationCenter.default.publisher(for: .tempoWorkoutChanged)) { _ in
+            // Today's workout was deleted (e.g. from History): reload before
+            // anything reads the dead row.
+            if viewModel.todayPlan?.isDeleted == true || (viewModel.todayPlan != nil && viewModel.todayPlan?.modelContext == nil) {
+                viewModel.todayPlan = nil
+                Task { await viewModel.loadToday(modelContext: modelContext) }
+                return
+            }
             // Any surface that mutates the workout re-syncs the wrist.
             viewModel.pushWorkoutToWatch()
         }
