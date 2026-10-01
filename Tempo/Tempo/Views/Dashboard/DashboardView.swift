@@ -203,6 +203,9 @@ struct DashboardView: View {
                 }
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .tempoWaterLogged)) { _ in
+            viewModel?.reloadHydration()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .tempoMealWillBeRemoved)) { note in
             // Synchronous: the model is deleted right after the post returns.
             if let id = note.userInfo?["id"] as? UUID {
@@ -574,9 +577,7 @@ struct DashboardView: View {
                 FuelQuadrantDetailContainer(fuelData: vm.fuel)
             }
         } else {
-            DailyNutritionSummaryView(fuelData: vm.fuel, onAddHydration: { ml in
-                vm.addHydration(ml)
-            })
+            DailyNutritionSummaryView(fuelData: vm.fuel)
         }
     }
 
@@ -611,6 +612,8 @@ struct DashboardView: View {
                     )
                 }
 
+                waterBar(data)
+
                 // TimelineView keeps "Last meal Xh ago" current without a refresh.
                 TimelineView(.everyMinute) { _ in
                     cardFooterBar(
@@ -621,6 +624,26 @@ struct DashboardView: View {
                 }
             }
         }
+    }
+
+    /// Small water bar under the macros: saved ml of today's target.
+    private func waterBar(_ data: FuelQuadrantData) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Image(systemName: "drop.fill")
+                    .font(.system(size: 9))
+                    .foregroundStyle(Color.tempoElectric)
+                Text("\(data.hydrationMl) / \(data.hydrationTargetMl) ml")
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextTertiary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .contentTransition(.numericText())
+            }
+            progressBar(progress: data.hydrationProgress, color: Color.tempoElectric)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("dashboard.fuel.waterBar")
     }
 
     /// Macro rows stay white until they're done: green when on target, red

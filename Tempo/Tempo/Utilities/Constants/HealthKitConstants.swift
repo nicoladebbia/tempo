@@ -72,6 +72,8 @@ enum HealthKitConstants {
         HKQuantityType(.dietaryFiber),
         HKQuantityType(.dietarySugar),
         HKQuantityType(.dietarySodium),
+        // Water taps from Nutrition Today (write only — Tempo never reads other apps' water)
+        HKQuantityType(.dietaryWater),
     ]
 
     // MARK: - Background Task Identifiers

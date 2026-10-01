@@ -737,43 +737,55 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
     // Per INTEGRATION_SPECS.md Section 2.3.2 — Write nutrition as HKCorrelation.
     // Per TECHNICAL_FEASIBILITY_AUDIT.md Section 1.3 — use HKCorrelation for proper Health app display.
 
-    func writeNutrition(_ nutrition: NutritionSample) async throws {
+    @discardableResult
+    func writeNutrition(_ nutrition: NutritionSample) async throws -> Bool {
         guard HKHealthStore.isHealthDataAvailable() else {
-            return
-        }
-        guard healthStore.authorizationStatus(for: HKQuantityType(.dietaryEnergyConsumed)) == .sharingAuthorized else {
-            return // Silently skip — nutrition write is optional
+            return false
         }
 
-        var samples: [HKQuantitySample] = []
+        // Only the types the user authorised: a denied type is skipped, it
+        // doesn't fail the whole entry.
+        func canWrite(_ id: HKQuantityTypeIdentifier) -> Bool {
+            healthStore.authorizationStatus(for: HKQuantityType(id)) == .sharingAuthorized
+        }
 
-        samples.append(HKQuantitySample(
-            type: HKQuantityType(.dietaryEnergyConsumed),
-            quantity: HKQuantity(unit: .kilocalorie(), doubleValue: nutrition.calories),
-            start: nutrition.date,
-            end: nutrition.date
-        ))
+        var metadata: [String: Any] = ["TempoSource": "Tempo"]
+        if let name = nutrition.name, !name.isEmpty {
+            metadata[HKMetadataKeyFoodType] = name
+        }
+        if let sync = nutrition.syncIdentifier {
+            metadata[HKMetadataKeySyncIdentifier] = sync
+            metadata[HKMetadataKeySyncVersion] = nutrition.syncVersion
+        }
 
-        samples.append(HKQuantitySample(
-            type: HKQuantityType(.dietaryProtein),
-            quantity: HKQuantity(unit: .gram(), doubleValue: nutrition.proteinGrams),
-            start: nutrition.date,
-            end: nutrition.date
-        ))
+        func sample(_ id: HKQuantityTypeIdentifier, _ unit: HKUnit, _ value: Double) -> HKQuantitySample? {
+            guard canWrite(id), value >= 0 else {
+                return nil
+            }
+            return HKQuantitySample(
+                type: HKQuantityType(id),
+                quantity: HKQuantity(unit: unit, doubleValue: value),
+                start: nutrition.date,
+                end: nutrition.date,
+                metadata: metadata
+            )
+        }
 
-        samples.append(HKQuantitySample(
-            type: HKQuantityType(.dietaryCarbohydrates),
-            quantity: HKQuantity(unit: .gram(), doubleValue: nutrition.carbsGrams),
-            start: nutrition.date,
-            end: nutrition.date
-        ))
+        let samples = [
+            sample(.dietaryEnergyConsumed, .kilocalorie(), nutrition.calories),
+            sample(.dietaryProtein, .gram(), nutrition.proteinGrams),
+            sample(.dietaryCarbohydrates, .gram(), nutrition.carbsGrams),
+            sample(.dietaryFatTotal, .gram(), nutrition.fatGrams),
+        ].compactMap(\.self)
+        guard !samples.isEmpty else {
+            return false
+        }
 
-        samples.append(HKQuantitySample(
-            type: HKQuantityType(.dietaryFatTotal),
-            quantity: HKQuantity(unit: .gram(), doubleValue: nutrition.fatGrams),
-            start: nutrition.date,
-            end: nutrition.date
-        ))
+        // Replace any earlier version of this entry (deleting a correlation
+        // does not delete its samples, so deleteNutrition removes both).
+        if let sync = nutrition.syncIdentifier {
+            try await deleteNutrition(syncIdentifier: sync)
+        }
 
         // Wrap in HKCorrelation for proper Health app display
         let correlation = HKCorrelation(
@@ -781,7 +793,7 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
             start: nutrition.date,
             end: nutrition.date,
             objects: Set(samples),
-            metadata: ["TempoSource": "Tempo"]
+            metadata: metadata
         )
 
         try await healthStore.save(correlation)
@@ -789,6 +801,64 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
             .info(
                 "writeNutrition: saved \(String(format: "%.0f", nutrition.calories)) cal, P:\(String(format: "%.0f", nutrition.proteinGrams))g C:\(String(format: "%.0f", nutrition.carbsGrams))g F:\(String(format: "%.0f", nutrition.fatGrams))g"
             )
+        return true
+    }
+
+    func deleteNutrition(syncIdentifier: String) async throws {
+        guard HKHealthStore.isHealthDataAvailable() else {
+            return
+        }
+        let predicate = HKQuery.predicateForObjects(
+            withMetadataKey: HKMetadataKeySyncIdentifier,
+            operatorType: .equalTo,
+            value: syncIdentifier
+        )
+        // Delete only what Tempo itself is allowed to delete; types without
+        // write access would throw, so check each one.
+        var types: [HKObjectType] = [
+            HKQuantityType(.dietaryEnergyConsumed),
+            HKQuantityType(.dietaryProtein),
+            HKQuantityType(.dietaryCarbohydrates),
+            HKQuantityType(.dietaryFatTotal),
+            HKQuantityType(.dietaryWater),
+        ]
+        types = types.filter { healthStore.authorizationStatus(for: $0) == .sharingAuthorized }
+        for type in types {
+            if let sampleType = type as? HKSampleType {
+                _ = try await healthStore.deleteObjects(of: sampleType, predicate: predicate)
+            }
+        }
+        // The correlation itself can be deleted whenever any of its samples
+        // could have been written.
+        if !types.isEmpty {
+            // Best effort: the correlation type isn't separately authorisable.
+            _ = try? await healthStore.deleteObjects(of: HKCorrelationType(.food), predicate: predicate)
+        }
+    }
+
+    @discardableResult
+    func writeWater(ml: Double, date: Date, syncIdentifier: String) async throws -> Bool {
+        guard HKHealthStore.isHealthDataAvailable(), ml > 0 else {
+            return false
+        }
+        let type = HKQuantityType(.dietaryWater)
+        guard healthStore.authorizationStatus(for: type) == .sharingAuthorized else {
+            return false
+        }
+        let sample = HKQuantitySample(
+            type: type,
+            quantity: HKQuantity(unit: .literUnit(with: .milli), doubleValue: ml),
+            start: date,
+            end: date,
+            metadata: [
+                "TempoSource": "Tempo",
+                HKMetadataKeySyncIdentifier: syncIdentifier,
+                HKMetadataKeySyncVersion: 1,
+            ]
+        )
+        try await healthStore.save(sample)
+        Logger.healthkit.info("writeWater: saved \(String(format: "%.0f", ml)) ml")
+        return true
     }
 
     // MARK: - Reverse Activity Type Mapping
