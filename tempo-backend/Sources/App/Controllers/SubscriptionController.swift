@@ -121,7 +121,7 @@ struct SubscriptionController: RouteCollection {
                     type: payload.notificationType,
                     subtype: payload.subtype,
                     txn: txn,
-                    on: req.db
+                    on: req
                 )
             } catch {
                 // Database error — let Apple retry by NOT recording the
@@ -148,12 +148,14 @@ struct SubscriptionController: RouteCollection {
 
     // MARK: - Apply notification to UserSubscription
 
-    private func applyNotification(
+    /// Internal (not private) so tests can drive it without a signed JWS.
+    func applyNotification(
         type: String,
         subtype: String?,
         txn: AppStoreTransactionInfoPayload,
-        on db: Database
+        on req: Request
     ) async throws {
+        let db = req.db
         // Match on (originalTransactionId, environment) so a Sandbox
         // notification can never overwrite a Production row.
         let sub = try await UserSubscription.query(on: db)
@@ -283,6 +285,13 @@ struct SubscriptionController: RouteCollection {
         default:
             // Verified, ignored. Still return 200 from the caller.
             break
+        }
+
+        // Whatever the notification did to the row, drop the cached Pro answer
+        // (`sub:active:<uid>`) so refunds / expiry / renewals take effect on the
+        // very next request instead of after the 5 minute cache TTL.
+        if let subscriberID = sub?.$user.id {
+            await req.invalidateSubscriptionCache(userID: subscriberID)
         }
     }
 
