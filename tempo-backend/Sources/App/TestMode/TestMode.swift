@@ -59,6 +59,7 @@ enum TestMode {
         if let raw = Environment.get("TEMPO_TEST_AI"), let mode = AIMode(rawValue: raw) {
             state.aiMode = mode
         }
+        state.recordAI = Environment.get("TEMPO_TEST_AI_RECORD") == "1"
         app.testMode = state
 
         let real = app.client
@@ -87,6 +88,8 @@ enum AIMode: String, Codable, Sendable, CaseIterable {
     case error
     /// Pass through to the real Claude API (needs a real ANTHROPIC_API_KEY).
     case real
+    /// The newest recorded real reply per feature (see AIRecordings); fake if none.
+    case replay
 }
 
 // MARK: - State
@@ -113,6 +116,8 @@ final class TestModeState: @unchecked Sendable {
     let faults = FaultStore()
     private var _accessTokenTTL: TimeInterval?
     private var _clockOffset: TimeInterval = 0
+    private var _recordAI = false
+    private var _recordings = AIRecordings(directory: AIRecordings.defaultDirectory())
     private var _aiMode: AIMode = .fake
     private var _slowSeconds: Double = 8
     private var _pushes: [CapturedPush] = []
@@ -134,6 +139,17 @@ final class TestModeState: @unchecked Sendable {
     var clockOffset: TimeInterval {
         get { lock.withLock { _clockOffset } }
         set { lock.withLock { _clockOffset = newValue } }
+    }
+
+    /// Save real Claude replies (`up --real-ai --record`).
+    var recordAI: Bool {
+        get { lock.withLock { _recordAI } }
+        set { lock.withLock { _recordAI = newValue } }
+    }
+
+    var recordings: AIRecordings {
+        get { lock.withLock { _recordings } }
+        set { lock.withLock { _recordings = newValue } }
     }
 
     var slowSeconds: Double {

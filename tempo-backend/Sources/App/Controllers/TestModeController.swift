@@ -8,6 +8,7 @@ import Vapor
 // not production), so these routes don't exist on Railway. No JWT: the
 // simulator signs in here instead of through Sign in with Apple.
 //
+// GET    /v1/test           control page (browser) — TestModeControlPage
 // POST   /v1/test/login     {name, simulator_udid?, pro?, ai_consent?, tos?, fresh?, display_name?, timezone?}
 // GET    /v1/test/status
 // POST   /v1/test/ai        {mode, slow_seconds?}
@@ -20,9 +21,11 @@ import Vapor
 // POST   /v1/test/sign-out  ?name=                 revoke every session (refresh tokens) of a test user
 // GET/POST /v1/test/clock · POST /v1/test/jobs/run  — see TestModeController+Time
 // POST   /v1/test/subscription {name, state, days?} — see TestModeController+Subscription
+// POST   /v1/test/persona  {name, persona} · GET /v1/test/shared ?name= — see TestModeController+Persona
 
 struct TestModeController: RouteCollection {
     func boot(routes: RoutesBuilder) throws {
+        routes.get { _ in TestModeControlPage.response() }
         routes.post("login", use: login)
         routes.get("status", use: status)
         routes.post("ai", use: setAIMode)
@@ -37,6 +40,7 @@ struct TestModeController: RouteCollection {
         routes.post("sign-out", use: signOut)
         bootTime(routes: routes)
         bootSubscription(routes: routes)
+        bootPersona(routes: routes)
     }
 
     // MARK: - Login
@@ -164,6 +168,13 @@ struct TestModeController: RouteCollection {
         let realAIAvailable: Bool
         let pushes: Int
         let aiCalls: Int
+        let recordingAI: Bool
+        /// Feature → number of recorded real replies (AI mode replay).
+        let aiRecordings: [String: Int]
+        let now: Date
+        let clockOffsetSeconds: Double
+        let faults: Int
+        let accessTtlSeconds: Double
     }
 
     func status(_ req: Request) async throws -> StatusResponse {
@@ -174,7 +185,13 @@ struct TestModeController: RouteCollection {
             slowSeconds: state.slowSeconds,
             realAIAvailable: TestModeClient.hasRealAnthropicKey,
             pushes: state.pushes(for: nil).count,
-            aiCalls: state.aiCalls.count
+            aiCalls: state.aiCalls.count,
+            recordingAI: state.recordAI,
+            aiRecordings: state.recordings.counts(),
+            now: req.now,
+            clockOffsetSeconds: state.clockOffset,
+            faults: state.faults.all.count,
+            accessTtlSeconds: state.accessTokenTTL ?? JWTService.accessTokenTTL
         )
     }
 
@@ -222,7 +239,7 @@ struct TestModeController: RouteCollection {
     }
 
     /// `?user_id=` wins; `?name=` maps a test login name to its user id.
-    private static func userFilter(_ req: Request) async throws -> String? {
+    static func userFilter(_ req: Request) async throws -> String? {
         if let id = req.query[String.self, at: "user_id"] {
             return id
         }

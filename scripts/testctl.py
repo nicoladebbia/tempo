@@ -18,6 +18,9 @@ http://127.0.0.1:58080).
               notifications-cleanup   (--force: briefing outside 08:15-08:45 / again today)
   sub <name> <state> [--days N]   server-side subscription state
         states: free trial active cancelled grace billing-retry expired refunded
+  persona <name> <persona>        server half of a person with history
+        personas: athlete picky-vegan exam-week injured lapsed-pro
+  shared <name>                   the user's live grocery share links (open as the shopper)
 """
 
 import datetime as dt
@@ -262,7 +265,29 @@ def cmd_sub(args):
     print(line)
 
 
+def cmd_persona(args):
+    if len(args) != 2:
+        die("usage: persona <name> <athlete|picky-vegan|exam-week|injured|lapsed-pro>")
+    r = call("POST", "/v1/test/persona", {"name": args[0], "persona": args[1]})
+    print(
+        f"{args[0]} is now {r['persona']}: {r['xp_events']} XP events ({r['xp_total']} XP), "
+        f"{r['receipts']} receipts, {r['streak_days']}-day streak, {'Pro' if r['pro'] else 'not Pro'}"
+    )
+
+
+def cmd_shared(args):
+    if len(args) != 1:
+        die("usage: shared <name>")
+    rows = call("GET", "/v1/test/shared", query={"name": args[0]}) or []
+    for r in rows:
+        print(f"{r['title']:<30} {r['items']:>3} items  {r['url']}")
+    if not rows:
+        print(f"{args[0]} isn't sharing a grocery list (Groceries → Share in the app)")
+
+
 COMMANDS = {
+    "persona": cmd_persona,
+    "shared": cmd_shared,
     "sub": cmd_sub,
     "users": cmd_users,
     "fault": cmd_fault,

@@ -63,6 +63,14 @@ extension TestModeController {
             throw Abort(.notFound, reason: "No test user '\(body.name)'.")
         }
         let userID = try user.requireID()
+        let expires = try await Self.applySubscription(state, days: body.days, userID: userID, on: req)
+        let pro = try await ProEntitlement.isUserPro(userID: userID, on: req)
+        return SubscriptionResponse(name: body.name, state: state.rawValue, pro: pro, expiresAt: expires)
+    }
+
+    /// Replaces the user's subscription rows with one in `state`; returns when it ends.
+    @discardableResult
+    static func applySubscription(_ state: SubscriptionState, days: Double?, userID: String, on req: Request) async throws -> Date? {
         let now = req.now
         let day: TimeInterval = 86400
 
@@ -73,17 +81,17 @@ extension TestModeController {
         case .free:
             row = nil
         case .trial:
-            row = (now + (body.days ?? 7) * day, true, true, "app.tempo.Tempo.pro.monthly")
+            row = (now + (days ?? 7) * day, true, true, "app.tempo.Tempo.pro.monthly")
         case .active:
-            row = (now + (body.days ?? 30) * day, true, false, "app.tempo.Tempo.pro.monthly")
+            row = (now + (days ?? 30) * day, true, false, "app.tempo.Tempo.pro.monthly")
         case .cancelled:
-            row = (now + (body.days ?? 3) * day, true, false, "app.tempo.Tempo.pro.monthly")
+            row = (now + (days ?? 3) * day, true, false, "app.tempo.Tempo.pro.monthly")
         case .grace:
-            row = (now + (body.days ?? 6) * day, true, false, "app.tempo.Tempo.pro.monthly")
+            row = (now + (days ?? 6) * day, true, false, "app.tempo.Tempo.pro.monthly")
         case .billingRetry:
             row = (now - day, false, false, "app.tempo.Tempo.pro.monthly")
         case .expired:
-            row = (now - (body.days ?? 1) * day, false, false, "app.tempo.Tempo.pro.monthly")
+            row = (now - (days ?? 1) * day, false, false, "app.tempo.Tempo.pro.monthly")
         case .refunded:
             row = (now, false, false, "app.tempo.Tempo.pro.monthly")
         }
@@ -103,8 +111,6 @@ extension TestModeController {
             try await sub.save(on: req.db)
         }
         await req.invalidateSubscriptionCache(userID: userID)
-
-        let pro = try await ProEntitlement.isUserPro(userID: userID, on: req)
-        return SubscriptionResponse(name: body.name, state: state.rawValue, pro: pro, expiresAt: row?.expires)
+        return row?.expires
     }
 }
