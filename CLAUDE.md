@@ -32,14 +32,20 @@ Modules read overlapping data (Fuel quadrant ↔ Nutrition surfaces; Body ↔ Mo
 4. Summarize the blast radius: "Changed X. Readers: […]. Verified: […]. Unverified: […]." Never "done" while a reader is unverified.
 
 ## Audit sessions — Nutrition and Training run in parallel
-Two sessions work at the same time, one per area, each from its own audit report:
+Two sessions work at the same time, one per subject, each from its own audit report:
 - **Nutrition**: report https://claude.ai/artifact/WmALRmh57ngV2LDwnzEddL · memory `nutrition-audit-*.md`, `nutrition-round*.md`
 - **Training**: report https://claude.ai/artifact/NFFzLjVbQYXMKYhLBTLMeN · memory `training-audit-*.md`, `training-round*.md`
+- **Progress page (shared, live)**: https://claude.ai/artifact/3F52azKNe1Sfcotc3rgSLc. Write to it with the `ArtifactData` tool (load via ToolSearch). Collections: `areas/{nutrition|training}` (branch, pr, now, updated_at) · `rounds/{area}-{n}` (title, status todo|in-progress|in-review|done, prs, note) · `items` (area, round, title, status fixed|already-fixed|skipped|needs-shared, pr, note) · `shared` (title, why, files, suggested, status open|claimed|done, owner, pr) · `claims` (file, area, branch, why, since). Pin writes to existing docs with `if_version`; use ISO timestamps.
 
 Rules:
-1. At the start, work out which area you are (ask if unclear), read that report (`Artifact` read) and the latest round memory, then fix round by round with `/round <area> <n>`.
-2. The reports are **read-only**. Never edit or republish them. Progress, decisions and newly found bugs go in the round memory file and the PRs.
-3. **Own area only.** Edit only your area's code. If a fix needs a shared file (Dashboard, `ContentView`, shared models/services such as `DailyNutritionTargets`, `TrainingViewModel`, `project.yml`) or the other area's code, don't edit it: write it under "Needs shared/other area" in your round memory and in the PR, and leave it. Bugs found in the other area go under Follow-ups, unfixed.
+1. **Start**: work out which subject you are (ask if unclear), read your report (`Artifact` read), the latest round memory and the progress page, then fix round by round with `/round <area> <n>`.
+2. **Reports are read-only.** Never edit or republish them. Progress goes on the progress page (update `areas`/`rounds` when a round starts, opens a PR or merges; add an `items` row per fixed/skipped item), plus the round memory and the PRs.
+3. **Own subject, anywhere.** You may change anything about your subject in any module: Nutrition owns everything about food (Fuel quadrant, nutrition services, meal/supplement notifications, grocery, backend food routes); Training owns everything about training (Move/Body training state, programs, logger, workout notifications, backend training routes). Don't fix the other subject's bugs: add them to the page's `shared` list with `suggested` set to the other area. A food-related edit in a shared file still follows the cross-surface rule above, and an edit spanning 2+ modules runs `architecture-guard`.
+4. **Claim shared files first.** Before editing a file both sessions might touch (`Dashboard*`, `ContentView`, `TempoApp`, `DailyResetCoordinator`, `AccountabilityEngine`, `project.yml`, any shared service/model), check `claims` on the page. Free → add a claim (doc id = file name) and go. Held by the other area → don't edit it: add a `shared` item and do it after their PR merges. Delete your claims when your PR merges.
+5. **Shared to-do.** Items with `suggested: shared` (or left open) are taken by whichever session finishes its current round first: set `status: claimed`, `owner`, then `done` + `pr`.
+6. **Re-check on latest main before fixing.** `git fetch` and check the item still happens on `origin/main` (code read or test server). If it's already gone, log it as `already-fixed` with the commit/PR that fixed it, and skip it.
+7. **Before opening or updating a PR**: merge `origin/main` into your branch, rerun the tests, and resolve conflicts in shared files carefully (keep both subjects' changes).
+8. **Own test server.** Each worktree gets its own test server (port, database, clock): `scripts/testenv.sh status` shows yours, `scripts/testenv.sh servers` lists them all. Never reset or time-travel another session's server. (Available once PRs #72/#74 are merged.)
 
 ## Related projects
 - `~/dev/nutritrack-app/` — NutriTrack (Flask, 140+ API endpoints, built-in Whoop integration)
