@@ -115,8 +115,10 @@ final class PantryGroceryBridgeTests: XCTestCase {
         )
 
         let lists = try context.fetch(FetchDescriptor<GroceryList>())
-        XCTAssertEqual(lists.first?.items?.count, 1, "Same canonical name + unit bumps rather than duplicates")
-        XCTAssertEqual(bumped.quantity, 5)
+        XCTAssertEqual(lists.first?.items?.count, 1, "Same canonical name + unit never duplicates")
+        // Round 1: a restock row is "I ran out" — adding it again must not
+        // inflate the amount to buy.
+        XCTAssertEqual(bumped.quantity, 2)
     }
 
     func testAddToCurrentGroceryList_sameFoodInAnotherUnit_reusesTheRow() throws {

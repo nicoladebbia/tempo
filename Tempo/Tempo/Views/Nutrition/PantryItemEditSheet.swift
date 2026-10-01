@@ -29,10 +29,7 @@ struct PantryItemEditSheet: View {
     init(item: PantryItem, viewModel: NutritionTabViewModel) {
         self.item = item
         self.viewModel = viewModel
-        _quantityText = State(initialValue: item.quantity == item.quantity.rounded() ? "\(Int(item.quantity))" : String(
-            format: "%.1f",
-            item.quantity
-        ))
+        _quantityText = State(initialValue: PantryQuantityFormatter.editText(item.quantity))
         _unit = State(initialValue: item.unit)
         _storageLocation = State(initialValue: item.storageLocation)
         _useBy = State(initialValue: item.useBy ?? Date())

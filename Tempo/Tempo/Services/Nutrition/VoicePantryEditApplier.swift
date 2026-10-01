@@ -39,7 +39,7 @@ enum VoicePantryEditApplier {
 
     private static func matchingRows(canonical: String, pantryService: any PantryServiceProtocol) -> [PantryItem] {
         let all = (try? pantryService.fetchAll()) ?? []
-        return all.filter { $0.canonicalName == canonical && $0.quantity > 0 }
+        return all.filter { $0.canonicalName == canonical && $0.isInStock }
             .sorted { lhs, rhs in
                 switch (lhs.useBy, rhs.useBy) {
                 case let (l?, r?): l < r
@@ -66,8 +66,9 @@ enum VoicePantryEditApplier {
                     row, quantity: 0, unit: nil, storageLocation: nil, useBy: nil, brand: nil
                 )
             }
+            let restock = PantryGroceryBridge.restockDefault(canonicalName: canonical)
             let addedToList = (try? PantryGroceryBridge.addToCurrentGroceryList(
-                canonicalName: canonical, displayName: label, quantity: 1, unit: .pieces, modelContext: modelContext
+                canonicalName: canonical, displayName: label, quantity: restock.quantity, unit: restock.unit, modelContext: modelContext
             )) != nil
             let summary = addedToList
                 ? "\(label) marked out — added to grocery list"
@@ -83,17 +84,28 @@ enum VoicePantryEditApplier {
                 return PantryEditApplyResult(intent: intent, summary: "Couldn't find \(label) in your pantry", succeeded: false)
             }
             let clampedFraction = min(max(fraction, 0), 1)
-            let totalQuantity = rows.reduce(0.0) { $0 + $1.quantity }
-            var remainingToRemove = totalQuantity * clampedFraction
-            for row in rows {
-                guard remainingToRemove > 0 else {
-                    break
+            // Rows of one food can be in DIFFERENT units (500 g + 2 packs):
+            // summing raw quantities across units used to make "used some"
+            // drain the wrong row. Take the fraction per unit group instead,
+            // oldest use-by first inside each group (rows arrive sorted).
+            let byUnit = Dictionary(grouping: rows, by: \.unitRaw)
+            for group in byUnit.values {
+                let total = group.reduce(0.0) { $0 + $1.quantity }
+                var remainingToRemove = total * clampedFraction
+                for row in group {
+                    guard remainingToRemove > 0 else {
+                        break
+                    }
+                    let consume = min(row.quantity, remainingToRemove)
+                    var left = PantryDecrementService.clean(row.quantity - consume)
+                    if left <= row.unit.depletedThreshold {
+                        left = 0
+                    }
+                    _ = try? pantryService.updateItem(
+                        row, quantity: left, unit: nil, storageLocation: nil, useBy: nil, brand: nil
+                    )
+                    remainingToRemove -= consume
                 }
-                let consume = min(row.quantity, remainingToRemove)
-                _ = try? pantryService.updateItem(
-                    row, quantity: row.quantity - consume, unit: nil, storageLocation: nil, useBy: nil, brand: nil
-                )
-                remainingToRemove -= consume
             }
             let summary = clampedFraction >= 1
                 ? "Used up \(label)"

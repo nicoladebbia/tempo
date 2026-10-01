@@ -82,6 +82,11 @@ enum GroceryWeeklySpendCalculator {
         }
 
         for receipt in receipts {
+            // Only receipts the user confirmed count, and a flagged
+            // duplicate the user hasn't dismissed would double a shop.
+            guard receipt.userReviewed, isCountable(receipt, among: receipts) else {
+                continue
+            }
             let ws = weekStart(for: receipt.purchaseDate)
             guard ws >= earliestWeekStart, ws <= currentWeekStart else {
                 continue
@@ -103,5 +108,21 @@ enum GroceryWeeklySpendCalculator {
             cursor = next
         }
         return result
+    }
+
+    /// A receipt shares a `duplicateKey` with an earlier one (same store,
+    /// date and total) when it was scanned twice. The user can dismiss the
+    /// warning (`duplicateWarningDismissed`: "yes, two real shops"); otherwise
+    /// only the first copy counts.
+    private static func isCountable(_ receipt: Receipt, among receipts: [Receipt]) -> Bool {
+        guard let key = receipt.duplicateKey, !key.isEmpty, !receipt.duplicateWarningDismissed else {
+            return true
+        }
+        return !receipts.contains { other in
+            other.id != receipt.id
+                && other.duplicateKey == key
+                && (other.createdAt < receipt.createdAt
+                    || (other.createdAt == receipt.createdAt && other.id.uuidString < receipt.id.uuidString))
+        }
     }
 }

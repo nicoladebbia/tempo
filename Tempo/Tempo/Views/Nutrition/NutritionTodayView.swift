@@ -189,7 +189,7 @@ struct NutritionTodayView: View {
         // Re-read on every toggle (supplementTakenRefresh) so the checkmarks
         // reflect the latest taken state.
         let taken = supplementTakenRefresh >= 0
-            ? viewModel.takenSupplementsToday(modelContext: modelContext)
+            ? viewModel.takenSupplementIDsToday(modelContext: modelContext)
             : []
         if !doses.isEmpty {
             VStack(alignment: .leading, spacing: TempoSpacing.md) {
@@ -233,9 +233,9 @@ struct NutritionTodayView: View {
                         // nothing to check off). Tap toggles + persists; tap
                         // again undoes.
                         if dose.take {
-                            let isTaken = taken.contains(dose.name)
+                            let isTaken = taken.contains(dose.supplementID)
                             Button {
-                                viewModel.toggleSupplementTaken(name: dose.name, modelContext: modelContext)
+                                viewModel.toggleSupplementTaken(supplementID: dose.supplementID, name: dose.name, modelContext: modelContext)
                                 supplementTakenRefresh += 1
                             } label: {
                                 Image(systemName: isTaken ? "checkmark.circle.fill" : "circle")

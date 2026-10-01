@@ -97,6 +97,18 @@ struct SupplementsView: View {
 
     // MARK: - Header
 
+    /// Last `intakeWindowDays` of intake — the LOW badge uses the same
+    /// days-of-supply rule as the reorder banner and alert.
+    private var recentLogs: [SupplementIntakeLog] {
+        let windowStart = Calendar.current.date(
+            byAdding: .day, value: -SupplementReorderService.intakeWindowDays, to: Date()
+        ) ?? Date()
+        let descriptor = FetchDescriptor<SupplementIntakeLog>(
+            predicate: #Predicate<SupplementIntakeLog> { $0.day >= windowStart }
+        )
+        return (try? modelContext.fetch(descriptor)) ?? []
+    }
+
     private var headerCard: some View {
         HStack(alignment: .center, spacing: TempoSpacing.md) {
             VStack(alignment: .leading, spacing: 2) {
@@ -214,7 +226,7 @@ struct SupplementsView: View {
                         if supp.takeDaily {
                             tag("DAILY", color: Color.tempoSignal)
                         }
-                        if supp.isRunningLow {
+                        if SupplementReorderService.needsReorder(for: supp, recentLogs: recentLogs) {
                             tag("LOW", color: Color.tempoWarning)
                         }
                     }

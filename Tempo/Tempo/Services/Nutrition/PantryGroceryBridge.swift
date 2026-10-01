@@ -52,7 +52,7 @@ enum PantryGroceryBridge {
             // Only bump our own pantry rows; a plan row already covers the
             // week's need and stays the planner's (not manual), so a plan
             // regenerate doesn't duplicate it.
-            if open.isManual, open.unitRaw == unit.rawValue {
+            if open.isManual, !open.isPantryRestock, open.unitRaw == unit.rawValue {
                 open.quantity += max(0, quantity)
                 try modelContext.save()
             }
@@ -84,6 +84,7 @@ enum PantryGroceryBridge {
         // Pantry-driven ("I'm out of rice", a staple running low) — the
         // regenerate keeps manual items, so these survive a plan rebuild.
         item.isManual = true
+        item.notes = GroceryListItem.pantryRestockNote
         modelContext.insert(item)
         if list.items == nil {
             list.items = []
@@ -91,6 +92,17 @@ enum PantryGroceryBridge {
         list.items?.append(item)
         try modelContext.save()
         return item
+    }
+
+    /// The unit + amount for "buy this again": one purchase container when the
+    /// food has a known one ("1 pack rice", "1 can black beans"), else "1 pc".
+    /// Used instead of a hardcoded `1 pieces` that read "1 pieces rice".
+    static func restockDefault(canonicalName: String) -> (quantity: Double, unit: PantryUnit) {
+        let canonical = FoodCanonicalizer.canonicalize(canonicalName).lowercased()
+        if let portion = FoodMacroDatabase.naturalPortions[canonical] {
+            return (1, GroceryListGenerator.pantryUnit(for: portion.purchaseUnit))
+        }
+        return (1, .pieces)
     }
 
     /// The Monday (00:00, current calendar) of `date`'s week. Kept for

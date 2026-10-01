@@ -22,7 +22,7 @@ enum UseItUpNotificationPlanner {
     /// `now` is injectable for deterministic tests.
     static func decide(items: [PantryItem], now: Date = Date()) -> Decision {
         let urgent = items
-            .filter { !$0.isArchived && $0.quantity > 0 }
+            .filter { !$0.isArchived && $0.isInStock }
             .compactMap { item -> (PantryItem, Int)? in
                 guard let days = item.daysUntilUseBy, (0 ... 2).contains(days) else {
                     return nil
