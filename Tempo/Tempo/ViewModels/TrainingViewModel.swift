@@ -1273,16 +1273,18 @@ final class TrainingViewModel {
         // excluded too — a reduced-weight backoff set is never a max-effort
         // signal, so it can never legitimately BE the PR.
         if !set.isWarmup, !set.isDropStep, let exercise = plannedExercise.exercise {
-            if let pr = trainingEngine.detectPersonalRecord(
+            let outcome = recordPersonalRecordIfAny(
                 exercise: exercise,
                 weight: weight,
                 reps: reps,
                 rir: set.effectiveRIR(reps: reps),
-                workoutPlanID: plan.id // §13 fix — stamp so history-delete can match this PR exactly
-            ) {
-                modelContext.insert(pr)
+                plan: plan, // §13 — stamped so history-delete can match this PR exactly
+                modelContext: modelContext
+            )
+            if outcome != .none {
                 saveGuarded(modelContext, operation: "PR")
-                detectedPRs.append(pr)
+            }
+            if outcome == .new {
                 HapticManager.notification(.success)
             }
         }

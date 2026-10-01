@@ -177,6 +177,7 @@
 		22952506263D94A4E2A08EB8 /* cue_ex_standing_cable_fly.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 91889CC2E8987E7AD0FB0B3C /* cue_ex_standing_cable_fly.mp3 */; };
 		22B5AE0DD2967D0FB308A2DF /* cue_ex_step_up.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 69CFB187E0D3BAC4F05FB0CF /* cue_ex_step_up.mp3 */; };
 		22B89296F530A9DFDB8B665F /* cue_ex_seated_dumbbell_press.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 2EB0DA20DD44CBBB97062369 /* cue_ex_seated_dumbbell_press.mp3 */; };
+		22BD1EE18EBB3991B69B7EB0 /* TrainingViewModel+PersonalRecords.swift in Sources */ = {isa = PBXBuildFile; fileRef = 873F6679D1C6A950E65A1422 /* TrainingViewModel+PersonalRecords.swift */; };
 		22F75D2FC6D7DF893E278653 /* OnboardingBackendStepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC9501D2C83565DCAF804074 /* OnboardingBackendStepTests.swift */; };
 		2367FF58DC3858896718D988 /* SessionNotesField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B1D62692C68F3738217E9E7 /* SessionNotesField.swift */; };
 		2399410CE4FFE1FFC342D4DD /* cue_ex_jump_squat.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 388CFB171F4DC2FDAE59C22C /* cue_ex_jump_squat.mp3 */; };
@@ -1861,6 +1862,7 @@
 		86F2818363BC60430CA5915A /* cue_ex_deficit_deadlift.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_deficit_deadlift.mp3; sourceTree = "<group>"; };
 		86FB44A00C6BD7496CB85363 /* ArenaIntroView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArenaIntroView.swift; sourceTree = "<group>"; };
 		870FDB5375C57BA10F46A673 /* AuthServiceExpiredSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthServiceExpiredSessionTests.swift; sourceTree = "<group>"; };
+		873F6679D1C6A950E65A1422 /* TrainingViewModel+PersonalRecords.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TrainingViewModel+PersonalRecords.swift"; sourceTree = "<group>"; };
 		874B304D1F9AC8A9D6898FDF /* RecoveryAIInsightView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryAIInsightView.swift; sourceTree = "<group>"; };
 		875BAFBBF2000DE2C183CBE9 /* MealPlanInputsFingerprintTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealPlanInputsFingerprintTests.swift; sourceTree = "<group>"; };
 		87D50529413B8D6FD80DC089 /* RecoveryTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryTabView.swift; sourceTree = "<group>"; };
@@ -3624,6 +3626,7 @@
 				1BD5DC90662D80A29F1F8B4E /* TrainingViewModel+Pain.swift */,
 				CEF42E759139B8493569545F /* TrainingViewModel+Pause.swift */,
 				3677A79324D4DEF0D8824D22 /* TrainingViewModel+PauseResume.swift */,
+				873F6679D1C6A950E65A1422 /* TrainingViewModel+PersonalRecords.swift */,
 				58BB9D199DBDBB3300765C7F /* TrainingViewModel+PlanResolution.swift */,
 				7F084932E4727D4FE25959D2 /* TrainingViewModel+ReadinessSession.swift */,
 				792960DBB6074CA334566D3F /* TrainingViewModel+Routines.swift */,
@@ -5926,6 +5929,7 @@
 				69D8C8B75156BBB41A6BC057 /* TrainingViewModel+Pain.swift in Sources */,
 				74717D20FD5D7B594655B399 /* TrainingViewModel+Pause.swift in Sources */,
 				F6DF69041B948F4E3D4AC357 /* TrainingViewModel+PauseResume.swift in Sources */,
+				22BD1EE18EBB3991B69B7EB0 /* TrainingViewModel+PersonalRecords.swift in Sources */,
 				86FB40B7B83F5A9E71BD627F /* TrainingViewModel+PlanResolution.swift in Sources */,
 				9A2A1399009AC03566EA16AF /* TrainingViewModel+ReadinessSession.swift in Sources */,
 				92619191CBF03050DA0E71F5 /* TrainingViewModel+Routines.swift in Sources */,

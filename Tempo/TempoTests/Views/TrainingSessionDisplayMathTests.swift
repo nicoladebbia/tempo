@@ -58,7 +58,7 @@ final class TrainingSessionDisplayMathTests: XCTestCase {
 
     func testSubtitleParsesRepsFromContextForRepMaxOnly() {
         let repMax = PersonalRecord(type: .repMax, value: 82.5, date: Date(), context: "82kg x 5 reps")
-        XCTAssertEqual(PRDisplay.subtitle(repMax), "New 5-rep max")
+        XCTAssertEqual(PRDisplay.subtitle(repMax), "Heaviest weight · 5 reps")
 
         let oneRM = PersonalRecord(type: .oneRepMax, value: 105, date: Date(), context: "82kg x 5 reps")
         XCTAssertEqual(
@@ -69,6 +69,6 @@ final class TrainingSessionDisplayMathTests: XCTestCase {
 
     func testSubtitleHandlesMissingOrUnparsableContext() {
         let repMax = PersonalRecord(type: .repMax, value: 82.5, date: Date(), context: nil)
-        XCTAssertEqual(PRDisplay.subtitle(repMax), "New rep max")
+        XCTAssertEqual(PRDisplay.subtitle(repMax), "Heaviest weight")
     }
 }

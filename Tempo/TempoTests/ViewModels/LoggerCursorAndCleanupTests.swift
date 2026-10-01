@@ -577,6 +577,50 @@ final class LoggerCursorAndCleanupTests: XCTestCase {
         vm.resetState()
     }
 
+    // MARK: - PR: one row + one toast per lift per session
+
+    func testBetterSetLaterInTheSessionUpgradesTheSameRecord() throws {
+        let context = try makeContext()
+        let vm = TrainingViewModel(trainingEngine: TrainingEngine(), whoop: MockWhoopService(), healthKit: healthKit)
+        let plan = seedPlan(context: context, setCounts: [3], targetWeight: 100)
+        let bench = try XCTUnwrap(plan.orderedExercises[0].exercise)
+        context.insert(ExerciseHistory(
+            date: Date().addingTimeInterval(-7 * 86400),
+            estimated1RM: StrengthStandards.epleyE1RM(weight: 80, reps: 5),
+            bestSetWeight: 80, bestSetReps: 5, workoutPlanID: UUID(), exercise: bench
+        ))
+        start(vm, plan: plan)
+
+        vm.logSet(weight: 100, reps: 5, modelContext: context)
+        XCTAssertEqual(vm.detectedPRs.count, 1, "First set past the old best is a record")
+        let firstValue = try XCTUnwrap(vm.detectedPRs.first?.value)
+
+        vm.sessionState = .exercise(.setActive(exerciseIndex: 0, setIndex: 1))
+        vm.currentSetIndex = 1
+        vm.logSet(weight: 105, reps: 5, modelContext: context)
+
+        let planID = plan.id
+        let rows = try context.fetch(FetchDescriptor<PersonalRecord>(
+            predicate: #Predicate { $0.workoutPlanID == planID }
+        ))
+        XCTAssertEqual(vm.detectedPRs.count, 1, "Still one toast/summary line for the lift")
+        XCTAssertEqual(rows.filter { $0.type == .oneRepMax }.count, 1, "Upgraded in place, not a second row")
+        XCTAssertGreaterThan(try XCTUnwrap(vm.detectedPRs.first?.value), firstValue)
+        vm.resetState()
+    }
+
+    func testFirstSessionOfALiftHasNoRecords() throws {
+        let context = try makeContext()
+        let vm = TrainingViewModel(trainingEngine: TrainingEngine(), whoop: MockWhoopService(), healthKit: healthKit)
+        let plan = seedPlan(context: context, setCounts: [2], targetWeight: 100)
+        start(vm, plan: plan)
+
+        vm.logSet(weight: 100, reps: 5, modelContext: context)
+
+        XCTAssertTrue(vm.detectedPRs.isEmpty, "Day one is the baseline")
+        vm.resetState()
+    }
+
     // MARK: - 5. Watch payloads
 
     func testWatchSetWithoutWeightUsesPrescriptionNotZero() throws {

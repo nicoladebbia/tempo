@@ -211,7 +211,7 @@ struct WorkoutSummaryView: View {
 
                     Spacer()
 
-                    Text(formattedWeight(pr.value, decimals: 1))
+                    Text(pr.type == .mostReps ? "\(Int(pr.value)) reps" : formattedWeight(pr.value, decimals: 1))
                         .font(.tempoHeadline)
                         .foregroundStyle(Color.tempoTextPrimary)
                 }

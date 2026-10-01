@@ -209,7 +209,7 @@ struct ActiveWorkoutView: View {
                 // §15 fix — the weight shown here comes from `pr.value`
                 // converted to the user's unit (PRDisplay), never from the
                 // engine's kg-only, unit-unaware `context` string.
-                Text("\(pr.exercise?.name ?? "Exercise") · \(PRDisplay.weightLabel(pr, unit: weightUnit))")
+                Text("\(pr.exercise?.name ?? "Exercise") · \(PRDisplay.valueLabel(pr, unit: weightUnit))")
                     .font(.tempoCaption1)
                     .foregroundStyle(Color.tempoTextPrimary)
             }

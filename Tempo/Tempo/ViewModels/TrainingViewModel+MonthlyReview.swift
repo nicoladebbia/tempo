@@ -113,7 +113,8 @@ extension TrainingViewModel {
         ))) ?? []
         let prs = prRows.map {
             MonthPRSnapshot(
-                label: "\($0.exercise?.name ?? "Unknown") \($0.typeRaw) \(Int($0.value))kg",
+                label: "\($0.exercise?.name ?? "Unknown") \($0.typeRaw) "
+                    + ($0.type == .mostReps ? "\(Int($0.value)) reps" : "\(Int($0.value))kg"),
                 date: $0.date
             )
         }

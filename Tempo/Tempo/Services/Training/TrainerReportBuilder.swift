@@ -623,6 +623,9 @@ enum TrainerReportBuilder {
     }
 
     private static func formatPRValue(_ pr: PersonalRecord) -> String {
+        if pr.type == .mostReps {
+            return "BW×\(Int(pr.value))"
+        }
         if let weight = pr.contextWeightKg, let reps = pr.contextReps {
             return "\(formatKg(weight))×\(reps)"
         }
