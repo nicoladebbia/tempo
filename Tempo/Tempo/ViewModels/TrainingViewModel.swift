@@ -394,6 +394,10 @@ final class TrainingViewModel {
             defaultRestSeconds = settings.defaultRestSeconds
         }
 
+        // Catch-up: a session whose summary was never closed (app killed on
+        // the summary screen) still gets learned from.
+        applyPendingLearning(modelContext: modelContext)
+
         // Source of truth: the Week Plan. Generate the whole week first so Today
         // and Week Plan can never disagree about what kind of workout today is.
         loadWeekPlan(modelContext: modelContext)
@@ -1992,7 +1996,6 @@ final class TrainingViewModel {
         // avoid re-running `activeTrainerProgram`'s queued-promotion check
         // (idempotent, but pointless work) once per completed exercise.
         let activeProgramForTestMessages = activeTrainerProgram(modelContext: modelContext)
-        var insertedHistory: [ExerciseHistory] = []
         for snap in snapshots {
             let history = ExerciseHistory(
                 date: sessionDate,
@@ -2010,7 +2013,6 @@ final class TrainingViewModel {
                 exercise: snap.exercise
             )
             modelContext.insert(history)
-            insertedHistory.append(history)
             // trainer-feedback-tests — a test just produced (or matched) a
             // real max: tell the athlete what changed and what it means for
             // the trainer's %-based prescriptions from now on.
@@ -2026,31 +2028,12 @@ final class TrainingViewModel {
             }
         }
 
-        // Step 1 (measurement spine) — backfill the outcome onto the
-        // PredictionLog rows written at prescribe time, so each prediction now
-        // sits next to what actually happened. This is the prediction↔reality
-        // pair Step 2's error metric reads. Matched by (planID, exerciseID) —
-        // the same key the prediction was written under.
-        let outcomes: [PredictionOutcome] = snapshots.map { snap in
-            PredictionOutcome(
-                exerciseID: snap.exercise.id,
-                bestSetReps: snap.bestSetReps,
-                avgRPE: snap.avgRPE,
-                worstFormRaw: snap.worstFormRaw,
-                bestSetWeight: snap.bestSetWeight
-            )
-        }
-        backfillPredictionOutcomes(planID: planID, outcomes: outcomes, modelContext: modelContext)
-
-        // Step 3 (measure → correct) — fit the learned increments to the MEASURED
-        // RPE error from the predictions just resolved, instead of the blind
-        // RPE-bucket nudge. Conservative partial step, clamped. This is the first
-        // place the engine consumes its own accuracy signal to change behavior.
-        applyErrorFitCorrection(planID: planID, modelContext: modelContext)
-
-        // §16.2 — a completed session is venue-pattern evidence (start time,
-        // duration, inferred venue, completion). Cheap pure recompute.
-        VenuePatternLearner.recompute(modelContext: modelContext)
+        // Learning from this session (prediction outcomes, error-fit, venue
+        // pattern, adaptive profile) is DEFERRED to `applyPendingLearning`,
+        // which runs once the summary closes: completion is persisted the
+        // moment the summary appears, before the athlete has rated the last
+        // set there, so learning here read incomplete feedback.
+        plan.learningPending = true
 
         // Persist to SwiftData — LOUD on failure. On a failed save the status
         // flip is reverted so the day stays open: the pending history inserts
@@ -2069,19 +2052,6 @@ final class TrainingViewModel {
                 "\(DebugTrace.prefix)[Workout] persistCompletion: plan=\(planID) wrote \(snapshots.count) history rows, status=.completed"
             )
         #endif
-
-        // Phase 3 (TRAINING_INTELLIGENCE_TO_10.md Fix 3.2) — feed the session
-        // into the on-device AdaptiveProfile so the engine learns THIS user's
-        // increments / recovery tolerance / fatigue trend over time. Bounded
-        // online updates; the deterministic floor is unaffected.
-        //
-        // Feed it the rows we ACTUALLY inserted. It used to get throwaway
-        // `ExerciseHistory(…, exercise: snap.exercise)` copies built only for
-        // this call — SwiftData auto-inserts a @Model bound to a live
-        // relationship, leaving a phantom duplicate history row per exercise.
-        // The updater reads only avgRPE / worstFormRaw / feedbackSampleCount /
-        // exercise, all identical on the real rows.
-        updateAdaptiveProfile(with: insertedHistory, modelContext: modelContext)
 
         // Best-effort Apple Health write — never blocks or fails the save.
         writeStrengthWorkoutToHealthKit(plan: plan, totalVolumeKg: snapshots.reduce(0) { $0 + $1.totalVolume })
@@ -2120,6 +2090,8 @@ final class TrainingViewModel {
         // so a summary swiped away without tapping SAVE still reaches Health.
 
         sessionState = .saved
+        // Summary closed → the feedback is final; learn from it now.
+        applyPendingLearning(modelContext: modelContext)
         resetState()
     }
 

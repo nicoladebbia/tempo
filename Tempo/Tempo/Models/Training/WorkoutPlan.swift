@@ -66,6 +66,13 @@ final class WorkoutPlan {
     /// automatically.
     var pausedAt: Date?
 
+    /// The session is saved but the engine hasn't learned from it yet.
+    /// Learning (prediction outcomes, error-fit, venue pattern, adaptive
+    /// profile) waits until the summary closes, so the last set's feedback —
+    /// usually entered ON the summary — is part of what it learns from.
+    /// Defaulted → lightweight migration.
+    var learningPending: Bool = false
+
     /// §8 connect — when the daily brain's final prescription moves the day to
     /// a DIFFERENT modality (e.g. planned pool → prescribed rest at yellow
     /// recovery), the plan row is reshaped to match and the ORIGINAL template

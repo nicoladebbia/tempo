@@ -621,6 +621,53 @@ final class LoggerCursorAndCleanupTests: XCTestCase {
         vm.resetState()
     }
 
+
+    // MARK: - Learning waits for the summary to close
+
+    func testLearningWaitsUntilTheSummaryCloses() async throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [2])
+        start(vm, plan: plan)
+        let slot = plan.orderedExercises[0]
+        let exerciseID = try XCTUnwrap(slot.exercise?.id)
+        let log = PredictionLog(
+            exerciseID: exerciseID, workoutPlanID: plan.id,
+            predictedWeight: 80, predictedReps: 8, signalUsedRaw: "test"
+        )
+        context.insert(log)
+        let set = slot.orderedSets[0]
+        set.completed = true
+        set.actualReps = 8
+        set.actualWeight = 80
+        vm.sessionState = .summary
+
+        XCTAssertTrue(vm.persistCompletion(modelContext: context))
+        XCTAssertTrue(plan.learningPending)
+        XCTAssertFalse(log.outcomeResolved, "Not before the last set's feedback can be entered")
+
+        vm.applyPendingLearning(modelContext: context)
+        XCTAssertTrue(plan.learningPending, "The open summary's session is left alone")
+
+        await vm.saveWorkout(modelContext: context)
+        XCTAssertFalse(plan.learningPending)
+        XCTAssertTrue(log.outcomeResolved)
+        XCTAssertEqual(log.actualReps, 8)
+    }
+
+    func testPendingLearningIsCaughtUpOnce() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [1])
+        plan.status = .completed
+        plan.learningPending = true
+        try context.save()
+
+        vm.applyPendingLearning(modelContext: context)
+        XCTAssertFalse(plan.learningPending, "A summary killed before closing still gets learned from")
+        vm.applyPendingLearning(modelContext: context) // no-op, no crash
+    }
+
     // MARK: - 5. Watch payloads
 
     func testWatchSetWithoutWeightUsesPrescriptionNotZero() throws {
