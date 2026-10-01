@@ -62,6 +62,17 @@ struct ContentView: View {
                         rescheduleSupplementReminders()
                         await WeeklyPlanReminder.sync(settings: NutritionTabViewModel.loadUserSettings(modelContext: modelContext))
                         await syncWeeklyPlan()
+                        #if DEBUG && targetEnvironment(simulator)
+                            // `sim.sh qa --local`: a wiped app was never asked
+                            // for notifications, and simctl can't grant them —
+                            // ask now (sim.sh taps Allow) so test pushes land.
+                            if TestServer.baseURLOverride != nil {
+                                _ = try? await services.notifications.requestAuthorization()
+                            }
+                        #endif
+                        #if DEBUG
+                            await ScenarioSeed.afterLaunch(modelContext: modelContext, deps: PlanDeps(services))
+                        #endif
                     }
             } else {
                 OnboardingContainerView()

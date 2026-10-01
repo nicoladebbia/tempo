@@ -129,7 +129,7 @@ actor ReceiptStructuringService {
         }
 
         // Parse JSON, tolerant of markdown wrapping.
-        let jsonString = extractJSON(from: textBlock.text)
+        let jsonString = Self.extractJSON(from: textBlock.text)
         guard let jsonData = jsonString.data(using: .utf8) else {
             throw ReceiptStructuringError.malformedResponse
         }
@@ -199,13 +199,13 @@ actor ReceiptStructuringService {
 
     // MARK: - JSON cleanup
 
-    private func extractJSON(from text: String) -> String {
+    static func extractJSON(from text: String) -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.hasPrefix("{") {
             return trimmed
         }
         if let start = trimmed.range(of: "{"), let end = trimmed.range(of: "}", options: .backwards) {
-            return String(trimmed[start.lowerBound ... end.upperBound])
+            return String(trimmed[start.lowerBound ..< end.upperBound])
         }
         return trimmed
     }
