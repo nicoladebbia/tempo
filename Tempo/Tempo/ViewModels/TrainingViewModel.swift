@@ -909,6 +909,7 @@ final class TrainingViewModel {
 
         plan.status = .inProgress
         plan.pausedSeconds = 0
+        plan.pausedAt = nil
         elapsedSeconds = 0
         totalPauseDuration = 0
         currentExerciseIndex = 0
@@ -1034,6 +1035,7 @@ final class TrainingViewModel {
         let now = Date()
         todayPlan?.startedAt = now
         todayPlan?.pausedSeconds = 0
+        todayPlan?.pausedAt = nil
         workoutStartTime = now
         elapsedSeconds = 0
         totalPauseDuration = 0
@@ -1083,8 +1085,11 @@ final class TrainingViewModel {
             // Pauses / calls before the crash were persisted on the plan —
             // restore them so the elapsed clock (and the saved duration)
             // doesn't count that time as training.
-            totalPauseDuration = max(0, plan.pausedSeconds)
-            elapsedSeconds = max(0, Date().timeIntervalSince(startedAt) - totalPauseDuration)
+            let now = Date()
+            plan.pausedSeconds = Self.recoveredPauseSeconds(for: plan, now: now)
+            plan.pausedAt = nil
+            totalPauseDuration = plan.pausedSeconds
+            elapsedSeconds = max(0, now.timeIntervalSince(startedAt) - totalPauseDuration)
         }
 
         // Find current position
@@ -1120,6 +1125,35 @@ final class TrainingViewModel {
         startLiveActivity()
     }
 
+    /// How long a crash-recovered session has really been paused.
+    ///
+    /// - Killed while paused / on a call: the open pause (`now - pausedAt`)
+    ///   joins the persisted total.
+    /// - Killed while running: the app was dead for an unknown stretch. The
+    ///   training clock may not run past the last sign of life (the last
+    ///   logged set, else the start) plus `crashIdleAllowance`; anything
+    ///   beyond that counts as paused — so reopening the app hours later
+    ///   doesn't log hours of training.
+    static let crashIdleAllowance: TimeInterval = 10 * 60
+
+    static func recoveredPauseSeconds(for plan: WorkoutPlan, now: Date) -> Double {
+        let persisted = max(0, plan.pausedSeconds)
+        if let pausedAt = plan.pausedAt {
+            return persisted + max(0, now.timeIntervalSince(pausedAt))
+        }
+        guard let startedAt = plan.startedAt else {
+            return persisted
+        }
+        let lastSetAt = plan.orderedExercises
+            .flatMap { $0.sets ?? [] }
+            .compactMap { $0.completed ? $0.completedAt : nil }
+            .max()
+        let lastActivity = max(startedAt, lastSetAt ?? startedAt)
+        let clockTraining = now.timeIntervalSince(startedAt) - persisted
+        let maxTraining = lastActivity.timeIntervalSince(startedAt) + crashIdleAllowance
+        return persisted + max(0, clockTraining - maxTraining)
+    }
+
     // MARK: - Discard Crashed Workout
 
     func discardCrashedWorkout(modelContext: ModelContext) {
@@ -1133,6 +1167,7 @@ final class TrainingViewModel {
             rollBackLoggedWork(of: plan, modelContext: modelContext)
             plan.status = .skipped
             plan.pausedSeconds = 0
+            plan.pausedAt = nil
         }
         try? modelContext.save()
         sessionState = .discarded
@@ -1714,6 +1749,13 @@ final class TrainingViewModel {
             discardActiveWorkout(modelContext: modelContext)
             return
         }
+        // Finishing straight from a pause: that last pause is not training
+        // time either (the live clock already stopped at pause; this keeps
+        // the persisted total — used by Health and History — in step).
+        if case let .paused(_, pauseStart) = sessionState {
+            addPausedTime(Date().timeIntervalSince(pauseStart))
+        }
+        clearPauseMarker()
         stopRestTimer()
         stopWarmupMoveTimer()
         stopElapsedTimer()
@@ -1754,6 +1796,7 @@ final class TrainingViewModel {
             plan.status = .planned
             plan.startedAt = nil
             plan.pausedSeconds = 0
+            plan.pausedAt = nil
         }
         try? modelContext.save()
         currentFeedback = nil

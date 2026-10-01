@@ -59,6 +59,13 @@ final class WorkoutPlan {
     /// migrates it automatically (no manual migration).
     var pausedSeconds: Double = 0
 
+    /// When the CURRENT pause / phone call began; nil while the session is
+    /// running. `pausedSeconds` is only bumped on resume, so without this a
+    /// kill while paused made crash recovery count the whole pause (and the
+    /// time the app was dead) as training. Optional, so SwiftData migrates it
+    /// automatically.
+    var pausedAt: Date?
+
     /// §8 connect — when the daily brain's final prescription moves the day to
     /// a DIFFERENT modality (e.g. planned pool → prescribed rest at yellow
     /// recovery), the plan row is reshaped to match and the ORIGINAL template
@@ -208,7 +215,9 @@ final class WorkoutPlan {
         guard let start = startedAt, let end = finishedAt else {
             return nil
         }
-        return Int(end.timeIntervalSince(start) / 60)
+        // Pauses / calls are not training time — same rule as the live
+        // clock, so every screen shows one duration for one workout.
+        return Int(max(0, end.timeIntervalSince(start) - pausedSeconds) / 60)
     }
 
     // MARK: - Init

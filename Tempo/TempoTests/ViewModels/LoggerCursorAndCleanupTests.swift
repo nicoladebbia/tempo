@@ -261,6 +261,107 @@ final class LoggerCursorAndCleanupTests: XCTestCase {
         vm.resetState()
     }
 
+    func testPauseStampsMarkerAndResumeClearsIt() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [2])
+        start(vm, plan: plan)
+
+        vm.pause()
+        XCTAssertNotNil(plan.pausedAt, "A pause must be persisted the moment it starts")
+        vm.resume()
+        XCTAssertNil(plan.pausedAt)
+
+        vm.handleCallChange(callEnded: false)
+        XCTAssertNotNil(plan.pausedAt, "A phone call is a pause too")
+        vm.handleCallChange(callEnded: true)
+        XCTAssertNil(plan.pausedAt)
+        vm.resetState()
+    }
+
+    func testKillWhilePausedDoesNotCountThePauseAsTraining() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [2])
+        plan.startedAt = Date().addingTimeInterval(-1000)
+        plan.pausedSeconds = 100 // an earlier, already-resumed pause
+        plan.pausedAt = Date().addingTimeInterval(-300) // app killed while paused
+        vm.todayPlan = plan
+        vm.sessionState = .crashedRecovery
+
+        vm.resumeFromCrash()
+
+        XCTAssertEqual(vm.elapsedSeconds, 600, accuracy: 3)
+        XCTAssertEqual(plan.pausedSeconds, 400, accuracy: 3)
+        XCTAssertNil(plan.pausedAt, "The open pause is folded in and closed")
+        vm.resetState()
+    }
+
+    func testCrashHoursLaterDoesNotCountDeadAppTimeAsTraining() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [3])
+        let now = Date()
+        plan.startedAt = now.addingTimeInterval(-3 * 3600)
+        let first = try XCTUnwrap(plan.orderedExercises.first?.orderedSets.first)
+        first.completed = true
+        first.actualReps = 8
+        first.actualWeight = 80
+        first.completedAt = now.addingTimeInterval(-3 * 3600 + 1200) // 20 min in
+        vm.todayPlan = plan
+        vm.sessionState = .crashedRecovery
+
+        vm.resumeFromCrash()
+
+        // 20 min up to the last set + the 10 min idle allowance — not 3 hours.
+        XCTAssertEqual(vm.elapsedSeconds, 1800, accuracy: 3)
+        vm.resetState()
+    }
+
+    func testCrashSoonAfterStartKeepsTheRealClock() {
+        let plan = WorkoutPlan(date: Date(), type: .push)
+        let now = Date()
+        plan.startedAt = now.addingTimeInterval(-500)
+        plan.pausedSeconds = 60
+        XCTAssertEqual(
+            TrainingViewModel.recoveredPauseSeconds(for: plan, now: now), 60, accuracy: 0.1,
+            "Within the idle allowance nothing extra is treated as paused"
+        )
+    }
+
+    func testFinishingWhilePausedCountsTheFinalPause() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [2])
+        start(vm, plan: plan)
+        let set = try XCTUnwrap(plan.orderedExercises.first?.orderedSets.first)
+        set.completed = true
+        set.actualReps = 8
+        set.actualWeight = 80
+
+        let pauseStart = Date().addingTimeInterval(-300)
+        vm.sessionState = .paused(
+            previousState: .exercise(.setActive(exerciseIndex: 0, setIndex: 1)),
+            pauseStartTime: pauseStart
+        )
+        plan.pausedAt = pauseStart
+        vm.finishWorkout(modelContext: context)
+
+        XCTAssertEqual(vm.sessionState, .summary)
+        XCTAssertEqual(plan.pausedSeconds, 300, accuracy: 3)
+        XCTAssertNil(plan.pausedAt)
+        vm.resetState()
+    }
+
+    func testActualDurationExcludesPausedTime() {
+        let plan = WorkoutPlan(date: Date(), type: .push)
+        let start = Date()
+        plan.startedAt = start
+        plan.finishedAt = start.addingTimeInterval(3600)
+        plan.pausedSeconds = 600
+        XCTAssertEqual(plan.actualDurationMinutes, 50)
+    }
+
     // MARK: - 5. Watch payloads
 
     func testWatchSetWithoutWeightUsesPrescriptionNotZero() throws {
