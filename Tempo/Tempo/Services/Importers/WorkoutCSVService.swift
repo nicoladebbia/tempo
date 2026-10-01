@@ -495,25 +495,33 @@ enum WorkoutCSVService {
 
     // MARK: - Export
 
-    /// Strong-compatible CSV of completed workouts (kg, working sets with
-    /// actuals only) — importable by Strong/Hevy and by Tempo itself.
-    static func exportCSV(plans: [WorkoutPlan]) -> String {
+    /// Strong-style CSV of completed workouts: working sets with actuals only,
+    /// weights in `unit` (the athlete's own) with the unit named in the
+    /// header — "Weight (lbs)" / "Weight (kg)" — which Tempo's importer reads
+    /// back, so the file round-trips without a unit prompt. A bodyweight set
+    /// leaves Weight empty rather than writing "0".
+    static func exportCSV(plans: [WorkoutPlan], unit: WeightUnit = .kg) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
 
-        var lines = ["Date,Workout Name,Duration,Exercise Name,Set Order,Weight,Reps,Distance,Seconds,Notes,Workout Notes,RPE"]
+        var lines = [
+            "Date,Workout Name,Duration,Exercise Name,Set Order,Weight (\(unit.abbreviation)),Reps,Distance,Seconds,Notes,Workout Notes,RPE",
+        ]
         for plan in plans.filter({ $0.status == .completed }).sorted(by: { $0.date < $1.date }) {
             let date = formatter.string(from: plan.startedAt ?? plan.date)
             let name = plan.type.displayName
-            let duration = plan.durationMinutes.map { "\($0)m" } ?? ""
+            let duration = plan.durationMinutes.map { minutes in
+                minutes >= 60 ? (minutes % 60 == 0 ? "\(minutes / 60)h" : "\(minutes / 60)h \(minutes % 60)m") : "\(minutes)m"
+            } ?? ""
             for slot in plan.orderedExercises {
                 guard let exercise = slot.exercise else {
                     continue
                 }
-                let working = slot.orderedSets.filter { $0.completed && !$0.isWarmup }
+                let working = slot.orderedSets.filter { $0.completed && !$0.isWarmup && ($0.actualReps ?? 0) > 0 }
                 for (index, set) in working.enumerated() {
-                    let weight = set.actualWeight.map { String(format: "%g", $0) } ?? ""
+                    let weight = (set.actualWeight.flatMap { $0 > 0 ? $0 : nil })
+                        .map { WeightFormat.number(kg: $0, unit: unit) } ?? ""
                     let rpe = set.rpe.map(String.init) ?? ""
                     // §6.4 — a drop step is exported as a set like any other
                     // (it counts toward volume/history), just annotated so

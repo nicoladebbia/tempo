@@ -412,4 +412,46 @@ final class WorkoutCSVServiceTests: XCTestCase {
         } catch {}
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<WorkoutPlan>()), 0)
     }
+
+    // MARK: - Export units
+
+    private func importedPlans(_ csv: String, unit: WeightUnit?) async throws -> [WorkoutPlan] {
+        let context = try makeContext()
+        _ = try await WorkoutCSVService.importCSV(csv, assumedUnit: unit, modelContext: context)
+        return try context.fetch(FetchDescriptor<WorkoutPlan>())
+    }
+
+    func testExportSpeaksTheUsersUnitAndNamesItInTheHeader() async throws {
+        let plans = try await importedPlans(strongPounds, unit: nil)
+        let lbs = WorkoutCSVService.exportCSV(plans: plans, unit: .lbs)
+        let lines = lbs.split(separator: "\n").map(String.init)
+        XCTAssertTrue(lines[0].contains("Weight (lbs)"))
+        XCTAssertTrue(lines[1].contains(",Bench Press (Barbell),1,225,5,"), "225 lbs, not 102 kg: \(lines[1])")
+        XCTAssertTrue(lines[1].hasPrefix("2026-07-20 18:00:00,Push,1h,"), "Duration reads like Strong's: \(lines[1])")
+
+        let kg = WorkoutCSVService.exportCSV(plans: plans, unit: .kg)
+        XCTAssertTrue(kg.contains("Weight (kg)"))
+        XCTAssertTrue(kg.contains(",Bench Press (Barbell),1,102.1,5,"), kg)
+    }
+
+    func testBodyweightSetsExportWithAnEmptyWeight() async throws {
+        let plans = try await importedPlans(strongPounds, unit: nil)
+        let csv = WorkoutCSVService.exportCSV(plans: plans, unit: .lbs)
+        let pullUp = try XCTUnwrap(csv.split(separator: "\n").first { $0.contains("Pull Up") })
+        XCTAssertTrue(pullUp.contains(",Pull Up,1,,8,"), "Empty weight, never 0: \(pullUp)")
+    }
+
+    func testPoundsExportRoundTripsWithoutAUnitPrompt() async throws {
+        let plans = try await importedPlans(strongPounds, unit: nil)
+        let csv = WorkoutCSVService.exportCSV(plans: plans, unit: .lbs)
+
+        let file = try WorkoutCSVService.parse(csv)
+        XCTAssertEqual(file.declaredUnit, .lbs, "Header names the unit, so the importer needs no prompt")
+
+        let context = try makeContext()
+        // A kg-default user importing the lbs file still gets the right load.
+        _ = try await WorkoutCSVService.importCSV(csv, assumedUnit: .kg, modelContext: context)
+        let weight = try XCTUnwrap(context.fetch(FetchDescriptor<PlannedSet>()).compactMap(\.actualWeight).first)
+        XCTAssertEqual(weight, 225 / 2.20462, accuracy: 0.05)
+    }
 }

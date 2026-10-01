@@ -486,7 +486,7 @@ struct WorkoutHistoryView: View {
     }
 
     private func exportHistory() {
-        let csv = WorkoutCSVService.exportCSV(plans: completedWorkouts)
+        let csv = WorkoutCSVService.exportCSV(plans: completedWorkouts, unit: weightUnit)
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("tempo-workout-history.csv")
         do {
