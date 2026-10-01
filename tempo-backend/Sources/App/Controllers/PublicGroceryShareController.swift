@@ -37,9 +37,14 @@ struct PublicGroceryShareController: RouteCollection {
         else {
             return Self.goneResponse()
         }
-        let html = SharedGroceryPageRenderer.render(title: share.title, store: share.store, token: token)
+        let nonce = SharedGroceryPageRenderer.makeNonce()
+        let html = SharedGroceryPageRenderer.render(title: share.title, store: share.store, token: token, nonce: nonce)
         let response = Response(status: .ok, body: .init(string: html))
         response.headers.contentType = .html
+        response.headers.replaceOrAdd(
+            name: "Content-Security-Policy",
+            value: SharedGroceryPageRenderer.contentSecurityPolicy(nonce: nonce)
+        )
         return response
     }
 
@@ -104,9 +109,14 @@ struct PublicGroceryShareController: RouteCollection {
     }
 
     private static func goneResponse() -> Response {
-        let html = SharedGroceryPageRenderer.renderGone()
+        let nonce = SharedGroceryPageRenderer.makeNonce()
+        let html = SharedGroceryPageRenderer.renderGone(nonce: nonce)
         let response = Response(status: .gone, body: .init(string: html))
         response.headers.contentType = .html
+        response.headers.replaceOrAdd(
+            name: "Content-Security-Policy",
+            value: SharedGroceryPageRenderer.goneContentSecurityPolicy(nonce: nonce)
+        )
         return response
     }
 }

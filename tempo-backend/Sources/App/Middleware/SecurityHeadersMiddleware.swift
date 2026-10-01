@@ -16,10 +16,13 @@ struct SecurityHeadersMiddleware: AsyncMiddleware {
             name: "Referrer-Policy",
             value: "strict-origin-when-cross-origin"
         )
-        response.headers.replaceOrAdd(
-            name: "Content-Security-Policy",
-            value: "default-src 'none'"
-        )
+        // A page that needs more (inline style/script with a nonce) sets its own.
+        if !response.headers.contains(name: "Content-Security-Policy") {
+            response.headers.replaceOrAdd(
+                name: "Content-Security-Policy",
+                value: "default-src 'none'"
+            )
+        }
         response.headers.replaceOrAdd(
             name: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=()"

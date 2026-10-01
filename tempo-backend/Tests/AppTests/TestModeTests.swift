@@ -100,7 +100,9 @@ struct TestModeFixtureTests {
         #expect(payload.lineItems.count == 6)
 
         let picks = reply("You are a supplements buying guide.")
-        _ = try snake.decode(SupplementPicksAIRawResponse.self, from: Data(picks.text.utf8))
+        let decodedPicks = try snake.decode(SupplementPicksAIRawResponse.self, from: Data(picks.text.utf8))
+        #expect(decodedPicks.picks.first?.approxPricePerServingUsd == 0.18)
+        #expect(decodedPicks.toDTO(kind: "creatine").picks.first?.approxPricePerServingUSD == 0.18)
 
         let dashboard = reply("You generate dashboard insight cards for a student-athlete fitness app.")
         _ = try snake.decode(DashboardInsightsResponse.self, from: Data(dashboard.text.utf8))
@@ -262,6 +264,34 @@ struct TestModeRouteTests {
             }
             #expect(overloaded.status.code == 529)
             #expect(app.testMode?.aiCalls.last?.status == 529)
+        }
+    }
+
+    @Test func emptyClaudeReplyIsAFailureNotABlankMessage() async throws {
+        let previous = Environment.get("ANTHROPIC_API_KEY")
+        setenv("ANTHROPIC_API_KEY", "test-key", 1)
+        defer {
+            if let previous { setenv("ANTHROPIC_API_KEY", previous, 1) } else { unsetenv("ANTHROPIC_API_KEY") }
+        }
+        try await withApp(testMode: true) { app in
+            app.testMode?.aiMode = .empty
+            let name = "t-\(UUID().uuidString.prefix(8).lowercased())"
+            var token = ""
+            try await login(app, #"{"name":"\#(name)"}"#) { res in
+                token = try res.content.decode(TestModeController.LoginResponse.self).accessToken
+            }
+            for path in ["suggest-meal", "explain-adjustment"] {
+                try await app.test(.POST, "v1/nutrition/ai/\(path)", beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: token)
+                    req.headers.contentType = .json
+                    let body = path == "suggest-meal"
+                        ? #"{"pantryCanonicalNames":["oats"],"remainingCalories":600,"remainingProtein":40,"isTrainingDay":true}"#
+                        : #"{"mode":"standard","isTrainingDay":true,"baseCalories":2500,"adjustedCalories":2600,"baseProtein":160,"adjustedProtein":165,"modeExplanation":"x"}"#
+                    req.body = ByteBuffer(string: body)
+                }, afterResponse: { res async in
+                    #expect(res.status == .badGateway, "\(path) returned \(res.status)")
+                })
+            }
         }
     }
 }

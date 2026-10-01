@@ -103,7 +103,7 @@ enum TestFixtures {
         ("You generate ONE celebration sentence", false, prose("achievement_copy", "Seven days straight. That is not luck, that is discipline.")),
         ("You recommend optimal meal times for a student-athlete.", false, json("meal_timing", #"{"suggested_time":"12:30","note":"Two hours before training. Carbs now, protein after."}"#)),
         ("You generate batch notification copy for a fitness", false, drillBatch),
-        ("You are a supplements buying guide.", false, json("supplement_picks", #"{"look_for":"Third-party tested, single ingredient, no proprietary blends.","picks":[{"brand":"Test Labs","product":"Creatine Monohydrate","form":"powder","certifications":["NSF Certified for Sport"],"why":"Cheapest per gram and tested.","approxPricePerServingUSD":0.18}]}"#)),
+        ("You are a supplements buying guide.", false, json("supplement_picks", #"{"look_for":"Third-party tested, single ingredient, no proprietary blends.","picks":[{"brand":"Test Labs","product":"Creatine Monohydrate","form":"powder","certifications":["NSF Certified for Sport"],"why":"Cheapest per gram and tested.","approx_price_per_serving_usd":0.18}]}"#)),
         ("Explain macro adjustments in 1", false, prose("explain_adjustment", "Training moved to the evening, so carbs shift to lunch and the afternoon snack. Same total, better timing.")),
         ("Suggest exactly ONE realistic meal", false, prose("suggest_meal", "Chicken rice bowl with broccoli and a drizzle of olive oil. About 650 kcal and 50 g protein.")),
         ("This is the user's first day or there's no", false, prose("recovery_cold_start", "First day of data. Sleep was fine, resting heart rate normal. Train as planned and let the baseline build.")),
