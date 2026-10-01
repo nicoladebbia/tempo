@@ -63,6 +63,8 @@ struct AddProductView: View {
     @State
     private var labelMessage: String?
     @State
+    private var labelBlocker: AIBlocker?
+    @State
     private var picker: PickerTarget?
 
     private enum PickerTarget: Identifiable {
@@ -89,6 +91,19 @@ struct AddProductView: View {
 
             Section {
                 labelRow
+                if let labelBlocker {
+                    AIBlockerCard(
+                        blocker: labelBlocker,
+                        message: labelBlocker == .proRequired
+                            ? "Reading labels with AI is a Tempo Pro feature. You can still type the values below."
+                            : "AI features are off. Turn them on to read labels, or type the values below."
+                    ) {
+                        self.labelBlocker = nil
+                        labelMessage = nil
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
+                }
             } header: {
                 Text("Nutrition label")
             } footer: {
@@ -238,16 +253,18 @@ struct AddProductView: View {
         }
         isReadingLabel = true
         labelMessage = nil
+        labelBlocker = nil
         Task {
             do {
                 let reading = try await NutritionLabelReader.read(imageJPEG: data, apiClient: services.apiClient)
                 apply(reading)
                 HapticManager.success()
             } catch let error as APIError {
+                labelBlocker = AIBlocker(error)
                 labelMessage = switch error {
                 case .unauthorized: "Sign in to read labels with AI — or type the values below."
-                case .subscriptionRequired: "Reading labels with AI is a Tempo Pro feature — type the values below."
-                case .aiConsentRequired: "Turn on AI features in Settings to read labels — or type the values below."
+                case .subscriptionRequired,
+                     .aiConsentRequired: nil
                 default: error.userMessage
                 }
             } catch {

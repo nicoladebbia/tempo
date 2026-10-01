@@ -39,6 +39,9 @@ struct NutritionTodayView: View {
     /// Result toasts (errors, "log deleted" with Undo).
     @State
     private var toast: ToastData?
+    /// Pro / AI-off while reading "what you ate": asks for the fix.
+    @State
+    private var substituteBlocker: AIBlocker?
 
     /// "Save as preset" naming alert.
     @State
@@ -113,6 +116,7 @@ struct NutritionTodayView: View {
             .presentationDetents([.medium, .large])
         }
         .tempoToast($toast)
+        .aiBlockerAlert($substituteBlocker)
         .alert("Save as preset", isPresented: Binding(
             get: { presetSourceMeal != nil },
             set: { if !$0 { presetSourceMeal = nil } }
@@ -657,8 +661,12 @@ struct NutritionTodayView: View {
             }
         } catch {
             // Parse failed — the meal stays planned so the user can retry.
+            if let blocker = AIBlocker(error) {
+                substituteBlocker = blocker
+                return
+            }
             toast = ToastData(
-                message: "Couldn't read that: \(error.localizedDescription). Your meal is unchanged.",
+                message: "Couldn't read that: \(AIBlocker.message(for: error)). Your meal is unchanged.",
                 style: .error
             )
         }

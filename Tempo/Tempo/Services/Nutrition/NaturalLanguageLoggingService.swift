@@ -209,8 +209,12 @@ final class NaturalLanguageLoggingService: @unchecked Sendable {
             }
         }
 
+        // Pro / AI-off pass through untouched so the UI can offer the fix.
+        if let lastError, AIBlocker(lastError) != nil {
+            throw lastError
+        }
         throw NaturalLanguageLoggingError.parseFailed(
-            lastError?.localizedDescription ?? "Unknown error"
+            lastError.map(AIBlocker.readableDescription) ?? "Unknown error"
         )
     }
 
@@ -357,8 +361,16 @@ private struct RawParsedFood: Codable {
 
 // MARK: - NaturalLanguageLoggingError
 
-enum NaturalLanguageLoggingError: Error {
+enum NaturalLanguageLoggingError: Error, LocalizedError {
     case emptyInput
     case parseFailed(String)
     case noFoodsDetected
+
+    var errorDescription: String? {
+        switch self {
+        case .emptyInput: "Type what you ate first."
+        case let .parseFailed(detail): detail
+        case .noFoodsDetected: "Couldn't find any food in that. Try being more specific."
+        }
+    }
 }
