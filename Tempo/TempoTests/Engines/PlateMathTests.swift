@@ -54,4 +54,10 @@ final class PlateMathTests: XCTestCase {
         XCTAssertEqual(PlateMath.label(values: [45, 2.5]), "45 + 2.5")
         XCTAssertEqual(PlateMath.label(values: []), "")
     }
+
+    func testLabelKeepsTwoDecimalsWithoutTrailingZeros() {
+        XCTAssertEqual(PlateMath.label(values: [20, 1.25]), "20 + 1.25")
+        XCTAssertEqual(PlateMath.label(values: [5, 2.5, 1.25]), "5 + 2.5 + 1.25")
+        XCTAssertEqual(PlateMath.label(values: [45, 5]), "45 + 5")
+    }
 }

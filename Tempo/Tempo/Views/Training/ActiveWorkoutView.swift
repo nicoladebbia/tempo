@@ -1617,7 +1617,9 @@ enum PlateMath {
     /// Human label: "45 + 2.5" — values are already in the display unit.
     static func label(values: [Double]) -> String {
         values.map { v in
-            v == v.rounded() ? String(format: "%.0f", v) : String(format: "%.2g", v)
+            // Up to 2 decimals, no trailing zeros: 1.25, 2.5, 5 (never "%.2g" → "1.2").
+            let r = (v * 100).rounded() / 100
+            return r == r.rounded() ? String(format: "%.0f", r) : String(r)
         }
         .joined(separator: " + ")
     }
