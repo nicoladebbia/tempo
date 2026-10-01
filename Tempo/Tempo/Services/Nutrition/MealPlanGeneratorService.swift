@@ -810,7 +810,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
                 !item.isArchived && item.quantity > 0 && item.useBy != nil
             }
         )
-        let items = (try? modelContext.fetch(descriptor)) ?? []
+        let items = ((try? modelContext.fetch(descriptor)) ?? []).filter(\.isInStock)
         return items
             .compactMap { item -> (String, Int)? in
                 guard let days = item.daysUntilUseBy, (0...7).contains(days) else {
@@ -834,7 +834,9 @@ final class MealPlanGeneratorService: @unchecked Sendable {
                 !item.isArchived && item.quantity > 0
             }
         )
-        let items = (try? modelContext.fetch(descriptor)) ?? []
+        // Fractional containers leave "dust" (≤ depletedThreshold) that isn't
+        // real stock — keep it out of the prompt.
+        let items = ((try? modelContext.fetch(descriptor)) ?? []).filter(\.isInStock)
         // Sort by storage location then name for a stable, scannable list.
         return items
             .sorted { lhs, rhs in
