@@ -333,6 +333,7 @@
 		461FFB68561C2AA7B0399E6D /* MealLoggingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A25B6E5B757BBB1DCCDD169F /* MealLoggingService.swift */; };
 		462F183B4FEE5AA0FEB277C3 /* WorkoutActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 316C15461D9C53689D2D46A9 /* WorkoutActivityAttributes.swift */; };
 		46CA6A410049B6FBF9F78417 /* TrainerProgramImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C54AD9D9D1B5780DF76F9833 /* TrainerProgramImportService.swift */; };
+		46D1D2968443D77ADF1333B3 /* PoundsUITestSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 712084D2D92ABC4364C06347 /* PoundsUITestSeed.swift */; };
 		47062D89D6D163EA29DEDD7F /* SupplementsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BE32EF62283128939755BE3 /* SupplementsView.swift */; };
 		471F3922D28C6F5BA7053809 /* cue_ex_wrist_curl.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = D89412668F66C6575100CB8F /* cue_ex_wrist_curl.mp3 */; };
 		48D78E9BBAEDE39D667C5322 /* MatchScheduleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C90FD08F954E1A96201D8E3 /* MatchScheduleView.swift */; };
@@ -1778,6 +1779,7 @@
 		705235EDE942F04975A3908C /* WeeklyMealPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyMealPlan.swift; sourceTree = "<group>"; };
 		7054CBB617860ADF969024C9 /* cue_ex_suitcase_carry.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_suitcase_carry.mp3; sourceTree = "<group>"; };
 		71060ABD07FFE380B04808A1 /* TempoNotificationDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoNotificationDelegate.swift; sourceTree = "<group>"; };
+		712084D2D92ABC4364C06347 /* PoundsUITestSeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoundsUITestSeed.swift; sourceTree = "<group>"; };
 		719CE6170A29E0483537762A /* ReceiptAliasSyncDTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiptAliasSyncDTOs.swift; sourceTree = "<group>"; };
 		71AB9B3CDE583329359B5395 /* PreferenceExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferenceExtractor.swift; sourceTree = "<group>"; };
 		7231736D5371D005CECBB7EA /* RunImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunImporter.swift; sourceTree = "<group>"; };
@@ -3117,6 +3119,7 @@
 				D7C0C6F2E2F7C9C11160AF3F /* GroceryShoppingUITestSeed.swift */,
 				178896C18F6C4B34F01F608C /* GuidedRunUITestSeed.swift */,
 				88C8FB75DBB5277C11615748 /* PauseTravelPainUITestSeed.swift */,
+				712084D2D92ABC4364C06347 /* PoundsUITestSeed.swift */,
 				57A29732567D92CFDB580382 /* ServiceContainer.swift */,
 				C89002462547A4EF5B027936 /* SundayWrapUpProgressUITestSeed.swift */,
 				01848D57323D9F2738DBC86B /* WeeklyUploadUITestSeed.swift */,
@@ -5779,6 +5782,7 @@
 				4D17E625F1B90E1A78D99FC3 /* PlannedMealCardView.swift in Sources */,
 				FCD666F5F06CBF7DB861CCD9 /* PlannedMealTimingMatcher.swift in Sources */,
 				DC8BEFF95B9D8BFDCE98C8A9 /* PlannedSet.swift in Sources */,
+				46D1D2968443D77ADF1333B3 /* PoundsUITestSeed.swift in Sources */,
 				806B199E9ED72D50AD3725ED /* PredictionAccuracy.swift in Sources */,
 				C38F759904B1DBFE24D4BDFC /* PredictionLog.swift in Sources */,
 				3975296BE7F3EBF731E6E5D0 /* PreferenceExtractor.swift in Sources */,
@@ -6111,7 +6115,7 @@
 				INFOPLIST_FILE = Tempo/Info.plist;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Tempo reads your calendar to avoid scheduling workouts during classes and football practice, and to identify study blocks for your accountability targets.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Tempo reads your health data (steps, heart rate, HRV, sleep, workouts) to calculate your daily score, adapt your training plan to your recovery, and track your progress automatically.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Tempo writes your completed workouts and nutrition data to HealthKit so your health record stays complete across all your apps.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Tempo writes your completed workouts (with calories and distance) and nutrition data to HealthKit so your health record stays complete across all your apps.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Tempo uses your location to provide weather-aware hydration targets and workout recommendations, and to track distance and pace during a guided run.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Tempo uses your microphone so you can talk instead of typing: describe your week for your meal plan, log meals, or dictate pantry items.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Tempo turns what you say into text on your device, so you can set up your meal plan, log meals and add pantry items without typing.";
@@ -6244,7 +6248,7 @@
 				INFOPLIST_FILE = Tempo/Info.plist;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Tempo reads your calendar to avoid scheduling workouts during classes and football practice, and to identify study blocks for your accountability targets.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Tempo reads your health data (steps, heart rate, HRV, sleep, workouts) to calculate your daily score, adapt your training plan to your recovery, and track your progress automatically.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Tempo writes your completed workouts and nutrition data to HealthKit so your health record stays complete across all your apps.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Tempo writes your completed workouts (with calories and distance) and nutrition data to HealthKit so your health record stays complete across all your apps.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Tempo uses your location to provide weather-aware hydration targets and workout recommendations, and to track distance and pace during a guided run.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Tempo uses your microphone so you can talk instead of typing: describe your week for your meal plan, log meals, or dictate pantry items.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Tempo turns what you say into text on your device, so you can set up your meal plan, log meals and add pantry items without typing.";
@@ -6560,7 +6564,7 @@
 				INFOPLIST_FILE = Tempo/Info.plist;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Tempo reads your calendar to avoid scheduling workouts during classes and football practice, and to identify study blocks for your accountability targets.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Tempo reads your health data (steps, heart rate, HRV, sleep, workouts) to calculate your daily score, adapt your training plan to your recovery, and track your progress automatically.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Tempo writes your completed workouts and nutrition data to HealthKit so your health record stays complete across all your apps.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Tempo writes your completed workouts (with calories and distance) and nutrition data to HealthKit so your health record stays complete across all your apps.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Tempo uses your location to provide weather-aware hydration targets and workout recommendations, and to track distance and pace during a guided run.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Tempo uses your microphone so you can talk instead of typing: describe your week for your meal plan, log meals, or dictate pantry items.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Tempo turns what you say into text on your device, so you can set up your meal plan, log meals and add pantry items without typing.";

@@ -107,7 +107,7 @@ struct ActiveWorkoutView: View {
         }
         let perSide = (inputWeight - bar) / 2
         let unit = weightUnit.abbreviation
-        let perSideStr = String(format: weightUnit == .kg ? "%.1f" : "%.1f", perSide)
+        let perSideStr = WeightFormat.number(perSide)
         let barStr = String(format: "%.0f", bar)
 
         // §5 plate calculator — the previously-orphaned showPlateCalculator
@@ -126,7 +126,10 @@ struct ActiveWorkoutView: View {
         }
 
         if bar > 0 {
-            return "\(perSideStr) \(unit)/side + \(barStr) \(unit) bar"
+            // Empty bar: "Empty 45 lbs bar", never "0 lbs/side".
+            return perSide > 0
+                ? "\(perSideStr) \(unit)/side + \(barStr) \(unit) bar"
+                : "Empty \(barStr) \(unit) bar"
         }
         return "\(perSideStr) \(unit)/side"
     }

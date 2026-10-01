@@ -102,6 +102,7 @@ struct TempoApp: App {
                 // with one of its launch arguments.
                 PauseTravelPainUITestSeed.seedIfRequested(context: container.mainContext)
                 BenchedDayUITestSeed.seedIfRequested(context: container.mainContext)
+                PoundsUITestSeed.seedIfRequested(context: container.mainContext)
             #endif
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
