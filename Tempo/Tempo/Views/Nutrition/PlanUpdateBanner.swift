@@ -23,9 +23,9 @@ struct PlanUpdateBanner: View {
         VStack(alignment: .leading, spacing: TempoSpacing.sm) {
             HStack(alignment: .top, spacing: TempoSpacing.sm) {
                 Image(systemName: "arrow.triangle.2.circlepath")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.tempoSubheadline.weight(.semibold))
                     .foregroundStyle(Color.tempoAmber)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
                     Text("Your setup changed — update the rest of the week?")
                         .font(.tempoCaption1)
                         .fontWeight(.semibold)
@@ -50,14 +50,7 @@ struct PlanUpdateBanner: View {
 
                 Button {
                     HapticManager.lightImpact()
-                    viewModel.generatePlan(
-                        modelContext: modelContext,
-                        whoop: services.whoop,
-                        apiClient: services.apiClient,
-                        notifications: services.notifications,
-                        trainingEngine: services.trainingEngine,
-                        healthKit: services.healthKit
-                    )
+                    viewModel.rebuildRestOfWeek(modelContext: modelContext, services: services)
                 } label: {
                     Text(viewModel.isGeneratingPlan ? "Updating…" : "Update")
                         .font(.tempoCaption1)
@@ -99,7 +92,7 @@ struct PlanBlockerCard: View {
         VStack(alignment: .leading, spacing: TempoSpacing.sm) {
             HStack(spacing: TempoSpacing.xs) {
                 Image(systemName: "lock.fill")
-                    .font(.system(size: 12))
+                    .font(.tempoCaption1)
                     .foregroundStyle(Color.tempoAmber)
                 Text(blocker.message)
                     .font(.tempoCaption1)
@@ -140,22 +133,7 @@ struct PlanBlockerCard: View {
             isWorking = true
             consentError = nil
             Task {
-                do {
-                    let _: AIConsentResponseDTO = try await services.apiClient.request(
-                        APIEndpoint<AIConsentResponseDTO>.setAIConsent(),
-                        body: AIConsentRequestDTO(consented: true)
-                    )
-                    viewModel.planGenerationBlocker = nil
-                    viewModel.planGenerationError = nil
-                    viewModel.generatePlan(
-                        modelContext: modelContext,
-                        whoop: services.whoop,
-                        apiClient: services.apiClient,
-                        notifications: services.notifications,
-                        trainingEngine: services.trainingEngine,
-                        healthKit: services.healthKit
-                    )
-                } catch {
+                if await viewModel.grantAIConsentAndRebuild(modelContext: modelContext, services: services) == false {
                     consentError = "Couldn't turn on AI features. Try again."
                 }
                 isWorking = false

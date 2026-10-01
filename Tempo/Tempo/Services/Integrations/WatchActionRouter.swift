@@ -16,6 +16,9 @@ import SwiftData
 final class WatchActionRouter {
     private let accountabilityEngine: AccountabilityEngine
     private let notifications: any NotificationServiceProtocol
+    /// Source of the 7-day TDEE so a Watch-marked meal rebalances against the
+    /// same target as the Today ring. nil in tests.
+    private let whoop: (any WhoopServiceProtocol)?
 
     /// Set once by `ServiceContainer.configure(modelContext:)` at launch
     /// (`TempoApp.init`, right after the ModelContainer is created). Optional
@@ -69,10 +72,12 @@ final class WatchActionRouter {
 
     init(
         accountabilityEngine: AccountabilityEngine,
-        notifications: any NotificationServiceProtocol
+        notifications: any NotificationServiceProtocol,
+        whoop: (any WhoopServiceProtocol)? = nil
     ) {
         self.accountabilityEngine = accountabilityEngine
         self.notifications = notifications
+        self.whoop = whoop
     }
 
     /// Called once at launch, after the ModelContainer exists (`TempoApp.init`).
@@ -191,7 +196,7 @@ final class WatchActionRouter {
         do {
             try MealOutcomeService.markEaten(
                 meal,
-                env: MealOutcomeService.Env(modelContext: modelContext, notifications: notifications)
+                env: MealOutcomeService.Env.live(modelContext: modelContext, notifications: notifications, whoop: whoop)
             )
             return true
         } catch {

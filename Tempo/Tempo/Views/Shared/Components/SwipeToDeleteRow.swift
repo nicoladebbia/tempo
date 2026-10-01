@@ -30,7 +30,7 @@ private struct SwipeToDeleteModifier: ViewModifier {
                     onDelete()
                 } label: {
                     Image(systemName: "trash.fill")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.tempoTitle3)
                         .foregroundStyle(Color.tempoTextInverse)
                         .frame(width: revealWidth)
                         .frame(maxHeight: .infinity)

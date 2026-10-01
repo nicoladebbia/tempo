@@ -321,4 +321,66 @@ final class MealOutcomeServiceTests: XCTestCase {
         m.markAsUnplannedLog()
         XCTAssertTrue(m.isUnplannedLog)
     }
+
+    // MARK: - Undo of a skip restores a skip
+
+    func testRestoreAfterUndoingASkipSkipsAgainInsteadOfEating() throws {
+        let p = plan()
+        let m = slot("Snack", number: 4, time: "16:00", in: p)
+        try MealOutcomeService.skip(m, env: env)
+        let snap = try MealOutcomeService.undo(m, env: env)
+        XCTAssertEqual(snap.priorStatus, .skipped)
+        XCTAssertEqual(m.status, .planned)
+
+        try MealOutcomeService.restore(snap, env: env)
+
+        XCTAssertEqual(m.status, .skipped)
+        XCTAssertFalse(m.didDecrementPantry, "Restoring a skip never touches the pantry")
+    }
+
+    // MARK: - Legacy / flag semantics
+
+    func testExplicitFalseFlagNeverReadsAsALogEvenWithZeroBaseline() {
+        let m = PlannedMeal(
+            dayDate: Date(), mealNumber: 1, mealName: "X", scheduledTime: "08:00",
+            foods: [], totalCalories: 1, totalProtein: 1, totalCarbs: 1, totalFat: 1, status: .eaten
+        )
+        m.planBaselineCalories = 0
+        m.planBaselineProtein = 0
+        m.planBaselineCarbs = 0
+        m.planBaselineFat = 0
+        XCTAssertTrue(m.isUnplannedLog, "Legacy zero baseline (flag nil) still reads as a log")
+        m.isUnplannedLogFlag = false
+        XCTAssertFalse(m.isUnplannedLog)
+    }
+
+    // MARK: - Shared environment
+
+    func testSkipCancelsRemindersThroughTheSuppliedNotificationService() throws {
+        let p = plan()
+        let m = slot("Dinner", number: 3, time: "19:00", in: p)
+        let notifications = MockNotificationService()
+        notifications.scheduleOverdueMealReminder(
+            mealID: m.id, mealName: "Dinner", scheduledTime: Date().addingTimeInterval(3600), lateMinutes: 30
+        )
+        XCTAssertEqual(notifications.scheduledNotifications.count, 1)
+
+        // The Coach tool path.
+        _ = try CoachTools.skipMeal(
+            mealID: m.id,
+            outcomeEnv: { MealOutcomeService.Env.live(modelContext: $0, notifications: notifications, whoop: nil) },
+            context: context
+        )
+
+        XCTAssertEqual(m.status, .skipped)
+        XCTAssertTrue(notifications.scheduledNotifications.isEmpty)
+    }
+
+    func testRebalanceUsesWhoopTDEEAndStoredRecoveryLikeTheTodayRing() throws {
+        let whoop = MockWhoopService()
+        let live = MealOutcomeService.Env.live(modelContext: context, notifications: nil, whoop: whoop)
+        XCTAssertEqual(live.whoopAvgTDEE, whoop.weeklyTDEEAverage)
+        XCTAssertNil(live.recoveryScore, "Falls back to the stored score at rebalance time")
+        XCTAssertNil(DailyNutritionTargets.storedRecoveryScore(in: context))
+    }
 }

@@ -402,16 +402,7 @@ final class NutritionTabViewModel {
     /// Locale-independent: we split on ":" and parse as integers directly,
     /// dodging any DateFormatter locale or 12-h-format weirdness.
     static func minutesOfDay(from hhmm: String) -> Int? {
-        let parts = hhmm.split(separator: ":")
-        guard parts.count == 2,
-              let hour = Int(parts[0]),
-              let minute = Int(parts[1]),
-              (0 ..< 24).contains(hour),
-              (0 ..< 60).contains(minute)
-        else {
-            return nil
-        }
-        return hour * 60 + minute
+        MealOrdering.minutesOfDay(from: hhmm)
     }
 
     func loadToday(modelContext: ModelContext) {
@@ -577,6 +568,7 @@ final class NutritionTabViewModel {
             Logger.nutrition.error("[Diag.Eat] mark eaten failed: \(error.localizedDescription, privacy: .public)")
             return false
         }
+        HapticManager.notification(.success)
         refreshTodayMeals(modelContext: modelContext)
         return true
     }
@@ -604,6 +596,9 @@ final class NutritionTabViewModel {
         } catch {
             Logger.nutrition.error("[Diag.Undo] failed: \(error.localizedDescription, privacy: .public)")
             snapshot = nil
+        }
+        if snapshot != nil {
+            HapticManager.notification(.success)
         }
         refreshTodayMeals(modelContext: modelContext)
         return snapshot
@@ -652,6 +647,7 @@ final class NutritionTabViewModel {
             Logger.nutrition.error("[Diag.Skip] failed: \(error.localizedDescription, privacy: .public)")
             return false
         }
+        HapticManager.lightImpact()
         refreshTodayMeals(modelContext: modelContext)
         return true
     }
@@ -795,14 +791,7 @@ final class NutritionTabViewModel {
     /// Malformed times sort to the end. Shared by loadToday, refreshTodayMeals
     /// and logFromPreset so a new row lands where a reload would put it.
     static func chronological(_ meals: [PlannedMeal]) -> [PlannedMeal] {
-        meals.sorted { lhs, rhs in
-            let lhsMinutes = minutesOfDay(from: lhs.scheduledTime) ?? Int.max
-            let rhsMinutes = minutesOfDay(from: rhs.scheduledTime) ?? Int.max
-            if lhsMinutes != rhsMinutes {
-                return lhsMinutes < rhsMinutes
-            }
-            return lhs.mealNumber < rhs.mealNumber
-        }
+        MealOrdering.chronological(meals)
     }
 
     // MARK: - Generate Plan
@@ -993,6 +982,37 @@ final class NutritionTabViewModel {
                 HapticManager.notification(.error)
             }
         }
+    }
+
+    /// Rebuilds the rest of the week from today with the app's shared
+    /// services (the "Update" button and the blocker card use this one entry).
+    func rebuildRestOfWeek(modelContext: ModelContext, services: ServiceContainer) {
+        generatePlan(
+            modelContext: modelContext,
+            whoop: services.whoop,
+            apiClient: services.apiClient,
+            notifications: services.notifications,
+            trainingEngine: services.trainingEngine,
+            healthKit: services.healthKit
+        )
+    }
+
+    /// Records the user's AI-features consent with the backend, clears the
+    /// blocker and rebuilds. Returns false when the consent call failed.
+    func grantAIConsentAndRebuild(modelContext: ModelContext, services: ServiceContainer) async -> Bool {
+        do {
+            let _: AIConsentResponseDTO = try await services.apiClient.request(
+                APIEndpoint<AIConsentResponseDTO>.setAIConsent(),
+                body: AIConsentRequestDTO(consented: true)
+            )
+        } catch {
+            Logger.nutrition.error("[Diag.Plan] AI consent failed: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+        planGenerationBlocker = nil
+        planGenerationError = nil
+        rebuildRestOfWeek(modelContext: modelContext, services: services)
+        return true
     }
 
     // MARK: - Server-built plan

@@ -8,6 +8,7 @@
 
 import Combine
 import Inject
+import os
 import SwiftData
 import SwiftUI
 
@@ -150,9 +151,7 @@ struct ContentView: View {
             modelContext.delete(dupe)
         }
         try? modelContext.save()
-        #if DEBUG
-            print("[Settings] deduped UserSettings: \(all.count) rows → 1")
-        #endif
+        Logger.sync.info("[Settings] deduped UserSettings: \(all.count) rows → 1")
     }
 
     private var mainTabView: some View {

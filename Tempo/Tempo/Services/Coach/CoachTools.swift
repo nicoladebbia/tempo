@@ -368,15 +368,16 @@ enum CoachTools {
     static func skipMeal(
         mealID: UUID,
         notifications: CoachMealNotificationScheduler = NoopCoachMealNotificationScheduler(),
+        outcomeEnv: ((ModelContext) -> MealOutcomeService.Env)? = nil,
         context: ModelContext
     ) throws -> ToolOutput {
         let meal = try CoachToolHelpers.plannedMeal(id: mealID, in: context)
         guard meal.status != .eaten else {
             throw CoachToolError.mealAlreadyLogged(mealID)
         }
-        // Shared skip path (status, reminders, Dashboard ping). Redistribution
-        // stays the agent's separate step.
-        try MealOutcomeService.skip(meal, env: MealOutcomeService.Env(modelContext: context))
+        // Shared skip path (status, defrost / prep / overdue reminders,
+        // Dashboard ping). Redistribution stays the agent's separate step.
+        try MealOutcomeService.skip(meal, env: outcomeEnv?(context) ?? MealOutcomeService.Env(modelContext: context))
         notifications.cancelMealNotification(mealID: mealID)
         return ToolOutput(summary: "Skipped \(meal.mealName)")
     }

@@ -44,9 +44,8 @@ enum MealOutcomeService {
         var modelContext: ModelContext
         var notifications: (any NotificationServiceProtocol)?
         /// 7-day Whoop expenditure average + today's recovery score, so the
-        /// rebalancer uses the same target as the Today ring. nil from
-        /// callers without them (Watch router) — the no-plan estimate and the
-        /// recovery adjustment are then skipped, plan targets are unaffected.
+        /// rebalancer uses the same target as the Today ring. A nil
+        /// recovery score falls back to today's stored one (`Env.live`).
         var whoopAvgTDEE: Double?
         var recoveryScore: Double?
 
@@ -60,6 +59,24 @@ enum MealOutcomeService {
             self.notifications = notifications
             self.whoopAvgTDEE = whoopAvgTDEE
             self.recoveryScore = recoveryScore
+        }
+
+        /// The environment every non-Nutrition-tab caller (Meal detail, Watch,
+        /// Coach) uses, so reminders are cancelled and the rebalance target
+        /// matches the Today / Dashboard ring: reminders via the shared
+        /// notification service, the 7-day Whoop TDEE from the shared Whoop
+        /// service; the recovery score falls back to today's stored one.
+        static func live(
+            modelContext: ModelContext,
+            notifications: (any NotificationServiceProtocol)?,
+            whoop: (any WhoopServiceProtocol)?
+        ) -> Env {
+            Env(
+                modelContext: modelContext,
+                notifications: notifications,
+                whoopAvgTDEE: whoop?.weeklyTDEEAverage,
+                recoveryScore: nil
+            )
         }
     }
 
@@ -89,6 +106,10 @@ enum MealOutcomeService {
         let foods: [PlannedFood]
         let eatenAt: Date
         let hadMealLog: Bool
+        /// `.eaten` or `.skipped`: what the meal was before the undo, so
+        /// `restore` puts back exactly that (an undone skip must not become
+        /// an eaten meal).
+        let priorStatus: MealStatus
         let hadPantryDecrement: Bool
         let replacedPlannedDish: Bool
         let feel: MealFeel?
@@ -119,7 +140,7 @@ enum MealOutcomeService {
     ) throws {
         let ctx = env.modelContext
         let mealID = meal.id
-        logger.info("[Diag.Eat] \(meal.mealName, privacy: .public) eaten at \(eatenAt.formatted(date: .omitted, time: .shortened), privacy: .public) — \(Int(meal.totalCalories))kcal pantryDecremented=\(meal.didDecrementPantry)")
+        logger.info("[Diag.Eat] \(meal.mealName, privacy: .private) eaten at \(eatenAt.formatted(date: .omitted, time: .shortened), privacy: .public) — \(Int(meal.totalCalories), privacy: .private)kcal pantryDecremented=\(meal.didDecrementPantry)")
 
         if meal.status == .eaten, foods == nil {
             meal.actualEatenAt = eatenAt
@@ -166,7 +187,6 @@ enum MealOutcomeService {
 
         try save(ctx)
         cancelReminders(forMealID: mealID, notifications: env.notifications)
-        HapticManager.notification(.success)
         NotificationCenter.default.post(
             name: .tempoDayPlanReplanRequested,
             object: nil,
@@ -188,7 +208,6 @@ enum MealOutcomeService {
         meal.actualEatenAt = nil
         try save(env.modelContext)
         cancelReminders(forMealID: meal.id, notifications: env.notifications)
-        HapticManager.lightImpact()
         NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
     }
 
@@ -246,7 +265,12 @@ enum MealOutcomeService {
         guard applied else {
             return nil
         }
-        try? save(env.modelContext)
+        do {
+            try save(env.modelContext)
+        } catch {
+            logger.error("[Diag.Skip] redistribution save failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
         NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
         return result
     }
@@ -267,13 +291,14 @@ enum MealOutcomeService {
             foods: meal.foods,
             eatenAt: meal.actualEatenAt ?? Date(),
             hadMealLog: meal.linkedMealLogID != nil,
+            priorStatus: meal.status,
             hadPantryDecrement: meal.didDecrementPantry,
             replacedPlannedDish: meal.replacedPlan != nil,
             feel: feedback.first?.mealFeel,
             satiety: feedback.first?.satiety,
             substituteNote: feedback.first?.substituteNote
         )
-        logger.info("[Diag.Undo] \(meal.mealName, privacy: .public) \(meal.status.rawValue, privacy: .public) → \(removing ? "removed" : "planned", privacy: .public)")
+        logger.info("[Diag.Undo] \(meal.mealName, privacy: .private) \(meal.status.rawValue, privacy: .public) → \(removing ? "removed" : "planned", privacy: .public)")
 
         // Credit the pantry back BEFORE foods are restored: the approximate
         // fallback derives from the foods that were eaten.
@@ -314,7 +339,6 @@ enum MealOutcomeService {
         if !removing {
             restoreReminders(for: meal, notifications: env.notifications)
         }
-        HapticManager.notification(.success)
         NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
         return snapshot
     }
@@ -344,6 +368,10 @@ enum MealOutcomeService {
             var descriptor = FetchDescriptor<PlannedMeal>(predicate: #Predicate<PlannedMeal> { $0.id == id })
             descriptor.fetchLimit = 1
             guard let meal = try ctx.fetch(descriptor).first, meal.status != .eaten else {
+                return
+            }
+            if snapshot.priorStatus == .skipped {
+                try skip(meal, env: env)
                 return
             }
             let logID = snapshot.hadMealLog
@@ -391,7 +419,7 @@ enum MealOutcomeService {
         if let logID = meal.linkedMealLogID {
             var descriptor = FetchDescriptor<MealLog>(predicate: #Predicate<MealLog> { $0.id == logID })
             descriptor.fetchLimit = 1
-            if let log = try? env.modelContext.fetch(descriptor).first {
+            if let log = fetchLog(descriptor, in: env.modelContext) {
                 if let item = log.items.first(where: { $0.name == removed.name }) {
                     log.items.removeAll { $0.id == item.id }
                     env.modelContext.delete(item)
@@ -432,7 +460,7 @@ enum MealOutcomeService {
 
     /// Today's canonical meals in clock order.
     static func todaysMeals(_ env: Env) -> [PlannedMeal] {
-        NutritionTabViewModel.chronological(CanonicalMeals.meals(on: Date(), in: env.modelContext))
+        MealOrdering.chronological(CanonicalMeals.meals(on: Date(), in: env.modelContext))
     }
 
     private static func save(_ ctx: ModelContext) throws {
@@ -489,7 +517,21 @@ enum MealOutcomeService {
         let descriptor = FetchDescriptor<MealFeedback>(
             predicate: #Predicate<MealFeedback> { row in row.plannedMeal?.id == mealID }
         )
-        return (try? ctx.fetch(descriptor)) ?? []
+        do {
+            return try ctx.fetch(descriptor)
+        } catch {
+            logger.error("[Diag.Undo] feedback fetch failed: \(error.localizedDescription, privacy: .public)")
+            return []
+        }
+    }
+
+    private static func fetchLog(_ descriptor: FetchDescriptor<MealLog>, in ctx: ModelContext) -> MealLog? {
+        do {
+            return try ctx.fetch(descriptor).first
+        } catch {
+            logger.error("[Diag.Undo] meal log fetch failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
     }
 
     private static func deleteLinkedMealLog(of meal: PlannedMeal, in ctx: ModelContext) {
@@ -498,7 +540,7 @@ enum MealOutcomeService {
         }
         var descriptor = FetchDescriptor<MealLog>(predicate: #Predicate<MealLog> { $0.id == logID })
         descriptor.fetchLimit = 1
-        if let log = try? ctx.fetch(descriptor).first {
+        if let log = fetchLog(descriptor, in: ctx) {
             ctx.delete(log)
         }
         meal.linkedMealLogID = nil
@@ -567,7 +609,7 @@ enum MealOutcomeService {
         let targets = DailyNutritionTargets.today(
             in: env.modelContext,
             whoopAvgTDEE: env.whoopAvgTDEE,
-            recoveryScore: env.recoveryScore
+            recoveryScore: env.recoveryScore ?? DailyNutritionTargets.storedRecoveryScore(in: env.modelContext)
         )
         let adjustments = MealRebalancer.rebalance(
             dayTargets: MealRebalancer.Targets(

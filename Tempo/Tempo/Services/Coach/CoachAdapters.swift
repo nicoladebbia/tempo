@@ -210,6 +210,10 @@ struct ConversationSummarizerAIClientAdapter: ConversationSummarizerAIClient {
 @MainActor
 struct CoachToolDispatcherAdapter: CoachToolDispatcher {
     let notifications: CoachMealNotificationScheduler
+    /// Builds the shared meal-outcome environment (real notification + Whoop
+    /// services) so a Coach-skipped meal cancels its reminders like any
+    /// other skip. nil in tests.
+    let outcomeEnv: ((ModelContext) -> MealOutcomeService.Env)?
     /// Conversation reference used to write PendingOutcome rows so the
     /// grader can link outcomes back to their decision.
     let conversationID: UUID
@@ -218,11 +222,13 @@ struct CoachToolDispatcherAdapter: CoachToolDispatcher {
     init(
         conversationID: UUID,
         turnIndex: Int,
-        notifications: CoachMealNotificationScheduler = NoopCoachMealNotificationScheduler()
+        notifications: CoachMealNotificationScheduler = NoopCoachMealNotificationScheduler(),
+        outcomeEnv: ((ModelContext) -> MealOutcomeService.Env)? = nil
     ) {
         self.conversationID = conversationID
         self.turnIndex = turnIndex
         self.notifications = notifications
+        self.outcomeEnv = outcomeEnv
     }
 
     func dispatch(
@@ -297,6 +303,7 @@ struct CoachToolDispatcherAdapter: CoachToolDispatcher {
             output = try CoachTools.skipMeal(
                 mealID: mealID,
                 notifications: notifications,
+                outcomeEnv: outcomeEnv,
                 context: context
             )
             undoEntry = CoachService.UndoEntry(

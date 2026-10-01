@@ -178,6 +178,18 @@ struct DailyNutritionTargets: Equatable {
         )
     }
 
+    /// Today's stored recovery score (0-100) when no live Whoop reading is at
+    /// hand (Watch, Coach): the same row the Dashboard persists, so every
+    /// surface adjusts the day's target by the same number. nil when none.
+    @MainActor
+    static func storedRecoveryScore(in context: ModelContext, now: Date = Date()) -> Double? {
+        let start = Calendar.current.startOfDay(for: now)
+        let end = Calendar.current.date(byAdding: .day, value: 1, to: start) ?? now
+        return (try? context.fetch(FetchDescriptor<DailyRecovery>(
+            predicate: #Predicate { $0.date >= start && $0.date < end }
+        )))?.first?.recoveryScore
+    }
+
     /// Today's training/rest status from the persisted WorkoutPlan (same
     /// survivor rule as the Dashboard: an in-progress session wins, else the
     /// most recent row) plus today's logged ActivitySessions. A logged

@@ -887,6 +887,7 @@
 		BA41524B039B361D9CF4A4A0 /* DeloadStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEE548CFB7D3285BA638C600 /* DeloadStatus.swift */; };
 		BA67277CFB46AFADD2EA8800 /* TrainingViewModel+ConditioningLogging.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8988EFA7C093991CD0F98398 /* TrainingViewModel+ConditioningLogging.swift */; };
 		BA6D02AFCE6D45D522C8BB5C /* WatchActionRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDFCEB71CB432AADB07F26D4 /* WatchActionRouterTests.swift */; };
+		BA7B3A019F84498011DB3F70 /* MealOrdering.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5608309001FB1AA004E0F234 /* MealOrdering.swift */; };
 		BAA50F34EA9F80CC8D331575 /* MockURLProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92238680B4C7FEF89A06DFE8 /* MockURLProtocol.swift */; };
 		BAB815C6AEBC85F31F77AA98 /* PauseTravelPainUITestSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88C8FB75DBB5277C11615748 /* PauseTravelPainUITestSeed.swift */; };
 		BC858E3C6B74CD458E4B861E /* AddProductView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 038FDD5FE781DF78B4E5D620 /* AddProductView.swift */; };
@@ -1651,6 +1652,7 @@
 		55649A7CB5C3E7107AD0AC41 /* CoachInterviewServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachInterviewServiceTests.swift; sourceTree = "<group>"; };
 		55C14A2AFD70ACD88AA55433 /* DailyHydrationTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyHydrationTarget.swift; sourceTree = "<group>"; };
 		55EB01321CEE061E3C677AC7 /* TempoModelContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoModelContainer.swift; sourceTree = "<group>"; };
+		5608309001FB1AA004E0F234 /* MealOrdering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealOrdering.swift; sourceTree = "<group>"; };
 		561BA1A0CF2ABEBA6076FC39 /* Receipt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Receipt.swift; sourceTree = "<group>"; };
 		5644D1214278C88364FB1D90 /* cue_ex_sissy_squat.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_sissy_squat.mp3; sourceTree = "<group>"; };
 		5647E818ABD5D45E59B9D4D2 /* cue_ex_sumo_deadlift.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_sumo_deadlift.mp3; sourceTree = "<group>"; };
@@ -3777,6 +3779,7 @@
 				45D9C3FDC0108C649DB56710 /* LocalRecipeService.swift */,
 				23A167A34D6EDAC0924D73D9 /* MacroCarryoverService.swift */,
 				A25B6E5B757BBB1DCCDD169F /* MealLoggingService.swift */,
+				5608309001FB1AA004E0F234 /* MealOrdering.swift */,
 				97A8C88F0DEACA877593C69C /* MealOutcomeService.swift */,
 				7B8B7FCFCF4322BA2DE412B4 /* MealPlanGeneratorService.swift */,
 				7B2DC656EE98C788D3938EDF /* MealPlanInputsFingerprint.swift */,
@@ -5649,6 +5652,7 @@
 				20AAE014F33E73744C751B43 /* MealLog.swift in Sources */,
 				461FFB68561C2AA7B0399E6D /* MealLoggingService.swift in Sources */,
 				7F7AF7EC01549302C9EC41D1 /* MealLoggingView.swift in Sources */,
+				BA7B3A019F84498011DB3F70 /* MealOrdering.swift in Sources */,
 				4C3FE006B29A50F116CC6966 /* MealOutcomeService.swift in Sources */,
 				55A17AD70DB0B92BC0AB7220 /* MealPlanGeneratorService.swift in Sources */,
 				8CC71EAF3EA9247246049B09 /* MealPlanInputsFingerprint.swift in Sources */,
