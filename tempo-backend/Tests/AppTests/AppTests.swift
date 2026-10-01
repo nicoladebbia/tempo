@@ -11,14 +11,7 @@ struct AppTests {
         try await app.test(.GET, "health") { res async in
             #expect(res.status == .ok)
         }
-    }
-
-    /// RediStack's 10 ms default made busy moments 500 at random.
-    @Test func redisWaitsForAPooledConnection() async throws {
-        let app = try await Application.make(.testing)
-        defer { Task { try await app.asyncShutdown() } }
-        try await configure(app)
-
+        // RediStack's 10 ms default made busy moments 500 at random.
         #expect(app.redis.configuration?.pool.connectionRetryTimeout == .seconds(1))
     }
 }
