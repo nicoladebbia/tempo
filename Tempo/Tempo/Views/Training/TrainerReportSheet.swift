@@ -34,6 +34,10 @@ struct TrainerReportSheet: View {
     /// skip the wrap-up's remaining steps instead of just leaving this one.
     /// The embedding flow supplies its own Skip/Continue navigation instead.
     var embedded = false
+    /// "Today" for scope resolution. `Date()` for every normal entry point;
+    /// the Sunday wrap-up passes the Sunday of the week it is wrapping up so
+    /// a late (Mon+) wrap-up reports the week that just finished.
+    var referenceDate = Date()
 
     @Environment(\.modelContext)
     private var modelContext
@@ -62,10 +66,11 @@ struct TrainerReportSheet: View {
     @State
     private var footballEnrichmentTask: Task<Void, Never>?
 
-    init(program: TrainerProgram, onShared: (() -> Void)? = nil, embedded: Bool = false) {
+    init(program: TrainerProgram, onShared: (() -> Void)? = nil, embedded: Bool = false, referenceDate: Date = Date()) {
         self.program = program
         self.onShared = onShared
         self.embedded = embedded
+        self.referenceDate = referenceDate
         _language = State(initialValue: TrainerReportBuilder.detectLanguage(program: program))
     }
 
@@ -244,7 +249,7 @@ struct TrainerReportSheet: View {
         // A previous enrichment fetch (for the old scope/language) must never
         // land on the document we're about to build fresh.
         footballEnrichmentTask?.cancel()
-        document = Self.buildDocument(program: program, scope: scope, language: language, modelContext: modelContext)
+        document = Self.buildDocument(program: program, scope: scope, language: language, modelContext: modelContext, today: referenceDate)
         footballEnrichmentTask = Task { @MainActor in
             await enrichFootballWithWhoopIfNeeded()
         }
@@ -263,7 +268,7 @@ struct TrainerReportSheet: View {
         guard services.whoop.providesRealData else {
             return
         }
-        let scopeRange = TrainerReportBuilder.scheduleRange(for: scope, program: program)
+        let scopeRange = TrainerReportBuilder.scheduleRange(for: scope, program: program, today: referenceDate)
         let searchRange = TrainerReportBuilder.searchRange(around: scopeRange)
         let matchesInScope = Self.fetchMatches(in: searchRange, modelContext: modelContext)
             .filter { scopeRange.contains(Calendar.current.startOfDay(for: $0.kickoff)) }
@@ -311,7 +316,7 @@ struct TrainerReportSheet: View {
         // its own output.
         document = Self.buildDocument(
             program: program, scope: scope, language: language, modelContext: modelContext,
-            extraFootballActivities: fetched
+            today: referenceDate, extraFootballActivities: fetched
         )
     }
 
@@ -361,9 +366,10 @@ struct TrainerReportSheet: View {
         scope: TrainerReportScope,
         language: TrainerReportLanguage,
         modelContext: ModelContext,
+        today: Date = Date(),
         extraFootballActivities: [ActivitySession] = []
     ) -> TrainerReportDocument {
-        let scopeRange = TrainerReportBuilder.scheduleRange(for: scope, program: program)
+        let scopeRange = TrainerReportBuilder.scheduleRange(for: scope, program: program, today: today)
         let searchRange = TrainerReportBuilder.searchRange(around: scopeRange)
 
         let plans = fetchPlans(in: searchRange, modelContext: modelContext)

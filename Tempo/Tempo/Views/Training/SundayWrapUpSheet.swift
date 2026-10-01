@@ -222,7 +222,7 @@ struct SundayWrapUpSheet: View {
                 .padding(.bottom, TempoSpacing.xs)
             }
 
-            TrainerReportSheet(program: program, onShared: markReportSent, embedded: true)
+            TrainerReportSheet(program: program, onShared: markReportSent, embedded: true, referenceDate: wrapUpSunday)
 
             HStack(spacing: TempoSpacing.md) {
                 Button("Skip") {
@@ -258,13 +258,20 @@ struct SundayWrapUpSheet: View {
 
     // MARK: - Data assembly
 
+    /// The Sunday closing the week this wrap-up covers (the week just
+    /// finished, even when opened late on Mon+).
+    private var wrapUpSunday: Date {
+        TrainerProgramWeeklyUpload.wrapUpWeekSunday(now: Date())
+    }
+
     private func rebuildReportData() {
-        let scopeRange = TrainerReportBuilder.scheduleRange(for: .week, program: program)
+        let scopeRange = TrainerReportBuilder.scheduleRange(for: .week, program: program, today: wrapUpSunday)
         document = TrainerReportSheet.buildDocument(
             program: program,
             scope: .week,
             language: TrainerReportBuilder.detectLanguage(program: program),
-            modelContext: modelContext
+            modelContext: modelContext,
+            today: wrapUpSunday
         )
         weekOverWeek = WeekOverWeekProgressLoader.load(scopeRange: scopeRange, modelContext: modelContext)
     }
