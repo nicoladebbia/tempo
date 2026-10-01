@@ -47,7 +47,10 @@ enum SupplementReorderService {
         let windowStart = calendar.date(byAdding: .day, value: -intakeWindowDays, to: today) ?? today
         let matchingDays = Set(
             recentLogs
-                .filter { $0.supplementName == supplement.name && $0.day >= windowStart && $0.day <= today }
+                .filter {
+                    $0.day >= windowStart && $0.day <= today
+                        && ($0.supplementID.map { $0 == supplement.id } ?? ($0.supplementName == supplement.name))
+                }
                 .map { calendar.startOfDay(for: $0.day) }
         ).count
         let observedDays = max(1, (calendar.dateComponents([.day], from: windowStart, to: today).day ?? 0) + 1)
@@ -75,7 +78,13 @@ enum SupplementReorderService {
         calendar: Calendar = .current
     ) -> Bool {
         guard let left = daysLeft(for: supplement, recentLogs: recentLogs, asOf: asOf, calendar: calendar) else {
-            return false
+            // A tracked conditional item with no logged intake has no rate to
+            // estimate from. Assume the pessimistic ≤1 serving/day, so the
+            // shelf badge, the banner, the reorder alert and the plan AI's
+            // flag all agree on ONE rule instead of three.
+            return isTracked(supplement)
+                && supplement.servingsRemaining > 0
+                && supplement.servingsRemaining <= Double(lowStockThresholdDays)
         }
         return left <= lowStockThresholdDays
     }
@@ -124,12 +133,18 @@ enum SupplementReorderService {
 
     /// "Restocked" — adds a new container to what's left (same math as a
     /// barcode rescan, `Supplement.restock(fromContainerSize:)`) and starts a
-    /// new reorder cycle.
-    static func restock(_ supplement: Supplement, at date: Date = Date()) {
-        if let full = supplement.servingsPerContainer {
-            supplement.servingsRemaining += full
+    /// new reorder cycle. Returns `false` and changes NOTHING when the
+    /// container size is unknown: adding zero servings while still stamping a
+    /// new cycle left the item "running low" and re-armed the alert to fire
+    /// again straight away.
+    @discardableResult
+    static func restock(_ supplement: Supplement, at date: Date = Date()) -> Bool {
+        guard let full = supplement.servingsPerContainer, full > 0 else {
+            return false
         }
+        supplement.servingsRemaining += full
         supplement.lastRestockedAt = date
         supplement.updatedAt = date
+        return true
     }
 }

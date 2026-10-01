@@ -173,8 +173,8 @@ final class SupplementReorderServiceTests: XCTestCase {
 
     func testRestock_leavesRemainingUnchangedWhenContainerSizeUnknown() {
         let supp = Supplement(name: "Creatine", kind: .creatine, servingsRemaining: 2)
-        SupplementReorderService.restock(supp, at: now)
+        XCTAssertFalse(SupplementReorderService.restock(supp, at: now))
         XCTAssertEqual(supp.servingsRemaining, 2, "No known container size — can't add a number we don't know")
-        XCTAssertEqual(supp.lastRestockedAt, now)
+        XCTAssertNil(supp.lastRestockedAt, "A restock that changed nothing must not start a new alert cycle")
     }
 }
