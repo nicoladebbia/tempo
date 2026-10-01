@@ -99,7 +99,7 @@ struct MoveQuadrantDetailView: View {
         .fullScreenCover(isPresented: $showSummary, onDismiss: {
             showSummary = false
             // However the summary closed, its feedback is now final.
-            trainingVM?.applyPendingLearning(modelContext: modelContext)
+            trainingVM?.applyPendingLearning(modelContext: modelContext, summaryClosed: true)
         }) {
             if let trainingVM {
                 NavigationStack {

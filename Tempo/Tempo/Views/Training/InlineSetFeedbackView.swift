@@ -167,9 +167,9 @@ struct InlineSetFeedbackView: View {
             return
         }
         // Only fields the athlete already entered light up.
-        rpe = feedback.rpeProvided ? feedback.rpe : nil
-        breath = feedback.breathProvided ? feedback.breathDifficulty : nil
-        form = feedback.formProvided ? feedback.formQuality : nil
+        rpe = feedback.hasEnteredRPE ? feedback.rpe : nil
+        breath = feedback.hasEnteredBreath ? feedback.breathDifficulty : nil
+        form = feedback.hasEnteredForm ? feedback.formQuality : nil
         note = feedback.note ?? ""
         noteExpanded = !(feedback.note ?? "").isEmpty
     }

@@ -1156,7 +1156,8 @@ final class TrainingViewModel {
             .max()
         let lastActivity = max(startedAt, lastSetAt ?? startedAt)
         let clockTraining = now.timeIntervalSince(startedAt) - persisted
-        let maxTraining = lastActivity.timeIntervalSince(startedAt) + crashIdleAllowance
+        // Training up to the last set excludes the pauses already taken.
+        let maxTraining = max(0, lastActivity.timeIntervalSince(startedAt) - persisted) + crashIdleAllowance
         return persisted + max(0, clockTraining - maxTraining)
     }
 
@@ -1517,7 +1518,14 @@ final class TrainingViewModel {
         // Any call here means the user actually interacted with the inline
         // feedback panel — mark it real signal so Tier-2 aggregation counts it
         // (eager-created defaults stay userProvidedFeedback=false).
+        if feedback.isLegacyRating {
+            // Keep the legacy row's fields counted once it gets flags.
+            feedback.rpeProvided = true
+            feedback.breathProvided = true
+            feedback.formProvided = true
+        }
         feedback.userProvidedFeedback = true
+        feedback.perFieldFlagsRecorded = true
         if let rpe {
             feedback.rpe = max(1, min(10, rpe))
             feedback.rpeProvided = true
@@ -2045,6 +2053,7 @@ final class TrainingViewModel {
             plan.status = priorStatus
             plan.finishedAt = priorFinishedAt
             plan.durationMinutes = priorDuration
+            plan.learningPending = false
             return false
         }
         #if DEBUG

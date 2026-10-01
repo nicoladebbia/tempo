@@ -3,7 +3,8 @@
 // Tempo
 //
 // Deleting a workout from History removes every record it produced — and
-// only ITS records (a two-plan day keeps the other plan's coach session).
+// only ITS records. The coach's DailySession is one per day (unique date),
+// so it goes only with the plan it is linked to.
 //
 
 import SwiftData
@@ -26,7 +27,7 @@ final class WorkoutPurgeTests: XCTestCase {
         )
     }
 
-    private func loggedPlan(_ context: ModelContext, exercise: Exercise) -> WorkoutPlan {
+    private func loggedPlan(_ context: ModelContext, exercise: Exercise, coachSession: Bool) -> WorkoutPlan {
         let plan = WorkoutPlan(date: Date(), type: .push, status: .completed)
         context.insert(plan)
         let slot = PlannedExercise(order: 0, workoutPlan: plan, exercise: exercise)
@@ -42,7 +43,9 @@ final class WorkoutPurgeTests: XCTestCase {
             exerciseID: exercise.id, workoutPlanID: plan.id,
             predictedWeight: 100, predictedReps: 5, signalUsedRaw: "test"
         ))
-        context.insert(session(for: plan))
+        if coachSession {
+            context.insert(session(for: plan))
+        }
         return plan
     }
 
@@ -50,8 +53,8 @@ final class WorkoutPurgeTests: XCTestCase {
         let context = try makeContext()
         let bench = Exercise(name: "Bench Press", muscleGroup: .chest, equipment: .barbell, movementPattern: .horizontalPush, isCompound: true)
         context.insert(bench)
-        let doomed = loggedPlan(context, exercise: bench)
-        let kept = loggedPlan(context, exercise: bench) // same day, same lift
+        let doomed = loggedPlan(context, exercise: bench, coachSession: false)
+        let kept = loggedPlan(context, exercise: bench, coachSession: true) // same day, same lift
         try context.save()
         let keptID = kept.id
 
@@ -64,8 +67,20 @@ final class WorkoutPurgeTests: XCTestCase {
         XCTAssertEqual(try context.fetch(FetchDescriptor<SetFeedback>()).count, 1)
         XCTAssertEqual(
             try context.fetch(FetchDescriptor<DailySession>()).map(\.workoutPlanID), [keptID],
-            "The other plan's coach session on the same day survives"
+            "The day's coach session belongs to the other plan — it survives"
         )
+    }
+
+    func testPurgeRemovesTheWorkoutsOwnCoachSession() throws {
+        let context = try makeContext()
+        let bench = Exercise(name: "Bench Press", muscleGroup: .chest, equipment: .barbell, movementPattern: .horizontalPush, isCompound: true)
+        context.insert(bench)
+        let doomed = loggedPlan(context, exercise: bench, coachSession: true)
+        try context.save()
+
+        XCTAssertTrue(WorkoutPurge.purge(doomed, modelContext: context))
+
+        XCTAssertTrue(try context.fetch(FetchDescriptor<DailySession>()).isEmpty)
     }
 
     func testLegacyUnstampedSessionGoesOnlyWhenTheDayIsUnambiguous() {

@@ -26,12 +26,16 @@ extension TrainingViewModel {
     }
 
     /// Undo everything a session logged on `plan` so a redo starts clean: set
-    /// actuals (incl. added load and the L/R split), their SetFeedback rows and
+    /// actuals (incl. added load and the L/R split), pain skips, their SetFeedback rows and
     /// any PersonalRecord stamped with this plan (a discarded session must not
     /// leave a PR for a lift that "never happened").
     func rollBackLoggedWork(of plan: WorkoutPlan, modelContext: ModelContext) {
         var rolledBackSetIDs: Set<UUID> = []
         for ex in plan.orderedExercises {
+            // A redo gets every lift back (skipping them all and discarding
+            // would otherwise leave a plan with nothing left to start). The
+            // pain-reduced load stays — its targets are still the reduced ones.
+            ex.painSkipped = false
             for set in ex.orderedSets where set.completed {
                 rolledBackSetIDs.insert(set.id)
                 set.completed = false

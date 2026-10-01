@@ -167,6 +167,19 @@ final class SetFeedback {
     var rpeProvided: Bool = false
     var breathProvided: Bool = false
     var formProvided: Bool = false
+    /// True on rows rated since the per-field flags existed. A row rated
+    /// before that (userProvidedFeedback, flags never written) keeps all
+    /// three fields as entered — the old app counted them that way.
+    var perFieldFlagsRecorded: Bool = false
+
+    /// Rated before per-field flags existed: trust every field.
+    var isLegacyRating: Bool {
+        userProvidedFeedback && !perFieldFlagsRecorded
+    }
+
+    var hasEnteredRPE: Bool { rpeProvided || isLegacyRating }
+    var hasEnteredBreath: Bool { breathProvided || isLegacyRating }
+    var hasEnteredForm: Bool { formProvided || isLegacyRating }
 
     // MARK: - Typed Accessors
 
@@ -218,9 +231,9 @@ extension SetFeedback {
     /// when none were (a neutral default is not a reading).
     var enteredSummary: String? {
         var parts: [String] = []
-        if rpeProvided { parts.append("RPE \(rpe)") }
-        if breathProvided { parts.append(breathDifficulty.displayName) }
-        if formProvided { parts.append(formQuality.displayName) }
+        if hasEnteredRPE { parts.append("RPE \(rpe)") }
+        if hasEnteredBreath { parts.append(breathDifficulty.displayName) }
+        if hasEnteredForm { parts.append(formQuality.displayName) }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }

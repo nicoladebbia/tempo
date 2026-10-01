@@ -167,18 +167,18 @@ extension TrainingViewModel {
         for set in completedSets {
             let fb = enteredFeedback[set.id]
             var hasSignal = false
-            if let fb, fb.rpeProvided {
+            if let fb, fb.hasEnteredRPE {
                 rpes.append(fb.rpe)
                 hasSignal = true
             } else if let rpe = set.rpe {
                 rpes.append(rpe)
                 hasSignal = true
             }
-            if let fb, fb.formProvided {
+            if let fb, fb.hasEnteredForm {
                 forms.append(fb.formQuality)
                 hasSignal = true
             }
-            if let fb, fb.breathProvided {
+            if let fb, fb.hasEnteredBreath {
                 breaths.append(fb.breathDifficulty)
                 hasSignal = true
             }

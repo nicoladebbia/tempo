@@ -65,13 +65,15 @@ extension TrainingViewModel {
     /// Learn from every saved session still marked `learningPending`, except
     /// the one whose summary is open right now (its feedback can still
     /// change). Idempotent: each session is learned from exactly once.
-    /// Called when the summary closes, and as a catch-up from `loadToday`.
-    func applyPendingLearning(modelContext: ModelContext) {
+    /// Called when the summary closes (`summaryClosed: true` — whatever state
+    /// the VM is in, that summary's feedback is final), and as a catch-up
+    /// from `loadToday`.
+    func applyPendingLearning(modelContext: ModelContext, summaryClosed: Bool = false) {
         let descriptor = FetchDescriptor<WorkoutPlan>(
             predicate: #Predicate { $0.learningPending }
         )
         let pending = (try? modelContext.fetch(descriptor)) ?? []
-        let openSummaryID: UUID? = sessionState == .summary ? todayPlan?.id : nil
+        let openSummaryID: UUID? = !summaryClosed && sessionState == .summary ? todayPlan?.id : nil
         for plan in pending where plan.id != openSummaryID {
             applySessionLearning(for: plan, modelContext: modelContext)
         }

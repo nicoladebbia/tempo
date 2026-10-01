@@ -26,6 +26,7 @@ final class FeedbackAggregationTests: XCTestCase {
     ) -> SetFeedback {
         let fb = SetFeedback(plannedSet: set, rpe: rpe, formQuality: form)
         fb.userProvidedFeedback = entered
+        fb.perFieldFlagsRecorded = entered
         fb.rpeProvided = entered
         fb.formProvided = entered
         return fb
@@ -102,6 +103,7 @@ final class FeedbackAggregationTests: XCTestCase {
         let s = set()
         let fb = SetFeedback(plannedSet: s, rpe: 7, breathDifficulty: .gassed)
         fb.userProvidedFeedback = true
+        fb.perFieldFlagsRecorded = true
         fb.breathProvided = true
         let agg = TrainingViewModel.aggregateFeedback(completedSets: [s], enteredFeedback: enteredMap([fb]))
         XCTAssertNil(agg.avgRPE, "The default 7 was never entered")
@@ -114,6 +116,7 @@ final class FeedbackAggregationTests: XCTestCase {
         let s = set()
         let fb = SetFeedback(plannedSet: s, rpe: 9)
         fb.userProvidedFeedback = true
+        fb.perFieldFlagsRecorded = true
         fb.rpeProvided = true
         let agg = TrainingViewModel.aggregateFeedback(completedSets: [s], enteredFeedback: enteredMap([fb]))
         XCTAssertEqual(agg.avgRPE, 9)
@@ -138,5 +141,16 @@ final class FeedbackAggregationTests: XCTestCase {
         fb.rpeProvided = true
         fb.rpe = 8
         XCTAssertEqual(fb.enteredSummary, "RPE 8 · Gassed")
+    }
+
+    func testRowRatedBeforeFlagsExistedKeepsAllItsFields() {
+        let s = set()
+        let fb = SetFeedback(plannedSet: s, rpe: 9, breathDifficulty: .gassed, formQuality: .sloppy)
+        fb.userProvidedFeedback = true // rated by an older build: no per-field flags
+        let agg = TrainingViewModel.aggregateFeedback(completedSets: [s], enteredFeedback: enteredMap([fb]))
+        XCTAssertEqual(agg.avgRPE, 9)
+        XCTAssertEqual(agg.worstFormRaw, FormQuality.sloppy.rawValue)
+        XCTAssertEqual(agg.gassedFraction, 1)
+        XCTAssertNotNil(fb.enteredSummary)
     }
 }

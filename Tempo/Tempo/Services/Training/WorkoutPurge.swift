@@ -99,6 +99,15 @@ enum WorkoutPurge {
         for s in sessions {
             modelContext.delete(s)
         }
+        // A legacy session kept because the day is ambiguous must not keep
+        // pointing at the deleted plan (one-way link → dangling reference).
+        let deletedIDs = Set(sessions.map(\.persistentModelID))
+        for s in fetch(DailySession.self, modelContext)
+            where !deletedIDs.contains(s.persistentModelID)
+            && s.workoutPlanID == nil
+            && s.workoutPlan?.persistentModelID == workout.persistentModelID {
+            s.workoutPlan = nil
+        }
         // 5. The plan itself.
         modelContext.delete(workout)
         guard modelContext.saveOrAlert("history change") else {

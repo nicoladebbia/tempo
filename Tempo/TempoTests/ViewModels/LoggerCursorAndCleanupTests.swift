@@ -318,6 +318,22 @@ final class LoggerCursorAndCleanupTests: XCTestCase {
         vm.resetState()
     }
 
+    func testCrashCapDoesNotCountEarlierPausesAsTraining() {
+        let plan = WorkoutPlan(date: Date(), type: .push)
+        let now = Date()
+        let startedAt = now.addingTimeInterval(-3 * 3600)
+        plan.startedAt = startedAt
+        plan.pausedSeconds = 1200 // 20 min paused earlier
+        let ex = PlannedExercise(order: 0, workoutPlan: plan)
+        let set = PlannedSet(setNumber: 1, targetReps: 5, completed: true, plannedExercise: ex)
+        set.completedAt = startedAt.addingTimeInterval(3600) // last set 60 min in
+        ex.sets = [set]
+        plan.exercises = [ex]
+        let paused = TrainingViewModel.recoveredPauseSeconds(for: plan, now: now)
+        // 40 min trained up to the last set + 10 min allowance = 50 min.
+        XCTAssertEqual(now.timeIntervalSince(startedAt) - paused, 3000, accuracy: 1)
+    }
+
     func testCrashSoonAfterStartKeepsTheRealClock() {
         let plan = WorkoutPlan(date: Date(), type: .push)
         let now = Date()
@@ -668,6 +684,23 @@ final class LoggerCursorAndCleanupTests: XCTestCase {
         vm.applyPendingLearning(modelContext: context) // no-op, no crash
     }
 
+    func testOpenSummaryIsHeldBackUntilItsCoverCloses() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [1])
+        plan.status = .completed
+        plan.learningPending = true
+        try context.save()
+        vm.todayPlan = plan
+        vm.sessionState = .summary
+
+        vm.applyPendingLearning(modelContext: context)
+        XCTAssertTrue(plan.learningPending, "Feedback can still change on the open summary")
+        vm.applyPendingLearning(modelContext: context, summaryClosed: true)
+        XCTAssertFalse(plan.learningPending, "However the cover closed, its feedback is final")
+        vm.resetState()
+    }
+
     // MARK: - 5. Watch payloads
 
     func testWatchSetWithoutWeightUsesPrescriptionNotZero() throws {
@@ -723,6 +756,18 @@ final class LoggerCursorAndCleanupTests: XCTestCase {
         let prs = try context.fetch(FetchDescriptor<PersonalRecord>())
         XCTAssertFalse(prs.contains { $0.workoutPlanID == plan.id }, "Discarded session's PR is gone", file: file, line: line)
         XCTAssertEqual(prs.count, 1, "Other sessions' PRs are untouched", file: file, line: line)
+    }
+
+    func testDiscardGivesPainSkippedLiftsBack() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedLoggedSessionWithPR(vm: vm, context: context)
+        plan.orderedExercises.forEach { $0.painSkipped = true }
+
+        vm.discardActiveWorkout(modelContext: context)
+
+        XCTAssertFalse(plan.orderedExercises.contains(where: \.painSkipped), "A redo starts with every lift")
+        XCTAssertEqual(plan.status, .planned)
     }
 
     func testDiscardResetsAddedLoadSplitRepsAndPRs() throws {
