@@ -56,6 +56,8 @@ enum EatenMealRecorder {
         in todayMeals: [PlannedMeal],
         now: Date = Date()
     ) -> PlannedMeal? {
+        // Supplement doses are never a slot a log can land in.
+        let todayMeals = todayMeals.filter { !isSupplementDose($0) }
         var candidates = todayMeals.filter { MealType.inferred(fromName: $0.mealName) == type }
         if candidates.isEmpty {
             let targetMealNumber = type.sortOrder + 1
@@ -158,6 +160,67 @@ enum EatenMealRecorder {
         in context: ModelContext
     ) -> MealLog {
         makeMealLog(items: foods.map(input(from:)), type: type, eatenAt: eatenAt, source: source, in: context)
+    }
+
+    // MARK: - Supplement doses
+
+    /// Name of the unplanned eaten entry a ticked supplement dose creates.
+    static let supplementsMealName = "Supplements"
+
+    /// True for the entry `recordSupplementDose` makes. Slot matching skips
+    /// these so a log never lands in (or replaces) one, and one never fills
+    /// a planned breakfast.
+    static func isSupplementDose(_ meal: PlannedMeal) -> Bool {
+        meal.mealName == supplementsMealName && meal.mealNumber == supplementMealNumber && meal.isUnplannedLog
+    }
+
+    private static let supplementMealNumber = 8
+
+    /// Counts one supplement dose in `day`'s totals: its OWN unplanned eaten
+    /// entry (frozen at a zero plan baseline, so it adds to "eaten" and never
+    /// to the target; the weekly plan makes no room for it). Never touches a
+    /// planned slot or the pantry. Inserts without saving — the caller saves
+    /// (`SupplementIntakeStore`). Returns the entry's id for an exact undo.
+    @discardableResult
+    static func recordSupplementDose(
+        name: String,
+        macros: MealMacros,
+        takenAt: Date = Date(),
+        day: Date = Date(),
+        in modelContext: ModelContext
+    ) -> UUID {
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "HH:mm"
+        let meal = PlannedMeal(
+            dayDate: day,
+            mealNumber: supplementMealNumber,
+            mealName: supplementsMealName,
+            scheduledTime: timeFormatter.string(from: takenAt),
+            foods: [PlannedFood(
+                name: name, quantityGrams: 0,
+                calories: macros.calories, proteinG: macros.protein, carbsG: macros.carbs, fatG: macros.fat
+            )],
+            totalCalories: macros.calories,
+            totalProtein: macros.protein,
+            totalCarbs: macros.carbs,
+            totalFat: macros.fat,
+            status: .eaten,
+            actualEatenAt: takenAt,
+            mealPlan: Calendar.current.isDateInToday(day) ? activePlanCoveringToday(in: modelContext) : nil
+        )
+        meal.markAsUnplannedLog()
+        modelContext.insert(meal)
+        return meal.id
+    }
+
+    /// Removes the entry a supplement tick created (untick). No-op when it is
+    /// already gone (the user deleted it from the meal list).
+    static func removeSupplementDose(mealID: UUID, in modelContext: ModelContext) {
+        var descriptor = FetchDescriptor<PlannedMeal>(predicate: #Predicate<PlannedMeal> { $0.id == mealID })
+        descriptor.fetchLimit = 1
+        if let meal = try? modelContext.fetch(descriptor).first {
+            modelContext.delete(meal)
+        }
     }
 
     // MARK: - Record

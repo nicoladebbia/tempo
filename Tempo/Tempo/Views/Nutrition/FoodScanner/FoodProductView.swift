@@ -6,7 +6,8 @@
 // additives, organic), what it means for YOU today (calories left, allergies,
 // clear-skin mode…), Nutri-Score + NOVA, additives with risk levels,
 // nutrients per 100 g and per portion, better alternatives, favourite, and —
-// when opened from meal logging — "Add to meal".
+// when opened from meal logging — "Add to meal"; from Food check — Log,
+// Add to pantry and Add to list.
 //
 
 import Charts
@@ -17,7 +18,7 @@ import SwiftUI
 
 struct FoodProductView: View {
     enum Mode {
-        /// Scan-to-check: look only, nothing is logged.
+        /// Food check: score first, then Log / Add to pantry / Add to list.
         case check
         /// Opened from meal logging: shows "Add to meal".
         case log((FoodItem) -> Void)
@@ -62,6 +63,8 @@ struct FoodProductView: View {
     /// allergen/ingredient data — see `FoodCatalog.enrichAllergensIfMissing`.
     @State
     private var enrichedAllergenSource: FoodProduct?
+    @State
+    private var toast: ToastData?
 
     private struct PhotoSource: Identifiable {
         let type: UIImagePickerController.SourceType
@@ -121,10 +124,16 @@ struct FoodProductView: View {
             }
         }
         .safeAreaInset(edge: .bottom) {
-            if case let .log(onAdd) = mode {
+            switch mode {
+            case let .log(onAdd):
                 addBar(onAdd)
+            case .check:
+                FoodProductActionBar(product: product, grams: grams, toast: $toast) {
+                    catalog.rememberPortion(grams, for: product, in: modelContext)
+                }
             }
         }
+        .tempoToast($toast)
         .task(id: product.id) {
             if recordsView {
                 catalog.recordView(product, in: modelContext)
@@ -476,7 +485,7 @@ struct FoodProductView: View {
 
     @ViewBuilder
     private var forYouCard: some View {
-        let checks = FoodFit.checks(for: product, grams: grams, context: fitContext)
+        let checks = FoodFit.checks(for: product.mergingAllergenData(from: enrichedAllergenSource), grams: grams, context: fitContext)
         if !checks.isEmpty {
             VStack(alignment: .leading, spacing: TempoSpacing.sm) {
                 sectionTitle("FOR YOU · \(Self.format(grams)) \(product.unit)")
@@ -805,7 +814,7 @@ struct FoodProductView: View {
 
     private func loadSuggestions() async {
         isLoadingSuggestions = true
-        suggestions = await catalog.suggestions(for: product)
+        suggestions = await catalog.suggestions(for: product, context: fitContext)
         isLoadingSuggestions = false
     }
 
