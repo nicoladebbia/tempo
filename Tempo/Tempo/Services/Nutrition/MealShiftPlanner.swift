@@ -89,7 +89,7 @@ enum MealShiftPlanner {
 
         // Only shift meals AFTER the eaten one that aren't already eaten/skipped.
         let remaining = Array(ordered[(eatenIndex + 1)...])
-            .filter { $0.status == .planned }
+            .filter { $0.status == .planned || $0.status == .modified }
         guard !remaining.isEmpty else {
             return []
         }

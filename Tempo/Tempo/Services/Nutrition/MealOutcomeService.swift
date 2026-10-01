@@ -38,6 +38,20 @@ enum MealOutcomeService {
     private static let logger = Logger(subsystem: "app.tempo", category: "MealOutcome")
     /// Latest in-flight redistribution per skipped meal (see `redistributeAfterSkip`).
     private static var redistributionTokens: [UUID: UUID] = [:]
+    /// Slots that were `.skipped` when a log filled them, so undo puts them
+    /// back to `.skipped` (not `.planned`). In-memory: it only needs to
+    /// outlive the Undo toast / the session.
+    private static var statusBeforeEat: [UUID: MealStatus] = [:]
+
+    enum OutcomeError: LocalizedError {
+        case mealGone
+
+        var errorDescription: String? {
+            switch self {
+            case .mealGone: "Couldn't restore. That meal no longer exists."
+            }
+        }
+    }
 
     // MARK: - Types
 
@@ -151,6 +165,15 @@ enum MealOutcomeService {
             return
         }
 
+        let wasEaten = meal.status == .eaten
+        if meal.status == .skipped {
+            statusBeforeEat[mealID] = .skipped
+        }
+        // "Change what I ate" on an eaten meal: take back exactly what the
+        // old foods took from the pantry so the new foods decrement afresh.
+        if wasEaten, foods != nil, meal.didDecrementPantry {
+            creditPantryBack(for: meal, in: ctx)
+        }
         // Freeze the plan's allocation before anything rewrites the totals.
         meal.capturePlanBaselineIfNeeded()
         if let foods {
@@ -168,18 +191,32 @@ enum MealOutcomeService {
             let results = pantry == .plannedMeal
                 ? PantryDecrementService.decrement(for: meal, modelContext: ctx)
                 : PantryDecrementService.decrement(foods: meal.foods, label: meal.mealName, modelContext: ctx)
-            meal.decrementDetail = results.flatMap(\.details)
+            // Record the (possibly empty) exact detail so undo never falls
+            // back to the approximate credit for a decrement we know about.
+            meal.decrementDetailJSON = try? JSONEncoder().encode(results.flatMap(\.details))
             meal.didDecrementPantry = true
             PantryDepletionPlanCheck.handleDepletions(results, weeklyPlan: meal.mealPlan, modelContext: ctx)
         }
 
         if feel != nil || satiety != nil || substituteNote != nil {
-            ctx.insert(MealFeedback(
-                plannedMeal: meal,
-                mealFeel: feel,
-                satiety: satiety,
-                substituteNote: substituteNote
-            ))
+            if let existing = feedbackRows(for: mealID, in: ctx).first {
+                if let feel {
+                    existing.mealFeel = feel
+                }
+                if let satiety {
+                    existing.satiety = satiety
+                }
+                if let substituteNote {
+                    existing.substituteNote = substituteNote
+                }
+            } else {
+                ctx.insert(MealFeedback(
+                    plannedMeal: meal,
+                    mealFeel: feel,
+                    satiety: satiety,
+                    substituteNote: substituteNote
+                ))
+            }
         }
 
         if Calendar.current.isDateInToday(meal.dayDate) {
@@ -188,12 +225,8 @@ enum MealOutcomeService {
         }
 
         try save(ctx)
-        cancelReminders(forMealID: mealID, notifications: env.notifications)
-        NotificationCenter.default.post(
-            name: .tempoDayPlanReplanRequested,
-            object: nil,
-            userInfo: ["reason": DayPlanReason.mealEatenOffSchedule.rawValue]
-        )
+        cancelReminders(for: meal, notifications: env.notifications)
+        postReplanRequested()
         NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
     }
 
@@ -216,7 +249,8 @@ enum MealOutcomeService {
             applyMacroRebalance(env: env)
         }
         try save(env.modelContext)
-        cancelReminders(forMealID: meal.id, notifications: env.notifications)
+        cancelReminders(for: meal, notifications: env.notifications)
+        postReplanRequested()
         NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
     }
 
@@ -239,7 +273,7 @@ enum MealOutcomeService {
         }
         let skippedID = skipped.id
         let remaining = todaysMeals(env).filter { $0.id != skippedID }
-        guard remaining.contains(where: { $0.status == .planned }) else {
+        guard remaining.contains(where: isStillToEat) else {
             return nil
         }
         // Skip → Undo → Skip while the first call is in flight must apply
@@ -269,7 +303,7 @@ enum MealOutcomeService {
             meal.capturePlanBaselineIfNeeded()
         }
         let byNumber = Dictionary(result.perMeal.map { ($0.mealNumber, $0) }, uniquingKeysWith: { first, _ in first })
-        let targets = fresh.filter { $0.status == .planned && $0.id != skippedID }
+        let targets = fresh.filter { isStillToEat($0) && $0.id != skippedID }
         // Two planned meals can share a meal number; split that number's
         // delta between them instead of giving each the whole of it.
         let sharing = Dictionary(grouping: targets, by: \.mealNumber).mapValues { Double($0.count) }
@@ -306,6 +340,7 @@ enum MealOutcomeService {
         let ctx = env.modelContext
         let mealID = meal.id
         let removing = meal.isUnplannedLog && meal.status == .eaten
+        let isToday = Calendar.current.isDateInToday(meal.dayDate)
         let feedback = feedbackRows(for: mealID, in: ctx)
         let snapshot = LogSnapshot(
             kind: removing ? .removed : .revertedToPlanned,
@@ -325,16 +360,7 @@ enum MealOutcomeService {
 
         // Credit the pantry back BEFORE foods are restored: the approximate
         // fallback derives from the foods that were eaten.
-        if meal.didDecrementPantry {
-            let detail = meal.decrementDetail
-            if detail.isEmpty {
-                _ = PantryDecrementService.credit(foods: meal.foods, label: meal.mealName, modelContext: ctx)
-            } else {
-                _ = PantryDecrementService.creditExact(details: detail, modelContext: ctx)
-            }
-            meal.decrementDetail = []
-            meal.didDecrementPantry = false
-        }
+        creditPantryBack(for: meal, in: ctx)
         deleteLinkedMealLog(of: meal, in: ctx)
         for row in feedback {
             ctx.delete(row)
@@ -346,13 +372,15 @@ enum MealOutcomeService {
                 object: nil,
                 userInfo: ["id": mealID]
             )
+            statusBeforeEat[mealID] = nil
             ctx.delete(meal)
         } else {
             meal.restoreReplacedPlan()
-            meal.status = .planned
+            // A log that filled a skipped slot gives the slot back as skipped.
+            meal.status = statusBeforeEat.removeValue(forKey: mealID) == .skipped ? .skipped : .planned
             meal.actualEatenAt = nil
             meal.linkedMealLogID = nil
-            if Calendar.current.isDateInToday(meal.dayDate) {
+            if isToday {
                 // Eating/skipping moved the other meals' macros and times;
                 // bring them back in line now that this one counts as
                 // planned again.
@@ -361,9 +389,16 @@ enum MealOutcomeService {
             }
         }
         try save(ctx)
-        if !removing {
+        if removing, isToday {
+            // The log is gone: meals trimmed to make room for it grow back.
+            // Done after the save so the fetch no longer sees the deleted row.
+            applyMacroRebalance(env: env)
+            try save(ctx)
+        }
+        if !removing, meal.status == .planned {
             restoreReminders(for: meal, notifications: env.notifications)
         }
+        postReplanRequested()
         NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
         return snapshot
     }
@@ -403,7 +438,10 @@ enum MealOutcomeService {
             let id = snapshot.mealID
             var descriptor = FetchDescriptor<PlannedMeal>(predicate: #Predicate<PlannedMeal> { $0.id == id })
             descriptor.fetchLimit = 1
-            guard let meal = try ctx.fetch(descriptor).first, meal.status != .eaten else {
+            guard let meal = try ctx.fetch(descriptor).first else {
+                throw OutcomeError.mealGone
+            }
+            guard meal.status != .eaten else {
                 return
             }
             switch snapshot.priorStatus {
@@ -473,6 +511,9 @@ enum MealOutcomeService {
                 log.recalculateTotals()
             }
         }
+        if Calendar.current.isDateInToday(meal.dayDate) {
+            applyMacroRebalance(env: env)
+        }
         try save(env.modelContext)
         NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
         return false
@@ -518,10 +559,41 @@ enum MealOutcomeService {
         }
     }
 
-    private static func cancelReminders(forMealID id: UUID, notifications: (any NotificationServiceProtocol)?) {
-        notifications?.cancelDefrostReminders(forMealID: id)
-        notifications?.cancelPrepStartReminder(forMealID: id)
-        notifications?.cancelOverdueMealReminder(forMealID: id)
+    /// Planned and Coach-moved (`.modified`) meals both still have to be eaten.
+    static func isStillToEat(_ meal: PlannedMeal) -> Bool {
+        meal.status == .planned || meal.status == .modified
+    }
+
+    /// Credits what this meal took from the pantry back and clears the
+    /// record. A recorded detail (even an empty one: nothing matched) is
+    /// exact; only legacy meals with none recorded use the approximate credit.
+    private static func creditPantryBack(for meal: PlannedMeal, in ctx: ModelContext) {
+        guard meal.didDecrementPantry else {
+            return
+        }
+        if meal.decrementDetailJSON == nil {
+            _ = PantryDecrementService.credit(foods: meal.foods, label: meal.mealName, modelContext: ctx)
+        } else {
+            _ = PantryDecrementService.creditExact(details: meal.decrementDetail, modelContext: ctx)
+        }
+        meal.decrementDetailJSON = nil
+        meal.didDecrementPantry = false
+    }
+
+    private static func postReplanRequested() {
+        NotificationCenter.default.post(
+            name: .tempoDayPlanReplanRequested,
+            object: nil,
+            userInfo: ["reason": DayPlanReason.mealEatenOffSchedule.rawValue]
+        )
+    }
+
+    private static func cancelReminders(for meal: PlannedMeal, notifications: (any NotificationServiceProtocol)?) {
+        notifications?.cancelDefrostReminders(forMealID: meal.id)
+        notifications?.cancelPrepStartReminder(forMealID: meal.id)
+        notifications?.cancelOverdueMealReminder(forMealID: meal.id)
+        // The 5-minute "Fuel Up" reminder is keyed by name + day, not meal id.
+        notifications?.cancelMealReminder(mealName: meal.mealName, on: meal.dayDate)
     }
 
     /// Re-arms a reverted meal's reminders when its scheduled time is still ahead.
@@ -615,7 +687,7 @@ enum MealOutcomeService {
                 meal.originalScheduledTime = meal.scheduledTime
             }
             meal.scheduledTime = shift.newScheduledTime
-            cancelReminders(forMealID: meal.id, notifications: env.notifications)
+            cancelReminders(for: meal, notifications: env.notifications)
             if shift.newScheduledDate > Date(), let notifications = env.notifications {
                 scheduleReminders(for: meal, at: shift.newScheduledDate, notifications: notifications)
             }
@@ -634,7 +706,7 @@ enum MealOutcomeService {
             }
             meal.scheduledTime = original
             meal.originalScheduledTime = nil
-            cancelReminders(forMealID: meal.id, notifications: env.notifications)
+            cancelReminders(for: meal, notifications: env.notifications)
             restoreReminders(for: meal, notifications: env.notifications)
         }
         let lastEaten = meals
@@ -654,8 +726,11 @@ enum MealOutcomeService {
     /// the noise threshold or with nothing left to eat.
     static func applyMacroRebalance(env: Env) {
         let canonical = CanonicalMeals.meals(on: Date(), in: env.modelContext)
+        // The residual is computed from the store right now, so an AI
+        // redistribution still in flight would double-spread it: drop it.
+        redistributionTokens.removeAll()
         let eaten = canonical.filter { $0.status == .eaten }
-        let remaining = canonical.filter { $0.status == .planned }
+        let remaining = canonical.filter(isStillToEat)
         guard !remaining.isEmpty else {
             return
         }

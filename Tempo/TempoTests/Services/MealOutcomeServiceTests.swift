@@ -467,4 +467,138 @@ final class MealOutcomeServiceTests: XCTestCase {
         XCTAssertNil(live.recoveryScore, "Falls back to the stored score at rebalance time")
         XCTAssertNil(DailyNutritionTargets.storedRecoveryScore(in: context))
     }
+
+    // MARK: - Review fixes (PR #69)
+
+    func testCoachMovedModifiedMealIsStillRebalancedAndShifted() throws {
+        let p = plan()
+        let breakfast = slot("Breakfast", number: 1, time: "08:00", kcal: 600, in: p)
+        let lunch = slot("Lunch", number: 2, time: "13:00", kcal: 700, in: p)
+        lunch.status = .modified
+        let lateBreakfast = Calendar.current.date(bySettingHour: 11, minute: 30, second: 0, of: Date())!
+
+        try MealOutcomeService.markEaten(
+            breakfast, at: lateBreakfast, replacingWith: [
+                PlannedFood(name: "Feast", quantityGrams: 900, calories: 3000, proteinG: 100, carbsG: 300, fatG: 100),
+            ], pantry: .none, env: env
+        )
+
+        XCTAssertNotEqual(lunch.scheduledTime, "13:00", "A .modified meal still shifts")
+        XCTAssertLessThan(lunch.totalCalories, 700, "A .modified meal still absorbs the overshoot")
+        XCTAssertEqual(lunch.status, .modified)
+    }
+
+    func testUndoWithNothingMatchedNeverCreditsPantryApproximately() throws {
+        let item = PantryItem(rawName: "Chicken", quantity: 0, unit: .grams)
+        context.insert(item)
+        let p = plan()
+        let m = slot("Lunch", number: 2, dish: "Chicken", in: p)
+        try context.save()
+        try MealOutcomeService.markEaten(m, env: env)
+        for _ in 0..<2 {
+            _ = try MealOutcomeService.undo(m, env: env)
+            try MealOutcomeService.markEaten(m, env: env)
+        }
+        _ = try MealOutcomeService.undo(m, env: env)
+        XCTAssertEqual(item.quantity, 0, accuracy: 0.001)
+    }
+
+    func testChangingWhatIAteSwapsPantryUseAndKeepsOneFeedbackRow() throws {
+        let chicken = PantryItem(rawName: "Chicken", quantity: 1000, unit: .grams)
+        let rice = PantryItem(rawName: "Rice", quantity: 1000, unit: .grams)
+        context.insert(chicken)
+        context.insert(rice)
+        let p = plan()
+        let m = slot("Lunch", number: 2, dish: "Chicken", in: p)
+        try context.save()
+        try MealOutcomeService.markEaten(m, feel: .light, env: env)
+        XCTAssertLessThan(chicken.quantity, 1000)
+
+        try MealOutcomeService.markEaten(
+            m, satiety: .justRight,
+            replacingWith: [PlannedFood(name: "Rice", quantityGrams: 200, calories: 260, proteinG: 5, carbsG: 56, fatG: 1)],
+            substituteNote: "rice", pantry: .foods, env: env
+        )
+
+        XCTAssertEqual(chicken.quantity, 1000, accuracy: 0.001, "Old foods are credited back")
+        XCTAssertEqual(rice.quantity, 800, accuracy: 0.001, "New foods are decremented")
+        let rows = try context.fetch(FetchDescriptor<MealFeedback>())
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows.first?.mealFeel, .light)
+        XCTAssertEqual(rows.first?.satiety, .justRight)
+
+        _ = try MealOutcomeService.undo(m, env: env)
+        XCTAssertEqual(rice.quantity, 1000, accuracy: 0.001)
+        XCTAssertEqual(chicken.quantity, 1000, accuracy: 0.001)
+    }
+
+    func testDeletingAnAdHocLogGrowsTheTrimmedMealsBack() throws {
+        let p = plan()
+        let lunch = slot("Lunch", number: 2, time: "23:00", kcal: 700, in: p)
+        let log = try EatenMealRecorder.record(
+            [food("Feast", kcal: 2500)], type: .snack, eatenAt: Date(), source: .manual, modelContext: context
+        ).meal
+        MealOutcomeService.applyMacroRebalance(env: env)
+        let trimmed = lunch.totalCalories
+        XCTAssertLessThan(trimmed, 700)
+
+        _ = try MealOutcomeService.deleteLog(log, env: env)
+
+        XCTAssertGreaterThan(lunch.totalCalories, trimmed)
+    }
+
+    func testUndoOfALogThatFilledASkippedSlotReturnsItToSkipped() throws {
+        let p = plan()
+        let lunch = slot("Lunch", number: 2, in: p)
+        try MealOutcomeService.skip(lunch, env: env)
+        try MealOutcomeService.markEaten(
+            lunch, replacingWith: [PlannedFood(name: "Burrito", quantityGrams: 300, calories: 800, proteinG: 30, carbsG: 90, fatG: 30)],
+            pantry: .none, env: env
+        )
+        XCTAssertEqual(lunch.status, .eaten)
+        _ = try MealOutcomeService.undo(lunch, env: env)
+        XCTAssertEqual(lunch.status, .skipped)
+    }
+
+    func testRestoreOfAMealThatIsGoneThrows() throws {
+        let p = plan()
+        let lunch = slot("Lunch", number: 2, in: p)
+        try MealOutcomeService.markEaten(lunch, pantry: .none, env: env)
+        let snap = try MealOutcomeService.undo(lunch, env: env)
+        context.delete(lunch)
+        try context.save()
+        XCTAssertThrowsError(try MealOutcomeService.restore(snap, env: env))
+    }
+
+    func testSkipUndoAndDeleteRequestAReplan() throws {
+        let p = plan()
+        let lunch = slot("Lunch", number: 2, in: p)
+        var count = 0
+        let token = NotificationCenter.default.addObserver(
+            forName: .tempoDayPlanReplanRequested, object: nil, queue: nil
+        ) { _ in count += 1 }
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        try MealOutcomeService.skip(lunch, env: env)
+        XCTAssertEqual(count, 1)
+        _ = try MealOutcomeService.undo(lunch, env: env)
+        XCTAssertEqual(count, 2)
+        let log = try EatenMealRecorder.record(
+            [food("Toast", kcal: 200)], type: .snack, eatenAt: Date(), source: .manual, modelContext: context
+        ).meal
+        let before = count
+        _ = try MealOutcomeService.deleteLog(log, env: env)
+        XCTAssertGreaterThan(count, before)
+    }
+
+    func testEatingCancelsThePreMealFuelUpReminder() throws {
+        let p = plan()
+        let lunch = slot("Lunch", number: 2, in: p)
+        let notifications = MockNotificationService()
+        notifications.scheduleMealReminder(mealName: "Lunch", time: Date().addingTimeInterval(3600))
+        let live = MealOutcomeService.Env(modelContext: context, notifications: notifications)
+        XCTAssertEqual(notifications.scheduledNotifications.count, 1)
+        try MealOutcomeService.markEaten(lunch, pantry: .none, env: live)
+        XCTAssertTrue(notifications.scheduledNotifications.isEmpty)
+    }
 }
