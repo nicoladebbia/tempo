@@ -132,7 +132,10 @@ RESULTS="$RUN/results.tsv"
 : >"$RESULTS"
 
 # result <slug> <step> <status pass|fail|skip> <summary> [detail-file]
-result() { printf '%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "${5:-}" >>"$RESULTS"; }
+result() { # fields can't contain tabs/newlines (swift test output has both)
+    local summary="${4//$'\t'/ }"
+    printf '%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "${summary//$'\n'/ }" "${5:-}" >>"$RESULTS"
+}
 
 xcresult_summary() {
     xcrun xcresulttool get test-results summary --path "$1" --compact 2>/dev/null | python3 -c '
@@ -179,7 +182,7 @@ run_backend() {
     ) >"$out/backend.log"
     local code=$? secs=$((SECONDS - started))
     local line
-    line="$(grep -E "Test run with [0-9]+ tests|Executed [0-9]+ tests" "$out/backend.log" | tail -2 | tr '\n' ' ')"
+    line="$(grep -E "Test run with [0-9]+ tests" "$out/backend.log" | tail -1)"
     if [ "$code" = 0 ]; then
         result "$slug" "Backend tests" pass "${line:-ok} (${secs}s)"
     else
@@ -207,7 +210,11 @@ run_scenarios() {
         bash "$sim" --dir "$wt" qa ${build:+"$build"} --scenario "$name" --as "nightly-$slug-$name" >>"$out/scenarios.log" 2>&1
         sleep 12
         bash "$sim" --dir "$wt" shot "$out/scenario-$name.png" >/dev/null 2>&1
-        if xcrun simctl spawn "$udid" launchctl list 2>/dev/null | grep -q "UIKitApplication:app.tempo.Tempo.dev"; then
+        # Capture first: under pipefail, `| grep -q` can SIGPIPE launchctl
+        # and make a running app look crashed.
+        local procs
+        procs="$(xcrun simctl spawn "$udid" launchctl list 2>/dev/null || true)"
+        if grep -q "UIKitApplication:app.tempo.Tempo.dev" <<<"$procs"; then
             ok+=("$name")
         else
             crashed+=("$name")
@@ -253,7 +260,7 @@ done
 python3 - "$RUN" "$STAMP" <<'PY'
 import html, os, sys
 run, stamp = sys.argv[1], sys.argv[2]
-rows = [l.rstrip("\n").split("\t") for l in open(os.path.join(run, "results.tsv")) if l.strip()]
+rows = [l.rstrip("\n").split("\t", 4) for l in open(os.path.join(run, "results.tsv")) if l.strip()]
 targets = []
 for r in rows:
     if r[0] not in targets:
