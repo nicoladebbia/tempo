@@ -137,6 +137,15 @@ struct WorkoutHistoryView: View {
             }
         }
         .background(Color.tempoBgPrimary)
+        #if DEBUG
+        // Sim check: `-debugCSVImportPath /path/file.csv` runs the same import
+        // path as the file picker (parse off-main, unit prompt, progress).
+        .task {
+            if let path = UserDefaults.standard.string(forKey: "debugCSVImportPath"), !path.isEmpty {
+                importCSV(.success(URL(fileURLWithPath: path)))
+            }
+        }
+        #endif
         .overlay {
             if let importStage {
                 importOverlay(importStage)
