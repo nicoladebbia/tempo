@@ -407,8 +407,10 @@ struct NutritionTodayView: View {
 
                 Spacer()
 
-                let eaten = viewModel.todayMeals.count(where: { $0.status == .eaten })
-                Text("\(eaten)/\(viewModel.todayMeals.count) done")
+                // Extra logs aren't part of the plan, so they stay out of both numbers.
+                let planned = viewModel.todayMeals.filter { !$0.isUnplannedLog }
+                let eaten = planned.count(where: { $0.status == .eaten })
+                Text("\(eaten)/\(planned.count) done")
                     .font(.tempoCaption1)
                     .foregroundStyle(Color.tempoTextTertiary)
             }

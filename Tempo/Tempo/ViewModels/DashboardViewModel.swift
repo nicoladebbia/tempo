@@ -275,6 +275,14 @@ final class DashboardViewModel {
         userName = nil
     }
 
+    /// Clears `fuel.nextMeal` when that meal is about to be deleted
+    /// (`.tempoMealWillBeRemoved`) so the Dashboard never reads a dead model.
+    func dropNextMeal(mealID: UUID) {
+        if fuel.nextMeal?.id == mealID {
+            fuel.nextMeal = nil
+        }
+    }
+
     /// Inject the SwiftData context used to read native nutrition logs.
     func setFuelContext(_ context: ModelContext) {
         fuelContext = context

@@ -104,14 +104,18 @@ struct ToastModifier: ViewModifier {
                         actionTitle: toast.actionTitle,
                         action: toast.action.map { run in
                             {
-                                run()
+                                // Clear first: run() may set its own (error) toast.
                                 withAnimation(.easeIn(duration: 0.2)) {
                                     self.toast = nil
                                 }
+                                run()
                             }
                         }
                     )
                         .padding(.top, TempoSpacing.sm)
+                        // Per-toast identity so a replacement re-runs onAppear
+                        // (haptic + its own auto-dismiss timer).
+                        .id(toast.id)
                         .transition(.move(edge: .top).combined(with: .opacity))
                         .onAppear {
                             HapticManager.notification(toast.style.haptic)

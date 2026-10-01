@@ -259,12 +259,14 @@ struct NutritionLogView: View {
             if !meal.foods.isEmpty {
                 Button {
                     let foods = meal.foods
-                    _ = viewModel.savePreset(
+                    let saved = viewModel.savePreset(
                         from: meal,
                         name: foods.count == 1 ? foods[0].name : meal.mealName,
                         modelContext: modelContext
                     )
-                    toast = ToastData(message: "Saved as a preset.", style: .success)
+                    toast = saved
+                        ? ToastData(message: "Saved as a preset.", style: .success)
+                        : ToastData(message: "Couldn't save that preset. Try again.", style: .error)
                 } label: {
                     Label("Save as preset", systemImage: "bookmark")
                 }

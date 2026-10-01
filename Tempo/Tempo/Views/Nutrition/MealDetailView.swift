@@ -661,7 +661,8 @@ struct MealDetailView: View {
         guard !name.isEmpty else {
             return
         }
-        runAction {
+        // runAction already shows the error alert on failure; haptic only on success.
+        let saved = runAction {
             try MealOutcomeService.savePreset(
                 name: name,
                 foods: meal.foods,
@@ -669,7 +670,9 @@ struct MealDetailView: View {
                 modelContext: modelContext
             )
         }
-        HapticManager.notification(.success)
+        if saved {
+            HapticManager.notification(.success)
+        }
     }
 
     /// Sheet's onCommit handler. Writes the chosen eat time, feel, and

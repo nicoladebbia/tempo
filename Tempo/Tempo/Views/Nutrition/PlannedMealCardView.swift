@@ -85,7 +85,7 @@ struct PlannedMealCardView: View {
         // are a no-op outside a List, and the Today meals render in a VStack.)
         .contextMenu {
             switch meal.status {
-            case .planned:
+            case .planned, .modified:
                 Button {
                     onMarkEaten?()
                 } label: {
@@ -97,7 +97,7 @@ struct PlannedMealCardView: View {
                 } label: {
                     Label("Skip Meal", systemImage: "xmark.circle.fill")
                 }
-            case .eaten, .modified:
+            case .eaten:
                 if onSavePreset != nil, !meal.foods.isEmpty {
                     Button {
                         onSavePreset?()
