@@ -24,6 +24,23 @@ enum GuidedRunFormatting {
             : "\(Int(seconds.rounded()))\""
     }
 
+    /// Miles vs km for every run surface. There's no separate distance
+    /// setting: the weight unit tracks metric/imperial (lbs → miles), with a
+    /// locale fallback before a settings row exists.
+    static func useMiles(weightUnit: WeightUnit?, locale: Locale = .current) -> Bool {
+        if let weightUnit {
+            return weightUnit == .lbs
+        }
+        return locale.measurementSystem != .metric
+    }
+
+    /// "12.4 km" / "7.7 mi" — one-decimal running total for stat headers.
+    static func totalDistance(meters: Double, useMiles: Bool) -> String {
+        useMiles
+            ? String(format: "%.1f mi", meters / 1609.344)
+            : String(format: "%.1f km", meters / 1000)
+    }
+
     static func distance(meters: Double, useMiles: Bool) -> String {
         if useMiles {
             let miles = meters / 1609.344

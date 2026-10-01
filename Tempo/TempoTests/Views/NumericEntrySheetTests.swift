@@ -36,6 +36,10 @@ final class NumericEntrySheetTests: XCTestCase {
 
     // MARK: - parseAndSnap
 
+    func testParseAndSnapAcceptsCommaDecimals() {
+        XCTAssertEqual(NumericEntrySheet.parseAndSnap("72,5", range: 0 ... 500, snap: { $0 }), 72.5)
+    }
+
     func testParseAndSnapReturnsNilForEmptyOrUnparsableText() {
         XCTAssertNil(NumericEntrySheet.parseAndSnap("", range: 0 ... 500, snap: { $0 }))
         XCTAssertNil(NumericEntrySheet.parseAndSnap("-", range: 0 ... 500, snap: { $0 }))
