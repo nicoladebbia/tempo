@@ -98,10 +98,10 @@ struct MealDetailView: View {
 
     /// Shared side-effect environment (pantry, shift, rebalance, reminders).
     private var outcomeEnv: MealOutcomeService.Env {
-        MealOutcomeService.Env(
+        MealOutcomeService.Env.live(
             modelContext: modelContext,
             notifications: services.notifications,
-            whoopAvgTDEE: services.whoop.weeklyTDEEAverage
+            whoop: services.whoop
         )
     }
 
@@ -142,6 +142,13 @@ struct MealDetailView: View {
         .navigationTitle(meal.mealName)
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadWakeSignal() }
+        // This meal is about to be deleted elsewhere (plan rebuild, Log tab):
+        // leave before the model goes away so nothing renders a dead row.
+        .onReceive(NotificationCenter.default.publisher(for: .tempoMealWillBeRemoved)) { note in
+            if let id = note.userInfo?["id"] as? UUID, id == meal.id {
+                dismiss()
+            }
+        }
         .sheet(isPresented: $presentMarkEatenSheet) {
             MarkEatenSheet(meal: meal, startWithSubstitute: openSheetToSubstitute) { eatTime, feel, satiety, substitute in
                 commitMarkEaten(at: eatTime, feel: feel, satiety: satiety, substitute: substitute)
@@ -615,11 +622,14 @@ struct MealDetailView: View {
 
     /// Runs a shared eat/skip/undo action and reports a failure.
     @MainActor
-    private func runAction(_ work: () throws -> some Any) {
+    @discardableResult
+    private func runAction(_ work: () throws -> some Any) -> Bool {
         do {
             _ = try work()
+            return true
         } catch {
             actionError = error.localizedDescription
+            return false
         }
     }
 
@@ -634,10 +644,14 @@ struct MealDetailView: View {
             dismiss()
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(450))
-                try? MealOutcomeService.undo(target, env: env)
+                if (try? MealOutcomeService.undo(target, env: env)) != nil {
+                    HapticManager.notification(.success)
+                }
             }
         } else {
-            runAction { try MealOutcomeService.undo(target, env: env) }
+            if runAction({ try MealOutcomeService.undo(target, env: env) }) {
+                HapticManager.notification(.success)
+            }
             dismiss()
         }
     }
@@ -669,8 +683,11 @@ struct MealDetailView: View {
     ) {
         guard let substitute else {
             // Plain "ate the planned meal" — synchronous. Decrements once.
-            runAction {
+            let done = runAction {
                 try MealOutcomeService.markEaten(meal, at: eatTime, feel: feel, satiety: satiety, env: outcomeEnv)
+            }
+            if done {
+                HapticManager.notification(.success)
             }
             return
         }
@@ -718,6 +735,7 @@ struct MealDetailView: View {
                 pantry: usedPantry ? .foods : .none,
                 env: outcomeEnv
             )
+            HapticManager.notification(.success)
         } catch {
             substituteError = "Couldn't read that: \(error.localizedDescription). Your note is kept — try again."
         }

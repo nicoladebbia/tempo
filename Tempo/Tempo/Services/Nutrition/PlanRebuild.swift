@@ -14,18 +14,71 @@
 import Foundation
 
 enum PlanRebuild {
-    /// True when `kept` (a meal that survives the rebuild) already occupies the
-    /// slot a newly generated meal would take: same slot number or same name.
-    /// Ad-hoc logs (plan baseline 0) never block — they sit outside the plan.
-    static func occupies(kept: PlannedMeal, mealNumber: Int, mealName: String) -> Bool {
-        guard kept.planBaseline.calories > 0 else {
-            return false
+    /// Floor for a rebuilt meal's baseline, as a share of its generated macros.
+    private static let minimumShare = 0.1
+
+    /// A newly generated slot, as far as occupancy matching cares.
+    struct Slot {
+        let mealNumber: Int
+        let mealName: String
+        let scheduledTime: String
+    }
+
+    /// Indices of `slots` already taken by a meal that survives the rebuild.
+    /// One-to-one: every kept meal claims at most ONE new slot, so two kept
+    /// "Snack"s drop two new snacks, not all of them, and a kept dish never
+    /// swallows an unrelated new one. A kept meal claims, in order of
+    /// preference: a free slot of the same name or meal type (closest
+    /// scheduled time wins); failing that, the free slot with its meal number
+    /// — only when either name carries no meal type ("Meal 3"), so a changed
+    /// meal count can't drop a different dish. Ad-hoc logs never claim a slot
+    /// — they sit outside the plan.
+    static func occupiedSlots(kept: [PlannedMeal], slots: [Slot]) -> Set<Int> {
+        var taken = Set<Int>()
+        let planKept = MealOrdering.chronological(kept.filter { !$0.isUnplannedLog })
+        for meal in planKept {
+            let keptName = normalized(meal.mealName)
+            let keptType = MealType.inferred(fromName: meal.mealName)
+            let keptMinutes = MealOrdering.minutesOfDay(from: meal.scheduledTime)
+            let sameDish = slots.indices.filter { index in
+                guard !taken.contains(index) else {
+                    return false
+                }
+                let slotName = normalized(slots[index].mealName)
+                if slotName == keptName {
+                    return true
+                }
+                if let keptType, MealType.inferred(fromName: slots[index].mealName) == keptType {
+                    return true
+                }
+                return false
+            }
+            if let best = sameDish.min(by: { lhs, rhs in
+                distance(keptMinutes, slots[lhs]) < distance(keptMinutes, slots[rhs])
+            }) {
+                taken.insert(best)
+                continue
+            }
+            if let byNumber = slots.indices.first(where: { index in
+                !taken.contains(index)
+                    && slots[index].mealNumber == meal.mealNumber
+                    && (keptType == nil || MealType.inferred(fromName: slots[index].mealName) == nil)
+            }) {
+                taken.insert(byNumber)
+            }
         }
-        if kept.mealNumber == mealNumber {
-            return true
+        return taken
+    }
+
+    private static func normalized(_ name: String) -> String {
+        name.trimmingCharacters(in: .whitespaces).lowercased()
+    }
+
+    private static func distance(_ keptMinutes: Int?, _ slot: Slot) -> Int {
+        guard let keptMinutes, let slotMinutes = MealOrdering.minutesOfDay(from: slot.scheduledTime) else {
+            return Int.max
         }
-        return kept.mealName.trimmingCharacters(in: .whitespaces).lowercased()
-            == mealName.trimmingCharacters(in: .whitespaces).lowercased()
+        return abs(keptMinutes - slotMinutes)
     }
 
     /// Fit one day's NEW remaining meals to the day.
@@ -57,10 +110,14 @@ enum PlanRebuild {
             let share = generatedCalories > 0
                 ? meal.totalCalories / generatedCalories
                 : 1.0 / Double(remaining.count)
-            meal.planBaselineCalories = room.calories * share
-            meal.planBaselineProtein = room.protein * share
-            meal.planBaselineCarbs = room.carbs * share
-            meal.planBaselineFat = room.fat * share
+            // A plan meal never gets an all-zero baseline (that reads as an
+            // ad-hoc log and drops it from the day target): when the day is
+            // already full it keeps a small share of what was generated.
+            meal.planBaselineCalories = max(room.calories * share, meal.totalCalories * minimumShare)
+            meal.planBaselineProtein = max(room.protein * share, meal.totalProtein * minimumShare)
+            meal.planBaselineCarbs = max(room.carbs * share, meal.totalCarbs * minimumShare)
+            meal.planBaselineFat = max(room.fat * share, meal.totalFat * minimumShare)
+            meal.isUnplannedLogFlag = false
         }
 
         let adjustments = MealRebalancer.rebalance(
@@ -86,7 +143,7 @@ enum PlanRebuild {
                 )
             }
         )
-        let byID = Dictionary(uniqueKeysWithValues: adjustments.map { ($0.mealID, $0) })
+        let byID = Dictionary(adjustments.map { ($0.mealID, $0) }, uniquingKeysWith: { first, _ in first })
         for meal in remaining {
             guard let adjustment = byID[meal.id], !adjustment.isZero else {
                 continue

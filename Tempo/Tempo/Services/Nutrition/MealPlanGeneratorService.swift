@@ -323,6 +323,9 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             now: now,
             modelContext: modelContext
         )
+        // The old rows are gone and the new ones are saved: let Today / the
+        // Dashboard re-read NOW, not after minutes of recipe generation.
+        NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
 
         // Step 7: Generate per-meal recipes via Haiku (fan-out, attach in main actor)
         if attachingRecipes {
@@ -1398,10 +1401,18 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             // Eaten / skipped / modified meals and every earlier day stay.
             let upcoming = (reusable.meals ?? []).filter { $0.dayDate >= today }
             keptMeals = upcoming.filter { $0.status != .planned }
+            // Tell every screen caching these models (Today, the open meal
+            // detail) BEFORE they go away, then delete and insert the new
+            // rows in ONE save below — no window where a view can render a
+            // deleted model while recipes are still being attached.
             for meal in upcoming where meal.status == .planned {
+                NotificationCenter.default.post(
+                    name: .tempoMealWillBeRemoved,
+                    object: nil,
+                    userInfo: ["id": meal.id]
+                )
                 modelContext.delete(meal)
             }
-            try modelContext.save()
         } else {
             weeklyPlan = WeeklyMealPlan(
                 startDate: startDate,
@@ -1448,11 +1459,16 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             let kept = keptMeals.filter { calendar.isDate($0.dayDate, inSameDayAs: dayDate) }
 
             var created: [PlannedMeal] = []
-            for meal in day.meals {
-                // Never duplicate a slot the user already ate / skipped.
-                if kept.contains(where: {
-                    PlanRebuild.occupies(kept: $0, mealNumber: meal.mealNumber, mealName: meal.mealName)
-                }) {
+            // Never duplicate a slot the user already ate / skipped (each
+            // kept meal holds at most one new slot).
+            let occupied = PlanRebuild.occupiedSlots(
+                kept: kept,
+                slots: day.meals.map {
+                    PlanRebuild.Slot(mealNumber: $0.mealNumber, mealName: $0.mealName, scheduledTime: $0.scheduledTime)
+                }
+            )
+            for (index, meal) in day.meals.enumerated() {
+                if occupied.contains(index) {
                     continue
                 }
                 let foods = meal.foods.map { food in

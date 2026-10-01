@@ -15,12 +15,13 @@ import XCTest
 @MainActor
 final class PlanRebuildFromTodayTests: XCTestCase {
     private let calendar = Calendar.current
+    private var container: ModelContainer!
     private var context: ModelContext!
     private var profile: DietaryProfile!
 
     override func setUp() async throws {
         try await super.setUp()
-        let container = try ModelContainer(
+        container = try ModelContainer(
             for: Schema(TempoSchemaV1.models),
             configurations: [ModelConfiguration(isStoredInMemoryOnly: true)]
         )
@@ -32,6 +33,7 @@ final class PlanRebuildFromTodayTests: XCTestCase {
     override func tearDown() async throws {
         context = nil
         profile = nil
+        container = nil
         try await super.tearDown()
     }
 
@@ -225,15 +227,60 @@ final class PlanRebuildFromTodayTests: XCTestCase {
         XCTAssertEqual(today.first { $0.mealName == "Breakfast" }?.status, .skipped)
     }
 
+    private func keptMeal(_ name: String, number: Int, time: String, in plan: WeeklyMealPlan) -> PlannedMeal {
+        let meal = PlannedMeal(
+            dayDate: monday, mealNumber: number, mealName: name, scheduledTime: time,
+            totalCalories: 400, totalProtein: 20, totalCarbs: 40, totalFat: 10, status: .eaten, mealPlan: plan
+        )
+        meal.planBaselineCalories = 400
+        meal.planBaselineProtein = 20
+        meal.planBaselineCarbs = 40
+        meal.planBaselineFat = 10
+        return meal
+    }
+
+    private func slot(_ number: Int, _ name: String, _ time: String) -> PlanRebuild.Slot {
+        PlanRebuild.Slot(mealNumber: number, mealName: name, scheduledTime: time)
+    }
+
     func testAdHocLogDoesNotBlockAPlanSlot() {
         let plan = WeeklyMealPlan(startDate: monday, endDate: monday)
         let adHoc = PlannedMeal(dayDate: monday, mealNumber: 1, mealName: "Snack", totalCalories: 200, status: .eaten, mealPlan: plan)
         adHoc.markAsUnplannedLog()
-        XCTAssertFalse(PlanRebuild.occupies(kept: adHoc, mealNumber: 1, mealName: "Snack"))
-        let real = PlannedMeal(dayDate: monday, mealNumber: 2, mealName: "Lunch", totalCalories: 700, status: .eaten, mealPlan: plan)
-        XCTAssertTrue(PlanRebuild.occupies(kept: real, mealNumber: 2, mealName: "x"))
-        XCTAssertTrue(PlanRebuild.occupies(kept: real, mealNumber: 9, mealName: " lunch "))
-        XCTAssertFalse(PlanRebuild.occupies(kept: real, mealNumber: 3, mealName: "Dinner"))
+        XCTAssertTrue(PlanRebuild.occupiedSlots(kept: [adHoc], slots: [slot(1, "Snack", "10:00")]).isEmpty)
+    }
+
+    func testOccupancyIsOneToOneForSameNamedSlots() {
+        let plan = WeeklyMealPlan(startDate: monday, endDate: monday)
+        let kept = [
+            keptMeal("Snack", number: 2, time: "10:00", in: plan),
+            keptMeal("Snack", number: 4, time: "15:00", in: plan),
+        ]
+        let slots = [slot(1, "Breakfast", "08:00"), slot(2, "Snack", "10:30"), slot(3, "Snack", "15:30"), slot(4, "Snack", "21:00")]
+        // Two kept snacks take the two CLOSEST snack slots — the evening one stays.
+        XCTAssertEqual(PlanRebuild.occupiedSlots(kept: kept, slots: slots), [1, 2])
+    }
+
+    func testOneKeptMealClaimsAtMostOneNewSlot() {
+        let plan = WeeklyMealPlan(startDate: monday, endDate: monday)
+        let kept = [keptMeal("Snack", number: 2, time: "10:00", in: plan)]
+        let slots = [slot(2, "Snack", "10:30"), slot(3, "Snack", "15:30")]
+        XCTAssertEqual(PlanRebuild.occupiedSlots(kept: kept, slots: slots), [0])
+    }
+
+    func testChangedMealCountDoesNotDropADifferentDishByNumber() {
+        let plan = WeeklyMealPlan(startDate: monday, endDate: monday)
+        // Kept Lunch was meal #2; the new plan has a Snack as #2 and Lunch as #3.
+        let kept = [keptMeal("Lunch", number: 2, time: "12:30", in: plan)]
+        let slots = [slot(1, "Breakfast", "08:00"), slot(2, "Snack", "10:30"), slot(3, "Lunch", "12:30")]
+        XCTAssertEqual(PlanRebuild.occupiedSlots(kept: kept, slots: slots), [2])
+    }
+
+    func testUntypedNamesFallBackToMealNumber() {
+        let plan = WeeklyMealPlan(startDate: monday, endDate: monday)
+        let kept = [keptMeal("Meal 2", number: 2, time: "13:00", in: plan)]
+        let slots = [slot(1, "Meal 1", "08:00"), slot(2, "Meal 2", "13:30"), slot(3, "Meal 3", "19:00")]
+        XCTAssertEqual(PlanRebuild.occupiedSlots(kept: kept, slots: slots), [1])
     }
 
     func testNoPlanYetMidWeekBuildsOnlyFromToday() async throws {
@@ -308,5 +355,53 @@ final class PlanRebuildFromTodayTests: XCTestCase {
         )
         XCTAssertEqual(lunch.totalCalories, 300, accuracy: 2, "2000 target − 1700 eaten")
         XCTAssertEqual(lunch.planBaselineCalories ?? 0, 800, accuracy: 0.5, "2000 − 1200 kept baseline")
+    }
+
+    func testFitNeverWritesZeroBaselinesWhenTheDayIsAlreadyFull() throws {
+        let plan = WeeklyMealPlan(startDate: monday, endDate: monday)
+        context.insert(plan)
+        let dinner = PlannedMeal(
+            dayDate: monday, mealNumber: 3, mealName: "Dinner", scheduledTime: "19:00",
+            foods: [PlannedFood(name: "x", quantityGrams: 300, calories: 600, proteinG: 40, carbsG: 60, fatG: 20)],
+            totalCalories: 600, totalProtein: 40, totalCarbs: 60, totalFat: 20, mealPlan: plan
+        )
+        context.insert(dinner)
+        // Kept baselines already equal the day target: no room left.
+        PlanRebuild.fit(
+            remaining: [dinner],
+            dayTarget: MealMacros(calories: 2000, protein: 150, carbs: 200, fat: 60),
+            keptBaseline: MealMacros(calories: 2000, protein: 150, carbs: 200, fat: 60),
+            consumed: MealMacros(calories: 1900, protein: 140, carbs: 190, fat: 55)
+        )
+        XCTAssertGreaterThan(dinner.planBaselineCalories ?? 0, 0)
+        XCTAssertFalse(dinner.isUnplannedLog, "A rebuilt plan meal is never mistaken for an ad-hoc log")
+
+        // Undo of its eaten state reverts it to planned — it is not deleted.
+        let env = MealOutcomeService.Env(modelContext: context)
+        try MealOutcomeService.markEaten(dinner, pantry: .none, env: env)
+        let snap = try MealOutcomeService.undo(dinner, env: env)
+        XCTAssertEqual(snap.kind, .revertedToPlanned)
+        XCTAssertEqual(dinner.status, .planned)
+    }
+
+    func testRebuildPostsWillBeRemovedForEachReplacedMeal() async throws {
+        let plan = seedWeek()
+        let doomed = addMeal(plan, dayOffset: 2, number: 2, name: "Lunch", kcal: 700)
+        let doomedID = doomed.id
+        try context.save()
+
+        var removed: [UUID] = []
+        let token = NotificationCenter.default.addObserver(
+            forName: .tempoMealWillBeRemoved, object: nil, queue: nil
+        ) { note in
+            if let id = note.userInfo?["id"] as? UUID {
+                removed.append(id)
+            }
+        }
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        _ = try await rebuild()
+
+        XCTAssertTrue(removed.contains(doomedID))
     }
 }

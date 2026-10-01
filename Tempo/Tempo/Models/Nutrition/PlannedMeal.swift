@@ -167,6 +167,13 @@ final class PlannedMeal: Identifiable {
     var planBaselineCarbs: Double?
     var planBaselineFat: Double?
 
+    /// Explicit "the user logged this on top of the plan" marker, set by
+    /// `markAsUnplannedLog`. A zero baseline alone must not mean "ad-hoc": a
+    /// rebuilt plan meal can legitimately get a tiny/zero allotment. nil on
+    /// rows written before the flag existed (legacy zero-baseline fallback in
+    /// `isUnplannedLog`). Optional so the field add is a lightweight migration.
+    var isUnplannedLogFlag: Bool?
+
     /// What the plan had in this slot before a log REPLACED it ("I ate
     /// something else", or a Quick Log landing in a planned slot): the
     /// planned foods + totals as JSON (`ReplacedPlan`). Undo / delete of the
@@ -307,6 +314,7 @@ final class PlannedMeal: Identifiable {
     /// Marks a user-logged meal as outside the plan: it counts as eaten but
     /// adds nothing to the day's target, even when it's attached to the plan.
     func markAsUnplannedLog() {
+        isUnplannedLogFlag = true
         planBaselineCalories = 0
         planBaselineProtein = 0
         planBaselineCarbs = 0
@@ -314,12 +322,18 @@ final class PlannedMeal: Identifiable {
     }
 
     /// True for a meal the user logged on top of the plan (Quick Log, scan,
-    /// photo, voice, preset): explicitly frozen at a zero plan baseline by
-    /// `markAsUnplannedLog`. Undoing or deleting one REMOVES it — it was never
-    /// a plan slot, so reverting it to `.planned` would invent an upcoming
-    /// meal. A plan slot always carries a non-zero captured baseline (or none).
+    /// photo, voice, preset): flagged by `markAsUnplannedLog`. Undoing or
+    /// deleting one REMOVES it — it was never a plan slot, so reverting it to
+    /// `.planned` would invent an upcoming meal. Rows from before the flag
+    /// existed (flag nil) fall back to the old signal: a frozen all-zero
+    /// baseline. Logs from before this existed that never got a baseline carry
+    /// no reliable signal and stay as they are. An explicit `false` (set on rebuilt plan meals) never reads
+    /// as a log.
     @Transient
     var isUnplannedLog: Bool {
+        if let isUnplannedLogFlag {
+            return isUnplannedLogFlag
+        }
         guard let calories = planBaselineCalories else {
             return false
         }
