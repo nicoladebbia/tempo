@@ -73,6 +73,17 @@ struct NutritionTabView: View {
             .navigationTitle("FUEL")
             .navigationBarTitleDisplayMode(.inline)
             .tempoSettingsToolbar()
+            // A meal was changed or deleted from another screen (meal detail,
+            // Watch, Log tab): drop a row about to be deleted BEFORE the model
+            // goes away, then re-read today's meals + presets.
+            .onReceive(NotificationCenter.default.publisher(for: .tempoMealWillBeRemoved)) { note in
+                if let id = note.userInfo?["id"] as? UUID {
+                    viewModel.dropFromToday(mealID: id)
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .tempoNutritionLogged)) { _ in
+                viewModel.refreshAfterMealChange(modelContext: modelContext)
+            }
             .task {
                 // Loads today, then regenerates the plan if its training /
                 // diet-profile inputs changed since it was built. The change

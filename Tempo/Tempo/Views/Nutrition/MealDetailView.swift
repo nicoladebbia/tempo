@@ -83,6 +83,32 @@ struct MealDetailView: View {
     /// status) so the user loses nothing and can retry.
     @State
     private var substituteError: String?
+    /// What really happened after a skip ("Coach: ..."), shown under "Skipped".
+    /// nil until a redistribution was actually applied.
+    @State
+    private var skipRedistributionNote: String?
+    /// Error from a shared eat/skip/undo/delete action.
+    @State
+    private var actionError: String?
+    /// "Save as preset" naming alert.
+    @State
+    private var presentPresetAlert = false
+    @State
+    private var presetNameDraft = ""
+
+    /// Shared side-effect environment (pantry, shift, rebalance, reminders).
+    private var outcomeEnv: MealOutcomeService.Env {
+        MealOutcomeService.Env(
+            modelContext: modelContext,
+            notifications: services.notifications,
+            whoopAvgTDEE: services.whoop.weeklyTDEEAverage
+        )
+    }
+
+    /// A log the user added on top of the plan — undoing it deletes it.
+    private var isUnplannedLog: Bool {
+        meal.isUnplannedLog
+    }
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -129,16 +155,35 @@ struct MealDetailView: View {
                 .presentationDetents([.height(280)])
         }
         .confirmationDialog(
-            "Undo this meal?",
+            isUnplannedLog ? "Delete this log?" : "Undo this meal?",
             isPresented: $presentUndoConfirm,
             titleVisibility: .visible
         ) {
-            Button("Mark as not eaten", role: .destructive) {
+            Button(isUnplannedLog ? "Delete log" : "Mark as not eaten", role: .destructive) {
                 undoEaten()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This puts \(meal.mealName) back to planned and removes it from today's totals. Any pantry stock it used is added back.")
+            if isUnplannedLog {
+                Text("This removes \(meal.mealName) from today's totals. Any pantry stock it used is added back.")
+            } else {
+                Text("This puts \(meal.mealName) back to planned (with the original dish) and removes it from today's totals. Any pantry stock it used is added back.")
+            }
+        }
+        .alert("Save as preset", isPresented: $presentPresetAlert) {
+            TextField("Preset name", text: $presetNameDraft)
+            Button("Save") { savePreset() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Log this meal again in one tap from the Log tab.")
+        }
+        .alert(
+            "Something went wrong",
+            isPresented: Binding(get: { actionError != nil }, set: { if !$0 { actionError = nil } })
+        ) {
+            Button("OK", role: .cancel) { actionError = nil }
+        } message: {
+            Text(actionError ?? "")
         }
         .overlay {
             if isResolvingSubstitute {
@@ -262,6 +307,8 @@ struct MealDetailView: View {
             }
         }
         try? modelContext.save()
+        // Dashboard's "last meal" line reads this time.
+        NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
     }
 
     /// Pull the user's planned wake from `UserSettings` and today's actual
@@ -447,27 +494,46 @@ struct MealDetailView: View {
                     presentUndoConfirm = true
                     HapticManager.lightImpact()
                 } label: {
-                    Label("Undo — not eaten", systemImage: "arrow.uturn.backward")
-                        .font(.tempoCaption1)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.tempoError)
-                        .labelStyle(.titleAndIcon)
+                    Label(
+                        isUnplannedLog ? "Delete log" : "Undo — not eaten",
+                        systemImage: isUnplannedLog ? "trash" : "arrow.uturn.backward"
+                    )
+                    .font(.tempoCaption1)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.tempoError)
+                    .labelStyle(.titleAndIcon)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Undo, mark as not eaten")
+                .accessibilityLabel(isUnplannedLog ? "Delete this log" : "Undo, mark as not eaten")
+
+                if !meal.foods.isEmpty {
+                    Button {
+                        presetNameDraft = meal.foods.count == 1 ? meal.foods[0].name : meal.mealName
+                        presentPresetAlert = true
+                        HapticManager.lightImpact()
+                    } label: {
+                        Label("Save as preset", systemImage: "bookmark")
+                            .font(.tempoCaption1)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.tempoSignal)
+                            .labelStyle(.titleAndIcon)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Save this meal as a preset")
+                }
             }
         case .skipped:
             VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                Text("Skipped — macros redistributed.")
+                Text(skipRedistributionNote.map { "Skipped. \($0)" } ?? "Skipped.")
                     .font(.tempoBody)
                     .fontWeight(.semibold)
                     .foregroundStyle(Color.tempoTextSecondary)
                 // Un-skip: put the meal back to planned so it counts again.
-                // A skipped meal never decremented the pantry or stored
-                // feedback, so undoMealEaten reverses it cleanly (status →
-                // planned). No confirmation needed — nothing to lose.
+                // The shared undo also re-balances the other meals, so macros
+                // that were moved onto them when this was skipped move back.
                 Button {
-                    NutritionTabViewModel().undoMealEaten(meal, modelContext: modelContext)
+                    skipRedistributionNote = nil
+                    runAction { try MealOutcomeService.undo(meal, env: outcomeEnv) }
                     HapticManager.lightImpact()
                 } label: {
                     Label("Undo skip — back to planned", systemImage: "arrow.uturn.backward")
@@ -482,11 +548,8 @@ struct MealDetailView: View {
         }
     }
 
-    /// Inline Eat / Skip buttons shown only in the `.overdue` phase. Both
-    /// write directly to SwiftData here — the richer redistribution +
-    /// shift flow happens upstream when actions originate from the day
-    /// list. From this screen we do the minimum honest thing: record the
-    /// status, cancel pending notifications, save.
+    /// Inline Eat / Skip buttons shown only in the `.overdue` phase. Both go
+    /// through `MealOutcomeService`, the same path as the Today list.
     private var mealActions: some View {
         VStack(spacing: TempoSpacing.sm) {
             HStack(spacing: TempoSpacing.sm) {
@@ -550,22 +613,54 @@ struct MealDetailView: View {
         presentMarkEatenSheet = true
     }
 
-    /// Revert this meal to planned (the user logged it wrong — e.g. an açai
-    /// bowl marked under Breakfast instead of Snack). Routes through the
-    /// single `NutritionTabViewModel.undoMealEaten` implementation (status
-    /// reset, feedback deletion, guarded pantry re-credit, sync notification)
-    /// so the logic lives in ONE place. Operates on the shared SwiftData
-    /// context, so the meal object flips to .planned everywhere it's
-    /// observed; we then dismiss back to the list.
+    /// Runs a shared eat/skip/undo action and reports a failure.
+    @MainActor
+    private func runAction(_ work: () throws -> some Any) {
+        do {
+            _ = try work()
+        } catch {
+            actionError = error.localizedDescription
+        }
+    }
+
+    /// Undo this meal. A plan slot reverts to planned (original dish back); a
+    /// log added on top of the plan is DELETED. Deleting removes the row, so
+    /// dismiss first and delete once the screen is gone (nothing renders the
+    /// deleted model), after Today dropped it from its list.
     private func undoEaten() {
-        NutritionTabViewModel().undoMealEaten(meal, modelContext: modelContext)
-        dismiss()
+        let env = outcomeEnv
+        let target = meal
+        if target.isUnplannedLog, target.status == .eaten {
+            dismiss()
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(450))
+                try? MealOutcomeService.undo(target, env: env)
+            }
+        } else {
+            runAction { try MealOutcomeService.undo(target, env: env) }
+            dismiss()
+        }
+    }
+
+    private func savePreset() {
+        let name = presetNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else {
+            return
+        }
+        runAction {
+            try MealOutcomeService.savePreset(
+                name: name,
+                foods: meal.foods,
+                mealType: MealType.inferred(fromName: meal.mealName) ?? .snack,
+                modelContext: modelContext
+            )
+        }
+        HapticManager.notification(.success)
     }
 
     /// Sheet's onCommit handler. Writes the chosen eat time, feel, and
-    /// substitute (if any), cancels pending notifications, saves.
-    /// When a substitute is present the planned macros are zeroed so the
-    /// day's totals stop counting a meal the user didn't eat.
+    /// substitute (if any) through the shared service (pantry, shift,
+    /// rebalance, reminders, Dashboard ping).
     private func commitMarkEaten(
         at eatTime: Date,
         feel: MealFeel?,
@@ -573,49 +668,21 @@ struct MealDetailView: View {
         substitute: MarkEatenSheet.Substitute?
     ) {
         guard let substitute else {
-            // Plain "ate the planned meal" — synchronous. Decrement once.
-            recordEaten(at: eatTime, feel: feel, satiety: satiety)
-            if !meal.didDecrementPantry {
-                let results = PantryDecrementService.decrement(for: meal, modelContext: modelContext)
-                meal.decrementDetail = results.flatMap(\.details)
-                meal.didDecrementPantry = true
-                PantryDepletionPlanCheck.handleDepletions(results, weeklyPlan: meal.mealPlan, modelContext: modelContext)
-                try? modelContext.save()
+            // Plain "ate the planned meal" — synchronous. Decrements once.
+            runAction {
+                try MealOutcomeService.markEaten(meal, at: eatTime, feel: feel, satiety: satiety, env: outcomeEnv)
             }
-            HapticManager.notification(.success)
             return
         }
         // Substitute lane: parse "what did you eat" into real foods + DB macros
         // via the NL pipeline, then REPLACE the meal's foods/macros so the
-        // detail screen shows what was actually eaten (not the old recipe, not
-        // zeros). One Haiku call. Eat time defaults to now (no scrubber here).
-        Task { await resolveSubstitute(note: substitute.note, usedPantry: substitute.usedPantry, feel: feel, satiety: satiety) }
-    }
-
-    /// Shared eaten-status write (status + time + notifications + feedback).
-    @MainActor
-    private func recordEaten(at eatTime: Date, feel: MealFeel?, satiety: MealSatiety? = nil, substituteNote: String? = nil) {
-        meal.status = .eaten
-        meal.actualEatenAt = eatTime
-        try? modelContext.save()
-        services.notifications.cancelDefrostReminders(forMealID: meal.id)
-        services.notifications.cancelPrepStartReminder(forMealID: meal.id)
-        services.notifications.cancelOverdueMealReminder(forMealID: meal.id)
-        if feel != nil || satiety != nil || substituteNote != nil {
-            let feedback = MealFeedback(
-                plannedMeal: meal,
-                mealFeel: feel,
-                satiety: satiety,
-                substituteNote: substituteNote,
-                substituteCalories: nil
-            )
-            modelContext.insert(feedback)
-            try? modelContext.save()
-        }
+        // detail screen shows what was actually eaten. The planned dish is
+        // remembered so Undo brings it back. One Haiku call.
+        Task { await resolveSubstitute(at: eatTime, note: substitute.note, usedPantry: substitute.usedPantry, feel: feel, satiety: satiety) }
     }
 
     @MainActor
-    private func resolveSubstitute(note: String, usedPantry: Bool, feel: MealFeel?, satiety: MealSatiety?) async {
+    private func resolveSubstitute(at eatTime: Date, note: String, usedPantry: Bool, feel: MealFeel?, satiety: MealSatiety?) async {
         if nlService == nil {
             nlService = NaturalLanguageLoggingService(apiClient: services.apiClient)
         }
@@ -630,13 +697,7 @@ struct MealDetailView: View {
                 substituteError = "Couldn't recognize any food in \"\(note)\". Edit and try again."
                 return
             }
-            // Replace the meal's foods + macros with what was actually eaten.
-            // Day/Fuel totals sum PlannedMeal.totalCalories (NOT MealLog), so we
-            // set them directly and create NO MealLog (would double-count).
-            // Freeze the plan allocation first so the day's target keeps the
-            // planned amount instead of following the substitute.
-            meal.capturePlanBaselineIfNeeded()
-            meal.foods = items.map {
+            let foods = items.map {
                 PlannedFood(
                     name: $0.name,
                     quantityGrams: $0.quantityGrams,
@@ -646,40 +707,46 @@ struct MealDetailView: View {
                     fatG: $0.fatG
                 )
             }
-            meal.totalCalories = items.reduce(0) { $0 + $1.calories }
-            meal.totalProtein = items.reduce(0) { $0 + $1.proteinG }
-            meal.totalCarbs = items.reduce(0) { $0 + $1.carbsG }
-            meal.totalFat = items.reduce(0) { $0 + $1.fatG }
-            // Clear the planned recipe so the detail view renders the actual
-            // foods (noRecipeFallback) instead of the original dish.
-            meal.recipe = nil
-            recordEaten(at: .now, feel: feel, satiety: satiety, substituteNote: note)
-            // Decrement the pantry ONLY if the user said they used their own
-            // stock, and only once per meal (guard against re-edit
-            // double-subtract). "Ate out" / unknown leaves the pantry alone.
-            if usedPantry, !meal.didDecrementPantry {
-                let foods = meal.foods
-                let results = PantryDecrementService.decrement(
-                    foods: foods, label: meal.mealName, modelContext: modelContext
-                )
-                meal.decrementDetail = results.flatMap(\.details)
-                meal.didDecrementPantry = true
-                PantryDepletionPlanCheck.handleDepletions(results, weeklyPlan: meal.mealPlan, modelContext: modelContext)
-                try? modelContext.save()
-            }
-            HapticManager.notification(.success)
+            // Pantry only when the user said they used their own stock.
+            try MealOutcomeService.markEaten(
+                meal,
+                at: eatTime,
+                feel: feel,
+                satiety: satiety,
+                replacingWith: foods,
+                substituteNote: note,
+                pantry: usedPantry ? .foods : .none,
+                env: outcomeEnv
+            )
         } catch {
             substituteError = "Couldn't read that: \(error.localizedDescription). Your note is kept — try again."
         }
     }
 
+    /// Skip through the shared service, then redistribute the skipped macros
+    /// over the rest of the day and say so only if that really happened.
     private func resolveAsSkipped() {
-        meal.status = .skipped
-        try? modelContext.save()
-        services.notifications.cancelDefrostReminders(forMealID: meal.id)
-        services.notifications.cancelPrepStartReminder(forMealID: meal.id)
-        services.notifications.cancelOverdueMealReminder(forMealID: meal.id)
+        let env = outcomeEnv
+        let target = meal
+        runAction { try MealOutcomeService.skip(target, env: env) }
+        guard target.status == .skipped else {
+            return
+        }
         HapticManager.lightImpact()
+        Task { @MainActor in
+            let result = await MealOutcomeService.redistributeAfterSkip(
+                target,
+                service: MealRedistributionService(apiClient: services.apiClient),
+                env: env,
+                recoveryScore: nil,
+                sleepHours: nil,
+                strain: nil,
+                dayType: "unknown"
+            )
+            if let result {
+                skipRedistributionNote = "Your other meals were adjusted. \(result.reasoning)"
+            }
+        }
     }
 
     /// Horizontal track laid out via HStack so end-node labels can't clip
@@ -1121,10 +1188,28 @@ struct MealDetailView: View {
         .tempoShadow(.card)
     }
 
+    /// Foods can be removed one by one from a log the user entered (an
+    /// unplanned log or a replaced slot) once it is eaten.
+    private var canRemoveFoods: Bool {
+        meal.status == .eaten && (meal.isUnplannedLog || meal.replacedPlan != nil)
+    }
+
+    /// Removes one food from the log; removing the last one deletes the log.
+    private func removeFood(at index: Int) {
+        let env = outcomeEnv
+        let target = meal
+        if target.foods.count == 1, target.isUnplannedLog {
+            undoEaten()
+            return
+        }
+        runAction { try MealOutcomeService.removeFood(at: index, from: target, env: env) }
+        HapticManager.lightImpact()
+    }
+
     private func foodsListCard(foods: [PlannedFood]) -> some View {
         VStack(alignment: .leading, spacing: TempoSpacing.sm) {
             sectionLabel("WHAT YOU ATE")
-            ForEach(Array(foods.enumerated()), id: \.offset) { _, food in
+            ForEach(Array(foods.enumerated()), id: \.offset) { index, food in
                 HStack(spacing: TempoSpacing.sm) {
                     Circle()
                         .fill(Color.tempoViolet.opacity(0.4))
@@ -1133,12 +1218,26 @@ struct MealDetailView: View {
                         .font(.tempoBody)
                         .foregroundStyle(Color.tempoTextPrimary)
                     Spacer()
-                    Text("\(Int(food.quantityGrams))g")
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                        .foregroundStyle(Color.tempoTextTertiary)
+                    if food.quantityGrams >= 1 {
+                        Text("\(Int(food.quantityGrams))g")
+                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                            .foregroundStyle(Color.tempoTextTertiary)
+                    }
                     Text("\(Int(food.calories)) kcal")
                         .font(.system(size: 12, weight: .semibold, design: .monospaced))
                         .foregroundStyle(Color.tempoTextSecondary)
+                    if canRemoveFoods {
+                        Button {
+                            removeFood(at: index)
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                                .font(.system(size: 18))
+                                .foregroundStyle(Color.tempoError)
+                                .frame(minWidth: 32, minHeight: 32)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Remove \(food.name) from this log")
+                    }
                 }
                 .padding(.vertical, 2)
             }

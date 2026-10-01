@@ -55,6 +55,23 @@ struct MealLoggingView: View {
 
     var onMealLogged: (([FoodItem], MealType) -> Void)?
 
+    /// The eat time the user SAID in a voice log ("had lunch at 1pm"). nil →
+    /// now. Only used when it falls earlier today (see `resolvedEatenAt`).
+    @State
+    private var voiceEatTime: Date?
+
+    /// Voice eat time when it is today and not in the future; otherwise now.
+    private var resolvedEatenAt: Date {
+        let now = Date()
+        guard let voiceEatTime,
+              Calendar.current.isDateInToday(voiceEatTime),
+              voiceEatTime <= now.addingTimeInterval(60)
+        else {
+            return now
+        }
+        return min(voiceEatTime, now)
+    }
+
     // MARK: - Meal Type
 
     enum MealType: String, CaseIterable, Identifiable {
@@ -154,6 +171,12 @@ struct MealLoggingView: View {
                 VoiceMealLogView(
                     onFoodSelected: { item in
                         addFoodItem(item)
+                    },
+                    onEatTime: { time in
+                        voiceEatTime = time
+                        // Pick the meal type for the time they said, like the
+                        // other logging paths do.
+                        selectedMealType = .init(EatenMealRecorder.defaultMealType(for: time))
                     },
                     onSearchInstead: { name in
                         searchPrefill = name
@@ -447,8 +470,9 @@ struct MealLoggingView: View {
             try EatenMealRecorder.record(
                 foodItems.map(\.mealFoodInput),
                 type: selectedMealType.appMealType,
-                eatenAt: Date(),
-                source: .manual,
+                eatenAt: resolvedEatenAt,
+                source: voiceEatTime == nil ? .manual : .voice,
+                // (voice logs carry the time the user said, see resolvedEatenAt)
                 modelContext: modelContext,
                 notifications: services.notifications
             )
