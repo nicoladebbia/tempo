@@ -56,7 +56,8 @@ final class MealPlanIntakePersistenceTests: XCTestCase {
         )
         let settings = UserSettings()
         intake.persist(to: settings)
-        XCTAssertEqual(settings.mealIntakeExclusionsRaw, "broccoli, tofu")
+        XCTAssertEqual(settings.mealIntakeTempExclusionsRaw, "broccoli, tofu", "this week's answers are stored apart from the saved prefs")
+        XCTAssertEqual(settings.mealIntakeExclusionsRaw, "")
     }
 
     // MARK: - Fallbacks (the nil-default path)
