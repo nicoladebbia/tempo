@@ -235,4 +235,36 @@ final class WorkoutCSVServiceTests: XCTestCase {
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<WorkoutPlan>()), 1)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<Exercise>()), 1, "Still used by the second import")
     }
+
+    // MARK: - Exercise matching
+
+    func testStrongNameMatchesLibraryExerciseInsteadOfForkingACustomOne() throws {
+        let context = try makeContext()
+        let library = Exercise(name: "Barbell Bench Press", muscleGroup: .chest, equipment: .barbell,
+                               movementPattern: .horizontalPush, isCompound: true)
+        context.insert(library)
+        try context.save()
+
+        let summary = try WorkoutCSVService.importCSV(strongPounds, modelContext: context)
+
+        XCTAssertEqual(summary.newExercises, 1, "Only Pull Up is new; Bench Press (Barbell) is the library lift")
+        XCTAssertEqual(library.history?.count, 1, "History lands on the library exercise")
+        XCTAssertEqual(library.plannedExercises?.count, 1)
+        let customs = try context.fetch(FetchDescriptor<Exercise>()).filter(\.isCustom)
+        XCTAssertEqual(customs.map(\.name), ["Pull Up"])
+        XCTAssertEqual(customs.first?.muscleGroup, .back, "Inferred, not Full Body")
+        XCTAssertEqual(customs.first?.equipment, .bodyweight)
+    }
+
+    func testTwoSpellingsOfOneLiftShareOneExercise() throws {
+        let context = try makeContext()
+        let csv = """
+        Date,Workout Name,Exercise Name,Set Order,Weight,Reps
+        2026-07-20 18:00:00,Push,Bench Press (Barbell),1,80,5
+        2026-07-22 18:00:00,Push,Barbell Bench Press,1,82.5,5
+        """
+        let summary = try WorkoutCSVService.importCSV(csv, assumedUnit: .kg, modelContext: context)
+        XCTAssertEqual(summary.newExercises, 1)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<Exercise>()), 1)
+    }
 }

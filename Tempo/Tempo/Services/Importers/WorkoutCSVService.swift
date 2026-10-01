@@ -303,10 +303,11 @@ enum WorkoutCSVService {
         let existingStarts = Set(
             ((try? modelContext.fetch(FetchDescriptor<WorkoutPlan>())) ?? []).compactMap(\.startedAt)
         )
-        var exercisesByName: [String: Exercise] = Dictionary(
-            ((try? modelContext.fetch(FetchDescriptor<Exercise>())) ?? [])
-                .map { ($0.name.lowercased(), $0) }
-        ) { first, _ in first }
+        // The library (built-in + custom) the CSV names are resolved against.
+        let library = (try? modelContext.fetch(FetchDescriptor<Exercise>())) ?? []
+        var exercisesByID = Dictionary(library.map { ($0.id, $0) }) { first, _ in first }
+        var candidates = library.map { ExerciseMatcher.Candidate(id: $0.id, name: $0.name) }
+        var resolved: [String: Exercise] = [:]
 
         for key in groups.keys.sorted(by: { $0.start < $1.start }) {
             guard !existingStarts.contains(key.start) else {
@@ -335,22 +336,30 @@ enum WorkoutCSVService {
 
             for (order, name) in orderedNames.enumerated() {
                 let exercise: Exercise
-                if let known = exercisesByName[name.lowercased()] {
+                if let known = resolved[name] {
                     exercise = known
+                } else if let match = ImportedExerciseResolver.resolve(name, in: candidates),
+                          let known = exercisesByID[match.id]
+                {
+                    exercise = known
+                    resolved[name] = known
                 } else {
-                    // Classification unknown from a CSV — land it as a custom
-                    // exercise with neutral traits; editable in the library.
+                    // No confident library match: a custom exercise, with the
+                    // muscle group/equipment inferred from the name.
+                    let traits = ImportedExerciseResolver.traits(for: name)
                     exercise = Exercise(
                         name: name,
-                        muscleGroup: .fullBody,
-                        equipment: .none,
-                        movementPattern: .isolation,
-                        isCompound: false,
+                        muscleGroup: traits.muscleGroup,
+                        equipment: traits.equipment,
+                        movementPattern: traits.movementPattern,
+                        isCompound: traits.isCompound,
                         isCustom: true
                     )
                     exercise.importBatchID = batchID
                     modelContext.insert(exercise)
-                    exercisesByName[name.lowercased()] = exercise
+                    resolved[name] = exercise
+                    exercisesByID[exercise.id] = exercise
+                    candidates.append(ExerciseMatcher.Candidate(id: exercise.id, name: name))
                     summary.newExercises += 1
                 }
 
