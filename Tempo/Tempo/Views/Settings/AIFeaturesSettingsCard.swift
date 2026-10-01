@@ -64,7 +64,7 @@ struct AIFeaturesSettingsCard: View {
         } catch {
             Logger.nutrition.error("AI consent change failed: \(error.localizedDescription, privacy: .public)")
             isOn = previous
-            errorMessage = "Couldn't change that. Check your connection and try again."
+            errorMessage = "Couldn't change that. \(AIBlocker.readableDescription(error))"
         }
         isSaving = false
     }

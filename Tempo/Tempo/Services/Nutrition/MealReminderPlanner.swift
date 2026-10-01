@@ -10,6 +10,7 @@
 //
 
 import Foundation
+import OSLog
 import SwiftData
 
 enum MealReminderPlanner {
@@ -70,6 +71,13 @@ enum MealReminderPlanner {
             notifications.replaceMealReminders([])
             return
         }
-        notifications.replaceMealReminders(requests(modelContext: modelContext, now: now, calendar: calendar))
+        let wanted = requests(modelContext: modelContext, now: now, calendar: calendar)
+        notifications.replaceMealReminders(wanted)
+        Logger.nutrition.info("[MealReminders] \(wanted.count, privacy: .public) scheduled")
+        for reminder in wanted.prefix(5) {
+            Logger.nutrition.info(
+                "[MealReminders] \(reminder.mealName, privacy: .public) \(reminder.mealID.uuidString, privacy: .public) fires \(reminder.fireDate, privacy: .public)"
+            )
+        }
     }
 }
