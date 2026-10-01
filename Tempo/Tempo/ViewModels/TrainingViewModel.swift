@@ -1514,13 +1514,16 @@ final class TrainingViewModel {
         feedback.userProvidedFeedback = true
         if let rpe {
             feedback.rpe = max(1, min(10, rpe))
+            feedback.rpeProvided = true
             lastCompletedSet?.rpe = feedback.rpe
         }
         if let breath {
             feedback.breathDifficulty = breath
+            feedback.breathProvided = true
         }
         if let form {
             feedback.formQuality = form
+            feedback.formProvided = true
         }
         if let note {
             let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)

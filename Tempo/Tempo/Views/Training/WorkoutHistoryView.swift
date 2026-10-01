@@ -806,8 +806,10 @@ struct WorkoutHistoryView: View {
 
                         // Feedback line — only for working sets with a linked
                         // SetFeedback. Warm-ups have none.
-                        if !set.isWarmup, let fb = feedbackBySetID[set.id] {
-                            Text("RPE \(fb.rpe) · \(fb.breathDifficulty.displayName) · \(fb.formQuality.displayName)")
+                        // Only what the athlete entered — untouched defaults
+                        // used to read as "RPE 7 · Moderate · Clean" on every set.
+                        if !set.isWarmup, let summary = feedbackBySetID[set.id]?.enteredSummary {
+                            Text(summary)
                                 .font(.tempoCaption2)
                                 .foregroundStyle(Color.tempoTextTertiary)
                                 .lineLimit(1)
