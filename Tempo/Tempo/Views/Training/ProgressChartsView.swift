@@ -294,7 +294,7 @@ struct ProgressChartsView: View {
                 GridItem(.flexible(), spacing: TempoSpacing.sm),
             ], spacing: TempoSpacing.sm) {
                 overviewStatCell(label: "Workouts", value: "\(totalWorkouts)")
-                overviewStatCell(label: "Volume", value: formatVolume(totalVolume))
+                overviewStatCell(label: "Volume (\(weightUnit.abbreviation))", value: WeightFormat.compactVolume(kg: totalVolume, unit: weightUnit))
                 overviewStatCell(label: "Sets", value: "\(totalSets)")
             }
         }
@@ -308,6 +308,8 @@ struct ProgressChartsView: View {
             Text(value)
                 .font(.tempoTitle3)
                 .foregroundStyle(Color.tempoTextPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
             Text(label)
                 .font(.tempoCaption2)
                 .foregroundStyle(Color.tempoTextTertiary)

@@ -196,7 +196,10 @@ struct MuscleHeatmapView: View {
                         .foregroundStyle(Color.tempoTextTertiary)
                 }
             }
-            .padding(.vertical, TempoSpacing.lg)
+            .padding(.top, TempoSpacing.lg)
+            // The floating tab bar overlaps the scroll content: leave room so
+            // the drill-down panel can scroll fully clear of it.
+            .padding(.bottom, 120)
             .animation(.spring(duration: 0.3), value: selectedMuscle)
         }
         .background(Color.tempoBgPrimary)

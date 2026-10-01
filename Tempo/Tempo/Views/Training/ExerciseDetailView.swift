@@ -382,7 +382,7 @@ struct ExerciseDetailView: View {
                         )
                     }
                 )
-                TempoLineChart(data: [data], height: 200)
+                TempoLineChart(data: [data], height: 200, axisDesiredCount: 4)
             }
         }
         .padding(TempoSpacing.cardPadding)
