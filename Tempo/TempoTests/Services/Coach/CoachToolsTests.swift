@@ -143,6 +143,38 @@ final class CoachToolsTests: XCTestCase {
         XCTAssertEqual(reloaded, DayType.strength.rawValue)
     }
 
+    func testSwapDayType_scalesFoodsTotalsAndBaselineTogether() throws {
+        let (_, context, plan, meals) = try makeFixture(mealCount: 2)
+        let today = Calendar.current.startOfDay(for: Date())
+        let dayKey = ((Calendar.current.component(.weekday, from: today) + 5) % 7) + 1
+        var assignments = plan.dayTypeAssignments
+        assignments[dayKey] = DayType.rest.rawValue
+        plan.dayTypeAssignments = assignments
+        let breakfast = meals[0], lunch = meals[1]
+        breakfast.foods = [PlannedFood(name: "Oats", quantityGrams: 100, calories: 600, proteinG: 35, carbsG: 60, fatG: 18)]
+        lunch.capturePlanBaselineIfNeeded()
+        lunch.status = .eaten
+        try context.save()
+
+        _ = try CoachTools.swapDayType(
+            date: today, newType: .strength, scaleMacros: true, caloriesMultiplier: 1.2, context: context
+        )
+
+        XCTAssertEqual(breakfast.totalCalories, 720, accuracy: 0.01)
+        XCTAssertEqual(breakfast.foods.first?.calories ?? 0, 720, accuracy: 0.01, "Foods still add up to the card")
+        XCTAssertEqual(breakfast.planBaseline.calories, 720, accuracy: 0.01, "Target follows the meal")
+        XCTAssertEqual(lunch.totalCalories, 600, "Eaten meals are history")
+    }
+
+    func testSwapDayType_neverRescalesAPastDay() throws {
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Calendar.current.startOfDay(for: Date()))!
+        let (_, context, _, meals) = try makeFixture(mealCount: 1, on: yesterday)
+        _ = try CoachTools.swapDayType(
+            date: yesterday, newType: .strength, scaleMacros: true, caloriesMultiplier: 1.2, context: context
+        )
+        XCTAssertEqual(meals[0].totalCalories, 600)
+    }
+
     func testSwapDayType_sameTypeIsNoOp() throws {
         let (_, context, plan, _) = try makeFixture()
         var assignments = plan.dayTypeAssignments
@@ -161,8 +193,9 @@ final class CoachToolsTests: XCTestCase {
     }
 
     func testSwapDayType_scaleMacrosByRatio() throws {
-        // Pin the fixture to Monday so dayIndex0Mon == 0.
-        let monday = mondayDate()
+        // Pin the fixture to NEXT Monday so dayIndex0Mon == 0 and the day is
+        // still ahead (past days are never rescaled).
+        let monday = Calendar.current.date(byAdding: .day, value: 7, to: mondayDate())!
         let (_, context, _, meals) = try makeFixture(on: monday)
 
         let originalCal = meals[0].totalCalories

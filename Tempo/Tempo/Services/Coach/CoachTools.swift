@@ -245,22 +245,26 @@ enum CoachTools {
         if scaleMacros, abs(caloriesMultiplier - 1.0) > 0.001 {
             let dayStart = calendar.startOfDay(for: date)
             let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart
+            let planID = plan.id
             let descriptor = FetchDescriptor<PlannedMeal>(
                 predicate: #Predicate<PlannedMeal> { meal in
                     meal.dayDate >= dayStart && meal.dayDate < dayEnd
                 }
             )
-            let meals = (try? context.fetch(descriptor)) ?? []
-            for meal in meals where meal.status == .planned || meal.status == .modified {
-                meal.totalCalories *= caloriesMultiplier
-                meal.totalProtein *= caloriesMultiplier
-                meal.totalCarbs *= caloriesMultiplier
-                meal.totalFat *= caloriesMultiplier
+            // Only this plan's meals that are still ahead: a past day or an
+            // eaten/skipped meal is history, and an ad-hoc log isn't planned.
+            let meals = dayStart < calendar.startOfDay(for: Date()) ? [] : ((try? context.fetch(descriptor)) ?? [])
+                .filter { $0.mealPlan?.id == planID && !$0.isUnplannedLog }
+                .filter { $0.status == .planned || $0.status == .modified }
+            let ratio = min(3, max(0.2, caloriesMultiplier))
+            for meal in meals {
+                Self.scale(meal, by: ratio)
             }
             if !meals.isEmpty {
-                let pct = Int(((caloriesMultiplier - 1.0) * 100).rounded())
+                let pct = Int(((ratio - 1.0) * 100).rounded())
                 let sign = pct >= 0 ? "+" : ""
                 sideEffects.append("Scaled \(meals.count) meal\(meals.count == 1 ? "" : "s") by \(sign)\(pct)% kcal")
+                NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
             }
         }
         try context.save()
@@ -269,6 +273,36 @@ enum CoachTools {
             summary: "Day type: \(currentType.displayName) → \(newType.displayName)",
             sideEffects: sideEffects
         )
+    }
+
+    /// A day-type change moves the plan's own target for that meal, so the
+    /// foods, the live totals and the captured baseline all scale together —
+    /// otherwise the Today/Dashboard target (from the baseline) and the meal
+    /// card (from the totals) would show two different numbers.
+    @MainActor
+    private static func scale(_ meal: PlannedMeal, by ratio: Double) {
+        meal.foods = meal.foods.map { food in
+            PlannedFood(
+                name: food.name,
+                quantityGrams: (food.quantityGrams * ratio).rounded(),
+                calories: food.calories * ratio,
+                proteinG: food.proteinG * ratio,
+                carbsG: food.carbsG * ratio,
+                fatG: food.fatG * ratio,
+                source: food.source,
+                restaurant: food.restaurant
+            )
+        }
+        meal.totalCalories *= ratio
+        meal.totalProtein *= ratio
+        meal.totalCarbs *= ratio
+        meal.totalFat *= ratio
+        if let calories = meal.planBaselineCalories {
+            meal.planBaselineCalories = calories * ratio
+            meal.planBaselineProtein = meal.planBaselineProtein.map { $0 * ratio }
+            meal.planBaselineCarbs = meal.planBaselineCarbs.map { $0 * ratio }
+            meal.planBaselineFat = meal.planBaselineFat.map { $0 * ratio }
+        }
     }
 
     // MARK: insertActivity

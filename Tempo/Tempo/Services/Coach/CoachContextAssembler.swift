@@ -157,7 +157,9 @@ enum CoachContextAssembler {
             let dayWorkout = workouts.first { calendar.isDate($0.date, inSameDayAs: cursor) }
             let dayRecovery = recoveries.first { calendar.isDate($0.date, inSameDayAs: cursor) }
 
-            let plannedKcal = dayMeals.reduce(0) { $0 + $1.totalCalories }
+            // The plan's own target (baselines), like the Today ring — an
+            // extra log the user added mustn't inflate "planned".
+            let plannedKcal = dayMeals.reduce(0) { $0 + $1.planBaseline.calories }
             let eatenKcal = dayMeals.filter { $0.status == .eaten || $0.status == .modified }
                 .reduce(0) { $0 + $1.totalCalories }
             let skipped = dayMeals.filter { $0.status == .skipped }.count
@@ -166,7 +168,7 @@ enum CoachContextAssembler {
             days.append(BackwardDay(
                 date: cursor,
                 dayType: dayWorkout?.type,
-                plannedMealCount: dayMeals.count,
+                plannedMealCount: dayMeals.count(where: { !$0.isUnplannedLog }),
                 eatenMealCount: dayMeals.filter { $0.status == .eaten || $0.status == .modified }.count,
                 skippedMealCount: skipped,
                 plannedKcal: plannedKcal,
@@ -217,8 +219,8 @@ enum CoachContextAssembler {
             days.append(ForwardDay(
                 date: cursor,
                 dayType: dayWorkout?.type,
-                plannedMealCount: dayMeals.count,
-                plannedKcal: dayMeals.reduce(0) { $0 + $1.totalCalories }
+                plannedMealCount: dayMeals.count(where: { !$0.isUnplannedLog }),
+                plannedKcal: dayMeals.reduce(0) { $0 + $1.planBaseline.calories }
             ))
             guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
             cursor = next

@@ -109,6 +109,12 @@ final class WeeklyPlanService {
         return calendar.date(byAdding: .day, value: -daysSinceMonday, to: today) ?? today
     }
 
+    /// A plan for a week that has already ended — never applied (it would
+    /// replace the current week).
+    nonisolated static func isPastWeek(_ weekStart: Date, now: Date = Date(), calendar: Calendar = .current) -> Bool {
+        calendar.startOfDay(for: weekStart) < currentWeekStart(for: now, calendar: calendar)
+    }
+
     nonisolated static func dayString(_ date: Date, calendar: Calendar = .current) -> String {
         let parts = calendar.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
@@ -209,6 +215,15 @@ final class WeeklyPlanService {
             }
             if weekStart > now {
                 phase = .upcoming(plan, weekStart: weekStart)
+                return
+            }
+            // A week that's already over (the phone was offline until the
+            // next Monday) must not replace the current week — applying it
+            // would archive this week's plan and its eaten meals.
+            if Self.isPastWeek(weekStart, now: now) {
+                logger.info("[WeeklyPlan] dropping ready job for a past week")
+                defaults.removeObject(forKey: Key.pendingJobID)
+                phase = .idle
                 return
             }
             inFlightJobID = job.id
