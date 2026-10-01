@@ -9,8 +9,9 @@
 //   - an `.eaten` PlannedMeal (the canonical record every surface sums),
 //     either filling the matching planned slot for that meal type (through
 //     `MealOutcomeService.markEaten`: the planned dish is remembered so Undo /
-//     Delete brings it back, later meals shift, the day rebalances), merging
-//     into an already-eaten one, or as a new row attached to today's active
+//     Delete brings it back, later meals shift, the day rebalances), a second
+//     log into an already-eaten PLAN slot as its own unplanned log (merging
+//     only into an existing log), or as a new row attached to today's active
 //     plan (or unbound when no plan covers today) — an "unplanned log" that
 //     Undo / Delete removes;
 //   - a legacy MealLog alongside it, linked from the meal so Undo / Delete
@@ -61,6 +62,12 @@ enum EatenMealRecorder {
             candidates = todayMeals.filter {
                 MealType.inferred(fromName: $0.mealName) == nil && $0.mealNumber == targetMealNumber
             }
+        }
+        // A plan slot always wins over a log sitting next to it (extra
+        // portions are their own unplanned rows); logs only match each other.
+        let planSlots = candidates.filter { !$0.isUnplannedLog }
+        if !planSlots.isEmpty {
+            candidates = planSlots
         }
         if candidates.count <= 1 {
             return candidates.first
@@ -197,9 +204,23 @@ enum EatenMealRecorder {
                 }
                 return Result(meal: existing, logged: logged)
             }
-            // Already eaten: merge into it. Whatever happens next rewrites the
-            // totals — keep the plan's allocation for the daily target.
+            // Already eaten. A PLAN slot (not itself a log) must not absorb
+            // extra foods: Undo / Delete would then "restore" the planned dish
+            // plus the extras. A second portion becomes its own unplanned log
+            // in the same meal type — removable on its own, the first log
+            // untouched. An "edit" (replace same-named foods) does change the
+            // slot's foods, so the planned dish is stashed first and Undo
+            // still brings the ORIGINAL back.
+            if !existing.isUnplannedLog, resolution == .add {
+                return try recordUnplannedLog(
+                    items: items, plannedFoods: plannedFoods, logged: logged,
+                    type: type, eatenAt: eatenAt, source: source, now: now, in: modelContext
+                )
+            }
+            // Whatever happens next rewrites the totals — keep the plan's
+            // allocation for the daily target.
             existing.capturePlanBaselineIfNeeded()
+            existing.stashPlannedDishIfNeeded()
             switch resolution {
             case .edit:
                 let newNames = Set(plannedFoods.map { $0.name.lowercased() })
@@ -223,6 +244,25 @@ enum EatenMealRecorder {
             return Result(meal: existing, logged: logged)
         }
 
+        return try recordUnplannedLog(
+            items: items, plannedFoods: plannedFoods, logged: logged,
+            type: type, eatenAt: eatenAt, source: source, now: now, in: modelContext
+        )
+    }
+
+    /// A log on top of the plan: its own eaten row (attached to today's
+    /// active plan, or unbound), frozen at a zero baseline so it adds to
+    /// "eaten" but never to the day's target. Undo / Delete removes it.
+    private static func recordUnplannedLog(
+        items: [MealFoodItemInput],
+        plannedFoods: [PlannedFood],
+        logged: MealMacros,
+        type: MealType,
+        eatenAt: Date,
+        source: MealSource,
+        now: Date,
+        in modelContext: ModelContext
+    ) throws -> Result {
         let mealLog = makeMealLog(items: items, type: type, eatenAt: eatenAt, source: source, in: modelContext)
         let timeFormatter = DateFormatter()
         timeFormatter.dateFormat = "HH:mm"

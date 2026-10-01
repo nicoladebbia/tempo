@@ -157,8 +157,10 @@ final class EatenMealRecorderTests: XCTestCase {
             resolution: .add,
             modelContext: context
         )
-        XCTAssertEqual(slot.foods.count, 2)
-        XCTAssertEqual(slot.totalCalories, 800)
+        // A second portion is its own log; the filled slot is untouched.
+        XCTAssertEqual(slot.foods.count, 1)
+        XCTAssertEqual(slot.totalCalories, 500)
+        XCTAssertEqual(allMeals().count, 2)
 
         try EatenMealRecorder.record(
             [food("Pasta", kcal: 450)],
@@ -171,6 +173,52 @@ final class EatenMealRecorderTests: XCTestCase {
         XCTAssertEqual(slot.foods.count, 1)
         XCTAssertEqual(slot.totalCalories, 450)
         XCTAssertEqual(slot.planBaseline.calories, 800, "Baseline frozen at the first fill")
+    }
+
+    /// Plain Mark Eaten (the planned dish), then Quick Log into the same slot:
+    /// the extra is its own unplanned log and Undo of the slot restores the
+    /// ORIGINAL planned dish with the plan's numbers.
+    func testQuickLogIntoEatenPlanSlotIsSeparateLogAndSlotUndoIsClean() throws {
+        let plan = activePlan()
+        let slot = plannedSlot(.dinner, kcal: 800, in: plan)
+        let env = MealOutcomeService.Env(modelContext: context)
+        try MealOutcomeService.markEaten(slot, pantry: .none, env: env)
+
+        let result = try EatenMealRecorder.record(
+            [food("Gelato", kcal: 300)], type: .dinner, eatenAt: Date(), source: .manual, modelContext: context
+        )
+
+        XCTAssertFalse(result.meal === slot)
+        XCTAssertTrue(result.meal.isUnplannedLog)
+        XCTAssertEqual(slot.totalCalories, 800, "Plan dish untouched by the extra")
+        XCTAssertEqual(slot.foods.map(\.name), ["Planned dish"])
+
+        // The extra is removable on its own without touching the slot.
+        let snap = try MealOutcomeService.undo(result.meal, env: env)
+        XCTAssertEqual(snap.kind, .removed)
+        XCTAssertEqual(slot.status, .eaten)
+        XCTAssertEqual(slot.totalCalories, 800)
+        XCTAssertEqual(allMeals().count, 1)
+    }
+
+    /// An "edit" into an eaten plan slot changes its foods; Undo still brings
+    /// the original planned dish back (it was stashed before the edit).
+    func testEditIntoEatenPlanSlotStashesPlanDishSoUndoRestoresIt() throws {
+        let plan = activePlan()
+        let slot = plannedSlot(.dinner, kcal: 800, in: plan)
+        let env = MealOutcomeService.Env(modelContext: context)
+        try MealOutcomeService.markEaten(slot, pantry: .none, env: env)
+
+        try EatenMealRecorder.record(
+            [food("Planned dish", kcal: 500)], type: .dinner, eatenAt: Date(), source: .manual,
+            resolution: .edit, modelContext: context
+        )
+        XCTAssertEqual(slot.totalCalories, 500)
+
+        try MealOutcomeService.undo(slot, env: env)
+        XCTAssertEqual(slot.status, .planned)
+        XCTAssertEqual(slot.totalCalories, 800, "Original planned dish, no extras")
+        XCTAssertEqual(slot.foods.map(\.name), ["Planned dish"])
     }
 
     func testDuplicateNamesEmptyWhenSlotNotYetEaten() {
