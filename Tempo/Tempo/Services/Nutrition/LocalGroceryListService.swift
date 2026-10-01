@@ -26,82 +26,21 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
 
     // MARK: - Generate
 
-    /// State carried across a regenerate for an item the aggregator WILL
-    /// reproduce (matched by canonical name) — ticks and bought/reminder
-    /// bookkeeping shouldn't reset just because the week's list was rebuilt.
-    private struct PreservedItemState {
-        let isChecked: Bool
-        let isBought: Bool
-        let boughtAt: Date?
-        let reminderIdentifier: String?
-
-        init(item: GroceryListItem) {
-            isChecked = item.isChecked
-            isBought = item.isBought
-            boughtAt = item.boughtAt
-            reminderIdentifier = item.reminderIdentifier
-        }
-    }
-
-    /// A manually-added item, captured as plain data (not the SwiftData
-    /// object — the old list it belongs to gets cascade-deleted) so it can
-    /// be recreated verbatim on the new list. Manual items never come from
-    /// `GroceryListGenerator`, so nothing else would reproduce them.
-    private struct PreservedManualItem {
-        let canonicalFoodName: String
-        let displayName: String
-        let quantity: Double
-        let unit: PantryUnit
-        let category: String
-        let isChecked: Bool
-        let isBought: Bool
-        let boughtAt: Date?
-        let reminderIdentifier: String?
-        let estimatedPriceUSD: Double?
-        let priceSource: GroceryPriceSource?
-        let notes: String?
-
-        init(item: GroceryListItem) {
-            canonicalFoodName = item.canonicalFoodName
-            displayName = item.displayName
-            quantity = item.quantity
-            unit = item.unit
-            category = item.category
-            isChecked = item.isChecked
-            isBought = item.isBought
-            boughtAt = item.boughtAt
-            reminderIdentifier = item.reminderIdentifier
-            estimatedPriceUSD = item.estimatedPriceUSD
-            priceSource = item.priceSource
-            notes = item.notes
-        }
-
-        func makeItem(list: GroceryList) -> GroceryListItem {
-            GroceryListItem(
-                list: list,
-                canonicalFoodName: canonicalFoodName,
-                displayName: displayName,
-                quantity: quantity,
-                unit: unit,
-                category: category,
-                isChecked: isChecked,
-                isManual: true,
-                isBought: isBought,
-                boughtAt: boughtAt,
-                reminderIdentifier: reminderIdentifier,
-                estimatedPriceUSD: estimatedPriceUSD,
-                priceSource: priceSource,
-                notes: notes
-            )
-        }
-    }
+    /// Clock for "from today on" and tests.
+    var now: () -> Date = { Date() }
 
     /// `weekStartDate` MUST be the source plan's Monday (its `startDate`),
     /// not "today" — that's what makes regenerating mid-week REPLACE that
-    /// week's list instead of spawning a second one (BUILD item 1a). Ticks
-    /// and manually-added items from any list(s) already covering that week
-    /// survive the replace (BUILD item 1b); lists more than
-    /// `retentionWeeks` old are pruned on every generate.
+    /// week's list instead of spawning a second one (BUILD item 1a).
+    ///
+    /// The existing list is UPDATED IN PLACE (same `GroceryList.id`, same
+    /// item ids for foods that are still needed): `GroceryShare` is keyed by
+    /// list id and the shopper's page by item id, so deleting and recreating
+    /// the list orphaned the live share link and lost shopper ticks. Ticks,
+    /// bought history and manual items survive; lines the plan no longer
+    /// needs (eaten/skipped meals, pantry now covers it) are removed along
+    /// with their Apple Reminders entry. Lists more than `retentionWeeks`
+    /// old are pruned on every generate.
     @discardableResult
     func generate(
         from mealPlan: WeeklyMealPlan,
@@ -112,7 +51,8 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
         let aggregated = GroceryListGenerator.generate(from: .init(
             mealPlan: mealPlan,
             pantry: pantryItems,
-            weekStartDate: weekStartDate
+            weekStartDate: weekStartDate,
+            onOrAfter: now()
         ))
 
         let weekStart = Calendar.current.startOfDay(for: weekStartDate)
@@ -121,72 +61,144 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
                 list.weekStartDate == weekStart
             }
         )
-        let existingLists = try modelContext.fetch(existingDescriptor)
-
-        var preservedState: [String: PreservedItemState] = [:]
-        var preservedManual: [PreservedManualItem] = []
-        for old in existingLists {
-            for item in old.items ?? [] {
-                if item.isManual {
-                    preservedManual.append(PreservedManualItem(item: item))
-                } else {
-                    preservedState[item.canonicalFoodName] = PreservedItemState(item: item)
-                }
-            }
+        var existingLists = try modelContext.fetch(existingDescriptor)
+        // Keep the list that has a live share (else the oldest) as THE list.
+        existingLists.sort { lhs, rhs in
+            let l = hasShare(lhs), r = hasShare(rhs)
+            if l != r { return l }
+            return lhs.generatedAt < rhs.generatedAt
         }
 
+        let hasManual = existingLists.contains { ($0.items ?? []).contains { $0.isManual && !$0.isBought } }
         // Nothing to shop for at all (no plan-derived items AND no manual
         // items to carry forward) — same "empty plan" error as before.
-        guard !aggregated.isEmpty || !preservedManual.isEmpty else {
+        guard !aggregated.isEmpty || hasManual else {
             throw GroceryListServiceError.noMealsToShop
         }
 
-        for old in existingLists {
-            modelContext.delete(old)
+        let list: GroceryList
+        if let primary = existingLists.first {
+            list = primary
+            // Fold any duplicate list for the same week into the primary.
+            for extra in existingLists.dropFirst() {
+                for item in extra.items ?? [] {
+                    item.list = primary
+                    primary.items = (primary.items ?? []) + [item]
+                }
+                extra.items = []
+                modelContext.delete(extra)
+            }
+        } else {
+            list = GroceryList(weekStartDate: weekStart, sourceMealPlanID: mealPlan.id)
+            modelContext.insert(list)
+            list.items = []
         }
-        pruneOldLists(referenceDate: weekStartDate)
+        list.sourceMealPlanID = mealPlan.id
+        list.generatedAt = now()
+        list.dismissedFoods = nil
+        pruneOldLists(referenceDate: weekStartDate, keeping: list.id)
 
-        let list = GroceryList(
-            weekStartDate: weekStart,
-            sourceMealPlanID: mealPlan.id
-        )
-        modelContext.insert(list)
+        var items = list.items ?? []
+        let planned = Set(aggregated.map(\.canonicalName))
 
-        var items: [GroceryListItem] = aggregated.map { entry in
-            let state = preservedState[entry.canonicalName]
-            return GroceryListItem(
-                list: list,
-                canonicalFoodName: entry.canonicalName,
-                displayName: entry.displayName,
-                quantity: entry.quantity,
-                unit: entry.unit,
-                category: entry.category,
-                isChecked: state?.isChecked ?? false,
-                isBought: state?.isBought ?? false,
-                boughtAt: state?.boughtAt,
-                reminderIdentifier: state?.reminderIdentifier
-            )
+        // Active (not yet bought) plan rows by food. Bought rows stay as the
+        // trip's record; a food that's still short after buying gets a fresh row.
+        var activeByFood: [String: GroceryListItem] = [:]
+        for item in items where !item.isManual && !item.isBought {
+            if activeByFood[item.canonicalFoodName] != nil {
+                // Duplicate plan row for the same food — drop the extra.
+                removeItem(item, from: &items)
+            } else {
+                activeByFood[item.canonicalFoodName] = item
+            }
         }
         // A pantry "ran out" row the new plan now covers itself would show
         // twice — the plan row wins. User-typed manual items always stay.
-        let planned = Set(aggregated.map(\.canonicalName))
-        let carried = preservedManual.filter { manual in
-            !(manual.category == PantryGroceryBridge.category && !manual.isBought && planned.contains(manual.canonicalFoodName))
+        for item in items where item.isManual && !item.isBought && planned.contains(item.canonicalFoodName)
+            && (item.isPantryRestock || (item.notes == nil && item.category == PantryGroceryBridge.category))
+        {
+            removeItem(item, from: &items)
         }
-        items.append(contentsOf: carried.map { $0.makeItem(list: list) })
+
+        for entry in aggregated {
+            if let existing = activeByFood[entry.canonicalName] {
+                apply(entry, to: existing)
+                activeByFood[entry.canonicalName] = nil
+            } else {
+                let item = GroceryListItem(
+                    list: list,
+                    canonicalFoodName: entry.canonicalName,
+                    displayName: entry.displayName,
+                    quantity: entry.quantity,
+                    unit: entry.unit,
+                    category: entry.category
+                )
+                modelContext.insert(item)
+                items.append(item)
+            }
+        }
+        // Whatever is left was needed before but not any more.
+        for (_, stale) in activeByFood {
+            removeItem(stale, from: &items)
+        }
+
         list.items = items
         try modelContext.save()
         logger
             .info(
-                "Grocery list generated: \(items.count) items (\(carried.count) preserved manual), week \(weekStart.ISO8601Format(), privacy: .public)"
+                "Grocery list generated: \(items.count) items, week \(weekStart.ISO8601Format(), privacy: .public)"
             )
         return list
+    }
+
+    private func hasShare(_ list: GroceryList) -> Bool {
+        let listID = list.id
+        let descriptor = FetchDescriptor<GroceryShare>(predicate: #Predicate { $0.listID == listID })
+        return ((try? modelContext.fetchCount(descriptor)) ?? 0) > 0
+    }
+
+    /// Overwrites a plan row's amount/label from a freshly computed entry.
+    /// Price estimates are per line, so they scale with the quantity (or are
+    /// cleared for the next refresh when the unit changed).
+    private func apply(_ entry: GroceryListGenerator.Aggregated, to item: GroceryListItem) {
+        let oldQuantity = item.quantity
+        let sameUnit = item.unitRaw == entry.unit.rawValue
+        item.displayName = entry.displayName
+        item.quantity = entry.quantity
+        item.unit = entry.unit
+        item.category = entry.category
+        if abs(oldQuantity - entry.quantity) > 0.0001 || !sameUnit {
+            if sameUnit, oldQuantity > 0, let price = item.estimatedPriceUSD {
+                item.estimatedPriceUSD = price * entry.quantity / oldQuantity
+            } else {
+                item.estimatedPriceUSD = nil
+                item.priceSourceRaw = nil
+            }
+        }
+    }
+
+    /// Deletes a row and its Apple Reminders entry (a deleted row used to
+    /// leave an orphan reminder in "Tempo Groceries" forever).
+    private func removeItem(_ item: GroceryListItem, from items: inout [GroceryListItem]) {
+        removeReminder(for: item)
+        items.removeAll { $0.id == item.id }
+        modelContext.delete(item)
+    }
+
+    private func removeReminder(for item: GroceryListItem) {
+        guard let identifier = item.reminderIdentifier else {
+            return
+        }
+        if let reminder = eventStore.calendarItem(withIdentifier: identifier) as? EKReminder {
+            try? eventStore.remove(reminder, commit: true)
+        }
+        item.reminderIdentifier = nil
     }
 
     /// Deletes grocery lists whose week is more than `retentionWeeks` in the
     /// past relative to `referenceDate` — old shopping trips aren't useful
     /// to keep around forever. Runs on every `generate()` call.
-    private func pruneOldLists(retentionWeeks: Int = 4, referenceDate: Date) {
+    private func pruneOldLists(retentionWeeks: Int = 4, referenceDate: Date, keeping keepID: UUID? = nil) {
         guard let cutoff = Calendar.current.date(byAdding: .weekOfYear, value: -retentionWeeks, to: referenceDate) else {
             return
         }
@@ -197,7 +209,10 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
         guard let old = try? modelContext.fetch(descriptor) else {
             return
         }
-        for list in old {
+        for list in old where list.id != keepID {
+            for item in list.items ?? [] {
+                removeReminder(for: item)
+            }
             modelContext.delete(list)
         }
     }
@@ -237,26 +252,64 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
         guard let list = try fetchLatest() else {
             throw GroceryListServiceError.noMealsToShop
         }
-        let trimmed = name.trimmingCharacters(in: .whitespaces)
-        let item = GroceryListItem(
-            list: list,
-            canonicalFoodName: trimmed.lowercased(),
-            displayName: trimmed.isEmpty ? "Item" : trimmed,
-            quantity: unit.wholeUnitQuantity(max(0, quantity)),
-            unit: unit,
-            category: category,
-            isManual: true
-        )
+        let item = Self.makeManualItem(list: list, name: name, quantity: quantity, unit: unit, category: category)
         modelContext.insert(item)
         try modelContext.save()
         return item
     }
 
     func deleteItem(_ item: GroceryListItem) throws {
+        removeReminder(for: item)
+        // Remember a deleted plan row so a pantry sync doesn't bring it back.
+        if !item.isManual, !item.isBought, let list = item.list {
+            let food = item.canonicalFoodName.lowercased()
+            if !(list.dismissedFoods ?? []).contains(food) {
+                list.dismissedFoods = (list.dismissedFoods ?? []) + [food]
+            }
+        }
         modelContext.delete(item)
         try modelContext.save()
     }
 
+    /// Builds a user-typed item: canonicalised name (so it matches pantry/plan
+    /// rows and Done Shopping files it under the real food) and an aisle
+    /// derived from the food unless the caller picked a specific one.
+    static func makeManualItem(
+        list: GroceryList,
+        name: String,
+        quantity: Double,
+        unit: PantryUnit,
+        category: String
+    ) -> GroceryListItem {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let canonical = FoodCanonicalizer.canonicalize(trimmed)
+        let key = canonical.isEmpty ? trimmed.lowercased() : canonical
+        let display = FoodCanonicalizer.displayName(trimmed)
+        let resolvedCategory = category == "pantry" ? GroceryListGenerator.category(for: key) : category
+        return GroceryListItem(
+            list: list,
+            canonicalFoodName: key,
+            displayName: trimmed.isEmpty ? "Item" : (display.isEmpty ? trimmed : display),
+            quantity: unit.wholeUnitQuantity(max(0, quantity)),
+            unit: unit,
+            category: resolvedCategory,
+            isManual: true
+        )
+    }
+
+    /// Re-nets the active list against the CURRENT pantry (call after any
+    /// pantry change). Pantry is never subtracted twice: instead of shrinking
+    /// the already-netted list quantities again, each plan row's amount is
+    /// recomputed from the source plan's gross need (still-planned meals from
+    /// today) minus the pantry, with the same purchase-unit rounding the
+    /// generator uses — so 500 g needed / 300 g on hand stays "200 g" no
+    /// matter how often it syncs, and a pantry change that grows the need
+    /// grows the row back.
+    ///
+    /// Touches only un-ticked, un-bought plan rows, and re-adds a food whose
+    /// need came back. User-typed manual items are left alone; pantry-restock rows ("out of rice") are dropped once
+    /// that food is back in stock. Removed rows lose their Reminders entry.
+    /// Returns the number of rows removed.
     @discardableResult
     func reapplyPantry(_ pantry: any PantryServiceProtocol) throws -> Int {
         guard let list = try fetchLatest(), let items = list.items else {
@@ -264,56 +317,77 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
         }
         let pantryItems = (try? pantry.fetchAll()) ?? []
 
-        // Normalize pantry stock to grams per food name. PantryUnit.gramsApprox
-        // handles all weight/volume conversions deterministically; for
-        // container units (packs/cans/etc) it consults FoodMacroDatabase's
-        // naturalPortions table so "1 pack of pasta" resolves to 500g.
-        // Items whose unit can't be converted (e.g. .pieces of an obscure
-        // food not in naturalPortions) contribute zero to the gram total —
-        // we'd rather under-dedup than guess.
-        //
-        // PantryItem.canonicalName and GroceryListItem.canonicalFoodName
-        // share the same lowercased/trimmed convention.
-        var availableGrams: [String: Double] = [:]
-        for p in pantryItems {
-            guard let grams = p.unit.gramsApprox(quantity: p.quantity, foodName: p.canonicalName) else {
-                continue
+        var net: [String: GroceryListGenerator.Aggregated]?
+        if let planID = list.sourceMealPlanID {
+            var descriptor = FetchDescriptor<WeeklyMealPlan>(predicate: #Predicate { $0.id == planID })
+            descriptor.fetchLimit = 1
+            // An archived (replaced) plan's meals aren't the shopping need
+            // any more — leave its rows as generated.
+            if let plan = try modelContext.fetch(descriptor).first, plan.isActive {
+                let entries = GroceryListGenerator.generate(from: .init(
+                    mealPlan: plan, pantry: pantryItems, weekStartDate: list.weekStartDate, onOrAfter: now()
+                ))
+                net = Dictionary(entries.map { ($0.canonicalName, $0) }, uniquingKeysWith: { first, _ in first })
             }
-            availableGrams[p.canonicalName, default: 0] += grams
         }
 
+        let inStock = Set(pantryItems.filter { !$0.isArchived && $0.isInStock }.map { $0.canonicalName.lowercased() })
+        var remaining = items
         var removed = 0
-        for item in items where !item.isChecked {
-            // Already-bought items are preserved — they're history of the
-            // current shopping trip, not a re-evaluation target.
-            guard let onHand = availableGrams[item.canonicalFoodName], onHand > 0 else {
+        for item in items where !item.isChecked && !item.isBought {
+            if item.isManual {
+                if item.isPantryRestock, inStock.contains(item.canonicalFoodName.lowercased()) {
+                    removeItem(item, from: &remaining)
+                    removed += 1
+                }
                 continue
             }
-            guard let itemGrams = item.unit.gramsApprox(quantity: item.quantity, foodName: item.canonicalFoodName),
-                  itemGrams > 0
-            else {
-                // Grocery item is in a unit we can't convert to grams (no
-                // food-specific portion data). Skip — better to leave it
-                // on the list than guess wrong and delete something the
-                // user still needs to buy.
+            // Without the source plan we can't tell the gross need — leave
+            // the row as generated rather than guess (under-dedup is safe).
+            guard let net else {
                 continue
             }
-            if onHand >= itemGrams {
-                modelContext.delete(item)
-                removed += 1
-                availableGrams[item.canonicalFoodName] = onHand - itemGrams
+            if let entry = net[item.canonicalFoodName] {
+                apply(entry, to: item)
             } else {
-                // Partial coverage: shrink the grocery item proportionally
-                // in its own unit so the user still buys the remainder.
-                // Countable units (cans/packs/…) are re-rounded UP afterward
-                // — a proportional shrink can otherwise leave "0.4 cans",
-                // which isn't a purchasable quantity (BUILD item 1d).
-                let coverage = onHand / itemGrams
-                let shrunk = item.quantity * (1 - coverage)
-                item.quantity = item.unit.wholeUnitQuantity(shrunk)
-                availableGrams[item.canonicalFoodName] = 0
+                removeItem(item, from: &remaining)
+                removed += 1
             }
         }
+        // A pantry drop (used up, emptied, archived) can bring a need back
+        // that an earlier sync removed — add those rows again, the same way
+        // `generate` creates them. Anything still on the list (ticked, typed
+        // by the user) already covers its food.
+        if let net {
+            // A 1-pack "ran out" row must not block the plan's bigger need:
+            // as in `generate`, the plan row replaces an open restock row
+            // (unless the user dismissed that food from the list).
+            let dismissed = Set((list.dismissedFoods ?? []).map { $0.lowercased() })
+            for item in remaining where item.isPantryRestock && !item.isChecked && !item.isBought {
+                let key = item.canonicalFoodName.lowercased()
+                if !dismissed.contains(key), net.keys.contains(where: { $0.lowercased() == key }) {
+                    removeItem(item, from: &remaining)
+                    removed += 1
+                }
+            }
+            let onList = Set(remaining.filter { !$0.isBought }.map { $0.canonicalFoodName.lowercased() })
+                .union((list.dismissedFoods ?? []).map { $0.lowercased() })
+            for entry in net.values.sorted(by: { $0.canonicalName < $1.canonicalName })
+                where !onList.contains(entry.canonicalName.lowercased())
+            {
+                let item = GroceryListItem(
+                    list: list,
+                    canonicalFoodName: entry.canonicalName,
+                    displayName: entry.displayName,
+                    quantity: entry.quantity,
+                    unit: entry.unit,
+                    category: entry.category
+                )
+                modelContext.insert(item)
+                remaining.append(item)
+            }
+        }
+        list.items = remaining
         try modelContext.save()
         return removed
     }
@@ -342,7 +416,15 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
     /// "Oats — 1.5kg". Same quantity formatting as GroceryListView: whole
     /// numbers stay whole, fractions keep one decimal. `Int(quantity)` used to
     /// truncate 1.5 kg to "1kg" and 0.5 lb to "0lb".
-    static func reminderTitle(name: String, quantity: Double, unit: PantryUnit) -> String {
+    ///
+    /// `embedsQuantity`: pass `item.displayNameEmbedsQuantity` so a user-typed
+    /// "7 up soda" keeps its amount. nil falls back to the name-only pattern.
+    static func reminderTitle(name: String, quantity: Double, unit: PantryUnit, embedsQuantity: Bool? = nil) -> String {
+        // "3 medium carrots" already carries its amount — don't append
+        // "— 3pcs" after it.
+        if embedsQuantity ?? (name.range(of: #"^\d+(?:[.,]\d+)?\s+\S"#, options: .regularExpression) != nil) {
+            return name
+        }
         let formatted = quantity == quantity.rounded() ? "\(Int(quantity))" : String(format: "%.1f", quantity)
         return "\(name) — \(formatted)\(unit.displayName)"
     }
@@ -410,7 +492,7 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
                 }
                 let reminder = EKReminder(eventStore: eventStore)
                 reminder.calendar = calendar
-                reminder.title = Self.reminderTitle(name: item.displayName, quantity: item.quantity, unit: item.unit)
+                reminder.title = Self.reminderTitle(name: item.displayName, quantity: item.quantity, unit: item.unit, embedsQuantity: item.displayNameEmbedsQuantity)
                 reminder.notes = "\(title)\nCategory: \(item.category)"
                 reminder.isCompleted = item.isChecked
                 do {
@@ -429,14 +511,14 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
                     // Reminders directly) — recreate so export stays reliable.
                     let reminder = EKReminder(eventStore: eventStore)
                     reminder.calendar = calendar
-                    reminder.title = Self.reminderTitle(name: item.displayName, quantity: item.quantity, unit: item.unit)
+                    reminder.title = Self.reminderTitle(name: item.displayName, quantity: item.quantity, unit: item.unit, embedsQuantity: item.displayNameEmbedsQuantity)
                     reminder.notes = "\(title)\nCategory: \(item.category)"
                     reminder.isCompleted = item.isChecked
                     try? eventStore.save(reminder, commit: false)
                     item.reminderIdentifier = reminder.calendarItemIdentifier
                     continue
                 }
-                reminder.title = Self.reminderTitle(name: item.displayName, quantity: item.quantity, unit: item.unit)
+                reminder.title = Self.reminderTitle(name: item.displayName, quantity: item.quantity, unit: item.unit, embedsQuantity: item.displayNameEmbedsQuantity)
                 reminder.isCompleted = item.isChecked
                 try? eventStore.save(reminder, commit: false)
 
@@ -523,16 +605,7 @@ final class MockGroceryListService: GroceryListServiceProtocol {
         guard let list = lists.first else {
             throw GroceryListServiceError.noMealsToShop
         }
-        let trimmed = name.trimmingCharacters(in: .whitespaces)
-        let item = GroceryListItem(
-            list: list,
-            canonicalFoodName: trimmed.lowercased(),
-            displayName: trimmed.isEmpty ? "Item" : trimmed,
-            quantity: unit.wholeUnitQuantity(max(0, quantity)),
-            unit: unit,
-            category: category,
-            isManual: true
-        )
+        let item = LocalGroceryListService.makeManualItem(list: list, name: name, quantity: quantity, unit: unit, category: category)
         if list.items == nil {
             list.items = []
         }

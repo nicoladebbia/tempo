@@ -31,6 +31,7 @@ struct CoachTabView: View {
     var voiceOverride: (any CoachVoiceControlling)?
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(ServiceContainer.self) private var services
     @State private var viewModel: CoachViewModel?
     @State private var presentingInterview: Bool = false
 
@@ -74,7 +75,10 @@ struct CoachTabView: View {
         let summarizer = ConversationSummarizerAIClientAdapter(requester: apiClient)
         let dispatcher = CoachToolDispatcherAdapter(
             conversationID: UUID(), // overridden per-conversation by Phase 6b
-            turnIndex: 0
+            turnIndex: 0,
+            outcomeEnv: { [notifications = services.notifications, whoop = services.whoop] context in
+                MealOutcomeService.Env.live(modelContext: context, notifications: notifications, whoop: whoop)
+            }
         )
         let service = CoachService(
             aiClient: chatClient,

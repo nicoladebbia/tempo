@@ -22,6 +22,10 @@ final class SupplementReorderServiceTests: XCTestCase {
         return SupplementIntakeLog(supplementName: name, day: day)
     }
 
+    private var oldDate: Date {
+        calendar.date(byAdding: .day, value: -60, to: now)!
+    }
+
     // MARK: - isTracked
 
     func testIsTracked_falseWithNoQuantityInfoAtAll() {
@@ -66,7 +70,7 @@ final class SupplementReorderServiceTests: XCTestCase {
     func testDaysLeft_estimatesFromLoggedRateOverTheWindow() {
         // Taken on 7 of the observed days → the window is inclusive of both
         // endpoints (today AND `intakeWindowDays` ago), so 15 observed days.
-        let supp = Supplement(name: "Whey", kind: .protein, servingsRemaining: 20)
+        let supp = Supplement(name: "Whey", kind: .protein, servingsRemaining: 20, createdAt: oldDate)
         let logs = (0 ..< 14).filter { $0 % 2 == 0 }.map { log("Whey", daysAgo: $0) }
         let days = SupplementReorderService.daysLeft(for: supp, recentLogs: logs, asOf: now, calendar: calendar)
         // 7 matching days / 15 observed days ≈ 0.4667/day → floor(20 / 0.4667) = 42.
@@ -74,13 +78,48 @@ final class SupplementReorderServiceTests: XCTestCase {
     }
 
     func testDaysLeft_ignoresLogsForOtherSupplementsAndOutsideWindow() {
-        let supp = Supplement(name: "Whey", kind: .protein, servingsRemaining: 14, takeDaily: true)
+        let supp = Supplement(name: "Whey", kind: .protein, servingsRemaining: 14, takeDaily: true, createdAt: oldDate)
         var logs = (0 ..< 14).map { log("Whey", daysAgo: $0) } // every day in-window
         logs.append(log("Creatine", daysAgo: 1)) // different supplement, ignored
         logs.append(log("Whey", daysAgo: 30)) // outside the 14-day window, ignored
         let days = SupplementReorderService.daysLeft(for: supp, recentLogs: logs, asOf: now, calendar: calendar)
         // 14 matching days / 15 observed days → 14 / (14/15) = 15.
         XCTAssertEqual(days, 15)
+    }
+
+    func testDaysLeft_newSupplementUsesDaysSinceCreatedNotTheFullWindow() {
+        // Added 2 days ago (today + yesterday = 2 observed days), taken both days:
+        // 2/2 = 1 per day → 10 servings last 10 days (the 15-day window said ~75).
+        let created = calendar.date(byAdding: .day, value: -1, to: now)!
+        let supp = Supplement(name: "Whey", kind: .protein, servingsRemaining: 10, createdAt: created)
+        let logs = [log("Whey", daysAgo: 0), log("Whey", daysAgo: 1)]
+        XCTAssertEqual(SupplementReorderService.daysLeft(for: supp, recentLogs: logs, asOf: now, calendar: calendar), 10)
+    }
+
+    func testNeedsReorder_conditionalItemWithNoLogsIsNotFlaggedOnServingsAlone() {
+        let supp = Supplement(name: "Whey", kind: .protein, servingsRemaining: 5, takeDaily: false)
+        XCTAssertFalse(SupplementReorderService.needsReorder(for: supp, recentLogs: [], asOf: now, calendar: calendar))
+        XCTAssertFalse(supp.isRunningLow)
+        XCTAssertEqual(supp.isRunningLow(recentLogs: []), SupplementReorderService.needsReorder(for: supp, recentLogs: []))
+    }
+
+    func testApplyUndo_givesBackOnlyWhatWasTaken() {
+        let empty = Supplement(name: "A", kind: .other, servingsRemaining: 0)
+        empty.servingsPerContainer = 30
+        XCTAssertEqual(SupplementReorderService.applyTaken(to: empty), 0)
+        SupplementReorderService.applyUndo(to: empty, amount: 0)
+        XCTAssertEqual(empty.servingsRemaining, 0)
+
+        let half = Supplement(name: "B", kind: .other, servingsRemaining: 0.5)
+        XCTAssertEqual(SupplementReorderService.applyTaken(to: half), 0.5)
+        SupplementReorderService.applyUndo(to: half, amount: 0.5)
+        XCTAssertEqual(half.servingsRemaining, 0.5)
+    }
+
+    func testIntakeWindowStartIsStartOfDay() {
+        let start = SupplementReorderService.intakeWindowStart(asOf: now, calendar: calendar)
+        XCTAssertEqual(start, calendar.startOfDay(for: start))
+        XCTAssertEqual(calendar.dateComponents([.day], from: start, to: calendar.startOfDay(for: now)).day, 14)
     }
 
     // MARK: - needsReorder / shouldSendReorderAlert
@@ -173,8 +212,8 @@ final class SupplementReorderServiceTests: XCTestCase {
 
     func testRestock_leavesRemainingUnchangedWhenContainerSizeUnknown() {
         let supp = Supplement(name: "Creatine", kind: .creatine, servingsRemaining: 2)
-        SupplementReorderService.restock(supp, at: now)
+        XCTAssertFalse(SupplementReorderService.restock(supp, at: now))
         XCTAssertEqual(supp.servingsRemaining, 2, "No known container size — can't add a number we don't know")
-        XCTAssertEqual(supp.lastRestockedAt, now)
+        XCTAssertNil(supp.lastRestockedAt, "A restock that changed nothing must not start a new alert cycle")
     }
 }

@@ -109,4 +109,27 @@ final class GroceryReapplyTests: XCTestCase {
         let oats = try XCTUnwrap(list.orderedItems.first { $0.canonicalFoodName == "oats" })
         XCTAssertEqual(oats.quantity, 300, accuracy: 1, "500 needed − 200 on hand = 300 to buy")
     }
+
+    func testReapply_planNeedReplacesOpenRestockRow() throws {
+        let plan = makePlan([("Oats", 500)])
+        let list = try grocery.generate(from: plan, pantry: pantry, weekStartDate: Date())
+        let planRow = try XCTUnwrap(list.orderedItems.first { $0.canonicalFoodName == "oats" })
+        // Earlier sync dropped the plan row; later a 1-unit restock row appeared.
+        list.items?.removeAll { $0.id == planRow.id }
+        context.delete(planRow)
+        let restock = GroceryListItem(
+            list: list, canonicalFoodName: "oats", displayName: "Oats", quantity: 1, unit: .packs,
+            category: PantryGroceryBridge.category, isManual: true, notes: GroceryListItem.pantryRestockNote
+        )
+        context.insert(restock)
+        list.items?.append(restock)
+        try context.save()
+
+        try grocery.reapplyPantry(pantry)
+
+        let oats = list.orderedItems.filter { $0.canonicalFoodName == "oats" }
+        XCTAssertEqual(oats.count, 1, "restock row replaced, not duplicated")
+        XCTAssertFalse(try XCTUnwrap(oats.first).isManual, "the plan row wins")
+        XCTAssertEqual(try XCTUnwrap(oats.first).quantity, 500, accuracy: 1)
+    }
 }

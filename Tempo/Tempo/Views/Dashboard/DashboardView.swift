@@ -203,6 +203,12 @@ struct DashboardView: View {
                 }
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .tempoMealWillBeRemoved)) { note in
+            // Synchronous: the model is deleted right after the post returns.
+            if let id = note.userInfo?["id"] as? UUID {
+                viewModel?.dropNextMeal(mealID: id)
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .tempoNutritionLogged)) { _ in
             // A meal was logged / marked eaten in the Nutrition tab (a
             // separate VM). Re-pull the Fuel quadrant so the Dashboard's

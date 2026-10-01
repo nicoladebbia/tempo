@@ -80,6 +80,15 @@ final class CoachToolsTests: XCTestCase {
         XCTAssertEqual(reloaded.status, .modified)
     }
 
+    func testMoveMeal_forgetsAutoShiftSoUndoKeepsCoachTime() throws {
+        let (_, context, _, meals) = try makeFixture()
+        let lunch = try XCTUnwrap(meals.first { $0.mealNumber == 2 })
+        lunch.originalScheduledTime = "12:00"
+        _ = try CoachTools.moveMeal(mealID: lunch.id, newTimeHHmm: "15:00", context: context)
+        XCTAssertNil(lunch.originalScheduledTime)
+        XCTAssertEqual(lunch.scheduledTime, "15:00")
+    }
+
     func testMoveMeal_invalidTimeFormat_throws() throws {
         let (_, context, _, meals) = try makeFixture()
         let lunch = try XCTUnwrap(meals.first { $0.mealNumber == 2 })
@@ -120,7 +129,8 @@ final class CoachToolsTests: XCTestCase {
     // MARK: - swapDayType
 
     func testSwapDayType_changesAssignmentAndReturnsSummary() throws {
-        let (_, context, plan, _) = try makeFixture()
+        let nextMonday = Calendar.current.date(byAdding: .day, value: 7, to: mondayDate())!
+        let (_, context, plan, _) = try makeFixture(on: nextMonday)
         var assignments = plan.dayTypeAssignments
         // dayTypeAssignments is keyed Mon=1 … Sun=7 (matches the generator).
         assignments[1] = DayType.rest.rawValue // Monday
@@ -128,7 +138,7 @@ final class CoachToolsTests: XCTestCase {
         try context.save()
 
         // Force the fixture day to be Monday so the Monday key (1) is hit.
-        let monday = mondayDate()
+        let monday = nextMonday
 
         let output = try CoachTools.swapDayType(
             date: monday,
@@ -143,15 +153,60 @@ final class CoachToolsTests: XCTestCase {
         XCTAssertEqual(reloaded, DayType.strength.rawValue)
     }
 
-    func testSwapDayType_sameTypeIsNoOp() throws {
+    func testSwapDayType_scalesFoodsTotalsAndBaselineTogether() throws {
+        let (_, context, plan, meals) = try makeFixture(mealCount: 2)
+        let today = Calendar.current.startOfDay(for: Date())
+        let dayKey = ((Calendar.current.component(.weekday, from: today) + 5) % 7) + 1
+        var assignments = plan.dayTypeAssignments
+        assignments[dayKey] = DayType.rest.rawValue
+        plan.dayTypeAssignments = assignments
+        let breakfast = meals[0], lunch = meals[1]
+        breakfast.foods = [PlannedFood(name: "Oats", quantityGrams: 100, calories: 600, proteinG: 35, carbsG: 60, fatG: 18)]
+        lunch.capturePlanBaselineIfNeeded()
+        lunch.status = .eaten
+        try context.save()
+
+        _ = try CoachTools.swapDayType(
+            date: today, newType: .strength, scaleMacros: true, caloriesMultiplier: 1.2, context: context
+        )
+
+        XCTAssertEqual(breakfast.totalCalories, 720, accuracy: 0.01)
+        XCTAssertEqual(breakfast.foods.first?.calories ?? 0, 720, accuracy: 0.01, "Foods still add up to the card")
+        XCTAssertEqual(breakfast.planBaseline.calories, 720, accuracy: 0.01, "Target follows the meal")
+        XCTAssertEqual(lunch.totalCalories, 600, "Eaten meals are history")
+    }
+
+    func testSwapDayType_rejectsAPastDay() throws {
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Calendar.current.startOfDay(for: Date()))!
+        let (_, context, plan, meals) = try makeFixture(mealCount: 1, on: yesterday)
+        let before = plan.dayTypeAssignments
+        XCTAssertThrowsError(try CoachTools.swapDayType(
+            date: yesterday, newType: .strength, scaleMacros: true, caloriesMultiplier: 1.2, context: context
+        )) { XCTAssertEqual($0 as? CoachToolError, .dayOutsideActivePlan) }
+        XCTAssertEqual(meals[0].totalCalories, 600)
+        XCTAssertEqual(plan.dayTypeAssignments, before)
+    }
+
+    func testSwapDayType_rejectsADateOutsideTheActivePlanWeek() throws {
         let (_, context, plan, _) = try makeFixture()
+        let before = plan.dayTypeAssignments
+        let nextWeek = Calendar.current.date(byAdding: .day, value: 10, to: Calendar.current.startOfDay(for: Date()))!
+        XCTAssertThrowsError(try CoachTools.swapDayType(
+            date: nextWeek, newType: .strength, scaleMacros: false, caloriesMultiplier: 1, context: context
+        )) { XCTAssertEqual($0 as? CoachToolError, .dayOutsideActivePlan) }
+        XCTAssertEqual(plan.dayTypeAssignments, before)
+    }
+
+    func testSwapDayType_sameTypeIsNoOp() throws {
+        let nextMonday = Calendar.current.date(byAdding: .day, value: 7, to: mondayDate())!
+        let (_, context, plan, _) = try makeFixture(on: nextMonday)
         var assignments = plan.dayTypeAssignments
         assignments[1] = DayType.cardio.rawValue // Monday = key 1
         plan.dayTypeAssignments = assignments
         try context.save()
 
         let output = try CoachTools.swapDayType(
-            date: mondayDate(),
+            date: nextMonday,
             newType: .cardio,
             scaleMacros: false,
             caloriesMultiplier: 1.0,
@@ -161,8 +216,9 @@ final class CoachToolsTests: XCTestCase {
     }
 
     func testSwapDayType_scaleMacrosByRatio() throws {
-        // Pin the fixture to Monday so dayIndex0Mon == 0.
-        let monday = mondayDate()
+        // Pin the fixture to NEXT Monday so dayIndex0Mon == 0 and the day is
+        // still ahead (past days are never rescaled).
+        let monday = Calendar.current.date(byAdding: .day, value: 7, to: mondayDate())!
         let (_, context, _, meals) = try makeFixture(on: monday)
 
         let originalCal = meals[0].totalCalories
@@ -282,7 +338,7 @@ final class CoachToolsTests: XCTestCase {
     }
 
     func testInsertActivity_changesDayTypeAndShifts() throws {
-        let monday = mondayDate()
+        let monday = Calendar.current.date(byAdding: .day, value: 7, to: mondayDate())!
         let (_, context, _, meals) = try makeFixture(on: monday)
         let dinner = try XCTUnwrap(meals.first { $0.mealNumber == 3 })
         let output = try CoachTools.insertActivity(

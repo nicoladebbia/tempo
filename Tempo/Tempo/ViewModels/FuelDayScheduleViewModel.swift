@@ -48,6 +48,12 @@ final class FuelDayScheduleViewModel {
     /// re-appear) doesn't let a stale completion overwrite newer data.
     private var refreshTask: Task<Void, Never>?
 
+    /// Drops a row whose meal is about to be deleted (`.tempoMealWillBeRemoved`,
+    /// posted before `ctx.delete`) so nothing renders a dead model.
+    func dropRow(mealID: UUID) {
+        rows.removeAll { $0.meal.id == mealID }
+    }
+
     // MARK: - Refresh
 
     /// Pulls today's planned meals, actual wake, and busy blocks; produces the

@@ -91,7 +91,8 @@ final class SharedGroceryListService {
         in modelContext: ModelContext
     ) async throws -> GroceryShare {
         let baseline = Dictionary(
-            uniqueKeysWithValues: (existing?.decodedItemState() ?? []).map { ($0.id, $0) }
+            (existing?.decodedItemState() ?? []).map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first }
         )
         let now = Date()
         var newBaseline: [GroceryShareItemState] = []
@@ -110,7 +111,7 @@ final class SharedGroceryListService {
             newBaseline.append(GroceryShareItemState(id: idString, checked: item.isChecked, updatedAt: updatedAt))
             return GroceryShareItemUpsertDTO(
                 id: idString,
-                name: item.displayName,
+                name: item.quantityFreeName,
                 quantity: item.quantity,
                 unit: item.unit.displayName,
                 category: item.category,
@@ -167,7 +168,7 @@ final class SharedGroceryListService {
             itemsByID[item.id.uuidString] = item
         }
 
-        var baseline = Dictionary(uniqueKeysWithValues: share.decodedItemState().map { ($0.id, $0) })
+        var baseline = Dictionary(share.decodedItemState().map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
         for remote in dto.items {
             guard let local = itemsByID[remote.id] else {
                 continue
@@ -210,7 +211,7 @@ final class SharedGroceryListService {
         title: String = "Tempo Grocery List"
     ) async throws -> URL {
         let wireItems = items.map {
-            InstacartCartItemWireDTO(name: $0.displayName, quantity: $0.quantity, unit: $0.unit.displayName)
+            InstacartCartItemWireDTO(name: $0.quantityFreeName, quantity: $0.quantity, unit: $0.unit.displayName)
         }
         let dto = try await apiClient.request(
             .createInstacartCart(),

@@ -16,6 +16,7 @@
 
 import Foundation
 import SwiftData
+import UserNotifications
 
 // MARK: - Notification.Name
 
@@ -45,8 +46,10 @@ extension SupplementDayContext {
             predicate: #Predicate<WeeklyMealPlan> { $0.isActive == true }
         )
         let plan = ((try? modelContext.fetch(planDescriptor)) ?? []).first { $0.coversDate(dayStart) }
+        // The AI can repeat a name within a day — never trap on it (first wins).
         let planDecisionsByName = Dictionary(
-            uniqueKeysWithValues: (plan?.supplementDecisions[weekday] ?? []).map { ($0.name, $0) }
+            (plan?.supplementDecisions[weekday] ?? []).map { ($0.name, $0) },
+            uniquingKeysWith: { first, _ in first }
         )
         let planIsTrainingDay = plan?.dayTypes[weekday].map { $0 != .rest }
 
@@ -125,8 +128,58 @@ enum SupplementReminderScheduler {
         let previous = latestRebuild
         latestRebuild = Task { @MainActor in
             await previous?.value
-            await notifications.cancelSupplementReminders()
-            scheduleAll(notifications: notifications, modelContext: modelContext, now: now)
+            await rebuild(notifications: notifications, modelContext: modelContext, now: now)
+        }
+    }
+
+    /// Cancel + rebuild, awaitable (tests; `reschedule` wraps it in a queued task).
+    static func rebuild(
+        notifications: any NotificationServiceProtocol,
+        modelContext: ModelContext,
+        now: Date = Date()
+    ) async {
+        await notifications.cancelSupplementReminders()
+        await clearSnoozes(
+            takenIDs: SupplementIntakeStore.takenIDs(on: now, in: modelContext),
+            center: UNUserNotificationCenter.current()
+        )
+        scheduleAll(notifications: notifications, modelContext: modelContext, now: now)
+    }
+
+    // MARK: - Snoozed reminders
+
+    /// Identifier prefix of a snoozed supplement reminder:
+    /// `snooze_supp_<uuid>_<id1>,<id2>…` (the IDs of the supplements it lists).
+    static let snoozePrefix = "snooze_supp_"
+
+    static func snoozeIdentifier(supplementIDs: [String]) -> String {
+        "\(snoozePrefix)\(UUID().uuidString)_\(supplementIDs.joined(separator: ","))"
+    }
+
+    /// Snoozed reminders whose every supplement is already taken — they'd
+    /// otherwise still fire after the dose was ticked.
+    static func snoozeIdentifiersToRemove(pending: [String], takenIDs: Set<UUID>) -> [String] {
+        pending.filter { identifier in
+            guard identifier.hasPrefix(snoozePrefix) else {
+                return false
+            }
+            let parts = identifier.dropFirst(snoozePrefix.count).split(separator: "_", maxSplits: 1)
+            guard parts.count == 2 else {
+                return false
+            }
+            let ids = parts[1].split(separator: ",").compactMap { UUID(uuidString: String($0)) }
+            return !ids.isEmpty && ids.allSatisfy(takenIDs.contains)
+        }
+    }
+
+    static func clearSnoozes(takenIDs: Set<UUID>, center: UNUserNotificationCenter) async {
+        guard !takenIDs.isEmpty else {
+            return
+        }
+        let pending = await center.pendingNotificationRequests().map(\.identifier)
+        let stale = snoozeIdentifiersToRemove(pending: pending, takenIDs: takenIDs)
+        if !stale.isEmpty {
+            center.removePendingNotificationRequests(withIdentifiers: stale)
         }
     }
 
@@ -147,7 +200,11 @@ enum SupplementReminderScheduler {
         guard !supplements.isEmpty else {
             return
         }
-        let remindersEnabledByID = Dictionary(uniqueKeysWithValues: supplements.map { ($0.id, $0.remindersEnabled ?? true) })
+        let remindersEnabledByID = Dictionary(
+            supplements.map { ($0.id, $0.remindersEnabled ?? true) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        SupplementIntakeStore.backfillIDs(in: modelContext)
 
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: now)
@@ -156,8 +213,12 @@ enum SupplementReminderScheduler {
                 continue
             }
             let context = SupplementDayContext.build(date: date, modelContext: modelContext)
+            // A dose already taken today needs no reminder (the rebuild runs
+            // after every taken toggle, so a tick must silence what's left).
+            let takenIDs = SupplementIntakeStore.takenIDs(on: date, in: modelContext)
             let doses = SupplementScheduleEngine.schedule(supplements: supplements, context: context)
                 .filter { remindersEnabledByID[$0.supplementID] ?? true }
+                .filter { !takenIDs.contains($0.supplementID) }
             let groups = SupplementScheduleEngine.group(dosesForDay: doses)
 
             for group in groups {
@@ -171,7 +232,8 @@ enum SupplementReminderScheduler {
                     title: title,
                     body: body,
                     fireDate: fireDate,
-                    supplementNames: group.names
+                    supplementNames: group.names,
+                    supplementIDs: group.doses.map { $0.supplementID.uuidString }
                 )
             }
         }
@@ -198,7 +260,7 @@ enum SupplementReminderScheduler {
         now: Date
     ) {
         let calendar = Calendar.current
-        let windowStart = calendar.date(byAdding: .day, value: -SupplementReorderService.intakeWindowDays, to: now) ?? now
+        let windowStart = SupplementReorderService.intakeWindowStart(asOf: now, calendar: calendar)
         let logDescriptor = FetchDescriptor<SupplementIntakeLog>(
             predicate: #Predicate<SupplementIntakeLog> { $0.day >= windowStart }
         )
@@ -215,7 +277,9 @@ enum SupplementReminderScheduler {
             let body = daysLeft <= 0
                 ? "You're out. Restock before you miss a dose."
                 : "About \(daysLeft) day\(daysLeft == 1 ? "" : "s") left. Order it now, not the day it runs out."
-            notifications.scheduleSupplementReorderAlert(supplementName: supplement.name, title: title, body: body)
+            notifications.scheduleSupplementReorderAlert(
+                supplementName: supplement.name, supplementID: supplement.id.uuidString, title: title, body: body
+            )
             supplement.lastReorderAlertAt = now
             didAlert = true
         }
@@ -226,35 +290,28 @@ enum SupplementReminderScheduler {
 
     // MARK: - Notification action support
 
-    /// Marks every named supplement taken TODAY — the "Taken" notification
-    /// action. Idempotent (a name already marked taken today is skipped) and
-    /// applies the same reorder decrement `NutritionTabViewModel.
-    /// toggleSupplementTaken` does, so the shelf count stays correct whether
-    /// the tap happened in-app or from the notification.
-    static func markTaken(names: [String], modelContext: ModelContext, now: Date = Date()) {
-        let today = Calendar.current.startOfDay(for: now)
+    /// Marks every listed supplement taken TODAY — the "Taken" notification
+    /// action. Idempotent and applies the same reorder decrement
+    /// `NutritionTabViewModel.toggleSupplementTaken` does, so the shelf count
+    /// stays correct whether the tap happened in-app or from the notification.
+    ///
+    /// `ids` (parallel to `names`) are the shelf items' UUID strings; a
+    /// notification scheduled before IDs existed carries only names, so each
+    /// entry falls back to the name when its ID is missing/unparseable.
+    static func markTaken(names: [String], ids: [String] = [], modelContext: ModelContext, now: Date = Date()) {
         var didChange = false
-        for name in names {
-            let logDescriptor = FetchDescriptor<SupplementIntakeLog>(
-                predicate: #Predicate<SupplementIntakeLog> { $0.day == today && $0.supplementName == name }
-            )
-            let existing = (try? modelContext.fetch(logDescriptor)) ?? []
-            guard existing.isEmpty else {
-                continue
+        for (index, name) in names.enumerated() {
+            let id = ids.indices.contains(index) ? UUID(uuidString: ids[index]) : nil
+            if SupplementIntakeStore.markTaken(supplementID: id, name: name, day: now, in: modelContext) {
+                didChange = true
             }
-            modelContext.insert(SupplementIntakeLog(supplementName: name, day: today))
-            let supplementDescriptor = FetchDescriptor<Supplement>(
-                predicate: #Predicate<Supplement> { $0.name == name }
-            )
-            if let supplement = (try? modelContext.fetch(supplementDescriptor))?.first {
-                SupplementReorderService.applyTaken(to: supplement)
-            }
-            didChange = true
         }
         guard didChange else {
             return
         }
         try? modelContext.save()
+        let takenIDs = SupplementIntakeStore.takenIDs(on: now, in: modelContext)
+        Task { await clearSnoozes(takenIDs: takenIDs, center: UNUserNotificationCenter.current()) }
         NotificationCenter.default.post(name: .tempoSupplementsChanged, object: nil)
     }
 }

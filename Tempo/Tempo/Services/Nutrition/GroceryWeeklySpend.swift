@@ -82,6 +82,11 @@ enum GroceryWeeklySpendCalculator {
         }
 
         for receipt in receipts {
+            // Only receipts the user confirmed count, and a flagged
+            // duplicate the user hasn't dismissed would double a shop.
+            guard counts(receipt), isCountable(receipt, among: receipts) else {
+                continue
+            }
             let ws = weekStart(for: receipt.purchaseDate)
             guard ws >= earliestWeekStart, ws <= currentWeekStart else {
                 continue
@@ -103,5 +108,33 @@ enum GroceryWeeklySpendCalculator {
             cursor = next
         }
         return result
+    }
+
+    /// A receipt counts once the user reviewed it, its OCR is confirmed, or at
+    /// least one line reached the pantry. Leaving a bag-fee line unticked
+    /// means `userReviewed` never flips, yet the shop was real.
+    private static func counts(_ receipt: Receipt) -> Bool {
+        receipt.userReviewed
+            || receipt.ocrStatus == .confirmed
+            || (receipt.lineItems ?? []).contains { $0.isIngested }
+    }
+
+    /// A receipt shares a `duplicateKey` with an earlier one (same store,
+    /// date and total) when it was scanned twice. The user can dismiss the
+    /// warning (`duplicateWarningDismissed`: "yes, two real shops"); otherwise
+    /// only the first copy counts.
+    private static func isCountable(_ receipt: Receipt, among receipts: [Receipt]) -> Bool {
+        guard let key = receipt.duplicateKey, !key.isEmpty, !receipt.duplicateWarningDismissed else {
+            return true
+        }
+        // Only compare against receipts that themselves count — a failed
+        // scan must not cancel the real re-scan.
+        return !receipts.contains { other in
+            other.id != receipt.id
+                && counts(other)
+                && other.duplicateKey == key
+                && (other.createdAt < receipt.createdAt
+                    || (other.createdAt == receipt.createdAt && other.id.uuidString < receipt.id.uuidString))
+        }
     }
 }

@@ -29,10 +29,7 @@ struct PantryItemEditSheet: View {
     init(item: PantryItem, viewModel: NutritionTabViewModel) {
         self.item = item
         self.viewModel = viewModel
-        _quantityText = State(initialValue: item.quantity == item.quantity.rounded() ? "\(Int(item.quantity))" : String(
-            format: "%.1f",
-            item.quantity
-        ))
+        _quantityText = State(initialValue: PantryQuantityFormatter.editText(item.quantity))
         _unit = State(initialValue: item.unit)
         _storageLocation = State(initialValue: item.storageLocation)
         _useBy = State(initialValue: item.useBy ?? Date())
@@ -99,7 +96,13 @@ struct PantryItemEditSheet: View {
     }
 
     private func save() {
-        let quantity = Double(quantityText.replacingOccurrences(of: ",", with: ".")) ?? item.quantity
+        // Only rewrite the quantity if the user edited the text; otherwise
+        // keep the exact stored value (0.8333 must not become 0.83 just
+        // because the sheet was opened to change the location).
+        let initialText = PantryQuantityFormatter.editText(item.quantity)
+        let quantity = quantityText == initialText
+            ? item.quantity
+            : (Double(quantityText.replacingOccurrences(of: ",", with: ".")) ?? item.quantity)
         // `nil` means "leave useBy alone" to `updateItem` — UNLESS storage
         // location also changed, in which case it recomputes from the new
         // location (same rule the voice-edit "move" intent uses). Passing

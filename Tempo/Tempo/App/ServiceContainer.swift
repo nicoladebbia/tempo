@@ -114,7 +114,8 @@ final class ServiceContainer {
         )
         let router = WatchActionRouter(
             accountabilityEngine: accountabilityEngine,
-            notifications: notifications
+            notifications: notifications,
+            whoop: whoop
         )
         watchActionRouter = router
         appState = AppState(authService: authService)

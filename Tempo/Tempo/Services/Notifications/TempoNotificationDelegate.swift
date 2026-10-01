@@ -51,15 +51,27 @@ final class TempoNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
             await syncPlans()
         case ("MEAL_REMINDER", "DELAY_30MIN"):
             await snooze(title: title, body: body, category: category, minutes: 30)
+        case ("OVERDUE_MEAL_REMINDER", NotificationService.overdueAteActionID):
+            await resolveOverdueMeal(content.userInfo[NotificationService.mealIDUserInfoKey] as? String, ate: true)
+        case ("OVERDUE_MEAL_REMINDER", NotificationService.overdueSkippedActionID):
+            await resolveOverdueMeal(content.userInfo[NotificationService.mealIDUserInfoKey] as? String, ate: false)
         case ("MEAL_REMINDER", _),
              ("OVERDUE_MEAL_REMINDER", _):
             await open(.nutrition)
         case ("SUPPLEMENT_REMINDER", "SUPPLEMENT_TAKEN"):
             let names = content.userInfo["supplementNames"] as? [String] ?? []
-            await markSupplementsTaken(names: names)
+            let ids = content.userInfo["supplementIDs"] as? [String] ?? []
+            await markSupplementsTaken(
+                names: names, ids: ids,
+                deliveredAt: Self.supplementDay(userInfo: content.userInfo, delivered: response.notification.date)
+            )
         case ("SUPPLEMENT_REMINDER", "SUPPLEMENT_SNOOZE_15"):
             let names = content.userInfo["supplementNames"] as? [String] ?? []
-            await snooze(title: title, body: body, category: category, minutes: 15, supplementNames: names)
+            let ids = content.userInfo["supplementIDs"] as? [String] ?? []
+            await snooze(
+                title: title, body: body, category: category, minutes: 15, supplementNames: names, supplementIDs: ids,
+                originalDelivery: Self.supplementDay(userInfo: content.userInfo, delivered: response.notification.date)
+            )
         case ("SUPPLEMENT_REMINDER", _):
             await open(.nutrition)
         case ("SUPPLEMENT_REORDER", "SUPPLEMENT_ADD_TO_LIST"):
@@ -67,7 +79,8 @@ final class TempoNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
             await addLowSupplementToGroceryList(supplementName: name)
         case ("SUPPLEMENT_REORDER", "SUPPLEMENT_RESTOCKED"):
             let name = content.userInfo["supplementName"] as? String
-            await restockSupplement(supplementName: name)
+            let id = (content.userInfo["supplementID"] as? String).flatMap(UUID.init(uuidString:))
+            await restockSupplement(supplementName: name, supplementID: id)
         case ("SUPPLEMENT_REORDER", _):
             await open(.nutrition)
         default:
@@ -115,33 +128,102 @@ final class TempoNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
         }
     }
 
-    private func snooze(title: String, body: String, category: String, minutes: Int, supplementNames: [String] = []) async {
+    /// The moment a supplement reminder was first delivered. A snoozed copy
+    /// carries it forward so a snooze that crosses midnight keeps its day.
+    static let supplementDeliveredKey = "supplementDeliveredAt"
+
+    static func supplementDay(userInfo: [AnyHashable: Any], delivered: Date) -> Date {
+        (userInfo[supplementDeliveredKey] as? Double).map(Date.init(timeIntervalSince1970:)) ?? delivered
+    }
+
+    private func snooze(
+        title: String, body: String, category: String, minutes: Int,
+        supplementNames: [String] = [], supplementIDs: [String] = [], originalDelivery: Date? = nil
+    ) async {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
         content.categoryIdentifier = category
         content.sound = .default
         if !supplementNames.isEmpty {
-            content.userInfo = ["supplementNames": supplementNames]
+            content.userInfo = [
+                "supplementNames": supplementNames,
+                "supplementIDs": supplementIDs,
+                Self.supplementDeliveredKey: (originalDelivery ?? Date()).timeIntervalSince1970,
+            ]
         }
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: TimeInterval(minutes * 60), repeats: false)
         try? await UNUserNotificationCenter.current().add(
-            UNNotificationRequest(identifier: "snooze_\(UUID().uuidString)", content: content, trigger: trigger)
+            UNNotificationRequest(
+                // Supplement snoozes carry their supplement IDs so a tick can cancel them.
+                identifier: supplementNames.isEmpty
+                    ? "snooze_\(UUID().uuidString)"
+                    : SupplementReminderScheduler.snoozeIdentifier(supplementIDs: supplementIDs),
+                content: content,
+                trigger: trigger
+            )
         )
     }
 
     // MARK: - Supplement actions (Lane 1 — timing engine)
 
-    /// "Taken" on a grouped supplement reminder — marks every named supplement
-    /// taken for today. Same decrement path (`SupplementReorderService.
-    /// applyTaken`) an in-app tap uses. Takes the already-extracted, Sendable
-    /// `[String]` rather than the raw (non-Sendable) notification `userInfo`.
+    /// "Ate it" / "Skipped" on an overdue-meal check-in — the same
+    /// `MealOutcomeService` path as Mark Eaten / Skip in Nutrition (pantry,
+    /// shift, rebalance, reminders, Dashboard).
     @MainActor
-    private func markSupplementsTaken(names: [String]) async {
+    private func resolveOverdueMeal(_ id: String?, ate: Bool) async {
+        guard let container = Self.modelContainer else {
+            return
+        }
+        let env = MealOutcomeService.Env.live(
+            modelContext: container.mainContext,
+            notifications: Self.services?.notifications,
+            whoop: Self.services?.whoop
+        )
+        Self.resolveOverdueMeal(id: id, ate: ate, env: env)
+    }
+
+    /// A meal already resolved (eaten in the app meanwhile, or removed by a
+    /// rebuild) is left alone. Returns true when the meal changed.
+    @MainActor
+    @discardableResult
+    static func resolveOverdueMeal(id: String?, ate: Bool, env: MealOutcomeService.Env) -> Bool {
+        guard let id, let uuid = UUID(uuidString: id) else {
+            return false
+        }
+        var descriptor = FetchDescriptor<PlannedMeal>(predicate: #Predicate<PlannedMeal> { $0.id == uuid })
+        descriptor.fetchLimit = 1
+        guard let meal = try? env.modelContext.fetch(descriptor).first,
+              meal.status == .planned || meal.status == .modified
+        else {
+            return false
+        }
+        do {
+            if ate {
+                try MealOutcomeService.markEaten(meal, env: env)
+            } else {
+                try MealOutcomeService.skip(meal, env: env, rebalance: true)
+            }
+            return true
+        } catch {
+            Logger(subsystem: "app.tempo", category: "NotificationDelegate")
+                .error("Overdue meal action failed: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
+    /// "Taken" on a grouped supplement reminder — marks every named supplement
+    /// taken for the day the reminder was DELIVERED (a 23:50 reminder tapped at
+    /// 00:10 still counts for the day it was about). Same decrement path
+    /// (`SupplementReorderService.applyTaken`) an in-app tap uses. Takes the
+    /// already-extracted, Sendable `[String]` rather than the raw
+    /// (non-Sendable) notification `userInfo`.
+    @MainActor
+    private func markSupplementsTaken(names: [String], ids: [String], deliveredAt: Date) async {
         guard let container = Self.modelContainer, !names.isEmpty else {
             return
         }
-        SupplementReminderScheduler.markTaken(names: names, modelContext: container.mainContext)
+        SupplementReminderScheduler.markTaken(names: names, ids: ids, modelContext: container.mainContext, now: deliveredAt)
     }
 
     /// "Add to grocery list" on a running-low alert.
@@ -161,18 +243,26 @@ final class TempoNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
         open(.nutrition)
     }
 
-    /// "Restocked" on a running-low alert — resets the count and starts a new cycle.
+    /// "Restocked" on a running-low alert — adds a container and starts a new
+    /// cycle. Looks the item up by ID (falling back to the name for alerts
+    /// scheduled before IDs existed). When the item has no container size on
+    /// record the count can't be updated, so nothing is stamped and the app
+    /// opens on Nutrition to enter it — silently "restocking" 0 servings used
+    /// to reset the cycle while leaving the shelf at "running low".
     @MainActor
-    private func restockSupplement(supplementName: String?) async {
-        guard let container = Self.modelContainer, let name = supplementName else {
+    private func restockSupplement(supplementName: String?, supplementID: UUID?) async {
+        guard let container = Self.modelContainer, supplementName != nil || supplementID != nil else {
             return
         }
         let context = container.mainContext
-        let descriptor = FetchDescriptor<Supplement>(predicate: #Predicate<Supplement> { $0.name == name })
-        guard let supplement = (try? context.fetch(descriptor))?.first else {
+        guard let supplement = SupplementIntakeStore.supplement(id: supplementID, name: supplementName ?? "", in: context) else {
             return
         }
-        SupplementReorderService.restock(supplement)
-        try? context.save()
+        if SupplementReorderService.restock(supplement) {
+            try? context.save()
+            NotificationCenter.default.post(name: .tempoSupplementsChanged, object: nil)
+        } else {
+            open(.nutrition)
+        }
     }
 }

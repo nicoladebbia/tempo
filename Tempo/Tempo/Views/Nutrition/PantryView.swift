@@ -401,7 +401,7 @@ struct PantryView: View {
                     }
                 }
                 HStack(spacing: 6) {
-                    Text("\(formatQuantity(item.quantity))\(item.unit.displayName)")
+                    Text(PantryQuantityFormatter.text(quantity: item.quantity, unit: item.unit, canonicalName: item.canonicalName, purchased: item.weighsPurchaseUnit))
                         .font(.tempoCaption1)
                         .foregroundStyle(Color.tempoTextSecondary)
                     if let useBy = item.useBy {
@@ -475,10 +475,6 @@ struct PantryView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, TempoSpacing.xxxl)
-    }
-
-    private func formatQuantity(_ value: Double) -> String {
-        value == value.rounded() ? "\(Int(value))" : String(format: "%.1f", value)
     }
 }
 
@@ -710,9 +706,7 @@ struct PantryManualAddSheet: View {
     }
 
     private static func formatQuantity(_ value: Double) -> String {
-        value.truncatingRemainder(dividingBy: 1) == 0
-            ? String(Int(value))
-            : String(format: "%.2f", value)
+        PantryQuantityFormatter.number(value)
     }
 
     private var micButton: some View {

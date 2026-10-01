@@ -41,6 +41,12 @@ struct FuelQuadrantDetailContainer: View {
             calorieTrend = EatenNutritionHistory.dailyTotals(in: modelContext)
             await scheduleVM?.refresh(modelContext: modelContext)
         }
+        // Drop the row synchronously, before the model is deleted.
+        .onReceive(NotificationCenter.default.publisher(for: .tempoMealWillBeRemoved)) { note in
+            if let id = note.userInfo?["id"] as? UUID {
+                scheduleVM?.dropRow(mealID: id)
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .tempoNutritionLogged)) { _ in
             // Re-pull the annotated rows when a meal is logged elsewhere
             // so this detail sheet's calories + eat-times stay live while
