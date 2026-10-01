@@ -74,19 +74,13 @@ struct NutritionTabView: View {
             .navigationBarTitleDisplayMode(.inline)
             .tempoSettingsToolbar()
             .task {
-                // Loads today, then regenerates the plan if its training /
-                // diet-profile inputs changed since it was built. The change
+                // Loads today and flags the plan when its training / diet-profile
+                // inputs changed since it was built (Today then asks whether to
+                // update — it never rebuilds on its own). The change
                 // notifications themselves are handled app-wide in
                 // ContentView, so they aren't lost when this tab was never
                 // opened.
-                viewModel.regenerateIfOutOfDate(
-                    modelContext: modelContext,
-                    whoop: services.whoop,
-                    apiClient: services.apiClient,
-                    notifications: services.notifications,
-                    trainingEngine: services.trainingEngine,
-                    healthKit: services.healthKit
-                )
+                viewModel.checkPlanFreshness(modelContext: modelContext)
             }
             // Surface plan-generation failures (timeout / 5xx / decode) as
             // a toast at the Nutrition root. Previously these only showed
@@ -97,7 +91,9 @@ struct NutritionTabView: View {
                     return
                 }
                 planErrorToast = ToastData(
-                    message: "Couldn't generate plan: \(newError). Tap Generate on the Plan tab to retry.",
+                    message: viewModel.planGenerationBlocker != nil
+                        ? newError
+                        : "Couldn't generate plan: \(newError). Tap Generate on the Plan tab to retry.",
                     style: .error
                 )
             }

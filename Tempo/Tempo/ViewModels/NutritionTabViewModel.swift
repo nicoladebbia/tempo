@@ -147,11 +147,28 @@ final class NutritionTabViewModel {
     /// Drives the "Plan out of date" banner on Today.
     private(set) var isPlanOutOfDate: Bool = false
 
-    /// Fingerprint we already auto-regenerated for this session. Caps the
-    /// automatic regen at one attempt per input state so a failing backend
-    /// can't loop on every load; the banner's button is the manual retry.
-    @ObservationIgnored
-    private var autoRegenAttemptedFingerprint: String?
+    /// Inputs fingerprint as of the last freshness check — what "setup
+    /// changed" is measured against.
+    private(set) var currentInputsFingerprint: String?
+
+    /// The inputs fingerprint the user said "Not now" to. The update banner
+    /// stays hidden until the inputs change again (a different fingerprint).
+    private(set) var dismissedUpdateFingerprint: String? = UserDefaults.standard
+        .string(forKey: NutritionTabViewModel.dismissedUpdateKey)
+
+    static let dismissedUpdateKey = "nutrition.planUpdateDismissedFingerprint"
+
+    /// "Your setup changed — update the rest of the week?" Setup edits never
+    /// rebuild the plan behind the user's back: this banner asks first.
+    var showPlanUpdateBanner: Bool {
+        isPlanOutOfDate && dismissedUpdateFingerprint != currentInputsFingerprint
+    }
+
+    /// "Not now": hide the banner until the plan inputs change again.
+    func dismissPlanUpdateBanner() {
+        dismissedUpdateFingerprint = currentInputsFingerprint
+        UserDefaults.standard.set(currentInputsFingerprint, forKey: Self.dismissedUpdateKey)
+    }
 
     /// Inputs fingerprint of the generation currently running, if any.
     @ObservationIgnored
@@ -161,6 +178,9 @@ final class NutritionTabViewModel {
 
     var isGeneratingPlan: Bool = false
     var planGenerationError: String?
+    /// Set when the build failed because the user needs Pro or hasn't allowed
+    /// AI features — waiting or retrying won't help, the view offers the fix.
+    var planGenerationBlocker: PlanGenerationBlocker?
 
     /// Drill-sergeant phase label shown under the spinner ("Drafting the week…",
     /// "Writing recipes for every meal…", etc). Mirrors
@@ -500,6 +520,7 @@ final class NutritionTabViewModel {
             return
         }
         let current = MealPlanInputsFingerprint.current(in: modelContext)
+        currentInputsFingerprint = current
         guard let stamped = plan.inputsFingerprint else {
             plan.inputsFingerprint = current
             try? modelContext.save()
@@ -510,41 +531,14 @@ final class NutritionTabViewModel {
     }
 
     /// Called whenever a plan input may have changed (training settings,
-    /// trainer program, diet profile) and on launch. Reloads, and if the
-    /// active plan is out of date, regenerates it — once per input state per
-    /// session; after a failure the Today banner offers the manual retry.
-    /// No-op when there's no plan (nothing to refresh — the user generates
-    /// their first plan explicitly) or a generation is already running (the
-    /// explicit save-and-generate paths get there first).
-    func regenerateIfOutOfDate(
-        modelContext: ModelContext,
-        whoop: any WhoopServiceProtocol,
-        apiClient: APIClient,
-        notifications: (any NotificationServiceProtocol)? = nil,
-        trainingEngine: any TrainingEngineProtocol,
-        healthKit: any HealthKitServiceProtocol
-    ) {
+    /// trainer program, diet profile) and on launch. Only reloads and flags
+    /// the plan as out of date — it NEVER rebuilds it. Today shows an "update
+    /// the rest of the week?" banner and the user decides.
+    func checkPlanFreshness(modelContext: ModelContext) {
         guard !isGeneratingPlan else {
             return
         }
         loadToday(modelContext: modelContext)
-        guard isPlanOutOfDate else {
-            return
-        }
-        let current = MealPlanInputsFingerprint.current(in: modelContext)
-        guard autoRegenAttemptedFingerprint != current else {
-            return
-        }
-        autoRegenAttemptedFingerprint = current
-        Logger.nutrition.info("[Diag.Plan] plan inputs changed — regenerating")
-        generatePlan(
-            modelContext: modelContext,
-            whoop: whoop,
-            apiClient: apiClient,
-            notifications: notifications,
-            trainingEngine: trainingEngine,
-            healthKit: healthKit
-        )
     }
 
     // MARK: - Meal Actions
@@ -1038,10 +1032,10 @@ final class NutritionTabViewModel {
             return
         }
         inFlightFingerprint = inputsFingerprint
-        autoRegenAttemptedFingerprint = inputsFingerprint
 
         isGeneratingPlan = true
         planGenerationError = nil
+        planGenerationBlocker = nil
         HapticManager.lightImpact()
 
         planGenerationTask?.cancel()
@@ -1089,6 +1083,11 @@ final class NutritionTabViewModel {
                 } catch {
                     if Task.isCancelled {
                         return
+                    }
+                    // Pro / AI consent: the device build asks the same backend
+                    // and would fail the same way — surface it instead.
+                    if PlanGenerationBlocker(error) != nil {
+                        throw error
                     }
                     Logger.nutrition
                         .info("[Diag.Plan] server plan unavailable (\(error.localizedDescription, privacy: .public)) — building on device")
@@ -1154,6 +1153,12 @@ final class NutritionTabViewModel {
                 // hunt for a Generate button after the plan lands. Non-fatal:
                 // failures surface via groceryState.lastError, not the plan UI.
                 generateGroceryList()
+                // Readers that cache today's meals / supplement decisions
+                // (Dashboard Fuel, supplement reminders) follow the rebuild.
+                NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
+                if let notifications {
+                    SupplementReminderScheduler.reschedule(notifications: notifications, modelContext: modelContext)
+                }
                 isGeneratingPlan = false
                 inFlightFingerprint = nil
                 planGenerationStatusLabel = ""
@@ -1167,7 +1172,8 @@ final class NutritionTabViewModel {
                 isGeneratingPlan = false
                 inFlightFingerprint = nil
                 planGenerationStatusLabel = ""
-                planGenerationError = error.localizedDescription
+                planGenerationBlocker = PlanGenerationBlocker(error)
+                planGenerationError = PlanGenerationBlocker.message(for: error)
                 HapticManager.notification(.error)
             }
         }
@@ -1393,7 +1399,8 @@ final class NutritionTabViewModel {
             let prepStart: Date
             let defrosts: [(id: UUID, name: String, lead: Int)]
         }
-        let pending: [PendingNotification] = freshMeals.map { meal in
+        // Eaten / skipped meals need no reminder (a from-today rebuild keeps them).
+        let pending: [PendingNotification] = freshMeals.filter { $0.status == .planned }.map { meal in
             let mealTime = MealScheduleHelpers.scheduledDate(for: meal, calendar: calendar)
             let prepStart = MealScheduleHelpers.prepStartDate(for: meal, calendar: calendar)
             let defrosts: [(UUID, String, Int)] = (meal.recipe?.ingredients ?? [])
