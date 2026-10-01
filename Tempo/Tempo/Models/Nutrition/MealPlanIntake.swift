@@ -156,9 +156,14 @@ struct MealPlanIntake: Sendable, Equatable {
     /// every writer goes through here. The profile keeps its minute precision
     /// unless the hour window actually changed.
     static func saveEatingWindow(_ window: EatingWindow, settings: UserSettings, dailyPlan: UserDailyPlanProfile?) {
+        // Both or neither: an invalid window writes nothing, so settings and
+        // the onboarding profile can't disagree.
+        guard window.isValid else {
+            return
+        }
         settings.mealIntakeFirstMealHour = window.firstMealHour
         settings.mealIntakeLastMealHour = window.lastMealHour
-        guard let dailyPlan, window.isValid, eatingWindow(fromOnboarding: dailyPlan) != window else {
+        guard let dailyPlan, eatingWindow(fromOnboarding: dailyPlan) != window else {
             return
         }
         dailyPlan.eatingWindowStartMinutes = window.firstMealHour * 60

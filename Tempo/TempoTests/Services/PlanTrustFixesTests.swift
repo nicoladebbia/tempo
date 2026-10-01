@@ -187,6 +187,15 @@ final class PlanTrustFixesTests: XCTestCase {
         XCTAssertEqual(MealPlanIntake.eatingWindow(fromOnboarding: daily), planner)
     }
 
+    func testInvalidWindowWritesNeitherStore() {
+        let settings = UserSettings()
+        let daily = UserDailyPlanProfile(eatingWindowStartMinutes: 8 * 60, eatingWindowEndMinutes: 20 * 60)
+        MealPlanIntake.saveEatingWindow(EatingWindow(firstMealHour: 15, lastMealHour: 9), settings: settings, dailyPlan: daily)
+        XCTAssertNil(settings.mealIntakeFirstMealHour)
+        XCTAssertNil(settings.mealIntakeLastMealHour)
+        XCTAssertEqual(daily.eatingWindowStartMinutes, 8 * 60)
+    }
+
     func testUnchangedWindowKeepsMinutePrecision() {
         let settings = UserSettings()
         let daily = UserDailyPlanProfile(eatingWindowStartMinutes: 11 * 60 + 30, eatingWindowEndMinutes: 19 * 60 + 45)

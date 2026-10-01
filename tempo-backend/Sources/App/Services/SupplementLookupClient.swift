@@ -265,7 +265,8 @@ struct OFFProduct: Content {
         guard let quantityGrams = Self.parseGrams(quantity), let servingGrams = Self.parseGrams(servingSize), servingGrams > 0 else {
             return nil
         }
-        return (quantityGrams / servingGrams).rounded()
+        let servings = (quantityGrams / servingGrams).rounded()
+        return servings > 0 ? servings : nil
     }
 
     /// Grams from a label amount. Only a number directly followed by a mass
@@ -273,6 +274,16 @@ struct OFFProduct: Content {
     /// "2 gummies" or "1 scoop" give nil. The old check glued every digit
     /// together and accepted any "g" in the text, so "2 gummies" read as 2 g
     /// and "2 x 30 g" as 230 g.
+    /// "1,000" → "1000" (comma + exactly three digits after 1–3 leading
+    /// digits is a thousands separator); "30,4" and "0,500" stay decimals.
+    static func normalizedNumber(_ token: String) -> String {
+        let parts = token.split(separator: ",", omittingEmptySubsequences: false)
+        if parts.count == 2, parts[1].count == 3, parts[0].count <= 3, parts[0] != "0", !parts[0].contains(".") {
+            return String(parts[0]) + String(parts[1])
+        }
+        return token.replacingOccurrences(of: ",", with: ".")
+    }
+
     static func parseGrams(_ raw: String?) -> Double? {
         guard let raw else { return nil }
         let lower = raw.lowercased()
@@ -281,7 +292,7 @@ struct OFFProduct: Content {
               let match = regex.firstMatch(in: lower, range: NSRange(lower.startIndex..., in: lower)),
               let numberRange = Range(match.range(at: 1), in: lower),
               let unitRange = Range(match.range(at: 2), in: lower),
-              let value = Double(lower[numberRange].replacingOccurrences(of: ",", with: "."))
+              let value = Double(Self.normalizedNumber(String(lower[numberRange])))
         else {
             return nil
         }

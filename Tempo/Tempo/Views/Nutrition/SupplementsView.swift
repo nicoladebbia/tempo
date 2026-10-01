@@ -99,10 +99,9 @@ struct SupplementsView: View {
 
     /// Last `intakeWindowDays` of intake — the LOW badge uses the same
     /// days-of-supply rule as the reorder banner and alert.
-    private var recentLogs: [SupplementIntakeLog] {
-        let windowStart = Calendar.current.date(
-            byAdding: .day, value: -SupplementReorderService.intakeWindowDays, to: Date()
-        ) ?? Date()
+    /// Fetched once per body evaluation and handed to every row.
+    private func fetchRecentLogs() -> [SupplementIntakeLog] {
+        let windowStart = SupplementReorderService.intakeWindowStart()
         let descriptor = FetchDescriptor<SupplementIntakeLog>(
             predicate: #Predicate<SupplementIntakeLog> { $0.day >= windowStart }
         )
@@ -199,9 +198,10 @@ struct SupplementsView: View {
     // MARK: - Shelf
 
     private var shelfSection: some View {
-        VStack(spacing: TempoSpacing.sm) {
+        let logs = fetchRecentLogs()
+        return VStack(spacing: TempoSpacing.sm) {
             ForEach(supplements) { supp in
-                supplementRow(supp)
+                supplementRow(supp, recentLogs: logs)
             }
         }
         .padding(TempoSpacing.cardPadding)
@@ -209,7 +209,7 @@ struct SupplementsView: View {
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
     }
 
-    private func supplementRow(_ supp: Supplement) -> some View {
+    private func supplementRow(_ supp: Supplement, recentLogs: [SupplementIntakeLog]) -> some View {
         Button {
             editing = supp
         } label: {

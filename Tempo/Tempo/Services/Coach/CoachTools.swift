@@ -24,6 +24,8 @@ enum CoachToolError: Error, Equatable {
     case mealNotFound(UUID)
     case preferenceNotFound(UUID)
     case planNotFound
+    /// The date is before today or outside the active plan's week.
+    case dayOutsideActivePlan
 
     /// The meal is in a state that disallows this mutation.
     /// e.g., moving a meal that's already been eaten.
@@ -230,6 +232,16 @@ enum CoachTools {
         calendar: Calendar = .current
     ) throws -> ToolOutput {
         let plan = try CoachToolHelpers.activeWeeklyPlan(in: context)
+        // dayTypeAssignments is keyed by weekday only, so a date from another
+        // week (or one already behind us) would silently rewrite this week's
+        // plan. Only today-or-later days inside the active plan qualify.
+        let day = calendar.startOfDay(for: date)
+        guard day >= calendar.startOfDay(for: Date()),
+              day >= calendar.startOfDay(for: plan.startDate),
+              day <= calendar.startOfDay(for: plan.endDate)
+        else {
+            throw CoachToolError.dayOutsideActivePlan
+        }
         let weekdayIndex = calendar.component(.weekday, from: date) // 1=Sunday … 7=Saturday
         // dayTypeAssignments is keyed Mon=1 … Sun=7 (the generator writes
         // `dayIndex + 1`). Convert Calendar's Sun=1 numbering to that:

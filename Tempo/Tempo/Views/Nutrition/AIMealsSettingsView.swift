@@ -96,7 +96,7 @@ struct AIMealsSettingsView: View {
             }
             Button("Later", role: .cancel) { dismiss() }
         } message: {
-            Text("Your changes are saved. The current plan keeps its old meals until you regenerate.")
+            Text("Your changes are saved. Meals you've eaten and past days stay. Planned meals from today on are replaced. Until then the current plan keeps its old meals.")
         }
     }
 

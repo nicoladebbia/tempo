@@ -473,6 +473,10 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             let mealID: UUID
             let mealName: String
             let foods: [PlannedFood]
+            /// Foods as they were when the request was made, so a meal edited
+            /// during the (minutes-long) recipe phase doesn't get a recipe for
+            /// food it no longer contains.
+            let signature: String
         }
         let skillLevel = profile.cookingSkill.displayName
         // Recipe-level exclusions need to include the user's permanent
@@ -494,8 +498,11 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         // ingredients on the grocery/pantry-gap lists).
         let requests: [MealRequest] = meals.compactMap { meal in
             let cooked = meal.foods.filter { !$0.isApproximate }
-            return cooked.isEmpty ? nil : MealRequest(mealID: meal.id, mealName: meal.mealName, foods: cooked)
+            return cooked.isEmpty ? nil : MealRequest(
+                mealID: meal.id, mealName: meal.mealName, foods: cooked, signature: Self.foodsSignature(cooked)
+            )
         }
+        let signatures = Dictionary(requests.map { ($0.mealID, $0.signature) }, uniquingKeysWith: { first, _ in first })
 
         // Capped fan-out. Previously we fired all 28 recipes in parallel,
         // which routinely tripped the backend's 429 rate limit and
@@ -543,6 +550,11 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             guard let parsed = results[meal.id] else {
                 continue
             }
+            // Foods edited since the request → the recipe is for a different meal.
+            guard signatures[meal.id] == Self.foodsSignature(meal.foods.filter { !$0.isApproximate }) else {
+                logger.info("Skipping recipe for '\(meal.mealName)': foods changed during generation")
+                continue
+            }
             let recipe = makeRecipe(from: parsed, mealServings: 1)
             modelContext.insert(recipe)
             for ingredient in recipe.ingredients ?? [] {
@@ -560,6 +572,14 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         } catch {
             logger.error("Failed to save recipes for plan \(plan.id): \(error.localizedDescription)")
         }
+    }
+
+    /// Order-independent digest of a meal's cooked foods (name + whole grams).
+    static func foodsSignature(_ foods: [PlannedFood]) -> String {
+        foods
+            .map { "\($0.name.lowercased().trimmingCharacters(in: .whitespaces))@\(Int($0.quantityGrams.rounded()))" }
+            .sorted()
+            .joined(separator: "|")
     }
 
     /// Single Haiku call for one meal via the backend proxy. Returns nil on
@@ -1376,7 +1396,12 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         let activePlans = (try? modelContext.fetch(existingDescriptor)) ?? []
         let reusable: WeeklyMealPlan? = rebuildsCurrentWeek
             ? activePlans
-            .filter { calendar.isDate($0.startDate, inSameDayAs: startDate) }
+            // Match by overlap, not the exact start day: after a timezone
+            // change the stored Monday can differ by a day yet is still the
+            // plan running now (its eaten meals must stay canonical).
+            .filter {
+                calendar.startOfDay(for: $0.startDate) <= today && calendar.startOfDay(for: $0.endDate) >= today
+            }
             .max { $0.generatedAt < $1.generatedAt }
             : nil
         for existing in activePlans where existing !== reusable {
@@ -1456,6 +1481,10 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         }
         weeklyPlan.dayTypeAssignments = dayTypeAssignments
         weeklyPlan.supplementDecisions = supplementDecisions
+        // Stamp what this plan is built from the moment it's saved, so the
+        // "setup changed" banner can't flash between the save (which posts
+        // .tempoNutritionLogged) and the caller's later stamp.
+        weeklyPlan.inputsFingerprint = MealPlanInputsFingerprint.current(in: modelContext)
 
         // Create PlannedMeal records
         for day in plan.days {

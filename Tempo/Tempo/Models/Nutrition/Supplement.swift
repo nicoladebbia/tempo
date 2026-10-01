@@ -198,7 +198,13 @@ final class Supplement {
     /// `SupplementReorderService.needsReorder` directly.
     @Transient
     var isRunningLow: Bool {
-        servingsRemaining > 0 && SupplementReorderService.needsReorder(for: self, recentLogs: [])
+        isRunningLow(recentLogs: [])
+    }
+
+    /// Same rule with the user's recent intake when a caller has it, so the
+    /// flag can never disagree with the shelf badge.
+    func isRunningLow(recentLogs: [SupplementIntakeLog]) -> Bool {
+        servingsRemaining > 0 && SupplementReorderService.needsReorder(for: self, recentLogs: recentLogs)
     }
 
     // MARK: - Init
