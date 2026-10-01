@@ -153,6 +153,20 @@ final class PlannedExercise {
         return workingSets.allSatisfy(\.completed)
     }
 
+    /// Pain marker copy: "Skipped — pain" when nothing was logged, otherwise it
+    /// was stopped part-way ("Stopped — pain after 2 sets"). Nil when not pain-ended.
+    @Transient
+    var painStatusLabel: String? {
+        guard painSkipped else {
+            return nil
+        }
+        let logged = (sets ?? []).filter { !$0.isWarmup && $0.completed }.count
+        guard logged > 0 else {
+            return "Skipped — pain"
+        }
+        return "Stopped — pain after \(logged) \(logged == 1 ? "set" : "sets")"
+    }
+
     @Transient
     var bestSet: PlannedSet? {
         // Working sets only — a warmup ramp set must never be reported as the
