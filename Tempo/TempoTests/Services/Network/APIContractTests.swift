@@ -463,15 +463,8 @@ final class APIContractTests: XCTestCase {
         XCTAssertEqual(aps["interruption-level"] as? String, "time-sensitive")
         // The delegate's category switch.
         XCTAssertEqual(content.categoryIdentifier, WeeklyPlanReminder.readyCategoryID)
-        // The delegate's fallback: `content.userInfo["type"] as? String == "meal_plan_ready"`.
-        // KNOWN BUG: the server (TempoNotificationPayload) nests custom keys under `data`, so
-        // `userInfo["type"]` is nil and tapping the "plan ready" push never opens Nutrition /
-        // syncs the plan (the MEAL_PLAN_READY category case still does). Fix the server payload
-        // (put keys at the top level) or read `userInfo["data"]["type"]` in the delegate, then
-        // delete this XCTExpectFailure.
-        XCTExpectFailure("push `type` is nested under `data`, delegate reads userInfo[\"type\"]") {
-            XCTAssertEqual(content.userInfo["type"] as? String, "meal_plan_ready")
-        }
+        // Server pushes nest custom keys under `data`; the delegate reads them from there.
+        XCTAssertEqual(TempoNotificationDelegate.pushType(from: content.userInfo), "meal_plan_ready")
         XCTAssertEqual((content.userInfo["data"] as? [String: Any])?["type"] as? String, "meal_plan_ready")
     }
 
