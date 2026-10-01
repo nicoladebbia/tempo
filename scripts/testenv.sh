@@ -16,6 +16,11 @@
 #   scripts/testenv.sh ai <fake|broken|empty|slow|error|real> [slow-seconds]
 #   scripts/testenv.sh pushes [name]                 pushes the server sent
 #   scripts/testenv.sh url                           base URL for the app
+#   scripts/testenv.sh users                         test accounts
+#   scripts/testenv.sh fault add <path> <kind> [v]   break requests: error [status] | slow [s] | logout |
+#                        [--count N] [--as NAME]     garbage | empty | timeout   (fault list | clear)
+#   scripts/testenv.sh auth ttl <secs|off>           short access tokens → exercise silent re-login
+#   scripts/testenv.sh sign-out <name>               revoke a test user's sessions
 #   scripts/testenv.sh db [slot]                     only the databases (for swift test); empties that slot's Redis
 #   eval "$(scripts/testenv.sh test-env [slot])"     env for `swift test`: slot 1 (default) = you,
 #                                                    2 = fast check, 3 = nightly — runs at the same
@@ -265,6 +270,7 @@ case "${1:-status}" in
     status) cmd_status ;;
     logs) if [ "${2:-}" = "-f" ]; then tail -f "$LOG"; else tail -100 "$LOG"; fi ;;
     ai) shift; cmd_ai "$@" ;;
+    fault | auth | sign-out | users) TEMPO_TEST_URL="$URL" python3 "$(dirname "$0")/testctl.py" "$@" ;;
     pushes) shift; cmd_pushes "$@" ;;
     url) echo "$URL" ;;
     db)
@@ -287,6 +293,6 @@ case "${1:-status}" in
         slot="${2:-1}"; check_slot "$slot"
         echo "export DB_HOST=127.0.0.1 DB_PORT=$PG_PORT DB_USER=tempo DB_PASSWORD=tempo_dev DB_NAME=$(slot_db "$slot") REDIS_URL=redis://127.0.0.1:$REDIS_PORT/$slot"
         ;;
-    -h | --help | help) sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//' ;;
+    -h | --help | help) awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0" ;;
     *) die "unknown command '$1' (try: scripts/testenv.sh help)" ;;
 esac

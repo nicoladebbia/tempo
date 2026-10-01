@@ -66,6 +66,7 @@ enum TestMode {
             TestModeClient(eventLoop: app.eventLoopGroup.next(), state: state, real: real, logger: app.logger)
         }
 
+        app.middleware.use(TestModeFaultMiddleware(faults: state.faults))
         try app.grouped("v1", "test").register(collection: TestModeController())
         app.logger.warning("TEST MODE ON — fake outside services, /v1/test routes, pushes captured (AI: \(state.aiMode.rawValue))")
     }
@@ -109,6 +110,8 @@ struct AICallRecord: Content, Sendable {
 
 final class TestModeState: @unchecked Sendable {
     private let lock = NIOLock()
+    let faults = FaultStore()
+    private var _accessTokenTTL: TimeInterval?
     private var _aiMode: AIMode = .fake
     private var _slowSeconds: Double = 8
     private var _pushes: [CapturedPush] = []
@@ -118,6 +121,12 @@ final class TestModeState: @unchecked Sendable {
     var aiMode: AIMode {
         get { lock.withLock { _aiMode } }
         set { lock.withLock { _aiMode = newValue } }
+    }
+
+    /// Shorter access tokens, to exercise silent re-login (nil = the real 15 min).
+    var accessTokenTTL: TimeInterval? {
+        get { lock.withLock { _accessTokenTTL } }
+        set { lock.withLock { _accessTokenTTL = newValue } }
     }
 
     var slowSeconds: Double {

@@ -14,6 +14,11 @@ struct JWTService {
     static let accessTokenTTL: TimeInterval = 900  // 15 minutes
     static let refreshTokenTTL: TimeInterval = 30 * 24 * 3600  // 30 days
 
+    /// The real TTL, unless local test mode shortened it (`testenv.sh auth ttl`).
+    static func accessTTL(_ req: Request) -> TimeInterval {
+        req.application.testMode?.accessTokenTTL ?? accessTokenTTL
+    }
+
     // MARK: - Issue Access Token
 
     static func issueAccessToken(
@@ -28,7 +33,7 @@ struct JWTService {
             issuer: .init(value: "tempo-api"),
             audience: .init(value: ["app.tempo.ios"]),
             issuedAt: .init(value: now),
-            expiration: .init(value: now.addingTimeInterval(accessTokenTTL)),
+            expiration: .init(value: now.addingTimeInterval(accessTTL(req))),
             jti: UUID().uuidString,
             deviceID: deviceID,
             scopes: scopes
@@ -82,7 +87,7 @@ struct JWTService {
         return AuthTokenResponse(
             accessToken: accessToken,
             refreshToken: rawRefresh,
-            expiresIn: Int(accessTokenTTL)
+            expiresIn: Int(accessTTL(req))
         )
     }
 

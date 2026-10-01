@@ -14,6 +14,10 @@ import Vapor
 // GET    /v1/test/pushes    ?user_id= | ?name=
 // DELETE /v1/test/pushes    ?user_id= | ?name=
 // GET    /v1/test/ai-calls
+// GET    /v1/test/users     ?name=   test accounts (newest first)
+// GET    /v1/test/faults  · POST {path_prefix, kind, method?, status?, delay_seconds?, remaining?, user_id?} · DELETE (?id=)
+// POST   /v1/test/auth      {access_ttl_seconds}   (null/0 = the real 15 min)
+// POST   /v1/test/sign-out  ?name=                 revoke every session (refresh tokens) of a test user
 
 struct TestModeController: RouteCollection {
     func boot(routes: RoutesBuilder) throws {
@@ -23,6 +27,12 @@ struct TestModeController: RouteCollection {
         routes.get("pushes", use: pushes)
         routes.delete("pushes", use: clearPushes)
         routes.get("ai-calls", use: aiCalls)
+        routes.get("users", use: users)
+        routes.get("faults", use: listFaults)
+        routes.post("faults", use: addFault)
+        routes.delete("faults", use: clearFaults)
+        routes.post("auth", use: setAuth)
+        routes.post("sign-out", use: signOut)
     }
 
     // MARK: - Login
@@ -207,5 +217,84 @@ struct TestModeController: RouteCollection {
         guard let name = req.query[String.self, at: "name"] else { return nil }
         let user = try await User.query(on: req.db).filter(\.$appleUserID == appleUserID(for: name)).first()
         return user?.id ?? "__none__"
+    }
+
+    // MARK: - Users
+
+    struct TestUser: Content {
+        let id: String
+        let name: String
+        let displayName: String
+        let pro: Bool
+        let createdAt: Date?
+        let simulatorUdid: String?
+    }
+
+    func users(_ req: Request) async throws -> [TestUser] {
+        var query = User.query(on: req.db).filter(\.$appleUserID =~ "test:")
+        if let name = req.query[String.self, at: "name"] {
+            query = User.query(on: req.db).filter(\.$appleUserID == Self.appleUserID(for: name))
+        }
+        let rows = try await query.sort(\.$createdAt, .descending).limit(200).all()
+        let state = try Self.state(req)
+        var out: [TestUser] = []
+        for user in rows {
+            let id = try user.requireID()
+            let name = String(user.appleUserID.dropFirst("test:".count))
+            guard !name.contains(":retired:") else { continue }
+            let subs = try await UserSubscription.query(on: req.db).filter(\.$user.$id == id).all()
+            out.append(TestUser(
+                id: id,
+                name: name,
+                displayName: user.displayName,
+                pro: subs.contains { $0.isActive && $0.expirationDate > Date() },
+                createdAt: user.createdAt,
+                simulatorUdid: state.simulator(for: id)
+            ))
+        }
+        return out
+    }
+
+    // MARK: - Faults + auth
+
+    func listFaults(_ req: Request) async throws -> [FaultRule] {
+        try Self.state(req).faults.all
+    }
+
+    func addFault(_ req: Request) async throws -> FaultRule {
+        let rule = try req.content.decode(FaultRule.self)
+        guard rule.pathPrefix.hasPrefix("/"), !rule.pathPrefix.hasPrefix("/v1/test") else {
+            throw Abort(.badRequest, reason: "path_prefix must start with / and not be /v1/test.")
+        }
+        return try Self.state(req).faults.add(rule)
+    }
+
+    func clearFaults(_ req: Request) async throws -> HTTPStatus {
+        let faults = try Self.state(req).faults
+        if let id = req.query[UUID.self, at: "id"] {
+            faults.remove(id: id)
+        } else {
+            faults.clear()
+        }
+        return .noContent
+    }
+
+    struct AuthRequest: Content {
+        var accessTtlSeconds: Double?
+    }
+
+    func setAuth(_ req: Request) async throws -> AuthRequest {
+        let body = try req.content.decode(AuthRequest.self)
+        let ttl = body.accessTtlSeconds.flatMap { $0 > 0 ? max(5, $0) : nil }
+        try Self.state(req).accessTokenTTL = ttl
+        return AuthRequest(accessTtlSeconds: ttl ?? JWTService.accessTokenTTL)
+    }
+
+    func signOut(_ req: Request) async throws -> HTTPStatus {
+        guard let id = try await Self.userFilter(req), id != "__none__" else {
+            throw Abort(.notFound, reason: "No such test user.")
+        }
+        try await JWTService.revokeAllTokens(userID: id, on: req.db)
+        return .noContent
     }
 }
