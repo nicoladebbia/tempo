@@ -267,8 +267,11 @@ struct SupplementsView: View {
         if !supp.dosePerServing.isEmpty {
             parts.append(supp.dosePerServing)
         }
+        if let kcal = supp.caloriesPerServing, kcal > 0 {
+            parts.append("\(Int(kcal.rounded())) kcal")
+        }
         if supp.proteinGramsPerServing > 0 {
-            parts.append("\(Int(supp.proteinGramsPerServing))g protein")
+            parts.append("\(Int(supp.proteinGramsPerServing.rounded()))g protein")
         }
         if supp.servingsRemaining > 0 {
             parts.append("\(Int(supp.servingsRemaining)) left")
@@ -307,6 +310,9 @@ struct SupplementEditSheet: View {
     @State private var brand: String
     @State private var dose: String
     @State private var proteinPerServingText: String
+    @State private var caloriesPerServingText: String
+    @State private var carbsPerServingText: String
+    @State private var fatPerServingText: String
     @State private var servingsText: String
     @State private var servingsPerContainerText: String
     @State private var notes: String
@@ -319,10 +325,10 @@ struct SupplementEditSheet: View {
         _kind = State(initialValue: existing?.kind ?? .protein)
         _brand = State(initialValue: existing?.brand ?? "")
         _dose = State(initialValue: existing?.dosePerServing ?? "")
-        _proteinPerServingText = State(
-            initialValue: (existing?.proteinGramsPerServing ?? 0) > 0
-                ? String(Int(existing?.proteinGramsPerServing ?? 0)) : ""
-        )
+        _proteinPerServingText = State(initialValue: Self.macroText(existing?.proteinGramsPerServing))
+        _caloriesPerServingText = State(initialValue: Self.macroText(existing?.caloriesPerServing))
+        _carbsPerServingText = State(initialValue: Self.macroText(existing?.carbsGramsPerServing))
+        _fatPerServingText = State(initialValue: Self.macroText(existing?.fatGramsPerServing))
         _servingsText = State(
             initialValue: (existing?.servingsRemaining ?? 0) > 0
                 ? String(Int(existing?.servingsRemaining ?? 0)) : ""
@@ -332,6 +338,17 @@ struct SupplementEditSheet: View {
                 ? String(Int(existing?.servingsPerContainer ?? 0)) : ""
         )
         _notes = State(initialValue: existing?.userNotes ?? "")
+    }
+
+    /// "24", "1.5" — empty for nil / zero.
+    private static func macroText(_ value: Double?) -> String {
+        guard let value, value > 0 else { return "" }
+        return value.rounded() == value ? String(Int(value)) : String(format: "%.1f", value)
+    }
+
+    private static func macroValue(_ text: String) -> Double? {
+        guard let value = Double(text.replacingOccurrences(of: ",", with: ".")), value > 0 else { return nil }
+        return value
     }
 
     private var canSave: Bool {
@@ -351,11 +368,21 @@ struct SupplementEditSheet: View {
                     }
                 }
                 Section {
+                    TextField("Calories per serving (kcal)", text: $caloriesPerServingText)
+                        .keyboardType(.decimalPad)
+                    TextField("Protein per serving (g)", text: $proteinPerServingText)
+                        .keyboardType(.decimalPad)
+                    TextField("Carbs per serving (g)", text: $carbsPerServingText)
+                        .keyboardType(.decimalPad)
+                    TextField("Fat per serving (g)", text: $fatPerServingText)
+                        .keyboardType(.decimalPad)
+                } header: {
+                    Text("Macros per serving")
+                } footer: {
+                    Text("Tick a dose and these count in today's calories and macros. Leave empty for creatine, vitamins and anything with no calories.")
+                }
+                Section {
                     TextField("Dose per serving (e.g. 25 g, 5 g, 1000 mg)", text: $dose)
-                    if kind == .protein {
-                        TextField("Protein grams per serving", text: $proteinPerServingText)
-                            .keyboardType(.numberPad)
-                    }
                     TextField("Servings left (optional)", text: $servingsText)
                         .keyboardType(.numberPad)
                     TextField("Servings per container (optional)", text: $servingsPerContainerText)
@@ -364,7 +391,7 @@ struct SupplementEditSheet: View {
                     Text("Details (optional)")
                 } footer: {
                     Text(
-                        "Your plan decides each day whether to take this and when — you don't have to schedule it. These facts just help it (protein per scoop counts toward your macros; servings per container is what a restock resets servings-left to)."
+                        "Your plan decides each day whether to take this and when — you don't have to schedule it. These facts just help it (servings per container is what a restock resets servings-left to)."
                     )
                 }
                 if let existing {
@@ -399,7 +426,10 @@ struct SupplementEditSheet: View {
     private func save() {
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
         let trimmedBrand = brand.trimmingCharacters(in: .whitespaces)
-        let protein = Double(proteinPerServingText) ?? 0
+        let protein = Self.macroValue(proteinPerServingText) ?? 0
+        let calories = Self.macroValue(caloriesPerServingText)
+        let carbs = Self.macroValue(carbsPerServingText)
+        let fat = Self.macroValue(fatPerServingText)
         let servings = Double(servingsText) ?? 0
         let servingsPerContainer = Double(servingsPerContainerText)
         let trimmedNotes = notes.trimmingCharacters(in: .whitespaces)
@@ -410,6 +440,9 @@ struct SupplementEditSheet: View {
             existing.brand = trimmedBrand.isEmpty ? nil : trimmedBrand
             existing.dosePerServing = dose
             existing.proteinGramsPerServing = max(0, protein)
+            existing.caloriesPerServing = calories
+            existing.carbsGramsPerServing = carbs
+            existing.fatGramsPerServing = fat
             existing.servingsRemaining = max(0, servings)
             existing.servingsPerContainer = servingsPerContainer.map { max(0, $0) }
             // takeDaily is no longer a user choice — the AI infers daily-vs-
@@ -429,6 +462,9 @@ struct SupplementEditSheet: View {
                 servingsRemaining: max(0, servings),
                 userNotes: trimmedNotes.isEmpty ? nil : trimmedNotes
             )
+            new.caloriesPerServing = calories
+            new.carbsGramsPerServing = carbs
+            new.fatGramsPerServing = fat
             new.brand = trimmedBrand.isEmpty ? nil : trimmedBrand
             new.servingsPerContainer = servingsPerContainer.map { max(0, $0) }
             new.upc = prefillUPC

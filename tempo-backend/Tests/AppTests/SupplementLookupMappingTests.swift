@@ -71,6 +71,37 @@ struct SupplementLookupMappingTests {
         #expect(dto.source == "dsld")
     }
 
+    @Test func mapsOFFMacrosPerServing() throws {
+        let json = """
+        {"status":1,"product":{"product_name":"Mass Gainer","serving_size":"150 g",
+         "nutriments":{"proteins_serving":50,"energy-kcal_serving":620,"carbohydrates_serving":95,"fat_serving":6}}}
+        """
+        let off = try JSONDecoder().decode(OFFResponse.self, from: Data(json.utf8))
+        let dto = SupplementLookupAPIClient.merge(upc: "1", off: try #require(off.product), dsld: nil)
+        #expect(dto.caloriesPerServing == 620)
+        #expect(dto.carbsGramsPerServing == 95)
+        #expect(dto.fatGramsPerServing == 6)
+    }
+
+    @Test func mapsDSLDMacroRowsAndLeavesAbsentMacrosNil() throws {
+        let dsldJSON = """
+        {"brandName":"X","fullName":"Y","ingredientRows":[
+          {"name":"Calories","quantity":[{"quantity":120,"unit":"Calorie(s)"}]},
+          {"name":"Total Fat","quantity":[{"quantity":1500,"unit":"Milligram(s)"}]},
+          {"name":"Total Carbohydrate","quantity":[{"quantity":3,"unit":"Gram(s)"}]}]}
+        """
+        let dsld = try JSONDecoder().decode(DSLDLabel.self, from: Data(dsldJSON.utf8))
+        let off = try JSONDecoder().decode(OFFResponse.self, from: Data(offOnlyJSON.utf8))
+        let dto = SupplementLookupAPIClient.merge(upc: "1", off: try #require(off.product), dsld: dsld)
+        #expect(dto.caloriesPerServing == 120)
+        #expect(dto.fatGramsPerServing == 1.5)
+        #expect(dto.carbsGramsPerServing == 3)
+
+        let plain = SupplementLookupAPIClient.merge(upc: "1", off: try #require(off.product), dsld: nil)
+        #expect(plain.caloriesPerServing == nil)
+        #expect(plain.fatGramsPerServing == nil)
+    }
+
     @Test func offResponseWithZeroStatusHasNoProduct() throws {
         let json = """
         {"status": 0, "product": null}
