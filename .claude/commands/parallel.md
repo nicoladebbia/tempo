@@ -23,6 +23,20 @@ Nicola runs several `claude` sessions at once, each in its own terminal, working
 
 **Build model: build-once-after-merge.** Parallel sessions EDIT and commit on their branch; they do not need to build. The single authoritative `/build` happens on `main` after all branches merge. Swift 6 strict-concurrency breakage surfaces there, not per-session — that's the accepted tradeoff.
 
+**When a session DOES build or test — one simulator + one build folder per worktree.** Sessions that run `xcodebuild` must never share the stock "iPhone 17" simulator or the default DerivedData. Two sessions on one simulator queue behind each other (one test run at a time per device) and install the app over each other, so a test can pass or fail because of the OTHER session's app/data. Each worktree gets its own:
+```bash
+# once per worktree — name it after the worktree, reuse it all round
+UDID=$(xcrun simctl create "iPhone 17 · <worktree>" "iPhone 17")   # prints the new UDID
+# every build/test in that worktree: target it by ID (never by name) + own DerivedData
+xcodebuild build-for-testing -project Tempo/Tempo.xcodeproj -scheme Tempo \
+  -destination "id=$UDID" -derivedDataPath /tmp/dd-<worktree>
+xcodebuild test-without-building -project Tempo/Tempo.xcodeproj -scheme Tempo \
+  -destination "id=$UDID" -derivedDataPath /tmp/dd-<worktree> -only-testing:TempoTests
+# when the round is merged
+xcrun simctl shutdown "$UDID" && xcrun simctl delete "$UDID"
+```
+Find an existing one with `xcrun simctl list devices | grep "· <worktree>"`. Separate simulators stop the queueing and cross-contamination; they do NOT make builds faster — the sessions still share the CPU, so expect each build to be slower while another session is compiling.
+
 **Two traps the merge step must handle:**
 1. **Same-file conflict** = two sessions edited the same existing file. `parallel.sh merge` stops at it; resolve by hand (both intents matter), `git add`, `git commit`. A nasty conflict means the scope split was wrong — note it for next time.
 2. **Shared-model desync (see "Shared-model changes" in CLAUDE.md).** A clean merge with ZERO Git conflicts can still be wrong: if two sessions edited different files that both read the same `@Observable` service or SwiftData entity, it compiles, merges clean, and two screens show different numbers. After merge, run the enumerate-the-readers check on any shared model any session touched. **No Git conflict ≠ semantically safe.**
