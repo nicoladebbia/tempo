@@ -198,6 +198,9 @@ final class NutritionTabViewModel {
     var isLoadingMealSuggestions: Bool = false
     var mealSuggestions: [MealSuggestion] = []
     var mealSuggestionError: String?
+    /// Set when meal ideas are blocked by Pro / AI-off; the Nutrition root
+    /// shows the shared alert with the fix.
+    var mealSuggestionBlocker: AIBlocker?
 
     // MARK: - Recovery (Whoop)
 
@@ -1329,6 +1332,7 @@ final class NutritionTabViewModel {
     func getMealSuggestions(apiClient: APIClient) {
         isLoadingMealSuggestions = true
         mealSuggestionError = nil
+        mealSuggestionBlocker = nil
         HapticManager.lightImpact()
 
         if coachService == nil {
@@ -1383,7 +1387,8 @@ final class NutritionTabViewModel {
                 HapticManager.notification(.success)
             } catch {
                 isLoadingMealSuggestions = false
-                mealSuggestionError = error.localizedDescription
+                mealSuggestionError = AIBlocker.message(for: error)
+                mealSuggestionBlocker = AIBlocker(error)
                 HapticManager.notification(.error)
             }
         }

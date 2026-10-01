@@ -83,6 +83,9 @@ struct MealDetailView: View {
     /// status) so the user loses nothing and can retry.
     @State
     private var substituteError: String?
+    /// Pro / AI-off while reading "what you ate": asks for the fix.
+    @State
+    private var substituteBlocker: AIBlocker?
     /// What really happened after a skip ("Coach: ..."), shown under "Skipped".
     /// nil until a redistribution was actually applied.
     @State
@@ -243,6 +246,7 @@ struct MealDetailView: View {
         } message: {
             Text(substituteError ?? "Try describing what you ate a bit differently.")
         }
+        .aiBlockerAlert($substituteBlocker)
     }
 
     /// Blocking spinner shown while the substitute note is parsed. The sheet
@@ -775,7 +779,11 @@ struct MealDetailView: View {
             )
             HapticManager.notification(.success)
         } catch {
-            substituteError = "Couldn't read that: \(error.localizedDescription). Your note is kept — try again."
+            if let blocker = AIBlocker(error) {
+                substituteBlocker = blocker
+                return
+            }
+            substituteError = "Couldn't read that: \(AIBlocker.message(for: error)). Your note is kept — try again."
         }
     }
 
