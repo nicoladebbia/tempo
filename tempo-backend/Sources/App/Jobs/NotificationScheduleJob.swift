@@ -15,7 +15,17 @@ struct MorningBriefingJob: AsyncScheduledJob {
     var name: String { "MorningBriefingJob" }
 
     func run(context: QueueContext) async throws {
-        let db = context.application.db
+        _ = try await send(app: context.application, now: context.application.now)
+    }
+
+    /// One pass: briefs every push-enabled user whose local time is in the
+    /// 08:15–08:45 window and who hasn't had today's briefing. `userID` limits
+    /// it to one user; `force` skips the window and the once-a-day check (the
+    /// test server's "run it now"). Returns how many briefings went out.
+    @discardableResult
+    func send(app: Application, now: Date, userID onlyUserID: String? = nil, force: Bool = false) async throws -> Int {
+        let db = app.db
+        var sent = 0
 
         // Find all users with device tokens (i.e., push-enabled)
         let usersWithDevices = try await DeviceToken.query(on: db)
@@ -23,15 +33,15 @@ struct MorningBriefingJob: AsyncScheduledJob {
             .field(\.$userID)
             .all()
 
-        let userIDs = Set(usersWithDevices.map(\.userID))
-        guard !userIDs.isEmpty else { return }
+        // A named user is briefed even without a registered device (a
+        // simulator may not have one; test mode captures the push anyway).
+        let userIDs = onlyUserID.map { Set([$0]) } ?? Set(usersWithDevices.map(\.userID))
+        guard !userIDs.isEmpty else { return 0 }
 
         let users = try await User.query(on: db)
             .filter(\.$id ~~ userIDs)
             .filter(\.$deletedAt == nil)
             .all()
-
-        let now = Date()
 
         for user in users {
             guard let userID = user.id else { continue }
@@ -48,17 +58,17 @@ struct MorningBriefingJob: AsyncScheduledJob {
             let wakeHour = 8
             let wakeMinute = 30
 
-            let inWindow = (hour == wakeHour && minute >= (wakeMinute - 15))
-                || (hour == wakeHour && minute <= (wakeMinute + 15))
+            let minutesFromWake = (hour * 60 + minute) - (wakeHour * 60 + wakeMinute)
+            let inWindow = abs(minutesFromWake) <= 15
 
-            guard inWindow else { continue }
+            guard inWindow || force else { continue }
 
             // Check we haven't already sent today (use Redis to track)
             let todayKey = "briefing:\(userID):\(Self.dateKey(now, tz: tz))"
-            let alreadySent = try await context.application.redis.get(
+            let alreadySent = try await app.redis.get(
                 RedisKey(todayKey), as: String.self
-            )
-            guard alreadySent == nil else { continue }
+            ).get()
+            guard alreadySent == nil || force else { continue }
 
             // Build briefing content
             // Per ONBOARDING_AND_NOTIFICATIONS.md — Lock Screen Safety:
@@ -78,25 +88,27 @@ struct MorningBriefingJob: AsyncScheduledJob {
                     subtitle: "Morning Briefing",
                     body: body,
                     recoveryZone: recoveryZone,
-                    app: context.application,
+                    app: app,
                     db: db
                 )
 
                 // Mark as sent for today (expire at midnight + 1h)
-                _ = try? await context.application.redis.set(
+                _ = try? await app.redis.set(
                     RedisKey(todayKey),
                     to: "sent"
                 )
-                _ = try? await context.application.redis.expire(
+                _ = try? await app.redis.expire(
                     RedisKey(todayKey),
                     after: .hours(18)
                 )
 
-                context.logger.info("Sent morning briefing to user \(userID)")
+                sent += 1
+                app.logger.info("Sent morning briefing to user \(userID)")
             } catch {
-                context.logger.error("Failed to send morning briefing to user \(userID): \(error)")
+                app.logger.error("Failed to send morning briefing to user \(userID): \(error)")
             }
         }
+        return sent
     }
 
     // MARK: - Recovery Zone

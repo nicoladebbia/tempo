@@ -17,22 +17,31 @@ struct DrillSergeantBatchJob: AsyncScheduledJob {
     var name: String { "DrillSergeantBatchJob" }
 
     func run(context: QueueContext) async throws {
-        let db = context.application.db
-        let logger = context.application.logger
+        _ = try await generate(app: context.application, now: context.application.now)
+    }
+
+    /// One pass for every Pro user with AI consent (or just `userID`).
+    /// Returns how many batches were generated.
+    @discardableResult
+    func generate(app: Application, now: Date, userID onlyUserID: String? = nil) async throws -> Int {
+        let db = app.db
+        let logger = app.logger
 
         // Find every Pro user with AI consent. We bypass the per-request
         // SubscriptionMiddleware here because this is a background job, but
         // we still respect the same business logic.
-        let now = Date()
         let activeSubs = try await UserSubscription.query(on: db)
             .filter(\.$isActive == true)
             .filter(\.$expirationDate > now)
             .all()
 
-        let proUserIDs = Set(activeSubs.map { $0.$user.id })
+        var proUserIDs = Set(activeSubs.map { $0.$user.id })
+        if let onlyUserID {
+            proUserIDs = proUserIDs.intersection([onlyUserID])
+        }
         guard !proUserIDs.isEmpty else {
             logger.info("[DrillSergeantBatchJob] no Pro users; skipping")
-            return
+            return 0
         }
 
         let users = try await User.query(on: db)
@@ -43,7 +52,7 @@ struct DrillSergeantBatchJob: AsyncScheduledJob {
 
         guard !users.isEmpty else {
             logger.info("[DrillSergeantBatchJob] no Pro users with AI consent; skipping")
-            return
+            return 0
         }
 
         // Batch start = tomorrow (UTC). The scheduler runs Sun 20:00 / Wed 20:00,
@@ -57,7 +66,7 @@ struct DrillSergeantBatchJob: AsyncScheduledJob {
         let batchStart = formatter.string(from: tomorrow)
 
         // Build a synthetic Request for AI services that expect one.
-        let req = Request(application: context.application, on: context.eventLoop)
+        let req = Request(application: app, on: app.eventLoopGroup.next())
 
         var ok = 0
         var failed = 0
@@ -81,5 +90,6 @@ struct DrillSergeantBatchJob: AsyncScheduledJob {
         }
 
         logger.info("[DrillSergeantBatchJob] batch_start=\(batchStart) ok=\(ok) failed=\(failed)")
+        return ok
     }
 }
