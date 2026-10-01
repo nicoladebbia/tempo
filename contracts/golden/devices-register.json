@@ -1,0 +1,11 @@
+{
+  "data" : {
+    "id" : "dt_00000000000000000001",
+    "registered" : true
+  },
+  "meta" : {
+    "request_id" : "req_000000000000000000000002",
+    "timestamp" : "2026-01-01T00:00:00Z"
+  },
+  "ok" : true
+}

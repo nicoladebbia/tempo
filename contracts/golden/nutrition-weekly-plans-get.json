@@ -1,0 +1,1325 @@
+{
+  "data" : {
+    "completed_at" : "2026-01-01T00:00:00Z",
+    "created_at" : "2026-01-01T00:00:00Z",
+    "id" : "00000000-0000-0000-0000-000000000001",
+    "plan" : {
+      "days" : [
+        {
+          "dayIndex" : 0,
+          "dayType" : "strength",
+          "meals" : [
+            {
+              "foods" : [
+                {
+                  "approx" : false,
+                  "calories" : 265,
+                  "carbsG" : 1.3,
+                  "fatG" : 17.600000000000001,
+                  "fdcId" : 4,
+                  "name" : "eggs",
+                  "proteinG" : 23.300000000000001,
+                  "quantityGrams" : 185,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 227,
+                  "carbsG" : 38.399999999999999,
+                  "fatG" : 3.2000000000000002,
+                  "fdcId" : 5,
+                  "name" : "whole wheat bread",
+                  "proteinG" : 11.300000000000001,
+                  "quantityGrams" : 90,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 120,
+                  "carbsG" : 30.800000000000001,
+                  "fatG" : 0.40000000000000002,
+                  "fdcId" : 2,
+                  "name" : "banana",
+                  "proteinG" : 1.5,
+                  "quantityGrams" : 135,
+                  "source" : "usda"
+                }
+              ],
+              "mealName" : "Breakfast",
+              "mealNumber" : 1,
+              "scheduledTime" : "07:30"
+            },
+            {
+              "foods" : [
+                {
+                  "approx" : false,
+                  "calories" : 231,
+                  "carbsG" : 0,
+                  "fatG" : 5,
+                  "fdcId" : 7,
+                  "name" : "chicken breast",
+                  "proteinG" : 43.399999999999999,
+                  "quantityGrams" : 140,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 351,
+                  "carbsG" : 76.099999999999994,
+                  "fatG" : 0.80000000000000004,
+                  "fdcId" : 8,
+                  "name" : "white rice",
+                  "proteinG" : 7.2999999999999998,
+                  "quantityGrams" : 270,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 53,
+                  "carbsG" : 10.199999999999999,
+                  "fatG" : 0.59999999999999998,
+                  "fdcId" : 9,
+                  "name" : "broccoli",
+                  "proteinG" : 4.2999999999999998,
+                  "quantityGrams" : 155,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 115,
+                  "carbsG" : 0,
+                  "fatG" : 13,
+                  "fdcId" : 10,
+                  "name" : "olive oil",
+                  "proteinG" : 0,
+                  "quantityGrams" : 13,
+                  "source" : "usda"
+                }
+              ],
+              "mealName" : "Lunch",
+              "mealNumber" : 2,
+              "scheduledTime" : "13:00"
+            },
+            {
+              "foods" : [
+                {
+                  "approx" : false,
+                  "calories" : 334,
+                  "carbsG" : 0,
+                  "fatG" : 19,
+                  "fdcId" : 14,
+                  "name" : "lean ground beef",
+                  "proteinG" : 38,
+                  "quantityGrams" : 190,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 506,
+                  "carbsG" : 98.900000000000006,
+                  "fatG" : 2.8999999999999999,
+                  "fdcId" : 15,
+                  "name" : "pasta",
+                  "proteinG" : 18.600000000000001,
+                  "quantityGrams" : 320,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 45,
+                  "carbsG" : 9.8000000000000007,
+                  "fatG" : 0.29999999999999999,
+                  "fdcId" : 16,
+                  "name" : "tomato sauce",
+                  "proteinG" : 2,
+                  "quantityGrams" : 155,
+                  "source" : "usda"
+                }
+              ],
+              "mealName" : "Dinner",
+              "mealNumber" : 3,
+              "scheduledTime" : "20:00"
+            },
+            {
+              "foods" : [
+                {
+                  "approx" : false,
+                  "calories" : 108,
+                  "carbsG" : 2.2000000000000002,
+                  "fatG" : 1.6000000000000001,
+                  "fdcId" : 24,
+                  "name" : "whey protein",
+                  "proteinG" : 21.600000000000001,
+                  "quantityGrams" : 27,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 229,
+                  "carbsG" : 18,
+                  "fatG" : 12.4,
+                  "fdcId" : 23,
+                  "name" : "milk",
+                  "proteinG" : 12,
+                  "quantityGrams" : 375,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 120,
+                  "carbsG" : 30.800000000000001,
+                  "fatG" : 0.40000000000000002,
+                  "fdcId" : 2,
+                  "name" : "banana",
+                  "proteinG" : 1.5,
+                  "quantityGrams" : 135,
+                  "source" : "usda"
+                }
+              ],
+              "mealName" : "Afternoon Snack",
+              "mealNumber" : 4,
+              "scheduledTime" : "16:30"
+            }
+          ],
+          "supplements" : [
+
+          ]
+        },
+        {
+          "dayIndex" : 1,
+          "dayType" : "strength",
+          "meals" : [
+            {
+              "foods" : [
+                {
+                  "approx" : false,
+                  "calories" : 474,
+                  "carbsG" : 84.599999999999994,
+                  "fatG" : 8.0999999999999996,
+                  "fdcId" : 0,
+                  "name" : "oats",
+                  "proteinG" : 16.5,
+                  "quantityGrams" : 125,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 121,
+                  "carbsG" : 7.4000000000000004,
+                  "fatG" : 0.80000000000000004,
+                  "fdcId" : 1,
+                  "name" : "greek yogurt",
+                  "proteinG" : 21.100000000000001,
+                  "quantityGrams" : 205,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 66,
+                  "carbsG" : 16.699999999999999,
+                  "fatG" : 0.29999999999999999,
+                  "fdcId" : 3,
+                  "name" : "blueberries",
+                  "proteinG" : 0.80000000000000004,
+                  "quantityGrams" : 115,
+                  "source" : "usda"
+                }
+              ],
+              "mealName" : "Breakfast",
+              "mealNumber" : 1,
+              "scheduledTime" : "07:30"
+            },
+            {
+              "foods" : [
+                {
+                  "approx" : false,
+                  "calories" : 213,
+                  "carbsG" : 0,
+                  "fatG" : 3,
+                  "fdcId" : 22,
+                  "name" : "turkey breast",
+                  "proteinG" : 43.600000000000001,
+                  "quantityGrams" : 145,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 421,
+                  "carbsG" : 69.700000000000003,
+                  "fatG" : 10.699999999999999,
+                  "fdcId" : 21,
+                  "name" : "flour tortilla",
+                  "proteinG" : 11.199999999999999,
+                  "quantityGrams" : 135,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 14,
+                  "carbsG" : 2.2000000000000002,
+                  "fatG" : 0.20000000000000001,
+                  "fdcId" : 13,
+                  "name" : "spinach",
+                  "proteinG" : 1.7,
+                  "quantityGrams" : 60,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 198,
+                  "carbsG" : 35.600000000000001,
+                  "fatG" : 0.80000000000000004,
+                  "fdcId" : 20,
+                  "name" : "black beans",
+                  "proteinG" : 13.4,
+                  "quantityGrams" : 150,
+                  "source" : "usda"
+                }
+              ],
+              "mealName" : "Lunch",
+              "mealNumber" : 2,
+              "scheduledTime" : "13:00"
+            },
+            {
+              "foods" : [
+                {
+                  "approx" : false,
+                  "calories" : 426,
+                  "carbsG" : 0,
+                  "fatG" : 27.5,
+                  "fdcId" : 11,
+                  "name" : "salmon",
+                  "proteinG" : 41.799999999999997,
+                  "quantityGrams" : 205,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 318,
+                  "carbsG" : 74.400000000000006,
+                  "fatG" : 0.40000000000000002,
+                  "fdcId" : 12,
+                  "name" : "sweet potato",
+                  "proteinG" : 5.9000000000000004,
+                  "quantityGrams" : 370,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 18,
+                  "carbsG" : 2.8999999999999999,
+                  "fatG" : 0.29999999999999999,
+                  "fdcId" : 13,
+                  "name" : "spinach",
+                  "proteinG" : 2.2999999999999998,
+                  "quantityGrams" : 80,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 80,
+                  "carbsG" : 0,
+                  "fatG" : 9,
+                  "fdcId" : 10,
+                  "name" : "olive oil",
+                  "proteinG" : 0,
+                  "quantityGrams" : 9,
+                  "source" : "usda"
+                }
+              ],
+              "mealName" : "Dinner",
+              "mealNumber" : 3,
+              "scheduledTime" : "20:00"
+            },
+            {
+              "foods" : [
+                {
+                  "approx" : false,
+                  "calories" : 208,
+                  "carbsG" : 7.7999999999999998,
+                  "fatG" : 18,
+                  "fdcId" : 18,
+                  "name" : "almonds",
+                  "proteinG" : 7.5999999999999996,
+                  "quantityGrams" : 36,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 103,
+                  "carbsG" : 6.2999999999999998,
+                  "fatG" : 0.69999999999999996,
+                  "fdcId" : 1,
+                  "name" : "greek yogurt",
+                  "proteinG" : 18,
+                  "quantityGrams" : 175,
+                  "source" : "usda"
+                }
+              ],
+              "mealName" : "Afternoon Snack",
+              "mealNumber" : 4,
+              "scheduledTime" : "16:30"
+            }
+          ],
+          "supplements" : [
+
+          ]
+        },
+        {
+          "dayIndex" : 2,
+          "dayType" : "strength",
+          "meals" : [
+            {
+              "foods" : [
+                {
+                  "approx" : false,
+                  "calories" : 286,
+                  "carbsG" : 1.3999999999999999,
+                  "fatG" : 19,
+                  "fdcId" : 4,
+                  "name" : "eggs",
+                  "proteinG" : 25.199999999999999,
+                  "quantityGrams" : 200,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 239,
+                  "carbsG" : 40.600000000000001,
+                  "fatG" : 3.2999999999999998,
+                  "fdcId" : 5,
+                  "name" : "whole wheat bread",
+                  "proteinG" : 11.9,
+                  "quantityGrams" : 95,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 120,
+                  "carbsG" : 30.800000000000001,
+                  "fatG" : 0.40000000000000002,
+                  "fdcId" : 2,
+                  "name" : "banana",
+                  "proteinG" : 1.5,
+                  "quantityGrams" : 135,
+                  "source" : "usda"
+                }
+              ],
+              "mealName" : "Breakfast",
+              "mealNumber" : 1,
+              "scheduledTime" : "07:30"
+            },
+            {
+              "foods" : [
+                {
+                  "approx" : false,
+                  "calories" : 248,
+                  "carbsG" : 0,
+                  "fatG" : 5.4000000000000004,
+                  "fdcId" : 7,
+                  "name" : "chicken breast",
+                  "proteinG" : 46.5,
+                  "quantityGrams" : 150,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 377,
+                  "carbsG" : 81.799999999999997,
+                  "fatG" : 0.90000000000000002,
+                  "fdcId" : 8,
+                  "name" : "white rice",
+                  "proteinG" : 7.7999999999999998,
+                  "quantityGrams" : 290,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 53,
+                  "carbsG" : 10.199999999999999,
+                  "fatG" : 0.59999999999999998,
+                  "fdcId" : 9,
+                  "name" : "broccoli",
+                  "proteinG" : 4.2999999999999998,
+                  "quantityGrams" : 155,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 115,
+                  "carbsG" : 0,
+                  "fatG" : 13,
+                  "fdcId" : 10,
+                  "name" : "olive oil",
+                  "proteinG" : 0,
+                  "quantityGrams" : 13,
+                  "source" : "usda"
+                }
+              ],
+              "mealName" : "Lunch",
+              "mealNumber" : 2,
+              "scheduledTime" : "13:00"
+            },
+            {
+              "foods" : [
+                {
+                  "approx" : false,
+                  "calories" : 361,
+                  "carbsG" : 0,
+                  "fatG" : 20.5,
+                  "fdcId" : 14,
+                  "name" : "lean ground beef",
+                  "proteinG" : 41,
+                  "quantityGrams" : 205,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 553,
+                  "carbsG" : 108.2,
+                  "fatG" : 3.2000000000000002,
+                  "fdcId" : 15,
+                  "name" : "pasta",
+                  "proteinG" : 20.300000000000001,
+                  "quantityGrams" : 350,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 45,
+                  "carbsG" : 9.8000000000000007,
+                  "fatG" : 0.29999999999999999,
+                  "fdcId" : 16,
+                  "name" : "tomato sauce",
+                  "proteinG" : 2,
+                  "quantityGrams" : 155,
+                  "source" : "usda"
+                }
+              ],
+              "mealName" : "Dinner",
+              "mealNumber" : 3,
+              "scheduledTime" : "20:00"
+            },
+            {
+              "foods" : [
+                {
+                  "approx" : false,
+                  "calories" : 225,
+                  "carbsG" : 7.7999999999999998,
+                  "fatG" : 9.9000000000000004,
+                  "fdcId" : 17,
+                  "name" : "cottage cheese",
+                  "proteinG" : 25.5,
+                  "quantityGrams" : 230,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 86,
+                  "carbsG" : 22.800000000000001,
+                  "fatG" : 0.29999999999999999,
+                  "fdcId" : 19,
+                  "name" : "apple",
+                  "proteinG" : 0.5,
+                  "quantityGrams" : 165,
+                  "source" : "usda"
+                }
+              ],
+              "mealName" : "Afternoon Snack",
+              "mealNumber" : 4,
+              "scheduledTime" : "16:30"
+            }
+          ],
+          "supplements" : [
+
+          ]
+        },
+        {
+          "dayIndex" : 3,
+          "dayType" : "strength",
+          "meals" : [
+            {
+              "foods" : [
+                {
+                  "approx" : false,
+                  "calories" : 417,
+                  "carbsG" : 74.5,
+                  "fatG" : 7.2000000000000002,
+                  "fdcId" : 0,
+                  "name" : "oats",
+                  "proteinG" : 14.5,
+                  "quantityGrams" : 110,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 109,
+                  "carbsG" : 6.7000000000000002,
+                  "fatG" : 0.69999999999999996,
+                  "fdcId" : 1,
+                  "name" : "greek yogurt",
+                  "proteinG" : 19.100000000000001,
+                  "quantityGrams" : 185,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 63,
+                  "carbsG" : 16,
+                  "fatG" : 0.29999999999999999,
+                  "fdcId" : 3,
+                  "name" : "blueberries",
+                  "proteinG" : 0.80000000000000004,
+                  "quantityGrams" : 110,
+                  "source" : "usda"
+                }
+              ],
+              "mealName" : "Breakfast",
+              "mealNumber" : 1,
+              "scheduledTime" : "07:30"
+            },
+            {
+              "foods" : [
+                {
+                  "approx" : false,
+                  "calories" : 176,
+                  "carbsG" : 0,
+                  "fatG" : 2.5,
+                  "fdcId" : 22,
+                  "name" : "turkey breast",
+                  "proteinG" : 36.100000000000001,
+                  "quantityGrams" : 120,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 390,
+                  "carbsG" : 64.5,
+                  "fatG" : 9.9000000000000004,
+                  "fdcId" : 21,
+                  "name" : "flour tortilla",
+                  "proteinG" : 10.4,
+                  "quantityGrams" : 125,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 14,
+                  "carbsG" : 2.2000000000000002,
+                  "fatG" : 0.20000000000000001,
+                  "fdcId" : 13,
+                  "name" : "spinach",
+                  "proteinG" : 1.7,
+                  "quantityGrams" : 60,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 178,
+                  "carbsG" : 32,
+                  "fatG" : 0.69999999999999996,
+                  "fdcId" : 20,
+                  "name" : "black beans",
+                  "proteinG" : 12,
+                  "quantityGrams" : 135,
+                  "source" : "usda"
+                }
+              ],
+              "mealName" : "Lunch",
+              "mealNumber" : 2,
+              "scheduledTime" : "13:00"
+            },
+            {
+              "foods" : [
+                {
+                  "approx" : false,
+                  "calories" : 478,
+                  "carbsG" : 0,
+                  "fatG" : 30.800000000000001,
+                  "fdcId" : 11,
+                  "name" : "salmon",
+                  "proteinG" : 46.899999999999999,
+                  "quantityGrams" : 230,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 271,
+                  "carbsG" : 63.299999999999997,
+                  "fatG" : 0.29999999999999999,
+                  "fdcId" : 12,
+                  "name" : "sweet potato",
+                  "proteinG" : 5,
+                  "quantityGrams" : 315,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 18,
+                  "carbsG" : 2.8999999999999999,
+                  "fatG" : 0.29999999999999999,
+                  "fdcId" : 13,
+                  "name" : "spinach",
+                  "proteinG" : 2.2999999999999998,
+                  "quantityGrams" : 80,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 88,
+                  "carbsG" : 0,
+                  "fatG" : 10,
+                  "fdcId" : 10,
+                  "name" : "olive oil",
+                  "proteinG" : 0,
+                  "quantityGrams" : 10,
+                  "source" : "usda"
+                }
+              ],
+              "mealName" : "Dinner",
+              "mealNumber" : 3,
+              "scheduledTime" : "20:00"
+            },
+            {
+              "foods" : [
+                {
+                  "approx" : false,
+                  "calories" : 108,
+                  "carbsG" : 2.2000000000000002,
+                  "fatG" : 1.6000000000000001,
+                  "fdcId" : 24,
+                  "name" : "whey protein",
+                  "proteinG" : 21.600000000000001,
+                  "quantityGrams" : 27,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 232,
+                  "carbsG" : 18.199999999999999,
+                  "fatG" : 12.5,
+                  "fdcId" : 23,
+                  "name" : "milk",
+                  "proteinG" : 12.199999999999999,
+                  "quantityGrams" : 380,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 125,
+                  "carbsG" : 31.899999999999999,
+                  "fatG" : 0.40000000000000002,
+                  "fdcId" : 2,
+                  "name" : "banana",
+                  "proteinG" : 1.5,
+                  "quantityGrams" : 140,
+                  "source" : "usda"
+                }
+              ],
+              "mealName" : "Afternoon Snack",
+              "mealNumber" : 4,
+              "scheduledTime" : "16:30"
+            }
+          ],
+          "supplements" : [
+
+          ]
+        },
+        {
+          "dayIndex" : 4,
+          "dayType" : "strength",
+          "meals" : [
+            {
+              "foods" : [
+                {
+                  "approx" : false,
+                  "calories" : 243,
+                  "carbsG" : 1.2,
+                  "fatG" : 16.199999999999999,
+                  "fdcId" : 4,
+                  "name" : "eggs",
+                  "proteinG" : 21.399999999999999,
+                  "quantityGrams" : 170,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 252,
+                  "carbsG" : 42.700000000000003,
+                  "fatG" : 3.5,
+                  "fdcId" : 5,
+                  "name" : "whole wheat bread",
+                  "proteinG" : 12.5,
+                  "quantityGrams" : 100,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 125,
+                  "carbsG" : 31.899999999999999,
+                  "fatG" : 0.40000000000000002,
+                  "fdcId" : 2,
+                  "name" : "banana",
+                  "proteinG" : 1.5,
+                  "quantityGrams" : 140,
+                  "source" : "usda"
+                }
+              ],
+              "mealName" : "Breakfast",
+              "mealNumber" : 1,
+              "scheduledTime" : "07:30"
+            },
+            {
+              "foods" : [
+                {
+                  "approx" : false,
+                  "calories" : 272,
+                  "carbsG" : 0,
+                  "fatG" : 5.9000000000000004,
+                  "fdcId" : 7,
+                  "name" : "chicken breast",
+                  "proteinG" : 51.200000000000003,
+                  "quantityGrams" : 165,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 403,
+                  "carbsG" : 87.400000000000006,
+                  "fatG" : 0.90000000000000002,
+                  "fdcId" : 8,
+                  "name" : "white rice",
+                  "proteinG" : 8.4000000000000004,
+                  "quantityGrams" : 310,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 54,
+                  "carbsG" : 10.6,
+                  "fatG" : 0.59999999999999998,
+                  "fdcId" : 9,
+                  "name" : "broccoli",
+                  "proteinG" : 4.5,
+                  "quantityGrams" : 160,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 97,
+                  "carbsG" : 0,
+                  "fatG" : 11,
+                  "fdcId" : 10,
+                  "name" : "olive oil",
+                  "proteinG" : 0,
+                  "quantityGrams" : 11,
+                  "source" : "usda"
+                }
+              ],
+              "mealName" : "Lunch",
+              "mealNumber" : 2,
+              "scheduledTime" : "13:00"
+            },
+            {
+              "foods" : [
+                {
+                  "approx" : false,
+                  "calories" : 317,
+                  "carbsG" : 0,
+                  "fatG" : 18,
+                  "fdcId" : 14,
+                  "name" : "lean ground beef",
+                  "proteinG" : 36,
+                  "quantityGrams" : 180,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 593,
+                  "carbsG" : 115.90000000000001,
+                  "fatG" : 3.3999999999999999,
+                  "fdcId" : 15,
+                  "name" : "pasta",
+                  "proteinG" : 21.800000000000001,
+                  "quantityGrams" : 375,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 46,
+                  "carbsG" : 10.1,
+                  "fatG" : 0.29999999999999999,
+                  "fdcId" : 16,
+                  "name" : "tomato sauce",
+                  "proteinG" : 2.1000000000000001,
+                  "quantityGrams" : 160,
+                  "source" : "usda"
+                }
+              ],
+              "mealName" : "Dinner",
+              "mealNumber" : 3,
+              "scheduledTime" : "20:00"
+            },
+            {
+              "foods" : [
+                {
+                  "approx" : false,
+                  "calories" : 208,
+                  "carbsG" : 7.7999999999999998,
+                  "fatG" : 18,
+                  "fdcId" : 18,
+                  "name" : "almonds",
+                  "proteinG" : 7.5999999999999996,
+                  "quantityGrams" : 36,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 100,
+                  "carbsG" : 6.0999999999999996,
+                  "fatG" : 0.69999999999999996,
+                  "fdcId" : 1,
+                  "name" : "greek yogurt",
+                  "proteinG" : 17.5,
+                  "quantityGrams" : 170,
+                  "source" : "usda"
+                }
+              ],
+              "mealName" : "Afternoon Snack",
+              "mealNumber" : 4,
+              "scheduledTime" : "16:30"
+            }
+          ],
+          "supplements" : [
+
+          ]
+        },
+        {
+          "dayIndex" : 5,
+          "dayType" : "strength",
+          "meals" : [
+            {
+              "foods" : [
+                {
+                  "approx" : false,
+                  "calories" : 455,
+                  "carbsG" : 81.200000000000003,
+                  "fatG" : 7.7999999999999998,
+                  "fdcId" : 0,
+                  "name" : "oats",
+                  "proteinG" : 15.800000000000001,
+                  "quantityGrams" : 120,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 115,
+                  "carbsG" : 7,
+                  "fatG" : 0.80000000000000004,
+                  "fdcId" : 1,
+                  "name" : "greek yogurt",
+                  "proteinG" : 20.100000000000001,
+                  "quantityGrams" : 195,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 63,
+                  "carbsG" : 16,
+                  "fatG" : 0.29999999999999999,
+                  "fdcId" : 3,
+                  "name" : "blueberries",
+                  "proteinG" : 0.80000000000000004,
+                  "quantityGrams" : 110,
+                  "source" : "usda"
+                }
+              ],
+              "mealName" : "Breakfast",
+              "mealNumber" : 1,
+              "scheduledTime" : "07:30"
+            },
+            {
+              "foods" : [
+                {
+                  "approx" : false,
+                  "calories" : 191,
+                  "carbsG" : 0,
+                  "fatG" : 2.7000000000000002,
+                  "fdcId" : 22,
+                  "name" : "turkey breast",
+                  "proteinG" : 39.100000000000001,
+                  "quantityGrams" : 130,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 421,
+                  "carbsG" : 69.700000000000003,
+                  "fatG" : 10.699999999999999,
+                  "fdcId" : 21,
+                  "name" : "flour tortilla",
+                  "proteinG" : 11.199999999999999,
+                  "quantityGrams" : 135,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 14,
+                  "carbsG" : 2.2000000000000002,
+                  "fatG" : 0.20000000000000001,
+                  "fdcId" : 13,
+                  "name" : "spinach",
+                  "proteinG" : 1.7,
+                  "quantityGrams" : 60,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 185,
+                  "carbsG" : 33.200000000000003,
+                  "fatG" : 0.69999999999999996,
+                  "fdcId" : 20,
+                  "name" : "black beans",
+                  "proteinG" : 12.5,
+                  "quantityGrams" : 140,
+                  "source" : "usda"
+                }
+              ],
+              "mealName" : "Lunch",
+              "mealNumber" : 2,
+              "scheduledTime" : "13:00"
+            },
+            {
+              "foods" : [
+                {
+                  "approx" : false,
+                  "calories" : 520,
+                  "carbsG" : 0,
+                  "fatG" : 33.5,
+                  "fdcId" : 11,
+                  "name" : "salmon",
+                  "proteinG" : 51,
+                  "quantityGrams" : 250,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 292,
+                  "carbsG" : 68.299999999999997,
+                  "fatG" : 0.29999999999999999,
+                  "fdcId" : 12,
+                  "name" : "sweet potato",
+                  "proteinG" : 5.4000000000000004,
+                  "quantityGrams" : 340,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 18,
+                  "carbsG" : 2.8999999999999999,
+                  "fatG" : 0.29999999999999999,
+                  "fdcId" : 13,
+                  "name" : "spinach",
+                  "proteinG" : 2.2999999999999998,
+                  "quantityGrams" : 80,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 88,
+                  "carbsG" : 0,
+                  "fatG" : 10,
+                  "fdcId" : 10,
+                  "name" : "olive oil",
+                  "proteinG" : 0,
+                  "quantityGrams" : 10,
+                  "source" : "usda"
+                }
+              ],
+              "mealName" : "Dinner",
+              "mealNumber" : 3,
+              "scheduledTime" : "20:00"
+            },
+            {
+              "foods" : [
+                {
+                  "approx" : false,
+                  "calories" : 230,
+                  "carbsG" : 8,
+                  "fatG" : 10.1,
+                  "fdcId" : 17,
+                  "name" : "cottage cheese",
+                  "proteinG" : 26.100000000000001,
+                  "quantityGrams" : 235,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 91,
+                  "carbsG" : 24.199999999999999,
+                  "fatG" : 0.40000000000000002,
+                  "fdcId" : 19,
+                  "name" : "apple",
+                  "proteinG" : 0.5,
+                  "quantityGrams" : 175,
+                  "source" : "usda"
+                }
+              ],
+              "mealName" : "Afternoon Snack",
+              "mealNumber" : 4,
+              "scheduledTime" : "16:30"
+            }
+          ],
+          "supplements" : [
+
+          ]
+        },
+        {
+          "dayIndex" : 6,
+          "dayType" : "rest",
+          "meals" : [
+            {
+              "foods" : [
+                {
+                  "approx" : false,
+                  "calories" : 257,
+                  "carbsG" : 1.3,
+                  "fatG" : 17.100000000000001,
+                  "fdcId" : 4,
+                  "name" : "eggs",
+                  "proteinG" : 22.699999999999999,
+                  "quantityGrams" : 180,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 176,
+                  "carbsG" : 29.899999999999999,
+                  "fatG" : 2.5,
+                  "fdcId" : 5,
+                  "name" : "whole wheat bread",
+                  "proteinG" : 8.8000000000000007,
+                  "quantityGrams" : 70,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 98,
+                  "carbsG" : 25.100000000000001,
+                  "fatG" : 0.29999999999999999,
+                  "fdcId" : 2,
+                  "name" : "banana",
+                  "proteinG" : 1.2,
+                  "quantityGrams" : 110,
+                  "source" : "usda"
+                }
+              ],
+              "mealName" : "Breakfast",
+              "mealNumber" : 1,
+              "scheduledTime" : "07:30"
+            },
+            {
+              "foods" : [
+                {
+                  "approx" : false,
+                  "calories" : 256,
+                  "carbsG" : 0,
+                  "fatG" : 5.5999999999999996,
+                  "fdcId" : 7,
+                  "name" : "chicken breast",
+                  "proteinG" : 48.100000000000001,
+                  "quantityGrams" : 155,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 228,
+                  "carbsG" : 49.399999999999999,
+                  "fatG" : 0.5,
+                  "fdcId" : 8,
+                  "name" : "white rice",
+                  "proteinG" : 4.7000000000000002,
+                  "quantityGrams" : 175,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 49,
+                  "carbsG" : 9.5999999999999996,
+                  "fatG" : 0.59999999999999998,
+                  "fdcId" : 9,
+                  "name" : "broccoli",
+                  "proteinG" : 4.0999999999999996,
+                  "quantityGrams" : 145,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 106,
+                  "carbsG" : 0,
+                  "fatG" : 12,
+                  "fdcId" : 10,
+                  "name" : "olive oil",
+                  "proteinG" : 0,
+                  "quantityGrams" : 12,
+                  "source" : "usda"
+                }
+              ],
+              "mealName" : "Lunch",
+              "mealNumber" : 2,
+              "scheduledTime" : "13:00"
+            },
+            {
+              "foods" : [
+                {
+                  "approx" : false,
+                  "calories" : 334,
+                  "carbsG" : 0,
+                  "fatG" : 19,
+                  "fdcId" : 14,
+                  "name" : "lean ground beef",
+                  "proteinG" : 38,
+                  "quantityGrams" : 190,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 292,
+                  "carbsG" : 57.200000000000003,
+                  "fatG" : 1.7,
+                  "fdcId" : 15,
+                  "name" : "pasta",
+                  "proteinG" : 10.699999999999999,
+                  "quantityGrams" : 185,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 42,
+                  "carbsG" : 9.0999999999999996,
+                  "fatG" : 0.29999999999999999,
+                  "fdcId" : 16,
+                  "name" : "tomato sauce",
+                  "proteinG" : 1.8999999999999999,
+                  "quantityGrams" : 145,
+                  "source" : "usda"
+                }
+              ],
+              "mealName" : "Dinner",
+              "mealNumber" : 3,
+              "scheduledTime" : "20:00"
+            },
+            {
+              "foods" : [
+                {
+                  "approx" : false,
+                  "calories" : 108,
+                  "carbsG" : 2.2000000000000002,
+                  "fatG" : 1.6000000000000001,
+                  "fdcId" : 24,
+                  "name" : "whey protein",
+                  "proteinG" : 21.600000000000001,
+                  "quantityGrams" : 27,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 204,
+                  "carbsG" : 16.100000000000001,
+                  "fatG" : 11.1,
+                  "fdcId" : 23,
+                  "name" : "milk",
+                  "proteinG" : 10.699999999999999,
+                  "quantityGrams" : 335,
+                  "source" : "usda"
+                },
+                {
+                  "approx" : false,
+                  "calories" : 98,
+                  "carbsG" : 25.100000000000001,
+                  "fatG" : 0.29999999999999999,
+                  "fdcId" : 2,
+                  "name" : "banana",
+                  "proteinG" : 1.2,
+                  "quantityGrams" : 110,
+                  "source" : "usda"
+                }
+              ],
+              "mealName" : "Afternoon Snack",
+              "mealNumber" : 4,
+              "scheduledTime" : "16:30"
+            }
+          ],
+          "supplements" : [
+
+          ]
+        }
+      ],
+      "solver" : [
+        {
+          "carbsError" : -3.5399999999999636,
+          "dayIndex" : 0,
+          "fatError" : -2.8099999999999881,
+          "kcalError" : -97.0300000000002,
+          "proteinError" : 4.7349999999999852,
+          "withinTolerance" : false
+        },
+        {
+          "carbsError" : -12.624000000000024,
+          "dayIndex" : 1,
+          "fatError" : -0.18599999999999284,
+          "kcalError" : -139.34999999999991,
+          "proteinError" : 4.0769999999999698,
+          "withinTolerance" : false
+        },
+        {
+          "carbsError" : -6.7400000000000659,
+          "dayIndex" : 2,
+          "fatError" : -3.1999999999999886,
+          "kcalError" : -92.379999999999654,
+          "proteinError" : 6.5700000000000216,
+          "withinTolerance" : false
+        },
+        {
+          "carbsError" : -5.7499999999999432,
+          "dayIndex" : 3,
+          "fatError" : -2.4349999999999881,
+          "kcalError" : -132.34999999999945,
+          "proteinError" : 4.1749999999999545,
+          "withinTolerance" : false
+        },
+        {
+          "carbsError" : -6.3590000000000373,
+          "dayIndex" : 4,
+          "fatError" : -1.0809999999999889,
+          "kcalError" : -88.969999999999345,
+          "proteinError" : 4.4320000000000164,
+          "withinTolerance" : false
+        },
+        {
+          "carbsError" : -7.4300000000000068,
+          "dayIndex" : 5,
+          "fatError" : -2.1400000000000006,
+          "kcalError" : -116.04999999999973,
+          "proteinError" : 6.5999999999999943,
+          "withinTolerance" : false
+        },
+        {
+          "carbsError" : 4.7700000000000102,
+          "dayIndex" : 6,
+          "fatError" : -2.4750000000000085,
+          "kcalError" : -50.670000000000073,
+          "proteinError" : 3.6199999999999761,
+          "withinTolerance" : true
+        }
+      ]
+    },
+    "status" : "ready",
+    "week_start" : "2026-09-28"
+  },
+  "meta" : {
+    "request_id" : "req_000000000000000000000001",
+    "timestamp" : "2026-01-01T00:00:00Z"
+  },
+  "ok" : true
+}
