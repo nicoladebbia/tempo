@@ -211,6 +211,8 @@ enum MealOutcomeService {
         meal.status = .skipped
         meal.actualEatenAt = nil
         if rebalance, Calendar.current.isDateInToday(meal.dayDate) {
+            // Supersedes any AI redistribution still in flight for this meal.
+            redistributionTokens[meal.id] = nil
             applyMacroRebalance(env: env)
         }
         try save(env.modelContext)

@@ -195,6 +195,9 @@ enum CoachTools {
 
         let originalTime = meal.scheduledTime
         meal.scheduledTime = formattedHHmm(from: newDate, calendar: calendar)
+        // An explicit move wins: undoing a late meal must not snap this one
+        // back to its pre-shift plan time.
+        meal.originalScheduledTime = nil
         if meal.status == .planned {
             meal.status = .modified
         }

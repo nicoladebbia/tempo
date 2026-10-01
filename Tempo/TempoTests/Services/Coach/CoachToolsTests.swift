@@ -80,6 +80,15 @@ final class CoachToolsTests: XCTestCase {
         XCTAssertEqual(reloaded.status, .modified)
     }
 
+    func testMoveMeal_forgetsAutoShiftSoUndoKeepsCoachTime() throws {
+        let (_, context, _, meals) = try makeFixture()
+        let lunch = try XCTUnwrap(meals.first { $0.mealNumber == 2 })
+        lunch.originalScheduledTime = "12:00"
+        _ = try CoachTools.moveMeal(mealID: lunch.id, newTimeHHmm: "15:00", context: context)
+        XCTAssertNil(lunch.originalScheduledTime)
+        XCTAssertEqual(lunch.scheduledTime, "15:00")
+    }
+
     func testMoveMeal_invalidTimeFormat_throws() throws {
         let (_, context, _, meals) = try makeFixture()
         let lunch = try XCTUnwrap(meals.first { $0.mealNumber == 2 })
