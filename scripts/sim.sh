@@ -35,6 +35,12 @@ if [ -z "$ROOT" ]; then
     echo "[ERR] not inside a Tempo worktree${DIR:+ ($DIR)}." >&2
     exit 1
 fi
+# --dir must be a worktree root itself: a plain folder inside another checkout
+# would resolve to that checkout and `clean` would delete the wrong simulator.
+if [ -n "$DIR" ] && [ "$(cd "$DIR" && pwd -P)" != "$(cd "$ROOT" && pwd -P)" ]; then
+    echo "[ERR] --dir $DIR is not a worktree root (it belongs to $ROOT)." >&2
+    exit 1
+fi
 
 # Simulator name for a worktree: main repo → "main", ~/dev/tempo-r1 → "r1",
 # .claude/worktrees/agent-a4ddab012c271a193 → "agent-a4ddab0".
@@ -85,11 +91,12 @@ ensure_sim() {
         [ "$tries" -gt 120 ] && { rmdir "$lock" 2>/dev/null || true; tries=0; }
         sleep 1
     done
+    # shellcheck disable=SC2064 # expand $lock now
+    trap "rmdir '$lock' 2>/dev/null || true" EXIT
     udid="$(find_udid)"
     if [ -z "$udid" ]; then
         rt="$(latest_runtime)"
         if [ -z "$rt" ]; then
-            rmdir "$lock"
             echo "[ERR] no iOS simulator runtime installed." >&2
             exit 1
         fi
@@ -97,6 +104,7 @@ ensure_sim() {
         echo "[sim] created \"$SIM_NAME\" ($udid)" >&2
     fi
     rmdir "$lock"
+    trap - EXIT
     xcrun simctl boot "$udid" 2>/dev/null || true
     xcrun simctl bootstatus "$udid" -b >/dev/null
     echo "$udid"

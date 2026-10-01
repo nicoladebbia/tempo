@@ -12,8 +12,10 @@ What counts as "not used any more":
                    no activity for --idle-hours (default 24). Removing the folder
                    KEEPS its branch, so no commits are lost. The branch itself is
                    deleted only when all its commits are already in origin/main.
-  Simulator        a shut-down Tempo simulator ("Tempo…" or "… · …") that no kept
-                   worktree uses. Stock simulators ("iPhone 17") are never touched.
+  Simulator        a shut-down "Tempo · <worktree>" simulator (made by sim.sh) whose
+                   worktree is gone. With --legacy-sims, also shut-down simulators
+                   with "Tempo" in the name from before sim.sh (Tempo-R1-A, Tempo T2…).
+                   Booted and stock simulators ("iPhone 17") are never touched.
   Build cache      a DerivedData folder (Xcode's, /tmp, or a Claude scratchpad)
                    whose project is gone or that hasn't been built in
                    --idle-hours. The main repo's Xcode cache (used for ⌘R on the
@@ -28,6 +30,7 @@ import shutil
 import subprocess
 import sys
 import time
+from datetime import timezone
 from pathlib import Path
 
 HOME = Path.home()
@@ -72,8 +75,10 @@ def recent(paths, cutoff):
 
 
 def tree_recent(root, cutoff):
-    """Any file in the worktree touched after cutoff (skips build output)."""
-    out = run(
+    """Any file in the worktree touched after cutoff (skips build output).
+    Judged by output, not exit code: find exits 1 on one unreadable dir even after a match."""
+    r = subprocess.run(
+        [
         "find",
         str(root),
         "(",
@@ -97,8 +102,11 @@ def tree_recent(root, cutoff):
         time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(cutoff)),
         "-print",
         "-quit",
+        ],
+        capture_output=True,
+        text=True,
     )
-    return bool(out)
+    return bool(r.stdout.strip())
 
 
 def sim_slug(root, main_root):
@@ -113,6 +121,50 @@ def sim_slug(root, main_root):
     return base
 
 
+# Ignored files that are only build output; any other ignored file (.env,
+# Secrets.xcconfig, *.p8, .plans/…) would be lost by `worktree remove --force`.
+DISPOSABLE_IGNORED = ("DerivedData/", ".build/", "build/", "build_sim/", "node_modules/", "xcuserdata/", ".DS_Store", ".serena/", ".ruff_cache/", "__pycache__/")
+
+
+def keep_reason(path, branch, prs, cutoff, idle_hours, main_root):
+    """Why this worktree must stay, or None if it is unused. Any failed check = keep."""
+    status = git("status", "--porcelain", "--ignored", cwd=path)
+    if status is None:
+        return "git status failed"
+    dirty, precious = [], []
+    for l in status.splitlines():
+        if l.startswith("!! "):
+            if not any(seg in l[3:] or l[3:].endswith(seg.rstrip("/")) for seg in DISPOSABLE_IGNORED):
+                precious.append(l[3:])
+        elif not l.endswith(".xcscheme"):
+            dirty.append(l)
+    if dirty:
+        return f"{len(dirty)} uncommitted change(s)"
+    if precious:
+        return f"ignored files that would be lost: {', '.join(precious[:3])}"
+    if any(c == path or path in c.parents for c in process_cwds()):
+        return "a process is running inside it"
+    if branch and "OPEN" in prs.get(branch, set()):
+        return "open PR"
+    if tree_recent(path, cutoff):
+        return f"used in the last {idle_hours:g}h"
+    if not branch:
+        head = git("rev-parse", "HEAD", cwd=path)
+        if head is None or git("merge-base", "--is-ancestor", head, "origin/main", cwd=main_root) is None:
+            return "detached HEAD with commits not in main"
+    return None
+
+
+def fully_in_main(branch, main_root):
+    """Every commit already in origin/main: an ancestor, or (squash/rebase merges)
+    every patch present per `git cherry` and no merge commits that cherry would skip."""
+    if git("merge-base", "--is-ancestor", branch, "origin/main", cwd=main_root) is not None:
+        return True
+    cherry = git("cherry", "origin/main", branch, cwd=main_root)
+    merges = git("rev-list", "--merges", f"origin/main..{branch}", cwd=main_root)
+    return cherry is not None and merges == "" and not any(l.startswith("+") for l in cherry.splitlines())
+
+
 def process_cwds():
     out = run("lsof", "-a", "-d", "cwd", "-Fn") or ""
     return [Path(line[1:]) for line in out.splitlines() if line.startswith("n/")]
@@ -124,6 +176,11 @@ def main():
     )
     ap.add_argument(
         "--yes", action="store_true", help="actually remove (default: dry run)"
+    )
+    ap.add_argument(
+        "--legacy-sims",
+        action="store_true",
+        help='also delete shut-down pre-sim.sh simulators with "Tempo" in the name',
     )
     ap.add_argument(
         "--idle-hours",
@@ -142,7 +199,6 @@ def main():
     )
     main_root = common.parent
     this_root = Path(here)
-    sim_sh = this_root / "scripts/sim.sh"
 
     git("fetch", "--quiet", "origin", cwd=main_root)
     prs = {}
@@ -164,7 +220,6 @@ def main():
         )
     for pr in json.loads(pr_json):
         prs.setdefault(pr["headRefName"], set()).add(pr["state"])
-    cwds = process_cwds()
 
     # ---- worktrees -------------------------------------------------------
     porcelain = git("worktree", "list", "--porcelain", cwd=main_root) or ""
@@ -185,46 +240,14 @@ def main():
         path, branch = wt["path"], wt.get("branch")
         if path in (main_root, this_root):
             continue
-        reason = None
         if not path.exists():
             continue  # stale entry; `git worktree prune` handles it
-        else:
-            dirty = [
-                l
-                for l in (git("status", "--porcelain", cwd=path) or "").splitlines()
-                if not l.endswith(".xcscheme")
-            ]
-            if dirty:
-                reason = f"{len(dirty)} uncommitted change(s)"
-            elif any(c == path or path in c.parents for c in cwds):
-                reason = "a process is running inside it"
-            elif branch and "OPEN" in prs.get(branch, set()):
-                reason = "open PR"
-            elif not branch:
-                head = git("rev-parse", "HEAD", cwd=path)
-                if (
-                    git(
-                        "merge-base",
-                        "--is-ancestor",
-                        head,
-                        "origin/main",
-                        cwd=main_root,
-                    )
-                    is None
-                ):
-                    reason = "detached HEAD with commits not in main"
-            elif tree_recent(path, cutoff):
-                reason = f"used in the last {args.idle_hours:g}h"
+        reason = keep_reason(path, branch, prs, cutoff, args.idle_hours, main_root)
         if reason:
             kept_roots.append(path)
             print(f"  keep    {path}  ({reason})")
             continue
-        merged = False
-        if branch:
-            cherry = git("cherry", "origin/main", branch, cwd=main_root)
-            merged = cherry is not None and not any(
-                l.startswith("+") for l in cherry.splitlines()
-            )
+        merged = bool(branch) and fully_in_main(branch, main_root)
         remove_wt.append((path, branch, merged))
 
     # ---- simulators ------------------------------------------------------
@@ -236,7 +259,9 @@ def main():
     for runtime_devs in devs.values():
         for d in runtime_devs:
             name = d["name"]
-            ours = "tempo" in name.lower() or " · " in name
+            ours = name.startswith("Tempo · ") or (
+                args.legacy_sims and "tempo" in name.lower()
+            )
             if not ours:
                 continue
             if d["state"] != "Shutdown" or name in kept_sims:
@@ -255,11 +280,15 @@ def main():
                 continue
             try:
                 info = plistlib.loads((d / "info.plist").read_bytes())
-            except (OSError, plistlib.InvalidFileException):
+            except Exception:
                 info = {}
             ws = Path(info.get("WorkspacePath", "/nonexistent"))
             last = info.get("LastAccessedDate")
-            last_ts = last.timestamp() if last else d.stat().st_mtime
+            last_ts = (
+                last.replace(tzinfo=timezone.utc).timestamp()
+                if last
+                else d.stat().st_mtime
+            )
             if ws.exists() and ws.resolve() == main_project:
                 continue
             if not ws.exists() or (
@@ -314,18 +343,27 @@ def main():
         print("\nDry run — nothing removed. Re-run with --yes to remove the above.")
         return
 
+    sims_by_name = {
+        d["name"]: d for runtime_devs in devs.values() for d in runtime_devs
+    }
     for path, branch, merged in remove_wt:
-        if sim_sh.exists():
-            run("bash", str(sim_sh), "--dir", str(path), "clean")
+        # Minutes may have passed since planning (du); check again right before.
+        reason = keep_reason(path, branch, prs, cutoff, args.idle_hours, main_root)
+        if reason:
+            print(f"  [SKIP] {path}: {reason}")
+            continue
         if git("worktree", "remove", "--force", str(path), cwd=main_root) is None:
             print(f"  [WARN] could not remove {path}")
             continue
+        print(f"  [OK] removed {path}")
         if merged and branch:
             git("branch", "-D", branch, cwd=main_root)
+        sim = sims_by_name.get(f"Tempo · {sim_slug(path, main_root)}")
+        if sim and sim["state"] == "Shutdown":
+            run("xcrun", "simctl", "delete", sim["udid"])
     git("worktree", "prune", cwd=main_root)
     for name, udid, _ in remove_sims:
         run("xcrun", "simctl", "delete", udid)
-    run("xcrun", "simctl", "delete", "unavailable")
     for d in remove_dd:
         shutil.rmtree(d, ignore_errors=True)
     print("\nDone.")
