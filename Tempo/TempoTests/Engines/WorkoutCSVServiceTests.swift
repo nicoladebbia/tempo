@@ -327,6 +327,29 @@ final class WorkoutCSVServiceTests: XCTestCase {
                         "A genuine record against imported history still fires")
     }
 
+    func testWeightedPullUpsKeyRecordsOnTheAddedLoadLikeLiveLogging() async throws {
+        let context = try makeContext()
+        let csv = """
+        Date,Workout Name,Exercise Name,Set Order,Weight,Reps
+        2026-06-10 18:00:00,Pull,Pull Up,1,10,5
+        2026-06-17 18:00:00,Pull,Pull Up,1,15,5
+        """
+        _ = try await WorkoutCSVService.importCSV(csv, assumedUnit: .kg, modelContext: context)
+        let pullUp = try XCTUnwrap(context.fetch(FetchDescriptor<Exercise>()).first { $0.name == "Pull Up" })
+        XCTAssertTrue(TrainingEngine.usesBodyweightPRRule(pullUp.equipment))
+
+        let rows = try records(context)
+        XCTAssertEqual(rows.count, 1, "First session is the baseline; +15 kg beats +10 kg")
+        XCTAssertEqual(rows.first?.contextWeightKg, 15)
+        let latest = try XCTUnwrap((pullUp.history ?? []).max { $0.date < $1.date })
+        XCTAssertEqual(latest.bestSetAddedLoadKg, 15, "History carries the added load the live baseline reads")
+
+        // Live logging passes the added load for bodyweight lifts.
+        let engine = TrainingEngine()
+        XCTAssertNil(engine.detectPersonalRecord(exercise: pullUp, weight: 12.5, reps: 5, rir: 2))
+        XCTAssertNotNil(engine.detectPersonalRecord(exercise: pullUp, weight: 20, reps: 5, rir: 2))
+    }
+
     func testImportedPoundsRecordsAreStoredInKilos() async throws {
         let context = try makeContext()
         let csv = """

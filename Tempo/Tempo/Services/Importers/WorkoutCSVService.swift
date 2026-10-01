@@ -398,6 +398,7 @@ enum WorkoutCSVService {
                 records.prepare(exercise)
                 let slot = PlannedExercise(order: order, workoutPlan: plan, exercise: exercise)
                 var planned: [PlannedSet] = []
+                let bodyweightLift = TrainingEngine.usesBodyweightPRRule(exercise.equipment)
                 for (index, set) in groupSets.filter({ $0.exercise == name }).enumerated() {
                     let row = PlannedSet(
                         setNumber: index + 1,
@@ -410,6 +411,11 @@ enum WorkoutCSVService {
                     )
                     row.completedAt = key.start
                     row.rpe = set.rpe
+                    // Strong/Hevy log a bodyweight lift's weight as the load
+                    // added on top, the same thing live logging keys records on.
+                    if bodyweightLift {
+                        row.addedLoadKg = set.weightKg(assuming: unit) ?? 0
+                    }
                     planned.append(row)
                 }
                 slot.sets = planned
@@ -422,7 +428,7 @@ enum WorkoutCSVService {
                 let volume = planned.reduce(0.0) { acc, row in
                     acc + ((row.actualWeight ?? 0) * Double(row.actualReps ?? 0))
                 }
-                modelContext.insert(ExerciseHistory(
+                let historyRow = ExerciseHistory(
                     date: key.start,
                     estimated1RM: planned.compactMap(\.estimated1RM).max(),
                     totalVolume: volume,
@@ -431,7 +437,11 @@ enum WorkoutCSVService {
                     setsPerformed: planned.count,
                     workoutPlanID: plan.id,
                     exercise: exercise
-                ))
+                )
+                if bodyweightLift {
+                    historyRow.bestSetAddedLoadKg = best?.addedLoadKg ?? 0
+                }
+                modelContext.insert(historyRow)
                 // Records by their real date, by the app's own PR rules.
                 if let record = records.record(for: exercise, sets: planned, on: key.start, planID: plan.id) {
                     modelContext.insert(record)

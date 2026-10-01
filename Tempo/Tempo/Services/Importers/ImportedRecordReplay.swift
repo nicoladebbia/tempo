@@ -35,11 +35,12 @@ struct ImportedRecordReplay {
         guard existing[exercise.id] == nil else {
             return
         }
+        let bodyweight = TrainingEngine.usesBodyweightPRRule(exercise.equipment)
         var events: [Event] = []
         for row in exercise.history ?? [] {
             events.append(Event(
                 date: row.date,
-                weightKg: row.bestSetWeight ?? 0,
+                weightKg: (bodyweight ? row.bestSetAddedLoadKg : row.bestSetWeight) ?? 0,
                 reps: row.bestSetReps ?? 0,
                 e1RM: row.estimated1RM
             ))
@@ -52,7 +53,7 @@ struct ImportedRecordReplay {
             for set in slot.sets ?? [] where set.completed && !set.isWarmup {
                 events.append(Event(
                     date: date,
-                    weightKg: set.actualWeight ?? 0,
+                    weightKg: (bodyweight ? set.addedLoadKg : set.actualWeight) ?? 0,
                     reps: set.actualReps ?? 0,
                     e1RM: set.estimated1RM
                 ))
@@ -78,12 +79,18 @@ struct ImportedRecordReplay {
         }
         bar = bar.merged(with: imported[exercise.id] ?? TrainingEngine.PersonalRecordBaseline())
 
+        // Same keying as live logging: bodyweight lifts by the added load
+        // (none → most reps), loaded lifts only with a real weight.
+        let bodyweight = TrainingEngine.usesBodyweightPRRule(exercise.equipment)
+        let load: (PlannedSet) -> Double = { set in
+            (bodyweight ? set.addedLoadKg : set.actualWeight) ?? 0
+        }
         let working = sets.filter { $0.completed && !$0.isWarmup && ($0.actualReps ?? 0) > 0 }
         var best: [PRType: (value: Double, set: PlannedSet)] = [:]
         for set in working {
             let reps = set.actualReps ?? 0
-            let weight = set.actualWeight ?? 0
-            guard let hit = TrainingEngine.personalRecordKind(
+            let weight = load(set)
+            guard weight > 0 || bodyweight, let hit = TrainingEngine.personalRecordKind(
                 baseline: bar, weight: weight, reps: reps, rir: set.effectiveRIR(reps: reps)
             ) else {
                 continue
@@ -99,7 +106,7 @@ struct ImportedRecordReplay {
         for set in working {
             let reps = set.actualReps ?? 0
             next.absorb(
-                weightKg: set.actualWeight ?? 0,
+                weightKg: load(set),
                 reps: reps,
                 e1RM: reps <= TrainingEngine.e1RMPersonalRecordRepCap ? set.estimated1RM : nil
             )
@@ -111,7 +118,7 @@ struct ImportedRecordReplay {
         else {
             return nil
         }
-        let weight = hit.set.actualWeight ?? 0
+        let weight = load(hit.set)
         let reps = hit.set.actualReps ?? 0
         return PersonalRecord(
             type: type,
