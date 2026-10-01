@@ -65,6 +65,11 @@ struct TrainerReportSheet: View {
     /// of racing it into `document`.
     @State
     private var footballEnrichmentTask: Task<Void, Never>?
+    /// What the system share sheet is currently presenting. `onShared` only
+    /// fires when that sheet reports it COMPLETED — cancelling it leaves the
+    /// report unsent.
+    @State
+    private var shareItem: ShareItem?
 
     init(program: TrainerProgram, onShared: (() -> Void)? = nil, embedded: Bool = false, referenceDate: Date = Date()) {
         self.program = program
@@ -203,20 +208,22 @@ struct TrainerReportSheet: View {
 
     private func shareButtons(_ document: TrainerReportDocument) -> some View {
         VStack(spacing: TempoSpacing.sm) {
-            ShareLink(item: TrainerReportTextFormatter.text(for: document)) {
+            Button {
+                shareItem = ShareItem(payload: TrainerReportTextFormatter.text(for: document))
+            } label: {
                 Label("Share as Text", systemImage: "message")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.tempoSecondary)
-            .simultaneousGesture(TapGesture().onEnded { onShared?() })
 
             if let pdfShareURL {
-                ShareLink(item: pdfShareURL) {
+                Button {
+                    shareItem = ShareItem(payload: pdfShareURL)
+                } label: {
                     Label("Share as PDF", systemImage: "doc.richtext")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.tempoSecondary)
-                .simultaneousGesture(TapGesture().onEnded { onShared?() })
             } else {
                 Button {
                     preparePDF(document)
@@ -228,6 +235,14 @@ struct TrainerReportSheet: View {
             }
         }
         .padding(.top, TempoSpacing.sm)
+        .sheet(item: $shareItem) { item in
+            ActivityShareSheet(items: [item.payload]) { completed in
+                if completed {
+                    onShared?()
+                }
+            }
+            .presentationDetents([.medium, .large])
+        }
     }
 
     private func preparePDF(_ document: TrainerReportDocument) {
@@ -539,4 +554,32 @@ extension TrainerReportSheet {
         let descriptor = FetchDescriptor<TrainerProgram>(predicate: #Predicate { $0.id == programID })
         return try? modelContext.fetch(descriptor).first
     }
+}
+
+// MARK: - ShareItem
+
+/// One share-sheet presentation: the report text or the PDF file URL.
+private struct ShareItem: Identifiable {
+    let id = UUID()
+    let payload: Any
+}
+
+// MARK: - ActivityShareSheet
+
+/// `UIActivityViewController` wrapper. SwiftUI's `ShareLink` has no
+/// completion callback, so it can't tell "sent" from "cancelled" — this one
+/// reports `completed` straight from the system sheet.
+private struct ActivityShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+    let onFinish: (_ completed: Bool) -> Void
+
+    func makeUIViewController(context _: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        controller.completionWithItemsHandler = { _, completed, _, _ in
+            onFinish(completed)
+        }
+        return controller
+    }
+
+    func updateUIViewController(_: UIActivityViewController, context _: Context) {}
 }
