@@ -334,7 +334,8 @@ final class MealPlanGeneratorService: @unchecked Sendable {
                 to: weeklyPlan,
                 profile: profile,
                 intake: prepared.intake,
-                modelContext: modelContext
+                modelContext: modelContext,
+                now: now
             )
         }
 
@@ -453,11 +454,12 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         to plan: WeeklyMealPlan,
         profile: DietaryProfile,
         intake: MealPlanIntake?,
-        modelContext: ModelContext
+        modelContext: ModelContext,
+        now: Date = Date()
     ) async {
         // Only meals that still need one: a from-today rebuild keeps earlier /
         // eaten meals (with their recipes) and must not re-spend AI calls on them.
-        let today = Calendar.current.startOfDay(for: Date())
+        let today = Calendar.current.startOfDay(for: now)
         let meals = (plan.meals ?? []).filter {
             $0.recipe == nil && $0.status == .planned && $0.dayDate >= today
         }
@@ -529,9 +531,15 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         }
         let results = collected
 
-        // Attach recipes to meals on the main actor.
+        // Attach recipes to meals on the main actor. The recipe calls take
+        // minutes: re-fetch by id so a meal deleted by a newer rebuild, or
+        // eaten / skipped meanwhile, is never touched.
+        let ids = Array(results.keys)
+        let fresh = (try? modelContext.fetch(FetchDescriptor<PlannedMeal>(
+            predicate: #Predicate<PlannedMeal> { ids.contains($0.id) }
+        ))) ?? []
         var attached = 0
-        for meal in meals {
+        for meal in fresh where meal.status == .planned && meal.recipe == nil {
             guard let parsed = results[meal.id] else {
                 continue
             }

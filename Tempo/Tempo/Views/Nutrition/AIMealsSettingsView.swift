@@ -424,6 +424,17 @@ struct AIMealsSettingsView: View {
             return fresh
         }()
 
+        // Only an edit to the "this week" answers supersedes the wizard's;
+        // saving a cook-time or window change must not wipe them.
+        let savedExclusions = settings.mealIntakeExclusionsRaw
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        let weekAnswersChanged =
+            (settings.mealIntakeCookableDays ?? MealPlanIntake.default.cookableDaysThisWeek) != cookableDays
+                || settings.mealIntakeRecoveryAdjusted != recoveryAdjusted
+                || savedExclusions != exclusions
+
         settings.mealIntakeCookableDays = cookableDays
         settings.mealIntakeLeftoverToleranceRaw = leftoverTolerance.rawValue
         settings.cookTimeWeekdayMins = cookWeekdayMins
@@ -437,7 +448,9 @@ struct AIMealsSettingsView: View {
         settings.mealIntakeRecoveryAdjusted = recoveryAdjusted
         settings.mealIntakeExclusionsRaw = exclusions.joined(separator: ", ")
         // Saved prefs just edited here supersede this week's wizard answers.
-        settings.mealIntakeTempWeekStart = nil
+        if weekAnswersChanged {
+            settings.mealIntakeTempWeekStart = nil
+        }
         settings.updatedAt = Date()
 
         if let profile = activeProfiles.first {
