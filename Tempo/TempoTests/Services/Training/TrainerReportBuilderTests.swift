@@ -176,6 +176,43 @@ final class TrainerReportBuilderTests: XCTestCase {
         XCTAssertTrue(session.statusLabel.hasPrefix("Moved to"), session.statusLabel)
     }
 
+    /// Weekly-cadence programs reuse one session key every week, so a missed
+    /// Monday used to match LAST week's Monday plan and count as "moved".
+    func testMissedMondayDoesNotMatchLastWeeksPlan() throws {
+        let context = try makeContext()
+        let program = makeProgram()
+        let exercise = makeExercise(context)
+        let lastMonday = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -7, to: monday))
+        let plan = makeLoggedPlan(
+            context: context, program: program, date: lastMonday, exercise: exercise,
+            sets: [(80, 8, nil)]
+        )
+
+        let document = TrainerReportBuilder.build(input: input(program: program, plans: [plan]), language: .english)
+
+        XCTAssertEqual(try XCTUnwrap(document.sessions.first).status, .missed)
+        XCTAssertEqual(document.summary.doneCount, 0)
+    }
+
+    /// Opening a day saves a plan; that is not the same as training it.
+    func testOpenedButNeverTrainedPlanIsMissedNotDone() throws {
+        let context = try makeContext()
+        let program = makeProgram()
+        let exercise = makeExercise(context)
+        let plan = makeLoggedPlan(
+            context: context, program: program, date: monday, exercise: exercise,
+            sets: [(80, 8, nil)], status: .planned
+        )
+        for set in plan.orderedExercises.flatMap(\.orderedSets) {
+            set.completed = false
+        }
+
+        let document = TrainerReportBuilder.build(input: input(program: program, plans: [plan]), language: .english)
+
+        XCTAssertEqual(try XCTUnwrap(document.sessions.first).status, .missed)
+        XCTAssertEqual(document.summary.doneCount, 0)
+    }
+
     /// A two-a-day (lift + conditioning) shares ONE `WorkoutPlan` between its
     /// main and secondary sessions — the secondary row must NOT pair its
     /// prescription against the main lift's logged sets (see the comment in

@@ -100,6 +100,25 @@ enum TrainerReportBuilder {
         return start ... end
     }
 
+    // MARK: Real work
+
+    /// True when `plan` carries real logged work for `sessionKey`: the
+    /// session was completed, or at least one working set was ticked off. A
+    /// plan that merely exists (the day was opened, a plan was generated) is
+    /// not "done". A two-a-day's secondary session is judged on its own
+    /// `secondaryCompleted` flag.
+    nonisolated static func didRealWork(_ plan: WorkoutPlan, sessionKey: String) -> Bool {
+        if plan.programSecondaryKey == sessionKey, plan.programSessionKey != sessionKey {
+            return plan.secondaryCompleted
+        }
+        if plan.status == .completed {
+            return true
+        }
+        return plan.orderedExercises.contains { exercise in
+            exercise.orderedSets.contains { !$0.isWarmup && $0.completed }
+        }
+    }
+
     // MARK: Language detection
 
     /// Italian if the program's own source text reads Italian, else the
@@ -175,10 +194,16 @@ enum TrainerReportBuilder {
         }
 
         let rows = scheduled.map { item -> TrainerReportSessionRow in
-            let candidates = plansByKey[item.sessionKey] ?? []
+            // Only plans with REAL logged work count: opening a day saves a
+            // plan, which is not the same as training it.
+            let candidates = (plansByKey[item.sessionKey] ?? []).filter { didRealWork($0, sessionKey: item.sessionKey) }
             let exactMatch = candidates.first { cal.isDate($0.date, inSameDayAs: item.date) }
+            // A weekly-cadence program reuses one key every week, so a
+            // reschedule must stay inside the session's OWN week — otherwise
+            // a missed Monday matches last week's Monday and reads "moved".
+            let itemWeek = TrainingCalendar.mondayOfWeek(containing: item.date)
             let closestOther = candidates
-                .filter { !cal.isDate($0.date, inSameDayAs: item.date) }
+                .filter { !cal.isDate($0.date, inSameDayAs: item.date) && TrainingCalendar.mondayOfWeek(containing: $0.date) == itemWeek }
                 .min { abs($0.date.timeIntervalSince(item.date)) < abs($1.date.timeIntervalSince(item.date)) }
             let matchedPlan = exactMatch ?? closestOther
 
