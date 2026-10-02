@@ -109,6 +109,12 @@ struct NutritionLogView: View {
             .padding(.bottom, TempoSpacing.bottomSafe)
         }
         .onAppear {
+            // Today → Scan → Meal photo lands here for review.
+            if let scanned = viewModel.pendingScanMealPhoto, !scanned.isEmpty {
+                viewModel.pendingScanMealPhoto = nil
+                foodsPendingReview = scanned.map(Self.parsedFood(from:))
+                presentPendingReview()
+            }
             // Today's "Quick Log" button lands here with the field focused.
             if viewModel.focusQuickLogRequested {
                 viewModel.focusQuickLogRequested = false

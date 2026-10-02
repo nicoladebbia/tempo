@@ -138,7 +138,10 @@ struct NutritionTabView: View {
                 // A meal-photo log from Scan lands in today's meals.
                 viewModel.loadToday(modelContext: modelContext)
             }) {
-                UniversalScanView(context: .today())
+                UniversalScanView(context: .today(onMealPhoto: { items in
+                    // Reviewed in the Log tab once the scanner has closed.
+                    viewModel.openMealPhotoReview(items)
+                }))
             }
             // Pantry-gap alert (Phase D) — same surface used by NutritionWeeklyPlanView,
             // wired here so generation triggered from profile setup also surfaces gaps.
@@ -190,7 +193,11 @@ struct NutritionTabView: View {
     private var sectionContent: some View {
         switch viewModel.selectedTab {
         case .today:
-            NutritionTodayView(viewModel: viewModel, onScan: { showScan = true })
+            NutritionTodayView(viewModel: viewModel, onScan: {
+                // Receipt mode needs the Kitchen services; attaching is idempotent.
+                viewModel.attachPhase7Services(modelContext: modelContext, services: services)
+                showScan = true
+            })
         case .plan:
             VStack(spacing: 0) {
                 planQuickLinks

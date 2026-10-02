@@ -15,6 +15,9 @@ import UIKit
 // Per DESIGN_SYSTEM.md — all tokens, confidence badges, editable items.
 
 struct PhotoAnalysisView: View {
+    /// Set when embedded in the scanner: cancelling the camera hands control
+    /// back to it (mode chips) instead of dismissing the whole screen.
+    var onCameraCancelled: (() -> Void)?
     var onItemsConfirmed: (([FoodItem]) -> Void)?
 
     @Environment(\.dismiss)
@@ -57,7 +60,11 @@ struct PhotoAnalysisView: View {
             if showCamera, capturedImage == nil {
                 // Camera capture
                 CameraPickerView(image: $capturedImage) {
-                    dismiss()
+                    if let onCameraCancelled {
+                        onCameraCancelled()
+                    } else {
+                        dismiss()
+                    }
                 }
                 .ignoresSafeArea()
             } else if let image = capturedImage {

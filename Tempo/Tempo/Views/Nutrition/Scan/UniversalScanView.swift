@@ -42,6 +42,8 @@ struct UniversalScanView: View {
     private var permission = CameraPermission.current(needsLiveScanner: false)
     @State
     private var toast: ToastData?
+    @State
+    private var previousMode: ScanMode?
 
     init(context: ScanContext, initialMode: ScanMode? = nil, allowedModes: [ScanMode]? = nil) {
         self.context = context
@@ -87,7 +89,8 @@ struct UniversalScanView: View {
                 }
                 permission = CameraPermission.current(needsLiveScanner: false)
             }
-            .onChange(of: mode) { _, _ in
+            .onChange(of: mode) { old, _ in
+                previousMode = old
                 labelProduct = nil
                 permission = CameraPermission.current(needsLiveScanner: false)
             }
@@ -198,46 +201,31 @@ struct UniversalScanView: View {
     }
 
     private var mealPhotoContent: some View {
-        PhotoAnalysisView { items in
+        PhotoAnalysisView(onCameraCancelled: leaveMealPhoto) { items in
             switch context {
             case let .logMeal(_, onMealPhoto):
                 onMealPhoto(items)
             case let .today(onMealPhoto):
-                if let onMealPhoto {
-                    onMealPhoto(items)
-                } else {
-                    logMealPhoto(items)
-                }
+                // Never logged here: the opener shows the review sheet.
+                onMealPhoto?(items)
             default:
                 break
             }
         }
     }
 
-    private func unavailable(_ message: String) -> some View {
-        EmptyStateView(icon: "camera.fill", title: "Scan unavailable", message: message)
+    /// Cancelling the camera returns to the previous mode instead of closing the scanner.
+    private func leaveMealPhoto() {
+        let fallback = previousMode.flatMap { allowedModes.contains($0) && $0 != .mealPhoto ? $0 : nil }
+            ?? allowedModes.first { $0 != .mealPhoto }
+        if let fallback {
+            mode = fallback
+        } else {
+            dismiss()
+        }
     }
 
-    // MARK: - Today default
-
-    /// Today without a handler: log the confirmed photo foods as one meal at
-    /// the time-of-day slot (the user already confirmed them in photo review).
-    private func logMealPhoto(_ items: [FoodItem]) {
-        guard !items.isEmpty else {
-            return
-        }
-        do {
-            try EatenMealRecorder.record(
-                items.map(\.mealFoodInput),
-                type: EatenMealRecorder.defaultMealType(),
-                eatenAt: Date(),
-                source: .photo,
-                modelContext: modelContext,
-                notifications: services.notifications
-            )
-            HapticManager.success()
-        } catch {
-            toast = ToastData(message: "Couldn't log that meal. Try again.", style: .error)
-        }
+    private func unavailable(_ message: String) -> some View {
+        EmptyStateView(icon: "camera.fill", title: "Scan unavailable", message: message)
     }
 }
