@@ -38,6 +38,13 @@ protocol ReceiptServiceProtocol: Sendable {
     /// Marks the receipt status as .confirmed when all lines are ingested.
     func ingestConfirmedLines(of receipt: Receipt, into pantry: any PantryServiceProtocol) throws
 
+    /// Same, with the review screen's per-line storage / expiry choices.
+    func ingestConfirmedLines(
+        of receipt: Receipt,
+        into pantry: any PantryServiceProtocol,
+        overrides: [UUID: ReceiptIngestOverride]
+    ) throws
+
     /// Retry structuring on a previously failed receipt.
     func retryStructuring(_ receipt: Receipt) async throws
 
@@ -82,5 +89,16 @@ enum ReceiptServiceError: Error, LocalizedError, Sendable {
         case .malformedResponse: "Backend returned a malformed receipt response."
         case .noLinesToIngest: "No confirmed lines to add to the pantry."
         }
+    }
+}
+
+extension ReceiptServiceProtocol {
+    /// Services that don't honour per-line overrides just ingest as before.
+    func ingestConfirmedLines(
+        of receipt: Receipt,
+        into pantry: any PantryServiceProtocol,
+        overrides _: [UUID: ReceiptIngestOverride]
+    ) throws {
+        try ingestConfirmedLines(of: receipt, into: pantry)
     }
 }

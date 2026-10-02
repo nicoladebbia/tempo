@@ -38,6 +38,10 @@ struct ReceiptCaptureView: View {
     private var scanBlocker: AIBlocker?
     @State
     private var scannedReceipt: Receipt?
+    @State
+    private var scanPages: [UIImage] = []
+    @State
+    private var scanProgress = ReceiptScanProgress()
 
     enum PickerSource { case camera, library }
 
@@ -56,7 +60,7 @@ struct ReceiptCaptureView: View {
         ZStack {
             Color.tempoBgPrimary.ignoresSafeArea()
             if isScanning {
-                scanningOverlay
+                ReceiptProcessingView(images: scanPages, progress: scanProgress)
             } else {
                 captureOptions
             }
@@ -174,24 +178,25 @@ struct ReceiptCaptureView: View {
         }
     }
 
-    private var scanningOverlay: some View {
-        VStack(spacing: TempoSpacing.lg) {
-            ProgressView().scaleEffect(1.4)
-            Text("Reading the receipt...")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-        }
-    }
-
     // MARK: - Scan
 
-    private func scan(_ image: UIImage) {
+    private func beginScan(pages: [UIImage]) {
         scanError = nil
         scanBlocker = nil
+        scanPages = pages
+        scanProgress = ReceiptScanProgress()
         isScanning = true
+    }
+
+    private func scan(_ image: UIImage) {
+        beginScan(pages: [image])
+        let progress = scanProgress
         Task {
             do {
-                let receipt = try await receiptService.scan(image: image, storeHint: nil)
+                let receipt = try await ReceiptScanProgress.$current.withValue(progress) {
+                    try await receiptService.scan(image: image, storeHint: nil)
+                }
+                progress.finish()
                 scannedReceipt = receipt
             } catch {
                 scanBlocker = AIBlocker(error)
@@ -207,12 +212,14 @@ struct ReceiptCaptureView: View {
     /// `receiptService.scan(images:)` call, which itself short-circuits back
     /// to the single-image path for one element.
     private func scan(_ images: [UIImage]) {
-        scanError = nil
-        scanBlocker = nil
-        isScanning = true
+        beginScan(pages: images)
+        let progress = scanProgress
         Task {
             do {
-                let receipt = try await receiptService.scan(images: images, storeHint: nil)
+                let receipt = try await ReceiptScanProgress.$current.withValue(progress) {
+                    try await receiptService.scan(images: images, storeHint: nil)
+                }
+                progress.finish()
                 scannedReceipt = receipt
             } catch {
                 scanBlocker = AIBlocker(error)
