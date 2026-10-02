@@ -61,17 +61,6 @@ struct FuelSetupReviewView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .scrollDismissesKeyboard(.interactively)
-        .toolbar {
-            // .decimalPad has no Return key.
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Done") {
-                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                }
-                .fontWeight(.semibold)
-            }
-        }
         .safeAreaInset(edge: .bottom) {
             Button {
                 isLocating = true
@@ -105,7 +94,7 @@ struct FuelSetupReviewView: View {
         Section("You") {
             numberRow("Weight", value: weightBinding(\.weightKg), unit: unit.abbreviation, id: "fuelWeight")
             numberRow("Height", value: $draft.heightCm, unit: "cm", id: "fuelHeight")
-            numberRow("Age", value: intBinding(\.age), unit: "yrs", id: "fuelAge")
+            numberRow("Age", value: intBinding(\.age), unit: "yrs", id: "fuelAge", keyboard: .numberPad)
             Picker("Sex", selection: $draft.sex) {
                 Text("—").tag(BiologicalSex?.none)
                 ForEach(BiologicalSex.allCases, id: \.self) { sex in
@@ -323,12 +312,12 @@ struct FuelSetupReviewView: View {
 
     // MARK: - Rows
 
-    private func numberRow(_ label: String, value: Binding<Double?>, unit: String, id: String) -> some View {
+    private func numberRow(_ label: String, value: Binding<Double?>, unit: String, id: String, keyboard: UIKeyboardType = .decimalPad) -> some View {
         HStack {
             Text(label)
             Spacer()
             TextField("—", value: value, format: .number.precision(.fractionLength(0 ... 1)))
-                .keyboardType(.decimalPad)
+                .keyboardType(keyboard)
                 .multilineTextAlignment(.trailing)
                 .frame(width: 80)
                 .accessibilityIdentifier(id)
