@@ -18,10 +18,6 @@ struct PainReportSheet: View {
     @Bindable
     var viewModel: TrainingViewModel
     let plannedExercise: PlannedExercise?
-    /// Set by `ActiveWorkoutView` so a severe report can navigate straight to
-    /// "end session" — nil (the default) when reached from Today's list,
-    /// where there's no active session to end.
-    var onEndSession: (() -> Void)?
 
     @Environment(\.modelContext)
     private var modelContext
@@ -236,29 +232,32 @@ struct PainReportSheet: View {
     }
 
     private func severeOutcome(_ report: PainReport) -> some View {
-        outcomeShell(
+        let canEnd = viewModel.canEndSessionForPain
+        return outcomeShell(
             icon: "exclamationmark.octagon.fill", color: .tempoError,
             title: "Stop this exercise",
-            message: "That's a lot of pain to push through. Consider ending the session — and if it doesn't settle down, get it looked at by a professional."
+            message: canEnd
+                ? "That's a lot of pain to push through. Consider ending the session — and if it doesn't settle down, get it looked at by a professional."
+                : "That's a lot of pain to push through. Skip it today — and if it doesn't settle down, get it looked at by a professional."
         ) {
             VStack(spacing: TempoSpacing.sm) {
-                Button(role: .destructive) {
-                    if let plannedExercise {
-                        viewModel.skipExerciseDueToPain(report, plannedExercise: plannedExercise, modelContext: modelContext)
+                if canEnd {
+                    Button(role: .destructive) {
+                        dismiss()
+                        // Sets logged → summary; none → session closes. The
+                        // workout screen follows sessionState, not this sheet.
+                        viewModel.endSessionDueToPain(report, plannedExercise: plannedExercise, modelContext: modelContext)
+                    } label: {
+                        Text("End the session")
+                            .font(.tempoSubheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 48)
+                            .foregroundStyle(Color.tempoTextInverse)
+                            .background(Color.tempoError)
+                            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
                     }
-                    viewModel.endSessionDueToPain(report, modelContext: modelContext)
-                    dismiss()
-                    onEndSession?()
-                } label: {
-                    Text("End the session")
-                        .font(.tempoSubheadline.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 48)
-                        .foregroundStyle(Color.tempoTextInverse)
-                        .background(Color.tempoError)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
 
                 Button {
                     if let plannedExercise {

@@ -56,6 +56,18 @@ enum TrainerProgramWeeklyUpload {
         TrainingCalendar.mondayOfWeek(containing: program.startDate)
     }
 
+    /// The Sunday that closes the week a wrap-up covers: today when it IS
+    /// Sunday, otherwise the Sunday just gone (a late wrap-up opened Mon+
+    /// still covers the Mon-Sun week that finished, not the new, empty one).
+    /// Feed it to `TrainerReportBuilder.scheduleRange(for: .week, today:)`.
+    static func wrapUpWeekSunday(now: Date, calendar: Calendar = TrainingCalendar.iso8601) -> Date {
+        let monday = TrainingCalendar.mondayOfWeek(containing: now)
+        if TrainerProgram.isoWeekday(of: now) == 7 {
+            return calendar.startOfDay(for: now)
+        }
+        return calendar.date(byAdding: .day, value: -1, to: monday) ?? monday
+    }
+
     /// `servedWeekMonday`, rolled forward to `now`'s own calendar week once
     /// the served week has gone stale (program can't start in the future
     /// while active, so this is just `max`). Used for anything that needs a

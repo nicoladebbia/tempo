@@ -71,6 +71,7 @@ enum TrainerProgramSaver {
         if queuedActivationDate == nil {
             for program in existingPrograms where program.isActive {
                 program.isActive = false
+                program.endedAt = Date()
             }
         }
         // At most ONE program is ever queued at a time — a second queue
@@ -130,7 +131,8 @@ enum TrainerProgramSaver {
         trainingEngine: any TrainingEngineProtocol,
         whoop: any WhoopServiceProtocol,
         healthKit: any HealthKitServiceProtocol,
-        onNewExercisesCreated: (([Exercise]) -> Void)? = nil
+        onNewExercisesCreated: (([Exercise]) -> Void)? = nil,
+        skipping: [TrainerProgramSkip] = []
     ) throws {
         let (resolvedWeeks, newExercises) = try resolveExerciseIDs(weeks: weeks, modelContext: modelContext)
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -142,6 +144,13 @@ enum TrainerProgramSaver {
         program.scheduleMode = scheduleMode
         program.cadence = cadence
         try modelContext.save()
+        // Dated skips are recorded only now that the edit itself went through
+        // (a failed update must not leave them behind), then today's plan is
+        // re-applied against them.
+        if !skipping.isEmpty {
+            program.skippedSessions.append(contentsOf: skipping)
+            try modelContext.save()
+        }
 
         let vm = TrainingViewModel(trainingEngine: trainingEngine, whoop: whoop, healthKit: healthKit)
         vm.reapplyEditedProgramToday(program: program, modelContext: modelContext)
@@ -273,6 +282,7 @@ enum TrainerProgramSaver {
         let all = (try? modelContext.fetch(FetchDescriptor<TrainerProgram>())) ?? []
         for other in all where other.id != program.id && other.isActive {
             other.isActive = false
+            other.endedAt = Date()
         }
         program.isActive = true
         // Started by hand — a pending queue date must not re-fire later.
@@ -286,6 +296,7 @@ enum TrainerProgramSaver {
     @MainActor
     static func deactivate(_ program: TrainerProgram, modelContext: ModelContext) {
         program.isActive = false
+        program.endedAt = Date()
         // Stopped by hand — a queued program must not resurrect on its date.
         program.queuedActivationDate = nil
         try? modelContext.save()
@@ -320,6 +331,10 @@ enum TrainerProgramSaver {
             return
         }
         let updatedWeeks = TrainerFeedbackApplier.apply(resolved, acceptedIDs: acceptedIDs, to: program.weeks)
+        // Dated skips ("skip Thursday", fixed mode) live beside the weeks, not
+        // inside them; `update` records them once the edit succeeded, before
+        // today's plan re-applies, so the skipped session isn't rebuilt.
+        let skips = TrainerFeedbackApplier.skippedSessions(resolved, acceptedIDs: acceptedIDs, program: program)
 
         try update(
             program,
@@ -334,7 +349,8 @@ enum TrainerProgramSaver {
             trainingEngine: trainingEngine,
             whoop: whoop,
             healthKit: healthKit,
-            onNewExercisesCreated: onNewExercisesCreated
+            onNewExercisesCreated: onNewExercisesCreated,
+            skipping: skips
         )
 
         program.changeLog.append(TrainerProgramChangeLogEntry(
@@ -400,5 +416,47 @@ enum TrainerProgramSaver {
         case .bench: "Bench"
         case .none: ""
         }
+    }
+
+    // MARK: - Undo a dated skip
+
+    /// Puts a skipped session back (removes its `TrainerProgramSkip`) and
+    /// re-applies today's plan through the same `update` path as every other
+    /// program edit, so `.tempoTrainingSettingsChanged` posts once.
+    @MainActor
+    static func undoSkip(
+        _ skip: TrainerProgramSkip,
+        in program: TrainerProgram,
+        modelContext: ModelContext,
+        trainingEngine: any TrainingEngineProtocol,
+        whoop: any WhoopServiceProtocol,
+        healthKit: any HealthKitServiceProtocol
+    ) throws {
+        program.skippedSessions.removeAll { $0.id == skip.id }
+        // Keep the history line, but show it as undone (newest batch that
+        // logged this skip and isn't already marked).
+        if let index = program.changeLog.indices
+            .sorted(by: { program.changeLog[$0].date > program.changeLog[$1].date })
+            .first(where: {
+                program.changeLog[$0].editSummaries.contains(skip.summary) && !program.changeLog[$0].isUndone(skip.summary)
+            }) {
+            var undone = program.changeLog[index].undoneSummaries ?? []
+            undone.append(skip.summary)
+            program.changeLog[index].undoneSummaries = undone
+        }
+        try update(
+            program,
+            name: program.name,
+            startDate: program.startDate,
+            weeks: program.weeks,
+            repeats: program.repeats,
+            autoWarmups: program.autoWarmups,
+            scheduleMode: program.scheduleMode,
+            cadence: program.cadence,
+            modelContext: modelContext,
+            trainingEngine: trainingEngine,
+            whoop: whoop,
+            healthKit: healthKit
+        )
     }
 }

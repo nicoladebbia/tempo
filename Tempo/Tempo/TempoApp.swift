@@ -101,6 +101,8 @@ struct TempoApp: App {
                 // PauseTravelPainUITestSeed's header); no-ops unless launched
                 // with one of its launch arguments.
                 PauseTravelPainUITestSeed.seedIfRequested(context: container.mainContext)
+                BenchedDayUITestSeed.seedIfRequested(context: container.mainContext)
+                PoundsUITestSeed.seedIfRequested(context: container.mainContext)
                 // `sim.sh qa --scenario <name>` starting states (see
                 // ScenarioSeed's header).
                 ScenarioSeed.seedIfRequested(context: container.mainContext)

@@ -130,6 +130,17 @@ final class WeekOverWeekProgressTests: XCTestCase {
         XCTAssertEqual(deltas.first?.name, "RDL")
     }
 
+    func testWeightChangeTextFromBodyweightToLoadedReadsBWNotZero() {
+        let delta = WeekOverWeekProgress.ExerciseDelta(
+            exerciseID: UUID(), name: "Dip",
+            currentDate: Self.date("2026-09-21"), previousDate: Self.date("2026-09-14"),
+            currentBestWeightKg: 20, currentBestReps: 6,
+            previousBestWeightKg: 0, previousBestReps: 12,
+            e1RMDelta: nil, volumeDelta: 0
+        )
+        XCTAssertEqual(delta.weightChangeText(unit: .kg), "BW→20 kg")
+    }
+
     func testWeightChangeTextFallsBackToCurrentOnlyWhenWeightUnchanged() {
         let delta = WeekOverWeekProgress.ExerciseDelta(
             exerciseID: UUID(), name: "Bench Press",

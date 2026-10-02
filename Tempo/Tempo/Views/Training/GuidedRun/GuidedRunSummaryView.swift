@@ -21,6 +21,9 @@ import SwiftUI
 struct GuidedRunSummaryView: View {
     let plan: GuidedRunPlan
     let results: [UUID: GuidedRunBlockRecord]
+    /// Real run span from the session (nil if no step ever started).
+    var startedAt: Date?
+    var endedAt: Date?
     let workoutPlanID: UUID
     let programSessionKey: String
     var viewModel: TrainingViewModel
@@ -29,6 +32,8 @@ struct GuidedRunSummaryView: View {
 
     @Environment(\.modelContext)
     private var modelContext
+    @Query
+    private var userSettings: [UserSettings]
 
     @State
     private var rpe: Int?
@@ -204,15 +209,19 @@ struct GuidedRunSummaryView: View {
         }
     }
 
+    private var useMiles: Bool {
+        GuidedRunFormatting.useMiles(weightUnit: userSettings.first?.weightUnit)
+    }
+
     private func continuousSummary(_ record: GuidedRunBlockRecord) -> some View {
         HStack(spacing: TempoSpacing.md) {
             if let duration = record.durationSeconds {
                 Text(GuidedRunFormatting.clock(duration))
             }
             if let distance = record.distanceMeters, distance > 0 {
-                Text(GuidedRunFormatting.distance(meters: distance, useMiles: false))
+                Text(GuidedRunFormatting.distance(meters: distance, useMiles: useMiles))
                 if let duration = record.durationSeconds, duration > 0 {
-                    Text(GuidedRunFormatting.pace(secondsPerKm: (duration / distance) * 1000, useMiles: false) ?? "")
+                    Text(GuidedRunFormatting.pace(secondsPerKm: (duration / distance) * 1000, useMiles: useMiles) ?? "")
                 }
             }
         }
@@ -334,12 +343,14 @@ struct GuidedRunSummaryView: View {
         let allSamples = results.values.flatMap(\.heartRateSamplesBPM)
         let avgHeartRate = allSamples.isEmpty ? nil : allSamples.reduce(0, +) / Double(allSamples.count)
         let maxHeartRate = allSamples.max()
-        let end = Date()
+        let span = GuidedRunHealthSpan.resolve(
+            startedAt: startedAt, endedAt: endedAt, trackedSeconds: totalDuration, now: Date()
+        )
         let sample = WorkoutSample(
-            startDate: end.addingTimeInterval(-totalDuration),
-            endDate: end,
+            startDate: span.start,
+            endDate: span.end,
             workoutType: "running",
-            durationMinutes: totalDuration / 60,
+            durationMinutes: span.end.timeIntervalSince(span.start) / 60,
             activeCalories: 0,
             averageHeartRate: avgHeartRate,
             maxHeartRate: maxHeartRate,
@@ -348,5 +359,22 @@ struct GuidedRunSummaryView: View {
         Task {
             try? await viewModel.healthKit.writeWorkout(sample)
         }
+    }
+}
+
+// MARK: - GuidedRunHealthSpan
+
+/// The time span written to Apple Health for a guided run: the session's real
+/// start/end when known (the summary can sit open for minutes before Save, so
+/// "now" is not the end), else the tracked block time ending at the finish.
+enum GuidedRunHealthSpan {
+    static func resolve(
+        startedAt: Date?, endedAt: Date?, trackedSeconds: Double, now: Date
+    ) -> (start: Date, end: Date) {
+        let end = endedAt ?? now
+        if let startedAt, startedAt < end {
+            return (startedAt, end)
+        }
+        return (end.addingTimeInterval(-max(1, trackedSeconds)), end)
     }
 }

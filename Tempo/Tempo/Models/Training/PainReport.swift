@@ -121,6 +121,10 @@ final class PainReport {
     var exerciseID: UUID?
     var exerciseNameSnapshot: String?
 
+    /// The workout this was filed in, so deleting that workout removes the
+    /// flag it produced. Nil on reports filed before this existed or outside a session.
+    var workoutPlanID: UUID?
+
     var actionTakenRaw: String
 
     var note: String?
@@ -134,6 +138,7 @@ final class PainReport {
         severity: Int,
         exerciseID: UUID? = nil,
         exerciseNameSnapshot: String? = nil,
+        workoutPlanID: UUID? = nil,
         actionTaken: PainActionTaken = .none,
         note: String? = nil,
         createdAt: Date = Date()
@@ -144,6 +149,7 @@ final class PainReport {
         self.severity = max(1, min(10, severity))
         self.exerciseID = exerciseID
         self.exerciseNameSnapshot = exerciseNameSnapshot
+        self.workoutPlanID = workoutPlanID
         actionTakenRaw = actionTaken.rawValue
         self.note = note
         self.createdAt = createdAt

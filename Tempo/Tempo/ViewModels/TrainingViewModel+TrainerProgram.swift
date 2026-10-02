@@ -85,6 +85,7 @@ extension TrainingViewModel {
         }
         for other in all where other.isActive {
             other.isActive = false
+            other.endedAt = Date()
         }
         // Every other due-but-not-chosen queued program is cleared too (not
         // left to be silently promoted — and immediately un-promoted — on a
@@ -360,6 +361,9 @@ extension TrainingViewModel {
             return nil
         }
         let matchDays = Set(fetchUpcomingMatches(modelContext: modelContext).map { cal.startOfDay(for: $0.kickoff) })
+        // Past matches too (`fetchUpcomingMatches` starts at today), so a
+        // match day inside the 7-day look-back is never offered as missed.
+        let overrides = TrainerScheduleOverrides.fetch(modelContext: modelContext)
         // Today itself must be able to take the session (see swapInMissedSession).
         let todayDescriptor = FetchDescriptor<WorkoutPlan>(predicate: #Predicate<WorkoutPlan> { $0.date == todayStart })
         if let todayRow = (try? modelContext.fetch(todayDescriptor))?.first,
@@ -377,25 +381,19 @@ extension TrainingViewModel {
             guard date >= firstEligibleDay, let session = program.session(on: date) else {
                 continue
             }
-            if matchDays.contains(date) {
-                continue // Tempo's own deliberate override, not a miss.
-            }
-            if TrainingPauseSchedule.coveringPause(pauses, on: date, calendar: cal) != nil {
-                continue // Paused — Tempo's own deliberate override, not a miss.
-            }
             let key = program.sessionKey(weekIndex: session.weekIndex, dayIndex: session.dayIndex)
             if completedKeys.contains(where: { $0.key == key && $0.date > date }) {
                 continue // already moved to a later day and done.
             }
             let descriptor = FetchDescriptor<WorkoutPlan>(predicate: #Predicate<WorkoutPlan> { $0.date == date })
             let persisted = (try? modelContext.fetch(descriptor))?.first
-            if let persisted {
-                if persisted.status == .completed {
-                    continue // done
-                }
-                if persisted.recoveryAdjustment == 0, persisted.type == .mobility, persisted.programSessionKey == nil {
-                    continue // red-recovery paused it — Tempo's own call.
-                }
+            if persisted?.status == .completed {
+                continue // done
+            }
+            // A match day, a pause or red recovery is Tempo's own deliberate
+            // override, not a miss (shared with the compliance stats).
+            if overrides.overrides(date, persisted: persisted, calendar: cal) {
+                continue
             }
             return MissedTrainerSession(date: date, sessionKey: key, day: session.day)
         }
@@ -467,10 +465,34 @@ extension TrainingViewModel {
             return
         }
         let prefix = "\(program.id.uuidString)#"
+        // Fixed mode: the sessions the program still schedules today (a dated
+        // skip removes one). Sequence mode has no calendar to compare against.
+        let scheduledKeys: Set<String>? = program.scheduleMode == .fixed
+            ? Set(program.sessions(on: today).map { program.sessionKey(weekIndex: $0.weekIndex, dayIndex: $0.dayIndex) })
+            : nil
         var changed = false
         for plan in plans where plan.status == .planned {
             let keys = [plan.programSessionKey, plan.programSecondaryKey].compactMap(\.self)
             guard keys.contains(where: { $0.hasPrefix(prefix) }) else {
+                continue
+            }
+            // Today's session is no longer scheduled today (a dated skip): an
+            // untouched plan becomes a rest day (the next resolve re-plans
+            // it). A plan with logged sets is never touched.
+            if let scheduledKeys, let main = plan.programSessionKey, main.hasPrefix(prefix),
+               !scheduledKeys.contains(main)
+            {
+                if !Self.hasLoggedSets(plan) {
+                    for exercise in plan.orderedExercises {
+                        modelContext.delete(exercise)
+                    }
+                    plan.exercises = []
+                    plan.programSessionKey = nil
+                    plan.programSecondaryKey = nil
+                    plan.secondarySessionType = nil
+                    plan.type = .rest
+                    changed = true
+                }
                 continue
             }
             for exercise in plan.orderedExercises {
@@ -488,6 +510,14 @@ extension TrainingViewModel {
         _ = modelContext.saveOrAlert("trainer program edit re-apply")
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
         NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
+    }
+
+    /// True when any set of the plan has been logged — such a plan is never
+    /// rewritten by a program edit.
+    private static func hasLoggedSets(_ plan: WorkoutPlan) -> Bool {
+        plan.orderedExercises.contains { slot in
+            (slot.sets ?? []).contains(where: \.completed)
+        }
     }
 
     /// The trainer's session behind a plan's key (main or second part), for

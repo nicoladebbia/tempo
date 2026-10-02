@@ -199,4 +199,26 @@ final class TrainerProgramWeeklyUploadTests: XCTestCase {
         XCTAssertEqual(timing.startDate, date(2026, 9, 21))
         XCTAssertFalse(timing.isQueued)
     }
+
+    // MARK: - Wrap-up week (Sunday wrap-up must cover the week that finished)
+
+    func testWrapUpWeekIsTheCurrentWeekOnSunday() {
+        let sunday = TrainerProgramWeeklyUpload.wrapUpWeekSunday(now: date(2026, 9, 27, hour: 19))
+        XCTAssertEqual(sunday, date(2026, 9, 27))
+        let range = TrainerReportBuilder.scheduleRange(for: .week, program: weeklyProgram(startDate: date(2026, 9, 21)), today: sunday)
+        XCTAssertEqual(range.lowerBound, date(2026, 9, 21))
+        XCTAssertEqual(range.upperBound, date(2026, 9, 27))
+    }
+
+    func testLateWrapUpOnMondayCoversThePreviousWeek() {
+        let sunday = TrainerProgramWeeklyUpload.wrapUpWeekSunday(now: date(2026, 9, 28, hour: 9))
+        XCTAssertEqual(sunday, date(2026, 9, 27))
+        let range = TrainerReportBuilder.scheduleRange(for: .week, program: weeklyProgram(startDate: date(2026, 9, 21)), today: sunday)
+        XCTAssertEqual(range.lowerBound, date(2026, 9, 21))
+        XCTAssertEqual(range.upperBound, date(2026, 9, 27))
+    }
+
+    func testLateWrapUpMidWeekStillCoversThePreviousWeek() {
+        XCTAssertEqual(TrainerProgramWeeklyUpload.wrapUpWeekSunday(now: date(2026, 9, 30, hour: 20)), date(2026, 9, 27))
+    }
 }
