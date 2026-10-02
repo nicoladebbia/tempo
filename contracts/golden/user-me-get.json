@@ -1,0 +1,21 @@
+{
+  "data" : {
+    "ai_consent_at" : "2026-01-01T00:00:00Z",
+    "display_name" : "Test contract-user",
+    "id" : "usr_000000000000000000000001",
+    "is_pro" : true,
+    "level" : 1,
+    "product_id" : "tempo_pro_monthly",
+    "streak_days" : 0,
+    "subscription_expires_at" : "2026-01-01T00:00:00Z",
+    "timezone" : "America/New_York",
+    "tos_accepted_at" : "2026-01-01T00:00:00Z",
+    "username" : "test_user_0000",
+    "xp_total" : 0
+  },
+  "meta" : {
+    "request_id" : "req_000000000000000000000001",
+    "timestamp" : "2026-01-01T00:00:00Z"
+  },
+  "ok" : true
+}

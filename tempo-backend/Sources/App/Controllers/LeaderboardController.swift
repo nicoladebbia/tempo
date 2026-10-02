@@ -120,7 +120,7 @@ struct LeaderboardController: RouteCollection {
         }
 
         let calendar = Calendar(identifier: .iso8601)
-        let weekStart = calendar.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
+        let weekStart = calendar.dateInterval(of: .weekOfYear, for: req.now)?.start ?? req.now
 
         return Envelope(
             data: LeaderboardDTO(
@@ -187,7 +187,7 @@ struct LeaderboardController: RouteCollection {
         return Envelope(
             data: LeaderboardDTO(
                 period: "weekly",
-                weekStart: Calendar(identifier: .iso8601).dateInterval(of: .weekOfYear, for: Date())?.start ?? Date(),
+                weekStart: Calendar(identifier: .iso8601).dateInterval(of: .weekOfYear, for: req.now)?.start ?? req.now,
                 myRank: myRank,
                 myXP: myXP,
                 rankings: rankings

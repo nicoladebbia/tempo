@@ -313,7 +313,10 @@ actor InsightService {
         }
 
         // Try to extract JSON from markdown code blocks if present
-        let content = extractJSON(from: textBlock.text)
+        let content = Self.extractJSON(from: textBlock.text)
+        guard !content.isEmpty else {
+            throw InsightError.malformedResponse
+        }
 
         return ClaudeAPIResponse(
             content: content,
@@ -326,7 +329,7 @@ actor InsightService {
     // MARK: - JSON Extraction
     // Per AI_INTELLIGENCE_ENGINE.md Section 2.3 — Extract JSON from markdown wrapping.
 
-    private func extractJSON(from text: String) -> String {
+    static func extractJSON(from text: String) -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
         // Already valid JSON start
@@ -337,7 +340,7 @@ actor InsightService {
         // Try to find JSON between code block markers
         if let jsonStart = trimmed.range(of: "{"),
            let jsonEnd = trimmed.range(of: "}", options: .backwards) {
-            return String(trimmed[jsonStart.lowerBound...jsonEnd.upperBound])
+            return String(trimmed[jsonStart.lowerBound ..< jsonEnd.upperBound])
         }
 
         return trimmed

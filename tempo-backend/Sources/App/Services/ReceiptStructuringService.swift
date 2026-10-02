@@ -129,7 +129,7 @@ actor ReceiptStructuringService {
         }
 
         // Parse JSON, tolerant of markdown wrapping.
-        let jsonString = extractJSON(from: textBlock.text)
+        let jsonString = Self.extractJSON(from: textBlock.text)
         guard let jsonData = jsonString.data(using: .utf8) else {
             throw ReceiptStructuringError.malformedResponse
         }
@@ -199,13 +199,13 @@ actor ReceiptStructuringService {
 
     // MARK: - JSON cleanup
 
-    private func extractJSON(from text: String) -> String {
+    static func extractJSON(from text: String) -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.hasPrefix("{") {
             return trimmed
         }
         if let start = trimmed.range(of: "{"), let end = trimmed.range(of: "}", options: .backwards) {
-            return String(trimmed[start.lowerBound ... end.upperBound])
+            return String(trimmed[start.lowerBound ..< end.upperBound])
         }
         return trimmed
     }
@@ -465,7 +465,10 @@ private struct ReceiptClaudeContentBlock: Codable {
     }
 }
 
-private struct ReceiptClaudeRawResponse: Decodable {
+/// Decoded with `.convertFromSnakeCase` (the key arrives as `stopReason`), so
+/// there must be NO explicit snake_case CodingKeys here — they would never match.
+/// Non-private so AppTests can regression-test truncation detection.
+struct ReceiptClaudeRawResponse: Decodable {
     let content: [Block]
     /// "end_turn" = complete, "max_tokens" = output was truncated.
     let stopReason: String?
@@ -473,11 +476,6 @@ private struct ReceiptClaudeRawResponse: Decodable {
     struct Block: Decodable {
         let type: String
         let text: String
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case content
-        case stopReason = "stop_reason"
     }
 }
 

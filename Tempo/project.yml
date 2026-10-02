@@ -214,6 +214,10 @@ targets:
     platform: iOS
     sources:
       - path: TempoTests
+      # Server JSON goldens (backend ContractGoldenTests) for APIContractTests.
+      - path: ../contracts/golden
+        type: folder
+        buildPhase: resources
     dependencies:
       - target: Tempo
     settings:

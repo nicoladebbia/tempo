@@ -1,0 +1,89 @@
+{
+  "data" : {
+    "kind" : "creatine",
+    "look_for" : "Creatine monohydrate, 3–5 g/day; NSF Certified for Sport or Informed Sport is a strong purity signal, and Creapure-sourced (German-made) is a good secondary quality signal.",
+    "picks" : [
+      {
+        "approx_price_per_serving_usd" : 0.45000000000000001,
+        "brand" : "Thorne",
+        "buy_links" : [
+          {
+            "label" : "Thorne",
+            "url" : "https://www.thorne.com/products/dp/creatine"
+          },
+          {
+            "label" : "Amazon",
+            "url" : "https://www.amazon.com/s?k=Thorne%20Creatine%20(Creatine%20Monohydrate%20Powder)"
+          },
+          {
+            "label" : "iHerb",
+            "url" : "https://www.iherb.com/search?kw=Thorne%20Creatine%20(Creatine%20Monohydrate%20Powder)"
+          }
+        ],
+        "certifications" : [
+          "NSF Certified for Sport"
+        ],
+        "form" : "powder",
+        "price_as_of" : "2026-09",
+        "product" : "Creatine (Creatine Monohydrate Powder)",
+        "why" : "Micronized, unflavored, no fillers, independently batch-tested through NSF Certified for Sport."
+      },
+      {
+        "approx_price_per_serving_usd" : 0.39000000000000001,
+        "brand" : "Klean Athlete",
+        "buy_links" : [
+          {
+            "label" : "Klean Athlete",
+            "url" : "https://www.kleanathlete.com/klean-creatine.html"
+          },
+          {
+            "label" : "Amazon",
+            "url" : "https://www.amazon.com/s?k=Klean%20Athlete%20Klean%20Creatine"
+          },
+          {
+            "label" : "iHerb",
+            "url" : "https://www.iherb.com/search?kw=Klean%20Athlete%20Klean%20Creatine"
+          }
+        ],
+        "certifications" : [
+          "NSF Certified for Sport"
+        ],
+        "form" : "powder",
+        "price_as_of" : "2026-09",
+        "product" : "Klean Creatine",
+        "why" : "Simple 5 g unflavored creatine monohydrate, NSF Certified for Sport, no added ingredients."
+      },
+      {
+        "approx_price_per_serving_usd" : 0.42999999999999999,
+        "brand" : "Momentous",
+        "buy_links" : [
+          {
+            "label" : "Momentous",
+            "url" : "https://www.livemomentous.com/products/creatine-monohydrate"
+          },
+          {
+            "label" : "Amazon",
+            "url" : "https://www.amazon.com/s?k=Momentous%20Creatine%20Monohydrate%20Powder"
+          },
+          {
+            "label" : "iHerb",
+            "url" : "https://www.iherb.com/search?kw=Momentous%20Creatine%20Monohydrate%20Powder"
+          }
+        ],
+        "certifications" : [
+          "NSF Certified for Sport"
+        ],
+        "form" : "powder",
+        "price_as_of" : "2026-09",
+        "product" : "Creatine Monohydrate Powder",
+        "why" : "NSF Certified for Sport with added third-party PFAS/heavy-metal/microplastic testing beyond the certification's baseline."
+      }
+    ],
+    "verified" : true
+  },
+  "meta" : {
+    "request_id" : "req_000000000000000000000001",
+    "timestamp" : "2026-01-01T00:00:00Z"
+  },
+  "ok" : true
+}

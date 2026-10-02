@@ -25,22 +25,35 @@ Automatically fix issues identified by the `/review` command or by individual ag
 6. **After all fixes**: run the relevant review agent again to verify fixes resolved the issues
 
 ## Fix Patterns
+Use only token names that exist (see `.claude/agents/design-system-police.md` for the list and where they live).
 
 ### Hardcoded color → Design token
 ```swift
 // Before
-Color(hex: "#FF4757")
+Color(hex: "#22C55E")
 // After
-Color.tempo.recovery.red
+Color.tempoRecoveryGreen
 ```
 
-### Hardcoded string → Copy bible key
+### Hardcoded text font → Type scale
 ```swift
 // Before
-Text("Recovery Score")
+Text(title).font(.system(size: 22, weight: .bold))
 // After
-Text(L10n.Recovery.scoreTitle)
+Text(title).font(.tempoTitle2)
 ```
+(`Image(systemName:)` icon sizing with `.font(.system(size:))` is fine — leave it.)
+
+### Magic number → Spacing token
+```swift
+// Before
+.padding(16)
+// After
+.padding(TempoSpacing.lg)
+```
+
+### Improvised copy → Copy bible
+Strings are inline `Text("…")` literals (no L10n layer). Replace improvised user-facing text with the exact string from `docs/UX_COPY_BIBLE.md`; keep it a literal.
 
 ### Missing import
 ```swift
@@ -48,20 +61,13 @@ Text(L10n.Recovery.scoreTitle)
 import SwiftData
 ```
 
-### Force unwrap → Safe optional
+### Force unwrap → handle the missing value (needs judgment)
+Never replace `!` with `?? 0` on user-facing numbers: showing 0 for "no data" is wrong data. Unwrap and show the empty/placeholder state instead, and ask if the right fallback is unclear.
 ```swift
 // Before
-let score = snapshot.dailyScore!
+Text("\(snapshot.dailyScore!)")
 // After
-let score = snapshot.dailyScore ?? 0
-```
-
-### Magic number → Spacing token
-```swift
-// Before
-.padding(16)
-// After
-.padding(.tempoLG)
+if let score = snapshot.dailyScore { Text("\(score)") } else { Text("—") }
 ```
 
 ## Report what was fixed:
@@ -72,8 +78,8 @@ let score = snapshot.dailyScore ?? 0
 **Skipped:** 0
 
 ### Applied Fixes
-1. ✅ DashboardView.swift:34 — Color(hex: "#22C55E") → Color.tempo.recovery.green
-2. ✅ DashboardView.swift:67 — .padding(16) → .padding(.tempoLG)
+1. ✅ DashboardView.swift:34 — Color(hex: "#22C55E") → Color.tempoRecoveryGreen
+2. ✅ DashboardView.swift:67 — .padding(16) → .padding(TempoSpacing.lg)
 ...
 
 ### Needs Your Review
