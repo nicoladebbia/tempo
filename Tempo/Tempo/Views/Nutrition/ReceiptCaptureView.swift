@@ -49,58 +49,54 @@ struct ReceiptCaptureView: View {
         VNDocumentCameraViewController.isSupported
     }
 
+    /// Embedded in UniversalScanView's NavigationStack (Receipt mode), so this
+    /// is a plain `Group`: the destination/title/modifiers below attach to
+    /// the scanner's stack, and its toolbar owns Cancel.
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color.tempoBgPrimary.ignoresSafeArea()
-                if isScanning {
-                    scanningOverlay
-                } else {
-                    captureOptions
+        ZStack {
+            Color.tempoBgPrimary.ignoresSafeArea()
+            if isScanning {
+                scanningOverlay
+            } else {
+                captureOptions
+            }
+        }
+        .navigationDestination(isPresented: Binding(
+            get: { scannedReceipt != nil },
+            set: {
+                if !$0 {
+                    scannedReceipt = nil
                 }
             }
-            .navigationDestination(isPresented: Binding(
-                get: { scannedReceipt != nil },
-                set: {
-                    if !$0 {
-                        scannedReceipt = nil
-                    }
-                }
-            )) {
-                if let receipt = scannedReceipt {
-                    ReceiptReviewView(
-                        receipt: receipt,
-                        receiptService: receiptService,
-                        pantryService: pantryService,
-                        onIngested: onIngested
-                    )
-                    .onDisappear { dismiss() }
+        )) {
+            if let receipt = scannedReceipt {
+                ReceiptReviewView(
+                    receipt: receipt,
+                    receiptService: receiptService,
+                    pantryService: pantryService,
+                    onIngested: onIngested
+                )
+                .onDisappear { dismiss() }
+            }
+        }
+        .navigationTitle("Scan Receipt")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $isShowingPicker) {
+            ImagePicker(sourceType: pickerSource == .camera ? .camera : .photoLibrary) { image in
+                isShowingPicker = false
+                selectedImage = image
+                if let image {
+                    scan(image)
                 }
             }
-            .navigationTitle("Scan Receipt")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { dismiss() }
+        }
+        .fullScreenCover(isPresented: $isShowingDocumentScanner) {
+            DocumentScannerView { pages in
+                isShowingDocumentScanner = false
+                guard !pages.isEmpty else {
+                    return
                 }
-            }
-            .sheet(isPresented: $isShowingPicker) {
-                ImagePicker(sourceType: pickerSource == .camera ? .camera : .photoLibrary) { image in
-                    isShowingPicker = false
-                    selectedImage = image
-                    if let image {
-                        scan(image)
-                    }
-                }
-            }
-            .fullScreenCover(isPresented: $isShowingDocumentScanner) {
-                DocumentScannerView { pages in
-                    isShowingDocumentScanner = false
-                    guard !pages.isEmpty else {
-                        return
-                    }
-                    scan(pages)
-                }
+                scan(pages)
             }
         }
     }
@@ -132,9 +128,11 @@ struct ReceiptCaptureView: View {
             }
 
             if let scanBlocker {
-                AIBlockerCard(blocker: scanBlocker, message: scanBlocker == .proRequired
-                    ? "Reading receipts is a Tempo Pro feature."
-                    : "AI features are off. Turn them on to read receipts."
+                AIBlockerCard(
+                    blocker: scanBlocker,
+                    message: scanBlocker == .proRequired
+                        ? "Reading receipts is a Tempo Pro feature."
+                        : "AI features are off. Turn them on to read receipts."
                 ) {
                     self.scanBlocker = nil
                     scanError = nil

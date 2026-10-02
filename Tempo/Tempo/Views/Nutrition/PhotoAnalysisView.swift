@@ -47,75 +47,71 @@ struct PhotoAnalysisView: View {
 
     // MARK: - Body
 
+    /// Embedded in UniversalScanView's NavigationStack (Meal photo mode): a
+    /// plain `Group`, so the title/toolbar attach to the scanner's stack.
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color.tempoBgPrimary
-                    .ignoresSafeArea()
+        ZStack {
+            Color.tempoBgPrimary
+                .ignoresSafeArea()
 
-                if showCamera, capturedImage == nil {
-                    // Camera capture
-                    CameraPickerView(image: $capturedImage) {
-                        dismiss()
-                    }
-                    .ignoresSafeArea()
-                } else if let image = capturedImage {
-                    // Analysis view
-                    analysisContent(image: image)
+            if showCamera, capturedImage == nil {
+                // Camera capture
+                CameraPickerView(image: $capturedImage) {
+                    dismiss()
                 }
+                .ignoresSafeArea()
+            } else if let image = capturedImage {
+                // Analysis view
+                analysisContent(image: image)
             }
-            .navigationTitle("Photo Analysis")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
+        }
+        .navigationTitle("Photo Analysis")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if capturedImage != nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Retake") {
+                        capturedImage = nil
+                        showCamera = true
+                        identifiedItems = []
+                        analysisState = .idle
                     }
                     .font(.tempoCallout)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                }
-
-                if capturedImage != nil {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("Retake") {
-                            capturedImage = nil
-                            showCamera = true
-                            identifiedItems = []
-                            analysisState = .idle
-                        }
-                        .font(.tempoCallout)
-                        .foregroundStyle(Color.tempoSignal)
-                    }
+                    .foregroundStyle(Color.tempoSignal)
                 }
             }
-            .onChange(of: capturedImage) { _, newValue in
-                if newValue != nil {
-                    showCamera = false
-                    analyzePhoto()
+        }
+        .onChange(of: capturedImage) { _, newValue in
+            if newValue != nil {
+                showCamera = false
+                analyzePhoto()
+            }
+        }
+        // Alternatives picker — appears when the user taps "Not right?"
+        // on a row that has model-returned candidates. Swap fires
+        // applyAlternative(...) which mutates the row in-place.
+        .sheet(item: Binding<AlternativesSheetPayload?>(
+            get: {
+                guard let id = alternativesItemID,
+                      let item = identifiedItems.first(where: { $0.id == id })
+                else {
+                    return nil
+                }
+                return AlternativesSheetPayload(itemID: id, item: item)
+            },
+            set: { newValue in
+                if newValue == nil {
+                    alternativesItemID = nil
                 }
             }
-            // Alternatives picker — appears when the user taps "Not right?"
-            // on a row that has model-returned candidates. Swap fires
-            // applyAlternative(...) which mutates the row in-place.
-            .sheet(item: Binding<AlternativesSheetPayload?>(
-                get: {
-                    guard let id = alternativesItemID,
-                          let item = identifiedItems.first(where: { $0.id == id })
-                    else { return nil }
-                    return AlternativesSheetPayload(itemID: id, item: item)
+        )) { payload in
+            PhotoAlternativesSheet(
+                primary: payload.item,
+                onPick: { candidate in
+                    applyAlternative(candidate, to: payload.itemID)
                 },
-                set: { newValue in
-                    if newValue == nil { alternativesItemID = nil }
-                }
-            )) { payload in
-                PhotoAlternativesSheet(
-                    primary: payload.item,
-                    onPick: { candidate in
-                        applyAlternative(candidate, to: payload.itemID)
-                    },
-                    onCancel: { alternativesItemID = nil }
-                )
-            }
+                onCancel: { alternativesItemID = nil }
+            )
         }
     }
 

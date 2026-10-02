@@ -23,8 +23,7 @@ struct NutritionTabView: View {
     /// tab share one instance (one generation in flight, one spinner).
     @Bindable
     var viewModel: NutritionTabViewModel
-    /// Today's Scan button. Presents the existing food-check scanner; swap the
-    /// body of `scanSheet` (one line) to use the universal scanner.
+    /// Today's Scan button: the universal scanner with all four modes.
     @State
     private var showScan = false
     @State
@@ -135,8 +134,11 @@ struct NutritionTabView: View {
                         viewModel.loadToday(modelContext: modelContext)
                     }
             }
-            .sheet(isPresented: $showScan) {
-                scanSheet
+            .fullScreenCover(isPresented: $showScan, onDismiss: {
+                // A meal-photo log from Scan lands in today's meals.
+                viewModel.loadToday(modelContext: modelContext)
+            }) {
+                UniversalScanView(context: .today())
             }
             // Pantry-gap alert (Phase D) — same surface used by NutritionWeeklyPlanView,
             // wired here so generation triggered from profile setup also surfaces gaps.
@@ -231,11 +233,6 @@ struct NutritionTabView: View {
         }
         .padding(.horizontal, TempoSpacing.screenEdge)
         .padding(.bottom, TempoSpacing.sm)
-    }
-
-    /// The Scan button's destination. Single swap point for the universal scanner.
-    private var scanSheet: some View {
-        FoodCheckView()
     }
 
     // MARK: - Error State

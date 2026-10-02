@@ -185,16 +185,30 @@ struct MealLoggingView: View {
                 )
             }
             .sheet(isPresented: $showPhotoAnalysis) {
-                PhotoAnalysisView { items in
-                    for item in items {
-                        addFoodItem(item)
-                    }
-                }
+                UniversalScanView(
+                    context: .logMeal(
+                        onFood: { item in addFoodItem(item) },
+                        onMealPhoto: { items in
+                            for item in items {
+                                addFoodItem(item)
+                            }
+                        }
+                    ),
+                    initialMode: .mealPhoto
+                )
             }
             .sheet(isPresented: $showBarcodeScanner) {
-                BarcodeScannerView { item in
-                    addFoodItem(item)
-                }
+                UniversalScanView(
+                    context: .logMeal(
+                        onFood: { item in addFoodItem(item) },
+                        onMealPhoto: { items in
+                            for item in items {
+                                addFoodItem(item)
+                            }
+                        }
+                    ),
+                    initialMode: .barcode
+                )
             }
             .sheet(item: $editingItem) { item in
                 PortionEditorView(item: item) { updated in

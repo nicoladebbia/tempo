@@ -78,10 +78,10 @@ struct SupplementsView: View {
             }
         }
         .fullScreenCover(isPresented: $showBarcodeScan) {
-            SupplementBarcodeScanView(shelf: supplements) {
+            UniversalScanView(context: .supplements(shelf: supplements, onSaved: {
                 try? modelContext.save()
                 notifyShelfChanged()
-            }
+            }))
             .environment(services)
         }
     }
