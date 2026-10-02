@@ -180,6 +180,20 @@ struct ReceiptCaptureView: View {
 
     // MARK: - Scan
 
+    #if DEBUG
+        /// QA only (`--uitesting-receipt-slow`): the simulator has no backend,
+        /// so replay the pipeline's progress to look at the processing screen.
+        private static func debugSlowProgress(_ progress: ReceiptScanProgress) async {
+            guard ProcessInfo.processInfo.arguments.contains("--uitesting-receipt-slow") else {
+                return
+            }
+            try? await Task.sleep(for: .seconds(2))
+            progress.parsed(store: "Publix", total: 61.37, itemCount: 13)
+            progress.advance(to: .findingItems)
+            try? await Task.sleep(for: .seconds(30))
+        }
+    #endif
+
     private func beginScan(pages: [UIImage]) {
         scanError = nil
         scanBlocker = nil
@@ -192,6 +206,9 @@ struct ReceiptCaptureView: View {
         beginScan(pages: [image])
         let progress = scanProgress
         Task {
+            #if DEBUG
+                await Self.debugSlowProgress(progress)
+            #endif
             do {
                 let receipt = try await ReceiptScanProgress.$current.withValue(progress) {
                     try await receiptService.scan(image: image, storeHint: nil)
