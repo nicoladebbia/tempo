@@ -335,9 +335,12 @@ struct GroceryListView: View {
                                 .font(.tempoBody)
                                 .foregroundStyle(Color.tempoTextPrimary)
                                 .strikethrough(item.isChecked)
-                            Text("\(formatQuantity(item.quantity))\(item.unit.displayName)")
-                                .font(.tempoCaption1)
-                                .foregroundStyle(Color.tempoTextSecondary)
+                            // "4 breasts chicken" already carries its amount.
+                            if !item.displayNameEmbedsQuantity {
+                                Text("\(formatQuantity(item.quantity))\(item.unit.displayName)")
+                                    .font(.tempoCaption1)
+                                    .foregroundStyle(Color.tempoTextSecondary)
+                            }
                         }
                         Spacer()
                         if let price = item.estimatedPriceUSD {
