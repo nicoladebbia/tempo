@@ -16,6 +16,9 @@ import SwiftUI
 struct AddProductView: View {
     let barcode: String?
     let catalog: FoodCatalog
+    /// An existing product whose label is being (re)photographed: its fields
+    /// start filled in, and saving replaces it.
+    var prefill: FoodProduct?
     let onSaved: (FoodProduct) -> Void
 
     @Environment(\.modelContext)
@@ -152,7 +155,8 @@ struct AddProductView: View {
         }
         .scrollContentBackground(.hidden)
         .background(Color.tempoBgPrimary)
-        .navigationTitle("Add product")
+        .onAppear(perform: applyPrefill)
+        .navigationTitle(prefill == nil ? "Add product" : "Update label")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
@@ -181,6 +185,27 @@ struct AddProductView: View {
                 .ignoresSafeArea()
             }
         }
+    }
+
+    private func applyPrefill() {
+        guard let product = prefill, name.isEmpty, kcal.isEmpty else {
+            return
+        }
+        name = product.name
+        brand = product.brand ?? ""
+        servingText = Self.text(product.servingGrams)
+        isBeverage = product.isBeverage
+        let n = product.per100g
+        kcal = Self.text(n.kcal)
+        protein = Self.text(n.protein)
+        carbs = Self.text(n.carbs)
+        sugars = Self.text(n.sugars)
+        fat = Self.text(n.fat)
+        saturatedFat = Self.text(n.saturatedFat)
+        fiber = Self.text(n.fiber)
+        salt = Self.text(n.salt)
+        ingredients = product.ingredientsText ?? ""
+        allergens = product.allergens
     }
 
     // MARK: - Photo

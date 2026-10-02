@@ -26,6 +26,36 @@ struct ParsedFoodItem: Identifiable {
     var source: FoodDataSource?
     var barcode: String?
 
+    /// This item at `factor` times its portion: grams and every macro scale
+    /// together (½ → half the rice, half the kcal).
+    func scaled(by factor: Double) -> ParsedFoodItem {
+        guard factor > 0, factor != 1 else {
+            return self
+        }
+        var copy = ParsedFoodItem(
+            id: id,
+            name: name,
+            quantityGrams: quantityGrams * factor,
+            calories: (calories * factor).rounded(),
+            proteinG: (proteinG * factor * 10).rounded() / 10,
+            carbsG: (carbsG * factor * 10).rounded() / 10,
+            fatG: (fatG * factor * 10).rounded() / 10,
+            isVerified: isVerified
+        )
+        copy.source = source
+        copy.barcode = barcode
+        return copy
+    }
+
+    /// This item at exactly `grams`. Unchanged when the original weight is
+    /// unknown (0): there is no density to scale from.
+    func scaled(toGrams grams: Double) -> ParsedFoodItem {
+        guard quantityGrams > 0, grams > 0 else {
+            return self
+        }
+        return scaled(by: grams / quantityGrams)
+    }
+
     /// Formatted portion string using natural portions when available.
     var formattedPortion: String {
         FoodMacroDatabase.formatPortion(food: name, grams: quantityGrams)
@@ -107,8 +137,13 @@ final class NaturalLanguageLoggingService: @unchecked Sendable {
         defer { isProcessing = false }
 
         let response = try await sendParseRequest(text)
-        let (rawItems, mealType, eatenAt) = try parseResponse(response)
+        let (rawItems, modelMealType, modelEatenAt) = try parseResponse(response)
         let verifiedItems = crossReferenceWithDatabase(rawItems)
+        // What the user literally wrote ("at 1pm", "yesterday dinner") beats
+        // the model's guess.
+        let hints = MealTimeHints.parse(text)
+        let mealType = hints.mealType?.rawValue ?? modelMealType
+        let eatenAt = hints.date ?? modelEatenAt
 
         logger.info("Parsed \(verifiedItems.count) food items from: \"\(text.prefix(50))\"; type=\(mealType ?? "nil") at=\(eatenAt?.description ?? "nil")")
 
@@ -172,6 +207,11 @@ final class NaturalLanguageLoggingService: @unchecked Sendable {
         - Separate composite foods into individual items (e.g. "chicken and rice" = two items) so the user can see per-item calories.
         - For oils/dressings/sauces, default to a realistic single-serving size: "olive oil" without quantity = ~10g (1 tbsp). Vinegar = ~5g. A pat of butter = ~7g.
         - If the input mentions a brand or prepared food you cannot verify, estimate from the closest generic food.
+        - For a named restaurant/chain bowl or plate ("chicken kitchen bowl", "burrito bowl", "kebab plate"), \
+          break it into its components and give each one its realistic restaurant portion in `quantityGrams` \
+          (state the weight you assumed, never a tiny tasting-size). A full bowl is usually 550-800g in total and 700-1000 kcal. \
+        - Never shrink a portion to look healthy; when unsure between two sizes pick the larger, typical one.
+        - Time words ("at 1pm", "for lunch", "yesterday dinner") are NOT food: never turn them into items.
         """
 
         var lastError: Error?
@@ -182,7 +222,7 @@ final class NaturalLanguageLoggingService: @unchecked Sendable {
                     model: "haiku",
                     system: system,
                     userMessage: prompt,
-                    maxTokens: 500,
+                    maxTokens: 900,
                     temperature: 0.2,
                     caller: "nl_parse"
                 )

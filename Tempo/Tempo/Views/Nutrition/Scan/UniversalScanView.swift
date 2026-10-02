@@ -35,9 +35,9 @@ struct UniversalScanView: View {
 
     @State
     private var catalog: FoodCatalog?
-    /// Product saved from Label mode, shown on the product page.
+    /// Products carried across mode switches (see `ScanModeMemory`).
     @State
-    private var labelProduct: FoodProduct?
+    private var memory = ScanModeMemory()
     @State
     private var permission = CameraPermission.current(needsLiveScanner: false)
     @State
@@ -91,7 +91,7 @@ struct UniversalScanView: View {
             }
             .onChange(of: mode) { old, _ in
                 previousMode = old
-                labelProduct = nil
+                memory.modeChanged()
                 permission = CameraPermission.current(needsLiveScanner: false)
             }
         }
@@ -168,7 +168,7 @@ struct UniversalScanView: View {
         case let .supplements(shelf, onSaved, lookupService):
             SupplementBarcodeFlow(shelf: shelf, onSaved: onSaved, injectedLookupService: lookupService)
         default:
-            FoodBarcodeFlow(onFood: context.foodCallback)
+            FoodBarcodeFlow(onFood: context.foodCallback, scannedProduct: $memory.scannedProduct)
         }
     }
 
@@ -189,12 +189,25 @@ struct UniversalScanView: View {
     @ViewBuilder
     private var labelContent: some View {
         if let catalog {
-            if let labelProduct {
-                FoodProductView(product: labelProduct, mode: .check, catalog: catalog, recordsView: false)
-                    .id(labelProduct.id)
-            } else {
+            switch memory.labelPage {
+            case let .product(product):
+                FoodProductView(product: product, mode: .check, catalog: catalog, recordsView: false)
+                    .id(product.id)
+            case let .scannedLabel(product):
+                // Label of the product just scanned; photographing a better
+                // label updates that same product.
+                ScannedProductLabelView(
+                    product: product,
+                    catalog: catalog,
+                    onUpdated: { memory.scannedProduct = $0 },
+                    onScanAnother: {
+                        memory.scanAnother()
+                        mode = .barcode
+                    }
+                )
+            case .capture:
                 AddProductView(barcode: nil, catalog: catalog) { product in
-                    labelProduct = product
+                    memory.labelProduct = product
                 }
             }
         }

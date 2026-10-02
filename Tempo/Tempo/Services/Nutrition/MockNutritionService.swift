@@ -224,8 +224,30 @@ final class MockPhotoAnalysisService: PhotoAnalysisServiceProtocol, @unchecked S
                     confidence: 0.88,
                     alternatives: []
                 ),
+                PhotoAnalysisResult.PhotoFoodItem(
+                    id: "photo_4",
+                    name: "Green sauce",
+                    estimatedPortion: "~30g",
+                    calories: 60,
+                    proteinGrams: 1.0,
+                    carbsGrams: 2.0,
+                    fatGrams: 5.5,
+                    confidence: 0.4,
+                    alternatives: [
+                        PhotoAnalysisResult.FoodCandidate(
+                            id: "photo_4_alt_guac",
+                            name: "Guacamole",
+                            estimatedPortion: "~30g",
+                            calories: 50,
+                            proteinGrams: 0.6,
+                            carbsGrams: 2.7,
+                            fatGrams: 4.5,
+                            confidence: 0.35
+                        ),
+                    ]
+                ),
             ],
-            totalCalories: 529,
+            totalCalories: 589,
             totalProtein: 54.3,
             totalCarbs: 58.4,
             totalFat: 7.8,

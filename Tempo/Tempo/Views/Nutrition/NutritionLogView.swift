@@ -167,14 +167,10 @@ struct NutritionLogView: View {
         )) { payload in
             ParsedFoodReviewSheet(
                 items: payload.items,
-                defaultMealType: parsedMealTypeHint
-                    ?? EatenMealRecorder.defaultMealType(for: parsedEatenAtHint ?? Date()),
-                onConfirm: { mealType in
-                    persistParsedItems(
-                        payload.items,
-                        type: mealType,
-                        eatenAt: parsedEatenAtHint ?? Date()
-                    )
+                hintedMealType: parsedMealTypeHint,
+                hintedDate: parsedEatenAtHint,
+                onConfirm: { items, mealType, eatenAt in
+                    persistParsedItems(items, type: mealType, eatenAt: eatenAt)
                 },
                 onCancel: { parsedFoodsForReview = nil }
             )
@@ -758,154 +754,6 @@ struct NutritionLogView: View {
         naturalLanguageInput = ""
         parsedFoodsForReview = nil
         viewModel.loadToday(modelContext: modelContext)
-    }
-}
-
-// MARK: - ParsedFoodReviewPayload
-
-/// Identifiable wrapper so SwiftUI's `.sheet(item:)` can present the
-/// review sheet from a non-Identifiable `[ParsedFoodItem]`. New UUID per
-/// presentation so re-opening the sheet with the same items still fires.
-private struct ParsedFoodReviewPayload: Identifiable {
-    let id = UUID()
-    let items: [ParsedFoodItem]
-}
-
-// MARK: - ParsedFoodReviewSheet
-
-/// User-facing confirmation step between Haiku parsing and DB persistence.
-/// Shows each parsed food row with quantity + macros, plus a meal-type
-/// picker prefilled from time-of-day. Tapping Confirm fires onConfirm
-/// with the user's chosen meal type; Cancel fires onCancel.
-private struct ParsedFoodReviewSheet: View {
-    let items: [ParsedFoodItem]
-    let defaultMealType: MealType
-    let onConfirm: (MealType) -> Void
-    let onCancel: () -> Void
-
-    @State
-    private var selectedMealType: MealType
-
-    /// Set on the first Log tap so a double-tap can't log the meal twice.
-    @State
-    private var didConfirm = false
-
-    @Environment(\.dismiss)
-    private var dismiss
-
-    init(
-        items: [ParsedFoodItem],
-        defaultMealType: MealType,
-        onConfirm: @escaping (MealType) -> Void,
-        onCancel: @escaping () -> Void
-    ) {
-        self.items = items
-        self.defaultMealType = defaultMealType
-        self.onConfirm = onConfirm
-        self.onCancel = onCancel
-        _selectedMealType = State(initialValue: defaultMealType)
-    }
-
-    private var totalCalories: Int {
-        items.reduce(into: 0) { $0 += Int($1.calories) }
-    }
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-                    mealTypePicker
-                    itemList
-                    totalsFooter
-                }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.vertical, TempoSpacing.lg)
-            }
-            .background(Color.tempoBgPrimary)
-            .navigationTitle("Confirm Meal")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        onCancel()
-                        dismiss()
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Log") {
-                        guard !didConfirm else {
-                            return
-                        }
-                        didConfirm = true
-                        onConfirm(selectedMealType)
-                        dismiss()
-                    }
-                    .fontWeight(.semibold)
-                    .disabled(didConfirm)
-                }
-            }
-        }
-    }
-
-    private var mealTypePicker: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("MEAL TYPE")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
-            Picker("Meal type", selection: $selectedMealType) {
-                ForEach(MealType.allCases, id: \.self) { type in
-                    Text(type.displayName).tag(type)
-                }
-            }
-            .pickerStyle(.segmented)
-        }
-    }
-
-    private var itemList: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("PARSED FOODS")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
-            VStack(spacing: TempoSpacing.xs) {
-                ForEach(items) { item in
-                    HStack(alignment: .firstTextBaseline) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(item.name)
-                                .font(.tempoBody)
-                                .foregroundStyle(Color.tempoTextPrimary)
-                            Text(item.formattedPortion)
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextSecondary)
-                        }
-                        Spacer()
-                        Text("\(Int(item.calories)) kcal")
-                            .font(.tempoCaption1.monospacedDigit())
-                            .foregroundStyle(Color.tempoTextPrimary)
-                    }
-                    .padding(.horizontal, TempoSpacing.md)
-                    .padding(.vertical, 10)
-                    .background(Color.tempoBgSecondary)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
-                }
-            }
-        }
-    }
-
-    private var totalsFooter: some View {
-        HStack {
-            Text("TOTAL")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
-            Spacer()
-            Text("\(totalCalories) kcal")
-                .font(.tempoSubheadline)
-                .fontWeight(.semibold)
-                .foregroundStyle(Color.tempoTextPrimary)
-        }
-        .padding(.top, TempoSpacing.sm)
     }
 }
 
