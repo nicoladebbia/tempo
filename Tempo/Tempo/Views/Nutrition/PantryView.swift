@@ -96,11 +96,11 @@ struct PantryView: View {
             if let receiptService = viewModel.receiptService,
                let pantryService = viewModel.pantryService
             {
-                ReceiptCaptureView(
+                UniversalScanView(context: .pantryReceipt(
                     receiptService: receiptService,
                     pantryService: pantryService,
                     onIngested: { viewModel.reapplyPantryToGrocery() }
-                )
+                ))
             } else {
                 Text("Scan unavailable — open the Pantry tab first.")
                     .padding()
@@ -128,11 +128,11 @@ struct PantryView: View {
             PantryVoiceEditView(viewModel: viewModel)
         }
         .fullScreenCover(isPresented: $showBarcodeSheet) {
-            PantryBarcodeScanView { scannedItems in
+            UniversalScanView(context: .pantryBarcode { scannedItems in
                 barcodeStaged = scannedItems
                 showBarcodeSheet = false
                 showManualAddSheet = true
-            }
+            })
         }
         .sheet(item: $editingItem) { item in
             PantryItemEditSheet(item: item, viewModel: viewModel)

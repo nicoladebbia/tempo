@@ -1,10 +1,9 @@
 //
-// SupplementBarcodeScanView.swift
+// SupplementBarcodeFlow.swift
 // Tempo
 //
-// Barcode → supplement shelf. Reuses BarcodeScannerRepresentable (the same
-// VisionKit wrapper BarcodeScannerView/PantryBarcodeScanView use) but hits
-// the supplement lookup endpoint instead of the food catalog. Scan → confirm
+// Barcode mode for the supplement shelf. Uses the shared ScanBarcodeSurface
+// but hits the supplement lookup endpoint instead of the food catalog. Scan → confirm
 // card (brand, name, dose, servings/container, certifications) → Add → Scan
 // another, in a loop until the user taps Done. A hit that matches something
 // already on the shelf (by UPC or name) offers a restock instead of a
@@ -16,9 +15,8 @@
 
 import SwiftData
 import SwiftUI
-import VisionKit
 
-struct SupplementBarcodeScanView: View {
+struct SupplementBarcodeFlow: View {
     /// Non-archived shelf, for duplicate-by-UPC/name detection.
     let shelf: [Supplement]
     /// Called after every add/restock so the caller can persist / refresh.
@@ -45,8 +43,6 @@ struct SupplementBarcodeScanView: View {
     @State private var addedCount = 0
     @State private var manualPrefillUPC: String?
     @State private var showManualAdd = false
-    @State private var showManualEntry = false
-    @State private var manualBarcode = ""
     /// Items inserted during THIS scan session. `shelf` is a snapshot handed
     /// in when the cover was presented and only picks up new adds once the
     /// parent's `@Query` refreshes and re-diffs this cover — not guaranteed
@@ -62,131 +58,65 @@ struct SupplementBarcodeScanView: View {
         case found(SupplementLookupDTO)
         case notFound(upc: String)
         case failed(upc: String, message: String)
-        case unavailable
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color.tempoBgPrimary.ignoresSafeArea()
-                switch scanState {
-                case .scanning:
-                    scannerContent
-                case let .loading(code):
-                    loadingContent(code)
-                case let .duplicate(dto, existing):
-                    duplicateContent(dto: dto, existing: existing)
-                case let .found(dto):
-                    foundContent(dto)
-                case let .notFound(upc):
-                    messageContent(
-                        icon: "barcode.viewfinder",
-                        title: "Not in the database",
-                        message: "Barcode \(upc) isn't recognized yet.",
-                        primaryTitle: "Add manually",
-                        primaryAction: { openManualAdd(prefillUPC: upc) }
-                    )
-                case let .failed(upc, message):
-                    messageContent(
-                        icon: "wifi.exclamationmark",
-                        title: "Couldn't look that up",
-                        message: message,
-                        primaryTitle: "Add manually",
-                        primaryAction: { openManualAdd(prefillUPC: upc) }
-                    )
-                case .unavailable:
-                    messageContent(
-                        icon: "camera.fill",
-                        title: "Camera scanning unavailable",
-                        message: "Add the supplement manually instead.",
-                        primaryTitle: "Add manually",
-                        primaryAction: { openManualAdd(prefillUPC: nil) }
-                    )
+        ZStack {
+            Color.tempoBgPrimary.ignoresSafeArea()
+            switch scanState {
+            case .scanning:
+                ScanBarcodeSurface(
+                    prompt: "Point at the label's barcode",
+                    detail: addedCount > 0 ? "\(addedCount) added — scan another or tap Done" : nil,
+                    fallbackActions: [ScanFallbackAction(title: "Add manually") { openManualAdd(prefillUPC: nil) }]
+                ) { barcode in
+                    lookUp(barcode)
                 }
-            }
-            .navigationTitle("Scan Barcode")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(addedCount == 0 ? "Done" : "Done (\(addedCount))") {
-                        dismiss()
-                    }
-                    .fontWeight(.semibold)
-                }
-            }
-            .alert("Type the barcode", isPresented: $showManualEntry) {
-                TextField("e.g. 8000500310427", text: $manualBarcode)
-                    .keyboardType(.numberPad)
-                Button("Look up") {
-                    let code = manualBarcode
-                    manualBarcode = ""
-                    lookUp(code)
-                }
-                Button("Cancel", role: .cancel) { manualBarcode = "" }
-            } message: {
-                Text("The numbers under the barcode.")
-            }
-            .sheet(isPresented: $showManualAdd) {
-                SupplementEditSheet(existing: nil, prefillUPC: manualPrefillUPC) { draft in
-                    modelContext.insert(draft)
-                    try? modelContext.save()
-                    sessionAdditions.append(draft)
-                    onSaved()
-                    addedCount += 1
-                    resetScanner()
-                }
-            }
-            .onAppear {
-                if !DataScannerViewController.isSupported || !DataScannerViewController.isAvailable {
-                    scanState = .unavailable
-                }
-            }
-            .task {
-                await network.monitor()
+            case let .loading(code):
+                loadingContent(code)
+            case let .duplicate(dto, existing):
+                duplicateContent(dto: dto, existing: existing)
+            case let .found(dto):
+                foundContent(dto)
+            case let .notFound(upc):
+                messageContent(
+                    icon: "barcode.viewfinder",
+                    title: "Not in the database",
+                    message: "Barcode \(upc) isn't recognized yet.",
+                    primaryTitle: "Add manually",
+                    primaryAction: { openManualAdd(prefillUPC: upc) }
+                )
+            case let .failed(upc, message):
+                messageContent(
+                    icon: "wifi.exclamationmark",
+                    title: "Couldn't look that up",
+                    message: message,
+                    primaryTitle: "Add manually",
+                    primaryAction: { openManualAdd(prefillUPC: upc) }
+                )
             }
         }
-    }
-
-    // MARK: - Scanning
-
-    private var scannerContent: some View {
-        ZStack {
-            BarcodeScannerRepresentable { barcode in
-                lookUp(barcode)
-            }
-            .ignoresSafeArea()
-
-            VStack {
-                Spacer()
-                RoundedRectangle(cornerRadius: TempoRadius.xxxxl, style: .continuous)
-                    .strokeBorder(Color.tempoSignal, lineWidth: 3)
-                    .frame(width: 280, height: 180)
-                Spacer()
-                VStack(spacing: TempoSpacing.sm) {
-                    Text("Point at the label's barcode")
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoBone)
-                    if addedCount > 0 {
-                        Text("\(addedCount) added — scan another or tap Done")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoBone.opacity(0.8))
-                    }
-                    Button("Type the barcode instead") {
-                        showManualEntry = true
-                    }
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoSignal)
-                    .padding(.top, TempoSpacing.xs)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(addedCount == 0 ? "Done" : "Done (\(addedCount))") {
+                    dismiss()
                 }
-                .padding(.horizontal, TempoSpacing.xxl)
-                .padding(.vertical, TempoSpacing.lg)
-                .background(Color.tempoInk.opacity(0.8))
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
-                .padding(.bottom, TempoSpacing.xxxxl)
+                .fontWeight(.semibold)
+                .accessibilityIdentifier("scanDone")
             }
+        }
+        .sheet(isPresented: $showManualAdd) {
+            SupplementEditSheet(existing: nil, prefillUPC: manualPrefillUPC) { draft in
+                modelContext.insert(draft)
+                try? modelContext.save()
+                sessionAdditions.append(draft)
+                onSaved()
+                addedCount += 1
+                resetScanner()
+            }
+        }
+        .task {
+            await network.monitor()
         }
     }
 
@@ -415,8 +345,5 @@ struct SupplementBarcodeScanView: View {
 
     private func resetScanner() {
         scanState = .scanning
-        if !DataScannerViewController.isSupported || !DataScannerViewController.isAvailable {
-            scanState = .unavailable
-        }
     }
 }

@@ -109,13 +109,17 @@ struct NutritionLogView: View {
             .padding(.bottom, TempoSpacing.bottomSafe)
         }
         .sheet(isPresented: $showPhotoAnalysis) {
-            PhotoAnalysisView { items in
-                // Stash the confirmed photo foods. quantityGrams is best-effort
-                // (vision portions like "1 cup" / "diced" aren't reliably
-                // grams) — it only drives the serving-size display; calories +
-                // macros are the payload and carry through exactly.
-                foodsPendingReview = items.map(Self.parsedFood(from:))
-            }
+            UniversalScanView(
+                context: .logMeal(
+                    onFood: { item in foodsPendingReview = [Self.parsedFood(from: item)] },
+                    // Stash the confirmed photo foods. quantityGrams is best-effort
+                    // (vision portions like "1 cup" / "diced" aren't reliably
+                    // grams) — it only drives the serving-size display; calories +
+                    // macros are the payload and carry through exactly.
+                    onMealPhoto: { items in foodsPendingReview = items.map(Self.parsedFood(from:)) }
+                ),
+                initialMode: .mealPhoto
+            )
             .onDisappear {
                 presentPendingReview()
                 viewModel.loadToday(modelContext: modelContext)
@@ -129,9 +133,13 @@ struct NutritionLogView: View {
             // Meal sheet first). The scanned product lands in the same review
             // sheet as Quick Log / Photo, so the user picks the meal type and
             // it's saved through the same path.
-            BarcodeScannerView { item in
-                foodsPendingReview = [Self.parsedFood(from: item)]
-            }
+            UniversalScanView(
+                context: .logMeal(
+                    onFood: { item in foodsPendingReview = [Self.parsedFood(from: item)] },
+                    onMealPhoto: { items in foodsPendingReview = items.map(Self.parsedFood(from:)) }
+                ),
+                initialMode: .barcode
+            )
             .onDisappear {
                 presentPendingReview()
             }
