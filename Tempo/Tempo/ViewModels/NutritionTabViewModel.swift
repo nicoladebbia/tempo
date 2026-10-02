@@ -17,8 +17,22 @@ enum NutritionSection: String, CaseIterable, Identifiable {
     case today = "Today"
     case plan = "Plan"
     case log = "Log"
+    case kitchen = "Kitchen"
     case coach = "Coach"
+
+    var id: String {
+        rawValue
+    }
+}
+
+// MARK: - KitchenSection
+
+/// Sub-sections inside the Kitchen tab. Pantry is the default.
+enum KitchenSection: String, CaseIterable, Identifiable {
     case pantry = "Pantry"
+    case groceries = "Groceries"
+    case receipts = "Receipts"
+    case supplements = "Supplements"
 
     var id: String {
         rawValue
@@ -75,7 +89,6 @@ final class NutritionTabViewModel {
     var receiptService: (any ReceiptServiceProtocol)?
     var recipeService: (any RecipeServiceProtocol)?
     var groceryService: (any GroceryListServiceProtocol)?
-    var intelligence: NutritionIntelligenceService?
     /// AI batch price estimator for grocery items with no purchase history —
     /// see NutritionTabViewModel+GroceryAdvanced.swift.
     var groceryPriceAIService: GroceryPriceAIService?
@@ -128,6 +141,22 @@ final class NutritionTabViewModel {
 
     private(set) var loadState: NutritionLoadState = .loading
     var selectedTab: NutritionSection = .today
+    /// Which part of Kitchen is showing (Pantry unless something routed elsewhere).
+    var selectedKitchen: KitchenSection = .pantry
+    /// Set by the Today "Quick Log" button; the Log tab focuses its field and clears it.
+    var focusQuickLogRequested = false
+
+    /// Deep link into a Kitchen sub-section (e.g. the pantry-gap alert → Groceries).
+    func openKitchen(_ section: KitchenSection) {
+        selectedKitchen = section
+        selectedTab = .kitchen
+    }
+
+    /// Jumps to the Log tab with the Quick Log field focused.
+    func openQuickLog() {
+        focusQuickLogRequested = true
+        selectedTab = .log
+    }
 
     // MARK: - Data
 
@@ -303,17 +332,6 @@ final class NutritionTabViewModel {
         }
         let context = SupplementDayContext.build(date: Date(), modelContext: modelContext)
         return SupplementScheduleEngine.schedule(supplements: supplements, context: context)
-    }
-
-    /// Names of supplements the user marked TAKEN today (start-of-day keyed).
-    /// Drives the checkmark state on the Today supplement card.
-    func takenSupplementsToday(modelContext: ModelContext) -> Set<String> {
-        let today = Calendar.current.startOfDay(for: Date())
-        let descriptor = FetchDescriptor<SupplementIntakeLog>(
-            predicate: #Predicate<SupplementIntakeLog> { $0.day == today }
-        )
-        let rows = (try? modelContext.fetch(descriptor)) ?? []
-        return Set(rows.map(\.supplementName))
     }
 
     /// IDs of shelf supplements marked TAKEN today. The Today card keys its
@@ -712,16 +730,6 @@ final class NutritionTabViewModel {
     }
 
     // MARK: - Presets
-
-    func savePreset(name: String, items: [PlannedFood], mealType: MealType, modelContext: ModelContext) {
-        guard let preset = try? MealOutcomeService.savePreset(
-            name: name, foods: items, mealType: mealType, modelContext: modelContext
-        ) else {
-            return
-        }
-        presets.append(preset)
-        HapticManager.notification(.success)
-    }
 
     /// "Save as preset" on a logged meal. False when it has no foods or the
     /// save failed.

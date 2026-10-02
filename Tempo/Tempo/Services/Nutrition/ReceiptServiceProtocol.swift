@@ -33,10 +33,6 @@ protocol ReceiptServiceProtocol: Sendable {
     /// Fetch all receipts (most-recent first).
     func fetchAll() throws -> [Receipt]
 
-    /// Update a single line item (typically: user-edited canonical name / quantity / unit).
-    /// Sets the line's userConfirmed flag to true.
-    func confirmLineItem(_ line: ReceiptLineItem) throws
-
     /// Ingest every confirmed line item on a receipt into the pantry.
     /// Skips lines that have already been ingested (linkedPantryItemID != nil).
     /// Marks the receipt status as .confirmed when all lines are ingested.

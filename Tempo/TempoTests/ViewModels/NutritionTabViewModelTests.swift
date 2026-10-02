@@ -340,17 +340,22 @@ final class NutritionTabViewModelTests: XCTestCase {
 
     // MARK: - Supplement "taken" toggle (idempotent)
 
+    private func takenSupplementNames(_ ctx: ModelContext) -> Set<String> {
+        let rows = (try? ctx.fetch(FetchDescriptor<SupplementIntakeLog>())) ?? []
+        return Set(rows.map(\.supplementName))
+    }
+
     func testToggleSupplementTaken_insertsThenDeletes() {
         let ctx = container.mainContext
-        XCTAssertFalse(viewModel.takenSupplementsToday(modelContext: ctx).contains("Creatine"))
+        XCTAssertFalse(takenSupplementNames(ctx).contains("Creatine"))
 
         // First tap → taken.
         viewModel.toggleSupplementTaken(name: "Creatine", modelContext: ctx)
-        XCTAssertTrue(viewModel.takenSupplementsToday(modelContext: ctx).contains("Creatine"))
+        XCTAssertTrue(takenSupplementNames(ctx).contains("Creatine"))
 
         // Second tap → undone (idempotent, no orphan rows).
         viewModel.toggleSupplementTaken(name: "Creatine", modelContext: ctx)
-        XCTAssertFalse(viewModel.takenSupplementsToday(modelContext: ctx).contains("Creatine"))
+        XCTAssertFalse(takenSupplementNames(ctx).contains("Creatine"))
 
         let rows = (try? ctx.fetch(FetchDescriptor<SupplementIntakeLog>())) ?? []
         XCTAssertTrue(rows.isEmpty, "Toggle off must leave NO rows")
@@ -360,12 +365,12 @@ final class NutritionTabViewModelTests: XCTestCase {
         let ctx = container.mainContext
         viewModel.toggleSupplementTaken(name: "Creatine", modelContext: ctx)
         viewModel.toggleSupplementTaken(name: "Whey", modelContext: ctx)
-        let taken = viewModel.takenSupplementsToday(modelContext: ctx)
+        let taken = takenSupplementNames(ctx)
         XCTAssertTrue(taken.contains("Creatine"))
         XCTAssertTrue(taken.contains("Whey"))
 
         viewModel.toggleSupplementTaken(name: "Creatine", modelContext: ctx)
-        let after = viewModel.takenSupplementsToday(modelContext: ctx)
+        let after = takenSupplementNames(ctx)
         XCTAssertFalse(after.contains("Creatine"))
         XCTAssertTrue(after.contains("Whey"), "Toggling one must not affect the other")
     }

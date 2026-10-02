@@ -77,3 +77,18 @@ extension APIEndpoint where Response == NutritionProxyTextResponse {
         APIEndpoint(path: "/v1/nutrition/ai/proxy/vision", method: .post)
     }
 }
+
+// MARK: - Backend-only explain / suggest responses
+
+// iOS no longer calls POST /v1/nutrition/ai/explain-adjustment or
+// /suggest-meal (their client service was removed as dead code), but the
+// backend still serves them and writes golden files that APIContractTests
+// decodes. Keep these two response shapes so that contract stays checked.
+
+struct NutritionAIExplainResponse: Codable, Sendable {
+    let message: String
+}
+
+struct NutritionAISuggestResponse: Codable, Sendable {
+    let message: String
+}

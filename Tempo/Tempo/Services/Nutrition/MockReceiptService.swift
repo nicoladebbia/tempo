@@ -88,10 +88,6 @@ final class MockReceiptService: ReceiptServiceProtocol {
         receipts
     }
 
-    func confirmLineItem(_ line: ReceiptLineItem) throws {
-        line.userConfirmed = true
-    }
-
     func ingestConfirmedLines(of receipt: Receipt, into pantry: any PantryServiceProtocol) throws {
         let confirmed = receipt.orderedLineItems.filter { $0.userConfirmed && !$0.isIngested }
         guard !confirmed.isEmpty else {
