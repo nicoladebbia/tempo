@@ -19,6 +19,9 @@ struct FuelSetupView: View {
     var onSaveAndGenerate: ((DietaryProfile) -> Void)?
     /// Pushed inside an existing navigation stack (Settings) instead of a sheet.
     var embedded = false
+    /// "Edit setup" entries: open straight on the review/edit screen, even if
+    /// something is still missing, instead of the talk step.
+    var startInReview = false
 
     @Environment(\.dismiss)
     private var dismiss
@@ -94,8 +97,9 @@ struct FuelSetupView: View {
             hasLoaded = true
             draft = FuelSetupDraft.load(from: modelContext)
             // Someone who already set things up lands on the editor.
-            if draft.routine.typicalWakeMinutes != nil, draft.goal != nil,
-               UserDailyPlanProfile.current(in: modelContext)?.weeklyRoutine != nil
+            if startInReview
+                || (draft.routine.typicalWakeMinutes != nil && draft.goal != nil
+                    && UserDailyPlanProfile.current(in: modelContext)?.weeklyRoutine != nil)
             {
                 step = .review
             }

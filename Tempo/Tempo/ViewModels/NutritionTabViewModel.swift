@@ -1067,6 +1067,16 @@ final class NutritionTabViewModel {
         // instead of bare .default, so a quick regen respects their real
         // cooking days / leftover style / eating window / exclusions.
         let settingsForIntake = Self.loadUserSettings(modelContext: modelContext)
+        // One permanent "won't eat" list (DietaryProfile.dislikedFoods): fold
+        // in the retired AI Meals exclusions before the plan reads them.
+        if let settingsForIntake {
+            let activeProfile = (try? modelContext.fetch(
+                FetchDescriptor<DietaryProfile>(predicate: #Predicate { $0.isActive == true })
+            ))?.first
+            if MealPlanIntake.migrateLegacyExclusions(settings: settingsForIntake, profile: activeProfile) {
+                try? modelContext.save()
+            }
+        }
         let intakeSource: String
         var enrichedIntake: MealPlanIntake
         if let intake {

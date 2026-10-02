@@ -50,6 +50,8 @@ struct FuelSetupReviewView: View {
             foodSection
             eatingSection
             cookingSection
+            kitchenSection
+            focusSection
             weekSection
             placesSection
 
@@ -155,10 +157,11 @@ struct FuelSetupReviewView: View {
             listRow("Allergies", values: $draft.allergies)
             listRow("Won't eat", values: $draft.dislikedFoods)
             listRow("Love", values: $draft.favoriteFoods)
+            listRow("Bored of", values: $draft.boredOfFoods)
         } header: {
             Text("Food")
         } footer: {
-            Text("Separate items with commas.")
+            Text("Separate items with commas. \"Won't eat\" is permanent: the plan never uses it. The plan builder only asks about this week.")
         }
     }
 
@@ -206,6 +209,55 @@ struct FuelSetupReviewView: View {
             }
             numberRow("Weekly food budget", value: intBinding(\.weeklyBudgetUSD), unit: "$", id: "fuelBudget")
             listRow("Stores", values: $draft.stores)
+        }
+    }
+
+    private var kitchenSection: some View {
+        Section {
+            ForEach(KitchenApplianceKind.allCases, id: \.self) { kind in
+                Toggle(isOn: Binding(
+                    get: { draft.equipment[kind.rawValue] ?? kind.seededAvailable },
+                    set: { draft.equipment[kind.rawValue] = $0 }
+                )) {
+                    Label {
+                        Text(kind.displayName)
+                    } icon: {
+                        Image(systemName: kind.icon)
+                            .foregroundStyle(Color.tempoSignal)
+                    }
+                }
+                .tint(Color.tempoSignal)
+            }
+        } header: {
+            Text("Kitchen equipment")
+        } footer: {
+            Text("The planner only programs recipes you can make with these.")
+        }
+    }
+
+    private var focusSection: some View {
+        Section {
+            Toggle(isOn: $draft.recoveryAdjusted) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Recovery-adjust meals")
+                    Text("More carbs on training days, lighter on rest days, using your recovery data.")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                }
+            }
+            .tint(Color.tempoSignal)
+            Toggle(isOn: $draft.clearSkinFocus) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Clear-skin / low-dairy focus")
+                    Text("Low-GI carbs, no added sweeteners, minimal dairy. Macro targets stay the same.")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                }
+            }
+            .tint(Color.tempoSignal)
+            .accessibilityIdentifier("fuelClearSkin")
+        } header: {
+            Text("Focus")
         }
     }
 

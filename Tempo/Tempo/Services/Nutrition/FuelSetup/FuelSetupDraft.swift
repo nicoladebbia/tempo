@@ -32,6 +32,10 @@ struct FuelSetupDraft: Equatable, Sendable {
     var allergies: [String] = []
     var dislikedFoods: [String] = []
     var favoriteFoods: [String] = []
+    /// Foods the user is tired of (planner rotates them down, not out).
+    var boredOfFoods: [String] = []
+    /// Low-GI / low-dairy skin focus (`ClearSkinFocusSetting`).
+    var clearSkinFocus = false
 
     // Eating pattern
     var mealsPerDay: Int?
@@ -45,6 +49,12 @@ struct FuelSetupDraft: Equatable, Sendable {
     var cookMinutesWeekend: Int?
     var cookableDaysPerWeek: Int?
     var leftoverTolerance: LeftoverTolerance?
+    /// Appliances at home, `KitchenApplianceKind.rawValue` → owned. Empty
+    /// until loaded; the planner only programs recipes these can make.
+    var equipment: [String: Bool] = [:]
+    /// Shift fuel toward training days using recovery data (permanent
+    /// default; the plan wizard can override it for one week).
+    var recoveryAdjusted = false
 
     // Shopping
     var weeklyBudgetUSD: Int?
@@ -136,6 +146,11 @@ struct FuelSetupDraft: Equatable, Sendable {
     /// AI left out (`returnedDays`, Mon=1).
     func adopting(_ updated: FuelSetupDraft, returnedDays: Set<Int>) -> FuelSetupDraft {
         var out = updated
+        // Not on the wire: the AI can't see or change these, keep ours.
+        out.boredOfFoods = boredOfFoods
+        out.clearSkinFocus = clearSkinFocus
+        out.equipment = equipment
+        out.recoveryAdjusted = recoveryAdjusted
         out.routine = routine.adopting(updated.routine, returnedDays: returnedDays)
         return out
     }
@@ -236,6 +251,7 @@ extension FuelSetupDraft {
             draft.allergies = profile.allergies
             draft.dislikedFoods = profile.dislikedFoods
             draft.favoriteFoods = profile.favoriteFoods
+            draft.boredOfFoods = profile.boredOfFoods
             draft.cookingSkill = profile.cookingSkill
             draft.trainingDaysPerWeek = profile.trainingFrequency
         }
@@ -258,6 +274,12 @@ extension FuelSetupDraft {
             }
         }
         if let settings {
+            // One "won't eat" list: fold in the retired AI Meals exclusions.
+            if MealPlanIntake.migrateLegacyExclusions(settings: settings, profile: profile) {
+                draft.dislikedFoods = profile?.dislikedFoods ?? draft.dislikedFoods
+                try? context.save()
+            }
+            draft.recoveryAdjusted = settings.mealIntakeRecoveryAdjusted
             draft.mealsPerDay = settings.mealsPerDayPreference
             draft.cookMinutesWeekday = settings.cookTimeWeekdayMins
             draft.cookMinutesWeekend = settings.cookTimeWeekendMins
@@ -274,6 +296,11 @@ extension FuelSetupDraft {
                 }
             }
         }
+        let rows = (try? context.fetch(FetchDescriptor<KitchenEquipment>())) ?? []
+        for kind in KitchenApplianceKind.allCases {
+            draft.equipment[kind.rawValue] = rows.first { $0.kindRaw == kind.rawValue }?.isAvailable ?? kind.seededAvailable
+        }
+        draft.clearSkinFocus = ClearSkinFocusSetting.resolve(modelContext: context)
         return draft
     }
 
@@ -311,6 +338,7 @@ extension FuelSetupDraft {
         profile.allergies = allergies
         profile.dislikedFoods = dislikedFoods
         profile.favoriteFoods = favoriteFoods
+        profile.boredOfFoods = boredOfFoods
         if let cookingSkill {
             profile.cookingSkill = cookingSkill
         }
@@ -357,6 +385,10 @@ extension FuelSetupDraft {
                 settings.mealIntakeTempCookableDays = nil
             }
             settings.mealIntakeCookableDays = cookableDaysPerWeek ?? settings.mealIntakeCookableDays
+            settings.mealIntakeRecoveryAdjusted = recoveryAdjusted
+            // "Won't eat" has one home (DietaryProfile.dislikedFoods, above);
+            // the retired AI Meals list must not come back.
+            settings.mealIntakeExclusionsRaw = ""
             if let leftoverTolerance {
                 settings.mealIntakeLeftoverToleranceRaw = leftoverTolerance.rawValue
             }
@@ -372,6 +404,24 @@ extension FuelSetupDraft {
             }
             settings.updatedAt = now
         }
+
+        if !equipment.isEmpty {
+            let rows = (try? context.fetch(FetchDescriptor<KitchenEquipment>())) ?? []
+            for kind in KitchenApplianceKind.allCases {
+                guard let owned = equipment[kind.rawValue] else {
+                    continue
+                }
+                if let row = rows.first(where: { $0.kindRaw == kind.rawValue }) {
+                    if row.isAvailable != owned {
+                        row.isAvailable = owned
+                        row.updatedAt = now
+                    }
+                } else {
+                    context.insert(KitchenEquipment(kind: kind, isAvailable: owned, updatedAt: now))
+                }
+            }
+        }
+        ClearSkinFocusSetting.setEnabled(clearSkinFocus)
 
         try? context.save()
         NotificationCenter.default.post(name: .tempoDietaryProfileChanged, object: nil)
