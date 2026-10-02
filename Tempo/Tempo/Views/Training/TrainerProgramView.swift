@@ -33,6 +33,8 @@ struct TrainerProgramView: View {
     private var pendingDelete: TrainerProgram?
     @State
     private var pendingActivate: TrainerProgram?
+    @State
+    private var pendingPause: TrainerProgram?
     /// Fix #8 — "send report to trainer" (TrainerReportSheet.swift, new file).
     @State
     private var reportProgram: TrainerProgram?
@@ -214,6 +216,22 @@ struct TrainerProgramView: View {
             }
         } message: { _ in
             Text("This replaces your current active program (if any). Tempo regenerates the week from it.")
+        }
+        .confirmationDialog(
+            "Pause this program?",
+            isPresented: Binding(get: { pendingPause != nil }, set: {
+                if !$0 {
+                    pendingPause = nil
+                }
+            }),
+            titleVisibility: .visible,
+            presenting: pendingPause
+        ) { program in
+            Button("Pause \"\(program.name)\"") {
+                TrainerProgramSaver.deactivate(program, modelContext: modelContext)
+            }
+        } message: { _ in
+            Text("It moves to Past programs and Tempo stops planning from it. Run it again any time. Your history stays.")
         }
     }
 
@@ -413,7 +431,7 @@ struct TrainerProgramView: View {
                 .buttonStyle(.tempoSecondary)
 
                 Button {
-                    TrainerProgramSaver.deactivate(program, modelContext: modelContext)
+                    pendingPause = program
                 } label: {
                     Label("Pause", systemImage: "pause.circle")
                         .lineLimit(1)
