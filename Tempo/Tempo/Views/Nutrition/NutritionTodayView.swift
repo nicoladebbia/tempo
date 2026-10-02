@@ -71,6 +71,7 @@ struct NutritionTodayView: View {
                 macroRingsSection
                 UseUpSoonCard(viewModel: viewModel)
                 calorieProgressSection
+                WaterCardView()
                 supplementsCard
                 SupplementReorderBanner()
                 mealsListSection
@@ -476,6 +477,7 @@ struct NutritionTodayView: View {
                         onSavePreset: { beginSavePreset(meal) },
                         onReviewTap: { feedbackMeal = meal },
                         needsReview: meal.status == .eaten
+                            && !EatenMealRecorder.isSupplementDose(meal)
                             && !(viewModel.feedbackPresence[meal.id] ?? false)
                     )
                     .swipeToDelete(

@@ -51,7 +51,9 @@ final class TempoNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
             await open(.nutrition)
             await syncPlans()
         case ("MEAL_REMINDER", "DELAY_30MIN"):
-            await snooze(title: title, body: body, category: category, minutes: 30, mealID: mealID)
+            let snoozedBody = (content.userInfo[NotificationService.mealNameUserInfoKey] as? String)
+                .map { "Time for \($0). Don't skip it." } ?? body
+            await snooze(title: title, body: snoozedBody, category: category, minutes: 30, mealID: mealID)
         case ("OVERDUE_MEAL_REMINDER", NotificationService.overdueAteActionID):
             await resolveOverdueMeal(content.userInfo[NotificationService.mealIDUserInfoKey] as? String, ate: true)
         case ("OVERDUE_MEAL_REMINDER", NotificationService.overdueSkippedActionID):

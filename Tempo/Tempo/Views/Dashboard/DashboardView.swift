@@ -653,7 +653,7 @@ struct DashboardView: View {
 
     /// Small water bar under the macros: saved ml of today's target.
     private func waterBar(_ data: FuelQuadrantData) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
             HStack {
                 Image(systemName: "drop.fill")
                     .font(.system(size: 9))

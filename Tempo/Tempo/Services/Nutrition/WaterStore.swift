@@ -52,6 +52,20 @@ final class WaterStore {
         return (try? context.fetch(descriptor)) ?? []
     }
 
+    // MARK: - Health queue
+
+    /// Health writes run one after another, so an Undo tapped right after an
+    /// add deletes the sample instead of racing ahead of its write.
+    private static var lastHealthOp: Task<Void, Never>?
+
+    private static func enqueueHealth(_ operation: @escaping @MainActor () async -> Void) {
+        let previous = lastHealthOp
+        lastHealthOp = Task {
+            await previous?.value
+            await operation()
+        }
+    }
+
     // MARK: - Writes
 
     /// Saves `ml` (1...maxEntryMl) and writes it to Health. Returns the new
@@ -73,7 +87,7 @@ final class WaterStore {
         if let healthKit {
             let id = log.healthSyncID
             let amount = Double(ml)
-            Task {
+            Self.enqueueHealth {
                 do {
                     try await healthKit.writeWater(ml: amount, date: date, syncIdentifier: id)
                 } catch {
@@ -116,7 +130,7 @@ final class WaterStore {
             return false
         }
         if let healthKit {
-            Task {
+            Self.enqueueHealth {
                 do {
                     try await healthKit.deleteNutrition(syncIdentifier: syncID)
                 } catch {

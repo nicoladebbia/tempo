@@ -187,6 +187,7 @@ enum EatenMealRecorder {
         macros: MealMacros,
         takenAt: Date = Date(),
         day: Date = Date(),
+        id: UUID? = nil,
         in modelContext: ModelContext
     ) -> UUID {
         let timeFormatter = DateFormatter()
@@ -208,6 +209,9 @@ enum EatenMealRecorder {
             actualEatenAt: takenAt,
             mealPlan: Calendar.current.isDateInToday(day) ? activePlanCoveringToday(in: modelContext) : nil
         )
+        if let id {
+            meal.id = id
+        }
         meal.markAsUnplannedLog()
         modelContext.insert(meal)
         return meal.id

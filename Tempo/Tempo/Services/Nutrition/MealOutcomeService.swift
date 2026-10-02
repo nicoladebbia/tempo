@@ -131,6 +131,9 @@ enum MealOutcomeService {
         let feel: MealFeel?
         let satiety: MealSatiety?
         let substituteNote: String?
+        /// A ticked supplement's own entry: restored as that entry (same id,
+        /// so un-ticking still finds it), never as a slot-matched snack.
+        var isSupplementDose = false
     }
 
     // MARK: - Mark eaten
@@ -354,7 +357,8 @@ enum MealOutcomeService {
             replacedPlannedDish: meal.replacedPlan != nil,
             feel: feedback.first?.mealFeel,
             satiety: feedback.first?.satiety,
-            substituteNote: feedback.first?.substituteNote
+            substituteNote: feedback.first?.substituteNote,
+            isSupplementDose: EatenMealRecorder.isSupplementDose(meal)
         )
         logger.info("[Diag.Undo] \(meal.mealName, privacy: .private) \(meal.status.rawValue, privacy: .public) → \(removing ? "removed" : "planned", privacy: .public)")
 
@@ -414,6 +418,22 @@ enum MealOutcomeService {
         let ctx = env.modelContext
         let type = MealType.inferred(fromName: snapshot.mealName) ?? .snack
         switch snapshot.kind {
+        case .removed where snapshot.isSupplementDose:
+            let macros = MealMacros(
+                calories: snapshot.foods.reduce(0.0) { $0 + $1.calories },
+                protein: snapshot.foods.reduce(0.0) { $0 + $1.proteinG },
+                carbs: snapshot.foods.reduce(0.0) { $0 + $1.carbsG },
+                fat: snapshot.foods.reduce(0.0) { $0 + $1.fatG }
+            )
+            EatenMealRecorder.recordSupplementDose(
+                name: snapshot.foods.first?.name ?? EatenMealRecorder.supplementsMealName,
+                macros: macros,
+                takenAt: snapshot.eatenAt,
+                day: snapshot.eatenAt,
+                id: snapshot.mealID,
+                in: ctx
+            )
+            try save(ctx)
         case .removed:
             // `now: eatenAt` puts a past day's log back on that day, not today.
             let result = try EatenMealRecorder.record(

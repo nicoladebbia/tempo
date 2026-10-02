@@ -121,4 +121,22 @@ final class SupplementMacrosTests: XCTestCase {
         XCTAssertEqual(SupplementQuickAddCatalog.items.first { $0.name == "Collagen" }?.proteinGrams, 9)
         XCTAssertNotNil(SupplementQuickAddCatalog.items.first { $0.name == "Mass Gainer" })
     }
+
+    func testDeleteThenUndoRestoresTheSameEntrySoUntickStillRemovesIt() throws {
+        let s = whey()
+        SupplementIntakeStore.toggle(supplementID: s.id, name: s.name, in: ctx)
+        let entry = try XCTUnwrap(CanonicalMeals.meals(on: Date(), in: ctx).first)
+        let env = MealOutcomeService.Env(modelContext: ctx)
+        let snapshot = try MealOutcomeService.deleteLog(entry, env: env)
+        XCTAssertEqual(eatenTotals(), .zero)
+
+        try MealOutcomeService.restore(snapshot, env: env)
+        let restored = try XCTUnwrap(CanonicalMeals.meals(on: Date(), in: ctx).first)
+        XCTAssertTrue(EatenMealRecorder.isSupplementDose(restored), "Comes back as the Supplements entry, not a snack")
+        XCTAssertEqual(restored.id, snapshot.mealID)
+        XCTAssertEqual(eatenTotals().protein, 24)
+
+        SupplementIntakeStore.toggle(supplementID: s.id, name: s.name, in: ctx)
+        XCTAssertEqual(eatenTotals(), .zero, "Unticking after the undo still takes the macros out")
+    }
 }

@@ -43,7 +43,7 @@ struct WaterCardView: View {
             HStack {
                 HStack(spacing: TempoSpacing.sm) {
                     Image(systemName: "drop.fill")
-                        .font(.system(size: 14))
+                        .font(.tempoSubheadline)
                         .foregroundStyle(Color.tempoElectric)
                     Text("WATER")
                         .font(.tempoModuleTag)
@@ -52,7 +52,7 @@ struct WaterCardView: View {
                 }
                 Spacer()
                 Text("\(totalMl) / \(target) ml")
-                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                    .font(.tempoDataSmall)
                     .foregroundStyle(totalMl >= target ? Color.tempoSuccess : Color.tempoTextPrimary)
                     .contentTransition(.numericText())
                     .accessibilityIdentifier("water.total")
@@ -80,7 +80,7 @@ struct WaterCardView: View {
                         undo()
                     } label: {
                         Label("Undo \(lastEntryMl)", systemImage: "arrow.uturn.backward")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.tempoCaption1.weight(.semibold))
                             .foregroundStyle(Color.tempoTextSecondary)
                     }
                     .buttonStyle(.plain)
@@ -111,10 +111,10 @@ struct WaterCardView: View {
             HapticManager.lightImpact()
         } label: {
             Text(title)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.tempoCaption1.weight(.semibold))
                 .foregroundStyle(Color.tempoElectric)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
+                .padding(.horizontal, TempoSpacing.md)
+                .padding(.vertical, TempoSpacing.xs)
                 .background(Color.tempoElectric.opacity(0.12))
                 .clipShape(Capsule())
         }
@@ -179,7 +179,7 @@ private struct CustomWaterSheet: View {
                 TextField("330", text: $text)
                     .keyboardType(.numberPad)
                     .focused($focused)
-                    .font(.system(size: 32, weight: .bold, design: .monospaced))
+                    .font(.tempoTimerDisplaySmall)
                     .multilineTextAlignment(.center)
                     .accessibilityIdentifier("water.customField")
                 Text("ml")

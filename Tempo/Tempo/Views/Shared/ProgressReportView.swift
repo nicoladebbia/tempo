@@ -181,7 +181,7 @@ struct ProgressReportView: View {
         ) ?? Date()
         stats.mealsLogged = EatenMealHistory.fetch(
             from: windowStart, to: windowEnd, in: modelContext
-        ).count
+        ).count(where: { !EatenMealRecorder.isSupplementDose($0) })
 
         // Best streak (all time)
         let streakDescriptor = FetchDescriptor<Streak>()

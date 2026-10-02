@@ -46,6 +46,9 @@ struct FuelSetupView: View {
     private var answers: [String: String] = [:]
     @State
     private var errorMessage: String?
+    /// Set when the AI can't run at all (no Pro / AI off) — shows the fix card.
+    @State
+    private var blocker: AIBlocker?
     /// The in-flight AI call — cancelled if the sheet goes away mid-thought.
     @State
     private var extraction: Task<Void, Never>?
@@ -121,7 +124,12 @@ struct FuelSetupView: View {
                 promptList
                 VoiceTextField(text: $said, placeholder: "Tap the mic and start talking — or type here.", minHeight: 180)
                     .accessibilityIdentifier("fuelSetupSaid")
-                if let errorMessage {
+                if let blocker {
+                    AIBlockerCard(blocker: blocker) {
+                        self.blocker = nil
+                        extract(said)
+                    }
+                } else if let errorMessage {
                     Text(errorMessage)
                         .font(.tempoCaption1)
                         .foregroundStyle(Color.tempoError)
@@ -232,6 +240,7 @@ struct FuelSetupView: View {
 
     private func extract(_ text: String) {
         errorMessage = nil
+        blocker = nil
         step = .thinking
         extraction = Task {
             do {
@@ -250,6 +259,7 @@ struct FuelSetupView: View {
                 guard !Task.isCancelled else {
                     return
                 }
+                blocker = AIBlocker(error)
                 errorMessage = FuelSetupExtractor.message(for: error)
                 step = .talk
             }

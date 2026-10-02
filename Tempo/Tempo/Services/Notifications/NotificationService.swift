@@ -318,6 +318,9 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
     /// for prep / defrost / overdue / supplement / trainer reminders.
     static let maxMealReminders = 28
     static let mealReminderIDPrefix = "meal_"
+    /// The meal's name, so a snoozed reminder can say "Time for X" instead
+    /// of repeating "X in 15 min".
+    static let mealNameUserInfoKey = "mealName"
 
     static func mealReminderID(mealID: UUID) -> String {
         "\(mealReminderIDPrefix)\(mealID.uuidString)"
@@ -331,7 +334,10 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         content.threadIdentifier = "tempo.meals.\(dateKey(reminder.fireDate))"
         content.interruptionLevel = .active
         content.sound = sound(for: "MEAL_REMINDER")
-        content.userInfo = [Self.mealIDUserInfoKey: reminder.mealID.uuidString]
+        content.userInfo = [
+            Self.mealIDUserInfoKey: reminder.mealID.uuidString,
+            Self.mealNameUserInfoKey: reminder.mealName,
+        ]
         let components = Calendar.current.dateComponents(
             [.year, .month, .day, .hour, .minute, .second],
             from: reminder.fireDate
@@ -934,46 +940,6 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
                 self?.logger.info("Cancelled \(idsToCancel.count) pending escalation notifications on foreground")
             }
         }
-    }
-
-    // MARK: - Reschedule All
-
-    // Per TECHNICAL_FEASIBILITY_AUDIT.md Section 3.1 — Reschedule on app foreground.
-
-    func rescheduleAllForToday(
-        briefing: BriefingContent?,
-        briefingTime: Date?,
-        escalations: [(tier: EscalationTier, time: Date, content: String)],
-        meals: [(name: String, time: Date)],
-        bedtime: Date?
-    ) {
-        // Clear all existing local notifications
-        center.removeAllPendingNotificationRequests()
-        resetDailyBudget()
-
-        // 1. Schedule today's notifications first (highest priority)
-        if let briefing, let time = briefingTime, time > Date() {
-            scheduleMorningBriefing(for: time, content: briefing)
-        }
-
-        for escalation in escalations where escalation.time > Date() {
-            scheduleAccountabilityEscalation(
-                tier: escalation.tier,
-                time: escalation.time,
-                content: escalation.content
-            )
-        }
-
-        for meal in meals where meal.time > Date() {
-            scheduleMealReminder(mealName: meal.name, time: meal.time)
-        }
-
-        if let bedtime, bedtime > Date() {
-            scheduleBedtimeReminder(time: bedtime)
-        }
-
-        // 2. Log pending count
-        logPendingCount()
     }
 
     // MARK: - Badge Count
