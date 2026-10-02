@@ -161,7 +161,10 @@ struct NutritionTodayView: View {
             actionButton(icon: "barcode.viewfinder", label: "Scan", id: "today.action.scan") {
                 onScan()
             }
-            actionButton(icon: "drop.fill", label: "Water", id: "today.action.water") {
+            // One tap logs a glass; the water card (scrolled into view) shows
+            // the new total and its Undo.
+            actionButton(icon: "drop.fill", label: "+250 ml", id: "today.action.water") {
+                WaterStore(context: modelContext, healthKit: services.healthKit).add(ml: 250)
                 scrollTo(Self.waterID)
             }
             actionButton(icon: "pills.fill", label: "Supps", id: "today.action.supplements") {
@@ -190,7 +193,7 @@ struct NutritionTodayView: View {
             .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(label == "Supps" ? "Supplements" : label)
+        .accessibilityLabel(label == "Supps" ? "Supplements" : label == "+250 ml" ? "Log 250 ml of water" : label)
         .accessibilityIdentifier(id)
     }
 
