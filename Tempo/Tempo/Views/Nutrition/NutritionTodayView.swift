@@ -17,6 +17,8 @@ import SwiftUI
 struct NutritionTodayView: View {
     @Bindable
     var viewModel: NutritionTabViewModel
+    /// Opens the scanner. Owned by the tab root so it can be swapped in one place.
+    var onScan: () -> Void = {}
     @Environment(\.modelContext)
     private var modelContext
     @Environment(ServiceContainer.self)
@@ -60,8 +62,12 @@ struct NutritionTodayView: View {
     private let fatColor = Color.tempoMacroFat
 
     var body: some View {
+        ScrollViewReader { proxy in
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: TempoSpacing.xl) {
+                actionRow(scrollTo: { id in
+                    withAnimation(TempoAnimation.springData) { proxy.scrollTo(id, anchor: .center) }
+                })
                 if viewModel.showPlanUpdateBanner {
                     PlanUpdateBanner(viewModel: viewModel)
                 }
@@ -72,6 +78,7 @@ struct NutritionTodayView: View {
                 UseUpSoonCard(viewModel: viewModel)
                 calorieProgressSection
                 WaterCardView()
+                    .id(Self.waterID)
                 supplementsCard
                 SupplementReorderBanner()
                 mealsListSection
@@ -138,6 +145,53 @@ struct NutritionTodayView: View {
         } message: {
             Text("Log this meal again in one tap from the Log tab.")
         }
+        }
+    }
+
+    // MARK: - Action row
+
+    private static let waterID = "today.water"
+
+    /// Four thumb-sized shortcuts at the top of Today.
+    private func actionRow(scrollTo: @escaping (String) -> Void) -> some View {
+        HStack(spacing: TempoSpacing.sm) {
+            actionButton(icon: "text.bubble.fill", label: "Quick Log", id: "today.action.quicklog") {
+                viewModel.openQuickLog()
+            }
+            actionButton(icon: "barcode.viewfinder", label: "Scan", id: "today.action.scan") {
+                onScan()
+            }
+            actionButton(icon: "drop.fill", label: "Water", id: "today.action.water") {
+                scrollTo(Self.waterID)
+            }
+            actionButton(icon: "pills.fill", label: "Supps", id: "today.action.supplements") {
+                viewModel.openKitchen(.supplements)
+            }
+        }
+    }
+
+    private func actionButton(icon: String, label: String, id: String, action: @escaping () -> Void) -> some View {
+        Button {
+            HapticManager.lightImpact()
+            action()
+        } label: {
+            VStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Color.tempoSignal)
+                Text(label)
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .frame(maxWidth: .infinity, minHeight: 56)
+            .background(Color.tempoSurfaceCard)
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label == "Supps" ? "Supplements" : label)
+        .accessibilityIdentifier(id)
     }
 
     // MARK: - Undo / delete / preset

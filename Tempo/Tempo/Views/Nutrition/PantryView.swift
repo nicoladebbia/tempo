@@ -42,8 +42,6 @@ struct PantryView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: TempoSpacing.lg) {
                 headerCard
-                supplementsLink
-                receiptsHistoryLink
                 if !viewModel.pantryState.expiringSoon.isEmpty {
                     expiringSoonSection
                 }
@@ -199,63 +197,6 @@ struct PantryView: View {
         .padding(TempoSpacing.cardPadding)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-    }
-
-    /// Link to the supplement shelf — the sibling "what I own" inventory. The
-    /// meal-plan AI reads it to decide daily take/skip.
-    private var supplementsLink: some View {
-        NavigationLink {
-            SupplementsView()
-        } label: {
-            HStack(spacing: TempoSpacing.md) {
-                Image(systemName: "pills.fill")
-                    .foregroundStyle(Color.tempoSignal)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Supplements")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                    Text("Your shelf — the plan decides daily take/skip")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-            }
-            .padding(TempoSpacing.cardPadding)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        }
-        .buttonStyle(.plain)
-    }
-
-    /// Link to receipt history — status, retry, delete for every scanned receipt.
-    private var receiptsHistoryLink: some View {
-        NavigationLink {
-            ReceiptsHistoryView(viewModel: viewModel)
-        } label: {
-            HStack(spacing: TempoSpacing.md) {
-                Image(systemName: "receipt")
-                    .foregroundStyle(Color.tempoSignal)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Receipts")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                    Text("\(viewModel.receiptState.receipts.count) scanned — status, retry, delete")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-            }
-            .padding(TempoSpacing.cardPadding)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        }
-        .buttonStyle(.plain)
     }
 
     // MARK: - Staples

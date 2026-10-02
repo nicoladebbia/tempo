@@ -108,6 +108,13 @@ struct NutritionLogView: View {
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.bottom, TempoSpacing.bottomSafe)
         }
+        .onAppear {
+            // Today's "Quick Log" button lands here with the field focused.
+            if viewModel.focusQuickLogRequested {
+                viewModel.focusQuickLogRequested = false
+                quickLogFocused = true
+            }
+        }
         .sheet(isPresented: $showPhotoAnalysis) {
             PhotoAnalysisView { items in
                 // Stash the confirmed photo foods. quantityGrams is best-effort
