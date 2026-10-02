@@ -176,18 +176,7 @@ struct PantryBarcodeScanView: View {
         }
     }
 
-    /// Prefills name, brand, package size (quantity + unit), and a guessed
-    /// storage location — all still editable in `PantryManualAddSheet`
-    /// before the user saves.
     private func stagedItem(from product: FoodProduct) -> StagedPantryItem {
-        let parsedSize = PackageSizeParser.parse(product.quantityLabel)
-        return StagedPantryItem(
-            name: product.name,
-            quantity: parsedSize?.quantity ?? 1,
-            unit: parsedSize?.unit ?? .pieces,
-            location: PantryStorageGuesser.guess(for: product),
-            totalPaidUSD: nil,
-            brand: product.brand ?? ""
-        )
+        StagedPantryItem(product: product)
     }
 }

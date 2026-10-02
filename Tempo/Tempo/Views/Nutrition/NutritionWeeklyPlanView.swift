@@ -193,8 +193,10 @@ struct NutritionWeeklyPlanView: View {
                 .font(.tempoBody)
                 .foregroundStyle(Color.tempoTextPrimary)
 
-            let totalMeals = plan.meals?.count ?? 0
-            let eatenMeals = plan.meals?.count(where: { $0.status == .eaten }) ?? 0
+            // Planned slots only: a Quick Log or a supplement dose isn't a plan meal.
+            let planMeals = plan.meals?.filter { !$0.isUnplannedLog } ?? []
+            let totalMeals = planMeals.count
+            let eatenMeals = planMeals.count(where: { $0.status == .eaten })
             Text("\(eatenMeals)/\(totalMeals) meals completed")
                 .font(.tempoCaption1)
                 .foregroundStyle(Color.tempoTextTertiary)

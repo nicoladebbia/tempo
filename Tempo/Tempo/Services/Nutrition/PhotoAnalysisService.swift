@@ -108,9 +108,12 @@ final class PhotoAnalysisService: PhotoAnalysisServiceProtocol, @unchecked Senda
             case let .rateLimited(retryAfter):
                 throw NutritionError.rateLimited(retryAfter: retryAfter)
             case let .serverError(statusCode):
-                throw NutritionError.photoAnalysisFailed("Backend proxy returned status \(statusCode)")
+                throw NutritionError.photoAnalysisFailed(APIError.serverError(statusCode: statusCode).userMessage)
+            case .subscriptionRequired, .aiConsentRequired:
+                // Pass through so the UI can offer See Pro / Turn on AI.
+                throw error
             default:
-                throw NutritionError.photoAnalysisFailed(error.localizedDescription)
+                throw NutritionError.photoAnalysisFailed(error.userMessage)
             }
         }
     }

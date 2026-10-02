@@ -60,6 +60,7 @@ struct ContentView: View {
                         handlePlanInputsChanged()
                         rescheduleTrainerSessionReminders()
                         rescheduleSupplementReminders()
+                        rescheduleMealReminders()
                         await WeeklyPlanReminder.sync(settings: NutritionTabViewModel.loadUserSettings(modelContext: modelContext))
                         await syncWeeklyPlan()
                         #if DEBUG && targetEnvironment(simulator)
@@ -214,6 +215,7 @@ struct ContentView: View {
                 // pending), so the rolling today+tomorrow window rebuilds
                 // every time the app comes back.
                 rescheduleSupplementReminders()
+                rescheduleMealReminders()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .tempoWeeklyPlanApplied)) { _ in
@@ -221,6 +223,10 @@ struct ContentView: View {
         }
         .sheet(isPresented: $appState.weeklyCheckInRequested) {
             WeeklyCheckInView()
+        }
+        // A meal notification opens that meal; pre-meal reminders follow the plan.
+        .mealNotificationHooks(request: $appState.requestedMeal) {
+            rescheduleMealReminders()
         }
         // Training settings (split / football days / trainer program) and
         // diet-profile edits can happen from Training, Dashboard Settings or
@@ -268,6 +274,11 @@ struct ContentView: View {
     /// `SupplementReminderScheduler`.
     private func rescheduleSupplementReminders() {
         SupplementReminderScheduler.reschedule(notifications: services.notifications, modelContext: modelContext)
+    }
+
+    /// Rebuilds the pre-meal reminders. See `MealReminderPlanner`.
+    private func rescheduleMealReminders() {
+        MealReminderPlanner.reschedule(modelContext: modelContext, notifications: services.notifications)
     }
 
     private func syncWeeklyPlan() async {

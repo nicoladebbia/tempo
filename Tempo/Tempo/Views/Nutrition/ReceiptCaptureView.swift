@@ -35,6 +35,8 @@ struct ReceiptCaptureView: View {
     @State
     private var scanError: String?
     @State
+    private var scanBlocker: AIBlocker?
+    @State
     private var scannedReceipt: Receipt?
 
     enum PickerSource { case camera, library }
@@ -129,7 +131,16 @@ struct ReceiptCaptureView: View {
                     .padding(.horizontal, TempoSpacing.xl)
             }
 
-            if let scanError {
+            if let scanBlocker {
+                AIBlockerCard(blocker: scanBlocker, message: scanBlocker == .proRequired
+                    ? "Reading receipts is a Tempo Pro feature."
+                    : "AI features are off. Turn them on to read receipts."
+                ) {
+                    self.scanBlocker = nil
+                    scanError = nil
+                }
+                .padding(.horizontal, TempoSpacing.xl)
+            } else if let scanError {
                 Text(scanError)
                     .font(.tempoCaption1)
                     .foregroundStyle(Color.tempoError)
@@ -178,13 +189,15 @@ struct ReceiptCaptureView: View {
 
     private func scan(_ image: UIImage) {
         scanError = nil
+        scanBlocker = nil
         isScanning = true
         Task {
             do {
                 let receipt = try await receiptService.scan(image: image, storeHint: nil)
                 scannedReceipt = receipt
             } catch {
-                scanError = error.localizedDescription
+                scanBlocker = AIBlocker(error)
+                scanError = AIBlocker.readableDescription(error)
                 Logger.nutrition.error("Receipt scan failed: \(error.localizedDescription, privacy: .public)")
             }
             isScanning = false
@@ -197,13 +210,15 @@ struct ReceiptCaptureView: View {
     /// to the single-image path for one element.
     private func scan(_ images: [UIImage]) {
         scanError = nil
+        scanBlocker = nil
         isScanning = true
         Task {
             do {
                 let receipt = try await receiptService.scan(images: images, storeHint: nil)
                 scannedReceipt = receipt
             } catch {
-                scanError = error.localizedDescription
+                scanBlocker = AIBlocker(error)
+                scanError = AIBlocker.readableDescription(error)
                 Logger.nutrition.error("Multi-photo receipt scan failed: \(error.localizedDescription, privacy: .public)")
             }
             isScanning = false

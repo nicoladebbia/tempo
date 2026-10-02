@@ -131,6 +131,9 @@ enum MealOutcomeService {
         let feel: MealFeel?
         let satiety: MealSatiety?
         let substituteNote: String?
+        /// A ticked supplement's own entry: restored as that entry (same id,
+        /// so un-ticking still finds it), never as a slot-matched snack.
+        var isSupplementDose = false
     }
 
     // MARK: - Mark eaten
@@ -354,7 +357,8 @@ enum MealOutcomeService {
             replacedPlannedDish: meal.replacedPlan != nil,
             feel: feedback.first?.mealFeel,
             satiety: feedback.first?.satiety,
-            substituteNote: feedback.first?.substituteNote
+            substituteNote: feedback.first?.substituteNote,
+            isSupplementDose: EatenMealRecorder.isSupplementDose(meal)
         )
         logger.info("[Diag.Undo] \(meal.mealName, privacy: .private) \(meal.status.rawValue, privacy: .public) → \(removing ? "removed" : "planned", privacy: .public)")
 
@@ -396,7 +400,7 @@ enum MealOutcomeService {
             try save(ctx)
         }
         if !removing, meal.status == .planned {
-            restoreReminders(for: meal, notifications: env.notifications)
+            restoreReminders(for: meal, env: env)
         }
         postReplanRequested()
         NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
@@ -414,6 +418,22 @@ enum MealOutcomeService {
         let ctx = env.modelContext
         let type = MealType.inferred(fromName: snapshot.mealName) ?? .snack
         switch snapshot.kind {
+        case .removed where snapshot.isSupplementDose:
+            let macros = MealMacros(
+                calories: snapshot.foods.reduce(0.0) { $0 + $1.calories },
+                protein: snapshot.foods.reduce(0.0) { $0 + $1.proteinG },
+                carbs: snapshot.foods.reduce(0.0) { $0 + $1.carbsG },
+                fat: snapshot.foods.reduce(0.0) { $0 + $1.fatG }
+            )
+            EatenMealRecorder.recordSupplementDose(
+                name: snapshot.foods.first?.name ?? EatenMealRecorder.supplementsMealName,
+                macros: macros,
+                takenAt: snapshot.eatenAt,
+                day: snapshot.eatenAt,
+                id: snapshot.mealID,
+                in: ctx
+            )
+            try save(ctx)
         case .removed:
             // `now: eatenAt` puts a past day's log back on that day, not today.
             let result = try EatenMealRecorder.record(
@@ -592,27 +612,36 @@ enum MealOutcomeService {
         notifications?.cancelDefrostReminders(forMealID: meal.id)
         notifications?.cancelPrepStartReminder(forMealID: meal.id)
         notifications?.cancelOverdueMealReminder(forMealID: meal.id)
-        // The 5-minute "Fuel Up" reminder is keyed by name + day, not meal id.
+        notifications?.cancelMealReminder(mealID: meal.id)
+        // Reminders armed before they were keyed by meal id: name + day.
         notifications?.cancelMealReminder(mealName: meal.mealName, on: meal.dayDate)
     }
 
     /// Re-arms a reverted meal's reminders when its scheduled time is still ahead.
-    private static func restoreReminders(for meal: PlannedMeal, notifications: (any NotificationServiceProtocol)?) {
-        guard let notifications,
+    private static func restoreReminders(for meal: PlannedMeal, env: Env) {
+        guard let notifications = env.notifications,
               let scheduled = PlannedMealTimingMatcher.scheduledDate(for: meal, on: meal.dayDate),
               scheduled > Date()
         else {
             return
         }
-        scheduleReminders(for: meal, at: scheduled, notifications: notifications)
+        scheduleReminders(for: meal, at: scheduled, env: env, notifications: notifications)
     }
 
     private static func scheduleReminders(
         for meal: PlannedMeal,
         at scheduled: Date,
+        env: Env,
         notifications: any NotificationServiceProtocol
     ) {
-        notifications.scheduleMealReminder(mealName: meal.mealName, time: scheduled.addingTimeInterval(-5 * 60))
+        // 15 minutes ahead, only while Settings -> Meal reminders is on.
+        if MealReminderPlanner.isEnabled(modelContext: env.modelContext),
+           let reminder = MealReminderPlanner.reminder(for: meal, scheduled: scheduled)
+        {
+            notifications.scheduleMealReminder(
+                mealID: reminder.mealID, mealName: reminder.mealName, fireDate: reminder.fireDate
+            )
+        }
         notifications.scheduleOverdueMealReminder(
             mealID: meal.id,
             mealName: meal.mealName,
@@ -689,7 +718,7 @@ enum MealOutcomeService {
             meal.scheduledTime = shift.newScheduledTime
             cancelReminders(for: meal, notifications: env.notifications)
             if shift.newScheduledDate > Date(), let notifications = env.notifications {
-                scheduleReminders(for: meal, at: shift.newScheduledDate, notifications: notifications)
+                scheduleReminders(for: meal, at: shift.newScheduledDate, env: env, notifications: notifications)
             }
         }
     }
@@ -707,7 +736,7 @@ enum MealOutcomeService {
             meal.scheduledTime = original
             meal.originalScheduledTime = nil
             cancelReminders(for: meal, notifications: env.notifications)
-            restoreReminders(for: meal, notifications: env.notifications)
+            restoreReminders(for: meal, env: env)
         }
         let lastEaten = meals
             .filter { $0.status == .eaten && !$0.isUnplannedLog }

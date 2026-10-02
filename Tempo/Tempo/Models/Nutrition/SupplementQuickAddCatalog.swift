@@ -29,11 +29,25 @@ struct SupplementQuickAddItem: Identifiable, Hashable, Sendable {
     /// Protein grams per serving — non-zero only for protein powders, so a
     /// tapped scoop counts toward the day's protein target immediately.
     let proteinGrams: Double
+    /// Calories / carbs / fat per serving (0 = none). A ticked dose adds
+    /// these, with the protein, to today's totals.
+    var calories: Double = 0
+    var carbsGrams: Double = 0
+    var fatGrams: Double = 0
     /// Seeded `takeDaily` — evidence-based per item (not just per kind), so
     /// e.g. Vitamin D3 defaults daily even though `.vitamin` itself doesn't.
     let takeDaily: Bool
     /// SF Symbol for the quick-add chip and, until edited, the shelf row.
     let icon: String
+
+    /// "120 kcal · 24g P" — nil for supplements that carry no macros.
+    var macroSummary: String? {
+        guard calories > 0 || proteinGrams > 0 else { return nil }
+        var parts: [String] = []
+        if calories > 0 { parts.append("\(Int(calories.rounded())) kcal") }
+        if proteinGrams > 0 { parts.append("\(Int(proteinGrams.rounded()))g P") }
+        return parts.joined(separator: " · ")
+    }
 }
 
 // MARK: - SupplementQuickAddCatalog
@@ -54,14 +68,31 @@ enum SupplementQuickAddCatalog {
             kind: .protein,
             dose: "1 scoop (30 g)",
             proteinGrams: 24,
+            calories: 120,
+            carbsGrams: 3,
+            fatGrams: 1.5,
             takeDaily: false,
             icon: "dumbbell.fill"
+        ),
+        SupplementQuickAddItem(
+            name: "Mass Gainer",
+            kind: .protein,
+            dose: "1 serving (150 g)",
+            proteinGrams: 50,
+            calories: 620,
+            carbsGrams: 95,
+            fatGrams: 6,
+            takeDaily: false,
+            icon: "scalemass.fill"
         ),
         SupplementQuickAddItem(
             name: "Plant Protein",
             kind: .protein,
             dose: "1 scoop (33 g)",
             proteinGrams: 21,
+            calories: 120,
+            carbsGrams: 4,
+            fatGrams: 2.5,
             takeDaily: false,
             icon: "leaf.fill"
         ),
@@ -70,6 +101,9 @@ enum SupplementQuickAddCatalog {
             kind: .protein,
             dose: "1 scoop (33 g)",
             proteinGrams: 24,
+            calories: 120,
+            carbsGrams: 4,
+            fatGrams: 1,
             takeDaily: false,
             icon: "moon.stars.fill"
         ),
@@ -143,7 +177,15 @@ enum SupplementQuickAddCatalog {
             icon: "leaf.arrow.circlepath"
         ),
         SupplementQuickAddItem(name: "Melatonin", kind: .other, dose: "3 mg", proteinGrams: 0, takeDaily: false, icon: "powersleep"),
-        SupplementQuickAddItem(name: "Collagen", kind: .other, dose: "1 scoop (10 g)", proteinGrams: 0, takeDaily: true, icon: "sparkles"),
+        SupplementQuickAddItem(
+            name: "Collagen",
+            kind: .other,
+            dose: "1 scoop (10 g)",
+            proteinGrams: 9,
+            calories: 35,
+            takeDaily: true,
+            icon: "sparkles"
+        ),
         SupplementQuickAddItem(
             name: "Probiotic",
             kind: .other,

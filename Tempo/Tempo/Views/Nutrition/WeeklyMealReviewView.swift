@@ -220,7 +220,7 @@ struct WeeklyMealReviewView: View {
         )
         let allMeals = (try? modelContext.fetch(descriptor)) ?? []
         meals = allMeals.filter { meal in
-            meal.status == .eaten || meal.status == .skipped
+            (meal.status == .eaten || meal.status == .skipped) && !EatenMealRecorder.isSupplementDose(meal)
         }
 
         // CRITICAL: do NOT iterate every MealFeedback row and read

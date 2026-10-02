@@ -56,7 +56,7 @@ struct FoodCheckView: View {
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
                 } footer: {
-                    Text("Nothing gets logged here — just the score: nutrition, additives and what it means for you today.")
+                    Text("Scan or search for the score, then log it, stock it or list it. Nothing happens until you tap.")
                         .font(.tempoCaption1)
                 }
 

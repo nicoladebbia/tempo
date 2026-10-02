@@ -19,12 +19,9 @@ import SwiftUI
 
 struct DailyNutritionSummaryView: View {
     var fuelData: FuelQuadrantData?
-    var onAddHydration: ((Int) -> Void)?
 
     @State
     private var showMealLogging = false
-    @State
-    private var localHydrationBonus: Int = 0
     /// Today's real PlannedMeals (active plan or unbound) as display rows.
     @State
     private var meals: [NutritionMealEntry] = []
@@ -510,81 +507,9 @@ struct DailyNutritionSummaryView: View {
     // MARK: - Hydration Section (Task 4)
 
     private var hydrationSection: some View {
-        let currentMl = (fuelData?.hydrationMl ?? 0) + localHydrationBonus
-        let targetMl = fuelData?.hydrationTargetMl ?? 2500
-        let hydStatus = NutritionEngine.hydrationStatus(currentMl: currentMl, targetMl: targetMl)
-
-        return VStack(spacing: TempoSpacing.md) {
-            HStack {
-                HStack(spacing: TempoSpacing.sm) {
-                    Image(systemName: "drop.fill")
-                        .font(.system(size: 14))
-                        .foregroundStyle(Color.tempoElectric)
-
-                    Text("HYDRATION")
-                        .font(.tempoModuleTag)
-                        .tracking(TempoTracking.drillLabel)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                }
-
-                Spacer()
-
-                Text("\(hydStatus.glasses)/\(hydStatus.targetGlasses) glasses")
-                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(hydStatus.isOnTrack ? Color.tempoSuccess : Color.tempoWarning)
-            }
-
-            // Progress bar
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.tempoElectric.opacity(0.15))
-                        .frame(height: 10)
-                    Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.tempoElectric.opacity(0.6), Color.tempoElectric],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(width: geo.size.width * min(hydStatus.progress, 1.0), height: 10)
-                        .animation(TempoAnimation.springData, value: hydStatus.progress)
-                }
-            }
-            .frame(height: 10)
-
-            HStack {
-                Text("\(currentMl) ml / \(targetMl) ml")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
-
-                Spacer()
-
-                // Quick add button
-                Button {
-                    localHydrationBonus += 250
-                    onAddHydration?(250)
-                    HapticManager.lightImpact()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 10, weight: .bold))
-                        Text("+250ml")
-                            .font(.system(size: 12, weight: .semibold))
-                    }
-                    .foregroundStyle(Color.tempoElectric)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Color.tempoElectric.opacity(0.12))
-                    .clipShape(Capsule())
-                }
-            }
-        }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
+        // Saved water (WaterStore) — one source for this screen, Nutrition
+        // Today and the Dashboard Fuel tile.
+        WaterCardView(targetMl: fuelData?.hydrationTargetMl)
     }
 
     // MARK: - Meal Timing Section (Task 3)
