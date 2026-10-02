@@ -90,6 +90,7 @@ struct FuelSetupView: View {
             .navigationTitle(step == .review ? "Your fuel profile" : "Fuel setup")
             .navigationBarTitleDisplayMode(.inline)
         }
+        .dismissKeyboardOnTapOutside()
         .task {
             guard !hasLoaded else {
                 return
