@@ -23,7 +23,7 @@ struct ReceiptsHistoryView: View {
                 ContentUnavailableView(
                     "No receipts yet",
                     systemImage: "receipt",
-                    description: Text("Scan a grocery receipt from the Pantry tab to see it here.")
+                    description: Text("Scan a grocery receipt in Kitchen > Pantry to see it here.")
                 )
             } else {
                 ForEach(viewModel.receiptState.receipts, id: \.id) { receipt in
