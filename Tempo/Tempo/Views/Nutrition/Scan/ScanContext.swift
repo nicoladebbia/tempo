@@ -161,3 +161,42 @@ enum ScanContext {
         }
     }
 }
+
+// MARK: - ScanModeMemory
+
+/// What the scanner remembers while the user hops between mode chips. The
+/// product scanned in Barcode mode stays until "Scan another", so Label can
+/// show its nutrition table and Barcode returns to it instead of an empty
+/// camera. A product saved from Label capture lives only while Label is open.
+struct ScanModeMemory: Equatable {
+    var scannedProduct: FoodProduct?
+    var labelProduct: FoodProduct?
+
+    enum LabelPage: Equatable {
+        /// A label was just photographed and saved: show that product.
+        case product(FoodProduct)
+        /// Facts of the product scanned in Barcode mode.
+        case scannedLabel(FoodProduct)
+        /// Nothing scanned: photograph a label for a new product.
+        case capture
+    }
+
+    var labelPage: LabelPage {
+        if let labelProduct {
+            return .product(labelProduct)
+        }
+        if let scannedProduct {
+            return .scannedLabel(scannedProduct)
+        }
+        return .capture
+    }
+
+    mutating func modeChanged() {
+        labelProduct = nil
+    }
+
+    mutating func scanAnother() {
+        scannedProduct = nil
+        labelProduct = nil
+    }
+}

@@ -16,6 +16,11 @@ import SwiftUI
 
 struct FoodBarcodeFlow: View {
     var onFood: ((FoodItem) -> Void)?
+    /// The product on screen, owned by the scanner so it survives switching
+    /// to another mode (Label shows its nutrition table) and back. Cleared
+    /// only by "Scan another".
+    @Binding
+    var scannedProduct: FoodProduct?
 
     @Environment(\.dismiss)
     private var dismiss
@@ -25,7 +30,7 @@ struct FoodBarcodeFlow: View {
     private var services
 
     @State
-    private var scanState: ScanState = .scanning
+    private var scanState: ScanState
     @State
     private var showAddProduct = false
     @State
@@ -34,6 +39,12 @@ struct FoodBarcodeFlow: View {
     private var catalog: FoodCatalog?
     @State
     private var network = NetworkStatus()
+
+    init(onFood: ((FoodItem) -> Void)? = nil, scannedProduct: Binding<FoodProduct?> = .constant(nil)) {
+        self.onFood = onFood
+        _scannedProduct = scannedProduct
+        _scanState = State(initialValue: scannedProduct.wrappedValue.map(ScanState.found) ?? .scanning)
+    }
 
     enum ScanState: Equatable {
         case scanning
@@ -69,6 +80,14 @@ struct FoodBarcodeFlow: View {
                 notFoundContent(barcode)
             case let .failed(barcode, message):
                 failedContent(barcode: barcode, message: message)
+            }
+        }
+        .onChange(of: scanState) { _, state in
+            // Mirror the product up so other modes can use it; a new scan clears it.
+            if case let .found(product) = state {
+                scannedProduct = product
+            } else if case .scanning = state {
+                scannedProduct = nil
             }
         }
         .toolbar {
