@@ -14,13 +14,27 @@ if [[ -z "$PROJECT_DIR" ]]; then
     exit 2
 fi
 
-# 1. Block writes outside the project (worktrees included via CLAUDE_PROJECT_DIR).
+# Is $1 inside a registered git worktree of this repo (e.g. a /round lane in
+# ~/dev/tempo-<name>)? Uses `git worktree list`, so a random ~/dev/tempo-foo
+# folder that isn't a worktree still counts as outside. ".." is resolved first.
+in_repo_worktree() {
+    local target wt
+    target=$(python3 -c 'import os,sys; print(os.path.normpath(sys.argv[1]))' "$1" 2>/dev/null) || return 1
+    while IFS= read -r wt; do
+        [[ -n "$wt" && "$target" == "${wt%/}"/* ]] && return 0
+    done < <(git -C "$PROJECT_DIR" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p')
+    return 1
+}
+
+# 1. Block writes outside the project and its git worktrees.
 #    Claude's own state (~/.claude) and temp/scratchpad dirs are allowed.
 case "$FILE_PATH" in
     "$PROJECT_DIR"/*|"$HOME"/.claude/*|/tmp/*|/private/tmp/*|/var/folders/*|/private/var/folders/*) ;;
     *)
-        echo "BLOCKED: $FILE_PATH is outside the Tempo project ($PROJECT_DIR)." >&2
-        exit 2 ;;
+        if ! in_repo_worktree "$FILE_PATH"; then
+            echo "BLOCKED: $FILE_PATH is outside the Tempo project ($PROJECT_DIR) and its worktrees." >&2
+            exit 2
+        fi ;;
 esac
 
 # 2. Read-only meta-audits. (The module/spec docs became AS-BUILT docs on 2026-05-19

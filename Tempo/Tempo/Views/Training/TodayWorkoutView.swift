@@ -283,6 +283,13 @@ struct TodayWorkoutView: View {
             await refreshWorkoutSchedule()
         }
         .onReceive(NotificationCenter.default.publisher(for: .tempoWorkoutChanged)) { _ in
+            // Today's workout was deleted (e.g. from History): reload before
+            // anything reads the dead row.
+            if viewModel.todayPlan?.isDeleted == true || (viewModel.todayPlan != nil && viewModel.todayPlan?.modelContext == nil) {
+                viewModel.todayPlan = nil
+                Task { await viewModel.loadToday(modelContext: modelContext) }
+                return
+            }
             // Any surface that mutates the workout re-syncs the wrist.
             viewModel.pushWorkoutToWatch()
         }
@@ -416,6 +423,12 @@ struct TodayWorkoutView: View {
                     .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
             }
 
+            // Benched for recovery/pain: no Start button — an explicit,
+            // deliberate way back in instead.
+            if viewModel.isRecoveryBenched {
+                benchedCard
+            }
+
             // Workout meta bar
             // Per MODULE_TRAINING.md Section 2.6
             workoutMeta(plan: plan)
@@ -482,6 +495,37 @@ struct TodayWorkoutView: View {
             }
         }
         .padding(.top, TempoSpacing.md)
+    }
+
+    // MARK: - Benched (recovery floor / pain)
+
+    private var benchedCard: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            HStack(spacing: TempoSpacing.sm) {
+                Image(systemName: "bed.double.fill")
+                    .foregroundStyle(Color.tempoRecoveryRed)
+                Text("BENCHED TODAY")
+                    .font(.tempoHeadline)
+                    .foregroundStyle(Color.tempoTextPrimary)
+            }
+            Text("Your body called it. Today is recovery — walk, stretch, sleep. Doesn't count as a missed day.")
+                .font(.tempoBody)
+                .foregroundStyle(Color.tempoTextSecondary)
+            Button {
+                HapticManager.impact(.medium)
+                viewModel.trainAnyway(modelContext: modelContext)
+            } label: {
+                Text("Train anyway")
+                    .font(.tempoSubheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityHint("Reopens today's workout so you can start it.")
+        }
+        .padding(TempoSpacing.cardPadding)
+        .background(Color.tempoSurfaceCard)
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
     }
 
     // MARK: - Recovery / Deload Status Line
@@ -1307,8 +1351,8 @@ struct TodayWorkoutView: View {
             }
 
             // "This hurts" flow — skipped-for-pain marker.
-            if plannedExercise.painSkipped {
-                Label("Skipped — pain", systemImage: "bandage.fill")
+            if let painLabel = plannedExercise.painStatusLabel {
+                Label(painLabel, systemImage: "bandage.fill")
                     .font(.tempoCaption2)
                     .foregroundStyle(Color.tempoWarning)
             }
@@ -1736,7 +1780,11 @@ struct TodayWorkoutView: View {
     /// Fix #7 — shared by both TrainerSessionCard call sites (main session +
     /// two-a-day second session) so each stays a one-line call.
     private func trainerSessionCard(_ day: ProgramDay, heading: String, plan: WorkoutPlan, key: String?) -> some View {
-        TrainerSessionCard(day: day, heading: heading, workoutPlanID: plan.id, programSessionKey: key, viewModel: viewModel)
+        let isSecondary = key != nil && key == plan.programSecondaryKey
+        let isDone = isSecondary ? plan.secondaryCompleted : plan.status == .completed
+        return TrainerSessionCard(
+            day: day, heading: heading, workoutPlanID: plan.id, programSessionKey: key, viewModel: viewModel, isDone: isDone
+        )
     }
 
     private func nonGymIcon(for type: WorkoutType) -> String {
@@ -1875,12 +1923,12 @@ struct TodayWorkoutView: View {
     /// Compact best-set summary for a session.
     private func bestSetSummary(history: ExerciseHistory) -> String {
         let unit = settings?.weightUnit ?? .kg
+        if let r = history.bestSetReps, r > 0 {
+            let bodyweight = history.exercise.map { StrengthStandards.isBodyweightLoaded($0.equipment) } ?? false
+            return "\(WeightFormat.setLoad(kg: history.bestSetWeight, addedKg: history.bestSetAddedLoadKg, bodyweight: bodyweight, unit: unit)) × \(r)"
+        }
         if let w = history.bestSetWeight, w > 0 {
-            let converted = WeightUnit.kg.convert(w, to: unit)
-            if let r = history.bestSetReps {
-                return "\(Int(converted))\(unit.abbreviation)x\(r)"
-            }
-            return "\(Int(converted))\(unit.abbreviation)"
+            return WeightFormat.text(kg: w, unit: unit)
         }
         return "done"
     }

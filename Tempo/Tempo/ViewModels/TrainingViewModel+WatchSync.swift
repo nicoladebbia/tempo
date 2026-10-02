@@ -28,7 +28,8 @@ extension TrainingViewModel {
         let exercises = plan.orderedExercises.compactMap { slot -> WatchWorkoutPayload.Exercise? in
             // An exercise deleted from the library mid-plan can't be logged
             // from the wrist (logs match by library exercise) — leave it off.
-            guard let exercise = slot.exercise else {
+            // Skipped for pain → not on the wrist's queue either.
+            guard let exercise = slot.exercise, !slot.painSkipped else {
                 return nil
             }
             let working = slot.orderedSets.filter { !$0.isWarmup }
@@ -92,7 +93,9 @@ extension TrainingViewModel {
     ) -> Bool {
         guard let plan = todayPlan,
               plan.status == .planned || plan.status == .inProgress,
-              let exerciseIndex = plan.orderedExercises.firstIndex(where: { $0.exercise?.name == exerciseName })
+              let exerciseIndex = plan.orderedExercises.firstIndex(where: {
+                  $0.exercise?.name == exerciseName && !$0.painSkipped
+              })
         else {
             return false
         }
@@ -118,7 +121,7 @@ extension TrainingViewModel {
         let resolvedReps = reps ?? set.targetReps
 
         if sessionState.isActive, currentExerciseIndex == exerciseIndex, currentSetIndex == setIndex {
-            logSet(weight: resolvedWeight, reps: resolvedReps, modelContext: modelContext)
+            logSet(weight: resolvedWeight, reps: resolvedReps, addedLoadKg: set.addedLoadKg, modelContext: modelContext)
             NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
             pushWorkoutToWatch()
             return true
@@ -135,20 +138,10 @@ extension TrainingViewModel {
         set.completed = true
         set.completedAt = Date()
 
-        // Mirror logSet's PR detection + eager feedback row so a watch-only
-        // log (phone not looking at this session) carries the same signal a
-        // phone-logged one does.
-        var insertedPR: PersonalRecord?
+        // Mirror logSet's eager feedback row (and, once the set is safely
+        // saved, its PR detection) so a watch-only log (phone not looking at
+        // this session) carries the same signal a phone-logged one does.
         var insertedFeedback: SetFeedback?
-        if !set.isWarmup, !set.isDropStep, let exercise = slot.exercise,
-           let pr = trainingEngine.detectPersonalRecord(
-               exercise: exercise, weight: resolvedWeight, reps: resolvedReps,
-               rir: set.effectiveRIR(reps: resolvedReps), workoutPlanID: plan.id
-           )
-        {
-            modelContext.insert(pr)
-            insertedPR = pr
-        }
         if !set.isWarmup {
             let feedback = SetFeedback(plannedSet: set, rpe: 7)
             modelContext.insert(feedback)
@@ -164,9 +157,6 @@ extension TrainingViewModel {
             set.actualReps = nil
             set.actualWeight = nil
             set.rpe = nil
-            if let insertedPR {
-                modelContext.delete(insertedPR)
-            }
             if let insertedFeedback {
                 modelContext.delete(insertedFeedback)
             }
@@ -174,9 +164,18 @@ extension TrainingViewModel {
             plan.startedAt = priorStartedAt
             return false
         }
-        if let insertedPR {
-            detectedPRs.append(insertedPR)
-            HapticManager.notification(.success)
+        if !set.isWarmup, !set.isDropStep, let exercise = slot.exercise {
+            let outcome = recordPersonalRecordIfAny(
+                exercise: exercise, weight: resolvedWeight, reps: resolvedReps,
+                rir: set.effectiveRIR(reps: resolvedReps), addedLoadKg: set.addedLoadKg,
+                plan: plan, modelContext: modelContext
+            )
+            if outcome != .none {
+                saveGuarded(modelContext, operation: "watch PR")
+            }
+            if outcome == .new {
+                HapticManager.notification(.success)
+            }
         }
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
         pushWorkoutToWatch()

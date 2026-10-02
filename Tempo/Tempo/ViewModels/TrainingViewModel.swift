@@ -394,6 +394,10 @@ final class TrainingViewModel {
             defaultRestSeconds = settings.defaultRestSeconds
         }
 
+        // Catch-up: a session whose summary was never closed (app killed on
+        // the summary screen) still gets learned from.
+        applyPendingLearning(modelContext: modelContext)
+
         // Source of truth: the Week Plan. Generate the whole week first so Today
         // and Week Plan can never disagree about what kind of workout today is.
         loadWeekPlan(modelContext: modelContext)
@@ -890,8 +894,10 @@ final class TrainingViewModel {
             return false
         }
         // A finished day is not restartable — logging it again would
-        // double-count volume and history.
-        guard let plan = todayPlan, plan.status != .completed else {
+        // double-count volume and history. A skipped day must be reopened
+        // with `trainAnyway` first (the Dashboard button used to start it
+        // straight past the recovery block).
+        guard let plan = todayPlan, plan.status != .completed, plan.status != .skipped else {
             return false
         }
         // Sets already logged today (e.g. Start tapped from the Dashboard
@@ -909,6 +915,7 @@ final class TrainingViewModel {
 
         plan.status = .inProgress
         plan.pausedSeconds = 0
+        plan.pausedAt = nil
         elapsedSeconds = 0
         totalPauseDuration = 0
         currentExerciseIndex = 0
@@ -1034,6 +1041,7 @@ final class TrainingViewModel {
         let now = Date()
         todayPlan?.startedAt = now
         todayPlan?.pausedSeconds = 0
+        todayPlan?.pausedAt = nil
         workoutStartTime = now
         elapsedSeconds = 0
         totalPauseDuration = 0
@@ -1083,15 +1091,19 @@ final class TrainingViewModel {
             // Pauses / calls before the crash were persisted on the plan —
             // restore them so the elapsed clock (and the saved duration)
             // doesn't count that time as training.
-            totalPauseDuration = max(0, plan.pausedSeconds)
-            elapsedSeconds = max(0, Date().timeIntervalSince(startedAt) - totalPauseDuration)
+            let now = Date()
+            plan.pausedSeconds = Self.recoveredPauseSeconds(for: plan, now: now)
+            plan.pausedAt = nil
+            plan.crashRecoveredAt = now
+            totalPauseDuration = plan.pausedSeconds
+            elapsedSeconds = max(0, now.timeIntervalSince(startedAt) - totalPauseDuration)
         }
 
         // Find current position
         let exercises = plan.orderedExercises
         var foundActiveExercise = false
         for (exIdx, ex) in exercises.enumerated() {
-            if !ex.isComplete {
+            if !ex.isComplete, !ex.painSkipped {
                 // The first set NOT done — a completed-count cursor landed on
                 // the wrong set whenever an earlier one was skipped/uncompleted.
                 let resumeIndex = firstUncompletedSetIndex(in: ex)
@@ -1120,24 +1132,53 @@ final class TrainingViewModel {
         startLiveActivity()
     }
 
+    /// How long a crash-recovered session has really been paused.
+    ///
+    /// - Killed while paused / on a call: the open pause (`now - pausedAt`)
+    ///   joins the persisted total.
+    /// - Killed while running: the app was dead for an unknown stretch. The
+    ///   training clock may not run past the last sign of life (the last
+    ///   logged set, else the start) plus `crashIdleAllowance`; anything
+    ///   beyond that counts as paused — so reopening the app hours later
+    ///   doesn't log hours of training.
+    static let crashIdleAllowance: TimeInterval = 10 * 60
+
+    static func recoveredPauseSeconds(for plan: WorkoutPlan, now: Date) -> Double {
+        let persisted = max(0, plan.pausedSeconds)
+        if let pausedAt = plan.pausedAt {
+            return persisted + max(0, now.timeIntervalSince(pausedAt))
+        }
+        guard let startedAt = plan.startedAt else {
+            return persisted
+        }
+        let lastSetAt = plan.orderedExercises
+            .flatMap { $0.sets ?? [] }
+            .compactMap { $0.completed ? $0.completedAt : nil }
+            .max()
+        // Last sign of life: the last logged set, or the previous recovery (a
+        // resumed session that was killed again before a new set). Wall-clock
+        // from there; pauses never enter the calculation — a pause after the
+        // last set must not turn real minutes into "paused" ones.
+        let lastActivity = max(startedAt, lastSetAt ?? startedAt, plan.crashRecoveredAt ?? startedAt)
+        // Pauses that cannot have happened before the last sign of life (more
+        // than the time up to it) sit inside the gap: they are already counted
+        // and must not be counted a second time as dead time.
+        let pausesInGap = max(0, persisted - lastActivity.timeIntervalSince(startedAt))
+        let deadGap = max(0, now.timeIntervalSince(lastActivity) - pausesInGap - crashIdleAllowance)
+        return min(persisted + deadGap, max(persisted, now.timeIntervalSince(startedAt)))
+    }
+
     // MARK: - Discard Crashed Workout
 
+    /// Throwing away a crashed session is the same as discarding a live one:
+    /// logged sets/PRs roll back and the day stays OPEN TO REDO (.planned).
+    /// It used to mark the day .skipped, which locked the user out of the
+    /// workout they still wanted to do and counted it as a missed day.
     func discardCrashedWorkout(modelContext: ModelContext) {
         guard sessionState == .crashedRecovery else {
             return
         }
-        if let plan = todayPlan {
-            // Sets/PRs logged before the crash are thrown away with the
-            // session; otherwise they linger on a `.skipped` day and PRs stay
-            // in the record book.
-            rollBackLoggedWork(of: plan, modelContext: modelContext)
-            plan.status = .skipped
-            plan.pausedSeconds = 0
-        }
-        try? modelContext.save()
-        sessionState = .discarded
-        resetState()
-        NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
+        discardActiveWorkout(modelContext: modelContext)
     }
 
     // MARK: - Log Set
@@ -1244,16 +1285,19 @@ final class TrainingViewModel {
         // excluded too — a reduced-weight backoff set is never a max-effort
         // signal, so it can never legitimately BE the PR.
         if !set.isWarmup, !set.isDropStep, let exercise = plannedExercise.exercise {
-            if let pr = trainingEngine.detectPersonalRecord(
+            let outcome = recordPersonalRecordIfAny(
                 exercise: exercise,
                 weight: weight,
                 reps: reps,
                 rir: set.effectiveRIR(reps: reps),
-                workoutPlanID: plan.id // §13 fix — stamp so history-delete can match this PR exactly
-            ) {
-                modelContext.insert(pr)
+                addedLoadKg: addedLoadKg,
+                plan: plan, // §13 — stamped so history-delete can match this PR exactly
+                modelContext: modelContext
+            )
+            if outcome != .none {
                 saveGuarded(modelContext, operation: "PR")
-                detectedPRs.append(pr)
+            }
+            if outcome == .new {
                 HapticManager.notification(.success)
             }
         }
@@ -1482,16 +1526,26 @@ final class TrainingViewModel {
         // Any call here means the user actually interacted with the inline
         // feedback panel — mark it real signal so Tier-2 aggregation counts it
         // (eager-created defaults stay userProvidedFeedback=false).
+        if feedback.isLegacyRating {
+            // Keep the legacy row's fields counted once it gets flags.
+            feedback.rpeProvided = true
+            feedback.breathProvided = true
+            feedback.formProvided = true
+        }
         feedback.userProvidedFeedback = true
+        feedback.perFieldFlagsRecorded = true
         if let rpe {
             feedback.rpe = max(1, min(10, rpe))
+            feedback.rpeProvided = true
             lastCompletedSet?.rpe = feedback.rpe
         }
         if let breath {
             feedback.breathDifficulty = breath
+            feedback.breathProvided = true
         }
         if let form {
             feedback.formQuality = form
+            feedback.formProvided = true
         }
         if let note {
             let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1572,8 +1626,14 @@ final class TrainingViewModel {
     // `advanceAfterSkip` below call into them directly (same target, no
     // import needed).
 
+    /// nil = nothing left to do here — including an exercise skipped for
+    /// pain, so every advance path (rest end, skip, crash resume, empty-slot
+    /// recovery) walks past it instead of landing on it.
     func firstUncompletedSetIndex(in plannedExercise: PlannedExercise) -> Int? {
-        plannedExercise.orderedSets.firstIndex { !$0.completed }
+        guard !plannedExercise.painSkipped else {
+            return nil
+        }
+        return plannedExercise.orderedSets.firstIndex { !$0.completed }
     }
 
     /// Rest toward an explicit (exercise, set) target — honoring the
@@ -1679,7 +1739,7 @@ final class TrainingViewModel {
     /// nothing logged must not mint a phantom `.inProgress` plan that can
     /// never be regenerated (persistCompletion's own zero-sets guard leaves
     /// status exactly where it found it, so nothing else ever reverts it).
-    private var hasAnyCompletedWorkingSet: Bool {
+    var hasAnyCompletedWorkingSet: Bool {
         guard let plan = todayPlan else {
             return false
         }
@@ -1705,7 +1765,8 @@ final class TrainingViewModel {
         case .warmup,
              .exercise,
              .cooldown,
-             .paused:
+             .paused,
+             .interruptedCall:
             break
         default:
             return
@@ -1714,6 +1775,16 @@ final class TrainingViewModel {
             discardActiveWorkout(modelContext: modelContext)
             return
         }
+        // Finishing straight from a pause: that last pause is not training
+        // time either (the live clock already stopped at pause; this keeps
+        // the persisted total — used by Health and History — in step).
+        if case let .paused(_, pauseStart) = sessionState {
+            addPausedTime(Date().timeIntervalSince(pauseStart))
+        } else if case .interruptedCall = sessionState, let callStart = callStartedAt {
+            addPausedTime(Date().timeIntervalSince(callStart))
+            callStartedAt = nil
+        }
+        clearPauseMarker()
         stopRestTimer()
         stopWarmupMoveTimer()
         stopElapsedTimer()
@@ -1754,6 +1825,8 @@ final class TrainingViewModel {
             plan.status = .planned
             plan.startedAt = nil
             plan.pausedSeconds = 0
+            plan.pausedAt = nil
+            plan.crashRecoveredAt = nil
         }
         try? modelContext.save()
         currentFeedback = nil
@@ -1853,6 +1926,7 @@ final class TrainingViewModel {
             let best1RM: Double?
             let bestSetWeight: Double?
             let bestSetReps: Int?
+            let bestSetAddedLoadKg: Double?
             let setsPerformed: Int
             let avgRPE: Double?
             let worstFormRaw: String?
@@ -1880,7 +1954,7 @@ final class TrainingViewModel {
             // weight/reps must come from a real working set.
             let best = completedSets
                 .filter { !$0.isDropStep }
-                .max { ($0.actualWeight ?? 0) < ($1.actualWeight ?? 0) }
+                .max { ExerciseBestSet.ranksBelow(($0.actualWeight ?? 0, $0.actualReps ?? 0), ($1.actualWeight ?? 0, $1.actualReps ?? 0)) }
 
             // Aggregate ONLY user-provided feedback for this exercise's working
             // sets (pure helper, unit-tested). No entered feedback → nil/0.
@@ -1892,6 +1966,7 @@ final class TrainingViewModel {
                 best1RM: completedSets.compactMap(\.estimated1RM).max(),
                 bestSetWeight: best?.actualWeight,
                 bestSetReps: best?.actualReps,
+                bestSetAddedLoadKg: StrengthStandards.isBodyweightLoaded(exercise.equipment) ? best?.addedLoadKg : nil,
                 setsPerformed: completedSets.count,
                 avgRPE: agg.avgRPE,
                 worstFormRaw: agg.worstFormRaw,
@@ -1940,7 +2015,6 @@ final class TrainingViewModel {
         // avoid re-running `activeTrainerProgram`'s queued-promotion check
         // (idempotent, but pointless work) once per completed exercise.
         let activeProgramForTestMessages = activeTrainerProgram(modelContext: modelContext)
-        var insertedHistory: [ExerciseHistory] = []
         for snap in snapshots {
             let history = ExerciseHistory(
                 date: sessionDate,
@@ -1948,6 +2022,7 @@ final class TrainingViewModel {
                 totalVolume: snap.totalVolume,
                 bestSetWeight: snap.bestSetWeight,
                 bestSetReps: snap.bestSetReps,
+                bestSetAddedLoadKg: snap.bestSetAddedLoadKg,
                 setsPerformed: snap.setsPerformed,
                 avgRPE: snap.avgRPE,
                 worstFormRaw: snap.worstFormRaw,
@@ -1958,7 +2033,6 @@ final class TrainingViewModel {
                 exercise: snap.exercise
             )
             modelContext.insert(history)
-            insertedHistory.append(history)
             // trainer-feedback-tests — a test just produced (or matched) a
             // real max: tell the athlete what changed and what it means for
             // the trainer's %-based prescriptions from now on.
@@ -1974,31 +2048,12 @@ final class TrainingViewModel {
             }
         }
 
-        // Step 1 (measurement spine) — backfill the outcome onto the
-        // PredictionLog rows written at prescribe time, so each prediction now
-        // sits next to what actually happened. This is the prediction↔reality
-        // pair Step 2's error metric reads. Matched by (planID, exerciseID) —
-        // the same key the prediction was written under.
-        let outcomes: [PredictionOutcome] = snapshots.map { snap in
-            PredictionOutcome(
-                exerciseID: snap.exercise.id,
-                bestSetReps: snap.bestSetReps,
-                avgRPE: snap.avgRPE,
-                worstFormRaw: snap.worstFormRaw,
-                bestSetWeight: snap.bestSetWeight
-            )
-        }
-        backfillPredictionOutcomes(planID: planID, outcomes: outcomes, modelContext: modelContext)
-
-        // Step 3 (measure → correct) — fit the learned increments to the MEASURED
-        // RPE error from the predictions just resolved, instead of the blind
-        // RPE-bucket nudge. Conservative partial step, clamped. This is the first
-        // place the engine consumes its own accuracy signal to change behavior.
-        applyErrorFitCorrection(planID: planID, modelContext: modelContext)
-
-        // §16.2 — a completed session is venue-pattern evidence (start time,
-        // duration, inferred venue, completion). Cheap pure recompute.
-        VenuePatternLearner.recompute(modelContext: modelContext)
+        // Learning from this session (prediction outcomes, error-fit, venue
+        // pattern, adaptive profile) is DEFERRED to `applyPendingLearning`,
+        // which runs once the summary closes: completion is persisted the
+        // moment the summary appears, before the athlete has rated the last
+        // set there, so learning here read incomplete feedback.
+        plan.learningPending = true
 
         // Persist to SwiftData — LOUD on failure. On a failed save the status
         // flip is reverted so the day stays open: the pending history inserts
@@ -2010,6 +2065,7 @@ final class TrainingViewModel {
             plan.status = priorStatus
             plan.finishedAt = priorFinishedAt
             plan.durationMinutes = priorDuration
+            plan.learningPending = false
             return false
         }
         #if DEBUG
@@ -2017,19 +2073,6 @@ final class TrainingViewModel {
                 "\(DebugTrace.prefix)[Workout] persistCompletion: plan=\(planID) wrote \(snapshots.count) history rows, status=.completed"
             )
         #endif
-
-        // Phase 3 (TRAINING_INTELLIGENCE_TO_10.md Fix 3.2) — feed the session
-        // into the on-device AdaptiveProfile so the engine learns THIS user's
-        // increments / recovery tolerance / fatigue trend over time. Bounded
-        // online updates; the deterministic floor is unaffected.
-        //
-        // Feed it the rows we ACTUALLY inserted. It used to get throwaway
-        // `ExerciseHistory(…, exercise: snap.exercise)` copies built only for
-        // this call — SwiftData auto-inserts a @Model bound to a live
-        // relationship, leaving a phantom duplicate history row per exercise.
-        // The updater reads only avgRPE / worstFormRaw / feedbackSampleCount /
-        // exercise, all identical on the real rows.
-        updateAdaptiveProfile(with: insertedHistory, modelContext: modelContext)
 
         // Best-effort Apple Health write — never blocks or fails the save.
         writeStrengthWorkoutToHealthKit(plan: plan, totalVolumeKg: snapshots.reduce(0) { $0 + $1.totalVolume })
@@ -2068,6 +2111,8 @@ final class TrainingViewModel {
         // so a summary swiped away without tapping SAVE still reaches Health.
 
         sessionState = .saved
+        // Summary closed → the feedback is final; learn from it now.
+        applyPendingLearning(modelContext: modelContext)
         resetState()
     }
 
@@ -2217,6 +2262,30 @@ final class TrainingViewModel {
         #if DEBUG
             print("\(DebugTrace.prefix)[daily_coach] user kept planned workout → \(stashed)")
         #endif
+    }
+
+    /// The day was benched for the body (severe readiness or pain →
+    /// `.skipped` + `.floorForced`) and the athlete wants to train anyway.
+    /// Reopens the plan and marks today's coach session overridden so the
+    /// next readiness pass doesn't bench it again. A user skip is not
+    /// reopened here — that was their own call.
+    func trainAnyway(modelContext: ModelContext) {
+        guard let plan = todayPlan,
+              plan.status == .skipped,
+              plan.skipReason == .floorForced
+        else {
+            return
+        }
+        plan.status = .planned
+        plan.skipReason = nil
+        dailySession?.userOverrode = true
+        saveGuarded(modelContext, operation: "train anyway")
+        NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
+    }
+
+    /// Whether today is benched for recovery and can be reopened.
+    var isRecoveryBenched: Bool {
+        todayPlan?.status == .skipped && todayPlan?.skipReason == .floorForced
     }
 
     /// §21 (b) — check off (or undo) the cardio SECOND session of a gym+cardio

@@ -1,0 +1,16 @@
+{
+  "aps" : {
+    "alert" : {
+      "body" : "7 days of meals, macros checked. Tap to review.",
+      "title" : "Your week is planned"
+    },
+    "category" : "MEAL_PLAN_READY",
+    "interruption-level" : "time-sensitive",
+    "sound" : "default"
+  },
+  "data" : {
+    "interruption_level" : "time-sensitive",
+    "jobId" : "00000000-0000-0000-0000-000000000001",
+    "type" : "meal_plan_ready"
+  }
+}

@@ -42,7 +42,7 @@ struct ChallengeController: RouteCollection {
 
         // Validate start date is in the future
         guard let startsAt = ISO8601DateFormatter().date(from: body.startsAt),
-              startsAt > Date() else {
+              startsAt > req.now else {
             throw Abort(.badRequest, reason: "Start date must be in the future.")
         }
 

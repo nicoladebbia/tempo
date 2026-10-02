@@ -38,6 +38,10 @@ final class Exercise {
 
     var preferredRestSeconds: Int?
 
+    /// Set when a CSV import created this custom exercise, so undoing that
+    /// import can remove it too. nil otherwise. Optional → lightweight migration.
+    var importBatchID: UUID?
+
     // MARK: - Relationships
 
     /// §10.6 — deleting a custom Exercise must NOT erase the training record it
@@ -126,6 +130,13 @@ final class Exercise {
 
     @Transient
     var currentEstimated1RM: Double? {
+        Self.currentEstimated1RM(from: history ?? [])
+    }
+
+    /// The most recent session's estimate (the pre-display-fix meaning). Used to
+    /// seed never-trained siblings, where "what he just did" is the right signal.
+    @Transient
+    var latestEstimated1RM: Double? {
         history?
             .sorted { $0.date > $1.date }
             .first?

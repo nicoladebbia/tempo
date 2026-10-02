@@ -60,6 +60,61 @@ extension TrainingViewModel {
         return PredictionAccuracy.holdout(rows)
     }
 
+    // MARK: - Deferred session learning
+
+    /// Learn from every saved session still marked `learningPending`, except
+    /// the one whose summary is open right now (its feedback can still
+    /// change). Idempotent: each session is learned from exactly once.
+    /// Called when the summary closes (`summaryClosed: true` — whatever state
+    /// the VM is in, that summary's feedback is final), and as a catch-up
+    /// from `loadToday`.
+    func applyPendingLearning(modelContext: ModelContext, summaryClosed: Bool = false) {
+        let descriptor = FetchDescriptor<WorkoutPlan>(
+            predicate: #Predicate { $0.learningPending }
+        )
+        let pending = (try? modelContext.fetch(descriptor)) ?? []
+        let openSummaryID: UUID? = !summaryClosed && sessionState == .summary ? todayPlan?.id : nil
+        for plan in pending where plan.id != openSummaryID {
+            applySessionLearning(for: plan, modelContext: modelContext)
+        }
+    }
+
+    /// The learning half of completion, reading the session's saved
+    /// ExerciseHistory rows (which already carry any feedback entered on the
+    /// summary — see `recomputeHistoryAggregate`).
+    func applySessionLearning(for plan: WorkoutPlan, modelContext: ModelContext) {
+        guard plan.learningPending else {
+            return
+        }
+        let planID = plan.id
+        let rows = (try? modelContext.fetch(FetchDescriptor<ExerciseHistory>(
+            predicate: #Predicate { $0.workoutPlanID == planID }
+        ))) ?? []
+        // Step 1 (measurement spine) — the prediction↔reality pair Step 2's
+        // error metric reads, matched by (planID, exerciseID).
+        let outcomes: [PredictionOutcome] = rows.compactMap { row in
+            guard let exerciseID = row.exercise?.id else { return nil }
+            return PredictionOutcome(
+                exerciseID: exerciseID,
+                bestSetReps: row.bestSetReps,
+                avgRPE: row.avgRPE,
+                worstFormRaw: row.worstFormRaw,
+                bestSetWeight: row.bestSetWeight
+            )
+        }
+        backfillPredictionOutcomes(planID: planID, outcomes: outcomes, modelContext: modelContext)
+        // Step 3 (measure → correct) — fit learned increments to the measured
+        // RPE error of the predictions just resolved.
+        applyErrorFitCorrection(planID: planID, modelContext: modelContext)
+        // §16.2 — the session is venue-pattern evidence.
+        VenuePatternLearner.recompute(modelContext: modelContext)
+        // Phase 3 (Fix 3.2) — bounded online update of the AdaptiveProfile
+        // from the session's real history rows.
+        updateAdaptiveProfile(with: rows, modelContext: modelContext)
+        plan.learningPending = false
+        saveGuarded(modelContext, operation: "session learning")
+    }
+
     // MARK: - Prediction Outcomes (Step 1 measurement spine)
 
     /// One exercise's observed outcome, decoupled from the persistCompletion-

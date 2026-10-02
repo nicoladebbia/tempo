@@ -1,0 +1,15 @@
+{
+  "aps" : {
+    "alert" : {
+      "body" : "Push notifications are working. You're locked in.",
+      "title" : "TEMPO"
+    },
+    "category" : "GENERAL",
+    "interruption-level" : "active",
+    "sound" : "default"
+  },
+  "data" : {
+    "interruption_level" : "active",
+    "type" : "general"
+  }
+}

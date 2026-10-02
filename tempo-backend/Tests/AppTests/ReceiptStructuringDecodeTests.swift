@@ -102,3 +102,15 @@ struct ReceiptStructuringDecodeTests {
         #expect(parsed.lineItems.count == 1)
     }
 }
+
+@Suite("Receipt Claude envelope decode")
+struct ReceiptClaudeEnvelopeDecodeTests {
+    @Test("stop_reason max_tokens is detected through convertFromSnakeCase")
+    func stopReasonDecodes() throws {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let json = #"{"content":[{"type":"text","text":"{\"store\":"}],"stop_reason":"max_tokens"}"#
+        let raw = try decoder.decode(ReceiptClaudeRawResponse.self, from: Data(json.utf8))
+        #expect(raw.stopReason == "max_tokens")
+    }
+}

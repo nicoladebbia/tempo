@@ -159,6 +159,28 @@ final class SetFeedback {
     /// read as "form was perfect"). Additive-defaulted → lightweight migration.
     var userProvidedFeedback: Bool = false
 
+    /// Per-field "the user actually picked this" flags. `userProvidedFeedback`
+    /// alone was too coarse: tapping only "Gassed" flipped the whole row to
+    /// real, so the untouched default RPE 7 and form "Clean" were averaged in
+    /// as if entered. Aggregation and History read each field only when its
+    /// flag is set. Additive-defaulted → lightweight migration.
+    var rpeProvided: Bool = false
+    var breathProvided: Bool = false
+    var formProvided: Bool = false
+    /// True on rows rated since the per-field flags existed. A row rated
+    /// before that (userProvidedFeedback, flags never written) keeps all
+    /// three fields as entered — the old app counted them that way.
+    var perFieldFlagsRecorded: Bool = false
+
+    /// Rated before per-field flags existed: trust every field.
+    var isLegacyRating: Bool {
+        userProvidedFeedback && !perFieldFlagsRecorded
+    }
+
+    var hasEnteredRPE: Bool { rpeProvided || isLegacyRating }
+    var hasEnteredBreath: Bool { breathProvided || isLegacyRating }
+    var hasEnteredForm: Bool { formProvided || isLegacyRating }
+
     // MARK: - Typed Accessors
 
     @Transient
@@ -199,6 +221,20 @@ final class SetFeedback {
         self.breathDifficultyRaw = breathDifficulty.rawValue
         self.formQualityRaw = formQuality.rawValue
         self.note = note
+    }
+}
+
+// MARK: - Entered summary
+
+extension SetFeedback {
+    /// "RPE 8 · Gassed" — only the fields the athlete actually entered; nil
+    /// when none were (a neutral default is not a reading).
+    var enteredSummary: String? {
+        var parts: [String] = []
+        if hasEnteredRPE { parts.append("RPE \(rpe)") }
+        if hasEnteredBreath { parts.append(breathDifficulty.displayName) }
+        if hasEnteredForm { parts.append(formQuality.displayName) }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }
 

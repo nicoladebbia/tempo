@@ -21,6 +21,8 @@ struct RunHistoryView: View {
     private var services
     @Query(sort: \RunSession.date, order: .reverse)
     private var runs: [RunSession]
+    @Query
+    private var userSettings: [UserSettings]
 
     @State
     private var didImport = false
@@ -70,13 +72,20 @@ struct RunHistoryView: View {
 
     private var statsHeader: some View {
         let totalKm = recentRuns.reduce(0) { $0 + $1.distanceKm }
+        let useMiles = useMiles
         let paces = recentRuns.compactMap(\.avgPaceSecondsPerKm)
         let bestPace = paces.min()
 
         return HStack(spacing: TempoSpacing.sm) {
             statCell(label: "RUNS · 30D", value: "\(recentRuns.count)")
-            statCell(label: "DISTANCE", value: String(format: "%.1f km", totalKm))
-            statCell(label: "BEST PACE", value: bestPace.map(Self.paceLabel) ?? "—")
+            statCell(
+                label: "DISTANCE",
+                value: GuidedRunFormatting.totalDistance(meters: totalKm * 1000, useMiles: useMiles)
+            )
+            statCell(
+                label: "BEST PACE",
+                value: GuidedRunFormatting.pace(secondsPerKm: bestPace, useMiles: useMiles) ?? "—"
+            )
         }
         .padding(.top, TempoSpacing.sm)
     }
@@ -110,14 +119,16 @@ struct RunHistoryView: View {
                 Text(run.date, format: .dateTime.weekday(.wide).month().day())
                     .font(.tempoBody)
                     .foregroundStyle(Color.tempoTextPrimary)
-                Text("\(String(format: "%.2f km", run.distanceKm)) · \(run.durationFormatted)")
+                Text(
+                    "\(GuidedRunFormatting.distance(meters: run.distanceKm * 1000, useMiles: useMiles)) · \(run.durationFormatted)"
+                )
                     .font(.tempoCaption1)
                     .foregroundStyle(Color.tempoTextSecondary)
             }
 
             Spacer()
 
-            if let pace = run.avgPaceFormatted {
+            if let pace = GuidedRunFormatting.pace(secondsPerKm: run.avgPaceSecondsPerKm, useMiles: useMiles) {
                 Text(pace)
                     .font(.tempoHeadline)
                     .monospacedDigit()
@@ -149,6 +160,10 @@ struct RunHistoryView: View {
         .padding(.top, TempoSpacing.xxxl)
     }
 
+    private var useMiles: Bool {
+        GuidedRunFormatting.useMiles(weightUnit: userSettings.first?.weightUnit)
+    }
+
     static func paceLabel(_ secondsPerKm: Double) -> String {
         let mins = Int(secondsPerKm) / 60
         let secs = Int(secondsPerKm) % 60
@@ -160,13 +175,19 @@ struct RunHistoryView: View {
 
 struct RunDetailView: View {
     let run: RunSession
+    @Query
+    private var userSettings: [UserSettings]
+
+    private var useMiles: Bool {
+        GuidedRunFormatting.useMiles(weightUnit: userSettings.first?.weightUnit)
+    }
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: TempoSpacing.lg) {
                 // Headline stats
                 VStack(spacing: TempoSpacing.xxs) {
-                    Text(String(format: "%.2f km", run.distanceKm))
+                    Text(GuidedRunFormatting.distance(meters: run.distanceKm * 1000, useMiles: useMiles))
                         .font(.system(size: 44, weight: .bold, design: .rounded))
                         .monospacedDigit()
                         .foregroundStyle(Color.tempoTextPrimary)
@@ -181,7 +202,11 @@ struct RunDetailView: View {
                     GridItem(.flexible(), spacing: TempoSpacing.sm),
                 ], spacing: TempoSpacing.sm) {
                     detailCell(icon: "timer", label: "Duration", value: run.durationFormatted)
-                    detailCell(icon: "speedometer", label: "Avg Pace", value: run.avgPaceFormatted ?? "—")
+                    detailCell(
+                        icon: "speedometer",
+                        label: "Avg Pace",
+                        value: GuidedRunFormatting.pace(secondsPerKm: run.avgPaceSecondsPerKm, useMiles: useMiles) ?? "—"
+                    )
                     if let hr = run.avgHR {
                         detailCell(icon: "heart.fill", label: "Avg HR", value: "\(Int(hr)) bpm")
                     }
