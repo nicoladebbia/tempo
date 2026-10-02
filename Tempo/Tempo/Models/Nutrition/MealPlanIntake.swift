@@ -146,16 +146,21 @@ struct MealPlanIntake: Sendable, Equatable {
         settings.updatedAt = now
     }
 
+    /// The retired AI Meals "won't eat" list, parsed.
+    static func legacyExclusions(settings: UserSettings) -> [String] {
+        settings.mealIntakeExclusionsRaw
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+
     /// Fold the legacy permanent exclusions list (AI Meals settings, now
     /// retired) into `DietaryProfile.dislikedFoods` — the one list the planner
     /// and recipe prompts read — then clear it. Case-insensitive de-dupe, the
     /// profile's own order first. Returns true when anything was moved.
     @discardableResult
     static func migrateLegacyExclusions(settings: UserSettings, profile: DietaryProfile?) -> Bool {
-        let legacy = settings.mealIntakeExclusionsRaw
-            .split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
+        let legacy = legacyExclusions(settings: settings)
         guard !legacy.isEmpty else {
             return false
         }

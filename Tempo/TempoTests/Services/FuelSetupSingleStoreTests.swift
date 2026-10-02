@@ -182,4 +182,77 @@ final class FuelSetupSingleStoreTests: XCTestCase {
         )
         XCTAssertEqual(WizardStep.allCases.count, 4)
     }
+
+    // MARK: - Round 3 review fixes
+
+    func testFuelSetupSaveKeepsThisWeeksExclusionsAndOnlyClearsSupersededTemps() {
+        let week = WeeklyPlanService.currentWeekStart(for: Date())
+        settings.mealIntakeCookableDays = 4
+        settings.mealIntakeTempWeekStart = week
+        settings.mealIntakeTempCookableDays = 2
+        settings.mealIntakeTempExclusionsRaw = "fish"
+        settings.mealIntakeTempRecoveryAdjusted = true
+
+        var draft = FuelSetupDraft()
+        draft.cookableDaysPerWeek = 4 // unchanged -> temp days stay
+        draft.recoveryAdjusted = false // permanent was false -> unchanged
+        draft.save(to: context)
+        var intake = MealPlanIntake.loadPersisted(from: settings)
+        XCTAssertEqual(intake.cookableDaysThisWeek, 2)
+        XCTAssertTrue(intake.recoveryAdjusted)
+        XCTAssertEqual(intake.temporaryExclusions, ["fish"])
+
+        draft.cookableDaysPerWeek = 6 // changed -> temp days superseded
+        draft.recoveryAdjusted = true
+        draft.save(to: context)
+        intake = MealPlanIntake.loadPersisted(from: settings)
+        XCTAssertEqual(intake.cookableDaysThisWeek, 6)
+        XCTAssertTrue(intake.recoveryAdjusted)
+        XCTAssertEqual(intake.temporaryExclusions, ["fish"], "Exclusions for this week survive")
+    }
+
+    func testPermanentRecoveryChangeBeatsStaleTempWithoutCookableDays() {
+        settings.mealIntakeTempWeekStart = WeeklyPlanService.currentWeekStart(for: Date())
+        settings.mealIntakeTempRecoveryAdjusted = true
+        settings.mealIntakeRecoveryAdjusted = true
+
+        var draft = FuelSetupDraft()
+        draft.cookableDaysPerWeek = nil
+        draft.recoveryAdjusted = false
+        draft.save(to: context)
+        XCTAssertFalse(MealPlanIntake.loadPersisted(from: settings).recoveryAdjusted)
+    }
+
+    func testLegacyExclusionsSeedDraftWithoutProfileAndSurviveSave() throws {
+        settings.mealIntakeExclusionsRaw = "shellfish, olives"
+        try context.save()
+        let draft = FuelSetupDraft.load(from: context)
+        XCTAssertEqual(draft.dislikedFoods, ["shellfish", "olives"])
+        draft.save(to: context)
+        let profile = try XCTUnwrap(context.fetch(FetchDescriptor<DietaryProfile>()).first)
+        XCTAssertEqual(profile.dislikedFoods, ["shellfish", "olives"])
+    }
+
+    func testSetupFlagsOnlyContributeWhenNonDefault() {
+        XCTAssertTrue(MealPlanInputsFingerprint.setupFlagFields(settings: settings, equipment: [], clearSkinFocus: false).isEmpty)
+        let seededOnly = KitchenEquipment.seededSet()
+        XCTAssertTrue(MealPlanInputsFingerprint.setupFlagFields(settings: settings, equipment: seededOnly, clearSkinFocus: false).isEmpty)
+
+        let flipped = KitchenEquipment.seededSet()
+        flipped[0].isAvailable.toggle()
+        let base = MealPlanInputsFingerprint.setupFlagFields(settings: settings, equipment: flipped, clearSkinFocus: false)
+        XCTAssertEqual(base.count, 1, "Equipment change is tracked")
+        XCTAssertEqual(MealPlanInputsFingerprint.setupFlagFields(settings: settings, equipment: [], clearSkinFocus: true), ["clearSkinFocus=true"])
+        settings.mealIntakeRecoveryAdjusted = true
+        XCTAssertEqual(MealPlanInputsFingerprint.setupFlagFields(settings: settings, equipment: [], clearSkinFocus: false), ["recoveryAdjusted=true"])
+    }
+
+    func testScanMealPhotoHandsOffToLogReview() {
+        let vm = NutritionTabViewModel()
+        vm.openMealPhotoReview([])
+        XCTAssertNil(vm.pendingScanMealPhoto)
+        vm.openMealPhotoReview([FoodItem(id: UUID(), name: "Rice", brand: nil, servingSize: "1 cup", servingQuantity: 1, calories: 200, protein: 4, carbs: 44, fat: 1)])
+        XCTAssertEqual(vm.selectedTab, .log)
+        XCTAssertEqual(vm.pendingScanMealPhoto?.count, 1)
+    }
 }

@@ -278,6 +278,13 @@ extension FuelSetupDraft {
             if MealPlanIntake.migrateLegacyExclusions(settings: settings, profile: profile) {
                 draft.dislikedFoods = profile?.dislikedFoods ?? draft.dislikedFoods
                 try? context.save()
+            } else if profile == nil {
+                // No profile yet, so nothing was migrated: show the legacy list
+                // in the draft, because save() clears it and would lose it.
+                draft.dislikedFoods = MealPlanIntake.mergedFoods(
+                    draft.dislikedFoods,
+                    MealPlanIntake.legacyExclusions(settings: settings)
+                )
             }
             draft.recoveryAdjusted = settings.mealIntakeRecoveryAdjusted
             draft.mealsPerDay = settings.mealsPerDayPreference
@@ -377,12 +384,15 @@ extension FuelSetupDraft {
             settings.mealsPerDayPreference = mealsPerDay ?? settings.mealsPerDayPreference
             settings.cookTimeWeekdayMins = cookMinutesWeekday ?? settings.cookTimeWeekdayMins
             settings.cookTimeWeekendMins = cookMinutesWeekend ?? settings.cookTimeWeekendMins
-            if cookableDaysPerWeek != nil {
-                // The wizard's "this week" answer would otherwise keep
-                // winning over the days just saved here, even when they
-                // equal the stored value.
-                settings.mealIntakeTempWeekStart = nil
+            // Clear only the "this week" answer this save supersedes, so the
+            // rest of the week's wizard answers (skipped foods, the other
+            // toggle) survive. A temp value that differs from what was just
+            // saved would otherwise keep winning.
+            if let cookableDaysPerWeek, cookableDaysPerWeek != settings.mealIntakeCookableDays {
                 settings.mealIntakeTempCookableDays = nil
+            }
+            if recoveryAdjusted != settings.mealIntakeRecoveryAdjusted {
+                settings.mealIntakeTempRecoveryAdjusted = recoveryAdjusted
             }
             settings.mealIntakeCookableDays = cookableDaysPerWeek ?? settings.mealIntakeCookableDays
             settings.mealIntakeRecoveryAdjusted = recoveryAdjusted

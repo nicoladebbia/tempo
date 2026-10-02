@@ -411,7 +411,7 @@ final class FuelSetupPersistenceTests: XCTestCase {
         XCTAssertEqual(MealPlanIntake.loadPersisted(from: settings).cookableDaysThisWeek, 6)
     }
 
-    func testSavingTheSameCookableDaysStillClearsTheWizardsOverride() throws {
+    func testSavingUnchangedCookableDaysKeepsThisWeeksOverride() throws {
         // The one settings row from setUp (a second row would make which
         // one `save` updates depend on fetch order).
         let settings = try XCTUnwrap(MealPlanGeneratorService.fetchUserSettings(modelContext: context))
@@ -424,7 +424,12 @@ final class FuelSetupPersistenceTests: XCTestCase {
         draft.cookableDaysPerWeek = 5
         draft.save(to: context)
 
-        XCTAssertEqual(MealPlanIntake.loadPersisted(from: settings).cookableDaysThisWeek, 5)
+        // Only a CHANGED permanent value supersedes this week's answer.
+        XCTAssertEqual(MealPlanIntake.loadPersisted(from: settings).cookableDaysThisWeek, 3)
+
+        draft.cookableDaysPerWeek = 6
+        draft.save(to: context)
+        XCTAssertEqual(MealPlanIntake.loadPersisted(from: settings).cookableDaysThisWeek, 6)
     }
 
     func testSaveWritesEveryStoreAndLoadsBack() throws {
