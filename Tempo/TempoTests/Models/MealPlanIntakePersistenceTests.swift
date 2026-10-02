@@ -33,6 +33,8 @@ final class MealPlanIntakePersistenceTests: XCTestCase {
         )
 
         let settings = UserSettings()
+        settings.mealIntakeLeftoverToleranceRaw = LeftoverTolerance.twoToThreeDayBatches.rawValue
+        MealPlanIntake.saveEatingWindow(original.eatingWindow, settings: settings, dailyPlan: nil)
         original.persist(to: settings)
         let restored = MealPlanIntake.loadPersisted(from: settings)
 
