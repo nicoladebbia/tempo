@@ -110,10 +110,12 @@ struct AnalyzedFoodItem: Identifiable {
         }
         var copy = self
         copy.name = trimmed
-        copy.score = Self.userConfirmedScore
         copy.question = nil
         copy.isVerified = false
-        return copy.reverified()
+        var checked = copy.reverified()
+        // Only claim certainty when the food table backed the new name; otherwise the old numbers are a guess.
+        checked.score = checked.isVerified ? Self.userConfirmedScore : max(Self.questionThreshold, min(score, 0.7))
+        return checked
     }
 
     /// Re-check against the built-in food table. Needs a weight to scale
@@ -123,10 +125,9 @@ struct AnalyzedFoodItem: Identifiable {
             return self
         }
         var copy = self
-        var grams = portionGrams
-        if grams <= 0 {
-            grams = 100
-            copy.estimatedPortion = "~100g"
+        let grams = portionGrams
+        guard grams > 0 else {
+            return self // "1 cup" / "2 slices": no weight to scale from
         }
         let scaled = macros.scaled(to: grams)
         copy.calories = Int(scaled.calories.rounded())

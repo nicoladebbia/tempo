@@ -538,8 +538,14 @@ struct PhotoAnalysisView: View {
 
         Task {
             do {
-                let result = try await services.nutrition.photoAnalysis
-                    .analyzeMealPhoto(imageData, remainingBudget: nil)
+                #if DEBUG
+                // Simulator QA has no signed-in AI backend: `--uitesting-mock-photo` uses the mock.
+                let analyzer: any PhotoAnalysisServiceProtocol = ProcessInfo.processInfo.arguments
+                    .contains("--uitesting-mock-photo") ? MockPhotoAnalysisService() : services.nutrition.photoAnalysis
+                #else
+                let analyzer = services.nutrition.photoAnalysis
+                #endif
+                let result = try await analyzer.analyzeMealPhoto(imageData, remainingBudget: nil)
 
                 identifiedItems = result.items.map { item in
                     AnalyzedFoodItem(

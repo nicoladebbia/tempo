@@ -51,7 +51,12 @@ struct MealTimeHints: Equatable {
             parts.hour = typical.hour
             parts.minute = typical.minute
         }
-        return MealTimeHints(date: calendar.date(from: parts), mealType: type)
+        // A time that hasn't happened yet today means "just now", not the future.
+        var date = calendar.date(from: parts)
+        if let candidate = date, candidate > now {
+            date = now
+        }
+        return MealTimeHints(date: date, mealType: type)
     }
 
     // MARK: - Pieces
@@ -70,8 +75,12 @@ struct MealTimeHints: Equatable {
     }
 
     private static func dayOffset(in lower: String) -> Int {
-        if lower.contains("yesterday") || lower.contains("last night") {
+        if lower.contains("yesterday") {
             return -1
+        }
+        if lower.contains("last night") {
+            // "last night at 1am" is today's small hours; the evening is yesterday.
+            return lower.range(of: #"last night.{0,6}\b(?:at\s+)?(?:12|1|2|3|4)\s*(?:am|a\.m\.)"#, options: .regularExpression) == nil ? -1 : 0
         }
         return 0
     }
@@ -102,6 +111,12 @@ struct MealTimeHints: Equatable {
             let hasMinutes = match.range(at: 2).location != NSNotFound
             // A bare number is only a time with "at", a colon, or am/pm.
             guard hasPrefix || hasMinutes || meridiem != nil, minute < 60 else {
+                continue
+            }
+            // "around 3 eggs": a bare number followed by a word is a quantity, not a time.
+            if meridiem == nil, !hasMinutes, let end = Range(match.range, in: lower)?.upperBound,
+               lower[end...].drop(while: { $0 == " " }).first?.isLetter == true
+            {
                 continue
             }
             if let meridiem {
@@ -142,6 +157,8 @@ struct MealTimeHints: Equatable {
         switch mealType {
         case .dinner? where hour < 12: return hour + 12
         case .lunch? where hour < 6: return hour + 12
+        case .lunch? where hour <= 12: return hour
+        case .dinner? where hour == 12, .snack? where hour == 12: return 12
         case .snack? where hour < 6: return hour + 12
         case .breakfast?: return hour
         default: break

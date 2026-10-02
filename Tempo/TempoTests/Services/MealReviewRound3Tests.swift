@@ -64,7 +64,8 @@ final class MealReviewRound3Tests: XCTestCase {
     }
 
     func testDinnerAtEightResolvesToEvening() throws {
-        let hints = MealTimeHints.parse("dinner at 8", now: now, calendar: calendar)
+        let late = calendar.date(from: DateComponents(year: 2026, month: 10, day: 2, hour: 22))!
+        let hints = MealTimeHints.parse("dinner at 8", now: late, calendar: calendar)
         XCTAssertEqual(clock(hints.date)?.hour, 20)
     }
 
@@ -78,6 +79,14 @@ final class MealReviewRound3Tests: XCTestCase {
         XCTAssertEqual(clock(MealTimeHints.parse("coffee at 12am", now: now, calendar: calendar).date)?.hour, 0)
         XCTAssertEqual(clock(MealTimeHints.parse("toast at 7:15 am", now: now, calendar: calendar).date)?.hour, 7)
         XCTAssertEqual(clock(MealTimeHints.parse("salad at 12pm", now: now, calendar: calendar).date)?.hour, 12)
+    }
+
+    func testQuantitiesAndEdgeTimesAreNotMisreadAsClock() throws {
+        XCTAssertNil(MealTimeHints.parse("ate around 3 eggs", now: now, calendar: calendar).date)
+        XCTAssertEqual(clock(MealTimeHints.parse("lunch at 12", now: now, calendar: calendar).date)?.hour, 12)
+        // Future time today means just now, never a future-dated meal.
+        let early = calendar.date(from: DateComponents(year: 2026, month: 10, day: 2, hour: 9))!
+        XCTAssertEqual(MealTimeHints.parse("pasta at 1pm", now: early, calendar: calendar).date, early)
     }
 
     // MARK: - Portion scaling
@@ -189,6 +198,7 @@ final class MealReviewRound3Tests: XCTestCase {
         let item = analyzed().renamed(to: "zzqx special")
         XCTAssertFalse(item.isVerified)
         XCTAssertEqual(item.calories, 300)
+        XCTAssertLessThan(item.score, 0.9, "stale numbers must not claim certainty")
     }
 
     func testManualItem() {

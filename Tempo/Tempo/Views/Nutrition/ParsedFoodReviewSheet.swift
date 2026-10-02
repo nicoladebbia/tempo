@@ -221,6 +221,9 @@ struct ParsedFoodReviewSheet: View {
                         gramsText[original.id] = text
                         if let grams = Double(text.replacingOccurrences(of: ",", with: ".")) {
                             draft.setGrams(grams, for: original.id)
+                            if draft.factor(for: original.id) >= MealReviewDraft.maxFactor {
+                                gramsText[original.id] = nil // capped: show the real figure
+                            }
                         }
                     }
                 )
