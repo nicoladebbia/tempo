@@ -107,7 +107,7 @@ struct ActiveWorkoutView: View {
         }
         let perSide = (inputWeight - bar) / 2
         let unit = weightUnit.abbreviation
-        let perSideStr = String(format: weightUnit == .kg ? "%.1f" : "%.1f", perSide)
+        let perSideStr = WeightFormat.number(perSide)
         let barStr = String(format: "%.0f", bar)
 
         // §5 plate calculator — the previously-orphaned showPlateCalculator
@@ -126,7 +126,10 @@ struct ActiveWorkoutView: View {
         }
 
         if bar > 0 {
-            return "\(perSideStr) \(unit)/side + \(barStr) \(unit) bar"
+            // Empty bar: "Empty 45 lbs bar", never "0 lbs/side".
+            return perSide > 0
+                ? "\(perSideStr) \(unit)/side + \(barStr) \(unit) bar"
+                : "Empty \(barStr) \(unit) bar"
         }
         return "\(perSideStr) \(unit)/side"
     }
@@ -168,8 +171,7 @@ struct ActiveWorkoutView: View {
     /// Human hint under the added-load stepper: "= 77.7 kg effective · assisted".
     private var bodyweightEffectiveHint: String {
         let unit = weightUnit.abbreviation
-        let effDisplay = WeightUnit.kg.convert(bodyweightEffectiveKg, to: weightUnit)
-        let effStr = String(format: weightUnit == .kg ? "%.1f" : "%.0f", effDisplay)
+        let effStr = WeightFormat.number(kg: bodyweightEffectiveKg, unit: weightUnit)
         let tag = if inputAddedLoad > 0 {
             "weighted"
         } else if inputAddedLoad < 0 {
@@ -209,7 +211,7 @@ struct ActiveWorkoutView: View {
                 // §15 fix — the weight shown here comes from `pr.value`
                 // converted to the user's unit (PRDisplay), never from the
                 // engine's kg-only, unit-unaware `context` string.
-                Text("\(pr.exercise?.name ?? "Exercise") · \(PRDisplay.weightLabel(pr, unit: weightUnit))")
+                Text("\(pr.exercise?.name ?? "Exercise") · \(PRDisplay.valueLabel(pr, unit: weightUnit))")
                     .font(.tempoCaption1)
                     .foregroundStyle(Color.tempoTextPrimary)
             }
@@ -403,9 +405,9 @@ struct ActiveWorkoutView: View {
             // input fields so the athlete can't log the pre-reduction number.
             loadCurrentSetInputs()
         }) {
-            PainReportSheet(viewModel: viewModel, plannedExercise: viewModel.currentExercise) {
-                dismiss()
-            }
+            // "End the session" is routed by sessionState (summary / discard
+            // close this cover from TrainingTabView) — no dismiss() here.
+            PainReportSheet(viewModel: viewModel, plannedExercise: viewModel.currentExercise)
         }
         // §4.2-4.4 — tap-to-type / scroll-wheel entry for weight, added load,
         // and reps. One sheet type, driven by which field was tapped.
@@ -655,7 +657,7 @@ struct ActiveWorkoutView: View {
 
     /// Display-unit conversion for stored-kg history values.
     private func displayWeight(_ kg: Double) -> String {
-        String(format: "%.0f", WeightUnit.kg.convert(kg, to: weightUnit))
+        WeightFormat.number(kg: kg, unit: weightUnit)
     }
 
     /// Best working set of the most recent PRIOR session of this lift.
@@ -667,8 +669,15 @@ struct ActiveWorkoutView: View {
         let prior = rows
             .filter { !cal.isDateInToday($0.date) }
             .max { $0.date < $1.date }
-        guard let prior, let w = prior.bestSetWeight, let r = prior.bestSetReps else {
+        guard let prior, let r = prior.bestSetReps, r > 0 else {
             return nil
+        }
+        // A bodyweight set reads "BW × 10", never "0 × 10".
+        if isBodyweightLift {
+            return "\(WeightFormat.bodyweightLoad(addedKg: prior.bestSetAddedLoadKg, unit: weightUnit)) × \(r)"
+        }
+        guard let w = prior.bestSetWeight, w > 0 else {
+            return "BW × \(r)"
         }
         return "\(displayWeight(w)) × \(r)"
     }
@@ -679,9 +688,10 @@ struct ActiveWorkoutView: View {
             return nil
         }
         let reps = SideRepsFormat.reps(set.targetReps, perSide: viewModel.currentExercise?.perSide == true)
-        // Bodyweight lift with no known bodyweight: 0 is "just bodyweight".
-        if isBodyweightLift, w <= 0 {
-            return "BW × \(reps)"
+        // No external load: 0 is "just bodyweight" on a bodyweight lift, and
+        // "no weight prescribed yet" on a loaded one — never "0 × 10".
+        if w <= 0 {
+            return isBodyweightLift ? "BW × \(reps)" : "\(reps) reps"
         }
         return "\(displayWeight(w)) × \(reps)"
     }
@@ -1045,8 +1055,7 @@ struct ActiveWorkoutView: View {
     private func warmupTargetLabel(_ set: PlannedSet) -> String {
         let reps = SideRepsFormat.reps(set.targetReps, perSide: set.plannedExercise?.perSide == true)
         if let w = set.targetWeight, w > 0 {
-            let display = WeightUnit.kg.convert(w, to: weightUnit)
-            return "\(Int(display)) \(weightUnit.abbreviation) × \(reps)"
+            return "\(WeightFormat.text(kg: w, unit: weightUnit)) × \(reps)"
         }
         return "Bodyweight × \(reps)"
     }
@@ -1402,8 +1411,8 @@ struct ActiveWorkoutView: View {
                 }
 
                 Button {
+                    // .discarded closes this cover from TrainingTabView.
                     viewModel.discardCrashedWorkout(modelContext: modelContext)
-                    dismiss()
                 } label: {
                     Text("Discard")
                         .font(.tempoHeadline)
@@ -1608,7 +1617,9 @@ enum PlateMath {
     /// Human label: "45 + 2.5" — values are already in the display unit.
     static func label(values: [Double]) -> String {
         values.map { v in
-            v == v.rounded() ? String(format: "%.0f", v) : String(format: "%.2g", v)
+            // Up to 2 decimals, no trailing zeros: 1.25, 2.5, 5 (never "%.2g" → "1.2").
+            let r = (v * 100).rounded() / 100
+            return r == r.rounded() ? String(format: "%.0f", r) : String(r)
         }
         .joined(separator: " + ")
     }

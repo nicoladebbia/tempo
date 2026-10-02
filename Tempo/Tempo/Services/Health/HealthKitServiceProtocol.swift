@@ -79,6 +79,17 @@ struct WorkoutSample {
     var totalVolumeKg: Double?
 }
 
+extension WorkoutSample {
+    /// The sample overlapping [start, end] the most; nil when none overlaps.
+    static func bestOverlap(start: Date, end: Date, in samples: [WorkoutSample]) -> WorkoutSample? {
+        samples
+            .map { ($0, min(end, $0.endDate).timeIntervalSince(max(start, $0.startDate))) }
+            .filter { $0.1 > 0 }
+            .max { $0.1 < $1.1 }?
+            .0
+    }
+}
+
 // MARK: - BodyCompositionData
 
 struct BodyCompositionData {

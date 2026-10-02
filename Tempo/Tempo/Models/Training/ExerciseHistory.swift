@@ -26,6 +26,10 @@ final class ExerciseHistory {
 
     var bestSetReps: Int?
 
+    /// Added (signed) load of the best set on a bodyweight-style lift; nil for
+    /// loaded lifts and for rows written before this field existed.
+    var bestSetAddedLoadKg: Double?
+
     var setsPerformed: Int?
 
     // MARK: - Feedback aggregates (Tier 2)
@@ -109,6 +113,7 @@ final class ExerciseHistory {
         totalVolume: Double = 0,
         bestSetWeight: Double? = nil,
         bestSetReps: Int? = nil,
+        bestSetAddedLoadKg: Double? = nil,
         setsPerformed: Int? = nil,
         avgRPE: Double? = nil,
         worstFormRaw: String? = nil,
@@ -124,6 +129,7 @@ final class ExerciseHistory {
         self.totalVolume = totalVolume
         self.bestSetWeight = bestSetWeight
         self.bestSetReps = bestSetReps
+        self.bestSetAddedLoadKg = bestSetAddedLoadKg
         self.setsPerformed = setsPerformed
         self.avgRPE = avgRPE
         self.worstFormRaw = worstFormRaw

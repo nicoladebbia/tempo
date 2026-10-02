@@ -26,12 +26,16 @@ extension TrainingViewModel {
     }
 
     /// Undo everything a session logged on `plan` so a redo starts clean: set
-    /// actuals (incl. added load and the L/R split), their SetFeedback rows and
+    /// actuals (incl. added load and the L/R split), pain skips, their SetFeedback rows and
     /// any PersonalRecord stamped with this plan (a discarded session must not
     /// leave a PR for a lift that "never happened").
     func rollBackLoggedWork(of plan: WorkoutPlan, modelContext: ModelContext) {
         var rolledBackSetIDs: Set<UUID> = []
         for ex in plan.orderedExercises {
+            // A redo gets every lift back (skipping them all and discarding
+            // would otherwise leave a plan with nothing left to start). The
+            // pain-reduced load stays — its targets are still the reduced ones.
+            ex.painSkipped = false
             for set in ex.orderedSets where set.completed {
                 rolledBackSetIDs.insert(set.id)
                 set.completed = false
@@ -65,10 +69,12 @@ extension TrainingViewModel {
     /// Fire-and-forget Apple Health write for a finished gym session
     /// (traditional strength training). Authorization is enforced inside
     /// `HealthKitService.writeWorkout` (no-op when sharing isn't granted) and
-    /// it de-dupes on start time; any error is swallowed — a Health hiccup
-    /// must never affect the saved workout. Active energy isn't known for a
-    /// gym session, so it is left 0 (HealthKit then estimates none).
+    /// it skips when an overlapping workout (e.g. the Watch's) is already in
+    /// Health; any error is swallowed — a Health hiccup must never affect the
+    /// saved workout. Calories are estimated as MET 3.5 × bodyweight × hours
+    /// (0 without a known bodyweight).
     func writeStrengthWorkoutToHealthKit(plan: WorkoutPlan, totalVolumeKg: Double) {
+        let bodyweightKg = plan.modelContext.flatMap { currentBodyweightKg(modelContext: $0) }
         let end = plan.finishedAt ?? Date()
         // The live session clock; if it never ran in this VM (0), fall back
         // to wall-clock minus recorded pauses.
@@ -80,7 +86,9 @@ extension TrainingViewModel {
             endDate: max(end, start),
             workoutType: "strength",
             durationMinutes: durationSeconds / 60,
-            activeCalories: 0,
+            activeCalories: HealthWorkoutDedupe.strengthKcal(
+                bodyweightKg: bodyweightKg, durationSeconds: durationSeconds
+            ),
             averageHeartRate: nil,
             maxHeartRate: nil,
             distanceMeters: nil,

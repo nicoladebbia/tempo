@@ -30,6 +30,9 @@ struct TrainerSessionCard: View {
     var workoutPlanID: UUID?
     var programSessionKey: String?
     var viewModel: TrainingViewModel?
+    /// The day's session is already marked done (a guided run was saved or a
+    /// block logged): the start button gives way to a "Logged" row.
+    var isDone = false
 
     @Environment(\.modelContext)
     private var modelContext
@@ -63,7 +66,11 @@ struct TrainerSessionCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             if canLog {
-                startGuidedRunButton
+                if isDone {
+                    loggedRow
+                } else {
+                    startGuidedRunButton
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -91,6 +98,21 @@ struct TrainerSessionCard: View {
                 )
             }
         }
+    }
+
+    private var loggedRow: some View {
+        HStack(spacing: TempoSpacing.xs) {
+            Image(systemName: "checkmark.seal.fill")
+                .foregroundStyle(Color.tempoRecoveryGreen)
+            Text("Logged")
+                .font(.tempoHeadline)
+                .foregroundStyle(Color.tempoTextPrimary)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 48)
+        .padding(.top, TempoSpacing.xs)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("guidedRunLoggedRow")
     }
 
     private var startGuidedRunButton: some View {

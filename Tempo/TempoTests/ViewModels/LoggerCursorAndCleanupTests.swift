@@ -261,6 +261,446 @@ final class LoggerCursorAndCleanupTests: XCTestCase {
         vm.resetState()
     }
 
+    func testPauseStampsMarkerAndResumeClearsIt() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [2])
+        start(vm, plan: plan)
+
+        vm.pause()
+        XCTAssertNotNil(plan.pausedAt, "A pause must be persisted the moment it starts")
+        vm.resume()
+        XCTAssertNil(plan.pausedAt)
+
+        vm.handleCallChange(callEnded: false)
+        XCTAssertNotNil(plan.pausedAt, "A phone call is a pause too")
+        vm.handleCallChange(callEnded: true)
+        XCTAssertNil(plan.pausedAt)
+        vm.resetState()
+    }
+
+    func testKillWhilePausedDoesNotCountThePauseAsTraining() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [2])
+        plan.startedAt = Date().addingTimeInterval(-1000)
+        plan.pausedSeconds = 100 // an earlier, already-resumed pause
+        plan.pausedAt = Date().addingTimeInterval(-300) // app killed while paused
+        vm.todayPlan = plan
+        vm.sessionState = .crashedRecovery
+
+        vm.resumeFromCrash()
+
+        XCTAssertEqual(vm.elapsedSeconds, 600, accuracy: 3)
+        XCTAssertEqual(plan.pausedSeconds, 400, accuracy: 3)
+        XCTAssertNil(plan.pausedAt, "The open pause is folded in and closed")
+        vm.resetState()
+    }
+
+    func testCrashHoursLaterDoesNotCountDeadAppTimeAsTraining() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [3])
+        let now = Date()
+        plan.startedAt = now.addingTimeInterval(-3 * 3600)
+        let first = try XCTUnwrap(plan.orderedExercises.first?.orderedSets.first)
+        first.completed = true
+        first.actualReps = 8
+        first.actualWeight = 80
+        first.completedAt = now.addingTimeInterval(-3 * 3600 + 1200) // 20 min in
+        vm.todayPlan = plan
+        vm.sessionState = .crashedRecovery
+
+        vm.resumeFromCrash()
+
+        // 20 min up to the last set + the 10 min idle allowance — not 3 hours.
+        XCTAssertEqual(vm.elapsedSeconds, 1800, accuracy: 3)
+        vm.resetState()
+    }
+
+    func testCrashCapDoesNotCountEarlierPausesAsTraining() {
+        let plan = WorkoutPlan(date: Date(), type: .push)
+        let now = Date()
+        let startedAt = now.addingTimeInterval(-3 * 3600)
+        plan.startedAt = startedAt
+        plan.pausedSeconds = 1200 // 20 min paused earlier
+        let ex = PlannedExercise(order: 0, workoutPlan: plan)
+        let set = PlannedSet(setNumber: 1, targetReps: 5, completed: true, plannedExercise: ex)
+        set.completedAt = startedAt.addingTimeInterval(3600) // last set 60 min in
+        ex.sets = [set]
+        plan.exercises = [ex]
+        let paused = TrainingViewModel.recoveredPauseSeconds(for: plan, now: now)
+        // 40 min trained up to the last set + 10 min allowance = 50 min.
+        XCTAssertEqual(now.timeIntervalSince(startedAt) - paused, 3000, accuracy: 1)
+    }
+
+    func testCrashSoonAfterStartKeepsTheRealClock() {
+        let plan = WorkoutPlan(date: Date(), type: .push)
+        let now = Date()
+        plan.startedAt = now.addingTimeInterval(-500)
+        plan.pausedSeconds = 60
+        XCTAssertEqual(
+            TrainingViewModel.recoveredPauseSeconds(for: plan, now: now), 60, accuracy: 0.1,
+            "Within the idle allowance nothing extra is treated as paused"
+        )
+    }
+
+    func testFinishingWhilePausedCountsTheFinalPause() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [2])
+        start(vm, plan: plan)
+        let set = try XCTUnwrap(plan.orderedExercises.first?.orderedSets.first)
+        set.completed = true
+        set.actualReps = 8
+        set.actualWeight = 80
+
+        let pauseStart = Date().addingTimeInterval(-300)
+        vm.sessionState = .paused(
+            previousState: .exercise(.setActive(exerciseIndex: 0, setIndex: 1)),
+            pauseStartTime: pauseStart
+        )
+        plan.pausedAt = pauseStart
+        vm.finishWorkout(modelContext: context)
+
+        XCTAssertEqual(vm.sessionState, .summary)
+        XCTAssertEqual(plan.pausedSeconds, 300, accuracy: 3)
+        XCTAssertNil(plan.pausedAt)
+        vm.resetState()
+    }
+
+    func testActualDurationExcludesPausedTime() {
+        let plan = WorkoutPlan(date: Date(), type: .push)
+        let start = Date()
+        plan.startedAt = start
+        plan.finishedAt = start.addingTimeInterval(3600)
+        plan.pausedSeconds = 600
+        XCTAssertEqual(plan.actualDurationMinutes, 50)
+    }
+
+    // MARK: - Severe pain → "End the session"
+
+    func testPainEndWithLoggedSetsFinishesToSummary() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [3])
+        start(vm, plan: plan)
+        let set = try XCTUnwrap(plan.orderedExercises.first?.orderedSets.first)
+        set.completed = true
+        set.actualReps = 8
+        set.actualWeight = 80
+        let report = PainReport(bodyArea: .knee, severity: 8)
+        context.insert(report)
+
+        vm.endSessionDueToPain(report, modelContext: context)
+
+        XCTAssertEqual(report.actionTaken, .endedSession)
+        XCTAssertEqual(vm.sessionState, .summary, "The session really ends — no ghost session behind the screen")
+        XCTAssertTrue(set.completed, "Logged work is kept")
+        vm.resetState()
+    }
+
+    func testPainEndWithNothingLoggedClosesAndRestsTheDay() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [3])
+        start(vm, plan: plan)
+        let report = PainReport(bodyArea: .back, severity: 9)
+        context.insert(report)
+
+        vm.endSessionDueToPain(report, modelContext: context)
+
+        XCTAssertEqual(vm.sessionState, .discarded)
+        XCTAssertEqual(plan.status, .skipped)
+        XCTAssertEqual(plan.skipReason, .floorForced, "Pain is the body saying no — not a missed day")
+        vm.resetState()
+    }
+
+    func testPainEndDuringACallStillFinishes() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [2])
+        start(vm, plan: plan)
+        let set = try XCTUnwrap(plan.orderedExercises.first?.orderedSets.first)
+        set.completed = true
+        set.actualReps = 8
+        set.actualWeight = 80
+        vm.handleCallChange(callEnded: false)
+        let report = PainReport(bodyArea: .shoulder, severity: 8)
+        context.insert(report)
+
+        vm.endSessionDueToPain(report, modelContext: context)
+
+        XCTAssertEqual(vm.sessionState, .summary)
+        XCTAssertNil(plan.pausedAt)
+        vm.resetState()
+    }
+
+    func testPainEndWithoutASessionOnlyRecordsTheReport() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [2])
+        plan.status = .planned
+        plan.startedAt = nil
+        vm.todayPlan = plan
+        vm.sessionState = .idle
+        let report = PainReport(bodyArea: .knee, severity: 8)
+        context.insert(report)
+
+        XCTAssertFalse(vm.canEndSessionForPain, "From Today's list there is no session to end")
+        vm.endSessionDueToPain(report, modelContext: context)
+
+        XCTAssertEqual(vm.sessionState, .idle)
+        XCTAssertEqual(plan.status, .planned)
+    }
+
+    // MARK: - Benched day (recovery floor / pain) → "Train anyway"
+
+    private func seedBenchedPlan(context: ModelContext, reason: SkipReason) -> WorkoutPlan {
+        let plan = seedPlan(context: context, setCounts: [2])
+        plan.status = .skipped
+        plan.skipReason = reason
+        plan.startedAt = nil
+        return plan
+    }
+
+    func testBenchedDayCannotBeStartedDirectly() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        vm.todayPlan = seedBenchedPlan(context: context, reason: .floorForced)
+        vm.sessionState = .idle
+
+        XCTAssertFalse(vm.canStartWorkout)
+        XCTAssertFalse(vm.startWorkout(), "The Dashboard Start button must not walk past the recovery block")
+        XCTAssertEqual(vm.sessionState, .idle)
+        XCTAssertTrue(vm.isRecoveryBenched)
+    }
+
+    func testTrainAnywayReopensABenchedDay() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedBenchedPlan(context: context, reason: .floorForced)
+        vm.todayPlan = plan
+        vm.sessionState = .idle
+
+        vm.trainAnyway(modelContext: context)
+
+        XCTAssertEqual(plan.status, .planned)
+        XCTAssertNil(plan.skipReason)
+        XCTAssertFalse(vm.isRecoveryBenched)
+        XCTAssertTrue(vm.canStartWorkout)
+        XCTAssertTrue(vm.startWorkout())
+        vm.resetState()
+    }
+
+    func testTrainAnywayLeavesAUserSkipAlone() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedBenchedPlan(context: context, reason: .userSkipped)
+        vm.todayPlan = plan
+
+        vm.trainAnyway(modelContext: context)
+
+        XCTAssertEqual(plan.status, .skipped)
+        XCTAssertEqual(plan.skipReason, .userSkipped)
+        XCTAssertFalse(vm.isRecoveryBenched)
+    }
+
+    func testDashboardShowsABenchedDayAsRest() throws {
+        let context = try makeContext()
+        let benched = seedBenchedPlan(context: context, reason: .floorForced)
+        XCTAssertEqual(DashboardViewModel.dashboardWorkoutStatus(for: benched), .restDay)
+        benched.skipReason = .userSkipped
+        XCTAssertEqual(DashboardViewModel.dashboardWorkoutStatus(for: benched), .none)
+    }
+
+    // MARK: - Pain skip / reduce really change the session
+
+    func testPainSkippedExerciseHasNoWorkLeft() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [2, 2])
+        let first = plan.orderedExercises[0]
+        XCTAssertEqual(vm.firstUncompletedSetIndex(in: first), 0)
+        first.painSkipped = true
+        XCTAssertNil(vm.firstUncompletedSetIndex(in: first))
+    }
+
+    func testPainSkippingTheCurrentExerciseMovesOn() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [3, 2])
+        start(vm, plan: plan)
+        let report = PainReport(bodyArea: .shoulder, severity: 5)
+        context.insert(report)
+
+        vm.skipExerciseDueToPain(report, plannedExercise: plan.orderedExercises[0], modelContext: context)
+
+        assertSetActive(vm, exercise: 1, set: 0)
+        vm.resetState()
+    }
+
+    func testCrashResumeWalksPastAPainSkippedExercise() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [2, 2])
+        plan.orderedExercises[0].painSkipped = true
+        vm.todayPlan = plan
+        vm.sessionState = .crashedRecovery
+
+        vm.resumeFromCrash()
+
+        assertSetActive(vm, exercise: 1, set: 0)
+        vm.resetState()
+    }
+
+    func testWatchNeitherShowsNorLogsAPainSkippedExercise() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [2, 2])
+        plan.orderedExercises[0].painSkipped = true
+        vm.todayPlan = plan
+
+        let names = vm.watchWorkoutPayload()?.exercises.map(\.name) ?? []
+        XCTAssertFalse(names.contains("Bench Press"))
+        XCTAssertTrue(names.contains("Barbell Row"))
+        XCTAssertFalse(
+            vm.applyWatchSetLog(exerciseName: "Bench Press", reps: 8, weightKg: 80, modelContext: context),
+            "A wrist log can't complete a set on an exercise skipped for pain"
+        )
+        XCTAssertFalse(plan.orderedExercises[0].orderedSets.contains(where: \.completed))
+    }
+
+    func testMildPainPrefillsTheReducedWeight() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [3])
+        start(vm, plan: plan)
+        let sets = plan.orderedExercises[0].orderedSets
+        sets[0].completed = true
+        sets[0].actualReps = 8
+        sets[0].actualWeight = 80
+        vm.currentSetIndex = 1
+        vm.sessionState = .exercise(.setActive(exerciseIndex: 0, setIndex: 1))
+
+        vm.filePainReport(
+            plannedExercise: plan.orderedExercises[0], bodyArea: .knee, severity: 2, modelContext: context
+        )
+
+        let reduced = try XCTUnwrap(sets[1].targetWeight)
+        XCTAssertLessThan(reduced, 80)
+        XCTAssertEqual(vm.stickyWeight, reduced, "Must not carry the pre-report 80 kg")
+        vm.resetState()
+    }
+
+    // MARK: - PR: one row + one toast per lift per session
+
+    func testBetterSetLaterInTheSessionUpgradesTheSameRecord() throws {
+        let context = try makeContext()
+        let vm = TrainingViewModel(trainingEngine: TrainingEngine(), whoop: MockWhoopService(), healthKit: healthKit)
+        let plan = seedPlan(context: context, setCounts: [3], targetWeight: 100)
+        let bench = try XCTUnwrap(plan.orderedExercises[0].exercise)
+        context.insert(ExerciseHistory(
+            date: Date().addingTimeInterval(-7 * 86400),
+            estimated1RM: StrengthStandards.epleyE1RM(weight: 80, reps: 5),
+            bestSetWeight: 80, bestSetReps: 5, workoutPlanID: UUID(), exercise: bench
+        ))
+        start(vm, plan: plan)
+
+        vm.logSet(weight: 100, reps: 5, modelContext: context)
+        XCTAssertEqual(vm.detectedPRs.count, 1, "First set past the old best is a record")
+        let firstValue = try XCTUnwrap(vm.detectedPRs.first?.value)
+
+        vm.sessionState = .exercise(.setActive(exerciseIndex: 0, setIndex: 1))
+        vm.currentSetIndex = 1
+        vm.logSet(weight: 105, reps: 5, modelContext: context)
+
+        let planID = plan.id
+        let rows = try context.fetch(FetchDescriptor<PersonalRecord>(
+            predicate: #Predicate { $0.workoutPlanID == planID }
+        ))
+        XCTAssertEqual(vm.detectedPRs.count, 1, "Still one toast/summary line for the lift")
+        XCTAssertEqual(rows.filter { $0.type == .oneRepMax }.count, 1, "Upgraded in place, not a second row")
+        XCTAssertGreaterThan(try XCTUnwrap(vm.detectedPRs.first?.value), firstValue)
+        vm.resetState()
+    }
+
+    func testFirstSessionOfALiftHasNoRecords() throws {
+        let context = try makeContext()
+        let vm = TrainingViewModel(trainingEngine: TrainingEngine(), whoop: MockWhoopService(), healthKit: healthKit)
+        let plan = seedPlan(context: context, setCounts: [2], targetWeight: 100)
+        start(vm, plan: plan)
+
+        vm.logSet(weight: 100, reps: 5, modelContext: context)
+
+        XCTAssertTrue(vm.detectedPRs.isEmpty, "Day one is the baseline")
+        vm.resetState()
+    }
+
+
+    // MARK: - Learning waits for the summary to close
+
+    func testLearningWaitsUntilTheSummaryCloses() async throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [2])
+        start(vm, plan: plan)
+        let slot = plan.orderedExercises[0]
+        let exerciseID = try XCTUnwrap(slot.exercise?.id)
+        let log = PredictionLog(
+            exerciseID: exerciseID, workoutPlanID: plan.id,
+            predictedWeight: 80, predictedReps: 8, signalUsedRaw: "test"
+        )
+        context.insert(log)
+        let set = slot.orderedSets[0]
+        set.completed = true
+        set.actualReps = 8
+        set.actualWeight = 80
+        vm.sessionState = .summary
+
+        XCTAssertTrue(vm.persistCompletion(modelContext: context))
+        XCTAssertTrue(plan.learningPending)
+        XCTAssertFalse(log.outcomeResolved, "Not before the last set's feedback can be entered")
+
+        vm.applyPendingLearning(modelContext: context)
+        XCTAssertTrue(plan.learningPending, "The open summary's session is left alone")
+
+        await vm.saveWorkout(modelContext: context)
+        XCTAssertFalse(plan.learningPending)
+        XCTAssertTrue(log.outcomeResolved)
+        XCTAssertEqual(log.actualReps, 8)
+    }
+
+    func testPendingLearningIsCaughtUpOnce() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [1])
+        plan.status = .completed
+        plan.learningPending = true
+        try context.save()
+
+        vm.applyPendingLearning(modelContext: context)
+        XCTAssertFalse(plan.learningPending, "A summary killed before closing still gets learned from")
+        vm.applyPendingLearning(modelContext: context) // no-op, no crash
+    }
+
+    func testOpenSummaryIsHeldBackUntilItsCoverCloses() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedPlan(context: context, setCounts: [1])
+        plan.status = .completed
+        plan.learningPending = true
+        try context.save()
+        vm.todayPlan = plan
+        vm.sessionState = .summary
+
+        vm.applyPendingLearning(modelContext: context)
+        XCTAssertTrue(plan.learningPending, "Feedback can still change on the open summary")
+        vm.applyPendingLearning(modelContext: context, summaryClosed: true)
+        XCTAssertFalse(plan.learningPending, "However the cover closed, its feedback is final")
+        vm.resetState()
+    }
+
     // MARK: - 5. Watch payloads
 
     func testWatchSetWithoutWeightUsesPrescriptionNotZero() throws {
@@ -318,6 +758,18 @@ final class LoggerCursorAndCleanupTests: XCTestCase {
         XCTAssertEqual(prs.count, 1, "Other sessions' PRs are untouched", file: file, line: line)
     }
 
+    func testDiscardGivesPainSkippedLiftsBack() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seedLoggedSessionWithPR(vm: vm, context: context)
+        plan.orderedExercises.forEach { $0.painSkipped = true }
+
+        vm.discardActiveWorkout(modelContext: context)
+
+        XCTAssertFalse(plan.orderedExercises.contains(where: \.painSkipped), "A redo starts with every lift")
+        XCTAssertEqual(plan.status, .planned)
+    }
+
     func testDiscardResetsAddedLoadSplitRepsAndPRs() throws {
         let context = try makeContext()
         let vm = makeVM()
@@ -338,7 +790,8 @@ final class LoggerCursorAndCleanupTests: XCTestCase {
         vm.discardCrashedWorkout(modelContext: context)
 
         try assertRolledBack(plan, context: context)
-        XCTAssertEqual(plan.status, .skipped)
+        XCTAssertEqual(plan.status, .planned, "A discarded crash leaves the day open to redo")
+        XCTAssertEqual(vm.sessionState, .discarded)
     }
 
     // MARK: - 8. Delayed inter-exercise hop can't overwrite a newer state

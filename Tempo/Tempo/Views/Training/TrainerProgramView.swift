@@ -33,6 +33,8 @@ struct TrainerProgramView: View {
     private var pendingDelete: TrainerProgram?
     @State
     private var pendingActivate: TrainerProgram?
+    @State
+    private var pendingPause: TrainerProgram?
     /// Fix #8 — "send report to trainer" (TrainerReportSheet.swift, new file).
     @State
     private var reportProgram: TrainerProgram?
@@ -44,9 +46,26 @@ struct TrainerProgramView: View {
     /// trainer-feedback-tests — "Trainer sent changes" (TrainerFeedbackInputView.swift, new file).
     @State
     private var feedbackProgram: TrainerProgram?
+    /// Compliance for the active program. Walks every plan and every day since
+    /// the start, so it is computed once here (see `refreshCompliance`), never
+    /// inside `body`, which re-runs on every render.
+    @State
+    private var complianceStats: TrainerProgramHistoryStats.Stats?
 
     private var activeProgram: TrainerProgram? {
         programs.first { $0.isActive }
+    }
+
+    /// What the compliance numbers depend on among the program's own fields.
+    private var complianceKey: String {
+        guard let program = activeProgram else {
+            return "none"
+        }
+        return "\(program.id)-\(program.startDate.timeIntervalSince1970)-\(program.weeks.count)-\(program.skippedSessions.count)-\(program.scheduleMode.rawValue)"
+    }
+
+    private func refreshCompliance() {
+        complianceStats = activeProgram.map { TrainerProgramHistoryStats.stats(for: $0, modelContext: modelContext) }
     }
 
     /// Fix #11(b) — queued to auto-activate later; not "past" (history) and
@@ -111,6 +130,12 @@ struct TrainerProgramView: View {
         .background(Color.tempoBgPrimary)
         .navigationTitle("Trainer Program")
         .navigationBarTitleDisplayMode(.inline)
+        .task(id: complianceKey) {
+            refreshCompliance()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .tempoWorkoutChanged)) { _ in
+            refreshCompliance()
+        }
         .toolbar {
             if activeProgram != nil {
                 ToolbarItem(placement: .primaryAction) {
@@ -192,6 +217,22 @@ struct TrainerProgramView: View {
         } message: { _ in
             Text("This replaces your current active program (if any). Tempo regenerates the week from it.")
         }
+        .confirmationDialog(
+            "Pause this program?",
+            isPresented: Binding(get: { pendingPause != nil }, set: {
+                if !$0 {
+                    pendingPause = nil
+                }
+            }),
+            titleVisibility: .visible,
+            presenting: pendingPause
+        ) { program in
+            Button("Pause \"\(program.name)\"") {
+                TrainerProgramSaver.deactivate(program, modelContext: modelContext)
+            }
+        } message: { _ in
+            Text("It moves to Past programs and Tempo stops planning from it. Run it again any time. Your history stays.")
+        }
     }
 
     // MARK: - Active program card
@@ -220,6 +261,11 @@ struct TrainerProgramView: View {
             Text(TrainerProgramDurationText.summary(for: program))
                 .font(.tempoCaption1)
                 .foregroundStyle(program.isFinished(on: Date()) ? Color.tempoWarning : Color.tempoTextTertiary)
+
+            // Compliance: sessions actually done / scheduled so far.
+            if let complianceStats {
+                TrainerComplianceBar(stats: complianceStats, emptyText: "No sessions due yet.")
+            }
 
             Divider().background(Color.tempoDivider)
 
@@ -385,7 +431,7 @@ struct TrainerProgramView: View {
                 .buttonStyle(.tempoSecondary)
 
                 Button {
-                    TrainerProgramSaver.deactivate(program, modelContext: modelContext)
+                    pendingPause = program
                 } label: {
                     Label("Pause", systemImage: "pause.circle")
                         .lineLimit(1)

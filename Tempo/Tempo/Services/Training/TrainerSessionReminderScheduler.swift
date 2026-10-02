@@ -60,6 +60,13 @@ enum TrainerSessionReminderScheduler {
             .first?.trainingTimePreference ?? .anyFree
         let timeOfDay = Self.timeOfDay(for: preference)
 
+        // A session already trained today must not nag: plans in the window
+        // with real logged work (a merely-opened plan doesn't count).
+        let windowEnd = calendar.date(byAdding: .day, value: Self.lookaheadDays, to: today) ?? today
+        let windowPlans = (try? modelContext.fetch(FetchDescriptor<WorkoutPlan>(
+            predicate: #Predicate<WorkoutPlan> { $0.date >= today && $0.date < windowEnd }
+        ))) ?? []
+
         // Cache each real week's schedule (at most 2 distinct ISO weeks fall
         // inside a 7-day lookahead) instead of recomputing it per day.
         var scheduleByWeekStart: [Date: [DayTrainingSchedule]] = [:]
@@ -94,6 +101,15 @@ enum TrainerSessionReminderScheduler {
                   let fireDate = Self.fireDate(on: date, timeOfDay: timeOfDay, calendar: calendar),
                   fireDate > now
             else {
+                continue
+            }
+
+            let alreadyDone = windowPlans.contains { plan in
+                calendar.isDate(plan.date, inSameDayAs: date)
+                    && (plan.programSessionKey == sessionKey || plan.programSecondaryKey == sessionKey)
+                    && TrainerReportBuilder.didRealWork(plan, sessionKey: sessionKey)
+            }
+            guard !alreadyDone else {
                 continue
             }
 

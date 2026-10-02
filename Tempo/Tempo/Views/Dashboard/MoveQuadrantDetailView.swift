@@ -98,6 +98,8 @@ struct MoveQuadrantDetailView: View {
         }
         .fullScreenCover(isPresented: $showSummary, onDismiss: {
             showSummary = false
+            // However the summary closed, its feedback is now final.
+            trainingVM?.applyPendingLearning(modelContext: modelContext, summaryClosed: true)
         }) {
             if let trainingVM {
                 NavigationStack {
@@ -164,13 +166,15 @@ struct MoveQuadrantDetailView: View {
             lastSessionAvgHR = .some(nil)
             return
         }
-        let sessionDate = last.finishedAt ?? last.date
-        let samples = await (try? services.healthKit.fetchWorkouts(for: sessionDate)) ?? []
-        // Match the HK workout that overlaps this session's finish time;
-        // fall back to the highest-HR sample for the day.
-        let avg = samples
-            .compactMap(\.averageHeartRate)
-            .max()
+        let end = last.finishedAt ?? last.date
+        let start = last.startedAt ?? end.addingTimeInterval(-Double(last.durationMinutes ?? 60) * 60)
+        var samples = await (try? services.healthKit.fetchWorkouts(for: end)) ?? []
+        if !Calendar.current.isDate(start, inSameDayAs: end) {
+            samples += await (try? services.healthKit.fetchWorkouts(for: start)) ?? []
+        }
+        // Only the HK workout that actually overlaps this session — never
+        // another activity from the same day.
+        let avg = WorkoutSample.bestOverlap(start: start, end: end, in: samples)?.averageHeartRate
         lastSessionAvgHR = .some(avg)
     }
 
@@ -439,8 +443,7 @@ struct MoveQuadrantDetailView: View {
                         Spacer()
 
                         let dur = workout.durationMinutes ?? workout.actualDurationMinutes
-                        let vol = WeightUnit.kg.convert(workout.totalVolume, to: weightUnit)
-                        Text(volumeHistoryLabel(durationMinutes: dur, volume: vol))
+                        Text(Self.volumeHistoryLabel(durationMinutes: dur, volumeKg: workout.totalVolume, unit: weightUnit))
                             .font(.tempoCaption1)
                             .foregroundStyle(Color.tempoTextSecondary)
                     }
@@ -458,15 +461,17 @@ struct MoveQuadrantDetailView: View {
         .tempoShadow(.card)
     }
 
-    private func volumeHistoryLabel(durationMinutes: Int?, volume: Double) -> String {
-        let unit = weightUnit.abbreviation
-        let volStr = volume >= 1000
-            ? String(format: "%.1fk %@", volume / 1000, unit)
-            : "\(Int(volume)) \(unit)"
+    /// "52m · 4.2k kg"; a session with no lifted volume (a run, mobility)
+    /// shows just its duration, never "0 kg".
+    static func volumeHistoryLabel(durationMinutes: Int?, volumeKg: Double, unit: WeightUnit) -> String {
+        var parts: [String] = []
         if let dur = durationMinutes {
-            return "\(dur)m · \(volStr)"
+            parts.append("\(dur)m")
         }
-        return volStr
+        if volumeKg > 0 {
+            parts.append(WeightFormat.volumeText(kg: volumeKg, unit: unit))
+        }
+        return parts.joined(separator: " · ")
     }
 
     // MARK: - Weekly Volume Chart

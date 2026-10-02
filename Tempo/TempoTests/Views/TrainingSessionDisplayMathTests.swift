@@ -49,16 +49,16 @@ final class TrainingSessionDisplayMathTests: XCTestCase {
         let pr = PersonalRecord(type: .oneRepMax, value: 100, date: Date(), context: "999kg x 5 reps")
         // The context string is deliberately garbage/wrong here — the label
         // must ignore it entirely and derive everything from pr.value.
-        let kgLabel = PRDisplay.weightLabel(pr, unit: .kg, decimals: 0)
+        let kgLabel = PRDisplay.weightLabel(pr, unit: .kg)
         XCTAssertEqual(kgLabel, "100 kg")
 
-        let lbsLabel = PRDisplay.weightLabel(pr, unit: .lbs, decimals: 0)
-        XCTAssertEqual(lbsLabel, "220 lbs", "100 kg is ~220 lbs, not '999' anything")
+        let lbsLabel = PRDisplay.weightLabel(pr, unit: .lbs)
+        XCTAssertEqual(lbsLabel, "220.5 lbs", "100 kg is ~220.5 lbs, not '999' anything")
     }
 
     func testSubtitleParsesRepsFromContextForRepMaxOnly() {
         let repMax = PersonalRecord(type: .repMax, value: 82.5, date: Date(), context: "82kg x 5 reps")
-        XCTAssertEqual(PRDisplay.subtitle(repMax), "New 5-rep max")
+        XCTAssertEqual(PRDisplay.subtitle(repMax), "Heaviest weight · 5 reps")
 
         let oneRM = PersonalRecord(type: .oneRepMax, value: 105, date: Date(), context: "82kg x 5 reps")
         XCTAssertEqual(
@@ -69,6 +69,6 @@ final class TrainingSessionDisplayMathTests: XCTestCase {
 
     func testSubtitleHandlesMissingOrUnparsableContext() {
         let repMax = PersonalRecord(type: .repMax, value: 82.5, date: Date(), context: nil)
-        XCTAssertEqual(PRDisplay.subtitle(repMax), "New rep max")
+        XCTAssertEqual(PRDisplay.subtitle(repMax), "Heaviest weight")
     }
 }

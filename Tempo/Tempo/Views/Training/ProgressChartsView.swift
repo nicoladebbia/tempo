@@ -151,17 +151,23 @@ struct ProgressChartsView: View {
     }
 
     /// New running-max e1RMs set in the trailing 30 days, across all lifts.
+    /// A lift's first session is its baseline, not a record (same rule as
+    /// the PR toast), so a new lift doesn't inflate the count.
     private var prCount30d: Int {
         let cutoff = Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? Date()
         var count = 0
         for exercise in exercises {
             let rows = (exercise.history ?? []).sorted { $0.date < $1.date }
-            var runningMax = 0.0
+            var runningMax: Double?
             for row in rows {
-                guard let e1RM = row.estimated1RM else {
+                guard let e1RM = row.estimated1RM, e1RM > 0 else {
                     continue
                 }
-                if e1RM > runningMax {
+                guard let best = runningMax else {
+                    runningMax = e1RM
+                    continue
+                }
+                if e1RM > best + TrainingEngine.personalRecordEpsilon {
                     runningMax = e1RM
                     if row.date >= cutoff {
                         count += 1
@@ -288,7 +294,7 @@ struct ProgressChartsView: View {
                 GridItem(.flexible(), spacing: TempoSpacing.sm),
             ], spacing: TempoSpacing.sm) {
                 overviewStatCell(label: "Workouts", value: "\(totalWorkouts)")
-                overviewStatCell(label: "Volume", value: formatVolume(totalVolume))
+                overviewStatCell(label: "Volume (\(weightUnit.abbreviation))", value: WeightFormat.compactVolume(kg: totalVolume, unit: weightUnit))
                 overviewStatCell(label: "Sets", value: "\(totalSets)")
             }
         }
@@ -302,6 +308,8 @@ struct ProgressChartsView: View {
             Text(value)
                 .font(.tempoTitle3)
                 .foregroundStyle(Color.tempoTextPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
             Text(label)
                 .font(.tempoCaption2)
                 .foregroundStyle(Color.tempoTextTertiary)
@@ -464,8 +472,8 @@ struct ProgressChartsView: View {
                     .foregroundStyle(Color.tempoTextPrimary)
                     .lineLimit(1)
 
-                if let e1rm = exercise.currentEstimated1RM {
-                    Text("e1RM: \(String(format: "%.1f", e1rm)) kg")
+                if let e1rm = exercise.currentEstimated1RM, e1rm > 0 {
+                    Text("e1RM: \(WeightFormat.text(kg: e1rm, unit: weightUnit))")
                         .font(.tempoCaption1)
                         .foregroundStyle(Color.tempoTextSecondary)
                 }
@@ -726,10 +734,6 @@ struct ProgressChartsView: View {
 
     /// Stored kg → the user's display unit (a lbs lifter reads lbs totals).
     private func formatVolume(_ volumeKg: Double) -> String {
-        let value = WeightUnit.kg.convert(volumeKg, to: weightUnit)
-        if value >= 1000 {
-            return String(format: "%.1fk %@", value / 1000, weightUnit.abbreviation)
-        }
-        return "\(Int(value)) \(weightUnit.abbreviation)"
+        WeightFormat.volumeText(kg: volumeKg, unit: weightUnit)
     }
 }

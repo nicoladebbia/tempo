@@ -134,6 +134,46 @@ final class TrainerSessionReminderSchedulerTests: XCTestCase {
         )
     }
 
+    /// Today's session still gets its reminder until you've actually trained;
+    /// once a plan with logged work exists, no reminder fires for it.
+    func testNoReminderForASessionAlreadyDoneToday() throws {
+        let cal = Calendar.current
+        let earlyToday = cal.startOfDay(for: Date()).addingTimeInterval(3600) // fire time (17:00) is still ahead
+
+        func reminderCount(plan: (TrainerProgram, ModelContext) -> Void) throws -> Int {
+            let container = try TempoModelContainer.create(inMemory: true)
+            let context = container.mainContext
+            context.insert(UserSettings())
+            try makeActiveProgramSession(in: context, offsetDays: 0)
+            if let program = try context.fetch(FetchDescriptor<TrainerProgram>()).first {
+                plan(program, context)
+            }
+            try context.save()
+            let mock = MockNotificationService()
+            TrainerSessionReminderScheduler.reschedule(
+                notifications: mock,
+                trainingEngine: TrainingEngine(),
+                whoop: MockWhoopService(),
+                healthKit: MockHealthKitService(),
+                modelContext: context,
+                now: earlyToday
+            )
+            return scheduledTrainerReminders(mock).count
+        }
+
+        XCTAssertEqual(try reminderCount { _, _ in }, 1, "control: nothing trained yet -> reminded")
+        XCTAssertEqual(try reminderCount { program, context in
+            let plan = WorkoutPlan(date: cal.startOfDay(for: Date()), type: .push, status: .planned)
+            plan.programSessionKey = program.sessionKey(weekIndex: 0, dayIndex: 0)
+            context.insert(plan) // opened, never trained
+        }, 1, "an opened-but-untrained plan doesn't silence the reminder")
+        XCTAssertEqual(try reminderCount { program, context in
+            let plan = WorkoutPlan(date: cal.startOfDay(for: Date()), type: .push, status: .completed)
+            plan.programSessionKey = program.sessionKey(weekIndex: 0, dayIndex: 0)
+            context.insert(plan)
+        }, 0, "trained today -> no reminder")
+    }
+
     func testUsesTheUsersTrainingTimePreference() throws {
         let container = try TempoModelContainer.create(inMemory: true)
         let context = container.mainContext

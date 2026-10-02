@@ -29,6 +29,9 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
     /// Per INTEGRATION_SPECS.md Section 2.1 — detect permission revocation on app launch.
     private var previousWriteStatus: HKAuthorizationStatus = .notDetermined
 
+    /// In-flight guard for the one-time calories/distance permission sheet.
+    private var isRequestingNewWriteTypes = false
+
     // MARK: - Authorization
 
     // Per INTEGRATION_SPECS.md Section 2.1 — requestAuthorization()
@@ -79,6 +82,25 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
             authResult = .denied
         }
         previousWriteStatus = workoutStatus
+
+        // Users who allowed workout writes before calories/distance were added
+        // get one Health sheet for just the new types (iOS never re-asks a
+        // type that's already been decided).
+        if workoutStatus == .sharingAuthorized, !isRequestingNewWriteTypes {
+            let newTypes = HealthKitConstants.writeTypes.filter {
+                healthStore.authorizationStatus(for: $0) == .notDetermined
+            }
+            if !newTypes.isEmpty {
+                // Runs on every foreground — never stack a second sheet.
+                isRequestingNewWriteTypes = true
+                defer { isRequestingNewWriteTypes = false }
+                do {
+                    try await healthStore.requestAuthorization(toShare: newTypes, read: [])
+                } catch {
+                    Logger.healthkit.error("New write types request failed: \(error.localizedDescription)")
+                }
+            }
+        }
 
         // Update full write status
         if case .denied = authResult {} else {
@@ -582,15 +604,18 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
             healthStore.execute(query)
         }
 
+        let bpm = HKUnit.count().unitDivided(by: .minute())
         let results = workouts.map { workout in
-            WorkoutSample(
+            let heartRate = workout.statistics(for: HKQuantityType(.heartRate))
+            return WorkoutSample(
                 startDate: workout.startDate,
                 endDate: workout.endDate,
                 workoutType: Self.mapActivityType(workout.workoutActivityType),
                 durationMinutes: workout.duration / 60,
                 activeCalories: workout.totalEnergyBurned?.doubleValue(for: .kilocalorie()) ?? 0,
-                averageHeartRate: nil, // HR during workout fetched separately if needed
-                maxHeartRate: nil,
+                // Present for Watch-recorded workouts; nil otherwise.
+                averageHeartRate: heartRate?.averageQuantity()?.doubleValue(for: bpm),
+                maxHeartRate: heartRate?.maximumQuantity()?.doubleValue(for: bpm),
                 distanceMeters: workout.totalDistance?.doubleValue(for: .meter())
             )
         }
@@ -658,17 +683,18 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
             return
         }
 
-        // Check for duplicate: workout with same start time already exists
+        // No duplicates: skip when any workout already in Health (a Watch
+        // recording, another app, or our own earlier write) covers this span.
         let predicate = HKQuery.predicateForSamples(
             withStart: workout.startDate,
-            end: workout.startDate.addingTimeInterval(1),
-            options: .strictStartDate
+            end: workout.endDate,
+            options: []
         )
         let existing: [HKWorkout] = try await withCheckedThrowingContinuation { continuation in
             let query = HKSampleQuery(
                 sampleType: HKWorkoutType.workoutType(),
                 predicate: predicate,
-                limit: 1,
+                limit: 20,
                 sortDescriptors: nil
             ) { _, samples, error in
                 if let error {
@@ -680,14 +706,18 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
             healthStore.execute(query)
         }
 
-        if !existing.isEmpty {
-            Logger.healthkit.debug("writeWorkout: duplicate detected, skipping")
+        if HealthWorkoutDedupe.isDuplicate(
+            start: workout.startDate,
+            end: workout.endDate,
+            existing: existing.map { ($0.startDate, $0.endDate) }
+        ) {
+            Logger.healthkit.debug("writeWorkout: overlapping workout already in Health, skipping")
             return
         }
 
         let configuration = HKWorkoutConfiguration()
         configuration.activityType = Self.mapStringToHKActivityType(workout.workoutType)
-        configuration.locationType = .indoor
+        configuration.locationType = workout.workoutType == "strength" ? .indoor : .unknown
 
         let builder = HKWorkoutBuilder(
             healthStore: healthStore,
@@ -701,8 +731,12 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
             try await builder.addMetadata(["TempoTotalVolumeKg": volume])
         }
 
-        // Add energy burned
-        if workout.activeCalories > 0 {
+        // Calories and distance only when their write permission is granted —
+        // adding a sample of an unshared type throws and would lose the whole
+        // workout (users who allowed workouts before these types existed).
+        if workout.activeCalories > 0,
+           healthStore.authorizationStatus(for: HKQuantityType(.activeEnergyBurned)) == .sharingAuthorized
+        {
             let energySample = HKQuantitySample(
                 type: HKQuantityType(.activeEnergyBurned),
                 quantity: HKQuantity(unit: .kilocalorie(), doubleValue: workout.activeCalories),
@@ -712,8 +746,9 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
             try await builder.addSamples([energySample])
         }
 
-        // Add distance if available
-        if let distance = workout.distanceMeters, distance > 0 {
+        if let distance = workout.distanceMeters, distance > 0,
+           healthStore.authorizationStatus(for: HKQuantityType(.distanceWalkingRunning)) == .sharingAuthorized
+        {
             let distanceSample = HKQuantitySample(
                 type: HKQuantityType(.distanceWalkingRunning),
                 quantity: HKQuantity(unit: .meter(), doubleValue: distance),
@@ -863,10 +898,10 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
 
     // MARK: - Reverse Activity Type Mapping
 
-    private static func mapStringToHKActivityType(_ type: String) -> HKWorkoutActivityType {
+    static func mapStringToHKActivityType(_ type: String) -> HKWorkoutActivityType {
         switch type {
         case "strength": .traditionalStrengthTraining
-        case "run": .running
+        case "run", "running": .running
         case "football": .soccer
         case "cardio": .cycling
         case "hiit": .highIntensityIntervalTraining
@@ -875,5 +910,32 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
         case "sport": .other
         default: .other
         }
+    }
+}
+
+// MARK: - HealthWorkoutDedupe
+
+/// Pure overlap rule for Apple Health workout writes: a new workout is a
+/// duplicate when an existing one overlaps it by at least 10 minutes or half
+/// its length, whichever is smaller — so a Watch-recorded gym session (or our
+/// own earlier write) blocks the copy, but a short walk that brushes the edge
+/// doesn't.
+enum HealthWorkoutDedupe {
+    static func isDuplicate(start: Date, end: Date, existing: [(start: Date, end: Date)]) -> Bool {
+        let length = max(1, end.timeIntervalSince(start))
+        let threshold = min(600, length / 2)
+        return existing.contains { other in
+            let overlap = min(end, other.end).timeIntervalSince(max(start, other.start))
+            return overlap >= threshold
+        }
+    }
+
+    /// Gym session energy estimate: MET 3.5 × bodyweight (kg) × hours.
+    /// 0 when bodyweight is unknown.
+    static func strengthKcal(bodyweightKg: Double?, durationSeconds: Double) -> Double {
+        guard let bodyweightKg, bodyweightKg > 0, durationSeconds > 0 else {
+            return 0
+        }
+        return (3.5 * bodyweightKg * durationSeconds / 3600).rounded()
     }
 }

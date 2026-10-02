@@ -18,14 +18,18 @@ struct TempoLineChart<ID: Hashable>: View {
     let data: [TempoLineChartData<ID>]
     let height: CGFloat
     let showGrid: Bool
+    /// When set, x-axis labels follow the date span (about this many) instead
+    /// of the per-point stride — for sparse series over a long range.
+    let axisDesiredCount: Int?
 
     @Environment(\.colorScheme)
     private var colorScheme
     @State
     private var selectedPoint: (series: ID, date: Date, value: Double)?
 
-    init(data: [TempoLineChartData<ID>], height: CGFloat = 200, showGrid: Bool = true) {
+    init(data: [TempoLineChartData<ID>], height: CGFloat = 200, showGrid: Bool = true, axisDesiredCount: Int? = nil) {
         self.data = data
+        self.axisDesiredCount = axisDesiredCount
         self.height = height
         self.showGrid = showGrid
     }
@@ -73,12 +77,10 @@ struct TempoLineChart<ID: Hashable>: View {
             }
         }
         .chartXAxis {
-            AxisMarks(values: .stride(by: .day, count: axisStride)) { _ in
-                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4, 4]))
-                    .foregroundStyle(gridColor)
-                AxisValueLabel(format: .dateTime.day().month(.abbreviated))
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+            if let dates = axisDates {
+                AxisMarks(values: dates) { _ in xAxisContent }
+            } else {
+                AxisMarks(values: .stride(by: .day, count: axisStride)) { _ in xAxisContent }
             }
         }
         .chartYAxis {
@@ -129,6 +131,36 @@ struct TempoLineChart<ID: Hashable>: View {
         colorScheme == .dark
             ? Color.tempoFillTertiary
             : Color.tempoBorder
+    }
+
+    @AxisMarkBuilder
+    private var xAxisContent: some AxisMark {
+        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4, 4]))
+            .foregroundStyle(gridColor)
+        AxisValueLabel(format: .dateTime.day().month(.abbreviated))
+            .font(.tempoCaption2)
+            .foregroundStyle(Color.tempoTextTertiary)
+    }
+
+    /// With `axisDesiredCount`: at most that many tick dates, one per distinct
+    /// day among the data, evenly sampled — a short or sparse series never
+    /// repeats a label. Nil → the default day stride by point count.
+    private var axisDates: [Date]? {
+        guard let desired = axisDesiredCount, desired > 0 else {
+            return nil
+        }
+        let calendar = Calendar.current
+        // The data's own timestamps (first of each day), so every tick sits
+        // inside the plotted domain.
+        var seen = Set<Date>()
+        let days = (data.first?.points ?? []).map(\.date).sorted().filter {
+            seen.insert(calendar.startOfDay(for: $0)).inserted
+        }
+        guard days.count > desired, desired > 1 else {
+            return days
+        }
+        let step = Double(days.count - 1) / Double(desired - 1)
+        return (0 ..< desired).map { days[Int((Double($0) * step).rounded())] }
     }
 
     private var axisStride: Int {

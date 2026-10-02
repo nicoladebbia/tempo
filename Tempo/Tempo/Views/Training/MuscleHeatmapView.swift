@@ -196,7 +196,10 @@ struct MuscleHeatmapView: View {
                         .foregroundStyle(Color.tempoTextTertiary)
                 }
             }
-            .padding(.vertical, TempoSpacing.lg)
+            .padding(.top, TempoSpacing.lg)
+            // The floating tab bar overlaps the scroll content: leave room so
+            // the drill-down panel can scroll fully clear of it.
+            .padding(.bottom, 120)
             .animation(.spring(duration: 0.3), value: selectedMuscle)
         }
         .background(Color.tempoBgPrimary)
@@ -335,8 +338,8 @@ struct MuscleHeatmapView: View {
                             .font(.tempoSubheadline)
                             .foregroundStyle(Color.tempoTextPrimary)
                         Spacer()
-                        if let best = row.bestSetWeight {
-                            Text("\(volumeLabel(best)) × \(row.bestSetReps ?? 0)")
+                        if let reps = row.bestSetReps, reps > 0 {
+                            Text("\(historySetLoad(row)) × \(reps)")
                                 .font(.tempoCaption1)
                                 .foregroundStyle(Color.tempoTextSecondary)
                         }
@@ -362,10 +365,13 @@ struct MuscleHeatmapView: View {
     }
 
     private func volumeLabel(_ kg: Double) -> String {
-        let display = WeightUnit.kg.convert(kg, to: weightUnit)
-        let formatted = display >= 1000
-            ? String(format: "%.1fk", display / 1000)
-            : String(format: "%.0f", display)
-        return "\(formatted) \(weightUnit.abbreviation)"
+        WeightFormat.volumeText(kg: kg, unit: weightUnit)
+    }
+
+    private func historySetLoad(_ row: ExerciseHistory) -> String {
+        let bodyweight = row.exercise.map { StrengthStandards.isBodyweightLoaded($0.equipment) } ?? false
+        return WeightFormat.setLoad(
+            kg: row.bestSetWeight, addedKg: row.bestSetAddedLoadKg, bodyweight: bodyweight, unit: weightUnit
+        )
     }
 }

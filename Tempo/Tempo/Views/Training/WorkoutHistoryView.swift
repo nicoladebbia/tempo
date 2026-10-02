@@ -26,6 +26,10 @@ struct WorkoutHistoryView: View {
     @Query
     private var userSettings: [UserSettings]
 
+    /// Bodyweight for imported pull-up / dip rows (effective load = bodyweight + added).
+    @Query
+    private var profiles: [UserProfile]
+
     /// All captured set feedback. Bounded (one row per logged set); built
     /// into a `[setID: SetFeedback]` lookup so expanded rows can show
     /// RPE/breath/form. Legacy sessions have none — graceful absence.
@@ -79,6 +83,35 @@ struct WorkoutHistoryView: View {
     private var csvResultMessage: String?
     @State
     private var exportFileURL: URL?
+    /// A parsed file waiting for the athlete to say which unit its weights
+    /// are in (Strong's older exports don't say).
+    @State
+    private var pendingUnitChoice: WorkoutCSVService.ParsedFile?
+    /// Batch id of the most recent import — lets the result alert and the
+    /// menu remove the whole import in one tap.
+    @AppStorage("lastWorkoutImportBatchID")
+    private var lastImportBatchID = ""
+    @State
+    private var showUndoImportConfirm = false
+    /// Non-nil while a CSV is being read / written: the stage label and, once
+    /// writing starts, 0...1 progress (nil = still reading, indeterminate).
+    @State
+    private var importStage: String?
+    @State
+    private var importProgress: Double?
+    /// True only while the alert shows a fresh import result.
+    @State
+    private var resultOffersUndo = false
+
+    /// The most recent import, only while some of its workouts still exist.
+    private var undoableImportBatch: UUID? {
+        guard let id = UUID(uuidString: lastImportBatchID),
+              completedWorkouts.contains(where: { $0.importBatchID == id })
+        else {
+            return nil
+        }
+        return id
+    }
 
     private var weightUnit: WeightUnit {
         userSettings.first?.weightUnit ?? .kg
@@ -108,6 +141,20 @@ struct WorkoutHistoryView: View {
             }
         }
         .background(Color.tempoBgPrimary)
+        #if DEBUG
+        // Sim check: `-debugCSVImportPath /path/file.csv` runs the same import
+        // path as the file picker (parse off-main, unit prompt, progress).
+        .task {
+            if let path = UserDefaults.standard.string(forKey: "debugCSVImportPath"), !path.isEmpty {
+                importCSV(.success(URL(fileURLWithPath: path)))
+            }
+        }
+        #endif
+        .overlay {
+            if let importStage {
+                importOverlay(importStage)
+            }
+        }
         .navigationTitle("Workout History")
         .navigationBarTitleDisplayMode(.inline)
         // §13 — cardio lives on its own surface; gym history stays this one.
@@ -131,6 +178,13 @@ struct WorkoutHistoryView: View {
                         Label("Export CSV", systemImage: "square.and.arrow.up")
                     }
                     .disabled(completedWorkouts.isEmpty)
+                    if undoableImportBatch != nil {
+                        Button(role: .destructive) {
+                            showUndoImportConfirm = true
+                        } label: {
+                            Label("Undo last import", systemImage: "arrow.uturn.backward")
+                        }
+                    }
                 } label: {
                     Image(systemName: "arrow.up.arrow.down.square")
                 }
@@ -156,6 +210,31 @@ struct WorkoutHistoryView: View {
                 ShareSheet(items: [url])
             }
         }
+        .confirmationDialog(
+            "Which unit is this file in?",
+            isPresented: Binding(
+                get: { pendingUnitChoice != nil },
+                set: {
+                    if !$0 {
+                        pendingUnitChoice = nil
+                    }
+                }
+            ),
+            titleVisibility: .visible
+        ) {
+            // The athlete's own unit first — the likeliest answer.
+            ForEach([weightUnit, weightUnit == .kg ? WeightUnit.lbs : .kg], id: \.self) { unit in
+                Button(unit == .kg ? "Kilograms (kg)" : "Pounds (lbs)") {
+                    if let file = pendingUnitChoice {
+                        pendingUnitChoice = nil
+                        startImport(file, unit: unit)
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) { pendingUnitChoice = nil }
+        } message: {
+            Text("This export doesn't say. Picking the wrong one makes every weight 2.2x off. Tempo is set to \(weightUnit.abbreviation).")
+        }
         .alert(
             "Workout Import",
             isPresented: Binding(
@@ -163,13 +242,23 @@ struct WorkoutHistoryView: View {
                 set: {
                     if !$0 {
                         csvResultMessage = nil
+                        resultOffersUndo = false
                     }
                 }
             )
         ) {
-            Button("OK") { csvResultMessage = nil }
+            Button(resultOffersUndo ? "Keep" : "OK") { csvResultMessage = nil }
+            if resultOffersUndo, undoableImportBatch != nil {
+                Button("Undo import", role: .destructive) { undoLastImport() }
+            }
         } message: {
             Text(csvResultMessage ?? "")
+        }
+        .alert("Undo last import?", isPresented: $showUndoImportConfirm) {
+            Button("Undo import", role: .destructive) { undoLastImport() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Removes every workout, record and new exercise that import added. Workouts you logged yourself stay.")
         }
         .alert(
             "Delete this workout?",
@@ -190,7 +279,7 @@ struct WorkoutHistoryView: View {
                 pendingDelete = nil
             }
         } message: { workout in
-            Text(deleteConfirmationMessage(workout))
+            Text(Self.deleteConfirmationMessage(workout))
         }
     }
 
@@ -263,99 +352,34 @@ struct WorkoutHistoryView: View {
     /// Volume reads completed plans live, so it updates. ExerciseHistory / PRs
     /// this session produced ARE deleted with it (§13) — matched by
     /// `workoutPlanID`, not merely nulled elsewhere.
-    private func deleteConfirmationMessage(_ workout: WorkoutPlan) -> String {
-        let setCount = workout.orderedExercises.reduce(0) { $0 + ($1.sets?.count ?? 0) }
+    /// Counts the sets actually logged — not the planned ones (a session
+    /// ended after 2 of 17 sets used to say "its 17 sets").
+    static func deleteConfirmationMessage(_ workout: WorkoutPlan) -> String {
+        let setCount = workout.orderedExercises.reduce(0) { total, ex in
+            total + (ex.sets ?? []).filter { $0.completed && !$0.isWarmup }.count
+        }
         let name = workout.type.displayName
         return """
-        \(name): permanently removes this session — its \(setCount) set\(setCount == 1 ? "" : "s"), \
-        set feedback, and the progress-chart history & PRs it created. Weekly volume and charts \
-        will update. This can't be undone.
+        \(name): permanently removes this session — its \(setCount) logged set\(setCount == 1 ? "" : "s"), \
+        set feedback, pain flags, and the progress-chart history & PRs it created. Weekly volume and charts \
+        will update. Weight adjustments Tempo already learned from it stay. This can't be undone.
         """
     }
 
-    /// Which `ExerciseHistory` rows deleting `workout` should also remove.
-    /// Matched by `workoutPlanID` FIRST — the exact key `saveWorkout` stamps
-    /// on every row it writes. A row with no `workoutPlanID` (legacy, written
-    /// before that field existed) falls back to the day+exercise heuristic —
-    /// which, used alone, could delete the OTHER same-day workout's row for a
-    /// shared exercise (e.g. two push sessions logged the same day). Static
-    /// and pure so this exact-vs-heuristic split is unit-testable without a
-    /// live view/query (§13).
+    /// See `WorkoutPurge.historyRowsToDelete` (kept as a forwarder for the
+    /// §13 tests that pin it here).
     static func historyRowsToDelete(
         for workout: WorkoutPlan,
         allHistory: [ExerciseHistory],
         calendar: Calendar = .current
     ) -> [ExerciseHistory] {
-        let sessionDay = calendar.startOfDay(for: workout.finishedAt ?? workout.date)
-        let exerciseIDs = Set(workout.orderedExercises.compactMap { $0.exercise?.id })
-        return allHistory.filter { h in
-            if let hPlanID = h.workoutPlanID {
-                return hPlanID == workout.id
-            }
-            return calendar.isDate(h.date, inSameDayAs: sessionDay)
-                && (h.exercise?.id).map(exerciseIDs.contains) == true
-        }
+        WorkoutPurge.historyRowsToDelete(for: workout, allHistory: allHistory, calendar: calendar)
     }
 
-    /// Hard delete. WorkoutPlan cascades to PlannedExercise → PlannedSet.
-    /// SetFeedback links to PlannedSet with a .nullify rule, so it would be
-    /// orphaned — we delete the linked feedback explicitly so "removes …
-    /// feedback" in the confirmation is truthful.
+    /// Full purge — see `WorkoutPurge.purge` (also notifies Today/Dashboard,
+    /// so a deleted TODAY workout doesn't linger on those screens).
     private func deleteWorkout(_ workout: WorkoutPlan) {
-        // Full purge (user-chosen): the session AND every record it
-        // produced, so it disappears from history, weekly volume, progress
-        // charts and PRs alike.
-        let cal = Calendar.current
-        let sessionDay = cal.startOfDay(for: workout.finishedAt ?? workout.date)
-        let setIDs = Set(
-            workout.orderedExercises.flatMap { ($0.sets ?? []).map(\.id) }
-        )
-
-        // 1. Set feedback linked to this session's sets.
-        for fb in allFeedback where setIDs.contains(fb.setID) {
-            modelContext.delete(fb)
-        }
-        // 2. ExerciseHistory rows this session created.
-        for h in Self.historyRowsToDelete(for: workout, allHistory: allHistory) {
-            modelContext.delete(h)
-        }
-        // 3. PRs attributed to this exact plan. `logSet` now stamps
-        //    `workoutPlanID` at PR-creation time (was never set before, so
-        //    this match never fired and PRs silently outlived their workout).
-        for pr in allPRs where pr.workoutPlanID == workout.id {
-            modelContext.delete(pr)
-        }
-        // 3z. PredictionLog rows this plan produced — never cleaned before,
-        //     so they accumulated forever after a deleted workout.
-        for log in allPredictionLogs where log.workoutPlanID == workout.id {
-            modelContext.delete(log)
-        }
-        // 3b. Non-gym ActivitySession produced by this plan (football etc.).
-        //     Keyed by exact workoutPlanID — without this, deleting a football
-        //     session from history would orphan its ActivitySession record.
-        for session in allActivitySessions where session.workoutPlanID == workout.id {
-            modelContext.delete(session)
-        }
-        // 3d. Fix #7 — conditioning block results this plan's session(s)
-        //     produced. Same exact-workoutPlanID match as ActivitySession
-        //     above, so History doesn't keep showing logged blocks for a
-        //     deleted day.
-        for result in allConditioningResults where result.workoutPlanID == workout.id {
-            modelContext.delete(result)
-        }
-        // 3c. The brain's DailySession for this day. Its `workoutPlan` link is a
-        //     one-way `.nullify` with NO inverse, so deleting the plan (step 4)
-        //     would leave this session pointing at dangling backing — later read
-        //     in sessionRPEAccuracy → crash. Matched by DAY (never by traversing
-        //     `.workoutPlan`, which could itself already be dangling); the §8
-        //     model is write-once one-session-per-day, so the day is the key.
-        for s in allDailySessions where cal.isDate(s.date, inSameDayAs: sessionDay) {
-            modelContext.delete(s)
-        }
-        // 4. The plan itself (cascades to PlannedExercise → PlannedSet).
-        modelContext.delete(workout)
-        modelContext.saveOrAlert("history change")
-
+        WorkoutPurge.purge(workout, modelContext: modelContext)
         swipedWorkoutID = nil
         pendingDelete = nil
         HapticManager.notification(.success)
@@ -366,33 +390,124 @@ struct WorkoutHistoryView: View {
     private func importCSV(_ result: Result<URL, Error>) {
         switch result {
         case let .success(url):
-            let scoped = url.startAccessingSecurityScopedResource()
-            defer {
-                if scoped {
-                    url.stopAccessingSecurityScopedResource()
+            importStage = "Reading file…"
+            importProgress = nil
+            // Reading + parsing a multi-year export is heavy: off the main actor.
+            Task {
+                let parsed = await Task.detached(priority: .userInitiated) { () -> Result<WorkoutCSVService.ParsedFile, any Error> in
+                    let scoped = url.startAccessingSecurityScopedResource()
+                    defer {
+                        if scoped {
+                            url.stopAccessingSecurityScopedResource()
+                        }
+                    }
+                    guard let text = WorkoutCSVService.readText(from: url) else {
+                        return .failure(CSVReadError())
+                    }
+                    return Result { try WorkoutCSVService.parse(text) }
+                }.value
+                switch parsed {
+                case let .success(file):
+                    if file.declaredUnit != nil || !file.sets.contains(where: { ($0.weight ?? 0) > 0 }) {
+                        await runImport(file, unit: file.declaredUnit ?? weightUnit)
+                    } else {
+                        importStage = nil
+                        pendingUnitChoice = file
+                    }
+                case let .failure(error):
+                    importStage = nil
+                    resultOffersUndo = false
+                    csvResultMessage = error.localizedDescription
                 }
-            }
-            guard let text = try? String(contentsOf: url, encoding: .utf8) else {
-                csvResultMessage = "Couldn't read that file."
-                return
-            }
-            do {
-                let summary = try WorkoutCSVService.importCSV(text, modelContext: modelContext)
-                csvResultMessage = summary.label
-                if summary.workouts > 0 {
-                    NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
-                    HapticManager.notification(.success)
-                }
-            } catch {
-                csvResultMessage = error.localizedDescription
             }
         case let .failure(error):
             csvResultMessage = error.localizedDescription
         }
     }
 
+    private struct CSVReadError: LocalizedError {
+        var errorDescription: String? {
+            "Couldn't read that file."
+        }
+    }
+
+    private func startImport(_ file: WorkoutCSVService.ParsedFile, unit: WeightUnit) {
+        Task { await runImport(file, unit: unit) }
+    }
+
+    @MainActor
+    private func runImport(_ file: WorkoutCSVService.ParsedFile, unit: WeightUnit) async {
+        importStage = "Importing workouts…"
+        importProgress = 0
+        defer {
+            importStage = nil
+            importProgress = nil
+        }
+        do {
+            let summary = try await WorkoutCSVService.importParsed(
+                file,
+                assumedUnit: unit,
+                bodyweightKg: profiles.first?.weightKg,
+                modelContext: modelContext,
+                progress: { importProgress = $0 },
+                // Stored BEFORE the first workout is written: the context
+                // autosaves in the background, so a kill mid-import can leave
+                // a partial batch that "Undo last import" must still cover.
+                willInsert: { lastImportBatchID = $0.uuidString }
+            )
+            csvResultMessage = summary.label
+            resultOffersUndo = summary.workouts > 0
+            if summary.workouts > 0 {
+                lastImportBatchID = summary.batchID?.uuidString ?? ""
+                NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
+                HapticManager.notification(.success)
+            }
+        } catch {
+            resultOffersUndo = false
+            csvResultMessage = error.localizedDescription
+        }
+    }
+
+    private func importOverlay(_ stage: String) -> some View {
+        ZStack {
+            Color.black.opacity(0.45).ignoresSafeArea()
+            VStack(spacing: TempoSpacing.md) {
+                if let importProgress {
+                    ProgressView(value: importProgress)
+                        .tint(Color.tempoSignal)
+                        .frame(width: 180)
+                } else {
+                    ProgressView()
+                }
+                Text(importProgress.map { "\(stage) \(Int($0 * 100))%" } ?? stage)
+                    .font(.tempoBody)
+                    .foregroundStyle(Color.tempoTextPrimary)
+            }
+            .padding(TempoSpacing.xl)
+            .background(Color.tempoBgSecondary)
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        }
+        .transition(.opacity)
+    }
+
+    private func undoLastImport() {
+        csvResultMessage = nil
+        resultOffersUndo = false
+        guard let batch = undoableImportBatch else {
+            return
+        }
+        do {
+            let removed = try WorkoutCSVService.undoImport(batchID: batch, modelContext: modelContext)
+            lastImportBatchID = ""
+            csvResultMessage = "Import undone — \(removed) workouts removed."
+            HapticManager.notification(.success)
+        } catch {
+            csvResultMessage = "Couldn't undo the import: \(error.localizedDescription)"
+        }
+    }
+
     private func exportHistory() {
-        let csv = WorkoutCSVService.exportCSV(plans: completedWorkouts)
+        let csv = WorkoutCSVService.exportCSV(plans: completedWorkouts, unit: weightUnit)
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("tempo-workout-history.csv")
         do {
@@ -448,11 +563,11 @@ struct WorkoutHistoryView: View {
                     // Row 2: Stats
                     HStack(spacing: TempoSpacing.md) {
                         // Duration
-                        if let duration = workout.durationMinutes ?? workout.actualDurationMinutes {
+                        if let durationText = Self.durationText(for: workout) {
                             HStack(spacing: TempoSpacing.xxs) {
                                 Image(systemName: "timer")
                                     .font(.system(size: 11))
-                                Text("\(duration) min")
+                                Text(durationText)
                                     .font(.tempoCaption1)
                                     .lineLimit(1)
                                     .fixedSize()
@@ -566,6 +681,20 @@ struct WorkoutHistoryView: View {
 
     private func activitySession(for workout: WorkoutPlan) -> ActivitySession? {
         allActivitySessions.first { $0.workoutPlanID == workout.id }
+    }
+
+    /// A finished session's measured time wins over the planned figure; under a
+    /// minute reads "<1 min", otherwise the nearest minute.
+    static func durationText(for workout: WorkoutPlan) -> String? {
+        if let seconds = workout.actualDurationSeconds {
+            return WorkoutPlan.durationLabel(seconds: seconds)
+        }
+        return workout.durationMinutes.map { "\($0) min" }
+    }
+
+    /// Working sets always (logged or not), warm-ups only when actually done.
+    static func visibleSets(of plannedEx: PlannedExercise) -> [PlannedSet] {
+        plannedEx.orderedSets.filter { !$0.isWarmup || $0.completed }
     }
 
     private func activityDetail(_ session: ActivitySession) -> some View {
@@ -756,18 +885,19 @@ struct WorkoutHistoryView: View {
                     )
             }
 
+            let isBodyweight = plannedEx.exercise.map { StrengthStandards.isBodyweightLoaded($0.equipment) } ?? false
             // Sets detail — per-set chip + optional feedback line
             VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                ForEach(plannedEx.orderedSets, id: \.id) { set in
+                // H — a planned ramp the athlete never did isn't history.
+                ForEach(Self.visibleSets(of: plannedEx), id: \.id) { set in
                     HStack(spacing: TempoSpacing.xs) {
                         if set.isWarmup {
                             // Warm-up / ramp set — show the ramp target (not the
                             // blank "--" it was before), tagged and lighter.
                             let w = set.actualWeight ?? set.targetWeight ?? 0
                             let r = set.actualReps ?? set.targetReps
-                            let dispW = WeightUnit.kg.convert(w, to: weightUnit)
                             // Fix #9 — a per-side ramp target reads "x8/side".
-                            Text("\(Int(dispW))x\(SideRepsFormat.reps(r, perSide: plannedEx.perSide))")
+                            Text("\(WeightFormat.compactSetLoad(kg: w, addedKg: set.addedLoadKg, bodyweight: isBodyweight, unit: weightUnit))x\(SideRepsFormat.reps(r, perSide: plannedEx.perSide))")
                                 .font(.system(size: 11, design: .monospaced))
                                 .foregroundStyle(Color.tempoTextTertiary)
                                 .padding(.horizontal, 4)
@@ -780,14 +910,13 @@ struct WorkoutHistoryView: View {
                                 .font(.tempoCaption2)
                                 .foregroundStyle(Color.tempoTextTertiary)
                         } else if set.completed, let weight = set.actualWeight, let reps = set.actualReps {
-                            let dispW = WeightUnit.kg.convert(weight, to: weightUnit)
                             // Fix #9 — "x8/side", or "xL8/R7" when the
                             // athlete logged an uneven L/R split.
                             let repsText = SideRepsFormat.loggedReps(
                                 actual: reps, left: set.actualRepsLeft, right: set.actualRepsRight,
                                 perSide: plannedEx.perSide
                             )
-                            Text("\(Int(dispW))x\(repsText)")
+                            Text("\(WeightFormat.compactSetLoad(kg: weight, addedKg: set.addedLoadKg, bodyweight: isBodyweight, unit: weightUnit))x\(repsText)")
                                 .font(.system(size: 11, design: .monospaced))
                                 .foregroundStyle(Color.tempoTextSecondary)
                                 .padding(.horizontal, 4)
@@ -806,8 +935,10 @@ struct WorkoutHistoryView: View {
 
                         // Feedback line — only for working sets with a linked
                         // SetFeedback. Warm-ups have none.
-                        if !set.isWarmup, let fb = feedbackBySetID[set.id] {
-                            Text("RPE \(fb.rpe) · \(fb.breathDifficulty.displayName) · \(fb.formQuality.displayName)")
+                        // Only what the athlete entered — untouched defaults
+                        // used to read as "RPE 7 · Moderate · Clean" on every set.
+                        if !set.isWarmup, let summary = feedbackBySetID[set.id]?.enteredSummary {
+                            Text(summary)
                                 .font(.tempoCaption2)
                                 .foregroundStyle(Color.tempoTextTertiary)
                                 .lineLimit(1)
@@ -833,11 +964,6 @@ struct WorkoutHistoryView: View {
 
     /// Formats a kg volume into the user's preferred unit.
     private func formatVolume(_ volumeKg: Double) -> String {
-        let v = WeightUnit.kg.convert(volumeKg, to: weightUnit)
-        let unit = weightUnit.abbreviation
-        if v >= 1000 {
-            return String(format: "%.1fk %@", v / 1000, unit)
-        }
-        return "\(Int(v)) \(unit)"
+        WeightFormat.volumeText(kg: volumeKg, unit: weightUnit)
     }
 }

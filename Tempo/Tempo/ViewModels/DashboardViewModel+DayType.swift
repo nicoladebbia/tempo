@@ -36,7 +36,9 @@ extension DashboardViewModel {
         case .planned:
             plan.type == .rest ? .restDay : .planned
         case .skipped:
-            .none
+            // Benched for recovery/pain = a rest day on the Dashboard; a
+            // user skip shows nothing planned.
+            plan.skipReason == .floorForced ? .restDay : .none
         }
     }
 

@@ -119,6 +119,8 @@ struct TrainingTabView: View {
             }
             .fullScreenCover(isPresented: $showSummary, onDismiss: {
                 showSummary = false
+                // However the summary closed, its feedback is now final.
+                viewModel?.applyPendingLearning(modelContext: modelContext, summaryClosed: true)
             }) {
                 if let viewModel {
                     NavigationStack {
