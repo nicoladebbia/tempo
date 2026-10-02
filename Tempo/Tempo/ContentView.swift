@@ -224,6 +224,15 @@ struct ContentView: View {
         .sheet(isPresented: $appState.weeklyCheckInRequested) {
             WeeklyCheckInView()
         }
+        // A notification asking for a Nutrition section (Plan, Kitchen …). `initial`
+        // covers a cold launch where the tap set it before this view appeared.
+        .onChange(of: appState.requestedNutrition, initial: true) { _, route in
+            guard let route else {
+                return
+            }
+            nutritionViewModel.apply(route)
+            appState.requestedNutrition = nil
+        }
         // A meal notification opens that meal; pre-meal reminders follow the plan.
         .mealNotificationHooks(request: $appState.requestedMeal) {
             rescheduleMealReminders()

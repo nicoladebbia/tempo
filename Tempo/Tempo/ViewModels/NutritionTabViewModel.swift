@@ -152,6 +152,15 @@ final class NutritionTabViewModel {
         selectedTab = .kitchen
     }
 
+    /// Applies a notification's requested section (see `NotificationRouter`).
+    func apply(_ route: NutritionRoute) {
+        if let kitchen = route.kitchen {
+            openKitchen(kitchen)
+        } else {
+            selectedTab = route.section
+        }
+    }
+
     /// Foods confirmed in Today's Scan → Meal photo. The scanner never logs by
     /// itself: after it closes the Log tab picks these up and shows the same
     /// review sheet (meal type, confirm) as a photo started from Log.
