@@ -81,7 +81,7 @@ struct WeeklyUploadPromptCard: View {
                     .foregroundStyle(Color.tempoViolet)
             }
 
-            Text("Wrap up \(program.name)'s week")
+            Text(Self.title(for: program))
                 .font(.tempoBodyBold)
                 .foregroundStyle(Color.tempoTextPrimary)
                 .lineLimit(2)
@@ -124,6 +124,45 @@ struct WeeklyUploadPromptCard: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
         .padding(.horizontal, TempoSpacing.lg)
+    }
+
+    /// "Wrap up last week · 21–27 Sep" once the served week is behind us,
+    /// "Wrap up this week · 28 Sep – 4 Oct" while it's still the current one.
+    /// Names the week itself, never the program (whose name may already say
+    /// "Week 3" or "Coach — …").
+    static func title(
+        for program: TrainerProgram,
+        now: Date = Date(),
+        calendar: Calendar = TrainingCalendar.iso8601
+    ) -> String {
+        let sunday = calendar.startOfDay(for: TrainerProgramWeeklyUpload.wrapUpWeekSunday(now: now, calendar: calendar))
+        let which = sunday >= calendar.startOfDay(for: now) ? "this week" : "last week"
+        guard let monday = calendar.date(byAdding: .day, value: -6, to: sunday) else {
+            return "Wrap up \(which)"
+        }
+        return "Wrap up \(which) · \(weekRange(monday: monday, sunday: sunday, calendar: calendar))"
+    }
+
+    /// The Mon–Sun week a wrap-up covers, e.g. "21–27 Sep".
+    static func wrapUpWeekLabel(now: Date = Date(), calendar: Calendar = TrainingCalendar.iso8601) -> String {
+        let sunday = calendar.startOfDay(for: TrainerProgramWeeklyUpload.wrapUpWeekSunday(now: now, calendar: calendar))
+        let monday = calendar.date(byAdding: .day, value: -6, to: sunday) ?? sunday
+        return weekRange(monday: monday, sunday: sunday, calendar: calendar)
+    }
+
+    static func weekRange(monday: Date, sunday: Date, calendar: Calendar = TrainingCalendar.iso8601) -> String {
+        func format(_ pattern: String, _ date: Date) -> String {
+            let f = DateFormatter()
+            f.calendar = calendar
+            f.locale = Locale(identifier: "en_US_POSIX")
+            f.timeZone = calendar.timeZone
+            f.dateFormat = pattern
+            return f.string(from: date)
+        }
+        if calendar.component(.month, from: monday) == calendar.component(.month, from: sunday) {
+            return "\(format("d", monday))–\(format("d MMM", sunday))"
+        }
+        return "\(format("d MMM", monday)) – \(format("d MMM", sunday))"
     }
 
     private func refresh() {

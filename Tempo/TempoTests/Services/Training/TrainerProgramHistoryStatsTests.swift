@@ -164,4 +164,28 @@ final class TrainerProgramHistoryStatsTests: XCTestCase {
         )
         XCTAssertEqual(withMatch.scheduled, 2, "a match day replaced the session: not a miss")
     }
+
+    /// Sample-program QA: the active card said "0 / 3" on Thursday, and after
+    /// Pause the history row said "0 / 1" (no plans → it stopped at week start).
+    func testPausedProgramUsesSameDenominatorAsActiveCard() throws {
+        let container = try TempoModelContainer.create(inMemory: true)
+        let context = container.mainContext
+        let days = [1, 2, 3, 4, 6].map {
+            ProgramDay(weekday: $0, title: nil, focus: "push", exercises: [ProgramExercise(name: "Bench", sets: 3, repsLow: 5)])
+        }
+        let program = TrainerProgram(
+            name: "Sample", startDate: date("2026-09-28"),
+            weeks: [ProgramWeek(days: days)], isActive: true, sourceKind: "text"
+        )
+        context.insert(program)
+        let thursday = date("2026-10-01").addingTimeInterval(10 * 3600)
+
+        let active = TrainerProgramHistoryStats.stats(for: program, plans: [], today: thursday)
+        XCTAssertEqual(active, TrainerProgramHistoryStats.Stats(done: 0, scheduled: 3))
+
+        program.isActive = false
+        program.endedAt = thursday
+        let paused = TrainerProgramHistoryStats.stats(for: program, plans: [], today: thursday)
+        XCTAssertEqual(paused, active)
+    }
 }

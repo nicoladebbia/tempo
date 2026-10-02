@@ -114,7 +114,7 @@ struct SundayWrapUpSheet: View {
                     Text("YOUR WEEK")
                         .font(.tempoCaption2.weight(.semibold))
                         .foregroundStyle(Color.tempoViolet)
-                    Text(program.name)
+                    Text(WeeklyUploadPromptCard.wrapUpWeekLabel())
                         .font(.tempoTitle3)
                         .foregroundStyle(Color.tempoTextPrimary)
                 }

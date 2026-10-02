@@ -945,6 +945,22 @@ final class TrainerProgramTests: XCTestCase {
         XCTAssertEqual(today.type, .rest)
     }
 
+    func testUndoSkipMarksItsChangeLogLineAsUndoneInsteadOfDeletingIt() throws {
+        let container = try TempoModelContainer.create(inMemory: true)
+        let context = container.mainContext
+        let (p, _, skip) = try todaySkipFixture(context)
+        p.skippedSessions = [skip]
+        p.changeLog = [TrainerProgramChangeLogEntry(date: Date(), sourceText: "skip today", editSummaries: [skip.summary, "RDL: 60 kg → 65 kg"])]
+        try TrainerProgramSaver.undoSkip(
+            skip, in: p, modelContext: context,
+            trainingEngine: MockTrainingEngine(), whoop: MockWhoopService(), healthKit: MockHealthKitService()
+        )
+        XCTAssertTrue(p.skippedSessions.isEmpty)
+        XCTAssertEqual(p.changeLog.first?.editSummaries.count, 2, "history is kept")
+        XCTAssertTrue(p.changeLog[0].isUndone(skip.summary))
+        XCTAssertFalse(p.changeLog[0].isUndone("RDL: 60 kg → 65 kg"))
+    }
+
     func testTrainerProgramSaverUpdateEditsInPlaceKeepingSameID() throws {
         let container = try TempoModelContainer.create(inMemory: true)
         let context = container.mainContext
