@@ -193,7 +193,8 @@ final class APIContractTests: XCTestCase {
         XCTAssertEqual(r.servingsPerContainer, 100)
         XCTAssertNotNil(r.proteinGramsPerServing)
         XCTAssertFalse(r.certifications.isEmpty)
-        XCTAssertEqual(r.source, "dsld")
+        // The test-mode stub answers from Open Food Facts (DSLD is live-only).
+        XCTAssertEqual(r.source, "openfoodfacts")
     }
 
     func testSupplementPicksVerified() throws {
