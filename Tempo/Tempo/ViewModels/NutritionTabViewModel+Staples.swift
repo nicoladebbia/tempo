@@ -30,7 +30,13 @@ final class NutritionStapleState {
 extension NutritionTabViewModel {
     /// Suggestions for this user: diet/allergy-safe ones only.
     var stapleSuggestions: [(canonicalName: String, displayName: String)] {
-        PantryStaple.suggestions(for: StapleDietFilter(profile: dietaryProfile))
+        // Re-read the profile: the cached one can be nil (before load) or stale
+        // (edited in Fuel setup since), and a stale filter shows allergens.
+        var profile = dietaryProfile
+        if let context = pantryModelContext {
+            profile = (try? context.fetch(FetchDescriptor<DietaryProfile>(predicate: #Predicate { $0.isActive == true })))?.first ?? profile
+        }
+        return PantryStaple.suggestions(for: StapleDietFilter(profile: profile))
     }
 
     /// Suggestions neither tracked ("Yes") nor declined ("No") yet.

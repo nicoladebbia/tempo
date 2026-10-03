@@ -534,6 +534,7 @@ final class LiveReceiptService: ReceiptServiceProtocol {
             // "Size × count" ingest: when ReceiptProductMatcher found a
             // package size, a 4-pack of 5.3oz cups ingests as 21.2 oz, not
             // "1 piece" — see ReceiptLineItem.ingestQuantity/ingestPantryUnit.
+            let mergeStarted = Date()
             let pantryItem = try pantry.mergeOrCreate(
                 rawName: line.displayName.isEmpty ? line.canonicalFoodName : line.displayName,
                 quantity: line.ingestQuantity,
@@ -545,8 +546,15 @@ final class LiveReceiptService: ReceiptServiceProtocol {
                 brand: line.brand ?? ""
             )
             line.linkedPantryItemID = pantryItem.id
+            // A merged row keeps its own location and the SHORTER use-by of the
+            // stack (the whole row spoils with its oldest portion): the override
+            // may only pull the date earlier there, while a new row takes it as typed.
             if let useBy = overrides[line.id]?.useBy {
-                _ = try pantry.updateItem(pantryItem, quantity: nil, unit: nil, storageLocation: nil, useBy: useBy, brand: nil)
+                let isNewRow = pantryItem.createdAt >= mergeStarted
+                let applied = isNewRow ? useBy : min(useBy, pantryItem.useBy ?? useBy)
+                if pantryItem.useBy != applied {
+                    _ = try pantry.updateItem(pantryItem, quantity: nil, unit: nil, storageLocation: nil, useBy: applied, brand: nil)
+                }
             }
 
             // Record the price as a standalone history entry — one INSERT per

@@ -113,8 +113,9 @@ struct AnalyzedFoodItem: Identifiable {
         copy.question = nil
         copy.isVerified = false
         var checked = copy.reverified()
-        // Only claim certainty when the food table backed the new name; otherwise the old numbers are a guess.
-        checked.score = checked.isVerified ? Self.userConfirmedScore : max(Self.questionThreshold, min(score, 0.7))
+        // Only claim certainty when the food table backed the new name; otherwise the old numbers stay
+        // a guess, kept below the question threshold so the row still asks the user to check them.
+        checked.score = checked.isVerified ? Self.userConfirmedScore : min(score, Self.questionThreshold - 0.05)
         return checked
     }
 

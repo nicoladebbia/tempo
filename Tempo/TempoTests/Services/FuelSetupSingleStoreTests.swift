@@ -140,6 +140,12 @@ final class FuelSetupSingleStoreTests: XCTestCase {
         draft.recoveryAdjusted = true
         draft.boredOfFoods = ["chicken"]
         draft.clearSkinFocus = true
+        // A profile needs real body and goal answers to exist.
+        draft.weightKg = 80
+        draft.heightCm = 180
+        draft.age = 30
+        draft.sex = .male
+        draft.goal = .maintain
         draft.save(to: context)
 
         let again = FuelSetupDraft.load(from: context)
@@ -226,8 +232,17 @@ final class FuelSetupSingleStoreTests: XCTestCase {
     func testLegacyExclusionsSeedDraftWithoutProfileAndSurviveSave() throws {
         settings.mealIntakeExclusionsRaw = "shellfish, olives"
         try context.save()
-        let draft = FuelSetupDraft.load(from: context)
+        var draft = FuelSetupDraft.load(from: context)
         XCTAssertEqual(draft.dislikedFoods, ["shellfish", "olives"])
+        // Without body and goal no profile is made up: the legacy list stays put.
+        draft.save(to: context)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<DietaryProfile>()).isEmpty)
+        XCTAssertEqual(settings.mealIntakeExclusionsRaw, "shellfish, olives")
+        draft.weightKg = 80
+        draft.heightCm = 180
+        draft.age = 30
+        draft.sex = .male
+        draft.goal = .maintain
         draft.save(to: context)
         let profile = try XCTUnwrap(context.fetch(FetchDescriptor<DietaryProfile>()).first)
         XCTAssertEqual(profile.dislikedFoods, ["shellfish", "olives"])

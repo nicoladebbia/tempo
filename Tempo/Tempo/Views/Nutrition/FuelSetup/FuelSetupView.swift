@@ -64,6 +64,10 @@ struct FuelSetupView: View {
     @State
     private var hasLoaded = false
     @State
+    private var showDiscardConfirm = false
+    @State
+    private var showNeedsBodyAlert = false
+    @State
     private var said = ""
     @State
     private var answers: [String: String] = [:]
@@ -84,7 +88,13 @@ struct FuelSetupView: View {
                 content
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
-                            Button("Cancel") { dismiss() }
+                            Button("Cancel") {
+                                if hasUnsavedSections {
+                                    showDiscardConfirm = true
+                                } else {
+                                    dismiss()
+                                }
+                            }
                                 .foregroundStyle(Color.tempoTextSecondary)
                         }
                     }
@@ -120,6 +130,18 @@ struct FuelSetupView: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .dismissKeyboardOnTapOutside()
+        .interactiveDismissDisabled(!embedded && hasUnsavedSections)
+        .confirmationDialog("Discard unsaved changes?", isPresented: $showDiscardConfirm, titleVisibility: .visible) {
+            Button("Discard changes", role: .destructive) { dismiss() }
+            Button("Keep editing", role: .cancel) {}
+        } message: {
+            Text("Some sections have changes you haven't saved.")
+        }
+        .alert("Body and goal first", isPresented: $showNeedsBodyAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Add your weight, height, age, sex and goal. Food and cooking answers stay here until then.")
+        }
         .fullScreenCover(item: $openSection) { section in
             NavigationStack {
                 FuelSetupSectionFlow(
@@ -322,15 +344,32 @@ struct FuelSetupView: View {
         if onSaveAndGenerate != nil {
             return "Save and continue"
         }
-        let hasUnsaved = FuelSetupSection.allCases.contains { draft.isDirty($0, comparedTo: saved) }
-        return isFirstTime && hasUnsaved ? (draft.isComplete ? "Save my profile" : "Save what I have") : nil
+        guard hasUnsavedSections else {
+            return nil
+        }
+        if !isFirstTime {
+            return "Save changes"
+        }
+        return draft.isComplete ? "Save my profile" : "Save what I have"
+    }
+
+    private var hasUnsavedSections: Bool {
+        FuelSetupSection.allCases.contains { draft.isDirty($0, comparedTo: saved) }
     }
 
     private func save() {
-        draft.save(to: modelContext)
-        saved = draft
+        let stored = draft.save(to: modelContext)
+        for section in stored {
+            saved.copy(section, from: draft)
+        }
         HapticManager.success()
         registerNotificationsOnce()
+        if stored.count < FuelSetupSection.allCases.count {
+            // Body/goal answers are missing, so Food/Cooking couldn't be stored:
+            // stay here with them intact instead of losing them.
+            showNeedsBodyAlert = true
+            return
+        }
         let profile = (try? modelContext.fetch(FetchDescriptor<DietaryProfile>(predicate: #Predicate { $0.isActive == true })))?.first
         dismiss()
         if let profile, let onSaveAndGenerate {
@@ -348,12 +387,18 @@ struct FuelSetupView: View {
             edited.routine = await PlaceLocator.locateMissing(in: edited.routine)
         }
         draft.copy(section, from: edited)
-        draft.save(sections: [section], to: modelContext)
-        saved.copy(section, from: draft)
-        isFirstTime = false
+        let stored = draft.save(sections: [section], to: modelContext)
+        for done in stored {
+            saved.copy(done, from: draft)
+        }
+        isFirstTime = UserDailyPlanProfile.current(in: modelContext)?.weeklyRoutine == nil
+            && (try? modelContext.fetchCount(FetchDescriptor<DietaryProfile>(predicate: #Predicate { $0.isActive == true }))) == 0
         HapticManager.success()
         registerNotificationsOnce()
         openSection = nil
+        if !stored.contains(section) {
+            showNeedsBodyAlert = true
+        }
     }
 
     /// The routine is what the Sunday plan reads — ask for notifications now
@@ -389,7 +434,9 @@ struct FuelSetupView: View {
             stats = HealthBodyStats(body: body, characteristics: traits)
         }
         health = stats
-        healthLocked = draft.apply(health: stats)
+        // Only fields the user hasn't edited meanwhile: a slow fetch must not
+        // overwrite typed values.
+        healthLocked = draft.apply(health: stats, untouchedSince: saved)
     }
 }
 

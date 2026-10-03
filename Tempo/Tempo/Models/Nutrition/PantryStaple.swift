@@ -140,15 +140,21 @@ struct StapleDietFilter: Equatable, Sendable {
     var vegan = false
     var nutFree = false
     var avoidAddedSugars = false
+    var lactoseFree = false
+    var halal = false
+    var shellfishAllergy = false
 
     static let none = StapleDietFilter()
 
-    init(avoidTerms: [String] = [], glutenFree: Bool = false, vegan: Bool = false, nutFree: Bool = false, avoidAddedSugars: Bool = false) {
+    init(avoidTerms: [String] = [], glutenFree: Bool = false, vegan: Bool = false, nutFree: Bool = false, avoidAddedSugars: Bool = false, lactoseFree: Bool = false, halal: Bool = false, shellfishAllergy: Bool = false) {
         self.avoidTerms = avoidTerms.map { $0.lowercased().trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         self.glutenFree = glutenFree
         self.vegan = vegan
         self.nutFree = nutFree
         self.avoidAddedSugars = avoidAddedSugars
+        self.lactoseFree = lactoseFree
+        self.halal = halal
+        self.shellfishAllergy = shellfishAllergy
     }
 
     init(profile: DietaryProfile?) {
@@ -161,7 +167,10 @@ struct StapleDietFilter: Equatable, Sendable {
             glutenFree: profile.isGlutenFree,
             vegan: profile.isVegan,
             nutFree: profile.isNutFree,
-            avoidAddedSugars: profile.avoidAddedSugars
+            avoidAddedSugars: profile.avoidAddedSugars,
+            lactoseFree: profile.isLactoseFree,
+            halal: profile.isHalal,
+            shellfishAllergy: profile.isShellFishAllergy
         )
     }
 
@@ -177,10 +186,16 @@ struct StapleDietFilter: Equatable, Sendable {
         "chili flakes": ["chili", "chilli", "pepper"],
         "black pepper": ["pepper"],
         "baking powder": ["corn"],
-        "vanilla extract": ["vanilla"],
+        "vanilla extract": ["vanilla", "alcohol"],
     ]
 
     private static let glutenStaples: Set = ["soy sauce", "flour"]
+    /// Words each diet flag adds to the hidden-ingredient check, so any
+    /// staple (default list or future) that is made of them is filtered.
+    private static let nutTerms = ["nut", "almond", "cashew", "walnut", "pecan", "pistachio", "hazelnut", "peanut"]
+    private static let dairyTerms = ["milk", "dairy", "butter", "cheese", "cream", "ghee", "whey"]
+    private static let nonHalalTerms = ["pork", "lard", "bacon", "alcohol", "wine", "rum", "bourbon", "gelatin"]
+    private static let shellfishTerms = ["shellfish", "shrimp", "prawn", "crab", "lobster", "oyster", "clam", "mussel"]
     private static let veganBlocked: Set = ["honey", "mayonnaise"]
     private static let sugarStaples: Set = ["sugar", "brown sugar", "honey", "ketchup"]
 
@@ -197,8 +212,14 @@ struct StapleDietFilter: Equatable, Sendable {
             return false
         }
         let haystack = ([key, staple.displayName.lowercased()] + (Self.hiddenIngredients[key] ?? []))
-        for term in avoidTerms {
-            if haystack.contains(where: { Self.matches(term: term, in: $0) }) {
+        var terms = avoidTerms
+        if nutFree { terms += Self.nutTerms }
+        if lactoseFree { terms += Self.dairyTerms }
+        if halal { terms += Self.nonHalalTerms }
+        if shellfishAllergy { terms += Self.shellfishTerms }
+        for term in terms {
+            let variants = Set([term, PantryStorageGuesser.singular(term)])
+            if haystack.contains(where: { text in variants.contains { Self.matches(term: $0, in: text) } }) {
                 return false
             }
         }

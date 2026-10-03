@@ -382,20 +382,16 @@ struct AddProductView: View {
         let serving = Self.number(servingText).flatMap { $0 > 0 ? $0 : nil }
         let unit = isBeverage ? "ml" : "g"
         let trimmedIngredients = ingredients.trimmingCharacters(in: .whitespacesAndNewlines)
-        return FoodProduct(
-            id: barcode ?? "user:\(trimmedName.lowercased())",
+        return FoodProduct.userEdited(
+            from: prefill,
             barcode: barcode,
             name: trimmedName,
-            brand: brand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : brand
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-            source: .userAdded,
-            servingLabel: serving.map { "\(Self.text($0)) \(unit)" },
+            brand: brand,
             servingGrams: serving,
             isBeverage: isBeverage,
             per100g: nutrients,
-            additives: NutritionLabelReader.additiveCodes(in: trimmedIngredients),
             allergens: allergens,
-            ingredientsText: trimmedIngredients.isEmpty ? nil : trimmedIngredients
+            ingredients: trimmedIngredients
         )
     }
 

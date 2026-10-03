@@ -313,23 +313,46 @@ extension FuelSetupDraft {
 
     /// Write every answer to the store its readers use, then announce the
     /// change so the meal plan follows (ContentView's debounced handler).
+    @discardableResult
     @MainActor
-    func save(to context: ModelContext, now: Date = Date()) {
+    func save(to context: ModelContext, now: Date = Date()) -> Set<FuelSetupSection> {
         save(sections: Set(FuelSetupSection.allCases), to: context, now: now)
+    }
+
+    /// A first profile needs the body and goal answers; without them the model
+    /// would fall back to made-up defaults (75 kg / 175 cm / 22 / male).
+    var canCreateProfile: Bool {
+        weightKg != nil && heightCm != nil && age != nil && sex != nil && goal != nil
     }
 
     /// Writes ONLY the given sections' answers — through the same stores and
     /// rules as the full save, so editing "Food" never rewrites the routine or
     /// the budget — and posts `.tempoDietaryProfileChanged` once.
+    ///
+    /// Returns the sections that were actually stored. Sections that live on
+    /// the DietaryProfile (You, Goal, Food, and Cooking's skill) are NOT stored while no
+    /// profile exists and this draft can't create one (`canCreateProfile`);
+    /// they stay in the draft until it can.
+    @discardableResult
     @MainActor
-    func save(sections: Set<FuelSetupSection>, to context: ModelContext, now: Date = Date()) {
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
+    func save(sections requested: Set<FuelSetupSection>, to context: ModelContext, now: Date = Date()) -> Set<FuelSetupSection> {
+        var sections = requested
         func has(_ section: FuelSetupSection) -> Bool {
             sections.contains(section)
         }
         let needsProfile = has(.you) || has(.goal) || has(.food) || has(.cooking)
         let existingProfile = (try? context.fetch(FetchDescriptor<DietaryProfile>(predicate: #Predicate { $0.isActive == true })))?.first
+        if existingProfile == nil {
+            if needsProfile, canCreateProfile {
+                // Born with real body and goal answers, never model defaults.
+                sections.formUnion([.you, .goal])
+            } else {
+                sections.subtract([.you, .goal, .food])
+            }
+        }
         let profile: DietaryProfile? = existingProfile ?? {
-            guard needsProfile else {
+            guard needsProfile, canCreateProfile else {
                 return nil
             }
             let new = DietaryProfile()
@@ -481,6 +504,11 @@ extension FuelSetupDraft {
 
         try? context.save()
         NotificationCenter.default.post(name: .tempoDietaryProfileChanged, object: nil)
+        // Cooking's kitchen answers live in settings, but its skill needs the profile.
+        if profile == nil, cookingSkill != nil {
+            sections.remove(.cooking)
+        }
+        return sections
     }
 }
 
