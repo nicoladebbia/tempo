@@ -36,6 +36,8 @@ struct ScanBarcodeSurface: View {
 
     @Environment(\.scenePhase)
     private var scenePhase
+    @Environment(\.scanResumeInfo)
+    private var resumeInfo
     @State
     private var permission = CameraPermission.current()
     @State
@@ -181,7 +183,12 @@ struct ScanBarcodeSurface: View {
                 .multilineTextAlignment(.center)
             VStack(spacing: TempoSpacing.buttonStackVertical) {
                 if permission == .denied {
-                    Button("Open Settings") { CameraPermission.openSettings() }
+                    Button("Open Settings") {
+                        if let info = resumeInfo {
+                            ScanResume.save(kind: info.kind, mode: info.mode, section: info.section)
+                        }
+                        CameraPermission.openSettings()
+                    }
                         .buttonStyle(.tempoPrimary)
                         .accessibilityIdentifier("scanOpenSettings")
                 }

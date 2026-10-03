@@ -218,6 +218,14 @@ struct ContentView: View {
                 rescheduleMealReminders()
             }
         }
+        // Back from iOS Settings with the camera allowed: reopen the scanner.
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            if phase == .active, let resume = ScanResume.consume() {
+                appState.activeTab = .nutrition
+                nutritionViewModel.apply(NutritionRoute(section: resume.nutritionSection, kitchen: nil))
+                nutritionViewModel.scanResume = resume
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .tempoWeeklyPlanApplied)) { _ in
             nutritionViewModel.adoptActivePlan(modelContext: modelContext, notifications: services.notifications)
         }

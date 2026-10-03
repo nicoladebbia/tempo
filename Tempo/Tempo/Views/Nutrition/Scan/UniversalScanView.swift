@@ -30,6 +30,8 @@ struct UniversalScanView: View {
     private var dismiss
     @Environment(\.scenePhase)
     private var scenePhase
+    @Environment(\.scanResumeSection)
+    private var resumeSection
     @Environment(\.modelContext)
     private var modelContext
     @Environment(ServiceContainer.self)
@@ -74,6 +76,7 @@ struct UniversalScanView: View {
                     }
                 }
             }
+            .environment(\.scanResumeInfo, ScanResumeInfo(kind: context.kind, mode: mode, section: resumeSection))
             .navigationTitle("Scan")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -142,7 +145,10 @@ struct UniversalScanView: View {
                 .font(.tempoCaption1)
                 .foregroundStyle(Color.tempoTextPrimary)
             Spacer(minLength: 0)
-            Button("Open Settings") { CameraPermission.openSettings() }
+            Button("Open Settings") {
+                ScanResume.save(kind: context.kind, mode: mode, section: resumeSection)
+                CameraPermission.openSettings()
+            }
                 .font(.tempoCaption1)
                 .foregroundStyle(Color.tempoSignal)
                 .accessibilityIdentifier("scanOpenSettings")

@@ -93,3 +93,9 @@ enum CameraPermission: Equatable {
         self == .denied || self == .restricted
     }
 }
+
+enum AVAuthorized {
+    static var isAuthorized: Bool {
+        AVCaptureDevice.authorizationStatus(for: .video) == .authorized
+    }
+}

@@ -26,6 +26,9 @@ struct NutritionTabView: View {
     /// Today's Scan button: the universal scanner with all four modes.
     @State
     private var showScan = false
+    /// Set while the scanner is the one reopened after a trip to iOS Settings.
+    @State
+    private var resumedScan: ScanResumeRecord?
     @State
     private var showMealLogging = false
 
@@ -138,10 +141,26 @@ struct NutritionTabView: View {
                 // A meal-photo log from Scan lands in today's meals.
                 viewModel.loadToday(modelContext: modelContext)
             }) {
-                UniversalScanView(context: .today(onMealPhoto: { items in
-                    // Reviewed in the Log tab once the scanner has closed.
-                    viewModel.openMealPhotoReview(items)
-                }))
+                Group {
+                    if resumedScan?.contextKind == .foodCheck {
+                        UniversalScanView(context: .foodCheck, initialMode: resumedScan?.scanMode)
+                    } else {
+                        UniversalScanView(context: .today(onMealPhoto: { items in
+                            // Reviewed in the Log tab once the scanner has closed.
+                            viewModel.openMealPhotoReview(items)
+                        }), initialMode: resumedScan?.scanMode)
+                    }
+                }
+                .environment(\.scanResumeSection, viewModel.selectedTab)
+            }
+            .onChange(of: viewModel.scanResume, initial: true) { _, record in
+                guard let record else {
+                    return
+                }
+                viewModel.scanResume = nil
+                resumedScan = record
+                viewModel.attachPhase7Services(modelContext: modelContext, services: services)
+                showScan = true
             }
             // Pantry-gap alert (Phase D) — same surface used by NutritionWeeklyPlanView,
             // wired here so generation triggered from profile setup also surfaces gaps.
@@ -196,6 +215,7 @@ struct NutritionTabView: View {
             NutritionTodayView(viewModel: viewModel, onScan: {
                 // Receipt mode needs the Kitchen services; attaching is idempotent.
                 viewModel.attachPhase7Services(modelContext: modelContext, services: services)
+                resumedScan = nil
                 showScan = true
             })
         case .plan:
