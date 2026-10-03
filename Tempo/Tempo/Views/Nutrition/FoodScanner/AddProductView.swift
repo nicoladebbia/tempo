@@ -63,6 +63,9 @@ struct AddProductView: View {
     private var isRenderingPhoto = false
     @State
     private var isReadingLabel = false
+    /// The label photo, cropped to the label, shown as a card after capture.
+    @State
+    private var labelImage: UIImage?
     @State
     private var labelMessage: String?
     @State
@@ -257,19 +260,56 @@ struct AddProductView: View {
 
     // MARK: - Label
 
+    @ViewBuilder
     private var labelRow: some View {
-        HStack(spacing: TempoSpacing.md) {
-            if isReadingLabel {
+        if let labelImage {
+            // Captured: the capture buttons are gone; the label is a card and
+            // the only control left is a small Retake.
+            VStack(spacing: TempoSpacing.sm) {
+                Image(uiImage: labelImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxHeight: 220)
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                    .overlay {
+                        if isReadingLabel {
+                            ZStack {
+                                Color.black.opacity(0.45)
+                                VStack(spacing: TempoSpacing.sm) {
+                                    ProgressView().tint(Color.tempoBone)
+                                    Text("Reading the label…")
+                                        .font(.tempoCaption1)
+                                        .foregroundStyle(Color.tempoBone)
+                                }
+                            }
+                            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                        }
+                    }
+                    .accessibilityLabel("Photo of the nutrition label")
+                    .accessibilityIdentifier("addProductLabelCard")
+                if !isReadingLabel {
+                    Button("Retake") { picker = .label(.camera) }
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoSignal)
+                        .buttonStyle(.borderless)
+                        .accessibilityIdentifier("addProductLabelRetake")
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, TempoSpacing.xs)
+        } else if isReadingLabel {
+            HStack(spacing: TempoSpacing.md) {
                 ProgressView()
                 Text("Reading the label…")
                     .font(.tempoBody)
                     .foregroundStyle(Color.tempoTextSecondary)
                 Spacer()
-            } else {
-                captureButtons(camera: { picker = .label(.camera) }, library: { picker = .label(.photoLibrary) })
             }
+            .padding(.vertical, TempoSpacing.xs)
+        } else {
+            captureButtons(camera: { picker = .label(.camera) }, library: { picker = .label(.photoLibrary) })
+                .padding(.vertical, TempoSpacing.xs)
         }
-        .padding(.vertical, TempoSpacing.xs)
     }
 
     private func readLabel(_ image: UIImage) {
@@ -280,6 +320,7 @@ struct AddProductView: View {
         labelMessage = nil
         labelBlocker = nil
         Task {
+            labelImage = await LabelCrop.cropped(image)
             do {
                 let reading = try await NutritionLabelReader.read(imageJPEG: data, apiClient: services.apiClient)
                 apply(reading)
