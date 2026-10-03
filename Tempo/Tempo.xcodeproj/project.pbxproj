@@ -6490,7 +6490,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Tempo/Info.plist;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Tempo reads your calendar to avoid scheduling workouts during classes and football practice, and to identify study blocks for your accountability targets.";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "Tempo reads your health data (steps, heart rate, HRV, sleep, workouts) to calculate your daily score, adapt your training plan to your recovery, and track your progress automatically.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Tempo reads your health data (steps, heart rate, HRV, sleep, workouts, body weight, height, age and sex) to calculate your daily score, adapt your training plan to your recovery, track your progress automatically, and prefill your nutrition profile.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Tempo writes your completed workouts (with calories and distance) and nutrition data to HealthKit so your health record stays complete across all your apps.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Tempo uses your location to provide weather-aware hydration targets and workout recommendations, to track distance and pace during a guided run, and to tell meals eaten at home from eating out (your home spot stays on this phone).";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Tempo uses your microphone so you can talk instead of typing: describe your week for your meal plan, log meals, or dictate pantry items.";
@@ -6623,7 +6623,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Tempo/Info.plist;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Tempo reads your calendar to avoid scheduling workouts during classes and football practice, and to identify study blocks for your accountability targets.";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "Tempo reads your health data (steps, heart rate, HRV, sleep, workouts) to calculate your daily score, adapt your training plan to your recovery, and track your progress automatically.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Tempo reads your health data (steps, heart rate, HRV, sleep, workouts, body weight, height, age and sex) to calculate your daily score, adapt your training plan to your recovery, track your progress automatically, and prefill your nutrition profile.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Tempo writes your completed workouts (with calories and distance) and nutrition data to HealthKit so your health record stays complete across all your apps.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Tempo uses your location to provide weather-aware hydration targets and workout recommendations, to track distance and pace during a guided run, and to tell meals eaten at home from eating out (your home spot stays on this phone).";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Tempo uses your microphone so you can talk instead of typing: describe your week for your meal plan, log meals, or dictate pantry items.";
@@ -6939,7 +6939,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Tempo/Info.plist;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Tempo reads your calendar to avoid scheduling workouts during classes and football practice, and to identify study blocks for your accountability targets.";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "Tempo reads your health data (steps, heart rate, HRV, sleep, workouts) to calculate your daily score, adapt your training plan to your recovery, and track your progress automatically.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Tempo reads your health data (steps, heart rate, HRV, sleep, workouts, body weight, height, age and sex) to calculate your daily score, adapt your training plan to your recovery, track your progress automatically, and prefill your nutrition profile.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Tempo writes your completed workouts (with calories and distance) and nutrition data to HealthKit so your health record stays complete across all your apps.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Tempo uses your location to provide weather-aware hydration targets and workout recommendations, to track distance and pace during a guided run, and to tell meals eaten at home from eating out (your home spot stays on this phone).";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Tempo uses your microphone so you can talk instead of typing: describe your week for your meal plan, log meals, or dictate pantry items.";
