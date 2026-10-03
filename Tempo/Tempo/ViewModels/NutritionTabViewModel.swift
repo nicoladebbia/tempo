@@ -152,6 +152,16 @@ final class NutritionTabViewModel {
         selectedTab = .kitchen
     }
 
+    /// Set by `openSupplement`; Kitchen > Supplements opens that supplement's
+    /// detail page and clears it.
+    var supplementToOpen: UUID?
+
+    /// Deep link to one supplement's detail page (Today's supplements card).
+    func openSupplement(_ id: UUID) {
+        supplementToOpen = id
+        openKitchen(.supplements)
+    }
+
     /// Applies a notification's requested section (see `NotificationRouter`).
     func apply(_ route: NutritionRoute) {
         if let kitchen = route.kitchen {

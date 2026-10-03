@@ -7,7 +7,7 @@
 // button. Taken rows dim and show when they were taken; shakes show the
 // protein / kcal their tick adds; a running-low supplement carries a small
 // "3d left" chip that opens the reorder sheet. Tapping a row opens
-// Kitchen > Supplements. Ticking goes through the same single path as ever
+// that supplement's detail page in Kitchen > Supplements. Ticking goes through the same single path as ever
 // (macro "Supplements" entry on tick, removed on untick).
 //
 // Per DESIGN_SYSTEM.md — tokens only, drill-sergeant voice.
@@ -138,7 +138,7 @@ struct TodaySupplementsCard: View {
     private func rowView(_ row: SupplementBoardRow) -> some View {
         HStack(spacing: TempoSpacing.md) {
             Button {
-                viewModel.openKitchen(.supplements)
+                viewModel.openSupplement(row.dose.supplementID)
             } label: {
                 HStack(spacing: TempoSpacing.md) {
                     Image(systemName: row.dose.kind.icon)
@@ -167,7 +167,7 @@ struct TodaySupplementsCard: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("\(row.dose.name), \(row.dose.dosePerServing), \(row.dose.timeLabel). Open in Kitchen")
+            .accessibilityLabel("\(row.dose.name), \(row.dose.dosePerServing), \(row.dose.timeLabel). Open details")
 
             checkButton(row)
         }

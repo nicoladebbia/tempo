@@ -7,14 +7,17 @@
 // card (brand, name, dose, servings/container, certifications) → Add → Scan
 // another, in a loop until the user taps Done. A hit that matches something
 // already on the shelf (by UPC or name) offers a restock instead of a
-// duplicate row. 404 / offline / any other failure drops to a manual form
-// prefilled with the scanned UPC — the user should never be stuck.
+// duplicate row. Lookup order: your shelf, the on-device cache of earlier hits,
+// then the backend (NIH DSLD by UPC, Open Facts). When nothing is found the
+// user is NEVER at a dead end: Photograph the label (AI reads the Supplement
+// Facts), Search by name, or Type it with the barcode already filled in.
 //
 // Per DESIGN_SYSTEM.md — all tokens, drill-sergeant voice.
 //
 
 import SwiftData
 import SwiftUI
+import UIKit
 
 struct SupplementBarcodeFlow: View {
     /// Non-archived shelf, for duplicate-by-UPC/name detection.
@@ -41,8 +44,10 @@ struct SupplementBarcodeFlow: View {
     @State private var scanState: ScanState = .scanning
     @State private var network = NetworkStatus()
     @State private var addedCount = 0
-    @State private var manualPrefillUPC: String?
-    @State private var showManualAdd = false
+    @State private var flowSheet: FlowSheet?
+    @State private var showLabelCamera = false
+    @State private var labelUPC: String?
+    @State private var labelBlocker: AIBlocker?
     /// Items inserted during THIS scan session. `shelf` is a snapshot handed
     /// in when the cover was presented and only picks up new adds once the
     /// parent's `@Query` refreshes and re-diffs this cover — not guaranteed
@@ -51,13 +56,31 @@ struct SupplementBarcodeFlow: View {
     /// restock instead of creating a second row.
     @State private var sessionAdditions: [Supplement] = []
 
+    /// One sheet at a time; swapping goes through `present`.
+    private enum FlowSheet: Identifiable {
+        case manual(upc: String?)
+        case search(upc: String?)
+        case prefilled(id: UUID, dto: SupplementLookupDTO)
+
+        var id: String {
+            switch self {
+            case .manual: "manual"
+            case .search: "search"
+            case let .prefilled(id, _): "prefilled-\(id)"
+            }
+        }
+    }
+
     private enum ScanState {
         case scanning
         case loading(String)
+        case reading(String)
         case duplicate(dto: SupplementLookupDTO, existing: Supplement)
         case found(SupplementLookupDTO)
         case notFound(upc: String)
         case failed(upc: String, message: String)
+        case invalid(message: String)
+        case labelFailed(upc: String, message: String)
     }
 
     var body: some View {
@@ -68,31 +91,50 @@ struct SupplementBarcodeFlow: View {
                 ScanBarcodeSurface(
                     prompt: "Point at the label's barcode",
                     detail: addedCount > 0 ? "\(addedCount) added — scan another or tap Done" : nil,
-                    fallbackActions: [ScanFallbackAction(title: "Add manually") { openManualAdd(prefillUPC: nil) }]
+                    fallbackActions: [
+                        ScanFallbackAction(title: "Search by name") { flowSheet = .search(upc: nil) },
+                        ScanFallbackAction(title: "Type it") { flowSheet = .manual(upc: nil) },
+                    ]
                 ) { barcode in
                     lookUp(barcode)
                 }
             case let .loading(code):
-                loadingContent(code)
+                loadingContent("Looking up \(code)…")
+            case .reading:
+                loadingContent("Reading the label…")
             case let .duplicate(dto, existing):
                 duplicateContent(dto: dto, existing: existing)
             case let .found(dto):
                 foundContent(dto)
             case let .notFound(upc):
-                messageContent(
+                unresolvedContent(
                     icon: "barcode.viewfinder",
-                    title: "Not in the database",
-                    message: "Barcode \(upc) isn't recognized yet.",
-                    primaryTitle: "Add manually",
-                    primaryAction: { openManualAdd(prefillUPC: upc) }
+                    title: "Not in any database yet",
+                    message: "\(upc.isEmpty ? "This product" : "Barcode \(upc)") isn't listed. Photograph the label and Tempo reads it for you, or add it yourself. Takes a minute.",
+                    upc: upc
                 )
             case let .failed(upc, message):
-                messageContent(
+                unresolvedContent(
                     icon: "wifi.exclamationmark",
                     title: "Couldn't look that up",
                     message: message,
-                    primaryTitle: "Add manually",
-                    primaryAction: { openManualAdd(prefillUPC: upc) }
+                    upc: upc,
+                    canRetry: true
+                )
+            case let .invalid(message):
+                unresolvedContent(
+                    icon: "barcode.viewfinder",
+                    title: "That barcode looks off",
+                    message: message,
+                    upc: nil
+                )
+            case let .labelFailed(upc, message):
+                unresolvedContent(
+                    icon: "text.viewfinder",
+                    title: "Couldn't read the label",
+                    message: message,
+                    upc: upc,
+                    blocker: labelBlocker
                 )
             }
         }
@@ -105,25 +147,74 @@ struct SupplementBarcodeFlow: View {
                 .accessibilityIdentifier("scanDone")
             }
         }
-        .sheet(isPresented: $showManualAdd) {
-            SupplementEditSheet(existing: nil, prefillUPC: manualPrefillUPC) { draft in
-                modelContext.insert(draft)
-                try? modelContext.save()
-                sessionAdditions.append(draft)
-                onSaved()
-                addedCount += 1
-                resetScanner()
+        .sheet(item: $flowSheet) { sheet in
+            sheetContent(sheet)
+        }
+        .fullScreenCover(isPresented: $showLabelCamera) {
+            FoodImagePicker(sourceType: .camera) { image in
+                showLabelCamera = false
+                if let image {
+                    readLabel(image)
+                }
             }
+            .ignoresSafeArea()
         }
         .task {
             await network.monitor()
         }
     }
 
-    private func loadingContent(_ code: String) -> some View {
+    @ViewBuilder
+    private func sheetContent(_ sheet: FlowSheet) -> some View {
+        switch sheet {
+        case let .manual(upc):
+            SupplementEditSheet(existing: nil, prefillUPC: upc) { draft in
+                saveDraft(draft)
+            }
+        case let .prefilled(_, dto):
+            SupplementEditSheet(existing: nil, prefillUPC: nil, prefill: dto) { draft in
+                saveDraft(draft)
+            }
+        case let .search(upc):
+            SupplementSearchSheet(
+                onPick: { dto in
+                    // A barcode that led here belongs to the product the user picked.
+                    let withCode = upc.map { dto.withUPC($0) } ?? dto
+                    present(.prefilled(id: UUID(), dto: withCode))
+                },
+                onTypeIt: { present(.manual(upc: upc)) },
+                injectedService: injectedLookupService
+            )
+            .environment(services)
+        }
+    }
+
+    private func present(_ next: FlowSheet) {
+        guard flowSheet != nil else {
+            flowSheet = next
+            return
+        }
+        flowSheet = nil
+        Task {
+            try? await Task.sleep(for: .milliseconds(450))
+            flowSheet = next
+        }
+    }
+
+    private func saveDraft(_ draft: Supplement) {
+        modelContext.insert(draft)
+        try? modelContext.save()
+        sessionAdditions.append(draft)
+        onSaved()
+        addedCount += 1
+        HapticManager.notification(.success)
+        resetScanner()
+    }
+
+    private func loadingContent(_ text: String) -> some View {
         VStack(spacing: TempoSpacing.lg) {
             ProgressView().controlSize(.large)
-            Text("Looking up \(code)…")
+            Text(text)
                 .font(.tempoBody)
                 .foregroundStyle(Color.tempoTextSecondary)
         }
@@ -159,6 +250,11 @@ struct SupplementBarcodeFlow: View {
                     }
                     .padding(.top, TempoSpacing.xs)
                 }
+                if let source = Self.sourceName(dto.source) {
+                    Text(source)
+                        .font(.tempoCaption2)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                }
                 Text("UPC \(dto.upc)")
                     .font(.tempoCaption2)
                     .foregroundStyle(Color.tempoTextTertiary)
@@ -178,6 +274,15 @@ struct SupplementBarcodeFlow: View {
             }
             .padding(.horizontal, TempoSpacing.xxxxl)
             Spacer()
+        }
+    }
+
+    private static func sourceName(_ source: String) -> String? {
+        switch source {
+        case "dsld": "NIH supplement label database"
+        case "openfoodfacts", "openproductsfacts", "openbeautyfacts": "Open Facts database"
+        case "shelf": "From your shelf"
+        default: nil
         }
     }
 
@@ -234,42 +339,130 @@ struct SupplementBarcodeFlow: View {
 
     // MARK: - Not found / failed / unavailable
 
-    private func messageContent(
+    /// Never a dead end: every road out is a labelled button.
+    private func unresolvedContent(
         icon: String,
         title: String,
         message: String,
-        primaryTitle: String,
-        primaryAction: @escaping () -> Void
+        upc: String?,
+        canRetry: Bool = false,
+        blocker: AIBlocker? = nil
     ) -> some View {
-        VStack(spacing: TempoSpacing.lg) {
-            Spacer()
-            Image(systemName: icon)
-                .font(.system(size: 40))
-                .foregroundStyle(Color.tempoAsh)
-            Text(title)
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text(message)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, TempoSpacing.xxxxl)
-            VStack(spacing: TempoSpacing.buttonStackVertical) {
-                Button(primaryTitle, action: primaryAction)
-                    .buttonStyle(.tempoPrimary)
-                Button("Scan again") { resetScanner() }
+        ScrollView {
+            VStack(spacing: TempoSpacing.lg) {
+                Image(systemName: icon)
+                    .font(.system(size: 40))
+                    .foregroundStyle(Color.tempoAsh)
+                    .padding(.top, TempoSpacing.xxxl)
+                Text(title)
+                    .font(.tempoTitle3)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                Text(message)
+                    .font(.tempoBody)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, TempoSpacing.xxl)
+                if let blocker {
+                    AIBlockerCard(
+                        blocker: blocker,
+                        message: blocker == .proRequired
+                            ? "Reading labels with AI is a Tempo Pro feature. You can still search or type it."
+                            : "AI features are off. Turn them on to read labels, or search or type it."
+                    ) {
+                        labelBlocker = nil
+                        if let upc { scanState = .notFound(upc: upc) }
+                    }
+                    .padding(.horizontal, TempoSpacing.xxl)
+                }
+                VStack(spacing: TempoSpacing.buttonStackVertical) {
+                    if canRetry, let upc {
+                        Button {
+                            lookUp(upc)
+                        } label: {
+                            Label("Try again", systemImage: "arrow.clockwise")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.tempoPrimary)
+                        .accessibilityIdentifier("supplementRetryLookup")
+                    }
+                    if canRetry {
+                        photographButton(upc: upc).buttonStyle(.tempoSecondary)
+                    } else {
+                        photographButton(upc: upc).buttonStyle(.tempoPrimary)
+                    }
+                    Button {
+                        flowSheet = .search(upc: upc)
+                    } label: {
+                        Label("Search by name", systemImage: "magnifyingglass")
+                            .frame(maxWidth: .infinity)
+                    }
                     .buttonStyle(.tempoSecondary)
+                    .accessibilityIdentifier("supplementSearchByName")
+                    Button {
+                        flowSheet = .manual(upc: upc)
+                    } label: {
+                        Label("Type it", systemImage: "square.and.pencil")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.tempoSecondary)
+                    .accessibilityIdentifier("supplementTypeIt")
+                    Button {
+                        resetScanner()
+                    } label: {
+                        Label("Scan again", systemImage: "barcode.viewfinder")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.tempoGhost)
+                }
+                .padding(.horizontal, TempoSpacing.xxxxl)
+                .padding(.bottom, TempoSpacing.xxxl)
             }
-            .padding(.horizontal, TempoSpacing.xxxxl)
-            Spacer()
         }
+    }
+
+    private func photographButton(upc: String?) -> some View {
+        Button {
+            labelUPC = upc
+            showLabelCamera = true
+        } label: {
+            Label("Photograph the label", systemImage: "camera.viewfinder")
+                .frame(maxWidth: .infinity)
+        }
+        .accessibilityIdentifier("supplementPhotographLabel")
     }
 
     // MARK: - Actions
 
-    private func openManualAdd(prefillUPC: String?) {
-        manualPrefillUPC = prefillUPC
-        showManualAdd = true
+    private func readLabel(_ image: UIImage) {
+        guard let data = image.jpegData(compressionQuality: 0.85) else {
+            return
+        }
+        let upc = labelUPC
+        scanState = .reading(upc ?? "")
+        labelBlocker = nil
+        Task {
+            do {
+                let dto = try await SupplementLabelReader.read(imageJPEG: data, upc: upc, apiClient: services.apiClient)
+                HapticManager.success()
+                scanState = upc.map { .notFound(upc: $0) } ?? .scanning
+                flowSheet = .prefilled(id: UUID(), dto: dto)
+            } catch let error as APIError {
+                labelBlocker = AIBlocker(error)
+                let message: String = switch error {
+                case .unauthorized: "Sign in to read labels with AI, or search or type it."
+                case .subscriptionRequired, .aiConsentRequired: "Reading labels needs Tempo Pro with AI on."
+                default: error.userMessage
+                }
+                HapticManager.warning()
+                scanState = .labelFailed(upc: upc ?? "", message: message)
+            } catch {
+                HapticManager.warning()
+                scanState = .labelFailed(
+                    upc: upc ?? "",
+                    message: (error as? LocalizedError)?.errorDescription ?? "Couldn't read that label. Try a sharper, closer photo."
+                )
+            }
+        }
     }
 
     private func lookUp(_ barcode: String) {
@@ -284,7 +477,13 @@ struct SupplementBarcodeFlow: View {
         HapticManager.mediumImpact()
         let service = injectedLookupService ?? LiveSupplementLookupService(apiClient: services.apiClient)
         Task {
-            let outcome = await SupplementLookupRunner.run(upc: code, isOffline: network.isOffline, using: service)
+            let outcome = await SupplementLookupRunner.run(
+                upc: code,
+                isOffline: network.isOffline,
+                using: service,
+                shelf: shelf + sessionAdditions,
+                cache: SupplementLookupCache()
+            )
             switch outcome {
             case let .found(dto):
                 if let existing = Supplement.duplicate(forUPC: dto.upc, name: dto.name, in: shelf + sessionAdditions) {
@@ -301,8 +500,11 @@ struct SupplementBarcodeFlow: View {
                 HapticManager.warning()
                 scanState = .failed(
                     upc: code,
-                    message: "You're offline. Add it manually now — you can fill in the rest later."
+                    message: "You're offline. Type it in now and fill in the rest later, or try again when you have signal."
                 )
+            case let .invalid(message):
+                HapticManager.warning()
+                scanState = .invalid(message: message)
             case let .failed(message):
                 HapticManager.error()
                 scanState = .failed(upc: code, message: message)
