@@ -35,6 +35,39 @@ enum PantryStorageGuesser {
     /// put rice, juice and spices in the freezer ("ice"), steak in the pantry
     /// ("tea") and peanut butter in the fridge ("butter").
     static func containsKeyword(_ keyword: String, in haystack: String) -> Bool {
+        // "tomatoes" must find "tomato" and "peppers" find "pepper": the plural
+        // tolerance below only covers a plural haystack, so try both forms.
+        let single = singular(keyword)
+        if single != keyword.lowercased(), matchesWord(single, in: haystack) {
+            return true
+        }
+        return matchesWord(keyword, in: haystack)
+    }
+
+    /// Simple English singular of the last word ("tomatoes" -> "tomato",
+    /// "berries" -> "berry", "peppers" -> "pepper"); leaves "glass", "hummus",
+    /// and short words alone.
+    static func singular(_ phrase: String) -> String {
+        let p = phrase.lowercased().trimmingCharacters(in: .whitespaces)
+        guard p.count > 3 else {
+            return p
+        }
+        if p.hasSuffix("ies") {
+            return String(p.dropLast(3)) + "y"
+        }
+        if p.hasSuffix("oes") {
+            return String(p.dropLast(2))
+        }
+        for suffix in ["sses", "shes", "ches", "xes"] where p.hasSuffix(suffix) {
+            return String(p.dropLast(2))
+        }
+        if p.hasSuffix("s"), !p.hasSuffix("ss"), !p.hasSuffix("us") {
+            return String(p.dropLast())
+        }
+        return p
+    }
+
+    private static func matchesWord(_ keyword: String, in haystack: String) -> Bool {
         // "egg noodles" is pasta, not eggs.
         if keyword == "egg" || keyword == "eggs",
            haystack.range(of: "\\begg\\s+(?:noodle|pasta)", options: [.regularExpression, .caseInsensitive]) != nil {
