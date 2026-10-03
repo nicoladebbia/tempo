@@ -66,7 +66,7 @@ struct PantryView: View {
         .background(Color.tempoBgPrimary)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if showsStaplesPeek, !showStaples {
-                StaplesPeekCard(remaining: viewModel.stapleSuggestions.count) {
+                StaplesPeekCard(remaining: viewModel.unansweredStapleCount) {
                     staplesDetent = .large
                     showStaples = true
                 }
@@ -78,14 +78,11 @@ struct PantryView: View {
         .animation(.easeOut(duration: TempoAnimation.mediumDuration), value: showsStaplesPeek)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showManualAddSheet = true
-                } label: {
-                    Image(systemName: "plus")
-                }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    Button("Add item", systemImage: "plus") {
+                        showManualAddSheet = true
+                    }
+                    .accessibilityIdentifier("pantryAddItem")
                     Button("Staples", systemImage: "leaf") {
                         viewModel.applyStapleEvent(.reopen)
                         staplesDetent = .large

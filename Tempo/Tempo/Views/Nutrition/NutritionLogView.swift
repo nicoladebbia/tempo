@@ -29,6 +29,9 @@ struct NutritionLogView: View {
     private var aiBlocker: AIBlocker?
     @State
     private var naturalLanguageInput: String = ""
+    /// Logged meal opened for editing (tap on a row).
+    @State
+    private var detailMeal: PlannedMeal?
     @State
     private var showPhotoAnalysis = false
     @State
@@ -121,6 +124,9 @@ struct NutritionLogView: View {
                 viewModel.focusQuickLogRequested = false
                 quickLogFocused = true
             }
+        }
+        .navigationDestination(item: $detailMeal) { meal in
+            MealDetailView(meal: meal)
         }
         .sheet(isPresented: $showPhotoAnalysis) {
             UniversalScanView(
@@ -242,8 +248,16 @@ struct NutritionLogView: View {
                     .foregroundStyle(Color.tempoTextSecondary)
 
                 ForEach(meals, id: \.id) { meal in
-                    loggedRow(meal)
-                        .swipeToDelete(label: meal.isUnplannedLog ? "Delete log" : "Undo — not eaten") {
+                    Button {
+                        detailMeal = meal
+                        HapticManager.lightImpact()
+                    } label: {
+                        loggedRow(meal)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Opens the meal to edit it")
+                    .swipeToDelete(label: meal.isUnplannedLog ? "Delete log" : "Undo — not eaten") {
                             undoLog(meal)
                         }
                 }
@@ -280,6 +294,11 @@ struct NutritionLogView: View {
         }
         .tempoCard()
         .contextMenu {
+            Button {
+                detailMeal = meal
+            } label: {
+                Label("Edit", systemImage: "pencil")
+            }
             if !meal.foods.isEmpty {
                 Button {
                     let foods = meal.foods
@@ -382,10 +401,6 @@ struct NutritionLogView: View {
         HStack(spacing: TempoSpacing.lg) {
             quickActionButton(icon: "camera.fill", label: "Photo") {
                 showPhotoAnalysis = true
-            }
-
-            quickActionButton(icon: "magnifyingglass", label: "Full Search") {
-                showMealLogging = true
             }
 
             quickActionButton(icon: "barcode.viewfinder", label: "Scan") {
