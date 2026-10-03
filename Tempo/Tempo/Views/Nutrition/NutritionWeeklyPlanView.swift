@@ -92,7 +92,11 @@ struct NutritionWeeklyPlanView: View {
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.bottom, TempoSpacing.bottomSafe)
+            // Pin the content to the screen width: nothing inside can make the
+            // page wider, so it only ever scrolls up and down.
+            .containerRelativeFrame(.horizontal)
         }
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
         .alert("AI-Generated Meal Plan", isPresented: $showDisclaimerAlert) {
             Button("I Understand") {
                 disclaimerAccepted = true
@@ -282,6 +286,7 @@ struct NutritionWeeklyPlanView: View {
                         .font(.tempoBody)
                         .fontWeight(isToday ? .bold : .medium)
                         .foregroundStyle(isToday ? Color.tempoViolet : Color.tempoTextPrimary)
+                        .lineLimit(1)
 
                     if isToday {
                         Text("TODAY")
@@ -335,6 +340,8 @@ struct NutritionWeeklyPlanView: View {
     }
 
     private func compactMealRow(_ meal: PlannedMeal) -> some View {
+        // Every cell is bounded: the name truncates instead of widening the
+        // row, so a long recipe name can never push the page past the screen.
         HStack(spacing: TempoSpacing.sm) {
             Circle()
                 .fill(mealStatusColor(meal.status))
@@ -343,17 +350,27 @@ struct NutritionWeeklyPlanView: View {
             Text(meal.mealName)
                 .font(.tempoCaption1)
                 .foregroundStyle(Color.tempoTextPrimary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .layoutPriority(0)
 
             Text(meal.scheduledTime)
                 .font(.tempoCaption2)
                 .foregroundStyle(Color.tempoTextTertiary)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .layoutPriority(1)
 
-            Spacer()
+            Spacer(minLength: TempoSpacing.xs)
 
             Text("\(Int(meal.totalCalories)) kcal")
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
                 .foregroundStyle(Color.tempoTextSecondary)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .layoutPriority(1)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 2)
     }
 

@@ -240,86 +240,48 @@ struct NutritionLogView: View {
     @ViewBuilder
     private var loggedTodaySection: some View {
         let meals = loggedToday
-        if !meals.isEmpty {
-            VStack(alignment: .leading, spacing: TempoSpacing.md) {
-                Text("LOGGED TODAY")
-                    .font(.tempoModuleTag)
-                    .tracking(TempoTracking.drillLabel)
-                    .foregroundStyle(Color.tempoTextSecondary)
-
-                ForEach(meals, id: \.id) { meal in
-                    Button {
-                        detailMeal = meal
-                        HapticManager.lightImpact()
-                    } label: {
-                        loggedRow(meal)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityHint("Opens the meal to edit it")
-                    .swipeToDelete(label: meal.isUnplannedLog ? "Delete log" : "Undo — not eaten") {
-                            undoLog(meal)
-                        }
-                }
-            }
+        if meals.isEmpty {
+            loggedEmptyState
+        } else {
+            LoggedMealsList(
+                meals: meals,
+                onOpen: { detailMeal = $0 },
+                onDelete: { undoLog($0) },
+                onSavePreset: { savePresetFromLog($0) }
+            )
         }
     }
 
-    private func loggedRow(_ meal: PlannedMeal) -> some View {
-        let foods = meal.foods.map(\.name).joined(separator: ", ")
-        return HStack(spacing: TempoSpacing.md) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(meal.mealName)
-                    .font(.tempoCallout)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                if !foods.isEmpty {
-                    Text(foods)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .lineLimit(1)
-                }
-            }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 2) {
-                Text("\(Int(meal.totalCalories)) kcal")
-                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(Color.tempoViolet)
-                if let at = meal.actualEatenAt {
-                    Text(at.formatted(date: .omitted, time: .shortened))
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                }
-            }
+    private var loggedEmptyState: some View {
+        VStack(spacing: TempoSpacing.sm) {
+            Image(systemName: "fork.knife.circle")
+                .font(.system(size: 32))
+                .foregroundStyle(Color.tempoTextTertiary)
+            Text("Nothing logged yet today")
+                .font(.tempoBodyBold)
+                .foregroundStyle(Color.tempoTextPrimary)
+            Text("Type what you ate, snap a photo or scan a pack. It lands here.")
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoTextSecondary)
+                .multilineTextAlignment(.center)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, TempoSpacing.lg)
         .tempoCard()
-        .contextMenu {
-            Button {
-                detailMeal = meal
-            } label: {
-                Label("Edit", systemImage: "pencil")
-            }
-            if !meal.foods.isEmpty {
-                Button {
-                    let foods = meal.foods
-                    let saved = viewModel.savePreset(
-                        from: meal,
-                        name: foods.count == 1 ? foods[0].name : meal.mealName,
-                        modelContext: modelContext
-                    )
-                    toast = saved
-                        ? ToastData(message: "Saved as a preset.", style: .success)
-                        : ToastData(message: "Couldn't save that preset. Try again.", style: .error)
-                } label: {
-                    Label("Save as preset", systemImage: "bookmark")
-                }
-            }
-            Button(role: .destructive) {
-                undoLog(meal)
-            } label: {
-                Label(meal.isUnplannedLog ? "Delete log" : "Undo — not eaten", systemImage: "trash")
-            }
-        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("loggedTodayEmpty")
+    }
+
+    private func savePresetFromLog(_ meal: PlannedMeal) {
+        let foods = meal.foods
+        let saved = viewModel.savePreset(
+            from: meal,
+            name: foods.count == 1 ? foods[0].name : meal.mealName,
+            modelContext: modelContext
+        )
+        toast = saved
+            ? ToastData(message: "Saved as a preset.", style: .success)
+            : ToastData(message: "Couldn't save that preset. Try again.", style: .error)
     }
 
     /// Delete a wrong log (or take a plan slot back) with a 5-second Undo.

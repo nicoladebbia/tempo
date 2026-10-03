@@ -64,7 +64,6 @@
 		0AE3279D7BDC4A612125390F /* NumberStepperView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99CF057E42F2CFE0A28D5F94 /* NumberStepperView.swift */; };
 		0B19827AEA119ABFC1EB7027 /* TrainingCalendarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F64259754E4000C28EDA8E94 /* TrainingCalendarTests.swift */; };
 		0B4607DC8AE80811B50D0A40 /* PreferenceExtractorAdapterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 768B426FEBB8020F4F5B04F3 /* PreferenceExtractorAdapterTests.swift */; };
-		0B4F10D4378DFB97410D2D3F /* SwipeToDeleteRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A963DE6C51FF0CE5F3E4EB90 /* SwipeToDeleteRow.swift */; };
 		0B586C3D2A48CAAF5CFDB623 /* HeartRateZoneCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5662D7533D6D36F57688A092 /* HeartRateZoneCalculatorTests.swift */; };
 		0B680202CE7249E9C2E0532A /* SupplementBarcodeFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00C7B96FD85A6536D442DBB8 /* SupplementBarcodeFlow.swift */; };
 		0B773B1BD148005175664240 /* MealOutcomeServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0600C5FA4A697C7BF8CE3852 /* MealOutcomeServiceTests.swift */; };
@@ -373,6 +372,7 @@
 		49DFEDA54259227DF530E364 /* cue_ex_hanging_leg_raise.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 6EFBC65B4FA941D28C8F8AA7 /* cue_ex_hanging_leg_raise.mp3 */; };
 		49F1CE8CBE1A98B65C549308 /* ProductImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A775B9D0086F6E64C7CD972A /* ProductImageView.swift */; };
 		4A4A80B819D8EEE3968521F7 /* ProgramTextExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AC1C8DE6FF1AE4C7E1BAFFE /* ProgramTextExtractor.swift */; };
+		4A5197B3821FD71C7DBD587F /* LoggedMealsList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 296E3151E2D9FFB2756F0741 /* LoggedMealsList.swift */; };
 		4A543EBEC1101D8FD5F31829 /* cue_ex_preacher_curl.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 16A87FCBE219ED9058CCE797 /* cue_ex_preacher_curl.mp3 */; };
 		4A8AF130E5427AAC727DE91F /* cue_ex_dumbbell_fly.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = DCC047438F27461B5034C8AB /* cue_ex_dumbbell_fly.mp3 */; };
 		4AAA20A1DB5CFD0354B91B00 /* GuidedRunView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BB38C125EDB61D24411FDB4 /* GuidedRunView.swift */; };
@@ -422,6 +422,7 @@
 		532191180EB7BDA817FF19DA /* TrainerReportPDFRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F9793B683B94CBCBCFC8751 /* TrainerReportPDFRendererTests.swift */; };
 		5398CA5087ABA7F691E2949F /* MealPlanIntakePersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F16174256B0CB085C9C032 /* MealPlanIntakePersistenceTests.swift */; };
 		53B9F5E0442AF60632269522 /* GuidedRunSummaryBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 611226D161AE9AD438644CA9 /* GuidedRunSummaryBuilder.swift */; };
+		53CBA65B407049D09450819E /* SwipeDeleteList.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1D30F6961C94F4A015F457E /* SwipeDeleteList.swift */; };
 		540456695C0117EA540838F7 /* TempoWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20150327692ED9710E1335EC /* TempoWatchApp.swift */; };
 		54108E7A330B6CC4DCDB5616 /* ActiveDays.swift in Sources */ = {isa = PBXBuildFile; fileRef = D802A031AF15B9CC7D9C33BA /* ActiveDays.swift */; };
 		542638AC8ED28FC0BE2C173E /* MicroInteractionModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95A7E97DBBCB3EA70439EFB4 /* MicroInteractionModifiers.swift */; };
@@ -564,6 +565,7 @@
 		711C9274A3400C8C24737586 /* WeekOverWeekProgressLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 795AFDCB448A6368CD49624F /* WeekOverWeekProgressLoader.swift */; };
 		7158C8D680EA656812597323 /* RecoveryOverrideStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD041199CE54A8A1496ED1C7 /* RecoveryOverrideStepView.swift */; };
 		71912D8F052D821F044EA9A6 /* GroceryShareTextFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72A589E2F7C564B169D17DDB /* GroceryShareTextFormatter.swift */; };
+		71CF03BCAE26E00E234D9285 /* UndoMealSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B58276C3B05203B1B64A658 /* UndoMealSheet.swift */; };
 		72103139EB6C0BF0A5597267 /* HydrationMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFE2B3F0D3BE4D51F3199557 /* HydrationMath.swift */; };
 		724223D6FAD4DC2A3FA02B9E /* cue_ex_dumbbell_romanian_deadlift.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 2705F81FF948AC1079F1E0A1 /* cue_ex_dumbbell_romanian_deadlift.mp3 */; };
 		72C790581C89A59A4A25AE7C /* RecipeSuggestionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D80435DD4731EBFEB97EC18 /* RecipeSuggestionsView.swift */; };
@@ -1542,6 +1544,7 @@
 		281A4CB5B01252A256255D86 /* SupplementReminderScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplementReminderScheduler.swift; sourceTree = "<group>"; };
 		28BB182EBC04FB3D594E7C1F /* DailySessionResyncTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailySessionResyncTests.swift; sourceTree = "<group>"; };
 		2948C055F4EB9AA21A8BFBD2 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
+		296E3151E2D9FFB2756F0741 /* LoggedMealsList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoggedMealsList.swift; sourceTree = "<group>"; };
 		2998ABE069BBFEA3D021A8A0 /* TempoNotificationDelegateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoNotificationDelegateTests.swift; sourceTree = "<group>"; };
 		29A526E4899143E8AE45587C /* TrainerProgramHistoryStatsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerProgramHistoryStatsTests.swift; sourceTree = "<group>"; };
 		29F7C0EC0262FAB29365F604 /* PainReportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PainReportSheet.swift; sourceTree = "<group>"; };
@@ -2105,6 +2108,7 @@
 		9B3F74E16CD09D164A6620E6 /* TestServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestServer.swift; sourceTree = "<group>"; };
 		9B4B950B94AF31126AF651FC /* RunUnitsFormattingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunUnitsFormattingTests.swift; sourceTree = "<group>"; };
 		9B4C6DA0A866E45B6DDEBDB7 /* SupplementTimingSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplementTimingSection.swift; sourceTree = "<group>"; };
+		9B58276C3B05203B1B64A658 /* UndoMealSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoMealSheet.swift; sourceTree = "<group>"; };
 		9B6D0DA45F33BE74DF539DD6 /* FoodProductActionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodProductActionBar.swift; sourceTree = "<group>"; };
 		9BA725894165E147EB72A7CE /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		9BE5F2EEF6074E06C0FC727D /* MealPlanScheduleEnforcer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealPlanScheduleEnforcer.swift; sourceTree = "<group>"; };
@@ -2175,7 +2179,6 @@
 		A913BFDCC38A0FCF26BCE061 /* DeloadStyleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeloadStyleTests.swift; sourceTree = "<group>"; };
 		A91643404852BD885F51A3FA /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		A95E766CF66EF88196BA39D3 /* cue_ex_muscle_up.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_muscle_up.mp3; sourceTree = "<group>"; };
-		A963DE6C51FF0CE5F3E4EB90 /* SwipeToDeleteRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeToDeleteRow.swift; sourceTree = "<group>"; };
 		A9DA903B98B64A76F00531DD /* WhoopService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhoopService.swift; sourceTree = "<group>"; };
 		AA4CD16B96B9EC012D5A42AC /* GuidedRunWatchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidedRunWatchView.swift; sourceTree = "<group>"; };
 		AABC459D7700FF31DB676B02 /* DailySessionParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailySessionParserTests.swift; sourceTree = "<group>"; };
@@ -2395,6 +2398,7 @@
 		D1175D7E7232CFDBE7CBB96A /* PausedTrainingCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PausedTrainingCard.swift; sourceTree = "<group>"; };
 		D120701F023E31DAD80E067F /* GuidedRunLiveScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidedRunLiveScreens.swift; sourceTree = "<group>"; };
 		D14962528201F74863174B20 /* TrainerFeedbackMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerFeedbackMigrationTests.swift; sourceTree = "<group>"; };
+		D1D30F6961C94F4A015F457E /* SwipeDeleteList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeDeleteList.swift; sourceTree = "<group>"; };
 		D206DD1243E14C6F3788BF27 /* WhoopConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhoopConnection.swift; sourceTree = "<group>"; };
 		D269E797B7456C97FB0E45DC /* MuscleHeatmapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MuscleHeatmapView.swift; sourceTree = "<group>"; };
 		D2A30518470A43A3C7C799EA /* KeyboardDismiss.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardDismiss.swift; sourceTree = "<group>"; };
@@ -3704,7 +3708,7 @@
 				1353B00F4473DE6881FB5B97 /* StaleDataIndicator.swift */,
 				DB6B6D9C690305BD11F87A29 /* StatCardView.swift */,
 				8526AED40421CE129D69C792 /* StreakDotsView.swift */,
-				A963DE6C51FF0CE5F3E4EB90 /* SwipeToDeleteRow.swift */,
+				D1D30F6961C94F4A015F457E /* SwipeDeleteList.swift */,
 				F5535978CE10DE36CA66E218 /* TempoBarChart.swift */,
 				DEEC3BBC4CB4A0EFA2D9A673 /* TempoFAB.swift */,
 				1C6AF2C5780FC47F5D791B88 /* TempoIconButton.swift */,
@@ -4685,6 +4689,7 @@
 				0C7BD492A8BB47AAFBBE298D /* GroceryStoreModeView.swift */,
 				3EB30E4C0683F5C1E6A3E8D0 /* GroceryWeeklySpendView.swift */,
 				A2CFC270D4E83FE3219BFCB8 /* KitchenView.swift */,
+				296E3151E2D9FFB2756F0741 /* LoggedMealsList.swift */,
 				E275DA52EAEC4B9BEFE4F442 /* MarkEatenSheet.swift */,
 				6F0F14714A6624A0A27DD866 /* MealDetailView.swift */,
 				7CB23D927F40CFC2888DC90E /* MealFeedbackSheet.swift */,
@@ -4719,6 +4724,7 @@
 				9B4C6DA0A866E45B6DDEBDB7 /* SupplementTimingSection.swift */,
 				482D68428AB7838E01758165 /* TellAIRecipeView.swift */,
 				8B940E93CF89A8E9C2CFB0BD /* TodaySupplementsCard.swift */,
+				9B58276C3B05203B1B64A658 /* UndoMealSheet.swift */,
 				6B0AA76F0D6E4C4C02DFD5FC /* UseUpSoonCard.swift */,
 				BEF1ADE800B362B94773359D /* VoiceMealLogView.swift */,
 				422C16C025153ACD2F8B2D8A /* VoicePantryView.swift */,
@@ -6000,6 +6006,7 @@
 				76067B9B4F77901AA0671075 /* LocationFixProvider.swift in Sources */,
 				4FF9DB0FFF3B9E71B518C41E /* LockdownMainView.swift in Sources */,
 				B7C17482392D54F9CA3D7F02 /* LockdownTabView.swift in Sources */,
+				4A5197B3821FD71C7DBD587F /* LoggedMealsList.swift in Sources */,
 				8DBBF0C0A227134A529E232D /* Logger+Tempo.swift in Sources */,
 				A0BCFA6734EF5EC57B2E6EE2 /* MacroCarryover.swift in Sources */,
 				2F3B5738E7BB31A19A8276DF /* MacroCarryoverService.swift in Sources */,
@@ -6274,7 +6281,7 @@
 				5DB0AD11499C8C1B8B18EF9C /* SupplementTimingSection.swift in Sources */,
 				B5E1F86B8A8397A413FE7C0C /* SupplementTodayBoard.swift in Sources */,
 				47062D89D6D163EA29DEDD7F /* SupplementsView.swift in Sources */,
-				0B4F10D4378DFB97410D2D3F /* SwipeToDeleteRow.swift in Sources */,
+				53CBA65B407049D09450819E /* SwipeDeleteList.swift in Sources */,
 				FD4F8D22C88FFFD22D088D8E /* SyncCoordinatorProtocol.swift in Sources */,
 				A129BCE268A7C4CA06D533A7 /* SyncEnums.swift in Sources */,
 				32A243A55DB5F5B329135CA8 /* SyncState.swift in Sources */,
@@ -6381,6 +6388,7 @@
 				3332041E03F8C25398C06166 /* TravelSwapEngine.swift in Sources */,
 				95E7B6FD52C4DC238CBF987B /* UIImage+Downsample.swift in Sources */,
 				B223F2AC3F0D1556400456AF /* USDAFoodClient.swift in Sources */,
+				71CF03BCAE26E00E234D9285 /* UndoMealSheet.swift in Sources */,
 				E476EA1421671B73F466F430 /* UniversalScanView.swift in Sources */,
 				EDEB79EC78343AEA14B4ECE9 /* UniversityDirectory.swift in Sources */,
 				0D4F9532ADBD5277A7B39897 /* UseItUpNotificationPlanner.swift in Sources */,

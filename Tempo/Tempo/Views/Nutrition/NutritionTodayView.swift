@@ -30,6 +30,9 @@ struct NutritionTodayView: View {
     /// through `markEatenMeal` below.
     @State
     private var feedbackMeal: PlannedMeal?
+    /// Meal opened from a row tap (pushes MealDetailView).
+    @State
+    private var detailMeal: PlannedMeal?
 
     /// When set, presents `MarkEatenSheet` for this meal. Combines the
     /// backward-fill time scrubber and the meal-feel chip. Replaces the
@@ -109,6 +112,9 @@ struct NutritionTodayView: View {
         // is right and a second tap doesn't undo it.
         .onReceive(NotificationCenter.default.publisher(for: .tempoSupplementsChanged)) { _ in
             supplementTakenRefresh += 1
+        }
+        .navigationDestination(item: $detailMeal) { meal in
+            MealDetailView(meal: meal)
         }
         .sheet(item: $feedbackMeal, onDismiss: {
             viewModel.refreshFeedbackPresence(modelContext: modelContext)
@@ -413,9 +419,17 @@ struct NutritionTodayView: View {
                     emptyMealsState
                 }
             } else {
-                ForEach(viewModel.todayMeals, id: \.id) { meal in
+                SwipeDeleteList(
+                    items: viewModel.todayMeals,
+                    swipe: { meal in
+                        meal.status == .eaten
+                            ? .init(label: meal.isUnplannedLog ? "Delete" : "Not eaten") { undoMeal(meal) }
+                            : nil
+                    }
+                ) { meal in
                     PlannedMealCardView(
                         meal: meal,
+                        onOpen: { detailMeal = meal },
                         onMarkEaten: {
                             // Smart default: if the tap lands within ±15 min
                             // of the planned scheduled time, save silently —
@@ -464,12 +478,6 @@ struct NutritionTodayView: View {
                             && !EatenMealRecorder.isSupplementDose(meal)
                             && !(viewModel.feedbackPresence[meal.id] ?? false)
                     )
-                    .swipeToDelete(
-                        enabled: meal.status == .eaten,
-                        label: meal.isUnplannedLog ? "Delete log" : "Undo — not eaten"
-                    ) {
-                        undoMeal(meal)
-                    }
                 }
             }
         }
