@@ -115,7 +115,8 @@ enum EatenMealRecorder {
             proteinGrams: food.proteinG,
             carbsGrams: food.carbsG,
             fatGrams: food.fatG,
-            source: .manual
+            source: .manual,
+            origin: food.origin
         )
     }
 
@@ -126,8 +127,32 @@ enum EatenMealRecorder {
             calories: item.totalCalories,
             proteinG: item.totalProtein,
             carbsG: item.totalCarbs,
-            fatG: item.totalFat
+            fatG: item.totalFat,
+            originRaw: item.origin?.rawValue
         )
+    }
+
+    /// The foods of a log that really come off the pantry: kitchen → every
+    /// food not marked "out"; mixed → only the foods marked "kitchen";
+    /// out / unknown → none.
+    nonisolated static func pantryFoods(_ foods: [PlannedFood], origin: MealOrigin?) -> [PlannedFood] {
+        switch origin {
+        case .kitchen?: foods.filter { $0.origin != .out }
+        case .mixed?: foods.filter { $0.origin == .kitchen }
+        case .out?, nil: []
+        }
+    }
+
+    /// The meal-level origin after adding a log of `new` to a meal that was
+    /// `existing`: same stays, different becomes mixed, unknown yields to known.
+    nonisolated static func mergedOrigin(existing: MealOrigin?, new: MealOrigin?) -> MealOrigin? {
+        guard let existing else {
+            return new
+        }
+        guard let new else {
+            return existing
+        }
+        return existing == new ? existing : .mixed
     }
 
     /// Inserts the legacy MealLog that mirrors a log.
@@ -264,7 +289,7 @@ enum EatenMealRecorder {
                         at: eatenAt,
                         replacingWith: plannedFoods,
                         mealLogID: mealLog.id,
-                        pantry: origin == .kitchen && shouldDeduct ? .foods : .none,
+                        pantry: !pantryFoods(plannedFoods, origin: origin).isEmpty && shouldDeduct ? .foods : .none,
                         env: MealOutcomeService.Env(modelContext: modelContext, notifications: notifications)
                     )
                 } catch {
@@ -312,11 +337,12 @@ enum EatenMealRecorder {
             // appended to what the meal already took). An edit rewrites foods
             // that were already counted, so it never deducts.
             var deducted: [PantryDecrementDetail] = []
-            if origin == .kitchen, resolution == .add, shouldDeduct {
-                deducted = deductPantry(for: plannedFoods, label: existing.mealName, appendingTo: existing, in: modelContext)
+            let fromKitchen = pantryFoods(plannedFoods, origin: origin)
+            if resolution == .add, shouldDeduct, !fromKitchen.isEmpty {
+                deducted = deductPantry(for: fromKitchen, label: existing.mealName, appendingTo: existing, in: modelContext)
             }
-            if let origin, resolution == .add, existing.origin == nil || origin == .kitchen {
-                existing.origin = origin
+            if let origin, resolution == .add {
+                existing.origin = mergedOrigin(existing: existing.origin, new: origin)
             }
             syncMergedMealLog(
                 of: existing, items: items, resolution: resolution,
@@ -398,8 +424,9 @@ enum EatenMealRecorder {
         created.origin = origin
         modelContext.insert(created)
         var deducted: [PantryDecrementDetail] = []
-        if origin == .kitchen, shouldDeduct {
-            deducted = deductPantry(for: plannedFoods, label: created.mealName, appendingTo: created, in: modelContext)
+        let fromKitchen = pantryFoods(plannedFoods, origin: origin)
+        if shouldDeduct, !fromKitchen.isEmpty {
+            deducted = deductPantry(for: fromKitchen, label: created.mealName, appendingTo: created, in: modelContext)
         }
         do {
             try commit(modelContext)

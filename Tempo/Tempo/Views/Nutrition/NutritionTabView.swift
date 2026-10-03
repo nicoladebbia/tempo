@@ -31,6 +31,12 @@ struct NutritionTabView: View {
     private var resumedScan: ScanResumeRecord?
     @State
     private var showMealLogging = false
+    /// Today's Quick Log sheet (type, Confirm Meal opens on top of it).
+    @State
+    private var showQuickLog = false
+    /// "Breakfast logged. 420 kcal." after a meal was confirmed anywhere in Nutrition.
+    @State
+    private var mealLogToast: ToastData?
 
     /// Surfaces a plan-generation failure as a toast at the Nutrition root
     /// regardless of which sub-tab the user is on. Previously the only
@@ -118,6 +124,17 @@ struct NutritionTabView: View {
                 )
             }
             .tempoToast($planErrorToast)
+            .tempoToast($mealLogToast)
+            .onReceive(NotificationCenter.default.publisher(for: .tempoMealLogToast)) { note in
+                guard let message = note.userInfo?["message"] as? String else {
+                    return
+                }
+                let isError = note.userInfo?["error"] as? Bool ?? false
+                mealLogToast = ToastData(message: message, style: isError ? .error : .success)
+            }
+            .sheet(isPresented: $showQuickLog) {
+                QuickLogSheet()
+            }
             .onChange(of: viewModel.mealSuggestionBlocker) { _, blocker in
                 if let blocker {
                     mealIdeasBlocker = blocker
@@ -145,10 +162,9 @@ struct NutritionTabView: View {
                     if resumedScan?.contextKind == .foodCheck {
                         UniversalScanView(context: .foodCheck, initialMode: resumedScan?.scanMode)
                     } else {
-                        UniversalScanView(context: .today(onMealPhoto: { items in
-                            // Reviewed in the Log tab once the scanner has closed.
-                            viewModel.openMealPhotoReview(items)
-                        }), initialMode: resumedScan?.scanMode)
+                        // A meal photo is confirmed in the Confirm Meal sheet
+                        // right on top of the scanner: no tab switch.
+                        UniversalScanView(context: .today(), initialMode: resumedScan?.scanMode)
                     }
                 }
                 .environment(\.scanResumeSection, viewModel.selectedTab)
@@ -212,7 +228,7 @@ struct NutritionTabView: View {
     private var sectionContent: some View {
         switch viewModel.selectedTab {
         case .today:
-            NutritionTodayView(viewModel: viewModel, onScan: {
+            NutritionTodayView(viewModel: viewModel, onQuickLog: { showQuickLog = true }, onScan: {
                 // Receipt mode needs the Kitchen services; attaching is idempotent.
                 viewModel.attachPhase7Services(modelContext: modelContext, services: services)
                 resumedScan = nil

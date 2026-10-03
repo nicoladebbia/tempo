@@ -23,6 +23,16 @@ struct PlannedFood: Codable, Equatable {
     var source: String?
     /// Restaurant for a meal-out item ("Panera Bread").
     var restaurant: String?
+    /// `MealOrigin.rawValue` of this food in a mixed log ("kitchen" = comes
+    /// off the pantry, "out" = eaten out). nil = follows the meal / unknown
+    /// (plans, old logs). Optional so older stored JSON still decodes.
+    var originRaw: String?
+
+    /// `originRaw` as the enum.
+    var origin: MealOrigin? {
+        get { originRaw.flatMap(MealOrigin.init(rawValue:)) }
+        set { originRaw = newValue?.rawValue }
+    }
 
     /// A menu item whose macros are an estimate, not a weighed home portion.
     var isApproximate: Bool {

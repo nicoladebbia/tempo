@@ -48,6 +48,9 @@ struct UniversalScanView: View {
     private var toast: ToastData?
     @State
     private var previousMode: ScanMode?
+    /// Foods waiting in the Confirm Meal sheet, presented on top of the scanner.
+    @State
+    private var reviewRequest: MealReviewRequest?
 
     init(context: ScanContext, initialMode: ScanMode? = nil, allowedModes: [ScanMode]? = nil) {
         self.context = context
@@ -88,6 +91,7 @@ struct UniversalScanView: View {
                 }
             }
             .tempoToast($toast)
+            .mealReview($reviewRequest) { dismiss() }
             .onAppear {
                 if catalog == nil {
                     catalog = FoodCatalog(services: services)
@@ -183,7 +187,15 @@ struct UniversalScanView: View {
         case let .supplements(shelf, onSaved, lookupService):
             SupplementBarcodeFlow(shelf: shelf, onSaved: onSaved, injectedLookupService: lookupService)
         default:
-            FoodBarcodeFlow(onFood: context.foodCallback, scannedProduct: $memory.scannedProduct)
+            if case .logReview = context {
+                FoodBarcodeFlow(
+                    onFood: { reviewRequest = MealReviewRequest(foods: [$0]) },
+                    dismissesAfterFood: false,
+                    scannedProduct: $memory.scannedProduct
+                )
+            } else {
+                FoodBarcodeFlow(onFood: context.foodCallback, scannedProduct: $memory.scannedProduct)
+            }
         }
     }
 
@@ -229,16 +241,28 @@ struct UniversalScanView: View {
     }
 
     private var mealPhotoContent: some View {
-        PhotoAnalysisView(onCameraCancelled: leaveMealPhoto) { items in
+        PhotoAnalysisView(onCameraCancelled: leaveMealPhoto, dismissesOnConfirm: !reviewsInline) { items in
             switch context {
             case let .logMeal(_, onMealPhoto):
                 onMealPhoto(items)
-            case let .today(onMealPhoto):
-                // Never logged here: the opener shows the review sheet.
-                onMealPhoto?(items)
+            case let .today(onMealPhoto?):
+                onMealPhoto(items)
+            case .today,
+                 .logReview:
+                // Confirm Meal opens right here, on top of the photo results.
+                reviewRequest = MealReviewRequest(foods: items)
             default:
                 break
             }
+        }
+    }
+
+    /// Barcode "Add to meal" and meal photos are confirmed in the sheet over this screen.
+    private var reviewsInline: Bool {
+        switch context {
+        case .logReview: true
+        case let .today(onMealPhoto): onMealPhoto == nil
+        default: false
         }
     }
 

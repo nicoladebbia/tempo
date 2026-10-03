@@ -17,6 +17,8 @@ import SwiftUI
 struct NutritionTodayView: View {
     @Bindable
     var viewModel: NutritionTabViewModel
+    /// Opens the Quick Log sheet (stays on Today).
+    var onQuickLog: () -> Void = {}
     /// Opens the scanner. Owned by the tab root so it can be swapped in one place.
     var onScan: () -> Void = {}
     @Environment(\.modelContext)
@@ -161,7 +163,7 @@ struct NutritionTodayView: View {
     private func actionRow(scrollTo: @escaping (String) -> Void) -> some View {
         HStack(spacing: TempoSpacing.sm) {
             actionButton(icon: "text.bubble.fill", label: "Quick Log", id: "today.action.quicklog") {
-                viewModel.openQuickLog()
+                onQuickLog()
             }
             actionButton(icon: "barcode.viewfinder", label: "Scan", id: "today.action.scan") {
                 onScan()

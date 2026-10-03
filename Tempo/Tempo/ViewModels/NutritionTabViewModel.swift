@@ -171,23 +171,9 @@ final class NutritionTabViewModel {
         }
     }
 
-    /// Foods confirmed in Today's Scan → Meal photo. The scanner never logs by
-    /// itself: after it closes the Log tab picks these up and shows the same
-    /// review sheet (meal type, confirm) as a photo started from Log.
-    var pendingScanMealPhoto: [FoodItem]?
-
     /// Set by ContentView when a scanner left for iOS Settings should reopen
     /// (see ScanResume); the Nutrition tab opens the scanner and clears it.
     var scanResume: ScanResumeRecord?
-
-    /// Hands a Scan meal photo to the Log tab's review sheet.
-    func openMealPhotoReview(_ items: [FoodItem]) {
-        guard !items.isEmpty else {
-            return
-        }
-        pendingScanMealPhoto = items
-        selectedTab = .log
-    }
 
     /// Jumps to the Log tab with the Quick Log field focused.
     func openQuickLog() {

@@ -15,12 +15,15 @@ struct MealReviewDraft {
     private(set) var factors: [String: Double]
     private(set) var eatenAt: Date
     private(set) var mealType: MealType
-    /// Kitchen (comes off the pantry) or out. Pre-selected from the location
-    /// when it is known; a manual pick always wins over a later fix.
-    private(set) var origin: MealOrigin = .kitchen
-    /// True while `origin` still comes from the location / last choice, false
-    /// once the user picked it by hand.
+    /// Kitchen (comes off the pantry) or out, per food. Pre-selected from the
+    /// location when it is known; a manual pick always wins over a later fix.
+    private(set) var itemOrigins: [String: MealOrigin]
+    /// True while the origins still come from the location / last choice,
+    /// false once the user picked any by hand.
     private(set) var originWasAutoSet = true
+    /// True once the meal type was named (by the text or by the user): then it
+    /// no longer follows the time.
+    private(set) var mealTypeWasPicked: Bool
 
     /// Portion chips offered on every row.
     static let factorChoices: [Double] = [0.5, 1, 1.5, 2]
@@ -33,38 +36,82 @@ struct MealReviewDraft {
     init(items: [ParsedFoodItem], hintedDate: Date? = nil, hintedType: MealType? = nil, now: Date = Date()) {
         originals = items
         factors = Dictionary(uniqueKeysWithValues: items.map { ($0.id, 1.0) })
+        itemOrigins = Dictionary(uniqueKeysWithValues: items.map { ($0.id, MealOrigin.kitchen) })
+        mealTypeWasPicked = hintedType != nil
         let date = hintedDate ?? now
         eatenAt = date
         mealType = hintedType ?? EatenMealRecorder.defaultMealType(for: date)
     }
 
-    /// Changing the time re-derives the meal (3pm lunch → 9pm dinner); picking
-    /// the meal by hand afterwards sticks until the time moves again.
+    /// Changing the time re-derives the meal (3pm lunch → 9pm dinner) unless
+    /// the meal was named: by the user's text ("for lunch") or by the user's
+    /// own tap on a meal chip. A named meal sticks.
     mutating func setEatenAt(_ date: Date) {
         guard date != eatenAt else {
             return
         }
         eatenAt = date
-        mealType = EatenMealRecorder.defaultMealType(for: date)
+        if !mealTypeWasPicked {
+            mealType = EatenMealRecorder.defaultMealType(for: date)
+        }
     }
 
+    /// The user's own pick. Sticks, whatever the time does afterwards.
     mutating func setMealType(_ type: MealType) {
         mealType = type
+        mealTypeWasPicked = true
     }
 
-    /// The user's own pick. Sticks: a location fix arriving later can't undo it.
+    // MARK: Origin
+
+    /// The meal-level origin the rows add up to: all kitchen / all out / mixed.
+    var origin: MealOrigin {
+        MealOrigin.combined(remainingIDs.map(origin(for:))) ?? lastTopChoice
+    }
+
+    /// What the top "Where from?" control last set (used while no rows remain).
+    private var lastTopChoice: MealOrigin = .kitchen
+
+    private var remainingIDs: [String] {
+        originals.map(\.id).filter { factors[$0] != nil }
+    }
+
+    func origin(for id: String) -> MealOrigin {
+        itemOrigins[id] ?? .kitchen
+    }
+
+    /// The user's top choice: every row follows it. Sticks: a location fix
+    /// arriving later can't undo it. (`.mixed` is not a choice: a no-op.)
     mutating func setOrigin(_ newOrigin: MealOrigin) {
-        origin = newOrigin
+        guard newOrigin != .mixed else {
+            return
+        }
+        for id in itemOrigins.keys {
+            itemOrigins[id] = newOrigin
+        }
+        lastTopChoice = newOrigin
+        originWasAutoSet = false
+    }
+
+    /// One row's own choice (the soy sauce from home on an ate-out meal).
+    mutating func setOrigin(_ newOrigin: MealOrigin, for id: String) {
+        guard newOrigin != .mixed, itemOrigins[id] != nil else {
+            return
+        }
+        itemOrigins[id] = newOrigin
         originWasAutoSet = false
     }
 
     /// The location (or remembered choice) says `suggested`. Ignored once the
     /// user chose by hand.
     mutating func applySuggestedOrigin(_ suggested: MealOrigin) {
-        guard originWasAutoSet else {
+        guard originWasAutoSet, suggested != .mixed else {
             return
         }
-        origin = suggested
+        for id in itemOrigins.keys {
+            itemOrigins[id] = suggested
+        }
+        lastTopChoice = suggested
     }
 
     // MARK: Portions
@@ -92,10 +139,14 @@ struct MealReviewDraft {
         factors[id] = nil
     }
 
-    /// The foods as they will be logged.
+    /// The foods as they will be logged, each stamped with where it came from.
     var items: [ParsedFoodItem] {
         originals.compactMap { original in
-            factors[original.id].map { original.scaled(by: $0) }
+            factors[original.id].map {
+                var item = original.scaled(by: $0)
+                item.origin = origin(for: original.id)
+                return item
+            }
         }
     }
 

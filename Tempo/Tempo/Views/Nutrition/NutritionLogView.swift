@@ -38,11 +38,6 @@ struct NutritionLogView: View {
     private var showBarcodeScanner = false
     @State
     private var showFoodCheck = false
-    /// Foods confirmed in the photo-analysis or barcode sheet, stashed here so
-    /// we can present the review sheet AFTER that sheet finishes dismissing
-    /// (presenting synchronously inside the callback glitches sheet-over-sheet).
-    @State
-    private var foodsPendingReview: [ParsedFoodItem]?
     @State
     private var toast: ToastData?
     /// A preset the user tapped whose foods are already in today's meal —
@@ -61,39 +56,10 @@ struct NutritionLogView: View {
     @State
     private var isParsing: Bool = false
 
-    /// Parsed items waiting for user confirmation in the review sheet. Nil
-    /// means no sheet; non-nil presents ParsedFoodReviewSheet.
+    /// Foods waiting in the Confirm Meal sheet (Quick Log text). Presented on
+    /// top of this screen; saved by `MealReviewHost`.
     @State
-    private var parsedFoodsForReview: [ParsedFoodItem]?
-    /// Meal type Claude inferred from the user's text (e.g. "lunch" when
-    /// they wrote "I had lunch"). Used to pre-select the review sheet's
-    /// segmented picker so the user only confirms instead of choosing.
-    @State
-    private var parsedMealTypeHint: MealType?
-    /// Eat-time Claude inferred from the user's text (e.g. "at 1pm").
-    /// Falls through to `Date()` at persist time when nil — matches
-    /// pre-Phase-2 behavior.
-    @State
-    private var parsedEatenAtHint: Date?
-
-    /// Set when a parsed log contains a food already present in the
-    /// matched meal. Presents the Add-vs-Edit alert; the buttons resume
-    /// the persist with the chosen DuplicateResolution.
-    @State
-    private var duplicatePrompt: DuplicateFoodPrompt?
-
-    /// Captures everything needed to finish the persist after the user
-    /// picks Add or Edit. Identifiable so `.alert(item:)` can present it.
-    private struct DuplicateFoodPrompt: Identifiable {
-        let id = UUID()
-        let items: [ParsedFoodItem]
-        let type: MealType
-        let eatenAt: Date
-        let origin: MealOrigin?
-        /// Lowercased names of foods that already exist in the meal — used
-        /// for the alert copy ("You already have oat milk").
-        let duplicateNames: [String]
-    }
+    private var reviewRequest: MealReviewRequest?
 
     private let columns = [
         GridItem(.flexible(), spacing: TempoSpacing.md),
@@ -113,12 +79,6 @@ struct NutritionLogView: View {
             .padding(.bottom, TempoSpacing.bottomSafe)
         }
         .onAppear {
-            // Today → Scan → Meal photo lands here for review.
-            if let scanned = viewModel.pendingScanMealPhoto, !scanned.isEmpty {
-                viewModel.pendingScanMealPhoto = nil
-                foodsPendingReview = scanned.map(Self.parsedFood(from:))
-                presentPendingReview()
-            }
             // Today's "Quick Log" button lands here with the field focused.
             if viewModel.focusQuickLogRequested {
                 viewModel.focusQuickLogRequested = false
@@ -129,87 +89,26 @@ struct NutritionLogView: View {
             MealDetailView(meal: meal)
         }
         .sheet(isPresented: $showPhotoAnalysis) {
-            UniversalScanView(
-                context: .logMeal(
-                    onFood: { item in foodsPendingReview = [Self.parsedFood(from: item)] },
-                    // Stash the confirmed photo foods. quantityGrams is best-effort
-                    // (vision portions like "1 cup" / "diced" aren't reliably
-                    // grams) — it only drives the serving-size display; calories +
-                    // macros are the payload and carry through exactly.
-                    onMealPhoto: { items in foodsPendingReview = items.map(Self.parsedFood(from:)) }
-                ),
-                initialMode: .mealPhoto
-            )
-            .onDisappear {
-                presentPendingReview()
-                viewModel.loadToday(modelContext: modelContext)
-            }
+            // Barcode "Add to meal" and meal photos confirm in the Confirm
+            // Meal sheet right on top of the scanner.
+            UniversalScanView(context: .logReview, initialMode: .mealPhoto)
+                .onDisappear { viewModel.loadToday(modelContext: modelContext) }
         }
         .sheet(isPresented: $showFoodCheck) {
             FoodCheckView()
         }
         .sheet(isPresented: $showBarcodeScanner) {
-            // Scan goes straight to the camera (it used to open the full Log
-            // Meal sheet first). The scanned product lands in the same review
-            // sheet as Quick Log / Photo, so the user picks the meal type and
-            // it's saved through the same path.
-            UniversalScanView(
-                context: .logMeal(
-                    onFood: { item in foodsPendingReview = [Self.parsedFood(from: item)] },
-                    onMealPhoto: { items in foodsPendingReview = items.map(Self.parsedFood(from:)) }
-                ),
-                initialMode: .barcode
-            )
-            .onDisappear {
-                presentPendingReview()
-            }
+            // Scan goes straight to the camera; the scanned product lands in
+            // the same Confirm Meal sheet as Quick Log / Photo.
+            UniversalScanView(context: .logReview, initialMode: .barcode)
         }
-        .sheet(item: Binding<ParsedFoodReviewPayload?>(
-            get: { parsedFoodsForReview.map { ParsedFoodReviewPayload(items: $0) } },
-            set: { newValue in
-                if newValue == nil {
-                    parsedFoodsForReview = nil
-                }
-            }
-        )) { payload in
-            ParsedFoodReviewSheet(
-                items: payload.items,
-                hintedMealType: parsedMealTypeHint,
-                hintedDate: parsedEatenAtHint,
-                onConfirm: { items, mealType, eatenAt, origin in
-                    persistParsedItems(items, type: mealType, eatenAt: eatenAt, origin: origin)
-                },
-                onCancel: { parsedFoodsForReview = nil }
-            )
+        .mealReview($reviewRequest) {
+            naturalLanguageInput = ""
+            viewModel.loadToday(modelContext: modelContext)
         }
         .tempoToast($toast)
         .aiBlockerAlert($aiBlocker) {
             submitNaturalLanguage()
-        }
-        .alert(
-            "Already logged",
-            isPresented: Binding(
-                get: { duplicatePrompt != nil },
-                set: {
-                    if !$0 {
-                        duplicatePrompt = nil
-                    }
-                }
-            ),
-            presenting: duplicatePrompt
-        ) { prompt in
-            Button("Add another") {
-                commitParsed(prompt.items, type: prompt.type, eatenAt: prompt.eatenAt, origin: prompt.origin, resolution: .add)
-                duplicatePrompt = nil
-            }
-            Button("Edit existing") {
-                commitParsed(prompt.items, type: prompt.type, eatenAt: prompt.eatenAt, origin: prompt.origin, resolution: .edit)
-                duplicatePrompt = nil
-            }
-            Button("Cancel", role: .cancel) { duplicatePrompt = nil }
-        } message: { prompt in
-            let names = prompt.duplicateNames.joined(separator: ", ")
-            Text("You already have \(names) in this meal. Add another portion, or edit the existing one?")
         }
         .alert(
             "Already logged",
@@ -571,23 +470,16 @@ struct NutritionLogView: View {
         Task {
             defer { isParsing = false }
             do {
-                let service = NaturalLanguageLoggingService(apiClient: services.apiClient)
-                let parsed = try await service.parseNaturalLanguageWithTiming(text)
-                guard !parsed.items.isEmpty else {
+                guard let request = try await MealReviewRequest.parsing(text, apiClient: services.apiClient) else {
                     toast = ToastData(
                         message: "Couldn't parse that. Try being more specific.",
                         style: .info
                     )
                     return
                 }
-                // Stash the Claude-inferred meal-type and eat-time so the
-                // review sheet defaults correctly and persist writes the
-                // real eat-time into PlannedMeal.actualEatenAt.
-                parsedMealTypeHint = parsed.mealType.flatMap(Self.mealType(fromHint:))
-                parsedEatenAtHint = parsed.eatenAt
-                // Present the parsed items for confirmation. The user picks
-                // a meal type and taps Confirm — only THEN do we persist.
-                parsedFoodsForReview = parsed.items
+                // Confirm Meal opens on top of this screen; nothing is saved
+                // until the user taps Log there.
+                reviewRequest = request
             } catch {
                 if let blocker = AIBlocker(error) {
                     aiBlocker = blocker
@@ -601,148 +493,10 @@ struct NutritionLogView: View {
         }
     }
 
-    /// Maps NL parser's canonical lowercase string ("breakfast" / "lunch"
-    /// / "dinner" / "snack") to a typed MealType. Returns nil for
-    /// unrecognised strings so the caller falls back to time-of-day.
-    private static func mealType(fromHint raw: String) -> MealType? {
-        switch raw {
-        case "breakfast": .breakfast
-        case "lunch": .lunch
-        case "dinner": .dinner
-        case "snack": .snack
-        default: nil
-        }
-    }
-
-    /// Hands foods stashed by the photo / barcode sheet to the review sheet
-    /// once that sheet has fully dismissed.
-    private func presentPendingReview() {
-        guard let pending = foodsPendingReview, !pending.isEmpty else {
-            return
-        }
-        parsedFoodsForReview = pending
-        parsedMealTypeHint = nil
-        parsedEatenAtHint = nil
-        foodsPendingReview = nil
-    }
-
-    private static func parsedFood(from food: FoodItem) -> ParsedFoodItem {
-        ParsedFoodItem(
-            id: food.id.uuidString,
-            name: food.name,
-            quantityGrams: gramsFromServingSize(food.servingSize) * food.servingQuantity,
-            calories: Double(food.calories),
-            proteinG: food.protein,
-            carbsG: food.carbs,
-            fatG: food.fat,
-            isVerified: food.source != .manual,
-            source: food.source,
-            barcode: food.barcode
-        )
-    }
-
-    /// Entry point after the user confirms the review sheet. If the matched
-    /// meal is already eaten AND the new log repeats one of its foods, ask
-    /// whether it's another portion or a fix; otherwise commit straight
-    /// through (.add appends to an eaten meal; a still-planned slot is
-    /// replaced inside EatenMealRecorder).
-    @MainActor
-    private func persistParsedItems(
-        _ items: [ParsedFoodItem],
-        type: MealType,
-        eatenAt: Date = Date(),
-        origin: MealOrigin? = nil
-    ) {
-        let dupes = EatenMealRecorder.duplicateNames(
-            of: Self.inputs(from: items),
-            type: type,
-            eatenAt: eatenAt,
-            in: viewModel.todayMeals
-        )
-        if !dupes.isEmpty {
-            duplicatePrompt = DuplicateFoodPrompt(
-                items: items,
-                type: type,
-                eatenAt: eatenAt,
-                origin: origin,
-                duplicateNames: dupes
-            )
-            return
-        }
-        commitParsed(items, type: type, eatenAt: eatenAt, origin: origin, resolution: .add)
-    }
-
     /// Best-effort grams from a vision serving-size string. See
     /// `EatenMealRecorder.gramsFromServingSize`.
     static func gramsFromServingSize(_ serving: String) -> Double {
         EatenMealRecorder.gramsFromServingSize(serving)
-    }
-
-    private static func inputs(from items: [ParsedFoodItem]) -> [MealFoodItemInput] {
-        items.map { item in
-            MealFoodItemInput(
-                foodId: item.id,
-                name: item.name,
-                brand: nil,
-                servings: 1,
-                servingSize: item.quantityGrams,
-                servingUnit: "g",
-                calories: item.calories,
-                proteinGrams: item.proteinG,
-                carbsGrams: item.carbsG,
-                fatGrams: item.fatG,
-                source: item.source ?? (item.isVerified ? .cached : .claude),
-                barcode: item.barcode
-            )
-        }
-    }
-
-    /// Saves the confirmed foods through EatenMealRecorder (the same path the
-    /// full Log Meal sheet uses). `resolution` only matters when the matched
-    /// meal is already eaten and the log repeats one of its foods:
-    ///   - .add  → append (a second portion)
-    ///   - .edit → replace the matching food entry, keep the others
-    @MainActor
-    private func commitParsed(
-        _ items: [ParsedFoodItem],
-        type: MealType,
-        eatenAt: Date,
-        origin: MealOrigin?,
-        resolution: EatenMealRecorder.DuplicateResolution
-    ) {
-        let result: EatenMealRecorder.Result
-        // What this log will take off the pantry, for the toast (dry run first:
-        // the recorder then does the real deduction).
-        let pantryLines = origin == .kitchen
-            ? PantryDecrementService.preview(foods: Self.inputs(from: items).map(EatenMealRecorder.plannedFood(from:)), modelContext: modelContext)
-            : []
-        do {
-            result = try EatenMealRecorder.record(
-                Self.inputs(from: items),
-                type: type,
-                eatenAt: eatenAt,
-                source: .naturalLanguage,
-                resolution: resolution,
-                origin: origin,
-                modelContext: modelContext,
-                notifications: services.notifications
-            )
-        } catch {
-            toast = ToastData(
-                message: "Couldn't save: \(error.localizedDescription)",
-                style: .error
-            )
-            return
-        }
-        var message = "\(type.displayName) logged. \(Int(result.logged.calories)) kcal."
-        if resolution == .add, !pantryLines.isEmpty {
-            message += " Off your pantry: " + pantryLines.prefix(3).map(\.displayName).joined(separator: ", ")
-                + (pantryLines.count > 3 ? " +\(pantryLines.count - 3)" : "") + "."
-        }
-        toast = ToastData(message: message, style: .success)
-        naturalLanguageInput = ""
-        parsedFoodsForReview = nil
-        viewModel.loadToday(modelContext: modelContext)
     }
 }
 

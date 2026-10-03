@@ -200,7 +200,7 @@ enum MealOutcomeService {
         if pantry != .none, !meal.didDecrementPantry {
             let results = pantry == .plannedMeal
                 ? PantryDecrementService.decrement(for: meal, modelContext: ctx)
-                : PantryDecrementService.decrement(foods: meal.foods, label: meal.mealName, modelContext: ctx)
+                : PantryDecrementService.decrement(foods: EatenMealRecorder.pantryFoods(meal.foods, origin: meal.origin == .mixed ? .mixed : .kitchen), label: meal.mealName, modelContext: ctx)
             // Record the (possibly empty) exact detail so undo never falls
             // back to the approximate credit for a decrement we know about.
             deducted = results.flatMap(\.details)

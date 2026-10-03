@@ -77,6 +77,16 @@ struct PantryView: View {
         }
         .animation(.easeOut(duration: TempoAnimation.mediumDuration), value: showsStaplesPeek)
         .toolbar {
+            // Visible home control (it used to hide in the ⋯ menu only).
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    showHomeSetting = true
+                } label: {
+                    Image(systemName: HomeLocationStore().home == nil ? "house" : "house.fill")
+                }
+                .accessibilityLabel(HomeLocationStore().home == nil ? "Set home" : "Home location")
+                .accessibilityIdentifier("pantryHomeButton")
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button("Add item", systemImage: "plus") {
