@@ -313,7 +313,7 @@ enum EatenMealRecorder {
             if origin == .kitchen, resolution == .add {
                 deductPantry(for: plannedFoods, label: existing.mealName, appendingTo: existing, in: modelContext)
             }
-            if let origin, existing.origin == nil || (origin == .kitchen && resolution == .add) {
+            if let origin, resolution == .add, existing.origin == nil || origin == .kitchen {
                 existing.origin = origin
             }
             syncMergedMealLog(

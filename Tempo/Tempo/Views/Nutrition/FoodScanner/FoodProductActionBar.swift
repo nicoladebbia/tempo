@@ -28,6 +28,10 @@ struct FoodProductActionBar: View {
     private var showLogSheet = false
     @State
     private var mealType = EatenMealRecorder.defaultMealType()
+    @State
+    private var originPickedByHand = false
+    @State
+    private var origin: MealOrigin = HomeLocationStore().lastOrigin ?? .kitchen
 
     private var portionKcal: Int {
         Int((product.nutrients(forGrams: grams).kcal ?? 0).rounded())
@@ -113,6 +117,11 @@ struct FoodProductActionBar: View {
             }
             .pickerStyle(.segmented)
             .accessibilityIdentifier("foodCheckMealType")
+            MealOriginPicker(
+                origin: $origin,
+                foods: [EatenMealRecorder.plannedFood(from: product.foodItem(grams: grams).mealFoodInput)],
+                pickedByHand: $originPickedByHand
+            )
             Button {
                 logIt()
             } label: {
@@ -131,8 +140,10 @@ struct FoodProductActionBar: View {
     private func logIt() {
         do {
             let logged = try FoodProductActions.log(
-                product, grams: grams, type: mealType, modelContext: modelContext, notifications: services.notifications
+                product, grams: grams, type: mealType, origin: origin,
+                modelContext: modelContext, notifications: services.notifications
             )
+            HomeLocationStore().lastOrigin = origin
             showLogSheet = false
             HapticManager.notification(.success)
             onLogged?()

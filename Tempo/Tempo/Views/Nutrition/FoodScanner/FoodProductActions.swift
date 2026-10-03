@@ -40,6 +40,7 @@ enum FoodProductActions {
         _ product: FoodProduct,
         grams: Double,
         type: MealType,
+        origin: MealOrigin? = nil,
         modelContext: ModelContext,
         notifications: (any NotificationServiceProtocol)? = nil,
         now: Date = Date()
@@ -49,6 +50,7 @@ enum FoodProductActions {
             type: type,
             eatenAt: now,
             source: product.barcode == nil ? .manual : .barcode,
+            origin: origin,
             modelContext: modelContext,
             notifications: notifications,
             now: now

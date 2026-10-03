@@ -22,8 +22,10 @@ protocol LocationFixProviding: AnyObject {
 @MainActor
 final class CoreLocationFixProvider: NSObject, LocationFixProviding, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
-    private var authContinuation: CheckedContinuation<Bool, Never>?
-    private var fixContinuation: CheckedContinuation<CLLocation?, Never>?
+    private var authContinuations: [CheckedContinuation<Bool, Never>] = []
+    private var fixWaiters: [CheckedContinuation<CLLocation?, Never>] = []
+    /// Identifies the in-flight request so a stale timeout can't end a newer one.
+    private var requestID = 0
 
     override init() {
         super.init()
@@ -35,16 +37,25 @@ final class CoreLocationFixProvider: NSObject, LocationFixProviding, CLLocationM
         manager.authorizationStatus == .authorizedWhenInUse || manager.authorizationStatus == .authorizedAlways
     }
 
+    /// Callers arriving while a request is in flight join it.
     func fixIfAuthorized(timeout: TimeInterval = 3) async -> CLLocation? {
-        guard isAuthorized, fixContinuation == nil else {
+        guard isAuthorized else {
             return nil
         }
         return await withCheckedContinuation { continuation in
-            fixContinuation = continuation
+            let startsRequest = fixWaiters.isEmpty
+            fixWaiters.append(continuation)
+            guard startsRequest else {
+                return
+            }
+            requestID += 1
+            let id = requestID
             manager.requestLocation()
             Task { @MainActor [weak self] in
                 try? await Task.sleep(for: .seconds(timeout))
-                self?.finishFix(nil)
+                if self?.requestID == id {
+                    self?.finishFix(nil)
+                }
             }
         }
     }
@@ -56,8 +67,11 @@ final class CoreLocationFixProvider: NSObject, LocationFixProviding, CLLocationM
             return true
         case .notDetermined:
             return await withCheckedContinuation { continuation in
-                authContinuation = continuation
-                manager.requestWhenInUseAuthorization()
+                let first = authContinuations.isEmpty
+                authContinuations.append(continuation)
+                if first {
+                    manager.requestWhenInUseAuthorization()
+                }
             }
         default:
             return false
@@ -65,30 +79,37 @@ final class CoreLocationFixProvider: NSObject, LocationFixProviding, CLLocationM
     }
 
     private func finishFix(_ location: CLLocation?) {
-        guard let continuation = fixContinuation else {
-            return
+        let waiters = fixWaiters
+        fixWaiters = []
+        requestID += 1
+        // Ignore a stale fix (an abandoned request answering late).
+        let fresh = location.flatMap { abs($0.timestamp.timeIntervalSinceNow) < 60 ? $0 : nil }
+        for waiter in waiters {
+            waiter.resume(returning: fresh)
         }
-        fixContinuation = nil
-        continuation.resume(returning: location)
     }
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = manager.authorizationStatus
         Task { @MainActor in
-            guard let continuation = self.authContinuation else {
+            guard !self.authContinuations.isEmpty else {
                 return
             }
+            let granted: Bool
             switch status {
             case .authorizedWhenInUse,
                  .authorizedAlways:
-                self.authContinuation = nil
-                continuation.resume(returning: true)
+                granted = true
             case .denied,
                  .restricted:
-                self.authContinuation = nil
-                continuation.resume(returning: false)
+                granted = false
             default:
-                break
+                return
+            }
+            let waiting = self.authContinuations
+            self.authContinuations = []
+            for continuation in waiting {
+                continuation.resume(returning: granted)
             }
         }
     }
