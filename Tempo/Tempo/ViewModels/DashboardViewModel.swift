@@ -1618,7 +1618,8 @@ final class DashboardViewModel {
     // Priority: recovery warning > streak milestone > training schedule > deload > time-of-day fallback.
 
     private func greetingForCurrentTime(firstName: String?) -> String {
-        let name = firstName.map { ", \($0)" } ?? ""
+        let trimmed = firstName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let name = trimmed.isEmpty ? "" : ", \(trimmed)"
 
         // Priority 1: Low recovery warning
         if let recovery = body.recoveryScore, recovery < 40 {
