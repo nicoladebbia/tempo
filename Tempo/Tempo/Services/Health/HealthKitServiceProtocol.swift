@@ -20,6 +20,9 @@ protocol HealthKitServiceProtocol: Sendable {
     func fetchSleepAnalysis(for date: Date) async throws -> SleepData
     func fetchWorkouts(for date: Date) async throws -> [WorkoutSample]
     func fetchBodyComposition() async throws -> BodyCompositionData
+    /// Age (from date of birth) and biological sex as set in the Health app.
+    /// Empty when Health is unavailable or the user didn't share them.
+    func fetchProfileCharacteristics() async -> HealthProfileCharacteristics
     func writeWorkout(_ workout: WorkoutSample) async throws
     /// Writes one Health food entry (correlation + samples). Returns true when
     /// something was saved, false when Health is unavailable or no nutrition
@@ -33,6 +36,25 @@ protocol HealthKitServiceProtocol: Sendable {
     @discardableResult
     func writeWater(ml: Double, date: Date, syncIdentifier: String) async throws -> Bool
     func enableBackgroundDelivery() async throws
+}
+
+// MARK: - HealthProfileCharacteristics
+
+struct HealthProfileCharacteristics: Equatable, Sendable {
+    var ageYears: Int?
+    var sex: BiologicalSex?
+
+    init(ageYears: Int? = nil, sex: BiologicalSex? = nil) {
+        self.ageYears = ageYears
+        self.sex = sex
+    }
+}
+
+extension HealthKitServiceProtocol {
+    /// Services without Health profile access (mocks) share nothing.
+    func fetchProfileCharacteristics() async -> HealthProfileCharacteristics {
+        HealthProfileCharacteristics()
+    }
 }
 
 // MARK: - HeartRateSample
