@@ -273,6 +273,7 @@
 		3332041E03F8C25398C06166 /* TravelSwapEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 189341AEF7AE02F366D44502 /* TravelSwapEngine.swift */; };
 		333D91E6DA09BA8D9D8E8F50 /* TrainerTestResultTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AF085AF109988AA0C035146 /* TrainerTestResultTests.swift */; };
 		33C285BCB571E3FC403F4C91 /* CoachMessageRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDCCF9DB497D960176050A63 /* CoachMessageRenderer.swift */; };
+		3465EECEDE6026A694FA7DC8 /* ScanResume.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF2AC12BB82C314633860750 /* ScanResume.swift */; };
 		34F64809A7B735B9DAC8A8EB /* TravelSwapEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 275E8EF5A2C8854403532268 /* TravelSwapEngineTests.swift */; };
 		35438B3FAA82FD3396F17C64 /* ActiveWorkoutView+PerSide.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F8046EEF2F37DC88A4BB980 /* ActiveWorkoutView+PerSide.swift */; };
 		3548A0E78706A5237467E3B8 /* BenchedDayUITestSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEF15E4D19B60DCE7F4469CC /* BenchedDayUITestSeed.swift */; };
@@ -2594,6 +2595,7 @@
 		FEB9962AE0B2ABA3E0C9811F /* SwapAddExerciseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwapAddExerciseTests.swift; sourceTree = "<group>"; };
 		FEF15E4D19B60DCE7F4469CC /* BenchedDayUITestSeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BenchedDayUITestSeed.swift; sourceTree = "<group>"; };
 		FF125ECBD0DAEBC7DEA209BE /* AIProgramPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIProgramPlanner.swift; sourceTree = "<group>"; };
+		FF2AC12BB82C314633860750 /* ScanResume.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanResume.swift; sourceTree = "<group>"; };
 		FF40BEF47788666BDAF745A7 /* ReceiptItemResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiptItemResolver.swift; sourceTree = "<group>"; };
 		FF8C4D7FE36A0D663970BC3F /* TrainingEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingEngine.swift; sourceTree = "<group>"; };
 		FFCF7C06827FF0287A30F374 /* PlannedMealTimingMatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlannedMealTimingMatcher.swift; sourceTree = "<group>"; };
@@ -3544,6 +3546,7 @@
 				5CF0B8121F8E3D074670AC3D /* PantryBarcodeFlow.swift */,
 				9C3D9B0BAFEB1C0F27A67E0E /* ScanBarcodeSurface.swift */,
 				FCB8426E944F964E7E544A51 /* ScanContext.swift */,
+				FF2AC12BB82C314633860750 /* ScanResume.swift */,
 				00C7B96FD85A6536D442DBB8 /* SupplementBarcodeFlow.swift */,
 				6E9963628B507F97004B2664 /* UniversalScanView.swift */,
 			);
@@ -6134,6 +6137,7 @@
 				5519D9B6D77DC632422C374D /* RunSession.swift in Sources */,
 				66C17B7B10A31D036E4BE3C3 /* ScanBarcodeSurface.swift in Sources */,
 				414E929E3B4F65438D2E60DA /* ScanContext.swift in Sources */,
+				3465EECEDE6026A694FA7DC8 /* ScanResume.swift in Sources */,
 				B830969270CF791C0970EBB8 /* ScannedFood.swift in Sources */,
 				F0D1484B837956F762F8AF91 /* ScannedProductLabelView.swift in Sources */,
 				3C116645DFC523DBC4F86152 /* ScenarioSeed+PersonaSupport.swift in Sources */,
