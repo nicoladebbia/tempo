@@ -110,7 +110,7 @@ struct SupplementBarcodeFlow: View {
                 unresolvedContent(
                     icon: "barcode.viewfinder",
                     title: "Not in any database yet",
-                    message: "Barcode \(upc) isn't listed. Photograph the label and Tempo reads it for you, or add it yourself. Takes a minute.",
+                    message: "\(upc.isEmpty ? "This product" : "Barcode \(upc)") isn't listed. Photograph the label and Tempo reads it for you, or add it yourself. Takes a minute.",
                     upc: upc
                 )
             case let .failed(upc, message):

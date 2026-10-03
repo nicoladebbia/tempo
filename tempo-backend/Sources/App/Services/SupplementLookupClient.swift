@@ -69,7 +69,7 @@ struct SupplementSearchHit: Content, Equatable {
 }
 
 struct SupplementLookupAPIClient: SupplementLookupClient {
-    private let requestTimeoutSeconds: Double = 8
+    private let requestTimeoutSeconds: Double = 12
 
     func lookup(upc: String, on req: Request) async throws -> SupplementLookupDTO? {
         let norm = try SupplementUPC.normalize(upc)
@@ -87,14 +87,6 @@ struct SupplementLookupAPIClient: SupplementLookupClient {
             if case .error = dsld { throw SupplementLookupError.upstreamUnavailable }
             if case .error = off { throw SupplementLookupError.upstreamUnavailable }
             return nil
-        }
-
-        // Name-only DSLD enrichment for an OFF-only hit (DSLD has the product
-        // under a different barcode, e.g. another flavour / size).
-        if dsldLabel == nil, let offHit {
-            dsldLabel = try? await withTimeout(requestTimeoutSeconds) {
-                try await Self.fetchDSLDEnrichment(name: offHit.product.name, brand: offHit.product.firstBrand, on: req)
-            }
         }
 
         return Self.merge(upc: norm.canonical, off: offHit?.product, dsld: dsldLabel, offSource: offHit?.source ?? "openfoodfacts")
@@ -209,19 +201,30 @@ struct SupplementLookupAPIClient: SupplementLookupClient {
     ]
 
     private static func fetchOpenFamily(_ norm: NormalizedUPC, on req: Request) async throws -> OpenFactsHit? {
-        var errors = 0
-        for (host, source) in openFamily {
-            for code in norm.offCandidates.prefix(host == "world.openfoodfacts.org" ? 2 : 1) {
-                do {
-                    if let product = try await fetchOpenFacts(host: host, code: code, on: req) {
-                        return OpenFactsHit(product: product, source: source)
+        // One task per host (candidates tried in order inside it) so a slow
+        // host cannot starve the others inside the overall timeout.
+        let results: [(hit: OpenFactsHit?, errored: Bool, order: Int)] = await withTaskGroup(
+            of: (OpenFactsHit?, Bool, Int).self
+        ) { group in
+            for (index, entry) in openFamily.enumerated() {
+                group.addTask {
+                    var errored = false
+                    for code in norm.offCandidates.prefix(entry.host == "world.openfoodfacts.org" ? 2 : 1) {
+                        do {
+                            if let product = try await fetchOpenFacts(host: entry.host, code: code, on: req) {
+                                return (OpenFactsHit(product: product, source: entry.source), errored, index)
+                            }
+                        } catch { errored = true }
                     }
-                } catch {
-                    errors += 1
+                    return (nil, errored, index)
                 }
             }
+            var all: [(hit: OpenFactsHit?, errored: Bool, order: Int)] = []
+            for await r in group { all.append((r.0, r.1, r.2)) }
+            return all
         }
-        if errors > 0, errors >= openFamily.count { throw SupplementLookupError.upstreamUnavailable }
+        if let best = results.filter({ $0.hit != nil }).min(by: { $0.order < $1.order })?.hit { return best }
+        if results.contains(where: \.errored) { throw SupplementLookupError.upstreamUnavailable }
         return nil
     }
 
@@ -239,32 +242,6 @@ struct SupplementLookupAPIClient: SupplementLookupClient {
         let decoded = try response.content.decode(OFFResponse.self, using: JSONDecoder())
         guard decoded.status == 1, let product = decoded.product else { return nil }
         return product
-    }
-
-    // MARK: - DSLD enrichment (by name/brand — only when the barcode itself missed in DSLD)
-
-    private static func fetchDSLDEnrichment(name: String, brand: String?, on req: Request) async throws -> DSLDLabel? {
-        guard !name.isEmpty else { return nil }
-        var components = ["product_name=\(percentEncode(name))"]
-        if let brand, !brand.isEmpty {
-            components.append("brand=\(percentEncode(brand))")
-        }
-        let searchURI = URI(string: "https://api.ods.od.nih.gov/dsld/v9/search-filter?\(components.joined(separator: "&"))")
-        let searchResponse = try await req.client.get(searchURI)
-        guard searchResponse.status == .ok else {
-            return nil
-        }
-        let searchResult = try searchResponse.content.decode(DSLDSearchResponse.self)
-        guard let firstHit = searchResult.hits.first else {
-            return nil
-        }
-
-        let labelURI = URI(string: "https://api.ods.od.nih.gov/dsld/v9/label/\(firstHit.id)")
-        let labelResponse = try await req.client.get(labelURI)
-        guard labelResponse.status == .ok else {
-            return nil
-        }
-        return try labelResponse.content.decode(DSLDLabel.self)
     }
 
     private static func percentEncode(_ value: String) -> String {
