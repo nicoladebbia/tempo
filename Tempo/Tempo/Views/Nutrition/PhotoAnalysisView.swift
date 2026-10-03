@@ -18,6 +18,9 @@ struct PhotoAnalysisView: View {
     /// Set when embedded in the scanner: cancelling the camera hands control
     /// back to it (mode chips) instead of dismissing the whole screen.
     var onCameraCancelled: (() -> Void)?
+    /// False when the opener shows its own next screen on top of this one
+    /// (Confirm Meal) and closes the flow itself once the meal is saved.
+    var dismissesOnConfirm = true
     var onItemsConfirmed: (([FoodItem]) -> Void)?
 
     @Environment(\.dismiss)
@@ -581,7 +584,9 @@ struct PhotoAnalysisView: View {
         let foodItems = identifiedItems.map { $0.asFoodItem() }
         HapticManager.notification(.success)
         onItemsConfirmed?(foodItems)
-        dismiss()
+        if dismissesOnConfirm {
+            dismiss()
+        }
     }
 }
 

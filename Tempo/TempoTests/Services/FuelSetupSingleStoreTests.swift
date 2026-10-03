@@ -261,13 +261,4 @@ final class FuelSetupSingleStoreTests: XCTestCase {
         settings.mealIntakeRecoveryAdjusted = true
         XCTAssertEqual(MealPlanInputsFingerprint.setupFlagFields(settings: settings, equipment: [], clearSkinFocus: false), ["recoveryAdjusted=true"])
     }
-
-    func testScanMealPhotoHandsOffToLogReview() {
-        let vm = NutritionTabViewModel()
-        vm.openMealPhotoReview([])
-        XCTAssertNil(vm.pendingScanMealPhoto)
-        vm.openMealPhotoReview([FoodItem(id: UUID(), name: "Rice", brand: nil, servingSize: "1 cup", servingQuantity: 1, calories: 200, protein: 4, carbs: 44, fat: 1)])
-        XCTAssertEqual(vm.selectedTab, .log)
-        XCTAssertEqual(vm.pendingScanMealPhoto?.count, 1)
-    }
 }

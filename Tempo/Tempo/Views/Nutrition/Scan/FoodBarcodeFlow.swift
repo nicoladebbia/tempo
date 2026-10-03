@@ -40,8 +40,16 @@ struct FoodBarcodeFlow: View {
     @State
     private var network = NetworkStatus()
 
-    init(onFood: ((FoodItem) -> Void)? = nil, scannedProduct: Binding<FoodProduct?> = .constant(nil)) {
+    /// False when the opener shows the next screen over this one and closes the flow itself.
+    private let dismissesAfterFood: Bool
+
+    init(
+        onFood: ((FoodItem) -> Void)? = nil,
+        dismissesAfterFood: Bool = true,
+        scannedProduct: Binding<FoodProduct?> = .constant(nil)
+    ) {
         self.onFood = onFood
+        self.dismissesAfterFood = dismissesAfterFood
         _scannedProduct = scannedProduct
         _scanState = State(initialValue: scannedProduct.wrappedValue.map(ScanState.found) ?? .scanning)
     }
@@ -114,8 +122,18 @@ struct FoodBarcodeFlow: View {
         .sheet(isPresented: $showSearch) {
             FoodSearchView(onFoodSelected: onFood.map { handler in
                 { item in
-                    handler(item)
-                    dismiss()
+                    if dismissesAfterFood {
+                        handler(item)
+                        dismiss()
+                    } else {
+                        // The opener shows its next screen over the scanner:
+                        // let the search sheet finish closing first.
+                        showSearch = false
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(450))
+                            handler(item)
+                        }
+                    }
                 }
             })
         }
@@ -135,7 +153,9 @@ struct FoodBarcodeFlow: View {
         }
         return .log { item in
             onFood(item)
-            dismiss()
+            if dismissesAfterFood {
+                dismiss()
+            }
         }
     }
 

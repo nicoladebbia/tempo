@@ -126,9 +126,9 @@ final class MealReviewRound3Tests: XCTestCase {
         draft.setEatenAt(calendar.date(from: DateComponents(year: 2026, month: 10, day: 2, hour: 20, minute: 30))!)
         XCTAssertEqual(draft.mealType, .dinner)
         draft.setMealType(.snack)
-        XCTAssertEqual(draft.mealType, .snack, "a manual pick sticks until the time moves")
+        XCTAssertEqual(draft.mealType, .snack, "a manual pick sticks")
         draft.setEatenAt(calendar.date(from: DateComponents(year: 2026, month: 10, day: 2, hour: 8))!)
-        XCTAssertEqual(draft.mealType, .breakfast)
+        XCTAssertEqual(draft.mealType, .snack, "and the time no longer overrides it")
     }
 
     func testHintsWinOverNow() {

@@ -128,9 +128,12 @@ enum ScanContextKind: CaseIterable {
 /// ```
 /// `.today()` routes barcode to the product page (Log / Pantry / List), receipt to
 /// receipt review, label to Add product and meal photo to a logged meal (via
-/// `onMealPhoto` when given, otherwise logged with the time-of-day meal type).
+/// `onMealPhoto` when given, otherwise reviewed in the Confirm Meal sheet over the scanner).
 enum ScanContext {
     case today(onMealPhoto: (([FoodItem]) -> Void)? = nil)
+    /// Log tab: barcode ("Add to meal") and meal photo open the Confirm Meal
+    /// sheet right on top of the scanner and save from there.
+    case logReview
     /// Log tab and meal builder: barcode and meal photo hand foods back.
     case logMeal(onFood: (FoodItem) -> Void, onMealPhoto: ([FoodItem]) -> Void)
     /// Food search toolbar; nil callback = scan-to-check.
@@ -143,7 +146,8 @@ enum ScanContext {
     var kind: ScanContextKind {
         switch self {
         case .today: .today
-        case .logMeal: .logMeal
+        case .logMeal,
+             .logReview: .logMeal
         case .foodSearch: .foodSearch
         case .foodCheck: .foodCheck
         case .pantryBarcode: .pantryBarcode
