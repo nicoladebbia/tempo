@@ -33,6 +33,15 @@ extension NutritionTabViewModel {
         PantryStaple.suggestions(for: StapleDietFilter(profile: dietaryProfile))
     }
 
+    /// Suggestions neither tracked ("Yes") nor declined ("No") yet.
+    var unansweredStapleCount: Int {
+        let tracked = Set(stapleState.staples.map(\.canonicalName))
+        return stapleSuggestions.filter {
+            !tracked.contains(FoodCanonicalizer.canonicalize($0.canonicalName))
+                && !stapleState.declined.contains($0.canonicalName)
+        }.count
+    }
+
     func loadStaplePromptState(store: StaplesPromptStore = StaplesPromptStore()) {
         stapleState.prompt = store.machine
         stapleState.declined = store.declined

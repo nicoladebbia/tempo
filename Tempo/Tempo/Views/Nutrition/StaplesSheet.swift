@@ -71,7 +71,7 @@ struct StaplesSheet: View {
     }
 
     private var unanswered: Int {
-        suggestions.filter { answer(for: $0.canonicalName) == nil }.count
+        viewModel.unansweredStapleCount
     }
 
     var body: some View {

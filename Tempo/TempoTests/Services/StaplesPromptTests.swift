@@ -100,4 +100,16 @@ final class StaplesPromptTests: XCTestCase {
         // a bell-pepper dislike must not hide black pepper
         XCTAssertTrue(names(StapleDietFilter(avoidTerms: ["bell pepper"])).contains("black pepper"))
     }
+
+    // MARK: Peek count
+
+    @MainActor
+    func testPeekCountIgnoresAnsweredSuggestions() {
+        let vm = NutritionTabViewModel()
+        let all = vm.stapleSuggestions
+        XCTAssertGreaterThan(all.count, 2)
+        XCTAssertEqual(vm.unansweredStapleCount, all.count)
+        vm.stapleState.declined = [all[0].canonicalName, all[1].canonicalName]
+        XCTAssertEqual(vm.unansweredStapleCount, all.count - 2)
+    }
 }
