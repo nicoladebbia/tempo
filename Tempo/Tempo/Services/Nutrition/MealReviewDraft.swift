@@ -15,6 +15,12 @@ struct MealReviewDraft {
     private(set) var factors: [String: Double]
     private(set) var eatenAt: Date
     private(set) var mealType: MealType
+    /// Kitchen (comes off the pantry) or out. Pre-selected from the location
+    /// when it is known; a manual pick always wins over a later fix.
+    private(set) var origin: MealOrigin = .kitchen
+    /// True while `origin` still comes from the location / last choice, false
+    /// once the user picked it by hand.
+    private(set) var originWasAutoSet = true
 
     /// Portion chips offered on every row.
     static let factorChoices: [Double] = [0.5, 1, 1.5, 2]
@@ -44,6 +50,21 @@ struct MealReviewDraft {
 
     mutating func setMealType(_ type: MealType) {
         mealType = type
+    }
+
+    /// The user's own pick. Sticks: a location fix arriving later can't undo it.
+    mutating func setOrigin(_ newOrigin: MealOrigin) {
+        origin = newOrigin
+        originWasAutoSet = false
+    }
+
+    /// The location (or remembered choice) says `suggested`. Ignored once the
+    /// user chose by hand.
+    mutating func applySuggestedOrigin(_ suggested: MealOrigin) {
+        guard originWasAutoSet else {
+            return
+        }
+        origin = suggested
     }
 
     // MARK: Portions

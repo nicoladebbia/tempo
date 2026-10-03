@@ -8,11 +8,13 @@
 // ½ / 1 / 1½ / 2 chips or a gram figure, then Log. Nothing is written before.
 //
 
+import CoreLocation
+import SwiftData
 import SwiftUI
 
 struct ParsedFoodReviewSheet: View {
     let items: [ParsedFoodItem]
-    let onConfirm: ([ParsedFoodItem], MealType, Date) -> Void
+    let onConfirm: ([ParsedFoodItem], MealType, Date, MealOrigin) -> Void
     let onCancel: () -> Void
 
     @State
@@ -24,14 +26,26 @@ struct ParsedFoodReviewSheet: View {
     @State
     private var didConfirm = false
 
+    /// nil = no fix / no home / too imprecise. Set by the fix started in `.task`.
+    @State
+    private var atHome: Bool?
+    @State
+    private var home: HomeLocation? = HomeLocationStore().home
+    @State
+    private var showHomeSetting = false
+
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.modelContext)
+    private var modelContext
+    @Environment(\.locationFixProvider)
+    private var locationProvider
 
     init(
         items: [ParsedFoodItem],
         hintedMealType: MealType?,
         hintedDate: Date?,
-        onConfirm: @escaping ([ParsedFoodItem], MealType, Date) -> Void,
+        onConfirm: @escaping ([ParsedFoodItem], MealType, Date, MealOrigin) -> Void,
         onCancel: @escaping () -> Void
     ) {
         self.items = items
@@ -46,6 +60,7 @@ struct ParsedFoodReviewSheet: View {
                 VStack(alignment: .leading, spacing: TempoSpacing.lg) {
                     whenSection
                     mealTypePicker
+                    originSection
                     itemList
                     totalsFooter
                 }
@@ -69,7 +84,8 @@ struct ParsedFoodReviewSheet: View {
                             return
                         }
                         didConfirm = true
-                        onConfirm(draft.items, draft.mealType, draft.eatenAt)
+                        HomeLocationStore().lastOrigin = draft.origin
+                        onConfirm(draft.items, draft.mealType, draft.eatenAt, draft.origin)
                         dismiss()
                     }
                     .fontWeight(.semibold)
@@ -77,6 +93,86 @@ struct ParsedFoodReviewSheet: View {
                     .accessibilityIdentifier("reviewLog")
                 }
             }
+            .task { await refreshOrigin() }
+            .sheet(isPresented: $showHomeSetting, onDismiss: { Task { await refreshOrigin() } }) {
+                HomeLocationSettingView()
+            }
+        }
+    }
+
+    // MARK: - Home / away
+
+    /// Reads the saved home and (only when location is already granted) one
+    /// fix, then pre-selects Kitchen / Ate out. Never prompts.
+    private func refreshOrigin() async {
+        let store = HomeLocationStore()
+        home = store.home
+        var fix: CLLocation?
+        if home != nil {
+            fix = await locationProvider.fixIfAuthorized(timeout: 3)
+        }
+        atHome = HomeAwayDecider.isAtHome(fix: fix, home: home)
+        draft.applySuggestedOrigin(HomeAwayDecider.defaultOrigin(atHome: atHome, remembered: store.lastOrigin))
+    }
+
+    private var pantryPreview: [PantryPreviewLine] {
+        guard draft.origin == .kitchen else {
+            return []
+        }
+        let foods = draft.items.map {
+            PlannedFood(
+                name: $0.name, quantityGrams: $0.quantityGrams,
+                calories: $0.calories, proteinG: $0.proteinG, carbsG: $0.carbsG, fatG: $0.fatG
+            )
+        }
+        return PantryDecrementService.preview(foods: foods, modelContext: modelContext)
+    }
+
+    private var originHeadline: String? {
+        guard home != nil else {
+            return nil
+        }
+        switch atHome {
+        case true?: return draft.origin == .kitchen ? "You're home. From your kitchen?" : "You're home. Logged as eaten out."
+        case false?: return draft.origin == .out ? "Not home. Logged as eaten out." : "Not home, but from your kitchen."
+        case nil: return "Can't tell where you are. Using your last choice."
+        }
+    }
+
+    private var originSection: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            sectionLabel("WHERE FROM?")
+            Picker("Where from", selection: Binding(get: { draft.origin }, set: { draft.setOrigin($0) })) {
+                Text("Kitchen").tag(MealOrigin.kitchen)
+                Text("Ate out").tag(MealOrigin.out)
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("reviewOrigin")
+            if let originHeadline {
+                Text(originHeadline)
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                    .accessibilityIdentifier("reviewOriginHeadline")
+            }
+            if draft.origin == .kitchen {
+                let preview = pantryPreview
+                Text(preview.isEmpty
+                    ? "Nothing in your pantry matches. Nothing comes off."
+                    : "Comes off your pantry: " + preview.map { "\($0.displayName) \($0.amountText)" }.joined(separator: ", "))
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("reviewOriginPreview")
+            } else {
+                Text("Your pantry stays as it is.")
+                    .font(.tempoCaption2)
+                    .foregroundStyle(Color.tempoTextSecondary)
+            }
+            Button(home == nil ? "Set home" : "Change home") {
+                showHomeSetting = true
+            }
+            .font(.tempoCaption1)
+            .accessibilityIdentifier("reviewSetHome")
         }
     }
 
