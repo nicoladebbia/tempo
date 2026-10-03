@@ -41,23 +41,49 @@ final class FuelSetupFlowTests: XCTestCase {
         attach("01-fuel-talk")
         app.buttons["fuelSetupManual"].tap()
 
-        // Overview of section cards → "You" flow: one question per screen.
-        let you = app.buttons["fuelSection.you"]
-        XCTAssertTrue(you.waitForExistence(timeout: 10))
+        // Overview: plan generation is blocked on the required sections, with
+        // one message and one button that chains through them.
+        let blocked = app.staticTexts["fuelSetupBlocked"]
+        XCTAssertTrue(blocked.waitForExistence(timeout: 10))
+        XCTAssertTrue(blocked.label.contains("Finish You, Goal and Meals"), "names exactly what's missing: \(blocked.label)")
+        XCTAssertTrue(app.buttons["fuelSetupFinish"].exists, "Finish setup card on top")
         attach("02-fuel-overview")
-        you.tap()
+        app.buttons["fuelSetupFinishRequired"].tap()
+
+        // You: weight, height and age share ONE screen.
         for (id, value) in [("fuelWeight", "78"), ("fuelHeight", "183"), ("fuelAge", "24")] {
             let field = app.textFields[id]
-            XCTAssertTrue(field.waitForExistence(timeout: 10))
+            XCTAssertTrue(field.waitForExistence(timeout: 10), id)
             field.tap()
             field.typeText(value)
             app.toolbars.buttons["Done"].tap()
-            app.buttons["fuelFlowNext"].tap()
         }
+        attach("03-fuel-you-body")
+        app.buttons["fuelFlowNext"].tap()
         app.buttons["Male"].tap()
         app.buttons["fuelFlowNext"].tap()
-        attach("03-fuel-you-last")
+        // Body fat is optional: Skip saves You and opens Goal.
+        XCTAssertTrue(app.buttons["fuelFlowSkip"].waitForExistence(timeout: 5))
+        app.buttons["fuelFlowSkip"].tap()
+
+        // Goal (chain: "Save & next: Meals & eating window").
+        let maintain = app.buttons["Maintain, Hold your weight, eat well"]
+        XCTAssertTrue(maintain.waitForExistence(timeout: 10))
+        maintain.tap()
+        app.buttons["fuelFlowNext"].tap()
+        XCTAssertTrue(app.buttons["Save & next: Meals & eating window"].waitForExistence(timeout: 5))
         app.buttons["fuelFlowSave"].tap()
+
+        // Meals: count + breakfast on one screen, then the optional window.
+        XCTAssertTrue(app.buttons["fuelFlowNext"].waitForExistence(timeout: 10))
+        attach("04-fuel-meals")
+        app.buttons["fuelFlowNext"].tap()
+        XCTAssertTrue(app.buttons["Save & finish"].waitForExistence(timeout: 5))
+        app.buttons["fuelFlowSave"].tap()
+
+        // Back on the overview, nothing blocks any more.
+        XCTAssertTrue(app.buttons["fuelSetupSave"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["fuelSetupBlocked"].exists)
 
         // "Your week" flow, first screen: the seven days.
         let week = app.buttons["fuelSection.week"]
@@ -86,7 +112,7 @@ final class FuelSetupFlowTests: XCTestCase {
                 .waitForExistence(timeout: 5),
             "Monday summary shows the meal out"
         )
-        attach("04-fuel-week")
+        attach("05-fuel-week")
         app.buttons["fuelFlowNext"].tap()
         app.buttons["fuelFlowNext"].tap()
         app.buttons["fuelFlowSave"].tap()

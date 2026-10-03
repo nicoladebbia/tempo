@@ -377,12 +377,12 @@ struct NutritionWeeklyPlanView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, TempoSpacing.xl)
 
-            if !viewModel.hasProfile {
+            if !viewModel.hasProfile || FuelSetupDraft.requiredMissingMessage(in: modelContext) != nil {
                 HStack(spacing: TempoSpacing.xs) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 12))
                         .foregroundStyle(Color.tempoWarning)
-                    Text("Set up your dietary profile first.")
+                    Text(FuelSetupDraft.requiredMissingMessage(in: modelContext) ?? "Set up your dietary profile first.")
                         .font(.tempoCaption1)
                         .foregroundStyle(Color.tempoWarning)
                 }
@@ -407,7 +407,7 @@ struct NutritionWeeklyPlanView: View {
 
     private var generateButtonInner: some View {
         Button {
-            guard viewModel.hasProfile else {
+            guard viewModel.hasProfile, FuelSetupDraft.requiredMissingMessage(in: modelContext) == nil else {
                 showProfileSetup = true
                 return
             }
