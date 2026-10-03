@@ -74,7 +74,6 @@ struct PantryView: View {
             }
         }
         .animation(.easeOut(duration: TempoAnimation.mediumDuration), value: showsStaplesPeek)
-        .navigationTitle("Pantry")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
