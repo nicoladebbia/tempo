@@ -51,4 +51,35 @@ final class CanonicalMealReadersTests: XCTestCase {
         XCTAssertEqual(ctx.meals.map(\.mealName), ["Lunch"])
         XCTAssertEqual(ctx.meals.first?.minutes, 13 * 60)
     }
+
+    func testHistoricalKeepsArchivedHistoryButCountsASlotOnce() throws {
+        let past = Calendar.current.date(byAdding: .day, value: -2, to: day)!
+        let old = WeeklyMealPlan(startDate: past, endDate: past, isActive: false)
+        let live = WeeklyMealPlan(startDate: past, endDate: past, isActive: true)
+        context.insert(old)
+        context.insert(live)
+        // Eaten only on the archived plan: real history, kept.
+        context.insert(PlannedMeal(dayDate: past, mealNumber: 1, mealName: "Breakfast", status: .eaten, mealPlan: old))
+        // Same slot on both plans: counted once, the active plan's row.
+        context.insert(PlannedMeal(dayDate: past, mealNumber: 2, mealName: "Lunch", status: .eaten, mealPlan: old))
+        context.insert(PlannedMeal(dayDate: past, mealNumber: 2, mealName: "Lunch", status: .planned, mealPlan: live))
+        try context.save()
+        let all = (try? context.fetch(FetchDescriptor<PlannedMeal>())) ?? []
+        let result = CanonicalMeals.historical(all.filter { $0.dayDate == past })
+        XCTAssertEqual(result.map(\.mealName).sorted(), ["Breakfast", "Lunch"])
+        XCTAssertEqual(result.first { $0.mealName == "Lunch" }?.mealPlan?.isActive, true)
+    }
+
+    func testCoachBackwardWindowCountsReplacedSlotOnce() throws {
+        let past = Calendar.current.date(byAdding: .day, value: -1, to: day)!
+        let old = WeeklyMealPlan(startDate: past, endDate: past, isActive: false)
+        let live = WeeklyMealPlan(startDate: past, endDate: past, isActive: true)
+        context.insert(old)
+        context.insert(live)
+        context.insert(PlannedMeal(dayDate: past, mealNumber: 1, mealName: "Lunch", status: .planned, mealPlan: old))
+        context.insert(PlannedMeal(dayDate: past, mealNumber: 1, mealName: "Lunch", status: .planned, mealPlan: live))
+        try context.save()
+        let window = CoachContextAssembler.makeBackwardWindow(in: context, today: day, calendar: .current)
+        XCTAssertEqual(window.first { $0.date == past }?.plannedMealCount, 1)
+    }
 }
