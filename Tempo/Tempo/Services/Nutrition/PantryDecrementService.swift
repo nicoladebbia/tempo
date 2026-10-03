@@ -174,7 +174,7 @@ enum PantryDecrementService {
                 let canonical = row.canonicalName.lowercased()
                 let have = simulated[row.id] ?? row.quantity
                 guard let needed = convertGramsToPantryUnit(
-                    grams: remainingGrams, canonicalName: canonical, unit: row.unit, purchased: row.weighsPurchaseUnit
+                    grams: remainingGrams, canonicalName: row.canonicalName.lowercased(), unit: row.unit, purchased: row.weighsPurchaseUnit
                 ) else {
                     continue
                 }

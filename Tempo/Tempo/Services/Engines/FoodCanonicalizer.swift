@@ -398,11 +398,18 @@ enum FoodCanonicalizer {
     /// "berry". Both sides of a match go through it, so it only has to be
     /// consistent, not linguistically right.
     private static func singular(_ word: String) -> String {
-        guard word.count > 3 else {
+        guard word.count > 2 else {
             return word
         }
         if word.hasSuffix("ies") {
-            return String(word.dropLast(3)) + "y"
+            // "pies" -> "pie"; "cookies"/"berries" -> "cooky"/"berry" (same as "cookie" below).
+            return word.count <= 4 ? String(word.dropLast()) : String(word.dropLast(3)) + "y"
+        }
+        if word.count > 4, word.hasSuffix("ie") {
+            return String(word.dropLast(2)) + "y"
+        }
+        guard word.count > 3 else {
+            return word
         }
         if word.hasSuffix("oes") {
             return String(word.dropLast(2))

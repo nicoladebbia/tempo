@@ -187,7 +187,7 @@ struct UniversalScanView: View {
         case let .supplements(shelf, onSaved, lookupService):
             SupplementBarcodeFlow(shelf: shelf, onSaved: onSaved, injectedLookupService: lookupService)
         default:
-            if reviewsInline {
+            if case .logReview = context {
                 FoodBarcodeFlow(
                     onFood: { reviewRequest = MealReviewRequest(foods: [$0]) },
                     dismissesAfterFood: false,
