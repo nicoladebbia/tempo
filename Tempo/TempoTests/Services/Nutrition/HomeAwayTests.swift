@@ -242,6 +242,19 @@ final class HomeAwayRecorderTests: XCTestCase {
         XCTAssertEqual(pantryGrams("Rolled oats"), 400)
     }
 
+    func testEditMergeOfAnOutLogNeverBecomesKitchen() throws {
+        stock("Rolled oats", grams: 500)
+        _ = try EatenMealRecorder.record(
+            [input("Rolled oats")], type: .lunch, eatenAt: Date(), source: .manual, origin: .out, modelContext: context
+        )
+        let edited = try EatenMealRecorder.record(
+            [input("Rolled oats", grams: 200)], type: .lunch, eatenAt: Date(), source: .manual,
+            resolution: .edit, origin: .kitchen, modelContext: context
+        )
+        XCTAssertEqual(edited.meal.origin, .out)
+        XCTAssertEqual(pantryGrams("Rolled oats"), 500)
+    }
+
     func testUndoGivesBackExactlyAndRestoreDeductsAgain() throws {
         stock("Rolled oats", grams: 500)
         let result = try EatenMealRecorder.record(

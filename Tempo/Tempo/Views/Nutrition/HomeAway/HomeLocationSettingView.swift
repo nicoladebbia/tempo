@@ -164,6 +164,10 @@ struct HomeLocationSettingView: View {
             message = "Couldn't get a fix. Try again, or search an address."
             return
         }
+        guard fix.horizontalAccuracy >= 0, fix.horizontalAccuracy <= HomeAwayDecider.maxUsableAccuracy else {
+            message = "That fix is too rough. Step outside or search an address."
+            return
+        }
         save(fix.coordinate, label: "Where I am now")
     }
 

@@ -942,6 +942,7 @@
 		BA67277CFB46AFADD2EA8800 /* TrainingViewModel+ConditioningLogging.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8988EFA7C093991CD0F98398 /* TrainingViewModel+ConditioningLogging.swift */; };
 		BA6D02AFCE6D45D522C8BB5C /* WatchActionRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDFCEB71CB432AADB07F26D4 /* WatchActionRouterTests.swift */; };
 		BA7B3A019F84498011DB3F70 /* MealOrdering.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5608309001FB1AA004E0F234 /* MealOrdering.swift */; };
+		BA89AE0387BB28B74CEAA34E /* MealOriginPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CEF4B93E7BBA87C9C54D354 /* MealOriginPicker.swift */; };
 		BAA50F34EA9F80CC8D331575 /* MockURLProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92238680B4C7FEF89A06DFE8 /* MockURLProtocol.swift */; };
 		BAB815C6AEBC85F31F77AA98 /* PauseTravelPainUITestSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88C8FB75DBB5277C11615748 /* PauseTravelPainUITestSeed.swift */; };
 		BC3763D065CFC90070FBABD4 /* RunUnitsFormattingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B4B950B94AF31126AF651FC /* RunUnitsFormattingTests.swift */; };
@@ -2031,6 +2032,7 @@
 		8BF5847830ADA81CCA751DB3 /* GuidedRunCueService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidedRunCueService.swift; sourceTree = "<group>"; };
 		8BFC7D69003A4AA15833126E /* GuidedRunRestParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidedRunRestParser.swift; sourceTree = "<group>"; };
 		8C262F4A4366831C98A83A66 /* NutritionProxyDTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionProxyDTOs.swift; sourceTree = "<group>"; };
+		8CEF4B93E7BBA87C9C54D354 /* MealOriginPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealOriginPicker.swift; sourceTree = "<group>"; };
 		8D72A8B78309E63B3131B8D1 /* CameraPermission.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPermission.swift; sourceTree = "<group>"; };
 		8D8648D6DC9465F328344F56 /* TrainerProgramHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerProgramHistoryView.swift; sourceTree = "<group>"; };
 		8DB2A940C715DAD07999B8CB /* PrivacyInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacyInfoView.swift; sourceTree = "<group>"; };
@@ -3228,6 +3230,7 @@
 			isa = PBXGroup;
 			children = (
 				669B704101B2DFDAEC5FFBE2 /* HomeLocationSettingView.swift */,
+				8CEF4B93E7BBA87C9C54D354 /* MealOriginPicker.swift */,
 			);
 			path = HomeAway;
 			sourceTree = "<group>";
@@ -6003,6 +6006,7 @@
 				20AAE014F33E73744C751B43 /* MealLog.swift in Sources */,
 				7F7AF7EC01549302C9EC41D1 /* MealLoggingView.swift in Sources */,
 				BA7B3A019F84498011DB3F70 /* MealOrdering.swift in Sources */,
+				BA89AE0387BB28B74CEAA34E /* MealOriginPicker.swift in Sources */,
 				4C3FE006B29A50F116CC6966 /* MealOutcomeService.swift in Sources */,
 				55A17AD70DB0B92BC0AB7220 /* MealPlanGeneratorService.swift in Sources */,
 				8CC71EAF3EA9247246049B09 /* MealPlanInputsFingerprint.swift in Sources */,
