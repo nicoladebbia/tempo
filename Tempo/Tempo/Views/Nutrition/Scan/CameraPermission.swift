@@ -56,6 +56,31 @@ enum CameraPermission: Equatable {
         return current(needsLiveScanner: needsLiveScanner)
     }
 
+    /// Right after the user flips the switch in Settings and comes back, the
+    /// authorization says "yes" while DataScanner still reports "unavailable"
+    /// for a moment. That is not "unsupported": look again shortly.
+    static func shouldRecheck(status: AVAuthorizationStatus, resolved: CameraPermission, attempt: Int, maxAttempts: Int = 4) -> Bool {
+        status == .authorized && resolved == .unsupported && attempt < maxAttempts
+    }
+
+    /// Back from iOS Settings (app active again): the fresh answer, waiting out
+    /// the short "authorized but scanner not ready yet" window.
+    @MainActor
+    static func recheckAfterForeground(needsLiveScanner: Bool = true) async -> CameraPermission {
+        var attempt = 0
+        var result = current(needsLiveScanner: needsLiveScanner)
+        while shouldRecheck(status: AVCaptureDevice.authorizationStatus(for: .video), resolved: result, attempt: attempt) {
+            attempt += 1
+            try? await Task.sleep(for: .milliseconds(400))
+            if Task.isCancelled {
+                break
+            }
+            result = current(needsLiveScanner: needsLiveScanner)
+        }
+        return result
+    }
+
+    /// Opens Tempo's own page in the iOS Settings app (never a generic URL).
     @MainActor
     static func openSettings() {
         guard let url = URL(string: UIApplication.openSettingsURLString) else {

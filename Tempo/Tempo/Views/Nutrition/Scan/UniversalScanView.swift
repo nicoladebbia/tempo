@@ -28,6 +28,8 @@ struct UniversalScanView: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.scenePhase)
+    private var scenePhase
     @Environment(\.modelContext)
     private var modelContext
     @Environment(ServiceContainer.self)
@@ -89,6 +91,12 @@ struct UniversalScanView: View {
                 }
                 permission = CameraPermission.current(needsLiveScanner: false)
             }
+            .onChange(of: scenePhase) { _, phase in
+                // Back from iOS Settings: the banner follows the real answer.
+                if phase == .active {
+                    permission = CameraPermission.current(needsLiveScanner: false)
+                }
+            }
             .onChange(of: mode) { old, _ in
                 previousMode = old
                 memory.modeChanged()
@@ -139,7 +147,8 @@ struct UniversalScanView: View {
                 .foregroundStyle(Color.tempoSignal)
                 .accessibilityIdentifier("scanOpenSettings")
         }
-        .padding(TempoSpacing.md)
+        .padding(.horizontal, TempoSpacing.screenEdge)
+        .padding(.vertical, TempoSpacing.md)
         .background(Color.tempoSurfaceCard)
         .accessibilityIdentifier("scanPermissionBanner")
     }

@@ -70,10 +70,16 @@ struct ScanBarcodeSurface: View {
                 await ask()
             }
         }
-        .onChange(of: scenePhase) { _, phase in
-            // Back from Settings: pick up the new answer.
-            if phase == .active {
-                permission = CameraPermission.current()
+        // Back from Settings: pick up the new answer and start the camera
+        // without another tap. `.task(id:)` re-runs on every return to .active
+        // and cancels a still-running re-check; nothing here resets the scan.
+        .task(id: scenePhase) {
+            guard scenePhase == .active, permission != .notDetermined else {
+                return
+            }
+            let fresh = await CameraPermission.recheckAfterForeground()
+            if fresh != permission {
+                permission = fresh
             }
         }
         .alert("Type the barcode", isPresented: $showManualEntry) {
