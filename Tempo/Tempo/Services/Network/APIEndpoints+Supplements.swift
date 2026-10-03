@@ -5,8 +5,10 @@
 // Wire contract for the supplement catalog backend (feat/supplements):
 //
 //   GET /v1/supplements/lookup/:upc        → Envelope<SupplementLookupDTO>
-//       Barcode → product (NIH DSLD first, Open Food Facts fallback).
-//       404 when neither knows the code.
+//       Barcode → product (NIH DSLD by UPC, then the Open Facts family).
+//       404 when none knows the code; 502 when the databases didn't answer.
+//   GET /v1/supplements/search?q=…         → Envelope<[SupplementSearchHit]>
+//   GET /v1/supplements/label/:id          → Envelope<SupplementLookupDTO>
 //   GET /v1/supplements/picks/:kind?name=… → Envelope<SupplementPicksDTO>
 //       2–3 vetted, third-party-tested products for a supplement type.
 //       `verified == false` means the AI fallback produced them (unusual
@@ -36,15 +38,18 @@ struct SupplementLookupDTO: Codable, Sendable, Equatable {
     let fatGramsPerServing: Double?
     /// e.g. ["NSF Certified for Sport"] when the label/database says so.
     let certifications: [String]
-    /// "dsld" | "openfoodfacts"
+    /// "dsld" | "openfoodfacts" | "openproductsfacts" | "openbeautyfacts" |
+    /// "shelf" | "label" (read from a photo)
     let source: String
+    /// Active ingredients with amounts ("Vitamin D3 25 mcg"), when known.
+    let ingredients: [String]?
 
     init(
         upc: String, brand: String?, name: String, kind: String,
         dosePerServing: String?, servingsPerContainer: Double?,
         proteinGramsPerServing: Double?,
         caloriesPerServing: Double? = nil, carbsGramsPerServing: Double? = nil, fatGramsPerServing: Double? = nil,
-        certifications: [String], source: String
+        certifications: [String], source: String, ingredients: [String]? = nil
     ) {
         self.upc = upc
         self.brand = brand
@@ -58,6 +63,7 @@ struct SupplementLookupDTO: Codable, Sendable, Equatable {
         self.fatGramsPerServing = fatGramsPerServing
         self.certifications = certifications
         self.source = source
+        self.ingredients = ingredients
     }
 
     enum CodingKeys: String, CodingKey {
@@ -73,6 +79,29 @@ struct SupplementLookupDTO: Codable, Sendable, Equatable {
         case fatGramsPerServing = "fat_grams_per_serving"
         case certifications
         case source
+        case ingredients
+    }
+}
+
+// MARK: - SupplementSearchHit
+
+/// One DSLD name-search result; `SupplementLookupService.label(id:)` turns it
+/// into a full `SupplementLookupDTO`.
+struct SupplementSearchHit: Codable, Sendable, Equatable, Identifiable {
+    let id: String
+    let brand: String?
+    let name: String
+    let kind: String
+    let netContents: String?
+    let onMarket: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case brand
+        case name
+        case kind
+        case netContents = "net_contents"
+        case onMarket = "on_market"
     }
 }
 
@@ -130,6 +159,19 @@ extension APIEndpoint where Response == SupplementLookupDTO {
     static func supplementLookup(upc: String) -> Self {
         let digits = upc.filter(\.isNumber)
         return APIEndpoint(path: "/v1/supplements/lookup/\(digits)", method: .get)
+    }
+}
+
+extension APIEndpoint where Response == [SupplementSearchHit] {
+    /// Pass the text as the `q` query item.
+    static func supplementSearch() -> Self {
+        APIEndpoint(path: "/v1/supplements/search", method: .get)
+    }
+}
+
+extension APIEndpoint where Response == SupplementLookupDTO {
+    static func supplementLabel(id: String) -> Self {
+        APIEndpoint(path: "/v1/supplements/label/\(id.filter(\.isNumber))", method: .get)
     }
 }
 

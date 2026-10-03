@@ -35,7 +35,7 @@ struct KitchenView: View {
             case .receipts:
                 ReceiptsHistoryView(viewModel: viewModel)
             case .supplements:
-                SupplementsView()
+                SupplementsView(openSupplementID: $viewModel.supplementToOpen)
             }
         }
     }
