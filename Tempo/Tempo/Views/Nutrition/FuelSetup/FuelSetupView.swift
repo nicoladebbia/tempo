@@ -59,6 +59,9 @@ struct FuelSetupView: View {
     /// "Finish setup": the sections still to walk through, in order (empty = a single edit).
     @State
     private var chain: [FuelSetupSection] = []
+    /// Keeps the flow's content alive while the cover slides away.
+    @State
+    private var lastOpenSection: FuelSetupSection?
     /// Optional sections already saved or skipped (kept on the device).
     @State
     private var reviewed: Set<FuelSetupSection> = []
@@ -159,7 +162,7 @@ struct FuelSetupView: View {
             set: { if !$0 { openSection = nil; chain = [] } }
         )) {
             // One presentation for the whole chain: the section swaps inside it.
-            if let section = openSection {
+            if let section = openSection ?? lastOpenSection {
                 NavigationStack {
                     FuelSetupSectionFlow(
                     section: section,
@@ -175,6 +178,11 @@ struct FuelSetupView: View {
                     .id(section)
                     .toolbar(.hidden, for: .navigationBar)
                 }
+            }
+        }
+        .onChange(of: openSection) { _, new in
+            if let new {
+                lastOpenSection = new
             }
         }
         .task {

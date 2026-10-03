@@ -35,6 +35,10 @@ struct FuelSetupSectionFlow: View {
     private var working: FuelSetupDraft
     @State
     private var index = 0
+    /// The answers as this screen opened: Skip puts them back, so a default a
+    /// stepper wrote on appear (or a half-typed value) is never kept.
+    @State
+    private var entry: FuelSetupDraft?
     @State
     private var isSaving = false
 
@@ -111,7 +115,7 @@ struct FuelSetupSectionFlow: View {
             onSaveAndClose: saveCloseAction,
             canSaveAndClose: allStepsValid,
             onSkipSection: skipSectionAction,
-            onBack: { withAnimation(TempoAnimation.springMedium) { index = max(0, index - 1) } },
+            onBack: { entry = working; withAnimation(TempoAnimation.springMedium) { index = max(0, index - 1) } },
             onNext: next,
             onClose: onClose
         ) {
@@ -124,6 +128,7 @@ struct FuelSetupSectionFlow: View {
     private func next() {
         KeyboardDismisser.dismiss()
         if index < steps.count - 1 {
+            entry = working
             withAnimation(TempoAnimation.springMedium) { index += 1 }
             return
         }
@@ -133,7 +138,9 @@ struct FuelSetupSectionFlow: View {
     /// Leaves this question as it is (optional questions only).
     private func skip() {
         KeyboardDismisser.dismiss()
+        working = entry ?? original
         if index < steps.count - 1 {
+            entry = working
             withAnimation(TempoAnimation.springMedium) { index += 1 }
         } else {
             save()

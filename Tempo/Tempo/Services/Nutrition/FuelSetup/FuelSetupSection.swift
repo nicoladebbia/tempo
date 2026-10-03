@@ -191,7 +191,7 @@ extension FuelSetupDraft {
                 && breakfastStyle == nil && snacksPerDay == nil && appetite == nil
         case .cooking:
             cookingSkill == nil && cookMinutesWeekday == nil && cookMinutesWeekend == nil
-                && cookableDaysPerWeek == nil && leftoverTolerance == nil
+                && cookableDaysPerWeek == nil && leftoverTolerance == nil && !clearSkinFocus
         case .shopping: weeklyBudgetUSD == nil && stores.isEmpty
         case .recovery: false
         }
