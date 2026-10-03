@@ -62,6 +62,19 @@ struct MealTimeHints: Equatable {
     // MARK: - Pieces
 
     private static func mealType(in lower: String) -> MealType? {
+        // "breakfast burrito for dinner": the meal word after "for"/"as"/"at"
+        // names the meal; a dish name before it doesn't.
+        let named = #"\b(?:for|as|at)\s+(?:my\s+|a\s+|an\s+|the\s+)?(breakfast|lunch|dinner|supper|snack)\b"#
+        if let match = lower.range(of: named, options: .regularExpression) {
+            let word = lower[match].split(separator: " ").last.map(String.init) ?? ""
+            switch word {
+            case "breakfast": return .breakfast
+            case "lunch": return .lunch
+            case "dinner", "supper": return .dinner
+            case "snack": return .snack
+            default: break
+            }
+        }
         // Earliest mention wins ("lunch ... then a dinner snack" is rare).
         let candidates: [(String, MealType)] = [
             ("breakfast", .breakfast), ("this morning", .breakfast),

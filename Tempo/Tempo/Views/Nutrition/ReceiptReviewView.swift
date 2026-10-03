@@ -328,6 +328,11 @@ struct ReceiptReviewView: View {
     // MARK: - Actions
 
     private func apply(_ result: ReceiptLineEditResult, to line: ReceiptLineItem) {
+        let renamed = line.displayName.trimmingCharacters(in: .whitespaces) != result.name.trimmingCharacters(in: .whitespaces)
+        var pickedProduct = false
+        if case .picked = result.product {
+            pickedProduct = true
+        }
         line.displayName = result.name
         line.quantity = result.quantity
         line.unit = result.unit
@@ -350,10 +355,10 @@ struct ReceiptReviewView: View {
             line.brand = candidate.brand
             line.imageURL = candidate.imageURL
             line.matchConfidence = candidate.matchConfidence
-            if let sizeValue = candidate.sizeValue {
-                line.sizeValue = sizeValue
-                line.sizeUnit = candidate.sizeUnit
-            }
+            // Always assign: a product without a size must not keep the old
+            // product's size (it would inflate the pantry quantity).
+            line.sizeValue = candidate.sizeValue
+            line.sizeUnit = candidate.sizeUnit
             // A picked product is a different product than any earlier
             // auto-match — a stale pack count would multiply pantry ingest.
             line.packCount = nil
@@ -372,7 +377,9 @@ struct ReceiptReviewView: View {
         // Saving a row is the user vouching for it: learn the store-name →
         // product mapping (local alias + backend crowd table) so the same raw
         // OCR text resolves to this product next time.
-        if result.included {
+        // A rename without a product pick would teach the OLD canonical name
+        // or barcode under the new text, so skip the alias then.
+        if result.included, pickedProduct || !renamed {
             receiptService.confirmAlias(
                 rawText: line.rawText,
                 storeChain: receipt.storeChain,

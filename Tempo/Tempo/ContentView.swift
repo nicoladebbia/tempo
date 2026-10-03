@@ -39,6 +39,9 @@ struct ContentView: View {
     private var nutritionViewModel = NutritionTabViewModel()
     @Environment(\.scenePhase)
     private var scenePhase
+    /// The scanner-resume record is only acted on once per process (cold launch).
+    @State
+    private var hasCheckedScanResume = false
 
     private var accentColor: Color {
         switch accentColorChoice {
@@ -220,7 +223,19 @@ struct ContentView: View {
         }
         // Back from iOS Settings with the camera allowed: reopen the scanner.
         .onChange(of: scenePhase, initial: true) { _, phase in
-            if phase == .active, let resume = ScanResume.consume() {
+            guard phase == .active else {
+                return
+            }
+            // Only a cold launch reopens the scanner (iOS kills the app when the
+            // camera permission changes). Any later activation means the process
+            // survived, so the scanner is still up (or was closed on purpose):
+            // just drop the record instead of stacking a second scanner.
+            guard !hasCheckedScanResume else {
+                ScanResume.clear()
+                return
+            }
+            hasCheckedScanResume = true
+            if let resume = ScanResume.consume() {
                 appState.activeTab = .nutrition
                 nutritionViewModel.apply(NutritionRoute(section: resume.nutritionSection, kitchen: nil))
                 nutritionViewModel.scanResume = resume

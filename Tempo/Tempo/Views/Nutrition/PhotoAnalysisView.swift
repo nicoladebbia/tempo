@@ -132,7 +132,7 @@ struct PhotoAnalysisView: View {
             Button("Cancel", role: .cancel) { renameItemID = nil }
             Button("Save") { commitRename() }
         } message: {
-            Text("Tempo re-checks the calories for what you type.")
+            Text("Tempo updates the calories when it knows the food. Otherwise the old numbers stay as an estimate.")
         }
         .sheet(isPresented: $showAddItem) {
             AddMissingItemSheet { item in
