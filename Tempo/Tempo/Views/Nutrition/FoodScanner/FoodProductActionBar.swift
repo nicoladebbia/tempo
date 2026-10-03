@@ -34,7 +34,7 @@ struct FoodProductActionBar: View {
     }
 
     var body: some View {
-        VStack(spacing: TempoSpacing.sm) {
+        VStack(spacing: TempoSpacing.buttonStackVertical) {
             if let inventory {
                 Text(inventory.line)
                     .font(.tempoCaption1)
@@ -42,27 +42,30 @@ struct FoodProductActionBar: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityIdentifier("foodInventoryLine")
             }
-            HStack(spacing: TempoSpacing.sm) {
-                Button {
-                    HapticManager.lightImpact()
-                    mealType = EatenMealRecorder.defaultMealType()
-                    showLogSheet = true
-                } label: {
-                    Text("Log \(FoodProductView.format(grams)) \(product.unit) · \(portionKcal) kcal")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.tempoPrimary)
-                .disabled(!product.per100g.hasCoreMacros || grams <= 0)
-                .accessibilityIdentifier("foodCheckLog")
+            Button {
+                HapticManager.lightImpact()
+                mealType = EatenMealRecorder.defaultMealType()
+                showLogSheet = true
+            } label: {
+                Text("Log \(FoodProductView.format(grams)) \(product.unit) · \(portionKcal) kcal")
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .buttonStyle(.tempoPrimary)
+            .disabled(!product.per100g.hasCoreMacros || grams <= 0)
+            .accessibilityIdentifier("foodCheckLog")
 
+            // Two equal secondary buttons under the primary: same width, same
+            // height (the style's 52 pt), centred inside the screen gutters.
+            HStack(spacing: TempoSpacing.buttonStackVertical) {
                 Button {
                     addToPantry()
                 } label: {
                     Label("Pantry", systemImage: "refrigerator")
                         .labelStyle(.titleAndIcon)
+                        .lineLimit(1)
                 }
                 .buttonStyle(.tempoSecondary)
-                .fixedSize()
                 .accessibilityIdentifier("foodCheckPantry")
 
                 Button {
@@ -70,14 +73,15 @@ struct FoodProductActionBar: View {
                 } label: {
                     Label("List", systemImage: "cart.badge.plus")
                         .labelStyle(.titleAndIcon)
+                        .lineLimit(1)
                 }
                 .buttonStyle(.tempoSecondary)
-                .fixedSize()
                 .accessibilityIdentifier("foodCheckList")
             }
         }
-        .padding(.horizontal, TempoSpacing.lg)
-        .padding(.vertical, TempoSpacing.sm)
+        .padding(.horizontal, TempoSpacing.screenEdge)
+        .padding(.top, TempoSpacing.md)
+        .padding(.bottom, TempoSpacing.sm)
         .background(Color.tempoBgPrimary)
         .task(id: product.id) { refreshInventory() }
         .sheet(isPresented: $showLogSheet) {

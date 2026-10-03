@@ -98,6 +98,7 @@ struct PantryBarcodeFlow: View {
                 scanState = .scanning
             }
             .buttonStyle(.tempoPrimary)
+            .padding(.horizontal, TempoSpacing.xxxxl)
             Spacer()
         }
     }

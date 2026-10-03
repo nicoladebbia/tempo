@@ -40,7 +40,7 @@ struct ScannedProductLabelView: View {
                 }
                 actions
             }
-            .padding(.horizontal, TempoSpacing.lg)
+            .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.top, TempoSpacing.sm)
             .padding(.bottom, TempoSpacing.xxxxl)
         }
