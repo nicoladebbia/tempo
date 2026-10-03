@@ -380,6 +380,55 @@ enum FoodCanonicalizer {
             : name.titleCased()
     }
 
+    // MARK: - Pantry matching
+
+    /// Words that describe HOW a food was cooked or sized, never WHICH food it
+    /// is: USDA-style names ("eggs, large, cooked", "bread, white, toasted")
+    /// carry several of them. Dropped by `matchKey` only.
+    private static let matchNoise: Set<String> = [
+        "large", "small", "medium", "extra", "jumbo", "mini", "big",
+        "cooked", "raw", "toasted", "boiled", "hard", "soft", "scrambled",
+        "fried", "poached", "grilled", "baked", "roasted", "steamed",
+        "sauteed", "sautéed", "braised", "smoked", "plain", "fresh", "frozen",
+        "ripe", "whole", "of", "with", "and", "a", "the", "slice", "slices",
+        "piece", "pieces", "serving",
+    ]
+
+    /// Crude singular: "eggs" → "egg", "tomatoes" → "tomato", "berries" →
+    /// "berry". Both sides of a match go through it, so it only has to be
+    /// consistent, not linguistically right.
+    private static func singular(_ word: String) -> String {
+        guard word.count > 3 else {
+            return word
+        }
+        if word.hasSuffix("ies") {
+            return String(word.dropLast(3)) + "y"
+        }
+        if word.hasSuffix("oes") {
+            return String(word.dropLast(2))
+        }
+        for tail in ["ches", "shes", "sses", "xes"] where word.hasSuffix(tail) {
+            return String(word.dropLast(2))
+        }
+        if word.hasSuffix("s"), !word.hasSuffix("ss"), !word.hasSuffix("us"), !word.hasSuffix("is") {
+            return String(word.dropLast())
+        }
+        return word
+    }
+
+    /// Order-insensitive key two names share when they are the same food:
+    /// "Eggs" = "eggs, large, cooked" = "egg"; "White bread" = "bread, white,
+    /// toasted". Built on `canonicalize` (brands, cooking prefixes, aliases),
+    /// then drops cooking / size words, singularises and sorts the words.
+    /// For matching only, never for display or for natural-portion lookups.
+    static func matchKey(_ raw: String) -> String {
+        let canonical = canonicalize(raw)
+        let words = canonical.split(separator: " ").map(String.init)
+        let kept = words.filter { !matchNoise.contains($0) }
+        let useful = kept.isEmpty ? words : kept
+        return useful.map(singular).sorted().joined(separator: " ")
+    }
+
     /// Returns true when two food names refer to the same canonical food.
     static func foodMatches(_ left: String, _ right: String) -> Bool {
         guard !left.isEmpty, !right.isEmpty else {

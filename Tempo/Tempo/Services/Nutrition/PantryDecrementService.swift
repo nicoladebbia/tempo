@@ -133,6 +133,13 @@ enum PantryDecrementService {
     /// WITHOUT mutating or saving anything (quantities are simulated on copies).
     /// Items that aren't in the pantry, staples and unconvertible rows are left out.
     static func preview(foods: [PlannedFood], modelContext: ModelContext) -> [PantryPreviewLine] {
+        previewByFood(foods: foods, modelContext: modelContext).flatMap(\.self)
+    }
+
+    /// `preview`, one entry per input food (same order; empty when that food
+    /// takes nothing off the pantry). Stock is simulated across the foods, so
+    /// two foods drawing on one row see what the first one left.
+    static func previewByFood(foods: [PlannedFood], modelContext: ModelContext) -> [[PantryPreviewLine]] {
         let rows = (try? modelContext.fetch(FetchDescriptor<PantryItem>(
             predicate: #Predicate<PantryItem> { $0.isArchived == false }
         ))) ?? []
@@ -140,16 +147,21 @@ enum PantryDecrementService {
             .map { $0.canonicalName.lowercased() })
         var byName: [String: [PantryItem]] = [:]
         for row in rows {
-            byName[row.canonicalName.lowercased(), default: []].append(row)
+            byName[FoodCanonicalizer.matchKey(row.canonicalName), default: []].append(row)
         }
-        var lines: [PantryPreviewLine] = []
+        var perFood: [[PantryPreviewLine]] = []
         var simulated: [UUID: Double] = [:] // quantity left per row after earlier foods in this log
-        for food in foods where food.quantityGrams > 0 {
-            let canonical = FoodCanonicalizer.canonicalize(food.name).lowercased()
-            if FoodMacroDatabase.naturalPortions[canonical]?.isStaple == true || stapleNames.contains(canonical) {
+        for food in foods {
+            var lines: [PantryPreviewLine] = []
+            defer { perFood.append(lines) }
+            guard food.quantityGrams > 0 else {
                 continue
             }
-            let matches = (byName[canonical] ?? []).sorted { lhs, rhs in
+            let foodCanonical = FoodCanonicalizer.canonicalize(food.name).lowercased()
+            if FoodMacroDatabase.naturalPortions[foodCanonical]?.isStaple == true || stapleNames.contains(foodCanonical) {
+                continue
+            }
+            let matches = (byName[FoodCanonicalizer.matchKey(food.name)] ?? []).sorted { lhs, rhs in
                 switch (lhs.useBy, rhs.useBy) {
                 case let (l?, r?): l < r
                 case (nil, nil): false
@@ -159,6 +171,7 @@ enum PantryDecrementService {
             }
             var remainingGrams = food.quantityGrams
             for row in matches where remainingGrams > 0 {
+                let canonical = row.canonicalName.lowercased()
                 let have = simulated[row.id] ?? row.quantity
                 guard let needed = convertGramsToPantryUnit(
                     grams: remainingGrams, canonicalName: canonical, unit: row.unit, purchased: row.weighsPurchaseUnit
@@ -186,7 +199,7 @@ enum PantryDecrementService {
                 ))
             }
         }
-        return lines
+        return perFood
     }
 
     /// EXACT inverse of a recorded decrement: credits back precisely the
@@ -403,7 +416,7 @@ enum PantryDecrementService {
         let pantryRows = (try? modelContext.fetch(pantryDescriptor)) ?? []
         var byName: [String: [PantryItem]] = [:]
         for row in pantryRows {
-            byName[row.canonicalName.lowercased(), default: []].append(row)
+            byName[FoodCanonicalizer.matchKey(row.canonicalName), default: []].append(row)
         }
         // FIFO: earliest useBy first (a row with no useBy sorts last — it's
         // the least urgent to use up first, by definition it has no known
@@ -441,7 +454,7 @@ enum PantryDecrementService {
                 continue
             }
 
-            guard let rows = byName[canonical], !rows.isEmpty else {
+            guard let rows = byName[FoodCanonicalizer.matchKey(rawName)], !rows.isEmpty else {
                 results.append(PantryDecrementResult(
                     canonicalName: canonical,
                     requestedGrams: rawGrams,
@@ -452,7 +465,7 @@ enum PantryDecrementService {
 
             switch direction {
             case .decrement:
-                results.append(decrementFIFO(canonical: canonical, requestedGrams: rawGrams, rows: rows))
+                results.append(decrementFIFO(canonical: rows[0].canonicalName.lowercased(), requestedGrams: rawGrams, rows: rows))
             case .credit:
                 // Legacy approximate credit — single row (the first match),
                 // no FIFO semantics needed since it's a best-effort add-back.
@@ -498,7 +511,7 @@ enum PantryDecrementService {
     /// individually (their stock is left untouched) rather than aborting
     /// the whole ingredient.
     private static func decrementFIFO(
-        canonical: String,
+        canonical resultName: String,
         requestedGrams: Double,
         rows: [PantryItem]
     ) -> PantryDecrementResult {
@@ -512,6 +525,7 @@ enum PantryDecrementService {
                 totalRemainingStock += row.quantity
                 continue
             }
+            let canonical = row.canonicalName.lowercased()
             guard let neededInRowUnit = convertGramsToPantryUnit(
                 grams: remainingGrams, canonicalName: canonical, unit: row.unit, purchased: row.weighsPurchaseUnit
             )
@@ -544,12 +558,12 @@ enum PantryDecrementService {
         }
 
         guard anyRowMatchedUnit else {
-            return PantryDecrementResult(canonicalName: canonical, requestedGrams: requestedGrams, outcome: .skippedNoUnitMatch)
+            return PantryDecrementResult(canonicalName: resultName, requestedGrams: requestedGrams, outcome: .skippedNoUnitMatch)
         }
         let outcome: PantryDecrementResult.Outcome = rows.allSatisfy({ !$0.isInStock })
             ? .depleted
             : .decremented(remaining: totalRemainingStock)
-        return PantryDecrementResult(canonicalName: canonical, requestedGrams: requestedGrams, outcome: outcome, details: details)
+        return PantryDecrementResult(canonicalName: resultName, requestedGrams: requestedGrams, outcome: outcome, details: details)
     }
 
     // MARK: - Unit conversion
