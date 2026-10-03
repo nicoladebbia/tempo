@@ -64,6 +64,8 @@ struct MealFoodItemInput: Codable {
     let source: FoodDataSource
     /// Packaged products from the scanner / food search keep their barcode.
     var barcode: String? = nil
+    /// Where THIS food came from in a mixed log; nil = follows the meal.
+    var origin: MealOrigin? = nil
 
     /// Scaled values based on serving count.
     var totalCalories: Double {

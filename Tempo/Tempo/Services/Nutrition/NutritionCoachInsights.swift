@@ -56,7 +56,7 @@ extension CoachMealSnapshot {
             fat: meal.totalFat,
             time: time,
             items: meal.foods.map(\.name),
-            ateOut: meal.origin == .out
+            ateOut: meal.origin == .out || meal.origin == .mixed || meal.foods.contains { $0.origin == .out }
         )
     }
 }

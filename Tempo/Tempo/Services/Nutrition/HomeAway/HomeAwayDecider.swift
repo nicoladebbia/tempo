@@ -15,6 +15,24 @@ import Foundation
 enum MealOrigin: String, Codable, Sendable, CaseIterable {
     case kitchen
     case out
+    /// Meal level only: some foods came from the kitchen, some were eaten out
+    /// ("fried rice from the restaurant + soy sauce from home"). Never a
+    /// per-food value and never remembered as the "last choice".
+    case mixed
+
+    /// The two choices a single food can have.
+    static let perFood: [MealOrigin] = [.kitchen, .out]
+
+    /// The meal-level origin that describes foods with these origins:
+    /// all kitchen → kitchen, all out → out, otherwise mixed. nil for no foods.
+    static func combined(_ origins: [MealOrigin]) -> MealOrigin? {
+        let set = Set(origins.map { $0 == .mixed ? MealOrigin.mixed : $0 })
+        switch set.count {
+        case 0: return nil
+        case 1: return set.first
+        default: return .mixed
+        }
+    }
 }
 
 enum HomeAwayDecider {

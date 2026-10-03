@@ -43,6 +43,10 @@ struct HomeLocationStore {
             defaults.string(forKey: Self.originKey).flatMap(MealOrigin.init(rawValue:))
         }
         nonmutating set {
+            // "Mixed" is a one-off description, not something to pre-select next time.
+            if newValue == .mixed {
+                return
+            }
             if let newValue {
                 defaults.set(newValue.rawValue, forKey: Self.originKey)
             } else {
