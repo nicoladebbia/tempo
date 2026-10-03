@@ -170,6 +170,28 @@ extension FuelSetupDraft {
     /// doesn't have is asked.
     @discardableResult
     mutating func apply(health: HealthBodyStats) -> Set<FuelBodyField> {
+        apply(health: health, untouchedSince: nil)
+    }
+
+    /// Same, but a slow Health fetch must not overwrite what the user already
+    /// typed: with `saved` given, a field whose draft value differs from the
+    /// saved one was edited, so it is left alone (and not locked).
+    @discardableResult
+    mutating func apply(health: HealthBodyStats, untouchedSince saved: FuelSetupDraft?) -> Set<FuelBodyField> {
+        let before = self
+        var locked = applyAll(health: health)
+        guard let saved else {
+            return locked
+        }
+        if before.weightKg != saved.weightKg { weightKg = before.weightKg; locked.remove(.weight) }
+        if before.heightCm != saved.heightCm { heightCm = before.heightCm; locked.remove(.height) }
+        if before.bodyFatPercent != saved.bodyFatPercent { bodyFatPercent = before.bodyFatPercent; locked.remove(.bodyFat) }
+        if before.age != saved.age { age = before.age; locked.remove(.age) }
+        if before.sex != saved.sex { sex = before.sex; locked.remove(.sex) }
+        return locked
+    }
+
+    private mutating func applyAll(health: HealthBodyStats) -> Set<FuelBodyField> {
         var locked: Set<FuelBodyField> = []
         if let value = health.weightKg, value > 0 {
             weightKg = value
