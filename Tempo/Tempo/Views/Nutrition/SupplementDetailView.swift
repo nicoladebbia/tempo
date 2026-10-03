@@ -216,7 +216,7 @@ struct SupplementDetailView: View {
     private var ingredientsSection: some View {
         if let text = supplement.ingredientsSummary, !text.isEmpty {
             Section("What's in it") {
-                ForEach(text.split(separator: "\n").map(String.init), id: \.self) { line in
+                ForEach(Array(text.split(separator: "\n").map(String.init).enumerated()), id: \.offset) { _, line in
                     Text(line).font(.tempoCaption1)
                 }
             }

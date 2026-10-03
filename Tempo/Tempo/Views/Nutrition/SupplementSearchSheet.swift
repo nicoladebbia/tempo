@@ -168,7 +168,12 @@ struct SupplementSearchSheet: View {
         try? await Task.sleep(for: .milliseconds(350))
         guard !Task.isCancelled else { return }
         isSearching = true
-        defer { isSearching = false }
+        // A newer keystroke's search owns the spinner; a cancelled one leaves it.
+        defer {
+            if !Task.isCancelled {
+                isSearching = false
+            }
+        }
         do {
             let found = try await service.search(query: trimmed)
             guard !Task.isCancelled else { return }
