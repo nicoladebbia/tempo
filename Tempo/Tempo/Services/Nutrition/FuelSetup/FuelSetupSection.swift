@@ -40,6 +40,18 @@ enum FuelSetupSection: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    /// The planner can't work without these (body stats for the macros, the
+    /// goal, and the meal pattern). Everything else is optional and has
+    /// sensible defaults, so it never shows an error.
+    var isRequired: Bool {
+        switch self {
+        case .you, .goal, .meals: true
+        case .week, .food, .cooking, .shopping, .recovery: false
+        }
+    }
+
+    static let required: [FuelSetupSection] = allCases.filter(\.isRequired)
+
     var icon: String {
         switch self {
         case .you: "person.fill"
@@ -123,6 +135,11 @@ extension FuelSetupDraft {
             dislikedFoods = other.dislikedFoods
             favoriteFoods = other.favoriteFoods
             boredOfFoods = other.boredOfFoods
+            favoriteCuisines = other.favoriteCuisines
+            spiceLevel = other.spiceLevel
+            breakfastStyle = other.breakfastStyle
+            snacksPerDay = other.snacksPerDay
+            appetite = other.appetite
         case .cooking:
             cookingSkill = other.cookingSkill
             cookMinutesWeekday = other.cookMinutesWeekday
@@ -152,15 +169,62 @@ extension FuelSetupDraft {
         case .you: [.weight, .height, .age, .sex]
         case .goal: [.goal]
         case .meals: [.meals]
-        case .week: [.wakeTime]
-        case .food, .cooking, .shopping, .recovery: []
+        case .week, .food, .cooking, .shopping, .recovery: []
         }
         return missingFields.filter { owned.contains($0) }
     }
 
-    /// Sections with a required answer still missing, in overview order.
+    /// Required sections with an answer still missing, in overview order.
     var incompleteSections: [FuelSetupSection] {
         FuelSetupSection.allCases.filter { !missingFields(in: $0).isEmpty }
+    }
+
+    /// True when an OPTIONAL section has no answers at all (the planner uses
+    /// defaults). Required sections are never "unset" — they are missing.
+    func isUnset(_ section: FuelSetupSection) -> Bool {
+        switch section {
+        case .you, .goal, .meals: false
+        case .week: routine.days.allSatisfy(\.isEmpty) && notes.isEmpty
+        case .food:
+            restrictions.isEmpty && allergies.isEmpty && dislikedFoods.isEmpty && favoriteFoods.isEmpty
+                && boredOfFoods.isEmpty && favoriteCuisines.isEmpty && spiceLevel == nil
+                && breakfastStyle == nil && snacksPerDay == nil && appetite == nil
+        case .cooking:
+            cookingSkill == nil && cookMinutesWeekday == nil && cookMinutesWeekend == nil
+                && cookableDaysPerWeek == nil && leftoverTolerance == nil && !clearSkinFocus
+        case .shopping: weeklyBudgetUSD == nil && stores.isEmpty
+        case .recovery: false
+        }
+    }
+
+    /// What "Finish setup" walks through, in order: the required sections
+    /// still missing, then the optional ones with no answers that the user
+    /// hasn't already looked at (`reviewed`: saved or skipped before).
+    func remainingSections(reviewed: Set<FuelSetupSection> = []) -> [FuelSetupSection] {
+        FuelSetupSection.allCases.filter { section in
+            section.isRequired
+                ? !missingFields(in: section).isEmpty
+                : isUnset(section) && !reviewed.contains(section)
+        }
+    }
+
+    /// One plain sentence naming exactly the required sections still missing
+    /// ("Finish You and Goal to build your plan"), nil when nothing blocks.
+    var requiredMissingMessage: String? {
+        let names = incompleteSections.map(\.title)
+        guard !names.isEmpty else {
+            return nil
+        }
+        let list = names.count == 1 ? names[0] : names.dropLast().joined(separator: ", ") + " and " + names[names.count - 1]
+        return "Finish \(list) to build your plan."
+    }
+
+    /// The section after `section` in a finish chain, nil at the end.
+    static func next(after section: FuelSetupSection, in chain: [FuelSetupSection]) -> FuelSetupSection? {
+        guard let index = chain.firstIndex(of: section), index + 1 < chain.count else {
+            return nil
+        }
+        return chain[index + 1]
     }
 
     // MARK: - Health-sourced body stats
@@ -218,8 +282,14 @@ extension FuelSetupDraft {
 
     // MARK: - Summaries
 
-    /// One line for the overview card. Empty answers read "Not set".
+    static let defaultsSummary = "Not set — we'll use sensible defaults"
+
+    /// One line for the overview card. A required section with no answers
+    /// reads "Not set"; an optional one reads the neutral defaults line.
     func summary(for section: FuelSetupSection, unit: WeightUnit = .kg) -> String {
+        if !section.isRequired, isUnset(section) {
+            return Self.defaultsSummary
+        }
         func weight(_ kg: Double) -> String {
             "\(Int(WeightUnit.kg.convert(kg, to: unit).rounded())) \(unit.abbreviation)"
         }
@@ -279,6 +349,21 @@ extension FuelSetupDraft {
             if !favoriteFoods.isEmpty {
                 items.append("\(favoriteFoods.count) favourite\(favoriteFoods.count == 1 ? "" : "s")")
             }
+            if !favoriteCuisines.isEmpty {
+                items.append(favoriteCuisines.prefix(2).joined(separator: ", ") + (favoriteCuisines.count > 2 ? " +\(favoriteCuisines.count - 2)" : ""))
+            }
+            if let spiceLevel {
+                items.append("\(spiceLevel.displayName.lowercased()) spice")
+            }
+            if let breakfastStyle {
+                items.append("\(breakfastStyle.displayName.lowercased()) breakfasts")
+            }
+            if let snacksPerDay {
+                items.append(SnackHabit.label(snacksPerDay))
+            }
+            if let appetite, appetite != .normal {
+                items.append(appetite.displayName.lowercased())
+            }
             parts = items.isEmpty ? ["Eats everything"] : items
         case .cooking:
             var items: [String?] = [cookingSkill?.displayName]
@@ -311,16 +396,34 @@ extension FuelSetupDraft {
 
 // MARK: - FuelFlowStep
 
-/// One question screen inside a section flow.
+/// One question screen inside a section flow. Related small questions share a
+/// screen (weight + height + age, meals + breakfast, the cook times, ...).
 enum FuelFlowStep: String, Sendable {
     case healthBody
-    case weight, height, age, sex, bodyFat
+    /// Weight, height and age (whichever Health doesn't supply) on one screen.
+    case bodyStats
+    case sex, bodyFat
     case goal, goalTarget, trainingDays
-    case mealsCount, breakfast, window
+    /// Meals a day and breakfast.
+    case meals
+    case window
     case weekDays, places, notes
-    case restrictions, allergies, wontEat, favourites, bored
-    case skill, cookDays, cookTimes, leftovers, equipment, clearSkin
-    case budget, stores
+    /// Diet rules and allergies.
+    case restrictions
+    /// "Never serve me" and "sick of these".
+    case wontEat
+    /// Foods and cuisines you love.
+    case favourites
+    /// Spice level and breakfast style.
+    case tastes
+    /// Snacks and portion size.
+    case appetite
+    case skill
+    /// Days you cook and the minutes on weekdays and weekends.
+    case cookTimes
+    case leftovers, equipment, clearSkin
+    /// Weekly budget and stores.
+    case shopping
     case recovery
 
     /// The screens of `section`, in order, for this draft. Body stats Health
@@ -333,39 +436,54 @@ enum FuelFlowStep: String, Sendable {
             if !locked.isEmpty {
                 steps.append(.healthBody)
             }
-            let questions: [(FuelBodyField, FuelFlowStep)] = [
-                (.weight, .weight), (.height, .height), (.age, .age), (.sex, .sex), (.bodyFat, .bodyFat),
-            ]
-            steps += questions.filter { !locked.contains($0.0) }.map(\.1)
+            if [FuelBodyField.weight, .height, .age].contains(where: { !locked.contains($0) }) {
+                steps.append(.bodyStats)
+            }
+            if !locked.contains(.sex) {
+                steps.append(.sex)
+            }
+            if !locked.contains(.bodyFat) {
+                steps.append(.bodyFat)
+            }
             return steps
         case .goal:
             return draft.goal == .maintain || draft.goal == nil ? [.goal, .trainingDays] : [.goal, .goalTarget, .trainingDays]
-        case .meals: return [.mealsCount, .breakfast, .window]
+        case .meals: return [.meals, .window]
         case .week: return [.weekDays, .places, .notes]
-        case .food: return [.restrictions, .allergies, .wontEat, .favourites, .bored]
-        case .cooking: return [.skill, .cookDays, .cookTimes, .leftovers, .equipment, .clearSkin]
-        case .shopping: return [.budget, .stores]
+        case .food: return [.restrictions, .wontEat, .favourites, .tastes, .appetite]
+        case .cooking: return [.skill, .cookTimes, .leftovers, .equipment, .clearSkin]
+        case .shopping: return [.shopping]
         case .recovery: return [.recovery]
+        }
+    }
+
+    /// Optional questions get a "Skip" button and never block the flow.
+    /// Only the required answers (body stats, sex, goal, meals) do.
+    var isOptional: Bool {
+        switch self {
+        case .bodyStats, .sex, .goal, .meals, .healthBody: false
+        default: true
         }
     }
 
     /// Whether the screen's answer is good enough to go on. Optional screens
     /// are always fine; required ones need a value; the eating window needs
     /// its last meal after its first (or no window at all).
-    func isValid(in draft: FuelSetupDraft) -> Bool {
+    func isValid(in draft: FuelSetupDraft, locked: Set<FuelBodyField> = []) -> Bool {
         switch self {
-        case .weight: (draft.weightKg ?? 0) > 0
-        case .height: (draft.heightCm ?? 0) > 0
-        case .age: (draft.age ?? 0) > 0
+        case .bodyStats:
+            (locked.contains(.weight) || (draft.weightKg ?? 0) > 0)
+                && (locked.contains(.height) || (draft.heightCm ?? 0) > 0)
+                && (locked.contains(.age) || (draft.age ?? 0) > 0)
         case .sex: draft.sex != nil
         case .goal: draft.goal != nil
+        case .meals: draft.mealsPerDay != nil
         case .window:
             switch (draft.eatingWindowStartMinutes, draft.eatingWindowEndMinutes) {
             case (nil, nil): true
             case let (start?, end?): end > start
             default: false
             }
-        case .weekDays: draft.routine.typicalWakeMinutes != nil
         default: true
         }
     }
@@ -390,5 +508,23 @@ extension FuelSetupDraft {
         case (_, 0): return "About every \(hours) h"
         default: return "About every \(hours) h \(minutes) min"
         }
+    }
+}
+
+// MARK: - FuelSetupProgress
+
+/// Which optional sections the user has already looked at (saved, or skipped
+/// on purpose), so "Finish setup" stops offering them. Stored on the device.
+enum FuelSetupProgress {
+    static let key = "fuelSetup.reviewedSections"
+
+    static func reviewed(defaults: UserDefaults = .standard) -> Set<FuelSetupSection> {
+        Set((defaults.stringArray(forKey: key) ?? []).compactMap(FuelSetupSection.init(rawValue:)))
+    }
+
+    static func markReviewed(_ section: FuelSetupSection, defaults: UserDefaults = .standard) {
+        var current = reviewed(defaults: defaults)
+        current.insert(section)
+        defaults.set(current.map(\.rawValue).sorted(), forKey: key)
     }
 }

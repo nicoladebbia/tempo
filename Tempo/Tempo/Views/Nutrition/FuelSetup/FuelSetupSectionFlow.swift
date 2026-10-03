@@ -2,10 +2,13 @@
 // FuelSetupSectionFlow.swift
 // Tempo
 //
-// One section of the Fuel setup as an onboarding-style flow: one question per
-// screen, big tappable answers, progress dots, Back / Next, and a Save on the
-// last screen that writes ONLY this section. Edits happen on a working copy,
-// so closing the flow throws them away.
+// One section of the Fuel setup as an onboarding-style flow: a screen per
+// small group of related questions, compact tappable answers, progress dots,
+// Back / Next, and a Save on the last screen that writes ONLY this section.
+// Optional questions have a Skip; once something changed, "Save & close" in
+// the top bar saves without paging to the end. In a "Finish setup" chain the
+// last button reads "Save & next: <section>" and saves each section as it
+// goes. Edits happen on a working copy, so closing the flow throws them away.
 //
 
 import SwiftUI
@@ -18,11 +21,24 @@ struct FuelSetupSectionFlow: View {
     /// Saves the edited copy of this section (async: places are located first).
     var onSave: (FuelSetupDraft) async -> Void
     var onClose: () -> Void
+    /// Inside a "Finish setup" chain: the section that follows this one
+    /// (nil on the last), and whether this is a chain at all.
+    var isChain = false
+    var chainNext: FuelSetupSection?
+    /// Leaves an OPTIONAL section without saving (chain only).
+    var onSkipSection: (() -> Void)?
+
+    /// The draft as the flow opened, to tell whether anything changed.
+    private let original: FuelSetupDraft
 
     @State
     private var working: FuelSetupDraft
     @State
     private var index = 0
+    /// The answers as this screen opened: Skip puts them back, so a default a
+    /// stepper wrote on appear (or a half-typed value) is never kept.
+    @State
+    private var entry: FuelSetupDraft?
     @State
     private var isSaving = false
 
@@ -31,14 +47,21 @@ struct FuelSetupSectionFlow: View {
         draft: FuelSetupDraft,
         locked: Set<FuelBodyField> = [],
         unit: WeightUnit = .kg,
+        isChain: Bool = false,
+        chainNext: FuelSetupSection? = nil,
+        onSkipSection: (() -> Void)? = nil,
         onSave: @escaping (FuelSetupDraft) async -> Void,
         onClose: @escaping () -> Void
     ) {
         self.section = section
         self.locked = locked
         self.unit = unit
+        self.isChain = isChain
+        self.chainNext = chainNext
+        self.onSkipSection = onSkipSection
         self.onSave = onSave
         self.onClose = onClose
+        original = draft
         _working = State(initialValue: draft)
     }
 
@@ -51,16 +74,48 @@ struct FuelSetupSectionFlow: View {
         steps[min(index, steps.count - 1)]
     }
 
+    private var isDirty: Bool {
+        working.isDirty(section, comparedTo: original)
+    }
+
+    private var allStepsValid: Bool {
+        steps.allSatisfy { $0.isValid(in: working, locked: locked) }
+    }
+
+    private var lastTitle: String {
+        if let chainNext {
+            return "Save & next: \(chainNext.title)"
+        }
+        return isChain ? "Save & finish" : "Save"
+    }
+
+    private var skipAction: (() -> Void)? {
+        step.isOptional ? { skip() } : nil
+    }
+
+    private var saveCloseAction: (() -> Void)? {
+        isDirty ? { save() } : nil
+    }
+
+    private var skipSectionAction: (() -> Void)? {
+        isChain && !section.isRequired ? onSkipSection : nil
+    }
+
     var body: some View {
         FuelFlowScaffold(
             title: Self.title(for: step),
             subtitle: Self.subtitle(for: step),
             index: min(index, steps.count - 1),
             count: steps.count,
-            canContinue: step.isValid(in: working),
+            canContinue: step.isValid(in: working, locked: locked),
             isSaving: isSaving,
             isLast: index >= steps.count - 1,
-            onBack: { withAnimation(TempoAnimation.springMedium) { index = max(0, index - 1) } },
+            lastTitle: lastTitle,
+            onSkip: skipAction,
+            onSaveAndClose: saveCloseAction,
+            canSaveAndClose: allStepsValid,
+            onSkipSection: skipSectionAction,
+            onBack: { entry = working; withAnimation(TempoAnimation.springMedium) { index = max(0, index - 1) } },
             onNext: next,
             onClose: onClose
         ) {
@@ -73,7 +128,28 @@ struct FuelSetupSectionFlow: View {
     private func next() {
         KeyboardDismisser.dismiss()
         if index < steps.count - 1 {
+            entry = working
             withAnimation(TempoAnimation.springMedium) { index += 1 }
+            return
+        }
+        save()
+    }
+
+    /// Leaves this question as it is (optional questions only).
+    private func skip() {
+        KeyboardDismisser.dismiss()
+        working = entry ?? original
+        if index < steps.count - 1 {
+            entry = working
+            withAnimation(TempoAnimation.springMedium) { index += 1 }
+        } else {
+            save()
+        }
+    }
+
+    private func save() {
+        KeyboardDismisser.dismiss()
+        guard !isSaving else {
             return
         }
         isSaving = true
@@ -88,33 +164,28 @@ struct FuelSetupSectionFlow: View {
     static func title(for step: FuelFlowStep) -> String {
         switch step {
         case .healthBody: "Your body"
-        case .weight: "How much do you weigh?"
-        case .height: "How tall are you?"
-        case .age: "How old are you?"
+        case .bodyStats: "About you"
         case .sex: "Male or female?"
         case .bodyFat: "Body fat?"
         case .goal: "What's the goal?"
         case .goalTarget: "Where to?"
         case .trainingDays: "Training days a week"
-        case .mealsCount: "Meals a day"
-        case .breakfast: "Breakfast?"
+        case .meals: "Meals a day"
         case .window: "Eating window"
         case .weekDays: "Your week"
         case .places: "Where you eat"
         case .notes: "Anything else?"
-        case .restrictions: "Diet rules"
-        case .allergies: "Allergies"
+        case .restrictions: "Diet rules and allergies"
         case .wontEat: "Never serve me"
         case .favourites: "Foods you love"
-        case .bored: "Sick of these"
+        case .tastes: "Your taste"
+        case .appetite: "Snacks and portions"
         case .skill: "How good are you in the kitchen?"
-        case .cookDays: "Days you can cook"
-        case .cookTimes: "Time to cook"
+        case .cookTimes: "Cooking time"
         case .leftovers: "Leftovers"
         case .equipment: "What's in your kitchen?"
         case .clearSkin: "Clear-skin focus"
-        case .budget: "Weekly food budget"
-        case .stores: "Where you shop"
+        case .shopping: "Budget and stores"
         case .recovery: "Recovery-adjusted meals"
         }
     }
@@ -122,33 +193,28 @@ struct FuelSetupSectionFlow: View {
     static func subtitle(for step: FuelFlowStep) -> String? {
         switch step {
         case .healthBody: "Straight from Apple Health. Change it there, not here."
-        case .weight: "Used for your calorie and protein targets."
-        case .height: "In centimetres."
-        case .age: "For the calorie formula."
+        case .bodyStats: "For your calorie and protein targets."
         case .sex: "Biological sex, for the calorie formula."
         case .bodyFat: "Optional. Skip it if you don't know."
         case .goal: "Pick one. The plan is built around it."
         case .goalTarget: "Your target weight and how fast."
         case .trainingDays: "Fuel follows the days you train."
-        case .mealsCount: "Including snacks you plan."
-        case .breakfast: "No judgement. The plan adapts."
+        case .meals: "Including the snacks you plan."
         case .window: "First and last meal. The plan fits inside it."
-        case .weekDays: "Tap a day: wake-up, classes or work, training. At least one wake-up time."
+        case .weekDays: "Tap a day: wake-up, classes or work, training."
         case .places: "Campus, work, gym. We look up restaurants nearby."
         case .notes: "Anything the planner should know."
-        case .restrictions: "Tap all that apply. None is fine."
-        case .allergies: "These are never in your plan."
-        case .wontEat: "Permanent. The plan never uses them."
+        case .restrictions: "Tap all that apply. None is fine. Allergies are never in your plan."
+        case .wontEat: "Never-foods are permanent. Sick-of foods rotate down for a while."
         case .favourites: "These show up more often."
-        case .bored: "These rotate down for a while."
+        case .tastes: "Tap again to clear. No pick means no preference."
+        case .appetite: "The daily macros stay the same. This shapes the meals."
         case .skill: "Sets how complex the recipes get."
-        case .cookDays: "The rest of the week is quick or leftovers."
-        case .cookTimes: "Minutes you'll spend cooking one meal."
+        case .cookTimes: "Days you cook, and minutes for one meal. The rest of the week is quick or leftovers."
         case .leftovers: "How you feel about eating the same meal again."
         case .equipment: "The planner only programs recipes you can make."
         case .clearSkin: "Low-GI carbs, no added sweeteners, minimal dairy. Macros stay the same."
-        case .budget: "Dollars. The grocery list stays under it."
-        case .stores: "Where you actually buy food."
+        case .shopping: "The grocery list stays under your budget."
         case .recovery: "More carbs on training days, lighter on rest days, using your recovery data."
         }
     }
@@ -159,12 +225,7 @@ struct FuelSetupSectionFlow: View {
     private var stepContent: some View {
         switch step {
         case .healthBody: healthBody
-        case .weight:
-            FuelNumberField(value: weightBinding(\.weightKg), unit: unit.abbreviation, id: "fuelWeight")
-        case .height:
-            FuelNumberField(value: $working.heightCm, unit: "cm", id: "fuelHeight")
-        case .age:
-            FuelNumberField(value: intBinding(\.age), unit: "yrs", keyboard: .numberPad, id: "fuelAge")
+        case .bodyStats: bodyStats
         case .sex:
             VStack(spacing: TempoSpacing.sm) {
                 ForEach(BiologicalSex.allCases, id: \.self) { sex in
@@ -185,10 +246,9 @@ struct FuelSetupSectionFlow: View {
                 unit: "days",
                 id: "fuelTrainingDays"
             )
-        case .mealsCount:
-            FuelBigStepper(value: $working.mealsPerDay, defaultValue: 4, range: 1 ... 8, unit: "meals", id: "fuelMeals")
-        case .breakfast:
+        case .meals:
             VStack(spacing: TempoSpacing.sm) {
+                FuelBigStepper(value: $working.mealsPerDay, defaultValue: 4, range: 1 ... 8, unit: "meals", label: "Meals a day", id: "fuelMeals")
                 FuelChoiceCard(title: "I eat breakfast", subtitle: "First meal in the morning", icon: "sunrise.fill", isSelected: working.breakfastSkipped == false) {
                     working.breakfastSkipped = false
                 }
@@ -205,19 +265,59 @@ struct FuelSetupSectionFlow: View {
                 .lineLimit(4 ... 10)
                 .padding(TempoSpacing.md)
                 .background(Color.tempoSurfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        case .restrictions: restrictions
-        case .allergies:
-            FuelChipListInput(
-                values: $working.allergies, placeholder: "Peanuts, shellfish…",
-                suggestions: ["Peanuts", "Tree nuts", "Shellfish", "Eggs", "Soy"], id: "fuelAllergies"
-            )
+                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        case .restrictions:
+            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+                restrictions
+                sectionLabel("ALLERGIES")
+                FuelChipListInput(
+                    values: $working.allergies, placeholder: "Peanuts, shellfish…",
+                    suggestions: ["Peanuts", "Tree nuts", "Shellfish", "Eggs", "Soy"], id: "fuelAllergies"
+                )
+            }
         case .wontEat:
-            FuelChipListInput(values: $working.dislikedFoods, placeholder: "Mushrooms, olives…", id: "fuelWontEat")
+            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+                sectionLabel("NEVER SERVE ME")
+                FuelChipListInput(values: $working.dislikedFoods, placeholder: "Mushrooms, olives…", id: "fuelWontEat")
+                sectionLabel("SICK OF THESE")
+                FuelChipListInput(values: $working.boredOfFoods, placeholder: "Chicken, oats…", id: "fuelBored")
+            }
         case .favourites:
-            FuelChipListInput(values: $working.favoriteFoods, placeholder: "Salmon, rice, eggs…", id: "fuelFavourites")
-        case .bored:
-            FuelChipListInput(values: $working.boredOfFoods, placeholder: "Chicken, oats…", id: "fuelBored")
+            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+                sectionLabel("FOODS")
+                FuelChipListInput(values: $working.favoriteFoods, placeholder: "Salmon, rice, eggs…", id: "fuelFavourites")
+                sectionLabel("CUISINES")
+                FuelChipListInput(
+                    values: $working.favoriteCuisines, placeholder: "Italian, Mexican…",
+                    suggestions: Self.cuisineSuggestions, id: "fuelCuisines"
+                )
+            }
+        case .tastes:
+            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+                FuelPillPicker(
+                    label: "How spicy?",
+                    options: SpiceLevel.allCases.map { ($0, $0.displayName) },
+                    selection: $working.spiceLevel, id: "fuelSpice"
+                )
+                FuelPillPicker(
+                    label: "Breakfast style",
+                    options: BreakfastStyle.allCases.map { ($0, $0.displayName) },
+                    selection: $working.breakfastStyle, id: "fuelBreakfastStyle"
+                )
+            }
+        case .appetite:
+            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+                FuelPillPicker(
+                    label: "Snacks a day",
+                    options: SnackHabit.range.map { ($0, $0 == 0 ? "None" : "\($0)") },
+                    selection: $working.snacksPerDay, id: "fuelSnacks"
+                )
+                FuelPillPicker(
+                    label: "Portion size",
+                    options: AppetiteSize.allCases.map { ($0, $0.displayName) },
+                    selection: $working.appetite, id: "fuelAppetite"
+                )
+            }
         case .skill:
             VStack(spacing: TempoSpacing.sm) {
                 ForEach(CookingSkill.allCases, id: \.self) { skill in
@@ -226,8 +326,6 @@ struct FuelSetupSectionFlow: View {
                     }
                 }
             }
-        case .cookDays:
-            FuelBigStepper(value: $working.cookableDaysPerWeek, defaultValue: 4, range: 0 ... 7, unit: "days", id: "fuelCookDays")
         case .cookTimes: cookTimes
         case .leftovers:
             VStack(spacing: TempoSpacing.sm) {
@@ -247,13 +345,15 @@ struct FuelSetupSectionFlow: View {
                     working.clearSkinFocus = false
                 }
             }
-        case .budget:
-            FuelNumberField(value: intBinding(\.weeklyBudgetUSD), unit: "$ / week", keyboard: .numberPad, id: "fuelBudget")
-        case .stores:
-            FuelChipListInput(
-                values: $working.stores, placeholder: "Walmart, Aldi…",
-                suggestions: ["Walmart", "Costco", "Trader Joe's", "Aldi", "Publix", "Whole Foods"], id: "fuelStores"
-            )
+        case .shopping:
+            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+                FuelNumberField(value: intBinding(\.weeklyBudgetUSD), unit: "$ / week", label: "Budget", keyboard: .numberPad, id: "fuelBudget")
+                sectionLabel("WHERE YOU SHOP")
+                FuelChipListInput(
+                    values: $working.stores, placeholder: "Walmart, Aldi…",
+                    suggestions: ["Walmart", "Costco", "Trader Joe's", "Aldi", "Publix", "Whole Foods"], id: "fuelStores"
+                )
+            }
         case .recovery:
             VStack(spacing: TempoSpacing.sm) {
                 FuelChoiceCard(title: "Follow my recovery", subtitle: "Heavier fuel after hard days, lighter on rest", icon: "heart.fill", isSelected: working.recoveryAdjusted) {
@@ -262,6 +362,30 @@ struct FuelSetupSectionFlow: View {
                 FuelChoiceCard(title: "Same every day", subtitle: "Ignore recovery data", icon: "equal", isSelected: !working.recoveryAdjusted) {
                     working.recoveryAdjusted = false
                 }
+            }
+        }
+    }
+
+    static let cuisineSuggestions = ["Italian", "Mexican", "Asian", "Mediterranean", "Indian", "American"]
+
+    private func sectionLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.tempoModuleTag)
+            .tracking(TempoTracking.drillLabel)
+            .foregroundStyle(Color.tempoTextTertiary)
+    }
+
+    /// Weight, height and age together, only the ones Health doesn't supply.
+    private var bodyStats: some View {
+        VStack(spacing: TempoSpacing.sm) {
+            if !locked.contains(.weight) {
+                FuelNumberField(value: weightBinding(\.weightKg), unit: unit.abbreviation, label: "Weight", id: "fuelWeight")
+            }
+            if !locked.contains(.height) {
+                FuelNumberField(value: $working.heightCm, unit: "cm", label: "Height", id: "fuelHeight")
+            }
+            if !locked.contains(.age) {
+                FuelNumberField(value: intBinding(\.age), unit: "yrs", label: "Age", keyboard: .numberPad, id: "fuelAge")
             }
         }
     }
@@ -313,7 +437,7 @@ struct FuelSetupSectionFlow: View {
         }
         .padding(TempoSpacing.lg)
         .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
     }
 
     private var goalChoices: some View {
@@ -348,17 +472,9 @@ struct FuelSetupSectionFlow: View {
     }
 
     private var goalTarget: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("GOAL WEIGHT")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextTertiary)
-            FuelNumberField(value: weightBinding(\.goalWeightKg), unit: unit.abbreviation, id: "fuelGoalWeight")
-            Text("PER WEEK")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextTertiary)
-            FuelNumberField(value: weightBinding(\.weeklyRateKg), unit: "\(unit.abbreviation) / wk", id: "fuelRate")
+        VStack(spacing: TempoSpacing.sm) {
+            FuelNumberField(value: weightBinding(\.goalWeightKg), unit: unit.abbreviation, label: "Goal weight", id: "fuelGoalWeight")
+            FuelNumberField(value: weightBinding(\.weeklyRateKg), unit: "\(unit.abbreviation) / wk", label: "Per week", id: "fuelRate")
         }
     }
 
@@ -409,7 +525,7 @@ struct FuelSetupSectionFlow: View {
         }
         .padding(.horizontal, TempoSpacing.md)
         .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
     }
 
     private var weekDays: some View {
@@ -435,9 +551,9 @@ struct FuelSetupSectionFlow: View {
                             .foregroundStyle(Color.tempoTextTertiary)
                     }
                     .padding(TempoSpacing.md)
-                    .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
+                    .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
                     .background(Color.tempoSurfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("fuelDay\(day.weekday)")
@@ -498,7 +614,7 @@ struct FuelSetupSectionFlow: View {
                 }
                 .padding(TempoSpacing.md)
                 .background(Color.tempoSurfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
             }
             Button {
                 working.routine.places.append(RoutinePlace(name: ""))
@@ -544,17 +660,10 @@ struct FuelSetupSectionFlow: View {
     }
 
     private var cookTimes: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("WEEKDAYS")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextTertiary)
-            FuelBigStepper(value: $working.cookMinutesWeekday, defaultValue: 30, range: 0 ... 180, step: 5, unit: "min", id: "fuelCookWeekday")
-            Text("WEEKENDS")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextTertiary)
-            FuelBigStepper(value: $working.cookMinutesWeekend, defaultValue: 60, range: 0 ... 240, step: 5, unit: "min", id: "fuelCookWeekend")
+        VStack(spacing: TempoSpacing.sm) {
+            FuelBigStepper(value: $working.cookableDaysPerWeek, defaultValue: 4, range: 0 ... 7, unit: "days", label: "Days you cook", id: "fuelCookDays")
+            FuelBigStepper(value: $working.cookMinutesWeekday, defaultValue: 30, range: 0 ... 180, step: 5, unit: "min", label: "Weekdays", id: "fuelCookWeekday")
+            FuelBigStepper(value: $working.cookMinutesWeekend, defaultValue: 60, range: 0 ... 240, step: 5, unit: "min", label: "Weekends", id: "fuelCookWeekend")
         }
     }
 
@@ -568,7 +677,7 @@ struct FuelSetupSectionFlow: View {
                 } label: {
                     VStack(spacing: TempoSpacing.sm) {
                         Image(systemName: kind.icon)
-                            .font(.system(size: 24))
+                            .font(.system(size: 20))
                             .foregroundStyle(owned ? Color.tempoSignal : Color.tempoTextTertiary)
                             .frame(height: 30)
                         Text(kind.displayName)
@@ -577,11 +686,11 @@ struct FuelSetupSectionFlow: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
                     }
-                    .frame(maxWidth: .infinity, minHeight: 84)
+                    .frame(maxWidth: .infinity, minHeight: 72)
                     .background(Color.tempoSurfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
                     .overlay(
-                        RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
+                        RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous)
                             .stroke(owned ? Color.tempoSignal : Color.tempoBorder, lineWidth: owned ? 2 : 0.5)
                     )
                 }

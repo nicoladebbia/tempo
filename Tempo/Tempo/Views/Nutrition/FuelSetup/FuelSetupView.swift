@@ -6,10 +6,12 @@
 // your body, goal, food and your week → AI fills the profile → a few
 // follow-ups for what's missing → the overview of section cards. Each card
 // opens its own onboarding-style flow and saves only that section; the first
-// time, "Save my profile" stores everything at once. The overview doubles as
-// the manual path (no Pro / offline) and as the Settings editor. Body stats
-// Apple Health supplies are read-only. Every Sunday the weekly planner reads
-// what's saved here.
+// time, "Save my profile" stores everything at once; afterwards a sticky
+// "Save changes (n)" bar appears whenever anything is unsaved. "Finish setup"
+// chains through the sections still missing (required first), saving each as
+// it goes. The overview doubles as the manual path (no Pro / offline) and as
+// the Settings editor. Body stats Apple Health supplies are read-only. Every
+// Sunday the weekly planner reads what's saved here.
 //
 
 import SwiftData
@@ -54,6 +56,15 @@ struct FuelSetupView: View {
     private var healthLocked: Set<FuelBodyField> = []
     @State
     private var openSection: FuelSetupSection?
+    /// "Finish setup": the sections still to walk through, in order (empty = a single edit).
+    @State
+    private var chain: [FuelSetupSection] = []
+    /// Keeps the flow's content alive while the cover slides away.
+    @State
+    private var lastOpenSection: FuelSetupSection?
+    /// Optional sections already saved or skipped (kept on the device).
+    @State
+    private var reviewed: Set<FuelSetupSection> = []
     @State
     private var hasRequestedPush = false
     @Query
@@ -118,8 +129,12 @@ struct FuelSetupView: View {
                         saved: saved,
                         locked: healthLocked,
                         unit: settings.first?.weightUnit ?? .kg,
+                        reviewed: reviewed,
                         primaryActionTitle: primaryActionTitle,
+                        blockedMessage: onSaveAndGenerate == nil ? nil : draft.requiredMissingMessage,
                         onOpen: { openSection = $0 },
+                        onFinish: startChain,
+                        onSkip: skipOnCard,
                         onTalkAgain: { step = .talk },
                         onSaveAll: save
                     )
@@ -142,17 +157,32 @@ struct FuelSetupView: View {
         } message: {
             Text("Add your weight, height, age, sex and goal. Food and cooking answers stay here until then.")
         }
-        .fullScreenCover(item: $openSection) { section in
-            NavigationStack {
-                FuelSetupSectionFlow(
+        .fullScreenCover(isPresented: Binding(
+            get: { openSection != nil },
+            set: { if !$0 { openSection = nil; chain = [] } }
+        )) {
+            // One presentation for the whole chain: the section swaps inside it.
+            if let section = openSection ?? lastOpenSection {
+                NavigationStack {
+                    FuelSetupSectionFlow(
                     section: section,
                     draft: draft,
                     locked: healthLocked,
                     unit: settings.first?.weightUnit ?? .kg,
+                    isChain: !chain.isEmpty,
+                    chainNext: FuelSetupDraft.next(after: section, in: chain),
+                    onSkipSection: { skipInChain(section) },
                     onSave: { edited in await saveSection(section, edited) },
-                    onClose: { openSection = nil }
+                    onClose: { openSection = nil; chain = [] }
                 )
-                .toolbar(.hidden, for: .navigationBar)
+                    .id(section)
+                    .toolbar(.hidden, for: .navigationBar)
+                }
+            }
+        }
+        .onChange(of: openSection) { _, new in
+            if let new {
+                lastOpenSection = new
             }
         }
         .task {
@@ -160,15 +190,13 @@ struct FuelSetupView: View {
                 return
             }
             hasLoaded = true
+            reviewed = FuelSetupProgress.reviewed()
             draft = FuelSetupDraft.load(from: modelContext)
             saved = draft
             isFirstTime = UserDailyPlanProfile.current(in: modelContext)?.weeklyRoutine == nil
                 && (try? modelContext.fetchCount(FetchDescriptor<DietaryProfile>(predicate: #Predicate { $0.isActive == true }))) == 0
             // Someone who already set things up lands on the editor.
-            if startInReview
-                || (draft.routine.typicalWakeMinutes != nil && draft.goal != nil
-                    && UserDailyPlanProfile.current(in: modelContext)?.weeklyRoutine != nil)
-            {
+            if startInReview || (!isFirstTime && draft.goal != nil) {
                 step = .review
             }
             await fillFromHealth()
@@ -339,7 +367,9 @@ struct FuelSetupView: View {
         }
     }
 
-    /// First-time "Save my profile": every section at once, then generate.
+    /// The sticky bar's title: "Save changes (n)" whenever something is
+    /// unsaved, "Save my profile" the first time, "Save and continue" when
+    /// saving also builds the plan. nil (hidden) when there is nothing to save.
     private var primaryActionTitle: String? {
         if onSaveAndGenerate != nil {
             return "Save and continue"
@@ -348,13 +378,42 @@ struct FuelSetupView: View {
             return nil
         }
         if !isFirstTime {
-            return "Save changes"
+            return "Save changes (\(unsavedSections.count))"
         }
         return draft.isComplete ? "Save my profile" : "Save what I have"
     }
 
+    private var unsavedSections: [FuelSetupSection] {
+        FuelSetupSection.allCases.filter { draft.isDirty($0, comparedTo: saved) }
+    }
+
     private var hasUnsavedSections: Bool {
-        FuelSetupSection.allCases.contains { draft.isDirty($0, comparedTo: saved) }
+        !unsavedSections.isEmpty
+    }
+
+    /// "Finish setup" / "Finish what's missing": opens the first section, the
+    /// rest follow one after another.
+    private func startChain(_ sections: [FuelSetupSection]) {
+        guard let first = sections.first else {
+            return
+        }
+        chain = sections
+        openSection = first
+    }
+
+    /// "Optional · Skip" on an overview card: stop offering it.
+    private func skipOnCard(_ section: FuelSetupSection) {
+        FuelSetupProgress.markReviewed(section)
+        reviewed.insert(section)
+    }
+
+    /// "Skip section" in a chain: next section, or done.
+    private func skipInChain(_ section: FuelSetupSection) {
+        skipOnCard(section)
+        openSection = FuelSetupDraft.next(after: section, in: chain)
+        if openSection == nil {
+            chain = []
+        }
     }
 
     private func save() {
@@ -395,6 +454,15 @@ struct FuelSetupView: View {
             && (try? modelContext.fetchCount(FetchDescriptor<DietaryProfile>(predicate: #Predicate { $0.isActive == true }))) == 0
         HapticManager.success()
         registerNotificationsOnce()
+        FuelSetupProgress.markReviewed(section)
+        reviewed.insert(section)
+        // In a chain the next section opens (Goal can store the body answers
+        // You couldn't yet); at the end, anything still unstored gets the alert.
+        if let next = FuelSetupDraft.next(after: section, in: chain) {
+            openSection = next
+            return
+        }
+        chain = []
         openSection = nil
         if !stored.contains(section) {
             showNeedsBodyAlert = true

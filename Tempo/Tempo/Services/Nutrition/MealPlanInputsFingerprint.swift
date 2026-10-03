@@ -75,6 +75,14 @@ enum MealPlanInputsFingerprint {
             "favorite=\(list(profile.favoriteFoods))",
             "bored=\(list(profile.boredOfFoods))",
         ]
+        // Only when set, so an untouched profile keeps its old fingerprint.
+        + [
+            profile.favoriteCuisines.isEmpty ? nil : "cuisines=\(list(profile.favoriteCuisines))",
+            profile.spiceLevelRaw.map { "spice=\($0)" },
+            profile.breakfastStyleRaw.map { "breakfastStyle=\($0)" },
+            profile.snacksPerDay.map { "snacks=\($0)" },
+            profile.appetiteRaw.map { "appetite=\($0)" },
+        ].compactMap { $0 }
     }
 
     /// Reads the current inputs from SwiftData and digests them.
