@@ -58,6 +58,24 @@ final class DietaryProfile {
     /// may still use them occasionally. Additive — nil/empty = no preference.
     var boredOfFoodsJSON: Data?
 
+    // MARK: - Optional personalisation (Fuel setup → meal planner)
+    // All optional, additive; nil = no preference.
+
+    /// Cuisines the user likes (["Italian", "Mexican"]), as JSON.
+    var favoriteCuisinesJSON: Data?
+
+    /// `SpiceLevel.rawValue`.
+    var spiceLevelRaw: String?
+
+    /// `BreakfastStyle.rawValue`.
+    var breakfastStyleRaw: String?
+
+    /// Standalone snacks per day (0...2).
+    var snacksPerDay: Int?
+
+    /// `AppetiteSize.rawValue`.
+    var appetiteRaw: String?
+
     // MARK: - Goals & Body Composition
 
     var primaryGoalRaw: String
@@ -151,6 +169,37 @@ final class DietaryProfile {
         set {
             boredOfFoodsJSON = (try? JSONEncoder().encode(newValue)) ?? Data("[]".utf8)
         }
+    }
+
+    @Transient
+    var favoriteCuisines: [String] {
+        get {
+            guard let data = favoriteCuisinesJSON else {
+                return []
+            }
+            return (try? JSONDecoder().decode([String].self, from: data)) ?? []
+        }
+        set {
+            favoriteCuisinesJSON = newValue.isEmpty ? nil : (try? JSONEncoder().encode(newValue))
+        }
+    }
+
+    @Transient
+    var spiceLevel: SpiceLevel? {
+        get { spiceLevelRaw.flatMap(SpiceLevel.init(rawValue:)) }
+        set { spiceLevelRaw = newValue?.rawValue }
+    }
+
+    @Transient
+    var breakfastStyle: BreakfastStyle? {
+        get { breakfastStyleRaw.flatMap(BreakfastStyle.init(rawValue:)) }
+        set { breakfastStyleRaw = newValue?.rawValue }
+    }
+
+    @Transient
+    var appetite: AppetiteSize? {
+        get { appetiteRaw.flatMap(AppetiteSize.init(rawValue:)) }
+        set { appetiteRaw = newValue?.rawValue }
     }
 
     @Transient

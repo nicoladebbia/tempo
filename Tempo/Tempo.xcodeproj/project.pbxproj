@@ -993,6 +993,7 @@
 		C4F4D9407E4FD543F36E5146 /* cue_ex_close_grip_bench_press.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = DB2786E95EB7238ABAD1C33C /* cue_ex_close_grip_bench_press.mp3 */; };
 		C5B4D68448FE3154E5BA7648 /* HealthWorkoutWriteRulesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB45F6A805B499BFDB18C983 /* HealthWorkoutWriteRulesTests.swift */; };
 		C5DF8C485FF2D9A3CC8E032B /* CircuitFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 393F51F54570B1CA26FA768F /* CircuitFlowTests.swift */; };
+		C5E6EF04ABF01995A6639309 /* FoodPersonalisation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3EA3342BF919263F83B95F2 /* FoodPersonalisation.swift */; };
 		C60B186C58E333B97C9CB946 /* cue_ex_diamond_push_up.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 97EB36A05E7AC533AC8FAAE1 /* cue_ex_diamond_push_up.mp3 */; };
 		C6606113686A2CD064C61166 /* AIConsentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13057FB007393DB963FCA040 /* AIConsentView.swift */; };
 		C6700D4ABEDE8160D2C18803 /* PantryServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB5194A4AFE55E13039C4C7E /* PantryServiceTests.swift */; };
@@ -2569,6 +2570,7 @@
 		F3807B221D1BFBA889DE1310 /* DailyNutritionTargets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyNutritionTargets.swift; sourceTree = "<group>"; };
 		F3E70F6075A532B3BF3B9380 /* NutritionDTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionDTOs.swift; sourceTree = "<group>"; };
 		F3E7E036F124A1068F1A60FB /* OnboardingPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingPage.swift; sourceTree = "<group>"; };
+		F3EA3342BF919263F83B95F2 /* FoodPersonalisation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodPersonalisation.swift; sourceTree = "<group>"; };
 		F4519A4F47C9FD4B405EA6A3 /* SundayWrapUpSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SundayWrapUpSheet.swift; sourceTree = "<group>"; };
 		F46AAB54A9F904F88DC76561 /* ScenarioSeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScenarioSeed.swift; sourceTree = "<group>"; };
 		F4D7898A158FC78970C573EB /* ChallengesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengesView.swift; sourceTree = "<group>"; };
@@ -3722,6 +3724,7 @@
 			children = (
 				6D59FB13E90C14A92ED92096 /* CachedFood.swift */,
 				5B9423F06A6B475E607E2C6B /* DietaryProfile.swift */,
+				F3EA3342BF919263F83B95F2 /* FoodPersonalisation.swift */,
 				C9CCF4B7D9CC50534C6C341D /* GroceryList.swift */,
 				93567A03C1034B9D4FA50D14 /* GroceryShare.swift */,
 				12A178B831767DDCD86CD79A /* KitchenEquipment.swift */,
@@ -5901,6 +5904,7 @@
 				820557D37F5AA437BDB0764F /* FoodGroupArt.swift in Sources */,
 				60DCBF9AFCC427C1E060FC9B /* FoodImageGalleryViewer.swift in Sources */,
 				B771F1D5FEBF7A30B80FB217 /* FoodMacroDatabase.swift in Sources */,
+				C5E6EF04ABF01995A6639309 /* FoodPersonalisation.swift in Sources */,
 				2CFEFFD9EC9E1D72DECB5D2C /* FoodProduct.swift in Sources */,
 				9F8E4E052784D4EB2D0B8F79 /* FoodProductActionBar.swift in Sources */,
 				F11D0BFEA78E2AE76EA8BC8B /* FoodProductActions.swift in Sources */,

@@ -369,9 +369,8 @@ final class FuelSetupExtractorTests: XCTestCase {
         draft.age = 30
         draft.sex = .female
         draft.goal = .maintain
-        draft.routine[1].wakeMinutes = 420
         draft.mealsPerDay = 3
-        XCTAssertTrue(draft.isComplete)
+        XCTAssertTrue(draft.isComplete, "no wake time needed: the week is optional")
     }
 
     func testFriendlyErrorForNonPro() {

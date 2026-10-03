@@ -37,6 +37,14 @@ struct FuelSetupDraft: Equatable, Sendable {
     /// Low-GI / low-dairy skin focus (`ClearSkinFocusSetting`).
     var clearSkinFocus = false
 
+    // Optional personalisation (the planner reads these; nil / empty = no preference)
+    var favoriteCuisines: [String] = []
+    var spiceLevel: SpiceLevel?
+    var breakfastStyle: BreakfastStyle?
+    /// Standalone snacks a day (0...2).
+    var snacksPerDay: Int?
+    var appetite: AppetiteSize?
+
     // Eating pattern
     var mealsPerDay: Int?
     var breakfastSkipped: Bool?
@@ -78,7 +86,6 @@ struct FuelSetupDraft: Equatable, Sendable {
         case age
         case sex
         case goal
-        case wakeTime
         case meals
 
         var label: String {
@@ -88,7 +95,6 @@ struct FuelSetupDraft: Equatable, Sendable {
             case .age: "age"
             case .sex: "sex"
             case .goal: "goal"
-            case .wakeTime: "wake-up time"
             case .meals: "meals a day"
             }
         }
@@ -100,13 +106,14 @@ struct FuelSetupDraft: Equatable, Sendable {
             case .age: "How old are you?"
             case .sex: "Male or female (for the calorie formula)?"
             case .goal: "What's the goal — lose fat, maintain, or gain muscle?"
-            case .wakeTime: "What time do you usually wake up on weekdays?"
             case .meals: "How many meals a day do you want — and do you eat breakfast?"
             }
         }
     }
 
-    /// What the planner can't work without. Asked as follow-ups.
+    /// What the planner can't work without: the REQUIRED sections only
+    /// (You, Goal, Meals). Everything else is optional and has defaults.
+    /// Asked as follow-ups.
     var missingFields: [Field] {
         var missing: [Field] = []
         if weightKg == nil {
@@ -123,9 +130,6 @@ struct FuelSetupDraft: Equatable, Sendable {
         }
         if goal == nil {
             missing.append(.goal)
-        }
-        if routine.typicalWakeMinutes == nil {
-            missing.append(.wakeTime)
         }
         if mealsPerDay == nil, breakfastSkipped == nil, eatingWindowStartMinutes == nil {
             missing.append(.meals)
@@ -252,6 +256,11 @@ extension FuelSetupDraft {
             draft.dislikedFoods = profile.dislikedFoods
             draft.favoriteFoods = profile.favoriteFoods
             draft.boredOfFoods = profile.boredOfFoods
+            draft.favoriteCuisines = profile.favoriteCuisines
+            draft.spiceLevel = profile.spiceLevel
+            draft.breakfastStyle = profile.breakfastStyle
+            draft.snacksPerDay = profile.snacksPerDay
+            draft.appetite = profile.appetite
             draft.cookingSkill = profile.cookingSkill
             draft.trainingDaysPerWeek = profile.trainingFrequency
         }
@@ -309,6 +318,27 @@ extension FuelSetupDraft {
         }
         draft.clearSkinFocus = ClearSkinFocusSetting.resolve(modelContext: context)
         return draft
+    }
+
+    /// Plan generation's gate: what REQUIRED setup (You, Goal, Meals) is still
+    /// missing in the stores, as one sentence; nil when it can go ahead. Reads
+    /// only (no migration, no writes), so it is safe to call from a view body.
+    @MainActor
+    static func requiredMissingMessage(in context: ModelContext) -> String? {
+        var draft = FuelSetupDraft()
+        if let profile = (try? context.fetch(FetchDescriptor<DietaryProfile>(predicate: #Predicate { $0.isActive == true })))?.first {
+            draft.weightKg = profile.currentWeightKg
+            draft.heightCm = profile.heightCm
+            draft.age = profile.age
+            draft.sex = profile.biologicalSex
+            draft.goal = profile.primaryGoal
+        }
+        if let daily = UserDailyPlanProfile.current(in: context) {
+            draft.breakfastSkipped = daily.breakfastSkipped
+            draft.eatingWindowStartMinutes = daily.eatingWindowStartMinutes
+        }
+        draft.mealsPerDay = MealPlanGeneratorService.fetchUserSettings(modelContext: context)?.mealsPerDayPreference
+        return draft.requiredMissingMessage
     }
 
     /// Write every answer to the store its readers use, then announce the
@@ -388,6 +418,11 @@ extension FuelSetupDraft {
                 profile.dislikedFoods = dislikedFoods
                 profile.favoriteFoods = favoriteFoods
                 profile.boredOfFoods = boredOfFoods
+                profile.favoriteCuisines = favoriteCuisines
+                profile.spiceLevel = spiceLevel
+                profile.breakfastStyle = breakfastStyle
+                profile.snacksPerDay = snacksPerDay
+                profile.appetite = appetite
             }
             if has(.cooking), let cookingSkill {
                 profile.cookingSkill = cookingSkill
