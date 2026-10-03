@@ -83,8 +83,11 @@ struct SupplementController: RouteCollection {
         guard q.count >= 2 else {
             throw Abort(.badRequest, reason: "Type at least 2 letters.")
         }
+        let lookupClient = self.lookupClient
         do {
-            let hits = try await lookupClient.search(query: q, on: req)
+            let (hits, _) = try await AICache.shared.withCache(key: .supplementSearch(query: q), on: req) {
+                try await lookupClient.search(query: q, on: req)
+            }
             return Envelope(data: hits, requestID: req.requestID)
         } catch {
             throw Abort(.badGateway, reason: "The supplement database didn't answer. Try again in a moment.")
@@ -99,13 +102,21 @@ struct SupplementController: RouteCollection {
         guard let id = req.parameters.get("id"), id.count <= 9, id.allSatisfy(\.isNumber) else {
             throw Abort(.badRequest, reason: "Bad label id.")
         }
-        let dto: SupplementLookupDTO?
+        let lookupClient = self.lookupClient
+        let dto: SupplementLookupDTO
         do {
-            dto = try await lookupClient.label(id: id, on: req)
+            // Only found labels are cached; a miss or failure is retried next time.
+            (dto, _) = try await AICache.shared.withCache(key: .supplementLabel(id: id), on: req) {
+                guard let found = try await lookupClient.label(id: id, on: req) else {
+                    throw SupplementLookupMiss()
+                }
+                return found
+            }
+        } catch is SupplementLookupMiss {
+            throw Abort(.notFound, reason: "Label not found.")
         } catch {
             throw Abort(.badGateway, reason: "The supplement database didn't answer. Try again in a moment.")
         }
-        guard let dto else { throw Abort(.notFound, reason: "Label not found.") }
         return Envelope(data: dto, requestID: req.requestID)
     }
 

@@ -148,28 +148,45 @@ struct SupplementLookupAPIClient: SupplementLookupClient {
         return hits.filter(\.onMarket) + hits.filter { !$0.onMarket }
     }
 
+    /// Per-request cap for DSLD calls, well inside the overall lookup budget.
+    private static let dsldRequestTimeoutSeconds: Double = 4
+
     private static func fetchDSLDByUPC(_ norm: NormalizedUPC, on req: Request) async throws -> DSLDLabel? {
         var failures = 0
         var candidates: [(id: String, label: DSLDLabel)] = []
         for phrase in norm.dsldPhrases {
             let uri = URI(string: "https://api.ods.od.nih.gov/dsld/v9/search-filter?q=\(percentEncode(phrase))&size=6")
             let response: ClientResponse
-            do { response = try await req.client.get(uri) } catch { failures += 1; continue }
+            do {
+                response = try await withTimeout(dsldRequestTimeoutSeconds) { try await req.client.get(uri) }
+            } catch { failures += 1; continue }
             guard response.status == .ok, let search = try? response.content.decode(DSLDSearchResponse.self) else {
                 failures += 1
                 continue
             }
-            for hit in search.hits.prefix(6) {
-                let labelURI = URI(string: "https://api.ods.od.nih.gov/dsld/v9/label/\(hit.id)")
-                guard let labelResponse = try? await req.client.get(labelURI), labelResponse.status == .ok,
-                      let label = try? labelResponse.content.decode(DSLDLabel.self)
-                else { continue }
-                // The phrase search is fuzzy; only trust an exact barcode match.
-                let digits = label.upcSku?.filter(\.isNumber) ?? ""
-                if norm.matchDigits.contains(digits) {
-                    candidates.append((hit.id, label))
+            // Fetch the candidate labels side by side, each with its own
+            // timeout, so one slow label can't eat the whole lookup budget.
+            let matchDigits = norm.matchDigits
+            let found = await withTaskGroup(of: (String, DSLDLabel)?.self) { group in
+                for hit in search.hits.prefix(6) {
+                    group.addTask {
+                        let labelURI = URI(string: "https://api.ods.od.nih.gov/dsld/v9/label/\(hit.id)")
+                        guard let labelResponse = try? await withTimeout(dsldRequestTimeoutSeconds, { try await req.client.get(labelURI) }),
+                              labelResponse.status == .ok,
+                              let label = try? labelResponse.content.decode(DSLDLabel.self)
+                        else { return nil }
+                        // The phrase search is fuzzy; only trust an exact barcode match.
+                        let digits = label.upcSku?.filter(\.isNumber) ?? ""
+                        return matchDigits.contains(digits) ? (hit.id, label) : nil
+                    }
                 }
+                var matches: [(String, DSLDLabel)] = []
+                for await match in group {
+                    if let match { matches.append(match) }
+                }
+                return matches
             }
+            candidates.append(contentsOf: found.map { (id: $0.0, label: $0.1) })
             if !candidates.isEmpty { break }
         }
         if let best = pickBestLabel(candidates) { return best }
