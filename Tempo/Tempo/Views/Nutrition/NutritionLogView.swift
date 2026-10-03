@@ -86,6 +86,7 @@ struct NutritionLogView: View {
         let items: [ParsedFoodItem]
         let type: MealType
         let eatenAt: Date
+        let origin: MealOrigin?
         /// Lowercased names of foods that already exist in the meal — used
         /// for the alert copy ("You already have oat milk").
         let duplicateNames: [String]
@@ -169,8 +170,8 @@ struct NutritionLogView: View {
                 items: payload.items,
                 hintedMealType: parsedMealTypeHint,
                 hintedDate: parsedEatenAtHint,
-                onConfirm: { items, mealType, eatenAt in
-                    persistParsedItems(items, type: mealType, eatenAt: eatenAt)
+                onConfirm: { items, mealType, eatenAt, origin in
+                    persistParsedItems(items, type: mealType, eatenAt: eatenAt, origin: origin)
                 },
                 onCancel: { parsedFoodsForReview = nil }
             )
@@ -192,11 +193,11 @@ struct NutritionLogView: View {
             presenting: duplicatePrompt
         ) { prompt in
             Button("Add another") {
-                commitParsed(prompt.items, type: prompt.type, eatenAt: prompt.eatenAt, resolution: .add)
+                commitParsed(prompt.items, type: prompt.type, eatenAt: prompt.eatenAt, origin: prompt.origin, resolution: .add)
                 duplicatePrompt = nil
             }
             Button("Edit existing") {
-                commitParsed(prompt.items, type: prompt.type, eatenAt: prompt.eatenAt, resolution: .edit)
+                commitParsed(prompt.items, type: prompt.type, eatenAt: prompt.eatenAt, origin: prompt.origin, resolution: .edit)
                 duplicatePrompt = nil
             }
             Button("Cancel", role: .cancel) { duplicatePrompt = nil }
@@ -672,7 +673,8 @@ struct NutritionLogView: View {
     private func persistParsedItems(
         _ items: [ParsedFoodItem],
         type: MealType,
-        eatenAt: Date = Date()
+        eatenAt: Date = Date(),
+        origin: MealOrigin? = nil
     ) {
         let dupes = EatenMealRecorder.duplicateNames(
             of: Self.inputs(from: items),
@@ -685,11 +687,12 @@ struct NutritionLogView: View {
                 items: items,
                 type: type,
                 eatenAt: eatenAt,
+                origin: origin,
                 duplicateNames: dupes
             )
             return
         }
-        commitParsed(items, type: type, eatenAt: eatenAt, resolution: .add)
+        commitParsed(items, type: type, eatenAt: eatenAt, origin: origin, resolution: .add)
     }
 
     /// Best-effort grams from a vision serving-size string. See
@@ -727,9 +730,15 @@ struct NutritionLogView: View {
         _ items: [ParsedFoodItem],
         type: MealType,
         eatenAt: Date,
+        origin: MealOrigin?,
         resolution: EatenMealRecorder.DuplicateResolution
     ) {
         let result: EatenMealRecorder.Result
+        // What this log will take off the pantry, for the toast (dry run first:
+        // the recorder then does the real deduction).
+        let pantryLines = origin == .kitchen
+            ? PantryDecrementService.preview(foods: Self.inputs(from: items).map(EatenMealRecorder.plannedFood(from:)), modelContext: modelContext)
+            : []
         do {
             result = try EatenMealRecorder.record(
                 Self.inputs(from: items),
@@ -737,6 +746,7 @@ struct NutritionLogView: View {
                 eatenAt: eatenAt,
                 source: .naturalLanguage,
                 resolution: resolution,
+                origin: origin,
                 modelContext: modelContext,
                 notifications: services.notifications
             )
@@ -747,10 +757,12 @@ struct NutritionLogView: View {
             )
             return
         }
-        toast = ToastData(
-            message: "\(type.displayName) logged. \(Int(result.logged.calories)) kcal.",
-            style: .success
-        )
+        var message = "\(type.displayName) logged. \(Int(result.logged.calories)) kcal."
+        if resolution == .add, !pantryLines.isEmpty {
+            message += " Off your pantry: " + pantryLines.prefix(3).map(\.displayName).joined(separator: ", ")
+                + (pantryLines.count > 3 ? " +\(pantryLines.count - 3)" : "") + "."
+        }
+        toast = ToastData(message: message, style: .success)
         naturalLanguageInput = ""
         parsedFoodsForReview = nil
         viewModel.loadToday(modelContext: modelContext)

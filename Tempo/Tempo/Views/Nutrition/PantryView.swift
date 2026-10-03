@@ -20,6 +20,8 @@ struct PantryView: View {
     private var modelContext
 
     @State
+    private var showHomeSetting = false
+    @State
     private var showCaptureSheet = false
     @State
     private var showManualAddSheet = false
@@ -90,6 +92,10 @@ struct PantryView: View {
                         staplesDetent = .large
                         showStaples = true
                     }
+                    Button("Set home", systemImage: "house") {
+                        showHomeSetting = true
+                    }
+                    .accessibilityIdentifier("pantrySetHome")
                     Button("Empty pantry", systemImage: "trash", role: .destructive) {
                         confirmEmpty = true
                     }
@@ -99,6 +105,9 @@ struct PantryView: View {
                 }
                 .accessibilityIdentifier("pantryMoreMenu")
             }
+        }
+        .sheet(isPresented: $showHomeSetting) {
+            HomeLocationSettingView()
         }
         .confirmationDialog(
             "Empty the whole pantry?",

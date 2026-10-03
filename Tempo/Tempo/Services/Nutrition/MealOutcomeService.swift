@@ -127,6 +127,8 @@ enum MealOutcomeService {
         /// an eaten meal).
         let priorStatus: MealStatus
         let hadPantryDecrement: Bool
+        /// Where the log came from, so a restored log keeps it.
+        var origin: MealOrigin?
         let replacedPlannedDish: Bool
         let feel: MealFeel?
         let satiety: MealSatiety?
@@ -345,7 +347,7 @@ enum MealOutcomeService {
         let removing = meal.isUnplannedLog && meal.status == .eaten
         let isToday = Calendar.current.isDateInToday(meal.dayDate)
         let feedback = feedbackRows(for: mealID, in: ctx)
-        let snapshot = LogSnapshot(
+        var snapshot = LogSnapshot(
             kind: removing ? .removed : .revertedToPlanned,
             mealID: mealID,
             mealName: meal.mealName,
@@ -360,6 +362,7 @@ enum MealOutcomeService {
             substituteNote: feedback.first?.substituteNote,
             isSupplementDose: EatenMealRecorder.isSupplementDose(meal)
         )
+        snapshot.origin = meal.origin
         logger.info("[Diag.Undo] \(meal.mealName, privacy: .private) \(meal.status.rawValue, privacy: .public) → \(removing ? "removed" : "planned", privacy: .public)")
 
         // Credit the pantry back BEFORE foods are restored: the approximate
@@ -384,6 +387,7 @@ enum MealOutcomeService {
             meal.status = statusBeforeEat.removeValue(forKey: mealID) == .skipped ? .skipped : .planned
             meal.actualEatenAt = nil
             meal.linkedMealLogID = nil
+            meal.originRaw = nil
             if isToday {
                 // Eating/skipping moved the other meals' macros and times;
                 // bring them back in line now that this one counts as
@@ -441,6 +445,7 @@ enum MealOutcomeService {
                 type: type,
                 eatenAt: snapshot.eatenAt,
                 source: .manual,
+                origin: snapshot.origin ?? (snapshot.hadPantryDecrement ? .kitchen : nil),
                 modelContext: ctx,
                 notifications: env.notifications,
                 now: snapshot.eatenAt
@@ -497,6 +502,10 @@ enum MealOutcomeService {
                 pantry: pantry,
                 env: env
             )
+            if let origin = snapshot.origin {
+                meal.origin = origin
+                try save(ctx)
+            }
         }
     }
 
