@@ -26,6 +26,10 @@ import SwiftData
             guard ProcessInfo.processInfo.arguments.contains(launchArgument) else {
                 return
             }
+            if ((try? context.fetchCount(FetchDescriptor<Supplement>())) ?? 0) == 0 {
+                seedSupplements(context: context)
+                try? context.save()
+            }
             let existing = (try? context.fetch(FetchDescriptor<WeeklyMealPlan>(
                 predicate: #Predicate { $0.isActive }
             ))) ?? []
@@ -90,6 +94,24 @@ import SwiftData
                 from: plan, pantry: pantry, weekStartDate: weekStart
             )
             try? context.save()
+        }
+
+        /// A shelf with macros (whey), zero-macro (creatine, D3), a pinned time
+        /// and one nearly empty, so Today's supplement card shows every state.
+        @MainActor
+        private static func seedSupplements(context: ModelContext) {
+            let whey = Supplement(name: "Whey Isolate", kind: .protein, dosePerServing: "1 scoop (30 g)", proteinGramsPerServing: 25, servingsRemaining: 20, takeDaily: true)
+            whey.caloriesPerServing = 120
+            whey.carbsGramsPerServing = 2
+            whey.fatGramsPerServing = 1
+            let creatine = Supplement(name: "Creatine Monohydrate", kind: .creatine, dosePerServing: "5 g", servingsRemaining: 3, takeDaily: true)
+            let vitaminD = Supplement(name: "Vitamin D3", kind: .vitamin, dosePerServing: "2000 IU", servingsRemaining: 60, takeDaily: true)
+            let omega = Supplement(name: "Omega-3 Fish Oil", kind: .omega3, dosePerServing: "2 softgels", servingsRemaining: 40, takeDaily: true)
+            let magnesium = Supplement(name: "Magnesium Glycinate", kind: .vitamin, dosePerServing: "400 mg", servingsRemaining: 30, takeDaily: true)
+            magnesium.pinnedMinutes = 22 * 60
+            for supplement in [whey, creatine, vitaminD, omega, magnesium] {
+                context.insert(supplement)
+            }
         }
 
         private struct Template {

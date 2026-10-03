@@ -80,7 +80,6 @@ struct NutritionTodayView: View {
                 WaterCardView()
                     .id(Self.waterID)
                 supplementsCard
-                SupplementReorderBanner()
                 mealsListSection
 
                 // AI disclaimer
@@ -298,80 +297,8 @@ struct NutritionTodayView: View {
 
     // MARK: - Today's Supplements
 
-    /// Today's full supplement schedule (`SupplementScheduleEngine`) — every
-    /// owned, non-archived supplement, take AND skip, sorted by clock time.
-    /// Shown whenever the shelf is non-empty, not only when the plan AI made
-    /// decisions (the engine has its own no-plan defaults).
-    @ViewBuilder
     private var supplementsCard: some View {
-        let doses = viewModel.todaySupplementDoses(modelContext: modelContext)
-        // Re-read on every toggle (supplementTakenRefresh) so the checkmarks
-        // reflect the latest taken state.
-        let taken = supplementTakenRefresh >= 0
-            ? viewModel.takenSupplementIDsToday(modelContext: modelContext)
-            : []
-        if !doses.isEmpty {
-            VStack(alignment: .leading, spacing: TempoSpacing.md) {
-                Text("TODAY'S SUPPLEMENTS")
-                    .font(.tempoModuleTag)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                ForEach(doses) { dose in
-                    HStack(alignment: .top, spacing: TempoSpacing.md) {
-                        Text(dose.timeLabel)
-                            .font(.system(size: 12, weight: .bold, design: .monospaced))
-                            .foregroundStyle(dose.take ? Color.tempoTextSecondary : Color.tempoTextTertiary)
-                            .frame(width: 44, alignment: .leading)
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack(spacing: 6) {
-                                Text(dose.name)
-                                    .font(.tempoBody)
-                                    .foregroundStyle(dose.take ? Color.tempoTextPrimary : Color.tempoTextTertiary)
-                                if !dose.dosePerServing.isEmpty {
-                                    Text(dose.dosePerServing)
-                                        .font(.tempoCaption2)
-                                        .foregroundStyle(Color.tempoTextTertiary)
-                                }
-                                if dose.take {
-                                    Text(dose.timingLabel)
-                                        .font(.tempoCaption2)
-                                        .fontWeight(.semibold)
-                                        .foregroundStyle(Color.tempoSignal)
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(Color.tempoSignal.opacity(0.15))
-                                        .clipShape(Capsule())
-                                }
-                            }
-                            Text(dose.take ? dose.reason : "Skip — \(dose.reason)")
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextSecondary)
-                        }
-                        .opacity(dose.take ? 1 : 0.5)
-                        Spacer(minLength: 0)
-                        // "I took it" checkmark — only on TAKE rows (a SKIP has
-                        // nothing to check off). Tap toggles + persists; tap
-                        // again undoes.
-                        if dose.take {
-                            let isTaken = taken.contains(dose.supplementID)
-                            Button {
-                                viewModel.toggleSupplementTaken(supplementID: dose.supplementID, name: dose.name, modelContext: modelContext)
-                                supplementTakenRefresh += 1
-                            } label: {
-                                Image(systemName: isTaken ? "checkmark.circle.fill" : "circle")
-                                    .font(.system(size: 22))
-                                    .foregroundStyle(isTaken ? Color.tempoSuccess : Color.tempoTextTertiary)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(isTaken ? "\(dose.name) taken, tap to undo" : "Mark \(dose.name) taken")
-                        }
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(TempoSpacing.cardPadding)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        }
+        TodaySupplementsCard(viewModel: viewModel, refreshToken: supplementTakenRefresh)
     }
 
     // MARK: - Calorie Progress
