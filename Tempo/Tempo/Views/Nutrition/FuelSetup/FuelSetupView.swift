@@ -380,8 +380,9 @@ struct FuelSetupView: View {
                 stats = HealthBodyStats(weightKg: 82.4, heightCm: 181, age: 24)
             }
         #endif
-        if stats == HealthBodyStats() {
-            // Asks only for Health types never asked before (age and sex).
+        // Only someone who already connected Health is asked again (for the
+        // new age and sex types); everyone else just fills the fields in.
+        if stats == HealthBodyStats(), UserDefaults.standard.bool(forKey: "healthKitAuthorized") {
             try? await services.healthKit.requestAuthorization()
             let body = try? await services.healthKit.fetchBodyComposition()
             let traits = await services.healthKit.fetchProfileCharacteristics()
