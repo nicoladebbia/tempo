@@ -17,8 +17,22 @@ enum NutritionSection: String, CaseIterable, Identifiable {
     case today = "Today"
     case plan = "Plan"
     case log = "Log"
+    case kitchen = "Kitchen"
     case coach = "Coach"
+
+    var id: String {
+        rawValue
+    }
+}
+
+// MARK: - KitchenSection
+
+/// Sub-sections inside the Kitchen tab. Pantry is the default.
+enum KitchenSection: String, CaseIterable, Identifiable {
     case pantry = "Pantry"
+    case groceries = "Groceries"
+    case receipts = "Receipts"
+    case supplements = "Supplements"
 
     var id: String {
         rawValue
@@ -75,7 +89,6 @@ final class NutritionTabViewModel {
     var receiptService: (any ReceiptServiceProtocol)?
     var recipeService: (any RecipeServiceProtocol)?
     var groceryService: (any GroceryListServiceProtocol)?
-    var intelligence: NutritionIntelligenceService?
     /// AI batch price estimator for grocery items with no purchase history —
     /// see NutritionTabViewModel+GroceryAdvanced.swift.
     var groceryPriceAIService: GroceryPriceAIService?
@@ -128,6 +141,49 @@ final class NutritionTabViewModel {
 
     private(set) var loadState: NutritionLoadState = .loading
     var selectedTab: NutritionSection = .today
+    /// Which part of Kitchen is showing (Pantry unless something routed elsewhere).
+    var selectedKitchen: KitchenSection = .pantry
+    /// Set by the Today "Quick Log" button; the Log tab focuses its field and clears it.
+    var focusQuickLogRequested = false
+
+    /// Deep link into a Kitchen sub-section (e.g. the pantry-gap alert → Groceries).
+    func openKitchen(_ section: KitchenSection) {
+        selectedKitchen = section
+        selectedTab = .kitchen
+    }
+
+    /// Applies a notification's requested section (see `NotificationRouter`).
+    func apply(_ route: NutritionRoute) {
+        if let kitchen = route.kitchen {
+            openKitchen(kitchen)
+        } else {
+            selectedTab = route.section
+        }
+    }
+
+    /// Foods confirmed in Today's Scan → Meal photo. The scanner never logs by
+    /// itself: after it closes the Log tab picks these up and shows the same
+    /// review sheet (meal type, confirm) as a photo started from Log.
+    var pendingScanMealPhoto: [FoodItem]?
+
+    /// Set by ContentView when a scanner left for iOS Settings should reopen
+    /// (see ScanResume); the Nutrition tab opens the scanner and clears it.
+    var scanResume: ScanResumeRecord?
+
+    /// Hands a Scan meal photo to the Log tab's review sheet.
+    func openMealPhotoReview(_ items: [FoodItem]) {
+        guard !items.isEmpty else {
+            return
+        }
+        pendingScanMealPhoto = items
+        selectedTab = .log
+    }
+
+    /// Jumps to the Log tab with the Quick Log field focused.
+    func openQuickLog() {
+        focusQuickLogRequested = true
+        selectedTab = .log
+    }
 
     // MARK: - Data
 
@@ -303,17 +359,6 @@ final class NutritionTabViewModel {
         }
         let context = SupplementDayContext.build(date: Date(), modelContext: modelContext)
         return SupplementScheduleEngine.schedule(supplements: supplements, context: context)
-    }
-
-    /// Names of supplements the user marked TAKEN today (start-of-day keyed).
-    /// Drives the checkmark state on the Today supplement card.
-    func takenSupplementsToday(modelContext: ModelContext) -> Set<String> {
-        let today = Calendar.current.startOfDay(for: Date())
-        let descriptor = FetchDescriptor<SupplementIntakeLog>(
-            predicate: #Predicate<SupplementIntakeLog> { $0.day == today }
-        )
-        let rows = (try? modelContext.fetch(descriptor)) ?? []
-        return Set(rows.map(\.supplementName))
     }
 
     /// IDs of shelf supplements marked TAKEN today. The Today card keys its
@@ -713,16 +758,6 @@ final class NutritionTabViewModel {
 
     // MARK: - Presets
 
-    func savePreset(name: String, items: [PlannedFood], mealType: MealType, modelContext: ModelContext) {
-        guard let preset = try? MealOutcomeService.savePreset(
-            name: name, foods: items, mealType: mealType, modelContext: modelContext
-        ) else {
-            return
-        }
-        presets.append(preset)
-        HapticManager.notification(.success)
-    }
-
     /// "Save as preset" on a logged meal. False when it has no foods or the
     /// save failed.
     @discardableResult
@@ -1059,6 +1094,16 @@ final class NutritionTabViewModel {
         // instead of bare .default, so a quick regen respects their real
         // cooking days / leftover style / eating window / exclusions.
         let settingsForIntake = Self.loadUserSettings(modelContext: modelContext)
+        // One permanent "won't eat" list (DietaryProfile.dislikedFoods): fold
+        // in the retired AI Meals exclusions before the plan reads them.
+        if let settingsForIntake {
+            let activeProfile = (try? modelContext.fetch(
+                FetchDescriptor<DietaryProfile>(predicate: #Predicate { $0.isActive == true })
+            ))?.first
+            if MealPlanIntake.migrateLegacyExclusions(settings: settingsForIntake, profile: activeProfile) {
+                try? modelContext.save()
+            }
+        }
         let intakeSource: String
         var enrichedIntake: MealPlanIntake
         if let intake {

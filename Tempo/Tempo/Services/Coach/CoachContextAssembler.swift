@@ -134,7 +134,7 @@ enum CoachContextAssembler {
                 meal.dayDate >= windowStart && meal.dayDate < dayStart
             }
         )
-        let meals = (try? context.fetch(mealDescriptor)) ?? []
+        let meals = CanonicalMeals.historical((try? context.fetch(mealDescriptor)) ?? [])
         let recoveryDescriptor = FetchDescriptor<DailyRecovery>(
             predicate: #Predicate<DailyRecovery> { row in
                 row.date >= windowStart && row.date < dayStart

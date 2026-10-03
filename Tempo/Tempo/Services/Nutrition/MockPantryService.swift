@@ -139,14 +139,6 @@ final class MockPantryService: PantryServiceProtocol {
         return new
     }
 
-    func adjustQuantity(of item: PantryItem, by delta: Double) throws {
-        if delta >= 0 {
-            item.increment(by: delta)
-        } else {
-            item.decrement(by: -delta)
-        }
-    }
-
     @discardableResult
     func updateItem(
         _ item: PantryItem,

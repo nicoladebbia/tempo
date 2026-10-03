@@ -48,6 +48,17 @@ struct PantryDecrementResult: Sendable {
     var details: [PantryDecrementDetail] = []
 }
 
+// MARK: - PantryPreviewLine
+
+/// One pantry item a log WOULD take stock from (dry run, see
+/// `PantryDecrementService.preview`).
+struct PantryPreviewLine: Sendable, Equatable {
+    let canonicalName: String
+    let displayName: String
+    /// What would come off, in the pantry row's own unit ("0.2 pack", "150 g").
+    let amountText: String
+}
+
 // MARK: - PantryDecrementService
 
 /// Subtracts a meal's ingredients from the pantry the moment the user
@@ -115,6 +126,67 @@ enum PantryDecrementService {
     ) -> [PantryDecrementResult] {
         let pairs = foods.map { ($0.name, $0.quantityGrams) }
         return decrement(pairs: pairs, label: label, modelContext: modelContext)
+    }
+
+    /// Dry run of `decrement(foods:)`: which pantry items would lose stock and
+    /// how much, with the same matching, staple skip, FIFO and unit maths, but
+    /// WITHOUT mutating or saving anything (quantities are simulated on copies).
+    /// Items that aren't in the pantry, staples and unconvertible rows are left out.
+    static func preview(foods: [PlannedFood], modelContext: ModelContext) -> [PantryPreviewLine] {
+        let rows = (try? modelContext.fetch(FetchDescriptor<PantryItem>(
+            predicate: #Predicate<PantryItem> { $0.isArchived == false }
+        ))) ?? []
+        let stapleNames = Set(((try? modelContext.fetch(FetchDescriptor<PantryStaple>())) ?? [])
+            .map { $0.canonicalName.lowercased() })
+        var byName: [String: [PantryItem]] = [:]
+        for row in rows {
+            byName[row.canonicalName.lowercased(), default: []].append(row)
+        }
+        var lines: [PantryPreviewLine] = []
+        var simulated: [UUID: Double] = [:] // quantity left per row after earlier foods in this log
+        for food in foods where food.quantityGrams > 0 {
+            let canonical = FoodCanonicalizer.canonicalize(food.name).lowercased()
+            if FoodMacroDatabase.naturalPortions[canonical]?.isStaple == true || stapleNames.contains(canonical) {
+                continue
+            }
+            let matches = (byName[canonical] ?? []).sorted { lhs, rhs in
+                switch (lhs.useBy, rhs.useBy) {
+                case let (l?, r?): l < r
+                case (nil, nil): false
+                case (nil, _): false
+                case (_, nil): true
+                }
+            }
+            var remainingGrams = food.quantityGrams
+            for row in matches where remainingGrams > 0 {
+                let have = simulated[row.id] ?? row.quantity
+                guard let needed = convertGramsToPantryUnit(
+                    grams: remainingGrams, canonicalName: canonical, unit: row.unit, purchased: row.weighsPurchaseUnit
+                ) else {
+                    continue
+                }
+                var consume = min(have, needed)
+                guard consume > 0 else {
+                    continue
+                }
+                if row.unit.isCountable, have - consume <= row.unit.depletedThreshold {
+                    consume = have
+                }
+                let gramsConsumed = gramsEquivalent(
+                    pantryAmount: consume, canonicalName: canonical, unit: row.unit, purchased: row.weighsPurchaseUnit
+                ) ?? remainingGrams
+                simulated[row.id] = clean(max(0, have - consume))
+                remainingGrams = max(0, remainingGrams - gramsConsumed)
+                lines.append(PantryPreviewLine(
+                    canonicalName: canonical,
+                    displayName: row.displayName,
+                    amountText: PantryQuantityFormatter.text(
+                        quantity: consume, unit: row.unit, canonicalName: canonical, purchased: row.weighsPurchaseUnit
+                    )
+                ))
+            }
+        }
+        return lines
     }
 
     /// EXACT inverse of a recorded decrement: credits back precisely the
@@ -200,6 +272,72 @@ enum PantryDecrementService {
             logger.error("Pantry exact-credit save failed: \(error.localizedDescription, privacy: .public)")
         }
         return credited
+    }
+
+    /// Takes `details` off the pantry AGAIN, row by row (the inverse of
+    /// `creditExact`) — used when an Undo is itself undone, so a log that was
+    /// part kitchen and part ate-out re-deducts only the kitchen part. Only
+    /// live rows are touched (never recreated); a row that no longer has enough
+    /// stock floors at zero. Returns what was actually taken, in each row's own
+    /// unit, ready to store as the meal's new decrement detail.
+    @discardableResult
+    static func reapplyExact(
+        details: [PantryDecrementDetail],
+        modelContext: ModelContext
+    ) -> [PantryDecrementDetail] {
+        var applied: [PantryDecrementDetail] = []
+        for detail in details {
+            let id = detail.pantryItemID
+            var descriptor = FetchDescriptor<PantryItem>(predicate: #Predicate<PantryItem> { $0.id == id })
+            descriptor.fetchLimit = 1
+            let item: PantryItem
+            if let row = (try? modelContext.fetch(descriptor))?.first, !row.isArchived {
+                item = row
+            } else {
+                let name = detail.canonicalName
+                let live = (try? modelContext.fetch(FetchDescriptor<PantryItem>(
+                    predicate: #Predicate<PantryItem> { $0.canonicalName == name && $0.isArchived == false }
+                ))) ?? []
+                guard let match = live.first(where: { $0.unitRaw == detail.unitRaw }) ?? live.first else {
+                    continue
+                }
+                item = match
+            }
+            let detailPurchased = detail.purchased ?? item.weighsPurchaseUnit
+            let delta: Double
+            if item.unitRaw == detail.unitRaw {
+                delta = item.unit.convert(
+                    detail.amount, foodName: detail.canonicalName,
+                    fromPurchased: detailPurchased, toPurchased: item.weighsPurchaseUnit
+                )
+            } else if let detailUnit = PantryUnit(rawValue: detail.unitRaw),
+                      let grams = gramsEquivalent(pantryAmount: detail.amount, canonicalName: detail.canonicalName, unit: detailUnit, purchased: detailPurchased),
+                      let converted = convertGramsToPantryUnit(grams: grams, canonicalName: detail.canonicalName, unit: item.unit, purchased: item.weighsPurchaseUnit)
+            {
+                delta = converted
+            } else {
+                continue
+            }
+            let taken = min(max(item.quantity, 0), delta)
+            guard taken > 0 else {
+                continue
+            }
+            item.quantity = clean(item.quantity - taken)
+            item.updatedAt = Date()
+            applied.append(PantryDecrementDetail(
+                pantryItemID: item.id,
+                canonicalName: detail.canonicalName,
+                unitRaw: item.unitRaw,
+                amount: taken,
+                purchased: item.weighsPurchaseUnit
+            ))
+        }
+        do {
+            try modelContext.save()
+        } catch {
+            logger.error("Pantry exact re-deduct save failed: \(error.localizedDescription, privacy: .public)")
+        }
+        return applied
     }
 
     /// Re-credit the pantry by an arbitrary list of foods — the APPROXIMATE

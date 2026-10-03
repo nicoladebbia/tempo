@@ -218,7 +218,7 @@ struct WeeklyMealReviewView: View {
             },
             sortBy: [SortDescriptor(\.dayDate, order: .reverse), SortDescriptor(\.mealNumber)]
         )
-        let allMeals = (try? modelContext.fetch(descriptor)) ?? []
+        let allMeals = CanonicalMeals.historical((try? modelContext.fetch(descriptor)) ?? [])
         meals = allMeals.filter { meal in
             (meal.status == .eaten || meal.status == .skipped) && !EatenMealRecorder.isSupplementDose(meal)
         }

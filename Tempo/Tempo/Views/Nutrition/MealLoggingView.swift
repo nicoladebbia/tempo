@@ -32,6 +32,10 @@ struct MealLoggingView: View {
     @State
     private var didLog = false
     @State
+    private var originPickedByHand = false
+    @State
+    private var origin: MealOrigin = HomeLocationStore().lastOrigin ?? .kitchen
+    @State
     var foodItems: [FoodItem] = []
     @State
     private var showFoodSearch = false
@@ -134,6 +138,16 @@ struct MealLoggingView: View {
                     // Meal type picker
                     mealTypePicker
 
+                    if !foodItems.isEmpty {
+                        MealOriginPicker(
+                            origin: $origin,
+                            foods: foodItems.map { EatenMealRecorder.plannedFood(from: $0.mealFoodInput) },
+                            pickedByHand: $originPickedByHand
+                        )
+                        .padding(.horizontal, TempoSpacing.screenEdge)
+                        .padding(.bottom, TempoSpacing.sm)
+                    }
+
                     // Food items list or empty state
                     if foodItems.isEmpty {
                         emptyState
@@ -185,16 +199,30 @@ struct MealLoggingView: View {
                 )
             }
             .sheet(isPresented: $showPhotoAnalysis) {
-                PhotoAnalysisView { items in
-                    for item in items {
-                        addFoodItem(item)
-                    }
-                }
+                UniversalScanView(
+                    context: .logMeal(
+                        onFood: { item in addFoodItem(item) },
+                        onMealPhoto: { items in
+                            for item in items {
+                                addFoodItem(item)
+                            }
+                        }
+                    ),
+                    initialMode: .mealPhoto
+                )
             }
             .sheet(isPresented: $showBarcodeScanner) {
-                BarcodeScannerView { item in
-                    addFoodItem(item)
-                }
+                UniversalScanView(
+                    context: .logMeal(
+                        onFood: { item in addFoodItem(item) },
+                        onMealPhoto: { items in
+                            for item in items {
+                                addFoodItem(item)
+                            }
+                        }
+                    ),
+                    initialMode: .barcode
+                )
             }
             .sheet(item: $editingItem) { item in
                 PortionEditorView(item: item) { updated in
@@ -472,6 +500,7 @@ struct MealLoggingView: View {
                 type: selectedMealType.appMealType,
                 eatenAt: resolvedEatenAt,
                 source: voiceEatTime == nil ? .manual : .voice,
+                origin: origin,
                 // (voice logs carry the time the user said, see resolvedEatenAt)
                 modelContext: modelContext,
                 notifications: services.notifications
@@ -485,6 +514,7 @@ struct MealLoggingView: View {
             return
         }
         didLog = true
+        HomeLocationStore().lastOrigin = origin
         HapticManager.notification(.success)
         onMealLogged?(foodItems, selectedMealType)
         toast = ToastData(

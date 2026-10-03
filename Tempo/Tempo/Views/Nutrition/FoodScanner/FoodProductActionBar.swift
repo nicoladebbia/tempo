@@ -28,13 +28,17 @@ struct FoodProductActionBar: View {
     private var showLogSheet = false
     @State
     private var mealType = EatenMealRecorder.defaultMealType()
+    @State
+    private var originPickedByHand = false
+    @State
+    private var origin: MealOrigin = HomeLocationStore().lastOrigin ?? .kitchen
 
     private var portionKcal: Int {
         Int((product.nutrients(forGrams: grams).kcal ?? 0).rounded())
     }
 
     var body: some View {
-        VStack(spacing: TempoSpacing.sm) {
+        VStack(spacing: TempoSpacing.buttonStackVertical) {
             if let inventory {
                 Text(inventory.line)
                     .font(.tempoCaption1)
@@ -42,27 +46,30 @@ struct FoodProductActionBar: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityIdentifier("foodInventoryLine")
             }
-            HStack(spacing: TempoSpacing.sm) {
-                Button {
-                    HapticManager.lightImpact()
-                    mealType = EatenMealRecorder.defaultMealType()
-                    showLogSheet = true
-                } label: {
-                    Text("Log \(FoodProductView.format(grams)) \(product.unit) · \(portionKcal) kcal")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.tempoPrimary)
-                .disabled(!product.per100g.hasCoreMacros || grams <= 0)
-                .accessibilityIdentifier("foodCheckLog")
+            Button {
+                HapticManager.lightImpact()
+                mealType = EatenMealRecorder.defaultMealType()
+                showLogSheet = true
+            } label: {
+                Text("Log \(FoodProductView.format(grams)) \(product.unit) · \(portionKcal) kcal")
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .buttonStyle(.tempoPrimary)
+            .disabled(!product.per100g.hasCoreMacros || grams <= 0)
+            .accessibilityIdentifier("foodCheckLog")
 
+            // Two equal secondary buttons under the primary: same width, same
+            // height (the style's 52 pt), centred inside the screen gutters.
+            HStack(spacing: TempoSpacing.buttonStackVertical) {
                 Button {
                     addToPantry()
                 } label: {
                     Label("Pantry", systemImage: "refrigerator")
                         .labelStyle(.titleAndIcon)
+                        .lineLimit(1)
                 }
                 .buttonStyle(.tempoSecondary)
-                .fixedSize()
                 .accessibilityIdentifier("foodCheckPantry")
 
                 Button {
@@ -70,14 +77,15 @@ struct FoodProductActionBar: View {
                 } label: {
                     Label("List", systemImage: "cart.badge.plus")
                         .labelStyle(.titleAndIcon)
+                        .lineLimit(1)
                 }
                 .buttonStyle(.tempoSecondary)
-                .fixedSize()
                 .accessibilityIdentifier("foodCheckList")
             }
         }
-        .padding(.horizontal, TempoSpacing.lg)
-        .padding(.vertical, TempoSpacing.sm)
+        .padding(.horizontal, TempoSpacing.screenEdge)
+        .padding(.top, TempoSpacing.md)
+        .padding(.bottom, TempoSpacing.sm)
         .background(Color.tempoBgPrimary)
         .task(id: product.id) { refreshInventory() }
         .sheet(isPresented: $showLogSheet) {
@@ -109,6 +117,11 @@ struct FoodProductActionBar: View {
             }
             .pickerStyle(.segmented)
             .accessibilityIdentifier("foodCheckMealType")
+            MealOriginPicker(
+                origin: $origin,
+                foods: [EatenMealRecorder.plannedFood(from: product.foodItem(grams: grams).mealFoodInput)],
+                pickedByHand: $originPickedByHand
+            )
             Button {
                 logIt()
             } label: {
@@ -127,8 +140,10 @@ struct FoodProductActionBar: View {
     private func logIt() {
         do {
             let logged = try FoodProductActions.log(
-                product, grams: grams, type: mealType, modelContext: modelContext, notifications: services.notifications
+                product, grams: grams, type: mealType, origin: origin,
+                modelContext: modelContext, notifications: services.notifications
             )
+            HomeLocationStore().lastOrigin = origin
             showLogSheet = false
             HapticManager.notification(.success)
             onLogged?()

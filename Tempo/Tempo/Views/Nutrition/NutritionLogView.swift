@@ -29,6 +29,9 @@ struct NutritionLogView: View {
     private var aiBlocker: AIBlocker?
     @State
     private var naturalLanguageInput: String = ""
+    /// Logged meal opened for editing (tap on a row).
+    @State
+    private var detailMeal: PlannedMeal?
     @State
     private var showPhotoAnalysis = false
     @State
@@ -86,6 +89,7 @@ struct NutritionLogView: View {
         let items: [ParsedFoodItem]
         let type: MealType
         let eatenAt: Date
+        let origin: MealOrigin?
         /// Lowercased names of foods that already exist in the meal — used
         /// for the alert copy ("You already have oat milk").
         let duplicateNames: [String]
@@ -108,14 +112,34 @@ struct NutritionLogView: View {
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.bottom, TempoSpacing.bottomSafe)
         }
-        .sheet(isPresented: $showPhotoAnalysis) {
-            PhotoAnalysisView { items in
-                // Stash the confirmed photo foods. quantityGrams is best-effort
-                // (vision portions like "1 cup" / "diced" aren't reliably
-                // grams) — it only drives the serving-size display; calories +
-                // macros are the payload and carry through exactly.
-                foodsPendingReview = items.map(Self.parsedFood(from:))
+        .onAppear {
+            // Today → Scan → Meal photo lands here for review.
+            if let scanned = viewModel.pendingScanMealPhoto, !scanned.isEmpty {
+                viewModel.pendingScanMealPhoto = nil
+                foodsPendingReview = scanned.map(Self.parsedFood(from:))
+                presentPendingReview()
             }
+            // Today's "Quick Log" button lands here with the field focused.
+            if viewModel.focusQuickLogRequested {
+                viewModel.focusQuickLogRequested = false
+                quickLogFocused = true
+            }
+        }
+        .navigationDestination(item: $detailMeal) { meal in
+            MealDetailView(meal: meal)
+        }
+        .sheet(isPresented: $showPhotoAnalysis) {
+            UniversalScanView(
+                context: .logMeal(
+                    onFood: { item in foodsPendingReview = [Self.parsedFood(from: item)] },
+                    // Stash the confirmed photo foods. quantityGrams is best-effort
+                    // (vision portions like "1 cup" / "diced" aren't reliably
+                    // grams) — it only drives the serving-size display; calories +
+                    // macros are the payload and carry through exactly.
+                    onMealPhoto: { items in foodsPendingReview = items.map(Self.parsedFood(from:)) }
+                ),
+                initialMode: .mealPhoto
+            )
             .onDisappear {
                 presentPendingReview()
                 viewModel.loadToday(modelContext: modelContext)
@@ -129,9 +153,13 @@ struct NutritionLogView: View {
             // Meal sheet first). The scanned product lands in the same review
             // sheet as Quick Log / Photo, so the user picks the meal type and
             // it's saved through the same path.
-            BarcodeScannerView { item in
-                foodsPendingReview = [Self.parsedFood(from: item)]
-            }
+            UniversalScanView(
+                context: .logMeal(
+                    onFood: { item in foodsPendingReview = [Self.parsedFood(from: item)] },
+                    onMealPhoto: { items in foodsPendingReview = items.map(Self.parsedFood(from:)) }
+                ),
+                initialMode: .barcode
+            )
             .onDisappear {
                 presentPendingReview()
             }
@@ -146,14 +174,10 @@ struct NutritionLogView: View {
         )) { payload in
             ParsedFoodReviewSheet(
                 items: payload.items,
-                defaultMealType: parsedMealTypeHint
-                    ?? EatenMealRecorder.defaultMealType(for: parsedEatenAtHint ?? Date()),
-                onConfirm: { mealType in
-                    persistParsedItems(
-                        payload.items,
-                        type: mealType,
-                        eatenAt: parsedEatenAtHint ?? Date()
-                    )
+                hintedMealType: parsedMealTypeHint,
+                hintedDate: parsedEatenAtHint,
+                onConfirm: { items, mealType, eatenAt, origin in
+                    persistParsedItems(items, type: mealType, eatenAt: eatenAt, origin: origin)
                 },
                 onCancel: { parsedFoodsForReview = nil }
             )
@@ -175,11 +199,11 @@ struct NutritionLogView: View {
             presenting: duplicatePrompt
         ) { prompt in
             Button("Add another") {
-                commitParsed(prompt.items, type: prompt.type, eatenAt: prompt.eatenAt, resolution: .add)
+                commitParsed(prompt.items, type: prompt.type, eatenAt: prompt.eatenAt, origin: prompt.origin, resolution: .add)
                 duplicatePrompt = nil
             }
             Button("Edit existing") {
-                commitParsed(prompt.items, type: prompt.type, eatenAt: prompt.eatenAt, resolution: .edit)
+                commitParsed(prompt.items, type: prompt.type, eatenAt: prompt.eatenAt, origin: prompt.origin, resolution: .edit)
                 duplicatePrompt = nil
             }
             Button("Cancel", role: .cancel) { duplicatePrompt = nil }
@@ -224,8 +248,16 @@ struct NutritionLogView: View {
                     .foregroundStyle(Color.tempoTextSecondary)
 
                 ForEach(meals, id: \.id) { meal in
-                    loggedRow(meal)
-                        .swipeToDelete(label: meal.isUnplannedLog ? "Delete log" : "Undo — not eaten") {
+                    Button {
+                        detailMeal = meal
+                        HapticManager.lightImpact()
+                    } label: {
+                        loggedRow(meal)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Opens the meal to edit it")
+                    .swipeToDelete(label: meal.isUnplannedLog ? "Delete log" : "Undo — not eaten") {
                             undoLog(meal)
                         }
                 }
@@ -262,6 +294,11 @@ struct NutritionLogView: View {
         }
         .tempoCard()
         .contextMenu {
+            Button {
+                detailMeal = meal
+            } label: {
+                Label("Edit", systemImage: "pencil")
+            }
             if !meal.foods.isEmpty {
                 Button {
                     let foods = meal.foods
@@ -364,10 +401,6 @@ struct NutritionLogView: View {
         HStack(spacing: TempoSpacing.lg) {
             quickActionButton(icon: "camera.fill", label: "Photo") {
                 showPhotoAnalysis = true
-            }
-
-            quickActionButton(icon: "magnifyingglass", label: "Full Search") {
-                showMealLogging = true
             }
 
             quickActionButton(icon: "barcode.viewfinder", label: "Scan") {
@@ -655,7 +688,8 @@ struct NutritionLogView: View {
     private func persistParsedItems(
         _ items: [ParsedFoodItem],
         type: MealType,
-        eatenAt: Date = Date()
+        eatenAt: Date = Date(),
+        origin: MealOrigin? = nil
     ) {
         let dupes = EatenMealRecorder.duplicateNames(
             of: Self.inputs(from: items),
@@ -668,11 +702,12 @@ struct NutritionLogView: View {
                 items: items,
                 type: type,
                 eatenAt: eatenAt,
+                origin: origin,
                 duplicateNames: dupes
             )
             return
         }
-        commitParsed(items, type: type, eatenAt: eatenAt, resolution: .add)
+        commitParsed(items, type: type, eatenAt: eatenAt, origin: origin, resolution: .add)
     }
 
     /// Best-effort grams from a vision serving-size string. See
@@ -710,9 +745,15 @@ struct NutritionLogView: View {
         _ items: [ParsedFoodItem],
         type: MealType,
         eatenAt: Date,
+        origin: MealOrigin?,
         resolution: EatenMealRecorder.DuplicateResolution
     ) {
         let result: EatenMealRecorder.Result
+        // What this log will take off the pantry, for the toast (dry run first:
+        // the recorder then does the real deduction).
+        let pantryLines = origin == .kitchen
+            ? PantryDecrementService.preview(foods: Self.inputs(from: items).map(EatenMealRecorder.plannedFood(from:)), modelContext: modelContext)
+            : []
         do {
             result = try EatenMealRecorder.record(
                 Self.inputs(from: items),
@@ -720,6 +761,7 @@ struct NutritionLogView: View {
                 eatenAt: eatenAt,
                 source: .naturalLanguage,
                 resolution: resolution,
+                origin: origin,
                 modelContext: modelContext,
                 notifications: services.notifications
             )
@@ -730,161 +772,15 @@ struct NutritionLogView: View {
             )
             return
         }
-        toast = ToastData(
-            message: "\(type.displayName) logged. \(Int(result.logged.calories)) kcal.",
-            style: .success
-        )
+        var message = "\(type.displayName) logged. \(Int(result.logged.calories)) kcal."
+        if resolution == .add, !pantryLines.isEmpty {
+            message += " Off your pantry: " + pantryLines.prefix(3).map(\.displayName).joined(separator: ", ")
+                + (pantryLines.count > 3 ? " +\(pantryLines.count - 3)" : "") + "."
+        }
+        toast = ToastData(message: message, style: .success)
         naturalLanguageInput = ""
         parsedFoodsForReview = nil
         viewModel.loadToday(modelContext: modelContext)
-    }
-}
-
-// MARK: - ParsedFoodReviewPayload
-
-/// Identifiable wrapper so SwiftUI's `.sheet(item:)` can present the
-/// review sheet from a non-Identifiable `[ParsedFoodItem]`. New UUID per
-/// presentation so re-opening the sheet with the same items still fires.
-private struct ParsedFoodReviewPayload: Identifiable {
-    let id = UUID()
-    let items: [ParsedFoodItem]
-}
-
-// MARK: - ParsedFoodReviewSheet
-
-/// User-facing confirmation step between Haiku parsing and DB persistence.
-/// Shows each parsed food row with quantity + macros, plus a meal-type
-/// picker prefilled from time-of-day. Tapping Confirm fires onConfirm
-/// with the user's chosen meal type; Cancel fires onCancel.
-private struct ParsedFoodReviewSheet: View {
-    let items: [ParsedFoodItem]
-    let defaultMealType: MealType
-    let onConfirm: (MealType) -> Void
-    let onCancel: () -> Void
-
-    @State
-    private var selectedMealType: MealType
-
-    /// Set on the first Log tap so a double-tap can't log the meal twice.
-    @State
-    private var didConfirm = false
-
-    @Environment(\.dismiss)
-    private var dismiss
-
-    init(
-        items: [ParsedFoodItem],
-        defaultMealType: MealType,
-        onConfirm: @escaping (MealType) -> Void,
-        onCancel: @escaping () -> Void
-    ) {
-        self.items = items
-        self.defaultMealType = defaultMealType
-        self.onConfirm = onConfirm
-        self.onCancel = onCancel
-        _selectedMealType = State(initialValue: defaultMealType)
-    }
-
-    private var totalCalories: Int {
-        items.reduce(into: 0) { $0 += Int($1.calories) }
-    }
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-                    mealTypePicker
-                    itemList
-                    totalsFooter
-                }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.vertical, TempoSpacing.lg)
-            }
-            .background(Color.tempoBgPrimary)
-            .navigationTitle("Confirm Meal")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        onCancel()
-                        dismiss()
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Log") {
-                        guard !didConfirm else {
-                            return
-                        }
-                        didConfirm = true
-                        onConfirm(selectedMealType)
-                        dismiss()
-                    }
-                    .fontWeight(.semibold)
-                    .disabled(didConfirm)
-                }
-            }
-        }
-    }
-
-    private var mealTypePicker: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("MEAL TYPE")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
-            Picker("Meal type", selection: $selectedMealType) {
-                ForEach(MealType.allCases, id: \.self) { type in
-                    Text(type.displayName).tag(type)
-                }
-            }
-            .pickerStyle(.segmented)
-        }
-    }
-
-    private var itemList: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("PARSED FOODS")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
-            VStack(spacing: TempoSpacing.xs) {
-                ForEach(items) { item in
-                    HStack(alignment: .firstTextBaseline) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(item.name)
-                                .font(.tempoBody)
-                                .foregroundStyle(Color.tempoTextPrimary)
-                            Text(item.formattedPortion)
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextSecondary)
-                        }
-                        Spacer()
-                        Text("\(Int(item.calories)) kcal")
-                            .font(.tempoCaption1.monospacedDigit())
-                            .foregroundStyle(Color.tempoTextPrimary)
-                    }
-                    .padding(.horizontal, TempoSpacing.md)
-                    .padding(.vertical, 10)
-                    .background(Color.tempoBgSecondary)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
-                }
-            }
-        }
-    }
-
-    private var totalsFooter: some View {
-        HStack {
-            Text("TOTAL")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
-            Spacer()
-            Text("\(totalCalories) kcal")
-                .font(.tempoSubheadline)
-                .fontWeight(.semibold)
-                .foregroundStyle(Color.tempoTextPrimary)
-        }
-        .padding(.top, TempoSpacing.sm)
     }
 }
 

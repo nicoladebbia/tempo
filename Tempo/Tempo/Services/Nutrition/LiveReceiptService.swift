@@ -29,6 +29,19 @@ final class LiveReceiptService: ReceiptServiceProtocol {
 
     // MARK: - Scan
 
+    /// Tells the processing screen what the on-device pre-parse already knows
+    /// (OCR is done; the backend call is next).
+    private static func report(_ preParse: ReceiptPreParseResult?) {
+        guard let progress = ReceiptScanProgress.current else {
+            return
+        }
+        let store = preParse?.storeNameGuess
+        let total = preParse?.totalAmount
+        let count = preParse?.candidateItems.count
+        progress.parsed(store: store, total: total, itemCount: count)
+        progress.advance(to: .findingItems)
+    }
+
     @discardableResult
     func scan(image: UIImage, storeHint: String?) async throws -> Receipt {
         // 1) On-device Vision OCR. If it fails outright we fall through to the
@@ -48,6 +61,7 @@ final class LiveReceiptService: ReceiptServiceProtocol {
             rawText = visionResult.rawText
             visionAvgConfidence = visionResult.averageConfidence
             preParse = ReceiptPreParser.parse(rows: visionResult.rows, storeHint: storeHint)
+            Self.report(preParse)
         } catch let VisionReceiptOCRError.tooLowQuality(hint) {
             logger.warning("Receipt photo failed quality gate: \(hint, privacy: .public)")
             throw ReceiptServiceError.visionFailed(hint)
@@ -106,6 +120,7 @@ final class LiveReceiptService: ReceiptServiceProtocol {
         let stitched = ReceiptMultiPhotoStitcher.stitch(pages)
         let rawText = stitched.rawText.isEmpty ? nil : ReceiptPrivacyRedactor.redact(stitched.rawText)
         let preParse = ReceiptPreParser.parse(rows: stitched.rows, storeHint: storeHint)
+        Self.report(preParse)
 
         return try await finishScan(
             rawText: rawText,
@@ -502,12 +517,15 @@ final class LiveReceiptService: ReceiptServiceProtocol {
 
     // MARK: - Confirm + ingest
 
-    func confirmLineItem(_ line: ReceiptLineItem) throws {
-        line.userConfirmed = true
-        try modelContext.save()
+    func ingestConfirmedLines(of receipt: Receipt, into pantry: any PantryServiceProtocol) throws {
+        try ingestConfirmedLines(of: receipt, into: pantry, overrides: [:])
     }
 
-    func ingestConfirmedLines(of receipt: Receipt, into pantry: any PantryServiceProtocol) throws {
+    func ingestConfirmedLines(
+        of receipt: Receipt,
+        into pantry: any PantryServiceProtocol,
+        overrides: [UUID: ReceiptIngestOverride]
+    ) throws {
         let confirmed = receipt.orderedLineItems.filter { $0.userConfirmed && !$0.isIngested }
         guard !confirmed.isEmpty else {
             throw ReceiptServiceError.noLinesToIngest
@@ -516,17 +534,28 @@ final class LiveReceiptService: ReceiptServiceProtocol {
             // "Size × count" ingest: when ReceiptProductMatcher found a
             // package size, a 4-pack of 5.3oz cups ingests as 21.2 oz, not
             // "1 piece" — see ReceiptLineItem.ingestQuantity/ingestPantryUnit.
+            let mergeStarted = Date()
             let pantryItem = try pantry.mergeOrCreate(
                 rawName: line.displayName.isEmpty ? line.canonicalFoodName : line.displayName,
                 quantity: line.ingestQuantity,
                 unit: line.ingestPantryUnit,
-                storageLocation: defaultLocation(for: line.canonicalFoodName),
+                storageLocation: overrides[line.id]?.storage ?? defaultLocation(for: line.canonicalFoodName),
                 purchaseDate: receipt.purchaseDate,
                 purchaseSource: .receiptScan,
                 sourceReceiptLineItemID: line.id,
                 brand: line.brand ?? ""
             )
             line.linkedPantryItemID = pantryItem.id
+            // A merged row keeps its own location and the SHORTER use-by of the
+            // stack (the whole row spoils with its oldest portion): the override
+            // may only pull the date earlier there, while a new row takes it as typed.
+            if let useBy = overrides[line.id]?.useBy {
+                let isNewRow = pantryItem.createdAt >= mergeStarted
+                let applied = isNewRow ? useBy : min(useBy, pantryItem.useBy ?? useBy)
+                if pantryItem.useBy != applied {
+                    _ = try pantry.updateItem(pantryItem, quantity: nil, unit: nil, storageLocation: nil, useBy: applied, brand: nil)
+                }
+            }
 
             // Record the price as a standalone history entry — one INSERT per
             // purchase, keyed by canonical food name so the time series

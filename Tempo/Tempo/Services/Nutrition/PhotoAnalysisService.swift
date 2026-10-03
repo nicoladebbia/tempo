@@ -140,6 +140,7 @@ final class PhotoAnalysisService: PhotoAnalysisServiceProtocol, @unchecked Senda
               "carbs": 30.0,
               "fat": 8.0,
               "confidence": 0.85,
+              "question": "only when confidence < 0.6: one short question to the user, e.g. 'Is this chicken or pork?'",
               "alternatives": [
                 {
                   "name": "alternative food name",
@@ -165,7 +166,10 @@ final class PhotoAnalysisService: PhotoAnalysisServiceProtocol, @unchecked Senda
         - Maximum 2 alternatives per item. Skip the alternatives key entirely for unambiguous items.
         - If the image does not contain food, return: {"items": [], "confidence": 0, "verdict": "No food detected in this image."}
         - If the image is too blurry or unclear, return: {"items": [], "confidence": 0, "verdict": "Image is too unclear to analyze."}
-        - Be conservative with portion estimates — better to underestimate than overestimate.
+        - Give every portion in grams ("150g") whenever possible, using visible cues (plate size, cutlery, packaging) to judge weight.
+        - Be realistic with portions: restaurant and takeaway plates and bowls are larger than home portions. Do not shrink a portion to look healthy.
+        - Break mixed dishes into their visible components (rice, protein, salad, sauce) as separate items. Include oils, sauces and dressings you can see.
+        - Set confidence below 0.6 when you cannot tell what a food is or how much of it there is, and add a "question" for the user. Never invent a confident answer.
         """
 
         if let budget {
@@ -249,7 +253,8 @@ final class PhotoAnalysisService: PhotoAnalysisServiceProtocol, @unchecked Senda
                 carbsGrams: item.carbs,
                 fatGrams: item.fat,
                 confidence: item.confidence,
-                alternatives: mappedAlternatives
+                alternatives: mappedAlternatives,
+                question: item.question
             )
 
             // Attempt USDA cross-reference for higher-confidence items
@@ -263,14 +268,17 @@ final class PhotoAnalysisService: PhotoAnalysisServiceProtocol, @unchecked Senda
                         let usdaRatio = best.calories > 0 ? item.calories / best.calories : 1.0
                         finalItem = PhotoAnalysisResult.PhotoFoodItem(
                             id: best.id,
-                            name: best.name,
+                            // Keep the model's readable name; USDA's is a catalogue string.
+                            name: item.name,
                             estimatedPortion: item.portion,
                             calories: item.calories,
                             proteinGrams: best.proteinGrams * usdaRatio,
                             carbsGrams: best.carbsGrams * usdaRatio,
                             fatGrams: best.fatGrams * usdaRatio,
                             confidence: min(item.confidence + 0.1, 1.0), // Boost confidence with USDA verification
-                            alternatives: mappedAlternatives
+                            alternatives: mappedAlternatives,
+                            isVerified: true,
+                            question: item.question
                         )
                     }
                 } catch {

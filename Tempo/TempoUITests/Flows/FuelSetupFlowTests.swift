@@ -3,7 +3,7 @@
 // Tempo
 //
 // Nutrition → Plan → Generate (no profile yet) → Fuel setup: the talk-or-type
-// screen, the manual path into the review form, a weekday's routine with a
+// screen, the manual path into the section overview, the You flow, a weekday's routine with a
 // meal out, and Save.
 //
 
@@ -41,15 +41,28 @@ final class FuelSetupFlowTests: XCTestCase {
         attach("01-fuel-talk")
         app.buttons["fuelSetupManual"].tap()
 
-        let weight = app.textFields["fuelWeight"]
-        XCTAssertTrue(weight.waitForExistence(timeout: 10))
+        // Overview of section cards → "You" flow: one question per screen.
+        let you = app.buttons["fuelSection.you"]
+        XCTAssertTrue(you.waitForExistence(timeout: 10))
+        attach("02-fuel-overview")
+        you.tap()
         for (id, value) in [("fuelWeight", "78"), ("fuelHeight", "183"), ("fuelAge", "24")] {
             let field = app.textFields[id]
+            XCTAssertTrue(field.waitForExistence(timeout: 10))
             field.tap()
             field.typeText(value)
+            app.toolbars.buttons["Done"].tap()
+            app.buttons["fuelFlowNext"].tap()
         }
-        attach("02-fuel-review")
-        app.toolbars.buttons["Done"].tap()
+        app.buttons["Male"].tap()
+        app.buttons["fuelFlowNext"].tap()
+        attach("03-fuel-you-last")
+        app.buttons["fuelFlowSave"].tap()
+
+        // "Your week" flow, first screen: the seven days.
+        let week = app.buttons["fuelSection.week"]
+        XCTAssertTrue(week.waitForExistence(timeout: 10))
+        week.tap()
 
         let monday = app.buttons["fuelDay1"]
         for _ in 0 ..< 6 where !monday.isHittable {
@@ -68,13 +81,15 @@ final class FuelSetupFlowTests: XCTestCase {
         restaurants.typeText("Panera Bread")
         attach("03-fuel-monday")
         app.navigationBars["Monday"].buttons.firstMatch.tap()
-
         XCTAssertTrue(
             app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'eat Panera Bread 13:00'")).firstMatch
                 .waitForExistence(timeout: 5),
             "Monday summary shows the meal out"
         )
         attach("04-fuel-week")
+        app.buttons["fuelFlowNext"].tap()
+        app.buttons["fuelFlowNext"].tap()
+        app.buttons["fuelFlowSave"].tap()
         app.buttons["fuelSetupSave"].tap()
         XCTAssertTrue(app.staticTexts["Talk me through your week."].waitForNonExistence(timeout: 15), "Sheet closes after saving")
     }

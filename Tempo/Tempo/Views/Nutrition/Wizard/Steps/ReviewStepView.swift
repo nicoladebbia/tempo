@@ -28,22 +28,6 @@ struct ReviewStepView: View {
                     label: "Cookable days",
                     value: "\(coordinator.intake.cookableDaysThisWeek)/7"
                 )
-                summaryRow(
-                    label: "Leftovers",
-                    value: coordinator.intake.leftoverTolerance.displayName
-                )
-                summaryRow(
-                    label: "Eating window",
-                    value: "\(formatHour(coordinator.intake.eatingWindow.firstMealHour)) – \(formatHour(coordinator.intake.eatingWindow.lastMealHour))"
-                )
-                if let grocery = coordinator.intake.groceryIntent {
-                    summaryRow(
-                        label: "Grocery",
-                        value: grocery.willShopThisWeek
-                            ? (grocery.budgetCapUSD.map { "Shop, $\($0) cap" } ?? "Shop, no cap")
-                            : "From pantry"
-                    )
-                }
                 if coordinator.snapshot.hasWhoop {
                     summaryRow(
                         label: "Recovery skew",
@@ -73,9 +57,5 @@ struct ReviewStepView: View {
                 .multilineTextAlignment(.trailing)
         }
         .tempoCard()
-    }
-
-    private func formatHour(_ hour: Int) -> String {
-        String(format: "%02d:00", hour)
     }
 }

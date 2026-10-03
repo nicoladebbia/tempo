@@ -39,7 +39,6 @@ final class ServiceContainer {
     var receipts: (any ReceiptServiceProtocol)?
     var recipes: (any RecipeServiceProtocol)?
     var groceryList: (any GroceryListServiceProtocol)?
-    let nutritionIntelligence: NutritionIntelligenceService
     /// Long-lived owner of the recovery AI insight generation. MUST be a single
     /// shared instance (not per-view) so its per-day single-flight dedup
     /// survives view remounts — otherwise rapid `.task` re-fires each spawn a
@@ -101,7 +100,6 @@ final class ServiceContainer {
         self.pushRegistration = pushRegistration
         self.subscriptions = subscriptions
         self.nutrition = nutrition
-        self.nutritionIntelligence = NutritionIntelligenceService()
         self.recoveryInsight = RecoveryAIInsightService(apiClient: apiClient)
         self.exerciseImages = ExerciseImageService(
             apiClient: apiClient,
@@ -195,7 +193,7 @@ final class ServiceContainer {
             networkMonitor: NetworkMonitor(),
             pushRegistration: PushRegistrationService(apiClient: apiClient),
             subscriptions: SubscriptionService(),
-            nutrition: NutritionService.live(healthKit: healthKit, apiClient: apiClient)
+            nutrition: NutritionService.live(apiClient: apiClient)
         )
     }
 }

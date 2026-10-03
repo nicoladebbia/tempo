@@ -53,8 +53,6 @@ struct SupplementsView: View {
                 .padding(.bottom, TempoSpacing.bottomSafe)
             }
         }
-        .navigationTitle("Supplements")
-        .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showAddSheet) {
             SupplementEditSheet(existing: nil, prefillUPC: nil) { draft in
                 modelContext.insert(draft)
@@ -78,10 +76,10 @@ struct SupplementsView: View {
             }
         }
         .fullScreenCover(isPresented: $showBarcodeScan) {
-            SupplementBarcodeScanView(shelf: supplements) {
+            UniversalScanView(context: .supplements(shelf: supplements, onSaved: {
                 try? modelContext.save()
                 notifyShelfChanged()
-            }
+            }))
             .environment(services)
         }
     }

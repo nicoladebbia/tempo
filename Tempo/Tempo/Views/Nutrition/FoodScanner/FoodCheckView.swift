@@ -112,7 +112,7 @@ struct FoodCheckView: View {
                 }
             }
             .sheet(isPresented: $showScanner) {
-                BarcodeScannerView()
+                UniversalScanView(context: .foodCheck)
             }
             .sheet(isPresented: $showSearch) {
                 FoodSearchView()

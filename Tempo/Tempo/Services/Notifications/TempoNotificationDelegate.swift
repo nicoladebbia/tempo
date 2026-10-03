@@ -12,7 +12,7 @@ import os
 import SwiftData
 import UserNotifications
 
-final class TempoNotificationDelegate: NSObject, UNUserNotificationCenterDelegate, @unchecked Sendable {
+final class TempoNotificationDelegate: NSObject, @preconcurrency UNUserNotificationCenterDelegate, @unchecked Sendable {
     static let shared = TempoNotificationDelegate()
 
     @MainActor
@@ -22,6 +22,11 @@ final class TempoNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
 
     private let logger = Logger(subsystem: "app.tempo", category: "NotificationDelegate")
 
+    // Both callbacks are @MainActor: as nonisolated async methods their
+    // completion handler ran on a background thread, and UIKit's snapshot /
+    // state-restoration update after a notification tap threw "Call must be
+    // made on main thread" — the tap-to-crash on a cold launch.
+    @MainActor
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
@@ -29,6 +34,7 @@ final class TempoNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
         [.banner, .list, .sound]
     }
 
+    @MainActor
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
@@ -36,67 +42,61 @@ final class TempoNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
         let content = response.notification.request.content
         let category = content.categoryIdentifier
         let action = response.actionIdentifier
-        let type = Self.pushType(from: content.userInfo)
-        let mealID = content.userInfo[NotificationService.mealIDUserInfoKey] as? String
+        let userInfo = content.userInfo
+        let mealID = userInfo[NotificationService.mealIDUserInfoKey] as? String
         let title = content.title
         let body = content.body
         logger.info("Notification action \(action, privacy: .public) in \(category, privacy: .public)")
 
+        // Buttons that do work in the background; everything else navigates.
         switch (category, action) {
         case (WeeklyPlanReminder.categoryID, WeeklyPlanReminder.buildActionID):
             await buildNextWeek()
-        case (WeeklyPlanReminder.categoryID, _):
-            await open(.nutrition, checkIn: true)
-        case (WeeklyPlanReminder.readyCategoryID, _):
-            await open(.nutrition)
-            await syncPlans()
+            return
         case ("MEAL_REMINDER", "DELAY_30MIN"):
-            let snoozedBody = (content.userInfo[NotificationService.mealNameUserInfoKey] as? String)
+            let snoozedBody = (userInfo[NotificationService.mealNameUserInfoKey] as? String)
                 .map { "Time for \($0). Don't skip it." } ?? body
             await snooze(title: title, body: snoozedBody, category: category, minutes: 30, mealID: mealID)
+            return
         case ("OVERDUE_MEAL_REMINDER", NotificationService.overdueAteActionID):
-            await resolveOverdueMeal(content.userInfo[NotificationService.mealIDUserInfoKey] as? String, ate: true)
+            await resolveOverdueMeal(mealID, ate: true)
+            return
         case ("OVERDUE_MEAL_REMINDER", NotificationService.overdueSkippedActionID):
-            await resolveOverdueMeal(content.userInfo[NotificationService.mealIDUserInfoKey] as? String, ate: false)
-        case ("MEAL_REMINDER", _),
-             ("OVERDUE_MEAL_REMINDER", _),
-             ("DEFROST_REMINDER", _),
-             ("PREP_START_REMINDER", _):
-            if let request = Self.mealRequest(category: category, action: action, mealID: mealID) {
-                await open(.nutrition, meal: request)
-            } else if !Self.isQuietMealAction(action) {
-                await open(.nutrition)
-            }
+            await resolveOverdueMeal(mealID, ate: false)
+            return
         case ("SUPPLEMENT_REMINDER", "SUPPLEMENT_TAKEN"):
-            let names = content.userInfo["supplementNames"] as? [String] ?? []
-            let ids = content.userInfo["supplementIDs"] as? [String] ?? []
+            let names = userInfo["supplementNames"] as? [String] ?? []
+            let ids = userInfo["supplementIDs"] as? [String] ?? []
             await markSupplementsTaken(
                 names: names, ids: ids,
-                deliveredAt: Self.supplementDay(userInfo: content.userInfo, delivered: response.notification.date)
+                deliveredAt: Self.supplementDay(userInfo: userInfo, delivered: response.notification.date)
             )
+            return
         case ("SUPPLEMENT_REMINDER", "SUPPLEMENT_SNOOZE_15"):
-            let names = content.userInfo["supplementNames"] as? [String] ?? []
-            let ids = content.userInfo["supplementIDs"] as? [String] ?? []
+            let names = userInfo["supplementNames"] as? [String] ?? []
+            let ids = userInfo["supplementIDs"] as? [String] ?? []
             await snooze(
                 title: title, body: body, category: category, minutes: 15, supplementNames: names, supplementIDs: ids,
-                originalDelivery: Self.supplementDay(userInfo: content.userInfo, delivered: response.notification.date)
+                originalDelivery: Self.supplementDay(userInfo: userInfo, delivered: response.notification.date)
             )
-        case ("SUPPLEMENT_REMINDER", _):
-            await open(.nutrition)
+            return
         case ("SUPPLEMENT_REORDER", "SUPPLEMENT_ADD_TO_LIST"):
-            let name = content.userInfo["supplementName"] as? String
-            await addLowSupplementToGroceryList(supplementName: name)
+            await addLowSupplementToGroceryList(supplementName: userInfo["supplementName"] as? String)
+            return
         case ("SUPPLEMENT_REORDER", "SUPPLEMENT_RESTOCKED"):
-            let name = content.userInfo["supplementName"] as? String
-            let id = (content.userInfo["supplementID"] as? String).flatMap(UUID.init(uuidString:))
-            await restockSupplement(supplementName: name, supplementID: id)
-        case ("SUPPLEMENT_REORDER", _):
-            await open(.nutrition)
+            let id = (userInfo["supplementID"] as? String).flatMap(UUID.init(uuidString:))
+            await restockSupplement(supplementName: userInfo["supplementName"] as? String, supplementID: id)
+            return
         default:
-            if type == "meal_plan_ready" {
-                await open(.nutrition)
-                await syncPlans()
-            }
+            break
+        }
+
+        guard let destination = NotificationRouter.destination(category: category, action: action, userInfo: userInfo) else {
+            return
+        }
+        open(destination)
+        if destination.syncPlans {
+            await syncPlans()
         }
     }
 
@@ -136,16 +136,24 @@ final class TempoNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
         await WeeklyPlanService.shared.sync(modelContext: container.mainContext, deps: PlanDeps(services))
     }
 
+    /// Applies a destination to the UI state. A no-op until the services exist
+    /// (they are wired in `TempoApp.init`, before any notification arrives).
     @MainActor
-    private func open(_ tab: Tab, checkIn: Bool = false, meal: MealRequest? = nil) {
+    private func open(_ destination: NotificationDestination) {
         guard let appState = Self.services?.appState else {
             return
         }
-        appState.activeTab = tab
-        if checkIn {
+        appState.activeTab = destination.tab
+        if destination.tab == .nutrition {
+            let section = destination.kitchenSection != nil ? NutritionSection.kitchen : destination.nutritionSection
+            if let section {
+                appState.requestedNutrition = NutritionRoute(section: section, kitchen: destination.kitchenSection)
+            }
+        }
+        if destination.weeklyCheckIn {
             appState.weeklyCheckInRequested = true
         }
-        if let meal {
+        if let meal = destination.meal {
             appState.requestedMeal = meal
         }
     }
@@ -289,7 +297,7 @@ final class TempoNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
             unit: .pieces,
             modelContext: context
         )
-        open(.nutrition)
+        open(.nutrition(kitchen: .groceries))
     }
 
     /// "Restocked" on a running-low alert — adds a container and starts a new
@@ -305,13 +313,14 @@ final class TempoNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
         }
         let context = container.mainContext
         guard let supplement = SupplementIntakeStore.supplement(id: supplementID, name: supplementName ?? "", in: context) else {
+            open(.nutrition(kitchen: .supplements))
             return
         }
         if SupplementReorderService.restock(supplement) {
             try? context.save()
             NotificationCenter.default.post(name: .tempoSupplementsChanged, object: nil)
         } else {
-            open(.nutrition)
+            open(.nutrition(kitchen: .supplements))
         }
     }
 }

@@ -174,6 +174,19 @@ final class PlannedMeal: Identifiable {
     /// `isUnplannedLog`). Optional so the field add is a lightweight migration.
     var isUnplannedLogFlag: Bool?
 
+    /// Where a logged meal came from: `MealOrigin.rawValue` ("kitchen" = taken
+    /// off the pantry, "out" = eaten out). nil = never asked (plan meals, old
+    /// logs). Display / coach context only: totals never read it. Optional so
+    /// the field add is a lightweight migration.
+    var originRaw: String?
+
+    /// `originRaw` as the enum.
+    @Transient
+    var origin: MealOrigin? {
+        get { originRaw.flatMap(MealOrigin.init(rawValue:)) }
+        set { originRaw = newValue?.rawValue }
+    }
+
     /// The plan's time for this meal before eating another meal late/early
     /// shifted it (`MealOutcomeService.applyMealShift`), so Undo can put it
     /// back. Captured once; nil = never shifted. Optional for lightweight

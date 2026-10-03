@@ -119,7 +119,7 @@ enum EatenMealRecorder {
         )
     }
 
-    private static func plannedFood(from item: MealFoodItemInput) -> PlannedFood {
+    static func plannedFood(from item: MealFoodItemInput) -> PlannedFood {
         PlannedFood(
             name: item.name,
             quantityGrams: item.servingSize * item.servings,
@@ -236,6 +236,8 @@ enum EatenMealRecorder {
         eatenAt: Date,
         source: MealSource,
         resolution: DuplicateResolution = .add,
+        origin: MealOrigin? = nil,
+        deductPantry shouldDeduct: Bool = true,
         modelContext: ModelContext,
         notifications: (any NotificationServiceProtocol)? = nil,
         now: Date = Date()
@@ -262,12 +264,16 @@ enum EatenMealRecorder {
                         at: eatenAt,
                         replacingWith: plannedFoods,
                         mealLogID: mealLog.id,
-                        pantry: .none,
+                        pantry: origin == .kitchen && shouldDeduct ? .foods : .none,
                         env: MealOutcomeService.Env(modelContext: modelContext, notifications: notifications)
                     )
                 } catch {
                     modelContext.rollback()
                     throw error
+                }
+                if let origin {
+                    existing.origin = origin
+                    try commit(modelContext)
                 }
                 return Result(meal: existing, logged: logged)
             }
@@ -281,7 +287,7 @@ enum EatenMealRecorder {
             if !existing.isUnplannedLog, resolution == .add {
                 return try recordUnplannedLog(
                     items: items, plannedFoods: plannedFoods, logged: logged,
-                    type: type, eatenAt: eatenAt, source: source, now: now, in: modelContext
+                    type: type, eatenAt: eatenAt, source: source, origin: origin, deductPantry: shouldDeduct, now: now, in: modelContext
                 )
             }
             // Whatever happens next rewrites the totals — keep the plan's
@@ -302,19 +308,55 @@ enum EatenMealRecorder {
                 existing.totalFat += logged.fat
             }
             existing.actualEatenAt = existing.actualEatenAt.map { min($0, eatenAt) } ?? eatenAt
+            // Only a pure add takes stock off the pantry (just the NEW foods,
+            // appended to what the meal already took). An edit rewrites foods
+            // that were already counted, so it never deducts.
+            var deducted: [PantryDecrementDetail] = []
+            if origin == .kitchen, resolution == .add, shouldDeduct {
+                deducted = deductPantry(for: plannedFoods, label: existing.mealName, appendingTo: existing, in: modelContext)
+            }
+            if let origin, resolution == .add, existing.origin == nil || origin == .kitchen {
+                existing.origin = origin
+            }
             syncMergedMealLog(
                 of: existing, items: items, resolution: resolution,
                 type: type, eatenAt: eatenAt, source: source, in: modelContext
             )
-            try commit(modelContext)
+            do {
+                try commit(modelContext)
+            } catch {
+                PantryDecrementService.creditExact(details: deducted, modelContext: modelContext)
+                throw error
+            }
             NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
             return Result(meal: existing, logged: logged)
         }
 
         return try recordUnplannedLog(
             items: items, plannedFoods: plannedFoods, logged: logged,
-            type: type, eatenAt: eatenAt, source: source, now: now, in: modelContext
+            type: type, eatenAt: eatenAt, source: source, origin: origin, deductPantry: shouldDeduct, now: now, in: modelContext
         )
+    }
+
+    /// Takes `foods` off the pantry and records the exact per-row detail on
+    /// `meal` (appending to any earlier detail) so Undo credits back exactly
+    /// this. Handles depletions (grocery candidates) like Mark Eaten does.
+    @discardableResult
+    private static func deductPantry(
+        for foods: [PlannedFood],
+        label: String,
+        appendingTo meal: PlannedMeal,
+        in modelContext: ModelContext
+    ) -> [PantryDecrementDetail] {
+        let results = PantryDecrementService.decrement(foods: foods, label: label, modelContext: modelContext)
+        meal.decrementDetail = meal.decrementDetail + results.flatMap(\.details)
+        // A recorded (possibly empty) detail keeps Undo exact, never approximate.
+        if meal.decrementDetailJSON == nil {
+            meal.decrementDetailJSON = (try? JSONEncoder().encode([PantryDecrementDetail]()))
+        }
+        meal.didDecrementPantry = true
+        PantryDepletionPlanCheck.handleDepletions(results, weeklyPlan: meal.mealPlan, modelContext: modelContext)
+        return results.flatMap(\.details)
     }
 
     /// A log on top of the plan: its own eaten row (attached to today's
@@ -327,6 +369,8 @@ enum EatenMealRecorder {
         type: MealType,
         eatenAt: Date,
         source: MealSource,
+        origin: MealOrigin?,
+        deductPantry shouldDeduct: Bool = true,
         now: Date,
         in modelContext: ModelContext
     ) throws -> Result {
@@ -351,8 +395,19 @@ enum EatenMealRecorder {
         // Not something the plan asked for → adds to "eaten", never to
         // the target.
         created.markAsUnplannedLog()
+        created.origin = origin
         modelContext.insert(created)
-        try commit(modelContext)
+        var deducted: [PantryDecrementDetail] = []
+        if origin == .kitchen, shouldDeduct {
+            deducted = deductPantry(for: plannedFoods, label: created.mealName, appendingTo: created, in: modelContext)
+        }
+        do {
+            try commit(modelContext)
+        } catch {
+            // The deduction saved on its own; a log that never landed must not keep it.
+            PantryDecrementService.creditExact(details: deducted, modelContext: modelContext)
+            throw error
+        }
         // Tell the Dashboard (separate VM) to re-pull its Fuel quadrant so
         // its calories + eat-times match the Nutrition tab immediately.
         NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)

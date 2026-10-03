@@ -78,20 +78,8 @@ extension SupplementDayContext {
         }
 
         // Today's planned meals, reduced to name/number/time.
-        guard let nextDayStart = calendar.date(byAdding: .day, value: 1, to: dayStart) else {
-            return SupplementDayContext(
-                planDecisions: planDecisionsByName,
-                isTrainingDay: isTrainingDay,
-                trainingStartMinutes: trainingStart,
-                trainingEndMinutes: trainingEnd,
-                wakeMinutes: wakeMinutes,
-                bedMinutes: bedMinutes
-            )
-        }
-        let mealDescriptor = FetchDescriptor<PlannedMeal>(
-            predicate: #Predicate<PlannedMeal> { $0.dayDate >= dayStart && $0.dayDate < nextDayStart }
-        )
-        let meals = ((try? modelContext.fetch(mealDescriptor)) ?? []).compactMap { meal -> SupplementMealTime? in
+        // Same meals the Fuel screens show: active plan or manual logs only.
+        let meals = CanonicalMeals.meals(on: dayStart, in: modelContext).compactMap { meal -> SupplementMealTime? in
             // A ticked dose's own "Supplements" entry is not a meal to time doses around.
             guard !EatenMealRecorder.isSupplementDose(meal), let minutes = RoutineTime.minutes(from: meal.scheduledTime) else {
                 return nil

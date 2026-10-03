@@ -12,7 +12,6 @@ import SwiftData
 @MainActor
 protocol RecipeServiceProtocol: Sendable {
     func fetchAll() throws -> [Recipe]
-    func fetchFavorites() throws -> [Recipe]
     func fetch(byID id: UUID) throws -> Recipe?
     func add(_ recipe: Recipe) throws
     func update(_ recipe: Recipe) throws

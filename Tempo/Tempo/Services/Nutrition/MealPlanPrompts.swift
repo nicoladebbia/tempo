@@ -193,7 +193,7 @@ enum MealPlanPrompts {
             }
             if !dislikedFoods.isEmpty {
                 let safe = dislikedFoods.map(MealPlanPrompts.sanitizeForPrompt).joined(separator: ", ")
-                lines.append("- DISLIKED FOODS (avoid): \(safe)")
+                lines.append("- WON'T EAT (permanent, never include in any meal): \(safe)")
             }
             if lines.isEmpty {
                 return "None."
