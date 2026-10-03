@@ -253,6 +253,7 @@
 		30559A3450A96F99BE0A4D87 /* DebugTrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3F8D3874146880249B5802D /* DebugTrace.swift */; };
 		305D5CBF2E0CCB56A984EC92 /* MealReviewDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10A68A8886AF6DD22611B8FA /* MealReviewDraft.swift */; };
 		305E1D3AA60E440031C90341 /* PantryQuantityFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0496A79573E3F8F6F07D6DB /* PantryQuantityFormatter.swift */; };
+		30FDA0D079D9215141E4F6A1 /* LabelFactsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D87C465F7D322D26DB475133 /* LabelFactsTests.swift */; };
 		3125949AF78C417FADBFB070 /* cue_ex_trap_bar_deadlift.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 88F30C50D7D2ED0A8F9F7B00 /* cue_ex_trap_bar_deadlift.mp3 */; };
 		313765058A3D97D8775F34BD /* ShelfLifeAIEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A04D5093DBB6EF7CB85EDACC /* ShelfLifeAIEstimator.swift */; };
 		313C3E974D6C484A252DE914 /* StreakCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E12F8C9AD532F04BF678536 /* StreakCalendarView.swift */; };
@@ -1270,6 +1271,7 @@
 		FC6A5505A818FCB372CAF876 /* cue_move_scapular_push_ups.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = DCBC1809D21C98EC00588302 /* cue_move_scapular_push_ups.mp3 */; };
 		FCD666F5F06CBF7DB861CCD9 /* PlannedMealTimingMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFCF7C06827FF0287A30F374 /* PlannedMealTimingMatcher.swift */; };
 		FD4973163870BBD7D2EF7579 /* FocusTimerActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDD957BD3C8595D5E0120DAA /* FocusTimerActivityAttributes.swift */; };
+		FD4DD5FCA6B4560D953A9D2A /* LabelFacts.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4DA2CA92DB3555C4DD47E1C /* LabelFacts.swift */; };
 		FD4F8D22C88FFFD22D088D8E /* SyncCoordinatorProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8F26E407787FCFF9954F0F0 /* SyncCoordinatorProtocol.swift */; };
 		FD98AD1B7C3EB40C66CF3830 /* RecipeParserService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F58BF5453C1F965727E89A1B /* RecipeParserService.swift */; };
 		FDA86A8A1FAAB495654536A5 /* TrainingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86E70856BD5D38154690BB16 /* TrainingViewModel.swift */; };
@@ -2233,6 +2235,7 @@
 		B46C8A48839E3E8215AF6F23 /* PackageSizeParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackageSizeParserTests.swift; sourceTree = "<group>"; };
 		B4741BA6E13FF85F3FAD2618 /* TrainerProgramPageTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerProgramPageTranscriber.swift; sourceTree = "<group>"; };
 		B49C0F061AE1E85E7700BC15 /* FakeGuidedRunClock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeGuidedRunClock.swift; sourceTree = "<group>"; };
+		B4DA2CA92DB3555C4DD47E1C /* LabelFacts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabelFacts.swift; sourceTree = "<group>"; };
 		B52B77C6DD0AB4312E7EB4DF /* StaplesPromptState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StaplesPromptState.swift; sourceTree = "<group>"; };
 		B5411241E0299EB01755166F /* MealScheduleHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealScheduleHelpers.swift; sourceTree = "<group>"; };
 		B54E678E5B20845F00B6A8EE /* TrainerFeedbackApplierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerFeedbackApplierTests.swift; sourceTree = "<group>"; };
@@ -2436,6 +2439,7 @@
 		D7D589689C5451EE86CAFCEB /* PhoneWatchConnectivityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneWatchConnectivityService.swift; sourceTree = "<group>"; };
 		D7F205BF796410A72AFD7627 /* MissingRecoveryDataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MissingRecoveryDataTests.swift; sourceTree = "<group>"; };
 		D802A031AF15B9CC7D9C33BA /* ActiveDays.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveDays.swift; sourceTree = "<group>"; };
+		D87C465F7D322D26DB475133 /* LabelFactsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabelFactsTests.swift; sourceTree = "<group>"; };
 		D89412668F66C6575100CB8F /* cue_ex_wrist_curl.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_wrist_curl.mp3; sourceTree = "<group>"; };
 		D8C38FB9B492DC2FE5B37D9C /* SundayWrapUpFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SundayWrapUpFlowTests.swift; sourceTree = "<group>"; };
 		D90844D31FD96C1FAEF94F8E /* TrainerProgramSaver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerProgramSaver.swift; sourceTree = "<group>"; };
@@ -3092,6 +3096,7 @@
 				BC3B7A284D3A1AA290AFF4C9 /* GroceryStoreLayoutTests.swift */,
 				31468DE56CC16FE7E1EBAA45 /* GroceryWeekAnchorTests.swift */,
 				88F41BBD3FF5D52AFC4F5DC1 /* GroceryWeeklySpendTests.swift */,
+				D87C465F7D322D26DB475133 /* LabelFactsTests.swift */,
 				9C9AE303D1EB284CCBF7286A /* MacroCarryoverServiceTests.swift */,
 				0600C5FA4A697C7BF8CE3852 /* MealOutcomeServiceTests.swift */,
 				12206A016EFE9D2A8BE11CB1 /* MealPlanEatingPatternTests.swift */,
@@ -4589,6 +4594,7 @@
 				1B4AA69236F7C52A8FC0FE78 /* FoodScore.swift */,
 				224D3240F67D9E27D5249E17 /* FoodSuggestions.swift */,
 				A1ED142E4CC0DFA8D4555D2A /* GenericFoodImages.swift */,
+				B4DA2CA92DB3555C4DD47E1C /* LabelFacts.swift */,
 				66709A8DE68C40520A036244 /* NutritionLabelReader.swift */,
 				65817C003AB9DBA1886E114F /* OpenFoodFactsClient.swift */,
 				6A649C3A05A942D9B100599F /* ProductPhotoStudio.swift */,
@@ -5485,6 +5491,7 @@
 				E335AB95707FD6424BEE1CD2 /* HydrationMathTests.swift in Sources */,
 				963CBCAE556ED85007E5BA22 /* ImportedExerciseResolverTests.swift in Sources */,
 				7C774B3E7917FD3D2F708729 /* KitchenEquipmentTests.swift in Sources */,
+				30FDA0D079D9215141E4F6A1 /* LabelFactsTests.swift in Sources */,
 				982E96BA2399F03691DE940E /* LateNightWindowTests.swift in Sources */,
 				8989D01C44B10B70BFCC2E51 /* LearnedPreferenceTests.swift in Sources */,
 				8DAE3E145D324B2FF0FB5E81 /* LiveActivityCoordinatorTests.swift in Sources */,
@@ -5992,6 +5999,7 @@
 				AE89E6C02D94E34EAE538F1D /* KitchenEquipment.swift in Sources */,
 				DE1DD91E646BBFB34BE00428 /* KitchenView.swift in Sources */,
 				6D9B069C55514F43E9708A8A /* LabelCrop.swift in Sources */,
+				FD4DD5FCA6B4560D953A9D2A /* LabelFacts.swift in Sources */,
 				588972D53595CFEE05C8E0C4 /* LeaderboardView.swift in Sources */,
 				B5AD564516CD1DED42BDA2C2 /* LearnedOutcome.swift in Sources */,
 				507562733124D2663FF05F60 /* LearnedPreference.swift in Sources */,
