@@ -19,11 +19,47 @@ final class NutritionStapleState {
     /// (`PantryStapleOnboardingSheet`) should be offered on first open.
     var shouldOfferOnboarding: Bool = false
     var loadError: String?
+    /// Persisted skip/done state of the "Track your staples" prompt.
+    var prompt = StaplesPromptMachine()
+    /// Suggestions the user answered "No" to.
+    var declined: Set<String> = []
 }
 
 // MARK: - ViewModel extension
 
 extension NutritionTabViewModel {
+    /// Suggestions for this user: diet/allergy-safe ones only.
+    var stapleSuggestions: [(canonicalName: String, displayName: String)] {
+        PantryStaple.suggestions(for: StapleDietFilter(profile: dietaryProfile))
+    }
+
+    func loadStaplePromptState(store: StaplesPromptStore = StaplesPromptStore()) {
+        stapleState.prompt = store.machine
+        stapleState.declined = store.declined
+    }
+
+    func applyStapleEvent(_ event: StaplesPromptEvent, store: StaplesPromptStore = StaplesPromptStore()) {
+        stapleState.prompt.apply(event)
+        store.machine = stapleState.prompt
+    }
+
+    /// Yes / No on one suggestion. Yes tracks it as "have"; No stops it being
+    /// offered again (and untracks it if it was).
+    func answerStaple(_ suggestion: (canonicalName: String, displayName: String), have: Bool, store: StaplesPromptStore = StaplesPromptStore()) {
+        var declined = stapleState.declined
+        if have {
+            declined.remove(suggestion.canonicalName)
+            addStaple(canonicalName: suggestion.canonicalName, displayName: suggestion.displayName)
+        } else {
+            declined.insert(suggestion.canonicalName)
+            if let existing = stapleState.staples.first(where: { $0.canonicalName == FoodCanonicalizer.canonicalize(suggestion.canonicalName) }) {
+                deleteStaple(existing)
+            }
+        }
+        stapleState.declined = declined
+        store.declined = declined
+    }
+
     func reloadStaples() {
         guard let service = stapleService else {
             return
@@ -31,6 +67,12 @@ extension NutritionTabViewModel {
         do {
             stapleState.staples = try service.fetchAll()
             stapleState.shouldOfferOnboarding = try service.shouldOfferOnboarding()
+            // People who already track staples (from before this prompt
+            // existed) are never nagged: settle it as done once.
+            let store = StaplesPromptStore()
+            if !store.hasStoredPhase, !stapleState.staples.isEmpty {
+                applyStapleEvent(.complete, store: store)
+            }
             stapleState.loadError = nil
         } catch {
             stapleState.loadError = error.localizedDescription

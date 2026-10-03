@@ -40,6 +40,7 @@ struct ReceiptsHistoryView: View {
                                 pantryService: pantryService,
                                 onIngested: {
                                     viewModel.reloadReceipts()
+                                    viewModel.reloadPantry()
                                     // Same as from Pantry: new stock shrinks the list.
                                     viewModel.reapplyPantryToGrocery()
                                 }

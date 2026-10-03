@@ -22,6 +22,7 @@ import SwiftData
 
         @MainActor
         static func seedIfRequested(context: ModelContext) {
+            ReceiptUITestSeed.seedIfRequested(context: context)
             guard ProcessInfo.processInfo.arguments.contains(launchArgument) else {
                 return
             }

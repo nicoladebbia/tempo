@@ -4,6 +4,9 @@
 //
 // Created by Tempo on 11/05/2026.
 //
+// One-handed review: header card, items grouped (Needs a look first, then
+// food by storage, then Not food), tap a row to edit, swipe to remove with
+// Undo, one big "Add N items to pantry" button at the bottom.
 //
 
 import SwiftData
@@ -23,151 +26,105 @@ struct ReceiptReviewView: View {
     @Environment(\.dismiss)
     private var dismiss
     @State
+    private var model: ReceiptReviewModel
+    @State
+    private var editingLine: ReceiptLineItem?
+    @State
     private var ingestError: String?
     @State
     private var isIngesting = false
     /// Computed once on appear, not on every render — `isLikelyDuplicate`
-    /// does a full `fetchAll()` over every stored receipt, which is too
-    /// expensive to re-run on each line-confirm toggle if called directly
-    /// from `body`.
+    /// does a full `fetchAll()` over every stored receipt.
     @State
     private var isLikelyDuplicate = false
 
+    init(
+        receipt: Receipt,
+        receiptService: any ReceiptServiceProtocol,
+        pantryService: any PantryServiceProtocol,
+        onIngested: (() -> Void)? = nil
+    ) {
+        self.receipt = receipt
+        self.receiptService = receiptService
+        self.pantryService = pantryService
+        self.onIngested = onIngested
+        _model = State(initialValue: ReceiptReviewModel(receipt: receipt))
+    }
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-                receiptHeader
-                if isLikelyDuplicate {
-                    banner(
-                        text: "You may have already scanned this receipt — same store, date and total as another one on file.",
-                        icon: "doc.on.doc.fill",
-                        color: .tempoWarning
-                    )
-                }
-                if let crossCheckBanner = receipt.crossCheckBanner {
-                    banner(text: crossCheckBanner, icon: "exclamationmark.triangle.fill", color: .tempoWarning)
-                }
-                if receipt.orderedLineItems.isEmpty {
-                    emptyState
-                } else {
-                    ForEach(receipt.orderedLineItems, id: \.id) { line in
-                        ReceiptLineCard(
-                            line: line,
-                            storeChain: receipt.storeChain,
-                            onConfirmToggle: { confirmed in
-                                line.userConfirmed = confirmed
-                                // Confirming a line is the natural "the user
-                                // vouches for this reading" moment — learn it
-                                // as a store-scoped alias (local + backend
-                                // crowd table) so the SAME raw OCR text
-                                // resolves to this exact name next time, even
-                                // if Haiku guesses differently on a future
-                                // rescan (ReceiptItemResolver layer 2).
-                                if confirmed {
-                                    receiptService.confirmAlias(
-                                        rawText: line.rawText,
-                                        storeChain: receipt.storeChain,
-                                        readableName: line.displayName,
-                                        canonicalFoodName: line.canonicalFoodName,
-                                        barcode: line.barcode
-                                    )
-                                }
-                            },
-                            onPickProduct: { candidate, keptAsTyped in
-                                if keptAsTyped {
-                                    // Explicit rejection of whatever match (auto or
-                                    // manual) was on this line before — clear ALL
-                                    // matched-product state rather than leaving a
-                                    // stale photo/brand/confidence chip showing (and
-                                    // stale size feeding pantry ingest) for a product
-                                    // the user just said isn't this item. Back to
-                                    // plain "food-level" state, same as before any
-                                    // match ever ran.
-                                    line.barcode = nil
-                                    line.brand = nil
-                                    line.imageURL = nil
-                                    line.matchConfidence = nil
-                                    line.sizeValue = nil
-                                    line.sizeUnit = nil
-                                    line.packCount = nil
-                                } else {
-                                    line.displayName = candidate.readableName
-                                    line.canonicalFoodName = candidate.canonicalFoodName
-                                    line.barcode = candidate.barcode
-                                    line.brand = candidate.brand
-                                    line.imageURL = candidate.imageURL
-                                    line.matchConfidence = candidate.matchConfidence
-                                    if let sizeValue = candidate.sizeValue {
-                                        line.sizeValue = sizeValue
-                                        line.sizeUnit = candidate.sizeUnit
-                                    }
-                                    // The picker's candidate never carries a
-                                    // pack count (`ReceiptProductPickerCandidate`
-                                    // has no such field), so this is always a
-                                    // DIFFERENT product than whatever the
-                                    // earlier background auto-match found.
-                                    // Clear any stale packCount from that prior
-                                    // match — ReceiptLineItem.ingestQuantity
-                                    // multiplies sizeValue * packCount *
-                                    // quantity, so a leftover pack count would
-                                    // silently multiply pantry ingest by the
-                                    // wrong factor. Code-review finding,
-                                    // round 2.
-                                    line.packCount = nil
-                                }
-                                receiptService.confirmAlias(
-                                    rawText: line.rawText,
-                                    storeChain: receipt.storeChain,
-                                    readableName: line.displayName,
-                                    canonicalFoodName: line.canonicalFoodName,
-                                    barcode: line.barcode
-                                )
-                            }
+        List {
+            Section {
+                headerCard
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+            }
+            if isLikelyDuplicate || receipt.crossCheckBanner != nil {
+                Section {
+                    if isLikelyDuplicate {
+                        banner(
+                            text: "You may have already scanned this receipt — same store, date and total as another one on file.",
+                            icon: "doc.on.doc.fill"
                         )
                     }
+                    if let crossCheckBanner = receipt.crossCheckBanner {
+                        banner(text: crossCheckBanner, icon: "exclamationmark.triangle.fill")
+                    }
                 }
-
-                if let ingestError {
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+            }
+            let sections = model.sections()
+            if sections.isEmpty {
+                Section { emptyState.listRowBackground(Color.clear) }
+            }
+            ForEach(sections, id: \.section) { group in
+                Section {
+                    ForEach(group.lines, id: \.id) { line in
+                        row(line)
+                            .listRowBackground(Color.tempoSurfaceCard)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    withAnimation(.easeOut(duration: TempoAnimation.smallDuration)) {
+                                        model.remove(line)
+                                    }
+                                    HapticManager.lightImpact()
+                                } label: {
+                                    Label("Remove", systemImage: "trash")
+                                }
+                            }
+                    }
+                } header: {
+                    sectionHeader(group.section, count: group.lines.count)
+                }
+            }
+            if let ingestError {
+                Section {
                     Text(ingestError)
                         .font(.tempoCaption1)
                         .foregroundStyle(Color.tempoError)
+                        .listRowBackground(Color.clear)
                 }
-
-                Button {
-                    ingest()
-                } label: {
-                    HStack {
-                        if isIngesting {
-                            ProgressView().tint(.white)
-                        }
-                        Text("Add Confirmed Lines to Pantry")
-                            .frame(maxWidth: .infinity)
-                    }
-                }
-                .buttonStyle(.tempoPrimary)
-                .disabled(isIngesting || receipt.orderedLineItems.allSatisfy { !$0.userConfirmed || $0.isIngested })
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.vertical, TempoSpacing.lg)
+            Color.clear.frame(height: 90)
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
         }
-        .scrollDismissesKeyboard(.interactively)
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
         .background(Color.tempoBgPrimary)
         .navigationTitle("Review Receipt")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            // .decimalPad has no Return key — without this there's no way to
-            // close the keyboard except scrolling.
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Done") {
-                    UIApplication.shared.sendAction(
-                        #selector(UIResponder.resignFirstResponder),
-                        to: nil,
-                        from: nil,
-                        for: nil
-                    )
-                }
-                .fontWeight(.semibold)
+        .safeAreaInset(edge: .bottom, spacing: 0) { bottomBar }
+        .sheet(item: $editingLine) { line in
+            ReceiptLineEditSheet(
+                line: line,
+                edits: model.edit(for: line),
+                defaultStorage: model.storage(for: line),
+                storeChain: receipt.storeChain
+            ) { result in
+                apply(result, to: line)
             }
         }
         .task {
@@ -175,56 +132,128 @@ struct ReceiptReviewView: View {
         }
     }
 
-    private var receiptHeader: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            Text(receipt.store)
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text(receipt.purchaseDate, format: .dateTime.month().day().year())
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
-            HStack(spacing: TempoSpacing.md) {
-                Label(
-                    String(format: "$%.2f", receipt.totalAmount),
-                    systemImage: "dollarsign.circle.fill"
-                )
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-                Label("\(receipt.lineItemCount) items", systemImage: "list.bullet")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+    // MARK: - Header
+
+    private var headerCard: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(receipt.store.isEmpty ? "Receipt" : receipt.store)
+                    .font(.tempoTitle3)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                    .lineLimit(1)
+                Spacer()
+                Text(String(format: "$%.2f", receipt.totalAmount))
+                    .font(.tempoTitle3.monospacedDigit())
+                    .foregroundStyle(Color.tempoTextPrimary)
             }
-            if receipt.subtotalAmount != nil || receipt.taxAmount != nil || receipt.savingsAmount != nil {
-                HStack(spacing: TempoSpacing.md) {
-                    if let subtotal = receipt.subtotalAmount {
-                        Text("Subtotal \(String(format: "$%.2f", subtotal))")
-                    }
-                    if let tax = receipt.taxAmount {
-                        Text("Tax \(String(format: "$%.2f", tax))")
-                    }
-                    if let savings = receipt.savingsAmount, savings > 0 {
-                        Text("Saved \(String(format: "$%.2f", savings))")
-                            .foregroundStyle(Color.tempoSignal)
-                    }
+            HStack(spacing: TempoSpacing.sm) {
+                Text(receipt.purchaseDate, format: .dateTime.month().day().year())
+                Text("·")
+                Text("\(receipt.lineItemCount) items")
+                if let savings = receipt.savingsAmount, savings > 0 {
+                    Text("·")
+                    Text("Saved \(String(format: "$%.2f", savings))")
+                        .foregroundStyle(Color.tempoSuccess)
                 }
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+            }
+            .font(.tempoCaption1)
+            .foregroundStyle(Color.tempoTextSecondary)
+            if model.needsLookCount > 0 {
+                Label("\(model.needsLookCount) need a look", systemImage: "exclamationmark.circle.fill")
+                    .font(.tempoCaption1.weight(.semibold))
+                    .foregroundStyle(Color.tempoWarning)
+                    .padding(.horizontal, TempoSpacing.sm)
+                    .padding(.vertical, 4)
+                    .background(Color.tempoWarning.opacity(0.14), in: Capsule())
             }
         }
         .padding(TempoSpacing.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 
-    private func banner(text: String, icon: String, color: Color) -> some View {
+    private func sectionHeader(_ section: ReceiptReviewSection, count: Int) -> some View {
+        Label("\(section.title) · \(count)", systemImage: section.icon)
+            .font(.tempoModuleTag)
+            .foregroundStyle(section == .needsLook ? Color.tempoWarning : Color.tempoTextSecondary)
+            .textCase(nil)
+    }
+
+    private func banner(text: String, icon: String) -> some View {
         Label(text, systemImage: icon)
             .font(.tempoCaption1)
-            .foregroundStyle(color)
+            .foregroundStyle(Color.tempoWarning)
             .padding(TempoSpacing.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(color.opacity(0.12))
+            .background(Color.tempoWarning.opacity(0.12))
             .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+            .padding(.bottom, TempoSpacing.xs)
+    }
+
+    // MARK: - Row
+
+    private func row(_ line: ReceiptLineItem) -> some View {
+        let included = model.isIncluded(line)
+        let storage = model.storage(for: line)
+        let notFood = model.isNotFood(line)
+        return Button {
+            editingLine = line
+        } label: {
+            HStack(spacing: TempoSpacing.md) {
+                ProductImageView(
+                    url: model.photoURL(for: line),
+                    fallbackIcon: ReceiptProductPhoto.categoryIcon(forCanonicalName: line.canonicalFoodName, isNonFood: notFood)
+                )
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(line.displayName.isEmpty ? line.rawText : line.displayName)
+                        .font(.tempoBody)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                        .lineLimit(2)
+                    Text(detailText(line))
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: TempoSpacing.sm)
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text(line.totalPrice > 0 ? String(format: "$%.2f", line.totalPrice) : "$—")
+                        .font(.tempoBody.monospacedDigit())
+                        .foregroundStyle(Color.tempoTextPrimary)
+                    if notFood && !included {
+                        chip("Excluded", icon: "minus.circle", color: .tempoTextTertiary)
+                    } else {
+                        chip(storage.displayName, icon: storage.icon, color: .tempoTextSecondary)
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+            .opacity(included ? 1 : 0.55)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens the editor")
+    }
+
+    private func detailText(_ line: ReceiptLineItem) -> String {
+        var parts = [ReceiptQuantityParser.format(line.quantity) + " " + line.unit.rawValue]
+        if let size = line.sizeValue, let unit = line.sizeUnit {
+            parts.append(ReceiptQuantityParser.format(size) + " " + unit)
+        }
+        if let brand = line.brand, !brand.isEmpty {
+            parts.append(brand)
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private func chip(_ text: String, icon: String, color: Color) -> some View {
+        Label(text, systemImage: icon)
+            .font(.tempoCaption2.weight(.medium))
+            .foregroundStyle(color)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(Color.tempoBgSecondary, in: Capsule())
     }
 
     private var emptyState: some View {
@@ -243,250 +272,131 @@ struct ReceiptReviewView: View {
         .padding(.vertical, TempoSpacing.xxxl)
     }
 
+    // MARK: - Bottom bar
+
+    private var bottomBar: some View {
+        VStack(spacing: TempoSpacing.sm) {
+            if let removed = model.lastRemoved {
+                HStack {
+                    Text("Removed \(removed.displayName.isEmpty ? "item" : removed.displayName)")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextPrimary)
+                        .lineLimit(1)
+                    Spacer()
+                    Button("Undo") {
+                        withAnimation(.easeOut(duration: TempoAnimation.smallDuration)) { model.undoRemove() }
+                        HapticManager.selection()
+                    }
+                    .font(.tempoCaption1.weight(.bold))
+                    .foregroundStyle(Color.tempoSignal)
+                }
+                .padding(.horizontal, TempoSpacing.cardPadding)
+                .padding(.vertical, TempoSpacing.md)
+                .background(Color.tempoSurfaceCard, in: RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+                .shadow(color: .black.opacity(0.15), radius: 8, y: 2)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .task(id: removed.id) {
+                    try? await Task.sleep(for: .seconds(5))
+                    withAnimation { model.dismissUndo() }
+                }
+            }
+            Button {
+                ingest()
+            } label: {
+                HStack {
+                    if isIngesting {
+                        ProgressView().tint(.white)
+                    }
+                    Text(addButtonTitle)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .buttonStyle(.tempoPrimary)
+            .disabled(isIngesting || model.includedCount == 0)
+        }
+        .padding(.horizontal, TempoSpacing.screenEdge)
+        .padding(.top, TempoSpacing.sm)
+        .padding(.bottom, TempoSpacing.sm)
+        .background(.bar)
+    }
+
+    private var addButtonTitle: String {
+        let count = model.includedCount
+        return count == 1 ? "Add 1 item to pantry" : "Add \(count) items to pantry"
+    }
+
+    // MARK: - Actions
+
+    private func apply(_ result: ReceiptLineEditResult, to line: ReceiptLineItem) {
+        line.displayName = result.name
+        line.quantity = result.quantity
+        line.unit = result.unit
+        line.totalPrice = result.price
+        switch result.product {
+        case .unchanged:
+            break
+        case .keptAsTyped:
+            line.barcode = nil
+            line.brand = nil
+            line.imageURL = nil
+            line.matchConfidence = nil
+            line.sizeValue = nil
+            line.sizeUnit = nil
+            line.packCount = nil
+        case let .picked(candidate):
+            line.displayName = candidate.readableName
+            line.canonicalFoodName = candidate.canonicalFoodName
+            line.barcode = candidate.barcode
+            line.brand = candidate.brand
+            line.imageURL = candidate.imageURL
+            line.matchConfidence = candidate.matchConfidence
+            if let sizeValue = candidate.sizeValue {
+                line.sizeValue = sizeValue
+                line.sizeUnit = candidate.sizeUnit
+            }
+            // A picked product is a different product than any earlier
+            // auto-match — a stale pack count would multiply pantry ingest.
+            line.packCount = nil
+        }
+        model.update(line) {
+            $0.storage = result.storage
+            $0.useBy = result.useBy
+            $0.included = result.included
+            $0.reviewed = true
+            if case .picked = result.product {
+                $0.pickedProduct = true
+            } else if case .keptAsTyped = result.product {
+                $0.pickedProduct = false
+            }
+        }
+        // Saving a row is the user vouching for it: learn the store-name →
+        // product mapping (local alias + backend crowd table) so the same raw
+        // OCR text resolves to this product next time.
+        if result.included {
+            receiptService.confirmAlias(
+                rawText: line.rawText,
+                storeChain: receipt.storeChain,
+                readableName: line.displayName,
+                canonicalFoodName: line.canonicalFoodName,
+                barcode: line.barcode
+            )
+        }
+        HapticManager.selection()
+    }
+
     private func ingest() {
-        // Belt and braces: close the keyboard so no field is mid-edit. Edits
-        // already write through per keystroke (ReceiptLineCard).
-        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         ingestError = nil
         isIngesting = true
         defer { isIngesting = false }
+        let overrides = model.commit()
         do {
-            try receiptService.ingestConfirmedLines(of: receipt, into: pantryService)
+            try receiptService.ingestConfirmedLines(of: receipt, into: pantryService, overrides: overrides)
+            HapticManager.success()
             onIngested?()
             dismiss()
         } catch {
             ingestError = error.localizedDescription
         }
-    }
-}
-
-// MARK: - ReceiptLineCard
-
-private struct ReceiptLineCard: View {
-    let line: ReceiptLineItem
-    let storeChain: String?
-    let onConfirmToggle: (Bool) -> Void
-    let onPickProduct: (ReceiptProductPickerCandidate, Bool) -> Void
-
-    @State
-    private var displayName: String
-    @State
-    private var quantityText: String
-    @State
-    private var priceText: String
-    @State
-    private var unit: ReceiptLineUnit
-    @State
-    private var isPickerPresented = false
-
-    init(
-        line: ReceiptLineItem,
-        storeChain: String?,
-        onConfirmToggle: @escaping (Bool) -> Void,
-        onPickProduct: @escaping (ReceiptProductPickerCandidate, Bool) -> Void
-    ) {
-        self.line = line
-        self.storeChain = storeChain
-        self.onConfirmToggle = onConfirmToggle
-        self.onPickProduct = onPickProduct
-        _displayName = State(initialValue: line.displayName)
-        _quantityText = State(initialValue: ReceiptQuantityParser.format(line.quantity))
-        _priceText = State(initialValue: ReceiptQuantityParser.format(line.totalPrice))
-        _unit = State(initialValue: line.unit)
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            HStack(alignment: .top, spacing: TempoSpacing.sm) {
-                productThumbnail
-                    .onTapGesture { isPickerPresented = true }
-                VStack(alignment: .leading, spacing: 2) {
-                    TextField("Item name", text: $displayName)
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                        .onChange(of: displayName) { _, newValue in
-                            let trimmed = newValue.trimmingCharacters(in: .whitespaces)
-                            if !trimmed.isEmpty {
-                                line.displayName = trimmed
-                            }
-                        }
-                    if let brand = line.brand, !brand.isEmpty {
-                        Text(brand)
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                    }
-                }
-                Spacer()
-                Toggle("", isOn: Binding(
-                    get: { line.userConfirmed },
-                    set: { onConfirmToggle($0) }
-                ))
-                .labelsHidden()
-                .disabled(line.isIngested)
-            }
-
-            Button {
-                isPickerPresented = true
-            } label: {
-                Label(
-                    line.barcode == nil ? "Find exact product" : "Change matched product",
-                    systemImage: "magnifyingglass"
-                )
-                .font(.tempoCaption2)
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(Color.tempoSignal)
-
-            HStack(spacing: TempoSpacing.md) {
-                TextField("Qty", text: $quantityText)
-                    .font(.tempoCaption1)
-                    .frame(maxWidth: 70)
-                    .keyboardType(.decimalPad)
-                    // Write through on every keystroke (like VoicePantryView):
-                    // .decimalPad has no Return key, so the old .onSubmit
-                    // never fired and every qty edit was silently dropped.
-                    .onChange(of: quantityText) { _, newValue in
-                        if let value = ReceiptQuantityParser.parse(newValue) {
-                            line.quantity = value
-                        }
-                    }
-                Picker("Unit", selection: $unit) {
-                    ForEach(ReceiptLineUnit.allCases, id: \.self) { u in
-                        Text(u.rawValue.uppercased()).tag(u)
-                    }
-                }
-                .pickerStyle(.menu)
-                .font(.tempoCaption1)
-                .onChange(of: unit) { _, newValue in
-                    line.unit = newValue
-                }
-                Spacer()
-                HStack(spacing: 2) {
-                    Text("$")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                    TextField("Price", text: $priceText)
-                        .font(.tempoCaption1)
-                        .frame(maxWidth: 60)
-                        .keyboardType(.decimalPad)
-                        .multilineTextAlignment(.trailing)
-                        .onChange(of: priceText) { _, newValue in
-                            if let value = ReceiptQuantityParser.parse(newValue) {
-                                line.totalPrice = value
-                            }
-                        }
-                }
-            }
-
-            if let unitPrice = line.unitPrice, unitPrice > 0 {
-                Text("\(String(format: "$%.2f", unitPrice)) / \(unit.rawValue)")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextSecondary)
-            }
-
-            HStack(spacing: TempoSpacing.sm) {
-                Text("OCR raw: \(line.rawText)")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .lineLimit(1)
-                Spacer()
-                if let matchConfidence = line.matchConfidence {
-                    matchConfidencePill(matchConfidence)
-                }
-                confidencePill
-            }
-
-            if line.onSale, let note = line.saleNote {
-                Label(note, systemImage: "tag.fill")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoSignal)
-            }
-
-            if line.isNonFood || line.isFee {
-                Label(line.isFee ? "Fee/deposit — not food" : "Not food", systemImage: "cart.badge.minus")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
-            }
-
-            if line.isIngested {
-                Label("Added to pantry", systemImage: "checkmark.circle.fill")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoSuccess)
-            }
-        }
-        .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .sheet(isPresented: $isPickerPresented) {
-            ReceiptProductPickerView(
-                line: line,
-                storeChain: storeChain
-            ) { candidate, keptAsTyped in
-                if !keptAsTyped {
-                    displayName = candidate.readableName
-                }
-                onPickProduct(candidate, keptAsTyped)
-                isPickerPresented = false
-            }
-        }
-    }
-
-    /// Product photo when a match already exists; a neutral placeholder
-    /// otherwise (still tappable — that's how the picker is discovered).
-    @ViewBuilder
-    private var productThumbnail: some View {
-        let shape = RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous)
-        Group {
-            if let urlString = line.imageURL, let url = URL(string: urlString) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case let .success(image):
-                        image.resizable().scaledToFill()
-                    default:
-                        thumbnailPlaceholder
-                    }
-                }
-            } else {
-                thumbnailPlaceholder
-            }
-        }
-        .frame(width: 44, height: 44)
-        .clipShape(shape)
-        .overlay(shape.strokeBorder(Color.tempoBorder, lineWidth: 1))
-    }
-
-    private var thumbnailPlaceholder: some View {
-        ZStack {
-            Color.tempoBgSecondary
-            Image(systemName: "cart.fill")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
-        }
-    }
-
-    private var confidencePill: some View {
-        let percentage = Int(line.confidence * 100)
-        let color: Color = line.confidence >= 0.85
-            ? .tempoSuccess
-            : (line.confidence >= 0.65 ? .tempoWarning : .tempoError)
-        return Text("\(percentage)%")
-            .font(.tempoCaption2)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(color.opacity(0.15))
-            .foregroundStyle(color)
-            .clipShape(Capsule())
-    }
-
-    private func matchConfidencePill(_ confidence: Double) -> some View {
-        Label("\(Int(confidence * 100))% match", systemImage: "checkmark.seal.fill")
-            .font(.tempoCaption2)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(Color.tempoInfo.opacity(0.15))
-            .foregroundStyle(Color.tempoInfo)
-            .clipShape(Capsule())
     }
 }
 

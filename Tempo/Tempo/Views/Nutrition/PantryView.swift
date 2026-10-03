@@ -32,7 +32,9 @@ struct PantryView: View {
     @State
     private var showBarcodeSheet = false
     @State
-    private var showStapleOnboarding = false
+    private var showStaples = false
+    @State
+    private var staplesDetent: PresentationDetent = .large
     @State
     private var barcodeStaged: [StagedPantryItem] = []
     @State
@@ -42,6 +44,9 @@ struct PantryView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: TempoSpacing.lg) {
                 headerCard
+                if !showsStaplesPeek {
+                    staplesChip
+                }
                 if !viewModel.pantryState.expiringSoon.isEmpty {
                     expiringSoonSection
                 }
@@ -57,6 +62,18 @@ struct PantryView: View {
             .padding(.vertical, TempoSpacing.lg)
         }
         .background(Color.tempoBgPrimary)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if showsStaplesPeek, !showStaples {
+                StaplesPeekCard(remaining: viewModel.stapleSuggestions.count) {
+                    staplesDetent = .large
+                    showStaples = true
+                }
+                .padding(.horizontal, TempoSpacing.screenEdge)
+                .padding(.bottom, TempoSpacing.sm)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.easeOut(duration: TempoAnimation.mediumDuration), value: showsStaplesPeek)
         .navigationTitle("Pantry")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -68,6 +85,11 @@ struct PantryView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    Button("Staples", systemImage: "leaf") {
+                        viewModel.applyStapleEvent(.reopen)
+                        staplesDetent = .large
+                        showStaples = true
+                    }
                     Button("Empty pantry", systemImage: "trash", role: .destructive) {
                         confirmEmpty = true
                     }
@@ -135,10 +157,11 @@ struct PantryView: View {
         .sheet(item: $editingItem) { item in
             PantryItemEditSheet(item: item, viewModel: viewModel)
         }
-        .sheet(isPresented: $showStapleOnboarding) {
-            PantryStapleOnboardingSheet { picks in
-                viewModel.seedSelectedStaples(picks)
-            }
+        .sheet(isPresented: $showStaples) {
+            StaplesSheet(viewModel: viewModel, detent: $staplesDetent)
+                .presentationDetents([.height(StaplesSheet.peekHeight), .large], selection: $staplesDetent)
+                .presentationDragIndicator(.visible)
+                .presentationBackgroundInteraction(.enabled(upThrough: .height(StaplesSheet.peekHeight)))
         }
         .refreshable {
             viewModel.reloadPantry()
@@ -146,11 +169,32 @@ struct PantryView: View {
         .task {
             viewModel.attachPhase7Services(modelContext: modelContext, services: services)
         }
-        .onChange(of: viewModel.stapleState.shouldOfferOnboarding) { _, shouldOffer in
-            if shouldOffer {
-                showStapleOnboarding = true
-            }
+        .onAppear {
+            viewModel.loadStaplePromptState()
         }
+    }
+
+    private var showsStaplesPeek: Bool {
+        viewModel.stapleState.prompt.showsPeekCard
+    }
+
+    /// Always-findable entry once the peek card is gone (skipped / done).
+    private var staplesChip: some View {
+        Button {
+            viewModel.applyStapleEvent(.reopen)
+            staplesDetent = .large
+            showStaples = true
+        } label: {
+            Label("Staples · \(viewModel.stapleState.staples.count)", systemImage: "leaf")
+                .font(.tempoCaption1.weight(.semibold))
+                .foregroundStyle(Color.tempoSignal)
+                .padding(.horizontal, TempoSpacing.md)
+                .padding(.vertical, 6)
+                .background(Color.tempoSignal.opacity(0.12), in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityIdentifier("staplesChip")
     }
 
     // MARK: - Header
