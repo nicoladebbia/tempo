@@ -121,6 +121,6 @@ enum LabelFacts {
         let name = displayAllergen.lowercased()
         return context.allergies
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
-            .contains { $0.count >= 3 && (name.contains($0) || $0.contains(name)) }
+            .contains { $0.count >= 3 && name.contains($0) }
     }
 }

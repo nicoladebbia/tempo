@@ -85,6 +85,7 @@ struct ScannedProductLabelView: View {
         }
         .tempoToast($toast)
         .task(id: product.id) {
+            basis = .per100
             fitContext = FoodFitContext.loadToday(in: modelContext, whoopAvgTDEE: services.whoop.weeklyTDEEAverage)
             if let remembered = catalog.lastPortionGrams(for: product, in: modelContext),
                let serving = LabelFacts.servingGrams(of: product), abs(remembered - serving) < 0.5

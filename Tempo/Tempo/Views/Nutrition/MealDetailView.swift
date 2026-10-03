@@ -221,7 +221,7 @@ struct MealDetailView: View {
                 },
                 onCancel: { presentUndoConfirm = false }
             )
-            .presentationDetents([.height(440)])
+            .presentationDetents([.height(440), .large])
             .presentationDragIndicator(.visible)
         }
         .alert("Save as preset", isPresented: $presentPresetAlert) {

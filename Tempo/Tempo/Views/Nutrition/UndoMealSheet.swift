@@ -19,6 +19,7 @@ struct UndoMealSheet: View {
     let onCancel: () -> Void
 
     var body: some View {
+        ScrollView {
         VStack(spacing: TempoSpacing.lg) {
             VStack(spacing: TempoSpacing.xs) {
                 Image(systemName: isLog ? "trash.circle.fill" : "arrow.uturn.backward.circle.fill")
@@ -64,6 +65,8 @@ struct UndoMealSheet: View {
         .padding(.horizontal, TempoSpacing.screenEdge)
         .padding(.top, TempoSpacing.xl)
         .padding(.bottom, TempoSpacing.md)
+        }
+        .scrollBounceBehavior(.basedOnSize)
         .background(Color.tempoBgPrimary)
     }
 
