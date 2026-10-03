@@ -7,8 +7,10 @@ import Vapor
 // (feat/supplements-base, commit e8d5dd3):
 //
 //   GET /v1/supplements/lookup/:upc        → Envelope<SupplementLookupDTO>
-//       Barcode → product. NIH DSLD first, Open Food Facts fallback. 404 when
-//       neither database knows the code.
+//       Barcode → product. NIH DSLD (quoted UPC phrase) + the Open Facts family. 404 when
+//       none knows the code; 502 when upstream failed (never cached).
+//   GET /v1/supplements/search?q=…          → Envelope<[SupplementSearchHit]> (DSLD name search)
+//   GET /v1/supplements/label/:id           → Envelope<SupplementLookupDTO> (a search hit, in full)
 //   GET /v1/supplements/picks/:kind?name=… → Envelope<SupplementPicksDTO>
 //       2–3 vetted, third-party-tested products for a supplement type. A
 //       curated, researched catalog (SupplementCuratedCatalog.swift) covers
@@ -28,6 +30,8 @@ struct SupplementController: RouteCollection {
 
     func boot(routes: RoutesBuilder) throws {
         routes.get("lookup", ":upc", use: lookup)
+        routes.get("search", use: search)
+        routes.get("label", ":id", use: label)
         routes.get("picks", ":kind", use: picks)
     }
 
@@ -39,23 +43,70 @@ struct SupplementController: RouteCollection {
         guard let rawUPC = req.parameters.get("upc") else {
             throw Abort(.badRequest, reason: "Missing UPC.")
         }
-        let upc = rawUPC.filter(\.isNumber)
-        guard upc.count >= 6, upc.count <= 14 else {
-            throw Abort(.badRequest, reason: "UPC must be 6–14 digits.")
+        let norm: NormalizedUPC
+        do {
+            norm = try SupplementUPC.normalize(rawUPC)
+        } catch SupplementUPC.Failure.badCheckDigit {
+            throw Abort(.badRequest, reason: "That barcode doesn't look right. Check the digits or scan again.")
+        } catch {
+            throw Abort(.badRequest, reason: "A barcode has 8, 12 or 13 digits.")
         }
 
-        let cacheKey = AICacheKey.supplementLookup(upc: upc)
-        let (result, _) = try await AICache.shared.withCache(
-            key: cacheKey,
-            on: req
-        ) { () -> SupplementLookupDTO? in
-            try await lookupClient.lookup(upc: upc, on: req)
-        }
-
-        guard let result else {
+        // Only HITS are cached. A miss (or an upstream failure, which used to
+        // be swallowed into a miss) must never stick for 30 days: the
+        // databases gain products, and a timeout is not "not found".
+        let cacheKey = AICacheKey.supplementLookup(upc: norm.canonical)
+        let lookupClient = self.lookupClient
+        let result: SupplementLookupDTO
+        do {
+            (result, _) = try await AICache.shared.withCache(key: cacheKey, on: req) { () -> SupplementLookupDTO in
+                guard let dto = try await lookupClient.lookup(upc: norm.canonical, on: req) else {
+                    throw SupplementLookupMiss()
+                }
+                return dto
+            }
+        } catch is SupplementLookupMiss {
             throw Abort(.notFound, reason: "No supplement found for this barcode.")
+        } catch SupplementLookupError.upstreamUnavailable {
+            throw Abort(.badGateway, reason: "The supplement databases didn't answer. Try again in a moment.")
         }
         return Envelope(data: result, requestID: req.requestID)
+    }
+
+    // MARK: - GET /v1/supplements/search?q=
+
+    @Sendable
+    func search(_ req: Request) async throws -> Envelope<[SupplementSearchHit]> {
+        _ = try req.auth.requireUserID()
+        let q = String(((try? req.query.get(String.self, at: "q")) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines).prefix(80))
+        guard q.count >= 2 else {
+            throw Abort(.badRequest, reason: "Type at least 2 letters.")
+        }
+        do {
+            let hits = try await lookupClient.search(query: q, on: req)
+            return Envelope(data: hits, requestID: req.requestID)
+        } catch {
+            throw Abort(.badGateway, reason: "The supplement database didn't answer. Try again in a moment.")
+        }
+    }
+
+    // MARK: - GET /v1/supplements/label/:id  (a search hit → full product)
+
+    @Sendable
+    func label(_ req: Request) async throws -> Envelope<SupplementLookupDTO> {
+        _ = try req.auth.requireUserID()
+        guard let id = req.parameters.get("id"), id.count <= 9, id.allSatisfy(\.isNumber) else {
+            throw Abort(.badRequest, reason: "Bad label id.")
+        }
+        let dto: SupplementLookupDTO?
+        do {
+            dto = try await lookupClient.label(id: id, on: req)
+        } catch {
+            throw Abort(.badGateway, reason: "The supplement database didn't answer. Try again in a moment.")
+        }
+        guard let dto else { throw Abort(.notFound, reason: "Label not found.") }
+        return Envelope(data: dto, requestID: req.requestID)
     }
 
     // MARK: - GET /v1/supplements/picks/:kind
@@ -102,6 +153,8 @@ private enum SupplementKindWire: String {
 
 // MARK: - DTOs
 
+struct SupplementLookupMiss: Error {}
+
 struct SupplementLookupDTO: Content, Equatable {
     let upc: String
     let brand: String?
@@ -117,15 +170,17 @@ struct SupplementLookupDTO: Content, Equatable {
     let carbsGramsPerServing: Double?
     let fatGramsPerServing: Double?
     let certifications: [String]
-    /// "dsld" | "openfoodfacts"
+    /// "dsld" | "openfoodfacts" | "openproductsfacts" | "openbeautyfacts"
     let source: String
+    /// Active ingredients with amounts ("Vitamin D3 25 mcg"), when DSLD has them.
+    let ingredients: [String]?
 
     init(
         upc: String, brand: String?, name: String, kind: String,
         dosePerServing: String?, servingsPerContainer: Double?,
         proteinGramsPerServing: Double?,
         caloriesPerServing: Double? = nil, carbsGramsPerServing: Double? = nil, fatGramsPerServing: Double? = nil,
-        certifications: [String], source: String
+        certifications: [String], source: String, ingredients: [String]? = nil
     ) {
         self.upc = upc
         self.brand = brand
@@ -139,6 +194,7 @@ struct SupplementLookupDTO: Content, Equatable {
         self.fatGramsPerServing = fatGramsPerServing
         self.certifications = certifications
         self.source = source
+        self.ingredients = ingredients
     }
 
     enum CodingKeys: String, CodingKey {
@@ -151,6 +207,7 @@ struct SupplementLookupDTO: Content, Equatable {
         case fatGramsPerServing = "fat_grams_per_serving"
         case certifications
         case source
+        case ingredients
     }
 }
 

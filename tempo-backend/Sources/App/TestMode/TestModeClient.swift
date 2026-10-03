@@ -17,6 +17,14 @@ struct TestModeClient: Client {
     let real: Client
     let logger: Logger
 
+    static var realSupplementLookup: Bool {
+        Environment.get("TEMPO_TEST_REAL_SUPPLEMENT_LOOKUP") == "1"
+    }
+
+    static let supplementDatabaseHosts: Set<String> = [
+        "api.ods.od.nih.gov", "world.openfoodfacts.org", "world.openproductsfacts.org", "world.openbeautyfacts.org",
+    ]
+
     static var hasRealAnthropicKey: Bool {
         guard let key = Environment.get("ANTHROPIC_API_KEY") else { return false }
         return key.hasPrefix("sk-ant-")
@@ -43,6 +51,12 @@ struct TestModeClient: Client {
     func respond(to request: ClientRequest) async throws -> ClientResponse {
         let host = request.url.host ?? ""
         let path = request.url.path
+        // Opt-in (TEMPO_TEST_REAL_SUPPLEMENT_LOOKUP=1): the free, keyless
+        // supplement databases go out for real so barcode scans can be QA'd
+        // against actual products. Everything else stays faked.
+        if Self.realSupplementLookup, Self.supplementDatabaseHosts.contains(host) {
+            return try await real.send(request).get()
+        }
         switch host {
         case "api.anthropic.com":
             return try await anthropic(request)
@@ -50,6 +64,9 @@ struct TestModeClient: Client {
             return Self.json(TestFixtures.usdaSearch(query: Self.queryValue("query", in: request.url) ?? ""))
         case "world.openfoodfacts.org":
             return Self.json(TestFixtures.openFoodFactsProduct(path: path))
+        case "world.openproductsfacts.org", "world.openbeautyfacts.org":
+            // Supplement lookup also asks these siblings; the fixture world has no products there.
+            return Self.json(#"{"status":0,"status_verbose":"product not found"}"#, status: .notFound)
         case "api.ods.od.nih.gov":
             return Self.json(path.contains("/label/") ? TestFixtures.dsldLabel : TestFixtures.dsldSearch)
         case "api.openai.com":

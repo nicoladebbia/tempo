@@ -179,3 +179,99 @@ struct SupplementGramsParsingTests {
         #expect(OFFProduct.parseGrams(nil) == nil)
     }
 }
+
+// MARK: - Real DSLD label fixtures (captured Oct 2026 from /dsld/v9/label/{id})
+
+struct DSLDRealLabelMappingTests {
+    /// ON Gold Standard — no protein row, "Total Carbohydrates" plural, empty notes elsewhere.
+    private let wheyJSON = """
+    {"id":289172,"brandName":"Optimum Nutrition","fullName":"Gold Standard 100% Whey Double Rich Chocolate",
+     "upcSku":"7 48927 02866 9","offMarket":0,"entryDate":"2022-01-01","servingsPerContainer":74,
+     "productType":{"langualCodeDescription":"Multi-Vitamin and Mineral (MVM)"},
+     "netContents":[{"quantity":5,"unit":"lb(s)","display":"5 lb(s)"}],
+     "servingSizes":[{"minQuantity":30.4,"unit":"Gram(s)","notes":"1 Scoop"}],
+     "statements":[{"type":"Formula re: Contains","notes":"Packed with 24 grams of high-quality protein per serving to help build muscle."}],
+     "ingredientRows":[
+       {"name":"Calories","category":"other","quantity":[{"quantity":120,"unit":"Calorie(s)"}]},
+       {"name":"Total Fat","category":"fat","quantity":[{"quantity":1.5,"unit":"Gram(s)"}]},
+       {"name":"Total Carbohydrates","category":"sugar","quantity":[{"quantity":3,"unit":"Gram(s)"}]},
+       {"name":"Calcium","category":"mineral","quantity":[{"quantity":130,"unit":"mg"}]}]}
+    """
+
+    /// Nordic Naturals — empty notes, servingsPerContainer null → derived from net contents.
+    private let omegaJSON = """
+    {"id":288763,"brandName":"Nordic Naturals","fullName":"Ultimate Omega-D3 Lemon","upcSku":"7 68990 01792 6",
+     "offMarket":0,"servingsPerContainer":null,
+     "productType":{"langualCodeDescription":"Fatty Acid"},
+     "netContents":[{"quantity":90,"unit":"Softgel(s)","display":"90 Softgel(s)"}],
+     "servingSizes":[{"minQuantity":2,"unit":"Softgel(s)","notes":""}],
+     "ingredientRows":[
+       {"name":"Calories","category":"other","quantity":[{"quantity":20,"unit":"Calorie(s)"}]},
+       {"name":"Vitamin D3","category":"vitamin","quantity":[{"quantity":25,"unit":"mcg"}]},
+       {"name":"Total Omega-3 Fatty Acids","category":"fatty acid","quantity":[{"quantity":1280,"unit":"mg"}]}]}
+    """
+
+    @Test func wheyIsProteinNotMultivitaminAndGetsMacrosFromStatements() throws {
+        let label = try JSONDecoder().decode(DSLDLabel.self, from: Data(wheyJSON.utf8))
+        let dto = SupplementLookupAPIClient.merge(upc: "748927028669", off: nil, dsld: label)
+        #expect(dto.kind == "protein")
+        #expect(dto.dosePerServing == "30.4 g (1 Scoop)")
+        #expect(dto.servingsPerContainer == 74)
+        #expect(dto.proteinGramsPerServing == 24)
+        #expect(dto.caloriesPerServing == 120)
+        #expect(dto.carbsGramsPerServing == 3)
+        #expect(dto.fatGramsPerServing == 1.5)
+        #expect(dto.source == "dsld")
+    }
+
+    @Test func omegaDerivesServingsAndListsActives() throws {
+        let label = try JSONDecoder().decode(DSLDLabel.self, from: Data(omegaJSON.utf8))
+        let dto = SupplementLookupAPIClient.merge(upc: "768990017926", off: nil, dsld: label)
+        #expect(dto.kind == "omega3")
+        #expect(dto.dosePerServing == "2 Softgel")
+        #expect(dto.servingsPerContainer == 45)
+        #expect(dto.ingredients == ["Vitamin D3 25 mcg", "Total Omega-3 Fatty Acids 1280 mg"])
+    }
+
+    @Test func offFillsWheyProteinWhenDSLDLacksIt() throws {
+        let noProtein = wheyJSON.replacingOccurrences(of: "24 grams of high-quality protein", with: "great taste")
+        let label = try JSONDecoder().decode(DSLDLabel.self, from: Data(noProtein.utf8))
+        let off = try JSONDecoder().decode(
+            OFFProduct.self,
+            from: Data(#"{"product_name":"100% Whey","brands":"Optimum Nutrition","nutriments":{"proteins_serving":24}}"#.utf8)
+        )
+        let dto = SupplementLookupAPIClient.merge(upc: "748927028669", off: off, dsld: label)
+        #expect(dto.proteinGramsPerServing == 24)
+    }
+
+    @Test func openProductsFactsSourceIsReported() throws {
+        let off = try JSONDecoder().decode(OFFProduct.self, from: Data(#"{"product_name":"Magnesium 400","brands":"Thorne"}"#.utf8))
+        let dto = SupplementLookupAPIClient.merge(upc: "693749000000", off: off, dsld: nil, offSource: "openproductsfacts")
+        #expect(dto.source == "openproductsfacts")
+        #expect(dto.kind == "vitamin")
+    }
+
+    @Test func searchHitsAreDedupedAndOnMarketFirst() throws {
+        let json = """
+        {"hits":[
+         {"_id":"1","_source":{"brandName":"Thorne","fullName":"Magnesium Bisglycinate","offMarket":1}},
+         {"_id":"2","_source":{"brandName":"Thorne","fullName":"Magnesium Bisglycinate","offMarket":1}},
+         {"_id":"3","_source":{"brandName":"Thorne","fullName":"Magnesium Citramate","offMarket":0,"netContents":[{"quantity":90,"unit":"Capsule(s)","display":"90 Capsule(s)"}]}}]}
+        """
+        let resp = try JSONDecoder().decode(DSLDSearchResponse.self, from: Data(json.utf8))
+        let hits = SupplementLookupAPIClient.mapSearchHits(resp)
+        #expect(hits.map(\.id) == ["3", "1"])
+        #expect(hits[0].netContents == "90 Capsule(s)")
+        #expect(hits[0].kind == "vitamin")
+    }
+
+    @Test func bestLabelPrefersOnMarketThenNewest() throws {
+        func label(_ off: Int, _ date: String) throws -> DSLDLabel {
+            try JSONDecoder().decode(DSLDLabel.self, from: Data(#"{"offMarket":\#(off),"entryDate":"\#(date)"}"#.utf8))
+        }
+        let best = SupplementLookupAPIClient.pickBestLabel([
+            ("a", try label(1, "2024-01-01")), ("b", try label(0, "2020-01-01")), ("c", try label(0, "2022-01-01")),
+        ])
+        #expect(best?.entryDate == "2022-01-01")
+    }
+}
