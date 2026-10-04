@@ -21,6 +21,10 @@ protocol SupplementLookupServicing: Sendable {
     func lookUp(upc: String) async throws -> SupplementLookupDTO
     func search(query: String) async throws -> [SupplementSearchHit]
     func label(id: String) async throws -> SupplementLookupDTO
+    /// Photo of the label (base64 JPEG) → AI-read product. Not saved anywhere.
+    func readLabel(imageBase64: String, mediaType: String, upc: String?) async throws -> SupplementLookupDTO
+    /// Shares a product with the Tempo catalog. Best effort for callers.
+    func submitToCatalog(_ submission: SupplementCatalogSubmission) async throws -> SupplementLookupDTO
 }
 
 extension SupplementLookupServicing {
@@ -29,6 +33,14 @@ extension SupplementLookupServicing {
     }
 
     func label(id _: String) async throws -> SupplementLookupDTO {
+        throw APIError.notFound
+    }
+
+    func readLabel(imageBase64 _: String, mediaType _: String, upc _: String?) async throws -> SupplementLookupDTO {
+        throw APIError.notFound
+    }
+
+    func submitToCatalog(_: SupplementCatalogSubmission) async throws -> SupplementLookupDTO {
         throw APIError.notFound
     }
 }
@@ -48,6 +60,15 @@ struct LiveSupplementLookupService: SupplementLookupServicing {
 
     func label(id: String) async throws -> SupplementLookupDTO {
         try await apiClient.request(.supplementLabel(id: id))
+    }
+
+    func readLabel(imageBase64: String, mediaType: String, upc: String?) async throws -> SupplementLookupDTO {
+        let body = SupplementReadLabelRequest(imageBase64: imageBase64, mediaType: mediaType, upc: upc)
+        return try await apiClient.request(.supplementReadLabel(), body: body)
+    }
+
+    func submitToCatalog(_ submission: SupplementCatalogSubmission) async throws -> SupplementLookupDTO {
+        try await apiClient.request(.supplementCatalogSubmit(), body: submission)
     }
 }
 
