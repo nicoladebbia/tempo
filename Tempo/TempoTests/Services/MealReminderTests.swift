@@ -145,7 +145,10 @@ final class MealReminderTests: XCTestCase {
         XCTAssertEqual(mock.scheduledNotifications.count, 2)
 
         let env = MealOutcomeService.Env(modelContext: context, notifications: mock)
-        try MealOutcomeService.markEaten(lunch, pantry: .none, env: env)
+        // Eaten on time: a late-evening run would otherwise post an
+        // off-schedule replan whose real-clock reschedule drops the 19:00 dinner.
+        let lunchTime = calendar.date(byAdding: .hour, value: 12, to: today) ?? now
+        try MealOutcomeService.markEaten(lunch, at: lunchTime, pantry: .none, env: env)
         XCTAssertEqual(mock.scheduledNotifications.compactMap(\.mealID), [dinner.id])
         try MealOutcomeService.skip(dinner, env: env)
         XCTAssertTrue(mock.scheduledNotifications.isEmpty)
