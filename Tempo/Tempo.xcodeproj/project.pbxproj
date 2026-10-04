@@ -142,7 +142,6 @@
 		1804F38497FD1C716435B961 /* MealTimeHints.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E295299D6116CE0893A38F /* MealTimeHints.swift */; };
 		1841839ABE681280A8ABE4CD /* WidgetSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 850A670BE69721FF450168DB /* WidgetSyncService.swift */; };
 		1926D115A4B3332150CFC26B /* TestServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B3F74E16CD09D164A6620E6 /* TestServer.swift */; };
-		19415315AC7D37F995A86584 /* SupplementLabelReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A62F7A0D85C4C0610632D2A /* SupplementLabelReader.swift */; };
 		196C0579ED7F6C96DA8105E9 /* SignInWithAppleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C45C46FA2A2369C89483AF2 /* SignInWithAppleView.swift */; };
 		1A3BA3F40E3BB522B58B3356 /* ReadinessEaseGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCFA468A63FCC5C9A71C363A /* ReadinessEaseGateTests.swift */; };
 		1A3E8CB6D1200BBACC143B62 /* ReceiptCrossCheckerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8E61C92079213D5C559D5BC /* ReceiptCrossCheckerTests.swift */; };
@@ -2127,7 +2126,6 @@
 		9A16430ABFCB3DD240A365BB /* ConditioningLoggingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConditioningLoggingTests.swift; sourceTree = "<group>"; };
 		9A296D35FCDC1568B6DC0E7A /* NutritionCoachModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionCoachModels.swift; sourceTree = "<group>"; };
 		9A352958698A3025EE16EE8C /* CanonicalMealReadersTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanonicalMealReadersTests.swift; sourceTree = "<group>"; };
-		9A62F7A0D85C4C0610632D2A /* SupplementLabelReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplementLabelReader.swift; sourceTree = "<group>"; };
 		9AEF55D8D3377B5CCB24CB34 /* PerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceTests.swift; sourceTree = "<group>"; };
 		9B3F74E16CD09D164A6620E6 /* TestServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestServer.swift; sourceTree = "<group>"; };
 		9B4B950B94AF31126AF651FC /* RunUnitsFormattingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunUnitsFormattingTests.swift; sourceTree = "<group>"; };
@@ -4160,7 +4158,6 @@
 				6AE6F0E9BDAAB1CA546FC04D /* SupplementBarcode.swift */,
 				2CBC1CFC42550CC569BBCDA2 /* SupplementIntakeStore.swift */,
 				9F0974D0343E0E51A0E01A95 /* SupplementLabelPhotoModel.swift */,
-				9A62F7A0D85C4C0610632D2A /* SupplementLabelReader.swift */,
 				0185B8DD65F6F03B1FF73B39 /* SupplementLookupService.swift */,
 				ACCB51E630D6B2944F0B47CC /* SupplementPicksService.swift */,
 				B2A93A6594D6386C2B69AC48 /* SupplementReorderService.swift */,
@@ -6328,7 +6325,6 @@
 				6EDB2C3AE8A13821B9BBA384 /* SupplementIntakeStore.swift in Sources */,
 				95DA062544CC8A703EF6991A /* SupplementLabelCaptureSheet.swift in Sources */,
 				8FE202D7F8162A74121D9F60 /* SupplementLabelPhotoModel.swift in Sources */,
-				19415315AC7D37F995A86584 /* SupplementLabelReader.swift in Sources */,
 				1F34A6D9C7D9EB2388E87A8D /* SupplementLookupService.swift in Sources */,
 				7CD7E0EDBA1BC796F9544A92 /* SupplementPicksService.swift in Sources */,
 				2F27AAE97EA0974ACABCE850 /* SupplementPicksView.swift in Sources */,

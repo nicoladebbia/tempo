@@ -87,36 +87,6 @@ final class SupplementBarcodeTests: XCTestCase {
         XCTAssertEqual(hits.first?.onMarket, true)
     }
 
-    // MARK: - Label photo reader
-
-    func testLabelReadingMapsToADTO() throws {
-        let raw = """
-        ```json
-        {"name":"Ultimate Omega","brand":"Nordic Naturals","kind":"omega3","serving":"2 softgels",
-         "servings_per_container":45,"per_serving":{"kcal":20,"protein":0,"carbs":null,"fat":2},
-         "ingredients":["Vitamin D3 25 mcg","EPA 650 mg"]}
-        ```
-        """
-        let dto = try SupplementLabelReader.parse(raw, upc: "768990017926")
-        XCTAssertEqual(dto.name, "Ultimate Omega")
-        XCTAssertEqual(dto.kind, "omega3")
-        XCTAssertEqual(dto.dosePerServing, "2 softgels")
-        XCTAssertEqual(dto.servingsPerContainer, 45)
-        XCTAssertEqual(dto.caloriesPerServing, 20)
-        XCTAssertNil(dto.proteinGramsPerServing, "zero means none")
-        XCTAssertEqual(dto.fatGramsPerServing, 2)
-        XCTAssertEqual(dto.source, "label")
-        XCTAssertEqual(dto.upc, "768990017926")
-        XCTAssertEqual(dto.ingredients, ["Vitamin D3 25 mcg", "EPA 650 mg"])
-    }
-
-    func testUnknownKindFallsBackAndNoNameIsUnreadable() throws {
-        let dto = try SupplementLabelReader.parse(#"{"name":"Mystery","kind":"banana"}"#, upc: nil)
-        XCTAssertEqual(dto.kind, "other")
-        XCTAssertThrowsError(try SupplementLabelReader.parse(#"{"name":null}"#, upc: nil))
-        XCTAssertThrowsError(try SupplementLabelReader.parse("no json here", upc: nil))
-    }
-
     // MARK: - Prefill → shelf item
 
     func testLookupBecomesAShelfItemWithIngredients() {
