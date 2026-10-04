@@ -127,6 +127,9 @@ struct SupplementController: RouteCollection {
             }
             if let value = digits(Substring(raw), 1 ... 9) {
                 self = .dsld(value)
+            } else if let value = digits(Substring(raw), 10 ... 14) {
+                // Old apps strip ids to digits: "off:5060000000026" arrives as bare digits.
+                self = .openFacts(value)
             } else if raw.hasPrefix("dsld:"), let value = digits(raw.dropFirst(5), 1 ... 9) {
                 self = .dsld(value)
             } else if raw.hasPrefix("off:"), let value = digits(raw.dropFirst(4), 8 ... 14) {
@@ -181,6 +184,18 @@ struct SupplementController: RouteCollection {
 
     // MARK: - POST /v1/supplements/read-label
 
+    /// Magic-byte check so junk never reaches the vision model (it would answer 502).
+    static func looksLikeImage(_ bytes: Data, mediaType: String) -> Bool {
+        let head = [UInt8](bytes.prefix(12))
+        switch mediaType {
+        case "image/jpeg": return head.starts(with: [0xFF, 0xD8, 0xFF])
+        case "image/png": return head.starts(with: [0x89, 0x50, 0x4E, 0x47])
+        case "image/webp":
+            return head.count >= 12 && head[0 ..< 4].elementsEqual(Array("RIFF".utf8)) && head[8 ..< 12].elementsEqual(Array("WEBP".utf8))
+        default: return false
+        }
+    }
+
     @Sendable
     func readLabel(_ req: Request) async throws -> Envelope<SupplementLookupDTO> {
         _ = try req.auth.requireUserID()
@@ -194,6 +209,9 @@ struct SupplementController: RouteCollection {
         }
         guard let bytes = Data(base64Encoded: input.imageBase64), !bytes.isEmpty else {
             throw Abort(.badRequest, reason: "The photo couldn't be read.")
+        }
+        guard Self.looksLikeImage(bytes, mediaType: mediaType) else {
+            throw Abort(.unsupportedMediaType, reason: "Send the photo as JPEG, PNG or WebP.")
         }
         var upc = ""
         if let raw = input.upc?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty {

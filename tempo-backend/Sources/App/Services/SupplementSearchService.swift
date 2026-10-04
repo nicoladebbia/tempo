@@ -54,17 +54,22 @@ enum SupplementSearchService {
     }
 
     /// Tempo first, then DSLD and Open Food Facts interleaved (each already in relevance
-    /// order), deduped by normalized brand + name, at most 30.
+    /// order), deduped by normalized brand + name, at most 30. External sources are
+    /// authoritative: a Tempo entry that duplicates a DSLD/OFF hit is dropped, so a
+    /// user-made entry can never hide the real product.
     static func merge(
         tempo: [SupplementSearchHit], dsld: [SupplementSearchHit], off: [SupplementSearchHit]
     ) -> [SupplementSearchHit] {
+        let externalKeys = Set((dsld + off).map { SupplementText.dedupeKey(brand: $0.brand, name: $0.name) })
         var seen = Set<String>()
         var out: [SupplementSearchHit] = []
         func add(_ hit: SupplementSearchHit) {
             guard out.count < maxHits, seen.insert(SupplementText.dedupeKey(brand: hit.brand, name: hit.name)).inserted else { return }
             out.append(hit)
         }
-        tempo.prefix(maxCatalogHits).forEach(add)
+        tempo.prefix(maxCatalogHits)
+            .filter { !externalKeys.contains(SupplementText.dedupeKey(brand: $0.brand, name: $0.name)) }
+            .forEach(add)
         for index in 0 ..< max(dsld.count, off.count) {
             if index < dsld.count { add(dsld[index]) }
             if index < off.count { add(off[index]) }

@@ -145,7 +145,7 @@ struct AICacheKey: Sendable {
     /// slowly and every keystroke-debounced query would otherwise hit NIH.
     static func supplementSearch(query: String) -> AICacheKey {
         AICacheKey(
-            value: "supplement:search:v1:\(query.lowercased())",
+            value: "supplement:search:v2:\(query.lowercased())",
             storage: .redis,
             feature: "supplement_search",
             ttl: 24 * 3600

@@ -1,6 +1,7 @@
 import Fluent
 import Foundation
 import Redis
+import SQLKit
 import Vapor
 
 // MARK: - SupplementText (sanitizing + normalizing)
@@ -138,10 +139,10 @@ enum SupplementCatalogService {
     /// 50 submissions per user per 24 h (fixed window from the first one).
     static func enforceCap(userID: String, on req: Request) async throws {
         let key = RedisKey("supplement:catalog:cap:\(userID)")
+        // Atomic: the key is created WITH its TTL (SET NX EX) before the INCR, so a
+        // crash in between can never leave a counter that lives forever.
+        _ = try await req.redis.set(key, to: "0", onCondition: .keyDoesNotExist, expiration: .seconds(24 * 3600)).get()
         let count = try await req.redis.increment(key).get()
-        if count == 1 {
-            _ = try await req.redis.expire(key, after: .seconds(24 * 3600)).get()
-        }
         if count > dailyCap {
             throw Abort(.tooManyRequests, reason: "Easy. You've added a lot of supplements today. Try again tomorrow.")
         }
@@ -155,13 +156,19 @@ enum SupplementCatalogService {
         for attempt in 0 ..< 2 {
             if let existing = try await SupplementCatalogEntry.query(on: db).filter(\.$entryKey == s.entryKey).first() {
                 if existing.contributorID == userID {
+                    // Once other people confirmed it, the entry is frozen: the creator
+                    // can't rewrite what others vouched for.
+                    if existing.confirmationCount > 1 {
+                        return try await dto(existing, on: db)
+                    }
                     apply(s, to: existing)
                     existing.updatedAt = Date()
                     try await existing.save(on: db)
                 } else if SupplementText.dedupeKey(brand: existing.brand, name: existing.name)
                     == SupplementText.dedupeKey(brand: s.brand, name: s.name)
                 {
-                    try await confirm(existing, userID: userID, on: db)
+                    let refreshed = try await confirm(existing, userID: userID, on: db)
+                    return try await dto(refreshed, on: db)
                 }
                 // else: someone else's entry for this barcode with different data: leave it alone.
                 return try await dto(existing, on: db)
@@ -189,6 +196,7 @@ enum SupplementCatalogService {
     }
 
     private static func apply(_ s: SupplementCatalogSubmission, to entry: SupplementCatalogEntry) {
+        entry.entryKey = s.entryKey
         entry.upc = s.upc
         entry.brand = s.brand
         entry.name = s.name
@@ -202,8 +210,10 @@ enum SupplementCatalogService {
         entry.ingredients = s.ingredients
     }
 
-    /// Idempotent: one confirmation per user.
-    private static func confirm(_ entry: SupplementCatalogEntry, userID: String, on db: Database) async throws {
+    /// Idempotent: one confirmation per user. The stored count is recomputed from the
+    /// confirmations table in ONE UPDATE statement, so parallel confirms can't leave a
+    /// stale number behind.
+    private static func confirm(_ entry: SupplementCatalogEntry, userID: String, on db: Database) async throws -> SupplementCatalogEntry {
         let entryID = try entry.requireID()
         let already = try await SupplementCatalogConfirmation.query(on: db)
             .filter(\.$entryID == entryID).filter(\.$userID == userID).count()
@@ -214,11 +224,14 @@ enum SupplementCatalogService {
                 // Same user confirmed in parallel: the unique index made it a no-op.
             }
         }
-        let total = try await SupplementCatalogConfirmation.query(on: db).filter(\.$entryID == entryID).count()
-        if total != entry.confirmationCount {
-            entry.confirmationCount = max(1, total)
-            try await entry.save(on: db)
+        if let sql = db as? SQLDatabase {
+            try await sql.raw("""
+            UPDATE supplement_catalog_entries SET confirmation_count = GREATEST(1, \
+            (SELECT COUNT(*) FROM supplement_catalog_confirmations WHERE entry_id = \(bind: entryID))) \
+            WHERE id = \(bind: entryID)
+            """).run()
         }
+        return try await SupplementCatalogEntry.find(entryID, on: db) ?? entry
     }
 
     // MARK: Read

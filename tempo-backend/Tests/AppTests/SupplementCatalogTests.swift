@@ -1,6 +1,7 @@
 @testable import App
 import Fluent
 import Foundation
+import Redis
 import Testing
 import Vapor
 import XCTVapor
@@ -117,6 +118,56 @@ struct SupplementCatalogTests {
             #expect(dto.proteinGramsPerServing == 30)
             #expect(dto.communityConfirmations == 1)
             #expect(try await SupplementCatalogEntry.query(on: app.db).filter(\.$entryKey == "upc:\(upc)").count() == 1)
+        }
+    }
+
+    @Test func catalogEntryFreezesOnceOthersConfirmed() async throws {
+        try await withApp { app in
+            let owner = try await makeUser(app: app)
+            let other = try await makeUser(app: app)
+            let upc = freshUPC()
+            let name = "Frozen \(uniqueWord())"
+            _ = try await send(app, .POST, "v1/supplements/catalog", token: owner.token, json: catalogBody(upc: upc, name: name, protein: 25))
+            _ = try await send(app, .POST, "v1/supplements/catalog", token: other.token, json: catalogBody(upc: upc, name: name, protein: 25))
+            let (status, body) = try await send(app, .POST, "v1/supplements/catalog", token: owner.token,
+                                                json: catalogBody(upc: upc, name: "Totally different", protein: 1))
+            #expect(status == .ok)
+            let dto = try decode(body, as: SupplementLookupDTO.self)
+            #expect(dto.name == name)
+            #expect(dto.proteinGramsPerServing == 25)
+            #expect(dto.communityConfirmations == 2)
+        }
+    }
+
+    @Test func catalogParallelConfirmsEndWithTheTrueCount() async throws {
+        try await withApp { app in
+            let owner = try await makeUser(app: app)
+            let upc = freshUPC()
+            let name = "Race \(uniqueWord())"
+            _ = try await send(app, .POST, "v1/supplements/catalog", token: owner.token, json: catalogBody(upc: upc, name: name))
+            var tokens: [String] = []
+            for _ in 0 ..< 5 { tokens.append(try await makeUser(app: app).token) }
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                for token in tokens {
+                    group.addTask { _ = try await self.send(app, .POST, "v1/supplements/catalog", token: token, json: self.catalogBody(upc: upc, name: name)) }
+                }
+                try await group.waitForAll()
+            }
+            let entry = try #require(try await SupplementCatalogEntry.query(on: app.db).filter(\.$entryKey == "upc:\(upc)").first())
+            let rows = try await SupplementCatalogConfirmation.query(on: app.db).filter(\.$entryID == entry.requireID()).count()
+            #expect(rows == 6)
+            #expect(entry.confirmationCount == rows)
+        }
+    }
+
+    @Test func capCounterAlwaysHasATTL() async throws {
+        try await withApp { app in
+            let owner = try await makeUser(app: app)
+            _ = try await send(app, .POST, "v1/supplements/catalog", token: owner.token, json: catalogBody(upc: freshUPC(), name: "Ttl \(uniqueWord())"))
+            let reply = try await app.redis.send(
+                command: "TTL", with: [RESPValue(from: "supplement:catalog:cap:\(owner.id)")]
+            ).get()
+            #expect((reply.int ?? -1) > 0, "cap key must always carry a TTL")
         }
     }
 
@@ -259,7 +310,11 @@ struct SupplementCatalogTests {
         #expect(ID("dsld:123") == .dsld("123"))
         #expect(ID("off:5060000000019") == .openFacts("5060000000019"))
         #expect(ID("tempo:\(uuid.uuidString)") == .tempo(uuid))
-        for bad in ["", "abc", "1234567890", "dsld:", "dsld:12a", "off:123", "off:123456789012345", "tempo:nope", "other:123", "off:5060000000019x"] {
+        // Old apps strip "off:5060000000026" down to bare digits: 10-14 digits are Open Facts barcodes.
+        #expect(ID("5060000000026") == .openFacts("5060000000026"))
+        #expect(ID("1234567890") == .openFacts("1234567890"))
+        #expect(ID("123456789") == .dsld("123456789"))
+        for bad in ["", "abc", "123456789012345", "dsld:", "dsld:12a", "off:123", "off:123456789012345", "tempo:nope", "other:123", "off:5060000000019x"] {
             #expect(ID(bad) == nil, "\(bad) should be rejected")
         }
     }
@@ -310,7 +365,10 @@ struct SupplementCatalogTests {
         let dsld = [hit("dsld:1", "Acme", "WHEY!", "dsld"), hit("dsld:2", "B", "Two", "dsld"), hit("dsld:3", "B", "Three", "dsld")]
         let off = [hit("off:10000001", "C", "Alpha", "openfoodfacts"), hit("off:10000002", "C", "Beta", "openfoodfacts")]
         let merged = SupplementSearchService.merge(tempo: tempo, dsld: dsld, off: off)
-        #expect(merged.map(\.id) == ["tempo:1", "off:10000001", "dsld:2", "off:10000002", "dsld:3"]) // dsld:1 deduped against tempo:1
+        // The authoritative dsld:1 wins the dedupe; the user-made tempo:1 lookalike is dropped.
+        #expect(merged.map(\.id) == ["dsld:1", "off:10000001", "dsld:2", "off:10000002", "dsld:3"])
+        let kept = SupplementSearchService.merge(tempo: [hit("tempo:2", "Mine", "Unique", "tempo")], dsld: dsld, off: [])
+        #expect(kept.first?.id == "tempo:2", "a tempo hit with no external duplicate stays first")
 
         let many = (0 ..< 40).map { hit("dsld:\($0)", "B", "Item \($0)", "dsld") }
         #expect(SupplementSearchService.merge(tempo: [], dsld: many, off: []).count == 30)
@@ -386,6 +444,26 @@ struct SupplementCatalogTests {
         var s = #"{"image_base64":"\#(image)","media_type":"\#(media)""#
         if let upc { s += #","upc":"\#(upc)""# }
         return s + "}"
+    }
+
+    @Test func readLabelRejectsBytesThatAreNotTheDeclaredImage() async throws {
+        // "AAAA" decodes to 0x00 0x00 0x00: not an image of any kind.
+        let (junk, _) = try await readLabel("{}", body: readLabelBody(image: "AAAAAAAAAAAA"))
+        #expect(junk == .unsupportedMediaType)
+        // JPEG magic bytes under a PNG label.
+        let (mismatch, _) = try await readLabel("{}", body: readLabelBody(media: "image/png"))
+        #expect(mismatch == .unsupportedMediaType)
+        let jpeg = Data([0xFF, 0xD8, 0xFF, 0xE0, 0, 0x10, 0, 0, 0, 0, 0, 0])
+        let png = Data([0x89, 0x50, 0x4E, 0x47, 0, 0, 0, 0, 0, 0, 0, 0])
+        let webp = Data("RIFF".utf8) + Data([0, 0, 0, 0]) + Data("WEBP".utf8)
+        #expect(SupplementController.looksLikeImage(jpeg, mediaType: "image/jpeg"))
+        #expect(SupplementController.looksLikeImage(png, mediaType: "image/png"))
+        #expect(SupplementController.looksLikeImage(webp, mediaType: "image/webp"))
+        #expect(!SupplementController.looksLikeImage(webp, mediaType: "image/jpeg"))
+    }
+
+    @Test func searchCacheKeyIsV2() {
+        #expect(AICacheKey.supplementSearch(query: "Whey").value == "supplement:search:v2:whey")
     }
 
     private func readLabel(_ modelText: String, body: String? = nil) async throws -> (HTTPStatus, Data) {
