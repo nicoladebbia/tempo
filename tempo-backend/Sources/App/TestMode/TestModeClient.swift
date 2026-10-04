@@ -63,12 +63,20 @@ struct TestModeClient: Client {
         case "api.nal.usda.gov":
             return Self.json(TestFixtures.usdaSearch(query: Self.queryValue("query", in: request.url) ?? ""))
         case "world.openfoodfacts.org":
+            if path.hasPrefix("/cgi/search") {
+                return Self.json(TestFixtures.openFoodFactsSearch)
+            }
             return Self.json(TestFixtures.openFoodFactsProduct(path: path))
         case "world.openproductsfacts.org", "world.openbeautyfacts.org":
             // Supplement lookup also asks these siblings; the fixture world has no products there.
             return Self.json(#"{"status":0,"status_verbose":"product not found"}"#, status: .notFound)
         case "api.ods.od.nih.gov":
-            return Self.json(path.contains("/label/") ? TestFixtures.dsldLabel : TestFixtures.dsldSearch)
+            if path.contains("/label/") {
+                return Self.json(TestFixtures.dsldLabel)
+            }
+            // A barcode lookup quotes its phrase (%22); a name search doesn't.
+            let isBarcodePhrase = request.url.query?.contains("%22") == true
+            return Self.json(isBarcodePhrase ? TestFixtures.dsldSearch : TestFixtures.dsldNameSearch)
         case "api.openai.com":
             return Self.json(TestFixtures.openAIImage)
         case "api.prod.whoop.com":

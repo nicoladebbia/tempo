@@ -33,11 +33,17 @@ protocol SupplementLookupClient: Sendable {
     func search(query: String, on req: Request) async throws -> [SupplementSearchHit]
     /// Full DTO for a DSLD label id picked from `search`.
     func label(id: String, on req: Request) async throws -> SupplementLookupDTO?
+    /// Open Food Facts text search (supplement-like categories ranked first). Default: none.
+    func searchOpenFacts(query: String, on req: Request) async throws -> [SupplementSearchHit]
+    /// Full DTO for an Open Facts family product picked from `searchOpenFacts` (by barcode).
+    func openFactsLabel(barcode: String, on req: Request) async throws -> SupplementLookupDTO?
 }
 
 extension SupplementLookupClient {
     func search(query _: String, on _: Request) async throws -> [SupplementSearchHit] { [] }
     func label(id _: String, on _: Request) async throws -> SupplementLookupDTO? { nil }
+    func searchOpenFacts(query _: String, on _: Request) async throws -> [SupplementSearchHit] { [] }
+    func openFactsLabel(barcode _: String, on _: Request) async throws -> SupplementLookupDTO? { nil }
 }
 
 enum SupplementLookupError: Error {
@@ -54,15 +60,28 @@ enum SourceResult<T: Sendable>: Sendable {
 }
 
 struct SupplementSearchHit: Content, Equatable {
+    /// Source-prefixed: "dsld:123" | "off:<barcode>" | "tempo:<uuid>".
     let id: String
     let brand: String?
     let name: String
     let kind: String
     let netContents: String?
     let onMarket: Bool
+    /// "dsld" | "openfoodfacts" | "tempo".
+    let source: String?
+
+    init(id: String, brand: String?, name: String, kind: String, netContents: String?, onMarket: Bool, source: String? = nil) {
+        self.id = id
+        self.brand = brand
+        self.name = name
+        self.kind = kind
+        self.netContents = netContents
+        self.onMarket = onMarket
+        self.source = source
+    }
 
     enum CodingKeys: String, CodingKey {
-        case id, brand, name, kind
+        case id, brand, name, kind, source
         case netContents = "net_contents"
         case onMarket = "on_market"
     }
@@ -96,7 +115,7 @@ struct SupplementLookupAPIClient: SupplementLookupClient {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard q.count >= 2 else { return [] }
         let uri = URI(string: "https://api.ods.od.nih.gov/dsld/v9/search-filter?q=\(Self.percentEncode(q))&size=40")
-        let response = try await withTimeout(requestTimeoutSeconds) { try await req.client.get(uri) }
+        let response = try await withTimeout(Self.searchTimeoutSeconds) { try await req.client.get(uri) }
         guard response.status == .ok else { throw SupplementLookupError.upstreamUnavailable }
         let decoded = try response.content.decode(DSLDSearchResponse.self)
         return Self.mapSearchHits(decoded)
@@ -112,6 +131,35 @@ struct SupplementLookupAPIClient: SupplementLookupClient {
         return Self.merge(upc: upc, off: nil, dsld: label, offSource: "openfoodfacts")
     }
 
+    func searchOpenFacts(query: String, on req: Request) async throws -> [SupplementSearchHit] {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard q.count >= 2 else { return [] }
+        let uri = URI(string: "https://world.openfoodfacts.org/cgi/search.pl?search_terms=\(Self.percentEncode(q))&search_simple=1&action=process&json=1&page_size=15&fields=code,product_name,brands,quantity,categories_tags")
+        let headers: HTTPHeaders = [HTTPHeaders.Name.userAgent.description: "TempoApp/1.0 (support@tempo.app)"]
+        let response = try await withTimeout(Self.searchTimeoutSeconds) { try await req.client.get(uri, headers: headers) }
+        guard response.status == .ok else { throw SupplementLookupError.upstreamUnavailable }
+        let decoded = try response.content.decode(OFFSearchResponse.self, using: JSONDecoder())
+        return Self.mapOpenFactsHits(decoded)
+    }
+
+    func openFactsLabel(barcode: String, on req: Request) async throws -> SupplementLookupDTO? {
+        guard (8 ... 14).contains(barcode.count), barcode.allSatisfy(\.isNumber) else { return nil }
+        // Any 8-14 digit code Open Facts knows; fall back to it verbatim when it isn't a valid GTIN.
+        let norm = (try? SupplementUPC.normalize(barcode))
+            ?? NormalizedUPC(canonical: barcode, upcA: nil, ean13: nil)
+        let hit: OpenFactsHit?
+        do {
+            hit = try await withTimeout(requestTimeoutSeconds) { try await Self.fetchOpenFamily(norm, on: req) }
+        } catch {
+            throw SupplementLookupError.upstreamUnavailable
+        }
+        guard let hit else { return nil }
+        return Self.merge(upc: norm.canonical, off: hit.product, dsld: nil, offSource: hit.source)
+    }
+
+    /// Per-source cap for the merged search (each source runs in parallel).
+    static let searchTimeoutSeconds: Double = 4
+
     /// Runs `operation` with a timeout and folds throws into `.error`.
     private static func guarded<T: Sendable>(
         _ seconds: Double,
@@ -123,6 +171,38 @@ struct SupplementLookupAPIClient: SupplementLookupClient {
         } catch {
             return .error
         }
+    }
+
+    // MARK: - Open Food Facts text search
+
+    private static let supplementCategoryHints = [
+        "supplement", "protein", "vitamin", "creatine", "sports-nutrition", "amino-acid", "mineral",
+        "omega", "pre-workout", "electrolyte", "whey", "bcaa",
+    ]
+
+    /// Supplement-looking categories first (stable within each group); drops rows
+    /// with no product name or an unusable barcode.
+    static func mapOpenFactsHits(_ response: OFFSearchResponse) -> [SupplementSearchHit] {
+        var supplements: [SupplementSearchHit] = []
+        var others: [SupplementSearchHit] = []
+        for product in response.products {
+            guard let name = SupplementText.clean(product.productName),
+                  let code = product.code, (8 ... 14).contains(code.count), code.allSatisfy(\.isNumber)
+            else { continue }
+            let categories = product.categoriesTags.joined(separator: " ").lowercased()
+            let brand = SupplementText.clean(product.brands?.split(separator: ",").first.map(String.init))
+            let kind = SupplementKindGuesser.guess(name: name, categories: categories, dsldProductType: nil)
+            let hit = SupplementSearchHit(
+                id: "off:\(code)", brand: brand, name: name, kind: kind.rawValue,
+                netContents: SupplementText.clean(product.quantity), onMarket: true, source: "openfoodfacts"
+            )
+            if supplementCategoryHints.contains(where: { categories.contains($0) }) {
+                supplements.append(hit)
+            } else {
+                others.append(hit)
+            }
+        }
+        return supplements + others
     }
 
     // MARK: - DSLD by UPC
@@ -139,9 +219,10 @@ struct SupplementLookupAPIClient: SupplementLookupClient {
                 name: name, categories: nil, dsldProductType: src?.productType?.langualCodeDescription
             )
             hits.append(SupplementSearchHit(
-                id: hit.id, brand: src?.brandName, name: name, kind: kind.rawValue,
+                id: "dsld:\(hit.id)", brand: src?.brandName, name: name, kind: kind.rawValue,
                 netContents: src?.netContents?.first?.display,
-                onMarket: (src?.offMarket ?? 0) == 0
+                onMarket: (src?.offMarket ?? 0) == 0,
+                source: "dsld"
             ))
         }
         // Still-sold labels first, relevance order otherwise preserved.
@@ -393,6 +474,49 @@ enum SupplementCertificationScanner {
 }
 
 // MARK: - Open Food Facts wire DTOs
+
+/// `cgi/search.pl` reply. User-edited data: every field decoded leniently.
+struct OFFSearchResponse: Decodable {
+    let products: [Product]
+
+    struct Product: Decodable {
+        let code: String?
+        let productName: String?
+        let brands: String?
+        let quantity: String?
+        let categoriesTags: [String]
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            code = (try? c.decodeIfPresent(String.self, forKey: .code))
+                ?? c.flexDouble(.code).map { String(Int($0)) }
+            productName = try? c.decodeIfPresent(String.self, forKey: .productName)
+            brands = try? c.decodeIfPresent(String.self, forKey: .brands)
+            quantity = try? c.decodeIfPresent(String.self, forKey: .quantity)
+            categoriesTags = (try? c.decodeIfPresent([String].self, forKey: .categoriesTags)) ?? []
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case code, brands, quantity
+            case productName = "product_name"
+            case categoriesTags = "categories_tags"
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        // One malformed row must not sink the page.
+        let rows = (try? c.decodeIfPresent([LossyProduct].self, forKey: .products)) ?? []
+        products = rows.compactMap(\.value)
+    }
+
+    enum CodingKeys: String, CodingKey { case products }
+
+    private struct LossyProduct: Decodable {
+        let value: Product?
+        init(from decoder: Decoder) throws { value = try? Product(from: decoder) }
+    }
+}
 
 struct OFFResponse: Content {
     let status: Int

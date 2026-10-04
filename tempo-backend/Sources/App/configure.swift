@@ -17,6 +17,7 @@ func configure(
     _ app: Application,
     instacartClient: InstacartClient = InstacartAPIClient(),
     supplementLookupClient: SupplementLookupClient = SupplementLookupAPIClient(),
+    supplementLabelReader: SupplementLabelReading = ClaudeSupplementLabelReader(),
     brandCatalogRefresher: BrandCatalogRefreshing = NullBrandCatalogRefresher()
 ) async throws {
     // ─────────────────────────────────────────────────
@@ -193,6 +194,7 @@ func configure(
     app.migrations.add(CreateWeeklyPlanJobs())
     app.migrations.add(AddAPNsRoutingToDeviceTokens())
     app.migrations.add(CreateSharedGroceryLists())
+    app.migrations.add(CreateSupplementCatalog())
 
     // Arena module — per BUILD_PLAN step 14.1
     app.migrations.add(CreateXPEvents())
@@ -274,6 +276,7 @@ func configure(
         app,
         instacartClient: instacartClient,
         supplementLookupClient: supplementLookupClient,
+        supplementLabelReader: supplementLabelReader,
         brandCatalogRefresher: brandCatalogRefresher
     )
 
