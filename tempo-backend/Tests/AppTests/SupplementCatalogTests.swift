@@ -83,7 +83,7 @@ struct SupplementCatalogTests {
     }
 
     private func uniqueWord() -> String {
-        "zq" + UUID().uuidString.prefix(8).lowercased().filter(\.isLetter) + "x"
+        "zq" + String((0 ..< 12).map { _ in "abcdefghijklmnopqrstuvwxyz".randomElement()! }) + "x"
     }
 
     // MARK: POST /catalog
