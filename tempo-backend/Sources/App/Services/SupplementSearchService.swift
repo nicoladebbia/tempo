@@ -9,7 +9,7 @@ import Vapor
 //   1. Tempo shared catalog (always live, never cached: it changes constantly)
 //   2. NIH DSLD name search          } cached together for a day, but only when
 //   3. Open Food Facts text search   } BOTH answered, so a hiccup never sticks.
-// Returns nil only when every source errored (the route turns that into a 502).
+// Returns nil only when nothing answered (the route turns that into a 502).
 
 enum SupplementSearchService {
     static let maxHits = 30
@@ -46,9 +46,11 @@ enum SupplementSearchService {
             }
         }
 
-        let catalog = try? await catalogResult.get()
-        guard catalog != nil || anyExternalOK else { return nil }
-        return merge(tempo: catalog ?? [], dsld: external?.dsld ?? [], off: external?.off ?? [])
+        let catalog = (try? await catalogResult.get()) ?? []
+        // Nothing from our own catalog and both outside databases failed: that is "try
+        // again", not "no such supplement".
+        guard !catalog.isEmpty || anyExternalOK else { return nil }
+        return merge(tempo: catalog, dsld: external?.dsld ?? [], off: external?.off ?? [])
     }
 
     /// Tempo first, then DSLD and Open Food Facts interleaved (each already in relevance

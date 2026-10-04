@@ -260,7 +260,7 @@ struct DSLDRealLabelMappingTests {
         """
         let resp = try JSONDecoder().decode(DSLDSearchResponse.self, from: Data(json.utf8))
         let hits = SupplementLookupAPIClient.mapSearchHits(resp)
-        #expect(hits.map(\.id) == ["3", "1"])
+        #expect(hits.map(\.id) == ["dsld:3", "dsld:1"])
         #expect(hits[0].netContents == "90 Capsule(s)")
         #expect(hits[0].kind == "vitamin")
     }
